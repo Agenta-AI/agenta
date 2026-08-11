@@ -1,5 +1,9 @@
 import {sessionListQueryOptions, type SessionListFilters} from "@agenta/entities/session"
-import {sessionListIdGroupLimit, sessionListRequestFilters} from "@agenta/sessions/state"
+import {
+    sessionListIdGroupLimit,
+    sessionListRequestFilters,
+    type SessionListRequestPolicy,
+} from "@agenta/sessions/state"
 
 import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 
@@ -9,10 +13,13 @@ export const sidebarSessionFilters = ({
     projectId,
     sessionIds,
     excludeSessionIds,
+    policy = sessionListPolicies.sidebar,
 }: {
     projectId: string
     sessionIds?: string[]
     excludeSessionIds?: string[]
+    /** The pinned query overrides this to `sidebarPinned` (origin: "all") — see P2-8. */
+    policy?: SessionListRequestPolicy
 }): SessionListFilters => ({
     projectId,
     includeArchived: false,
@@ -20,7 +27,7 @@ export const sidebarSessionFilters = ({
     excludeSessionIds,
     limit: sessionListIdGroupLimit(sessionIds, SIDEBAR_SESSION_LIMIT),
     lowPriority: true,
-    ...sessionListRequestFilters(sessionListPolicies.sidebar),
+    ...sessionListRequestFilters(policy),
 })
 
 export const sidebarSessionOptions = (args: Parameters<typeof sidebarSessionFilters>[0]) =>

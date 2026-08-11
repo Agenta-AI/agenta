@@ -23,7 +23,24 @@ import {
     rowsFromPages,
     useActionableInteractions,
     useSessionList,
+    type SessionListOptions,
 } from "./useSessionList"
+
+/**
+ * A pin is an explicit user request and overrides the surface's origin filter — a pinned
+ * automation session must still show in human (exclude-trigger) mode (P2-8).
+ */
+export function pinnedSessionListArgs(
+    shared: SessionListOptions,
+    pinnedIds: string[],
+): SessionListOptions {
+    return {
+        ...shared,
+        originPolicy: "all",
+        sessionIds: pinnedIds,
+        enabled: pinnedIds.length > 0,
+    }
+}
 
 export interface SessionGroup {
     key: "pinned" | "recent"
@@ -97,11 +114,7 @@ export const useSessionsList = ({
         includeArchived,
         waitingSessionIds: waitingIds,
     }
-    const pinnedQuery = useSessionList({
-        ...shared,
-        sessionIds: pinnedIds,
-        enabled: pinnedIds.length > 0,
-    })
+    const pinnedQuery = useSessionList(pinnedSessionListArgs(shared, pinnedIds))
     const listQuery = useSessionList({
         ...shared,
         excludeSessionIds: pinnedIds,

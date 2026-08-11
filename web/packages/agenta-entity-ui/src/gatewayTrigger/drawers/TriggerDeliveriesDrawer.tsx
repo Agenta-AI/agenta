@@ -34,7 +34,7 @@ import {Skeleton} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
-import {DeliveryDetails, deliveryStatusColor} from "./DeliveryDetails"
+import {DeliveryDetails, deliveryStatusColor, isStuckDelivery} from "./DeliveryDetails"
 import {openLinkedDeliverySession} from "./linkedSessionAction"
 import {TriggerDeliveriesDrawerContent} from "./TriggerDeliveriesDrawerContent"
 
@@ -142,7 +142,14 @@ function OwnerDeliveryHistory({
                         if (record.__isSkeleton) return null
                         const type = record.status?.type ?? record.status?.code
                         const badge = (
-                            <Badge variant={deliveryStatusColor(type)}>{type ?? "unknown"}</Badge>
+                            <span className="flex flex-wrap items-center gap-1">
+                                <Badge variant={deliveryStatusColor(type)}>
+                                    {type ?? "unknown"}
+                                </Badge>
+                                {isStuckDelivery(record) ? (
+                                    <Badge variant="red">Stuck</Badge>
+                                ) : null}
+                            </span>
                         )
                         if (!record.status?.message) return badge
                         return (

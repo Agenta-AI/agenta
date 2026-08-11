@@ -18,6 +18,7 @@ describe("session list caller policies", () => {
             agentOverviewHuman: {origin: "exclude-trigger", expansions: []},
             agentOverviewAutomation: {origin: "trigger-only", expansions: ["trigger"]},
             sidebar: {origin: "exclude-trigger", expansions: []},
+            sidebarPinned: {origin: "all", expansions: []},
             internal: {origin: "all", expansions: []},
             agentActivity: {origin: "all", expansions: []},
         })

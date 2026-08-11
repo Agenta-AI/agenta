@@ -121,3 +121,33 @@ describe("querySessionsPage", () => {
         expect(result).toEqual([row])
     })
 })
+
+describe("querySessionsPage — per-row schema resilience (P2-9)", () => {
+    // A single malformed row (a required field of the wrong type — a drift the frontend's
+    // optional-field `.catch(undefined)` fallbacks don't cover) must not empty the whole page,
+    // and the drop must always be logged, including in production.
+    it("drops one invalid row, keeps the good ones, and logs the drop", async () => {
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+        const goodRowA = {...row, session_id: "session-a"}
+        const goodRowB = {...row, session_id: "session-b"}
+        const badRow = {...row, session_id: 12345} // session_id must be a string
+        fernQuerySessions.mockResolvedValue({count: 3, sessions: [goodRowA, badRow, goodRowB]})
+
+        const page = await querySessionsPage({projectId: "project-1"})
+
+        expect(page?.sessions.map((s) => s.session_id)).toEqual(["session-a", "session-b"])
+        expect(consoleError).toHaveBeenCalled()
+        consoleError.mockRestore()
+    })
+
+    it("returns null and logs when the envelope itself is malformed", async () => {
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+        fernQuerySessions.mockResolvedValue({sessions: [row]}) // missing required `count`
+
+        const page = await querySessionsPage({projectId: "project-1"})
+
+        expect(page).toBeNull()
+        expect(consoleError).toHaveBeenCalled()
+        consoleError.mockRestore()
+    })
+})

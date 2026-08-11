@@ -22,6 +22,28 @@ export function deliveryStatusColor(type?: string | null): "green" | "red" | "bl
     }
 }
 
+// A delivery row is claimed (status 102) right before its workflow invoke — if the process
+// dies between those two writes, the row stays "claimed" forever with no job watching it, and
+// the automation silently never ran (P1-9, at-most-once by design). Five minutes comfortably
+// clears normal invoke latency, so a claim still open past that is stuck, not just running.
+const STUCK_CLAIM_STATUS_CODE = "102"
+const STUCK_CLAIM_THRESHOLD_MS = 5 * 60 * 1000
+
+/** Is this delivery a claim that never progressed past "claimed"? `now` is injectable for tests. */
+export function isStuckDelivery(
+    delivery: Pick<TriggerDelivery, "status" | "updated_at" | "created_at">,
+    now: number = Date.now(),
+): boolean {
+    if (delivery.status?.code !== STUCK_CLAIM_STATUS_CODE) return false
+    // The shared `Status` DTO stamps `timestamp` at construction, so it marks the claim itself —
+    // more precise than the delivery row's own (optional) `updated_at`.
+    const lastUpdate = delivery.status?.timestamp ?? delivery.updated_at ?? delivery.created_at
+    if (!lastUpdate) return false
+    const parsed = Date.parse(lastUpdate)
+    if (Number.isNaN(parsed)) return false
+    return now - parsed > STUCK_CLAIM_THRESHOLD_MS
+}
+
 function DetailRow({label, children}: {label: string; children: ReactNode}) {
     return (
         <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-4 border-0 border-b border-solid border-colorBorderSecondary py-3 last:border-b-0">
@@ -74,6 +96,7 @@ export function DeliveryDetails({
 }) {
     const deliveryId = delivery.id ?? deliveryIdFallback ?? "-"
     const status = delivery.status?.type ?? delivery.status?.code ?? "unknown"
+    const stuck = isStuckDelivery(delivery)
     const sessionId = delivery.data?.session_id ?? null
     const applicationId = triggerApplicationArtifactId(delivery.data?.references)
 
@@ -94,6 +117,7 @@ export function DeliveryDetails({
                     >
                         {status}
                     </Badge>
+                    {stuck ? <Badge variant="red">Stuck</Badge> : null}
                     {delivery.status?.message ? (
                         <span className="text-colorTextSecondary">{delivery.status.message}</span>
                     ) : null}

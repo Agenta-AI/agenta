@@ -9,6 +9,8 @@ vi.mock("@agenta/sdk/resources", () => ({
     getLowPriorityMountsClient: vi.fn(),
 }))
 
+import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
+
 import {sidebarSessionFilters, sidebarSessionOptions} from "./sessionOptions"
 
 beforeEach(() => {
@@ -40,6 +42,29 @@ describe("sidebarSessionFilters", () => {
         expect(sidebarSessionFilters({projectId: "project-1", sessionIds: pinnedIds}).limit).toBe(
             100,
         )
+    })
+
+    // A pin is an explicit user request and overrides the sidebar's origin filter — a pinned
+    // automation session must still show (P2-8).
+    it("drops the exclude-trigger filter for the pinned request", () => {
+        const pinnedIds = ["pin-1", "pin-2"]
+        expect(
+            sidebarSessionFilters({
+                projectId: "project-1",
+                sessionIds: pinnedIds,
+                policy: sessionListPolicies.sidebarPinned,
+            }),
+        ).toEqual({
+            projectId: "project-1",
+            includeArchived: false,
+            sessionIds: pinnedIds,
+            excludeSessionIds: undefined,
+            limit: 20,
+            lowPriority: true,
+            origins: undefined,
+            excludeOrigins: undefined,
+            expand: [],
+        })
     })
 
     it("sends pinned exclusions in the canonical recent request", async () => {

@@ -4,6 +4,7 @@ import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
+import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {sidebarSessionOptions} from "./sessionOptions"
@@ -41,7 +42,13 @@ const sidebarSessionsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => 
 const sidebarPinnedSessionsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
     const projectId = get(projectIdAtom)
     const pinnedIds = get(pinnedSessionIdsAtom)
-    const options = sidebarSessionOptions({projectId: projectId ?? "", sessionIds: pinnedIds})
+    // A pin overrides the sidebar's origin filter — a pinned automation session must still show
+    // (P2-8).
+    const options = sidebarSessionOptions({
+        projectId: projectId ?? "",
+        sessionIds: pinnedIds,
+        policy: sessionListPolicies.sidebarPinned,
+    })
     return {
         queryKey: ["sidebar", "pinned", ...options.queryKey],
         queryFn: ({signal}) =>

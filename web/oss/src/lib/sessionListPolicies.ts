@@ -11,6 +11,9 @@ export const sessionListPolicies = {
     // `last_message`: this surface intentionally never requests message previews.
     agentOverviewAutomation: {origin: "trigger-only", expansions: ["trigger"]},
     sidebar: {origin: "exclude-trigger", expansions: []},
+    // A pin is an explicit user request and overrides the sidebar's origin filter — a pinned
+    // automation session must still show (P2-8).
+    sidebarPinned: {origin: "all", expansions: []},
     internal: {origin: "all", expansions: []},
     agentActivity: {origin: "all", expansions: []},
 } as const satisfies Record<string, SessionListRequestPolicy>

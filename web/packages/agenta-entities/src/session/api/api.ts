@@ -8,6 +8,8 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
+import {z} from "zod"
+
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
@@ -17,6 +19,7 @@ import {
     sessionRecordsQueryResponseSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
+    sessionStreamSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
     sessionStreamsResponseSchema,
@@ -302,6 +305,40 @@ export interface QuerySessionsParams {
     order?: "ascending" | "descending"
 }
 
+/** `sessionsQueryResponseSchema` with `sessions` loosened to `unknown[]` — the envelope
+ * (`count`/`total`/`windowing`) still validates as a whole, but each row is parsed
+ * individually below so one bad row can't fail the page (P2-9). */
+const sessionsQueryEnvelopeSchema = sessionsQueryResponseSchema.extend({
+    sessions: z.array(z.unknown()),
+})
+
+/**
+ * Validates a `/sessions/query` response per row instead of as one array: a single
+ * malformed row (a schema drift, a value the frontend enum doesn't know yet) is dropped and
+ * logged, not treated as a reason to empty the whole page. Logs unconditionally — including
+ * production — since a silently shrinking session list is worse than a noisy console.
+ */
+function parseSessionsQueryResponse(data: unknown, context: string): SessionsQueryResponse | null {
+    const envelope = sessionsQueryEnvelopeSchema.safeParse(data)
+    if (!envelope.success) {
+        console.error(`${context} Invalid response envelope:`, envelope.error.flatten())
+        return null
+    }
+    const sessions: SessionStream[] = []
+    envelope.data.sessions.forEach((row, index) => {
+        const parsed = sessionStreamSchema.safeParse(row)
+        if (parsed.success) {
+            sessions.push(parsed.data)
+        } else {
+            console.error(
+                `${context} Dropping invalid session row at index ${index}:`,
+                parsed.error.flatten(),
+            )
+        }
+    })
+    return {...envelope.data, sessions}
+}
+
 /**
  * The durable session list for the project: merged stream rows (id, `name` title, flags,
  * `created_at`, `deleted_at`=ended), filtered by the turns' workflow `references`. This is the
@@ -346,7 +383,7 @@ export async function querySessionsPage({
     )
     if (!data) return null
 
-    return safeParseWithLogging(sessionsQueryResponseSchema, data, "[querySessionsPage]") ?? null
+    return parseSessionsQueryResponse(data, "[querySessionsPage]")
 }
 
 /** Temporary list-only adapter for callers that have not migrated to the page envelope. */
