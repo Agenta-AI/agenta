@@ -11,7 +11,12 @@ vi.mock("@agenta/sdk/resources", () => ({
 
 import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 
-import {SIDEBAR_SESSION_LIMIT, sidebarSessionFilters, sidebarSessionOptions} from "./sessionOptions"
+import {
+    SIDEBAR_SESSION_LIMIT,
+    SIDEBAR_SESSION_VISIBLE_LIMIT,
+    sidebarSessionFilters,
+    sidebarSessionOptions,
+} from "./sessionOptions"
 
 beforeEach(() => {
     fernQuerySessions.mockReset()
@@ -69,6 +74,13 @@ describe("sidebarSessionFilters", () => {
             excludeOrigins: undefined,
             expand: ["trigger"],
         })
+    })
+
+    // The request window exists to survive the unstarted rows dropped before render, so it has to
+    // stay comfortably wider than what the group actually shows.
+    it("requests a window far wider than the rows the group renders", () => {
+        expect(SIDEBAR_SESSION_VISIBLE_LIMIT).toBe(14)
+        expect(SIDEBAR_SESSION_LIMIT).toBeGreaterThan(SIDEBAR_SESSION_VISIBLE_LIMIT * 2)
     })
 
     it("sends pinned exclusions in the canonical recent request", async () => {

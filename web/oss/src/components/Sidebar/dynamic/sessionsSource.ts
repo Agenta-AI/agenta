@@ -1,4 +1,5 @@
 import {type SessionStream} from "@agenta/entities/session"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {isStartedSession, pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -16,6 +17,8 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     appId: string | null
     pinned: boolean
     alive: boolean
+    /** Owning agent's display name, for the row's hover tooltip. Null until the artifact resolves. */
+    agentName: string | null
 }
 
 /** Deliberately small — the sidebar shows the top of the list, and the sessions page owns
@@ -61,7 +64,11 @@ const sidebarPinnedSessionsQueryAtom = atomWithQuery<SessionStream[] | null>((ge
 
 /** Null when the row has no open target yet (no turns) — the sidebar drops it rather than
  * rendering a link to `/apps/null`. */
-const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRef | null => {
+const toSidebarRef = (
+    row: SessionStream,
+    pinned: Set<string>,
+    agentName: string | null,
+): SessionSidebarRef | null => {
     const target = sessionOpenTarget(row)
     if (!target) return null
     return {
@@ -71,6 +78,7 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
         appId: target.appId,
         pinned: pinned.has(row.session_id),
         alive: Boolean(row.flags?.is_alive),
+        agentName,
     }
 }
 
@@ -82,6 +90,11 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
  */
 const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     const pinned = new Set(get(pinnedSessionIdsAtom))
+    // The owning agent's name for the row tooltip, read off the workflow ARTIFACT (a revision's
+    // own `name` is the variant's, never the entity's). Only the handful of apps these rows point
+    // at are resolved, and the group is gated, so a closed Sessions group asks for nothing.
+    const agentNameOf = (appId: string | null) =>
+        appId ? get(workflowMolecule.selectors.artifactName(appId)) : null
     const pinnedRows = get(sidebarPinnedSessionsQueryAtom).data ?? []
     // The server excludes pins before paging; this remains a defensive dedupe. Chats that were
     // opened but never used are dropped here (the shared list rule) so the group's few slots hold
@@ -91,10 +104,9 @@ const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     )
 
     const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
-    return [
-        ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
-        ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
-    ]
+    const toRef = (row: SessionStream) =>
+        toSidebarRef(row, pinned, agentNameOf(sessionOpenTarget(row)?.appId ?? null))
+    return [...pinnedRows.map(toRef).filter(isRef), ...recentRows.map(toRef).filter(isRef)]
 })
 
 export const sidebarSessionsListAtom = atom((get) => {
