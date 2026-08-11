@@ -114,6 +114,34 @@ const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
 )
 
 /**
+ * Ids the user deleted whose server row may still be listed — a tombstone set, per scope.
+ *
+ * `serverKnown` only flips on a successful reconcile, but the durable row exists from the first
+ * message onward, so a session deleted before the next poll used to delete locally ONLY and get
+ * re-adopted by the very next reconcile, fully titled (#5543). Firing the remote delete
+ * unconditionally closes that window, but not the two where the row outlives the request: the
+ * delete failed (offline/5xx), or a server list fetched before it landed still carries the row.
+ *
+ * So a delete records the id here, and the reconciler refuses to adopt a tombstoned id and re-fires
+ * its delete until the server stops listing it — at which point the tombstone is dropped. Pruning
+ * against the server list is what bounds this: an id the server never had (a purely local husk)
+ * clears on the first reconcile after the delete.
+ *
+ * That pruning only applies where a reconcile actually runs. `projectSessions`'s query is gated on
+ * `isQueryableScope` (a real app UUID), so the `__global__`, `drawer:<entityId>` and `onboarding`
+ * scopes never reconcile at all — which is also why `serverKnown` was never set there and the
+ * delete stayed local FOREVER rather than for one poll cycle (#5831). Nothing can re-adopt in those
+ * scopes either, so a tombstone has nothing to guard there; it is simply never pruned. Bounded by
+ * how many sessions a user deletes in that scope, so it is left as-is rather than special-cased.
+ */
+const deletedIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
+    "agenta:agent-chat:deleted-sessions",
+    {},
+    tabLocalStorage(),
+    STORAGE_OPTS,
+)
+
+/**
  * Which sessions are open as tabs, per scope, in tab order.
  *
  * Migration: before this atom is ever written for a scope, the open set defaults to the whole
@@ -335,7 +363,6 @@ export const adoptSessionAtomFamily = atomFamily((key: string) =>
 export const deleteSessionAtomFamily = atomFamily((key: string) =>
     atom(null, (get, set, id: string) => {
         const all = get(sessionsByAppAtom)
-        const target = (all[key] ?? []).find((s) => s.id === id)
         set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
 
         const open = currentOpenIds(get, key)
@@ -352,11 +379,26 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
 
         clearSessionEphemera(id)
 
-        // Propagate a user delete to the server so it disappears everywhere — but only for a
-        // server-known session (a purely-local husk has no row; the reconciler's own drop path
-        // does its own cleanup and never routes here, so this can't loop).
+        // Tombstone BEFORE the request: it is what keeps the reconciler from re-adopting the row
+        // if the delete fails or an in-flight server list still carries it, and it carries the
+        // retry (see `deletedIdsByAppAtom`).
+        const tombstones = get(deletedIdsByAppAtom)
+        const scoped = tombstones[key] ?? []
+        if (!scoped.includes(id)) {
+            set(deletedIdsByAppAtom, {...tombstones, [key]: [...scoped, id]})
+        }
+
+        // Propagate a user delete to the server so it disappears everywhere. Fired for ANY session,
+        // not just a `serverKnown` one: that flag lags the durable row by up to a poll cycle, and
+        // skipping the call in that window is exactly how a deleted session came back (#5543). A
+        // session the server never had just 404s, which `callFern` swallows. The reconciler's own
+        // drop path does its own cleanup and never routes here, so this can't loop.
+        //
+        // `.catch` rather than `void`: `callFern` RETHROWS aborts/timeouts, so a bare `void` on a
+        // fire-and-forget call is an unhandled rejection. Nothing to do on failure — the tombstone
+        // above carries the retry.
         const projectId = get(projectIdAtom)
-        if (projectId && target?.serverKnown) void deleteSessionRemote({sessionId: id, projectId})
+        if (projectId) deleteSessionRemote({sessionId: id, projectId}).catch(() => {})
     }),
 )
 
@@ -436,6 +478,29 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
         const existing = get(sessionsByAppAtom)[key] ?? []
         const existingIds = new Set(existing.map((s) => s.id))
 
+        // Settle tombstones first — before the `changed` early-return below, since the steady state
+        // for a delete whose request failed is "server list unchanged", which would otherwise skip
+        // the retry forever. An id the server still lists gets its delete re-fired; one it no longer
+        // lists has landed and is forgotten.
+        const tombstoned = new Set(get(deletedIdsByAppAtom)[key] ?? [])
+        if (tombstoned.size > 0) {
+            // `!existingIds.has(id)` is a safety catch, not bookkeeping: if the id is back in local
+            // history the user deliberately brought it back (a deep link re-adopts by id), and a
+            // stale tombstone would otherwise keep re-deleting the session under them.
+            const unsettled = [...tombstoned].filter(
+                (id) => serverById.has(id) && !existingIds.has(id),
+            )
+            if (unsettled.length !== tombstoned.size) {
+                set(deletedIdsByAppAtom, {...get(deletedIdsByAppAtom), [key]: unsettled})
+            }
+            const projectId = get(projectIdAtom)
+            if (projectId) {
+                for (const id of unsettled) {
+                    deleteSessionRemote({sessionId: id, projectId}).catch(() => {})
+                }
+            }
+        }
+
         const dropped: string[] = []
         const merged: AgentChatSession[] = []
         for (const s of existing) {
@@ -461,6 +526,8 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
         }
         for (const s of server) {
             if (existingIds.has(s.id)) continue
+            // Deleted here, still listed there — adopting it would undo the user's delete (#5543).
+            if (tombstoned.has(s.id)) continue
             merged.push({
                 id: s.id,
                 title: s.title,
