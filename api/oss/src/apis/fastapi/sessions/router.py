@@ -870,7 +870,9 @@ class InteractionsRouter:
             raise FORBIDDEN_EXCEPTION
 
         resolution = body.resolution
-        if resolution is not None:
+        # `resolved` is approval-only whether or not an answer rides along, so the row lookup
+        # runs for a bare `resolved` transition too.
+        if resolution is not None or body.status == SessionInteractionStatus.resolved:
             interactions = await self.interactions_service.query_interactions(
                 project_id=project_id,
                 query=SessionInteractionQuery(session_id=body.session_id),
@@ -896,7 +898,10 @@ class InteractionsRouter:
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Resolved status is not valid for {source.kind.value} interactions",
                 )
-            if source.kind == SessionInteractionKind.user_approval:
+            if (
+                resolution is not None
+                and source.kind == SessionInteractionKind.user_approval
+            ):
                 try:
                     SessionInteractionResolution.model_validate(resolution)
                 except ValidationError as e:

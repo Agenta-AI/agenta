@@ -87,4 +87,4 @@ class TestInteractionSweepRace:
         assert answered_after["status"] == "responded"
         assert answered_after["data"]["resolution"] == resolution
         assert pending_after["status"] == "cancelled"
-        assert pending_after.get("data", {}).get("resolution") is None
+        assert (pending_after.get("data") or {}).get("resolution") is None

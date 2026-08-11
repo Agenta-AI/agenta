@@ -24,7 +24,8 @@ resolution together. A purely in-band tool-output resume would correctly leave t
 until the sweep cancelled it; that would test abandonment, not answer recording.
 
 The cell also proves `resolved` remains approval-only by requiring HTTP 409 for both non-approval
-kinds. It deliberately does not assert rendering, replay, popup behaviour, or model discovery.
+kinds, in both transition shapes: with a resolution payload and with none at all. It deliberately
+does not assert rendering, replay, popup behaviour, or model discovery.
 
   uv run matrix_i1_settlement.py
 """
@@ -75,17 +76,21 @@ def fetch_row(interaction_id: str) -> dict:
 
 
 def answer(
-    *, session_id: str, token: str, status: str, resolution: dict
+    *, session_id: str, token: str, status: str, resolution: dict | None = None
 ) -> tuple[int, dict | None, str]:
+    payload = {
+        "session_id": session_id,
+        "token": token,
+        "status": status,
+    }
+    # A bare transition omits the key entirely: the approval-only guard must hold without
+    # an answer riding along, not only when one does.
+    if resolution is not None:
+        payload["resolution"] = resolution
     response = api_call(
         "POST",
         "/sessions/interactions/transition",
-        json={
-            "session_id": session_id,
-            "token": token,
-            "status": status,
-            "resolution": resolution,
-        },
+        json=payload,
     )
     interaction = None
     if response.status_code == 200:
@@ -222,15 +227,35 @@ def resolved_refusal(kind: str) -> dict:
         status="resolved",
         resolution=resolution,
     )
+
+    bare_session_id = str(uuid.uuid4())
+    bare_token = f"i1-resolved-refusal-bare-{kind}-{uuid.uuid4().hex[:8]}"
+    create_row(
+        session_id=bare_session_id,
+        turn_id="turn-1",
+        token=bare_token,
+        kind=kind,
+    )
+    bare_status, _, bare_detail = answer(
+        session_id=bare_session_id,
+        token=bare_token,
+        status="resolved",
+    )
+
+    ok = http_status == 409 and bare_status == 409
     return {
         "kind": kind,
-        "status": "PASS" if http_status == 409 else "FAIL",
+        "status": "PASS" if ok else "FAIL",
         "why": (
-            "the API refused non-approval `resolved` with HTTP 409"
-            if http_status == 409
-            else f"expected HTTP 409, got {http_status}: {detail}"
+            "the API refused non-approval `resolved` with HTTP 409, with and without a resolution"
+            if ok
+            else (
+                f"expected HTTP 409 on both probes, got with_resolution={http_status} "
+                f"({detail}), without_resolution={bare_status} ({bare_detail})"
+            )
         ),
         "http_status": http_status,
+        "bare_http_status": bare_status,
     }
 
 

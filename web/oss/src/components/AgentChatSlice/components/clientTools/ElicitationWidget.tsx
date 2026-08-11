@@ -132,7 +132,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
 
     // Accept stays disabled until every required question has an answer — a dominant, always-
     // enabled primary invites submitting unfinished forms. Defaults count, so a fully-prefilled
-    // form is born ready (one-click accept). Decline/Dismiss stay always-available.
+    // form is born ready (one-click accept). Decline/Dismiss stay available until a settle starts.
     const watchedValues = Form.useWatch([], form) as Record<string, unknown> | undefined
     const requiredNames = parsed.ok ? (parsed.payload.requestedSchema.required ?? []) : []
     const missingRequired = requiredNames.filter((name) => {
@@ -167,10 +167,17 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
             // storage unavailable — drafts are best-effort
         }
     }
+    // One settle per card: `meta.settled` only flips after an awaited record write, so without this
+    // latch a Decline landing on an in-flight Accept sends a second answer for the same tool call.
+    const settlingRef = useRef(false)
     const settleAndClear: typeof settle = (
         args: {output: Record<string, unknown>} | {errorText: string},
     ) => {
+        if (settlingRef.current) return
+        settlingRef.current = true
+        setSubmitting(true)
         clearDraft()
+        // Split by shape: `settle` is overloaded, so the union has to be narrowed to pick one.
         if ("errorText" in args) {
             settle(args)
         } else {
@@ -399,6 +406,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 )}
                 <Button
                     type="text"
+                    disabled={submitting}
                     onClick={() =>
                         settleAndClear({
                             output: toOutput(buildDeclineResult("Declined the request.")),
@@ -410,6 +418,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 <Button
                     type="text"
                     className="ml-auto opacity-60"
+                    disabled={submitting}
                     onClick={() =>
                         settleAndClear({
                             output: toOutput(buildCancelResult("Dismissed the request.")),

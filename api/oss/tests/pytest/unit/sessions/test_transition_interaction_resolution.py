@@ -302,3 +302,42 @@ async def test_transition_route_rejects_resolved_client_tool_with_409():
 
     assert caught.value.status_code == 409
     interactions_service.transition_interaction.assert_not_awaited()
+
+
+async def test_transition_route_rejects_resolved_client_tool_without_resolution_with_409():
+    project_id = uuid4()
+    user_id = uuid4()
+    interactions_service = AsyncMock()
+    interactions_service.query_interactions.return_value = [
+        SessionInteraction(
+            project_id=project_id,
+            session_id="session-1",
+            token="client-tool-token",
+            kind=SessionInteractionKind.client_tool,
+            status=SessionInteractionStatus.pending,
+        )
+    ]
+    router = InteractionsRouter(
+        interactions_service=interactions_service,
+        workflows_service=AsyncMock(),
+        respond_task=AsyncMock(),
+    )
+    body = SessionInteractionTransitionRequest(
+        session_id="session-1",
+        token="client-tool-token",
+        status=SessionInteractionStatus.resolved,
+    )
+
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        with pytest.raises(HTTPException) as caught:
+            await router.transition_interaction(
+                request=_make_authed_request(FastAPI(), project_id, user_id),
+                body=body,
+            )
+
+    assert caught.value.status_code == 409
+    interactions_service.transition_interaction.assert_not_awaited()

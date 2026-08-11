@@ -178,6 +178,9 @@ export const useAgentChatSession = ({
             void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
         },
         onError: (err) => {
+            // A failed stream never dispatches the pending resume, so drop the marker: leaving it
+            // set freezes records adoption for this mount and can resume a stale gate much later.
+            liveGateInteractionRef.current = null
             // Render the error in-chat (the `error` alert below); swallow it here so an
             // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).
             console.warn("[AgentChatPanel] useChat error (rendered in-chat):", err)
@@ -396,6 +399,9 @@ export const useAgentChatSession = ({
 
     const handleStop = useCallback(() => {
         markStopped()
+        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
+        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
+        liveGateInteractionRef.current = null
         stop() // abort the client stream immediately
         if (!projectId || !sessionId) return
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
