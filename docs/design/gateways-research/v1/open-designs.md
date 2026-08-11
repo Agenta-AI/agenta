@@ -30,19 +30,22 @@ User-owned secrets are not implemented, so this is deferred until they are. The 
 designed in `secrets.md` and the lookup already takes an owner (D10), so nothing is foreclosed
 by leaving it open.
 
-### OD6. Which existing relay pattern carries the OAuth callback
+### OD6. How an OAuth redirect reaches a firewalled deployment
 
-An OAuth flow needs a reachable redirect, and the modern registration mechanism needs a public
-HTTPS URL serving client metadata. A firewalled deployment has neither.
+An OAuth flow needs a redirect the user's browser can reach, and the modern registration
+mechanism needs a public HTTPS URL serving client metadata. A firewalled deployment has neither.
 
-**This is not a new problem and no relay needs inventing.** The codebase already solves the
-same shape three ways, listed in `scope-checklist.md`: a provider-side relay with a routing key
-so many developers share one registered webhook; a socket tunnel that delivers over a WebSocket
-in development while the registered URL stays a placeholder; and an optional ngrok container,
-gated on a token, present in the development compose files and absent from the production ones.
+**The three existing relay patterns do not solve it**, and `scope-checklist.md` records why: two
+are server-to-server event delivery, and one of those works only because the provider's own SDK
+offers a subscribe call. A browser redirect cannot travel down an outbound socket.
 
-**Hinges on** which shape fits. The socket pattern needs no inbound reachability at all, which
-is the constraint a firewalled deployment actually has.
+Only ngrok produces a reachable URL, and it is development-only by design — gated on a token and
+absent from the production compose files.
+
+**The real options:** a hosted relay that receives the redirect and holds the code while the
+deployment polls outward for it, which keeps the deployment outbound-only but reintroduces a
+cloud dependency; or documenting that OAuth-protected servers need a reachable deployment while
+static-credential servers work everywhere.
 
 ### OD11. What the token carries beyond the principal
 

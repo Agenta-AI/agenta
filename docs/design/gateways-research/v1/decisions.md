@@ -172,11 +172,17 @@ this.
 rotated without breaking their other integrations, and it would sit inside an agent-controlled
 sandbox.
 
-**The one extension needed** is a target. The payload carries who you are and nothing about
-what you may reach, so a token minted for one gateway target could today be presented to
-another. Whether the permitted set — which model, which tools, which caps — also rides the
-token is open: putting it there keeps verification to a signature check, at the cost of a
-permission change not taking effect until the next mint.
+**The extension is a target, and the permitted set.** The payload carries who you are and
+nothing about what you may reach, so a token minted for one gateway target could today be
+presented to another. The token gains both a target and the permitted set — which model, which
+tools, which caps — so authorisation stays a signature check with no database read on the hot
+path.
+
+The accepted cost: anything signed is frozen until expiry, so a permission change does not take
+effect until the next mint. The current fifteen-minute expiry bounds that window.
+
+Minting in a batch is an optimisation, not part of the decision. One at a time is fine until it
+is not.
 
 **The known failure mode.** Per-turn credential material must stay out of any session
 fingerprint that decides whether a warm session may be reused. The runner already excludes its

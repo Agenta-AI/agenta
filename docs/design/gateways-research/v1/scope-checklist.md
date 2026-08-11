@@ -9,110 +9,114 @@ Nothing here is decided.
 
 ---
 
-## Shared: the policy core
+## The floor — no choice here
 
-Both gateways use these. An item marked out for one is out for both.
+Without these there is no gateway, only an open proxy. They are not markable.
 
-| ? | Item | What it is |
+| Item | Why it is not a choice |
+|---|---|
+| Ingress surface | Something has to receive the call |
+| Token verification | Without it anyone reaches any target |
+| Target claim on the token | Without it a token minted for one target works on every other |
+| Secret resolution | The gateway has to find the upstream secret |
+| Secret injection | This is the containment property, and the point of the gateway |
+| Forward and return | Including streaming, since every harness streams |
+| Server registry (MCP) | Routing needs to know where a server is |
+
+**What already exists.** `sign_secret_token` produces an HS256 JWT carrying `user_id`,
+`user_email`, `project_id`, `workspace_id`, `organization_id`, `organization_name` and an
+expiry, currently **15 minutes**. It travels as `Secret <token>`, one of three accepted schemes
+beside `Bearer` and `ApiKey`, and the middleware verifies it by decode alone — no database read.
+The workflow invoke prelude already mints one per run, centralised so batch and detached cannot
+drift on auth.
+
+**Settled:** the token also carries the **permitted set** — which model, which tools, which
+caps — so authorisation stays a signature check with no database read. The cost is that a
+permission change does not take effect until the next mint, bounded by the token's expiry.
+
+Minting in a batch is an optimisation, not a scope item. Mint one at a time until it hurts.
+
+---
+
+## Shared choices
+
+| ? | Item | Suggestion |
 |---|---|---|
-| | Token minting | Batch-mint one short-lived token per target at run start |
-| | Token verification | Decode and check expiry; no database read |
-| | Principal | The organization, workspace, project and user the token carries |
-| | Permission check | Whether this principal may use this target at all |
-| | Entitlement check | Whether the plan allows it |
-| | Audit record | One row per call: principal, target, decision, outcome |
-| | Meter sink | Usage recorded against the principal |
-| | `secret_origin` stamp | Whether the call ran on the customer's secret or ours |
-
-**What already exists.** The token is not new. `sign_secret_token` produces an HS256 JWT
-carrying `user_id`, `user_email`, `project_id`, `workspace_id`, `organization_id`,
-`organization_name` and an expiry, currently **15 minutes**. It travels as `Secret <token>`,
-one of three accepted authorization schemes beside `Bearer` and `ApiKey`, and the middleware
-verifies it by decode alone — no database read, with expiry and decode failures both rejected.
-
-It is **already minted per run**: the workflow invoke prelude signs one for batch and detached
-invokes, deliberately centralised so the two paths cannot drift on auth.
-
-**The only extension needed** is a target. The payload carries who you are and nothing about
-what you may reach, so today a token minted for one gateway target could be presented to
-another. Whether the permitted set (which model, which tools, which caps) also goes in the
-token is the open part — putting it there keeps verification to a signature check, at the cost
-of a permission change not taking effect until the next mint.
+| | Permission check on the target | **In** — otherwise any authenticated user reaches any registered target |
+| | Entitlement check | **Out** — coarser plan gating already exists elsewhere |
+| | Audit record | **In** — cannot be backfilled |
+| | Usage recorded | **In** — cannot be backfilled |
+| | Usage charged | **Out** — the ledger is a separate effort |
+| | `secret_origin` stamp | **In** — one field, unreconstructable later |
 
 ---
 
-## LLM gateway
+## LLM gateway choices
 
-| ? | Item | What it is | Note |
-|---|---|---|---|
-| | Ingress surface | An OpenAI-compatible endpoint | Every harness and the routing library already speak it |
-| | Token verification | Shared, above | |
-| | Model allowlist | Reject a model the token does not permit | This is the control that actually bounds exposure |
-| | Parameter ceilings | Clamp `max_tokens` rather than reject | A harness that omits it still gets a bound |
-| | Secret resolution | Which provider secret, whose, and its origin | |
-| | Credential swap | Replace the caller's token with the real provider secret | The containment property |
-| | Provider routing | provider × deployment adapters | The routing library does this; do not write it |
-| | Streaming relay | Return upstream bytes untouched | |
-| | Usage extraction | Read token counts off the stream tail | Record real usage from day one even if pricing is simpler |
-| | Audit record | Shared, above | |
-| | Balance check | Refuse when credits are exhausted | Needs the parallel credits work |
-| | Retries and timeouts | Who pays for a failed call | |
-| | Prompt caching pass-through | Do not break the cache marker | Worth several times the cost |
-| | Fallbacks and aliasing | Try a second model on failure | Makes the gateway a product surface, not only an enforcement point |
-| | Embeddings route | A second modality | Deferred with the evaluator path |
-
-**Callers to convert:** agent v0, the runner, and the harnesses. Other services are out.
+| ? | Item | Suggestion |
+|---|---|---|
+| | Model allowlist | **In** — the control that actually bounds exposure, and it is a string compare |
+| | Parameter ceilings | **In** — one clamp, bounds a runaway call |
+| | Timeouts | **In** — a gateway without one is an outage |
+| | Retry policy | **Out** — the caller already retries |
+| | Body byte-for-byte | **In** — a constraint, not a feature; prompt caching then works for free |
+| | Fallbacks and aliasing | **Out** — makes the gateway a product surface with behaviour the caller cannot predict |
+| | Embeddings route | **Out** — deferred with the evaluator path |
 
 ---
 
-## MCP gateway
+## MCP gateway choices
 
-| ? | Item | What it is | Note |
-|---|---|---|---|
-| | Ingress surface | One URL per server, namespaced identifier | Pass-through, not a wrapper |
-| | Token verification | Shared, above | |
-| | Server registry | Register, list, remove a server; its route and auth mode | |
-| | Tool allowlist | Restrict which of a server's tools are offerable | The wire already carries a per-server allowlist |
-| | Secret resolution | Static token or OAuth grant, by owner | |
-| | OAuth client | Discovery, registration, PKCE, refresh | The official SDK does all of it |
-| | Consent flow | Connect a server from the dashboard | Extends the existing connect flow |
-| | Step-up scopes | Ask for more permission mid-run | An interaction, reusing the missing-connection path |
-| | Credential injection | Put the upstream secret in the outbound header | |
-| | Proxy | Relay list and call unchanged | Tool names untouched |
-| | List caching | Cache a server's tool list | Per server, since each URL is one server |
-| | Audit record | Shared, above | |
-| | Call metering | Count calls per principal | |
-| | Dead-secret behaviour | Tools stay listed; the call fails | Settled |
-| | Reachability for callbacks | Making the OAuth redirect reachable | See below |
-| | stdio servers | Servers that run as a subprocess | Unsettled whether we support them at all |
+| ? | Item | Suggestion |
+|---|---|---|
+| | Tool allowlist | **In** — the wire already carries it; enforcing it here is what makes it a boundary |
+| | OAuth client | **In**, and the single biggest item — the natural split point if one is needed |
+| | Consent flow | **In** if OAuth is in; it is required by it |
+| | Step-up scopes | **Out** for now — detect and fail visibly; add the interaction later |
+| | List caching | **Out** — an optimisation, and correctness first |
+| | stdio servers | **Out** — remote only; spawning processes is a large operational surface |
 
 ---
 
-## Reachability: three relay patterns already exist
+## Reachability: what exists, and why none of it carries an OAuth redirect
 
-The concern that a self-hosted deployment cannot receive an OAuth callback is not new, and the
-codebase already solves the same shape three different ways.
+Three patterns exist in the tree for "the provider needs to reach us and cannot". None of them
+solves the OAuth callback, and the reason is worth stating so nobody proposes them again.
 
-**A provider-side relay with a routing key.** Stripe config carries a `webhook_target` that
-falls back to `STRIPE_TARGET` and then to the machine's MAC address. Many developers share one
-registered webhook and each receives only their own events, routed by that key.
+**A provider-side relay keyed by a routing value.** Stripe config carries a `webhook_target`
+falling back to `STRIPE_TARGET` and then to the machine's MAC address, so many developers share
+one registered webhook and each receives only their own events.
 
-**A socket tunnel in development.** The Composio config notes that the provider requires public
-HTTPS, but that in development the tunnel delivers over a WebSocket instead — so the registered
-URL only has to be a valid public HTTPS placeholder to mint the subscription secret. The real
-delivery path is a socket the platform opens outward.
+**A socket subscription, development only.** `dispatcher_composio.py` describes itself as the
+`stripe listen` equivalent: because Composio has no CLI tunnel, it subscribes to trigger events
+over **Composio's own WebSocket** — `composio.triggers.subscribe()` — and forwards each one to
+the local ingress, HMAC-signed with the same secret the API verifies, so the real signature path
+is exercised rather than bypassed. It runs as a compose service under the `with-tunnel` profile,
+on by default and disabled with `--no-tunnel`, and idles when no API key is set. The registered
+webhook URL is a deliberate dummy on an RFC 2606 reserved host — it passes the provider's
+anti-forgery check and is never delivered to, existing only to mint the subscription secret.
 
-**An optional ngrok container, development only.** Both compose files define an `ngrok` service
-that tunnels the object store, gated on `NGROK_AUTHTOKEN`: with no token it logs that remote
-sandbox mounts are disabled and does nothing. The runner discovers the public URL from the
-ngrok agent API. It is absent from the GitHub and production compose files entirely.
+**An optional ngrok container, development only.** Both compose files define it, gated on
+`NGROK_AUTHTOKEN`; without a token it logs that remote sandbox mounts are disabled and does
+nothing. It is absent from the GitHub and production compose files.
 
-**What this means for OAuth callbacks.** The question is not whether a relay is possible — we
-already run them, and already keep them out of production compose so they cannot be used by
-accident. It is which of the three shapes fits: a socket the deployment opens outward (the
-Composio pattern) needs no inbound reachability at all and is the closest fit.
+### Why none of these carries an OAuth redirect
 
----
+The socket pattern is **not a relay we built**. It works because the provider's own SDK offers a
+subscribe call. An arbitrary authorization server offers nothing equivalent.
+
+More fundamentally, **an OAuth redirect is a browser navigation, not an event delivery.** The
+user's browser has to land on a URL. A browser redirect cannot travel down a socket the
+deployment opened outward. Something the browser can reach has to exist.
+
+The Stripe pattern is server-to-server routing, and has the same problem.
+
+So the honest position: **ngrok is the only one of the three that produces a URL a browser can
+reach, and it is development-only by design.** For a firewalled production deployment the real
+options are a hosted relay that receives the redirect and holds the code while the deployment
+polls outward for it — which works, but reintroduces a cloud dependency — or documenting that
+OAuth-protected servers need a reachable deployment while static-credential servers work
+everywhere.
 
 ## Deferred, with the reason
 
