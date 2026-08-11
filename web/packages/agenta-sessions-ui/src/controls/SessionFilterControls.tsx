@@ -125,7 +125,7 @@ export const SessionStatusListControl = ({waitingCount}: {waitingCount?: number}
                 >
                     <span className="min-w-0 flex-1 truncate">{option.label}</span>
                     {option.value === "waiting" && waitingCount ? (
-                        <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText">
+                        <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
                             {waitingCount}
                         </span>
                     ) : null}
@@ -169,7 +169,7 @@ export const SessionStatusChipsControl = ({
                 >
                     {option.label}
                     {option.value === "waiting" && waitingCount ? (
-                        <span className="rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText">
+                        <span className="rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
                             {waitingCount}
                         </span>
                     ) : null}

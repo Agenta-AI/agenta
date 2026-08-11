@@ -30,7 +30,7 @@ import {
     SettingsPageShell,
     useEntitlements,
 } from "@agenta/settings-ui"
-import {useThemeMode} from "@agenta/ui/theme"
+import {THEME_OPTIONS, useThemeMode} from "@agenta/ui/theme"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
@@ -60,12 +60,6 @@ import {
 } from "./states/OrganizationStates"
 import {useConfirmSheet} from "./useConfirmSheet"
 import {WebhooksTab} from "./WebhooksTab"
-
-const THEME_OPTIONS = [
-    {mode: "light", label: "Light"},
-    {mode: "dark", label: "Dark"},
-    {mode: "system", label: "System default"},
-]
 
 /**
  * One tab's body. Every page comes from @agenta/settings-ui. Tabs with a *Tab wrapper bring

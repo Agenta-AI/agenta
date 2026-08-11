@@ -59,10 +59,6 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     /** Per-row icon, overriding the shared kind icon — for rows whose state differs from each
      * other (a session's liveness dot, say), where one icon for the whole group says nothing. */
     getIcon?: (ref: TRef) => ReactNode
-    /** Group heading a row belongs under, or null for none. Consecutive rows sharing a label
-     * render beneath one disabled header. Refs must already be ordered by group; this inserts
-     * headings, it does not sort. */
-    getGroup?: (ref: TRef) => string | null
     /** Extra work on click, alongside following `childPath` — e.g. handing the target to the
      * surface being navigated to. Runs in the default jotai store, not a hook. */
     getOnClick?: (ref: TRef) => () => void
@@ -84,6 +80,5 @@ export interface SidebarEntity {
     maxItems: number
     showAllLink?: (projectURL: string) => string
     getIcon?: (ref: SidebarEntityRef) => ReactNode
-    getGroup?: (ref: SidebarEntityRef) => string | null
     getOnClick?: (ref: SidebarEntityRef) => () => void
 }

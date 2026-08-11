@@ -23,14 +23,18 @@ export const AgentCardGrid = ({
     count,
     onCreate,
     createLabel = "New agent",
-    createHint = "blank or from a template",
+    // What the cell actually does on every surface: creates an empty agent and opens it. Picking a
+    // template is the separate templates route, not this cell.
+    createHint = "start blank",
     emptyText = "No agents yet",
 }: AgentCardGridProps) => {
+    // The SAME grid the cards land in, at the card's own height — a column of thin bars described
+    // a list, so the page re-flowed from list to grid on the first painted card.
     if (isLoading && count === 0) {
         return (
-            <div className="flex flex-col gap-3 pt-5">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-4 gap-y-10 pt-5">
                 {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <SkeletonBlock key={i} active className="h-6 w-full" />
+                    <SkeletonBlock key={i} active className="h-[148px] w-full rounded-xl" />
                 ))}
             </div>
         )

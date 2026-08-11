@@ -56,7 +56,6 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
         ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,
     getIcon: config.getIcon ? (ref) => config.getIcon!(ref as TRef) : undefined,
-    getGroup: config.getGroup ? (ref) => config.getGroup!(ref as TRef) : undefined,
     getOnClick: config.getOnClick ? (ref) => config.getOnClick!(ref as TRef) : undefined,
 })
 
@@ -87,9 +86,6 @@ const ENTITIES: SidebarEntity[] = [
                 title: session.name ?? undefined,
             })
         },
-        // Both halves are named or neither is: a lone "Pinned" heading over an unlabelled
-        // remainder reads as a stray row. The resolver drops both when nothing is pinned.
-        getGroup: (session) => (session.pinned ? "Pinned" : "Recent"),
         getIcon: (session) =>
             session.pinned
                 ? createElement(PushPinIcon, {size: 14, weight: "fill"})

@@ -77,7 +77,7 @@ export const SessionListPanel = ({
                     <Link
                         href={viewAllHref}
                         onClick={handleWaitingClick}
-                        className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText"
+                        className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText"
                     >
                         {list.waitingTotal} waiting
                     </Link>

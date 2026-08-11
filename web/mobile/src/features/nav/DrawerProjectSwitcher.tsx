@@ -1,6 +1,11 @@
 import {useMemo, useState} from "react"
 
-import {ProjectOrgSwitcherView, type SwitcherEntry} from "@agenta/navigation-ui"
+import {
+    ProjectOrgSwitcherView,
+    type SwitcherEntry,
+    type SwitcherThemeControl,
+} from "@agenta/navigation-ui"
+import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
@@ -74,6 +79,23 @@ export const DrawerProjectSwitcher = ({
 
     const [panelContainer, setPanelContainer] = useState<HTMLElement | null>(null)
 
+    // The same fly-out the desktop rail carries, over the same three choices — Preferences offers
+    // them too, but the switcher is where you already are when you want to flip the lights.
+    const {themeMode, setMode} = useThemeMode()
+    const theme = useMemo<SwitcherThemeControl>(
+        () => ({
+            mode: themeMode,
+            onSelect: (mode) => setMode(mode as typeof themeMode),
+            options: THEME_OPTIONS.map(({mode, label, short}) => ({
+                mode,
+                label,
+                short,
+                icon: themeIcon(mode),
+            })),
+        }),
+        [themeMode, setMode],
+    )
+
     return (
         <div ref={setPanelContainer}>
             <ProjectOrgSwitcherView
@@ -84,6 +106,7 @@ export const DrawerProjectSwitcher = ({
                 projects={projects}
                 orgs={workspaces}
                 orgNoun="workspace"
+                theme={theme}
                 onLogout={() => void logout()}
             />
         </div>

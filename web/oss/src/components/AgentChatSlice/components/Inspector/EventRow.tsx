@@ -89,7 +89,7 @@ export function EventRow({
                     className={`shrink-0 text-colorTextQuaternary transition-transform ${open ? "rotate-90" : ""}`}
                 />
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{background: dotColor}} />
-                <span className="w-6 shrink-0 text-right font-mono text-[11px] text-colorTextQuaternary">
+                <span className="w-6 shrink-0 text-right font-mono text-xs text-colorTextQuaternary">
                     {event.index}
                 </span>
                 <span
@@ -99,16 +99,16 @@ export function EventRow({
                 </span>
                 <Tag
                     label={chipText}
-                    className="m-0 shrink-0 border-0 font-mono text-[10px] leading-[16px]"
+                    className="m-0 shrink-0 border-0 font-mono text-[12px] leading-[16px]"
                     style={{background: "var(--ag-colorFillTertiary)", color: dotColor}}
                 />
                 {durationLabel ? (
-                    <span className="shrink-0 font-mono text-[10px] text-colorTextQuaternary">
+                    <span className="shrink-0 font-mono text-[12px] text-colorTextQuaternary">
                         {durationLabel}
                     </span>
                 ) : null}
                 {timeLabel ? (
-                    <span className="w-12 shrink-0 text-right font-mono text-[10px] text-colorTextQuaternary">
+                    <span className="w-12 shrink-0 text-right font-mono text-[12px] text-colorTextQuaternary">
                         {timeLabel}
                     </span>
                 ) : null}
@@ -118,13 +118,13 @@ export function EventRow({
                     <div className="absolute right-2 top-1 z-[1]">
                         <CopyButton text={json} />
                     </div>
-                    <pre className="m-0 max-h-64 overflow-auto rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 font-mono text-[11px] leading-snug text-colorTextSecondary">
+                    <pre className="m-0 max-h-64 overflow-auto rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 font-mono text-xs leading-snug text-colorTextSecondary">
                         {json}
                     </pre>
                     {/* Approvals are actioned in the live chat dock (durable respond is deferred
                         backend-side); the inspector shows the request read-only. */}
                     {isInteraction ? (
-                        <div className="mt-1 text-[10px] text-colorTextQuaternary">
+                        <div className="mt-1 text-[12px] text-colorTextQuaternary">
                             Approvals are actioned in the chat.
                         </div>
                     ) : null}

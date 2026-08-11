@@ -49,7 +49,11 @@ export interface DataTableProps<T> {
     columns: DataTableColumn<T>[]
     rows: T[]
     rowKey: (record: T) => string
-    /** Per-row overflow menu, rendered as a trailing column. */
+    /**
+     * Per-row overflow menu, rendered as a trailing column. The column appears only when at
+     * least one row has a visible item, so a host that supplies no verbs gets no gutter and no
+     * kebab — callers can pass the full list and lean on `hidden`.
+     */
     actions?: (record: T) => (DataTableAction<T> | {type: "divider"})[]
     /** Shown instead of rows when there are none and nothing is loading. */
     empty?: ReactNode
@@ -95,6 +99,25 @@ export interface DataTableProps<T> {
 
 const CELL = "px-3 py-2 text-xs align-middle"
 
+type ActionItem<T> = DataTableAction<T> | {type: "divider"}
+
+/**
+ * The items a row will actually show: `hidden` ones are dropped, and a divider only survives
+ * with a real item on both sides. Returns an empty list when nothing is left — a read-only host
+ * hides every verb, and an empty menu is worse than no menu.
+ */
+const visibleActions = <T,>(items: ActionItem<T>[]): ActionItem<T>[] => {
+    const visible = items.filter((item) => "type" in item || !item.hidden)
+    // Hiding every action can leave a divider stranded at either end.
+    const trimmed = visible.filter(
+        (item, index) =>
+            !("type" in item) ||
+            (visible.slice(0, index).some((prior) => !("type" in prior)) &&
+                visible.slice(index + 1).some((next) => !("type" in next))),
+    )
+    return trimmed.some((item) => !("type" in item)) ? trimmed : []
+}
+
 /**
  * THE antd-free table for fully-materialized lists — settings, and anything else whose rows are
  * already in memory.
@@ -125,16 +148,15 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
     const showSkeleton = loading && rows.length === 0
     const showEmpty = !loading && rows.length === 0
-    // `RowActions` already renders nothing when every item is hidden, but the COLUMN was keyed on
-    // `actions` being defined — so a read-only host (one that passes the prop but no verb
-    // callbacks, which is every shared settings view on `/m`) got a dead 48px column with an
-    // empty header and empty cells in every row.
-    const actionsColumn =
-        actions &&
-        rows.some((record) => actions(record).some((item) => !("type" in item) && !item.hidden))
     const hasFilterRow = Boolean(search || filters)
     const hasActions = Boolean(onReload || primaryActions)
     const hasHeader = Boolean(title) || hasFilterRow || hasActions
+
+    // Resolved once per render, per row: `actions` is a function of the record, so a host can
+    // hide a verb per row. The trailing column exists only if SOME row has something to show —
+    // an all-hidden table should not pay for an empty gutter.
+    const rowActions = actions ? rows.map((record) => visibleActions(actions(record))) : undefined
+    const showActions = Boolean(rowActions?.some((items) => items.length > 0))
 
     const reloadButton = onReload ? (
         <SimpleTooltip title={reloadLabel}>
@@ -142,8 +164,6 @@ export function DataTable<T>({
                 variant="outline"
                 aria-label={reloadLabel}
                 disabled={reloading}
-                // Called with NO arguments: `onReload` is often a cache `mutate`, and handing it
-                // the click event writes that event into the cache as the new data.
                 onClick={() => onReload()}
             >
                 <ArrowClockwise size={14} />
@@ -243,7 +263,7 @@ export function DataTable<T>({
                                     {column.title}
                                 </th>
                             ))}
-                            {actionsColumn ? <th className={clsx(CELL, "w-12")} /> : null}
+                            {showActions ? <th className={clsx(CELL, "w-12")} /> : null}
                         </tr>
                     </thead>
                     <tbody>
@@ -258,34 +278,38 @@ export function DataTable<T>({
                                               <SkeletonBlock active className="h-4 w-3/4" />
                                           </td>
                                       ))}
-                                      {actionsColumn ? <td className={CELL} /> : null}
+                                      {showActions ? <td className={CELL} /> : null}
                                   </tr>
                               ))
-                            : rows.map((record) => {
+                            : rows.map((record, rowIndex) => {
                                   const detail = expandedContent?.(record)
+                                  const items = rowActions?.[rowIndex] ?? []
                                   return (
                                       <Fragment key={rowKey(record)}>
                                           <tr
                                               onClick={
                                                   onRowClick ? () => onRowClick(record) : undefined
                                               }
-                                              // A clickable row is a control: reachable by Tab and
-                                              // activated by Enter/Space like the button it stands
-                                              // in for. Without this the whole table is mouse-only.
+                                              // A clickable row is a control, so it takes focus and
+                                              // answers Enter/Space like one. Rows without
+                                              // `onRowClick` stay plain markup — they must not
+                                              // become focus stops.
                                               role={onRowClick ? "button" : undefined}
                                               tabIndex={onRowClick ? 0 : undefined}
                                               onKeyDown={
                                                   onRowClick
                                                       ? (event) => {
+                                                            // Only the row itself: controls inside
+                                                            // a cell handle their own keys, and
+                                                            // Space on a container that does not
+                                                            // preventDefault also scrolls the page.
+                                                            if (
+                                                                event.target !== event.currentTarget
+                                                            )
+                                                                return
                                                             if (
                                                                 event.key !== "Enter" &&
                                                                 event.key !== " "
-                                                            )
-                                                                return
-                                                            // Not a click that bubbled up from a
-                                                            // button inside the row.
-                                                            if (
-                                                                event.target !== event.currentTarget
                                                             )
                                                                 return
                                                             event.preventDefault()
@@ -296,7 +320,7 @@ export function DataTable<T>({
                                               className={clsx(
                                                   "border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary",
                                                   onRowClick &&
-                                                      "cursor-pointer focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring",
+                                                      "cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
                                                   // The detail row carries the boundary instead.
                                                   detail && "border-b-0",
                                               )}
@@ -317,15 +341,12 @@ export function DataTable<T>({
                                                       {column.render(record)}
                                                   </td>
                                               ))}
-                                              {actionsColumn ? (
+                                              {showActions ? (
                                                   <td
                                                       className={clsx(CELL, "text-right")}
                                                       onClick={(event) => event.stopPropagation()}
                                                   >
-                                                      <RowActions
-                                                          items={actions(record)}
-                                                          record={record}
-                                                      />
+                                                      <RowActions items={items} record={record} />
                                                   </td>
                                               ) : null}
                                           </tr>
@@ -333,7 +354,7 @@ export function DataTable<T>({
                                               <tr className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0">
                                                   <td
                                                       colSpan={
-                                                          columns.length + (actionsColumn ? 1 : 0)
+                                                          columns.length + (showActions ? 1 : 0)
                                                       }
                                                       className="px-3 pb-3 pt-0"
                                                   >
@@ -353,22 +374,9 @@ export function DataTable<T>({
     )
 }
 
-const RowActions = <T,>({
-    items,
-    record,
-}: {
-    items: (DataTableAction<T> | {type: "divider"})[]
-    record: T
-}) => {
-    const visible = items.filter((item) => "type" in item || !item.hidden)
-    // Hiding every action can leave a divider stranded at either end.
-    const trimmed = visible.filter(
-        (item, index) =>
-            !("type" in item) ||
-            (visible.slice(0, index).some((prior) => !("type" in prior)) &&
-                visible.slice(index + 1).some((next) => !("type" in next))),
-    )
-    if (!trimmed.some((item) => !("type" in item))) return null
+/** Already narrowed by `visibleActions` — one row of a table that has actions may still have none. */
+const RowActions = <T,>({items, record}: {items: ActionItem<T>[]; record: T}) => {
+    if (items.length === 0) return null
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -381,7 +389,7 @@ const RowActions = <T,>({
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[180px]">
-                {trimmed.map((item, index) =>
+                {items.map((item, index) =>
                     "type" in item ? (
                         <DropdownMenuSeparator key={`divider-${index}`} />
                     ) : (

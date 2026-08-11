@@ -7,7 +7,7 @@ import type {ReactNode, SVGProps} from "react"
  * mobile app's `/m` basePath, and inlining lets the mark carry the theme accent through a class
  * (`dark:` — both apps toggle `.dark` on `<html>`) instead of swapping two files per theme.
  *
- * Geometry matches the desktop rail exactly: a 48px row, an 85x20 wordmark, a 20x20 mark. The
+ * Geometry matches the desktop rail exactly: a 48px row, a 99x22 wordmark, a 20x20 mark. The
  * mark's own viewBox is 171x140, so at 20x20 it letterboxes exactly as the `<img>` did.
  */
 const MARK_CLASS = "fill-[#1E1C1D] dark:fill-[#F2F25C]"
@@ -39,15 +39,18 @@ const AgentaMark = (props: SVGProps<SVGSVGElement>) => (
 export const SidebarLogo = ({collapsed, toggle}: {collapsed: boolean; toggle?: ReactNode}) => (
     <div
         className={[
-            "flex h-[48px] shrink-0 items-center mb-1",
-            collapsed ? "justify-center" : toggle ? "justify-between pl-3 pr-2" : "px-3",
+            // mt/ml push the whole centred row away from the corner; padding alone read as
+            // no change because the 48px row's centring already held the logo 14px down.
+            "flex h-[48px] shrink-0 items-center mt-2 mb-1",
+            collapsed ? "justify-center" : toggle ? "justify-between ml-2 pl-3 pr-2" : "px-3",
         ].join(" ")}
     >
         {collapsed ? (
             (toggle ?? <AgentaMark width={20} height={20} />)
         ) : (
             <>
-                <AgentaWordmark width={85} height={20} />
+                {/* 99x22 keeps the SVG's intrinsic 361:80 ratio at the 22px brand height. */}
+                <AgentaWordmark width={99} height={22} />
                 {toggle}
             </>
         )}

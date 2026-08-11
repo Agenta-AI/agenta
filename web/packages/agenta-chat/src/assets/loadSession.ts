@@ -1,5 +1,5 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
-import {fetchSessionRecordsAtom} from "@agenta/entities/session"
+import {fetchCancelledClientToolTokensAtom, fetchSessionRecordsAtom} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
@@ -42,12 +42,18 @@ export const loadSessionMessages = async (
     // (the documented "request failed" contract) so the caller shows the history-unavailable
     // notice instead of leaking an unhandled rejection.
     try {
-        const {records, refreshed} = await getDefaultStore().set(fetchSessionRecordsAtom, sessionId)
+        const store = getDefaultStore()
+        // Best-effort join (never throws, see the atom's doc) — a resurrected cancelled part
+        // is cosmetic, so it must never gate whether the transcript loads at all.
+        const [{records, refreshed}, cancelledClientToolTokens] = await Promise.all([
+            store.set(fetchSessionRecordsAtom, sessionId),
+            store.set(fetchCancelledClientToolTokensAtom, sessionId),
+        ])
         if (refreshed && onRefreshed) {
             void refreshed
                 .then((fresh) => {
                     if (!fresh || fresh.length === 0) return
-                    const freshMsgs = transcriptToMessages(fresh)
+                    const freshMsgs = transcriptToMessages(fresh, {cancelledClientToolTokens})
                     if (freshMsgs && freshMsgs.length > 0) {
                         onRefreshed({messages: freshMsgs, recordCount: fresh.length})
                     }
@@ -60,7 +66,7 @@ export const loadSessionMessages = async (
                 })
         }
         if (!records || records.length === 0) return null
-        const messages = transcriptToMessages(records)
+        const messages = transcriptToMessages(records, {cancelledClientToolTokens})
         return messages ? {messages, recordCount: records.length} : null
     } catch (err) {
         console.warn("[loadSessionMessages] hydration fetch failed:", err)

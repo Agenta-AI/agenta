@@ -36,7 +36,10 @@ interface ConfigRow {
 
 /** An unset row says what to do about it — every row opens the editor anyway. */
 const emptyAction = (label: string) => ({summary: label, status: "default" as const})
-const stated = (summary: string) => ({summary, status: "complete" as const})
+// "default", not "complete": complete tints the icon green, and a read-only card full of
+// green checkmark-colored icons reads as noise. Grey is the resting state; only the
+// required-but-empty warning keeps a color.
+const stated = (summary: string) => ({summary, status: "default" as const})
 
 export interface AgentConfigSummaryCardProps {
     appId: string

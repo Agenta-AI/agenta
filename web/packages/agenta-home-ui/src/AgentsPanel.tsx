@@ -2,7 +2,7 @@ import {useMemo, type ReactNode} from "react"
 
 import {AgentCard, type AgentCardData} from "@agenta/entity-ui/agent"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
-import {ArrowRightIcon, PlusIcon} from "@phosphor-icons/react"
+import {ArrowRightIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {AgentActivity} from "./AgentActivity"
@@ -31,8 +31,6 @@ export interface AgentsPanelProps {
     loading?: boolean
     /** The full roster. */
     allAgentsHref: string
-    /** Creating an agent. Omit on surfaces that cannot create one yet. */
-    onNewAgent?: () => void
     /** Shown instead of the list when there are no agents. */
     empty?: ReactNode
     /** The rail is a shortlist — a big project would otherwise mount hundreds of cards, each
@@ -43,7 +41,7 @@ export interface AgentsPanelProps {
 const DEFAULT_LIMIT = 5
 
 /**
- * The agents roster as the rail shows it: a shortlist of cards, "New agent", "All agents".
+ * The agents roster as the rail shows it: a shortlist of cards under "All agents".
  * The same card the Agents page renders — the two differ in how much room they have, not in
  * what an agent IS.
  *
@@ -55,7 +53,6 @@ export const AgentsPanel = ({
     entries,
     loading = false,
     allAgentsHref,
-    onNewAgent,
     empty,
     limit = DEFAULT_LIMIT,
 }: AgentsPanelProps) => {
@@ -83,12 +80,6 @@ export const AgentsPanel = ({
             bodyClassName="flex flex-col gap-1 px-2 pb-3"
             extra={
                 <div className="flex shrink-0 items-center gap-3">
-                    {onNewAgent ? (
-                        <button type="button" onClick={onNewAgent} className={PANEL_ACTION_CLASS}>
-                            <PlusIcon size={14} />
-                            New agent
-                        </button>
-                    ) : null}
                     {/* An arrow means the action leaves the page. In-place reveals
                         ("View all 28", "Expand") deliberately don't carry one. */}
                     <Link href={allAgentsHref} className={PANEL_ACTION_CLASS}>

@@ -2,9 +2,11 @@ import {useCallback, useMemo} from "react"
 
 import {type SessionRowVm} from "@agenta/sessions/row"
 import {useSessionPins, useSessionsList} from "@agenta/sessions/state"
-import {SessionFiltersPanel, SessionsListView} from "@agenta/sessions-ui"
+import {SessionFiltersBar, SessionFiltersPanel, SessionsListView} from "@agenta/sessions-ui"
 import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
+import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
@@ -13,6 +15,7 @@ import {
     type SessionActionTarget,
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 
+import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
 import {agentsWorkflowsAtom} from "../agents/store"
 
 import {toSessionMenuEntries} from "./assets/menuEntries"
@@ -31,13 +34,16 @@ const targetFor = (vm: SessionRowVm): SessionActionTarget => ({
 })
 
 /**
- * The session list — the SHARED page body and filters panel (`@agenta/sessions-ui`, the same
+ * The session list — the SHARED page body and filters shell (`@agenta/sessions-ui`, the same
  * ones mobile renders), inside the desktop shell. This file owns only the app-side verbs:
  * open on a playground, and the sessions context menu.
+ *
+ * Two shells over the same filter atoms, picked by `BROWSE_RAIL_MODE`: the default toolbar sits
+ * above the results inside the page's own column (#5833), the opt-in rail puts them beside it.
  */
 const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
-    // Only the rail badge reads the list here; the shared view runs the same hook (same args →
-    // one query through the cache).
+    // Only the toolbar/rail badge reads the list here; the shared view runs the same hook (same
+    // args → one query through the cache).
     const list = useSessionsList({agentId: scopedAgentId})
     const {toggle: togglePin} = useSessionPins()
     const openSession = useOpenAgentSession()
@@ -77,6 +83,33 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
         },
         [sessionActions, togglePin, handleOpen],
     )
+
+    if (!BROWSE_RAIL_MODE)
+        return (
+            // The page's own title and gutters, so sessions shares one column width with the rest
+            // of the app; the filters are a toolbar above the results.
+            <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title={title}>
+                <div className="flex min-h-0 flex-1 flex-col">
+                    {/* No `title` here — `PageLayout` already carries it; the bar would repeat it.
+                        `!px-0` drops the bar's own gutters: inside the page column they would
+                        indent search 16px past the rows underneath it. */}
+                    <SessionFiltersBar
+                        className="!px-0"
+                        waitingCount={list.waitingCount}
+                        agents={agentOptions}
+                        hideAgentFilter={Boolean(scopedAgentId)}
+                    />
+
+                    <SessionsListView
+                        scopedAgentId={scopedAgentId}
+                        onOpenRow={handleOpen}
+                        menuFor={menuFor}
+                        onMenuSelect={onMenuSelect}
+                        className="min-h-0 flex-1 overflow-y-auto"
+                    />
+                </div>
+            </PageLayout>
+        )
 
     return (
         <PageLayout className="grow min-h-0 !p-0">

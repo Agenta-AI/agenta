@@ -1,29 +1,31 @@
 import {agentTemplateByKey} from "@agenta/entities/workflow"
 import {TemplateDetail as TemplateDetailView} from "@agenta/home-ui"
 import {PageLayout} from "@agenta/ui"
-import {useRouter} from "next/router"
 
 import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import useURL from "@/oss/hooks/useURL"
 
+import {useCreateAgentFromTemplate} from "../../hooks/useCreateAgentFromTemplate"
+
 /**
  * One template, in full — the SHARED detail view under this app's page chrome.
  *
- * What stays here is this app's: the page frame, its markdown renderer for AGENTS.md, and where
- * "Use this template" goes (the create route, which seeds the playground from the template key).
+ * What stays here is this app's: the page frame, its markdown renderer for AGENTS.md, and what
+ * "Use this template" does — it creates the agent and lands in its playground, rather than
+ * bouncing back through the create surface to press the same button again.
  */
 const TemplateDetail = ({templateKey}: {templateKey: string}) => {
-    const router = useRouter()
     const {baseAppURL} = useURL()
+    const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("template_detail")
+    const template = agentTemplateByKey(templateKey)
 
     return (
         <PageLayout className="grow min-h-0 !p-0">
             <TemplateDetailView
-                template={agentTemplateByKey(templateKey)}
+                template={template}
                 allTemplatesHref={`${baseAppURL}/agent-templates`}
-                onUseTemplate={(template) =>
-                    void router.push(`${baseAppURL}?new=1&template=${template.key}`)
-                }
+                busy={pendingKey === template?.key}
+                onUseTemplate={(pickedTemplate) => void createFromTemplate(pickedTemplate)}
                 renderMarkdown={(markdown) => (
                     <Markdown content={markdown} className="!text-[13px]" />
                 )}

@@ -54,7 +54,13 @@ export function FilterRailLayout({
     return (
         <div className={cn("flex min-h-0 w-full flex-1 flex-col lg:flex-row", className)}>
             <aside className={cn(RAIL_CLASS, railClassName)}>{rail}</aside>
-            <div className={cn("flex min-h-0 flex-1 flex-col", contentClassName)}>{children}</div>
+            {/* `min-w-0` is load-bearing beside the rail: a flex item defaults to
+                `min-width: auto`, so without it this column refuses to shrink below its widest
+                row and the page scrolls sideways — and no amount of `truncate` INSIDE a row can
+                help, because the ancestor is what grew. */}
+            <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", contentClassName)}>
+                {children}
+            </div>
         </div>
     )
 }

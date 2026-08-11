@@ -7,9 +7,11 @@
  * category lives in the URL, and what selecting a template DOES — the desktop opens a detail page,
  * a surface without one creates from it directly.
  *
- * The frame is the shared `FilterRailLayout`, so search and facets live in the RAIL and cannot
- * scroll away from the results — the pattern every browse page here follows. Below `lg` the rail
- * stacks above the grid and its categories become a horizontal chip row.
+ * Two frames, chosen by `layout`. The default `"toolbar"` is one surface: the host's page chrome
+ * names the page, and categories are a narrow column beside the search box and the grid, with no
+ * rail and no divider. `"rail"` is the browse-rail variant — the shared `FilterRailLayout`, where
+ * the title, search and facets live in the RAIL and cannot scroll away from the results, and below
+ * `lg` the rail stacks above the grid with its categories as a horizontal chip row.
  */
 import {useDeferredValue, useMemo, useState, type ReactNode} from "react"
 
@@ -31,13 +33,22 @@ export interface TemplateGalleryProps {
     onSelectTemplate: (template: AgentStarterTemplate) => void
     /**
      * Before the title — a surface with no page chrome of its own puts its nav entry here (mobile's
-     * drawer trigger), instead of a second bar that repeats this title.
+     * drawer trigger), instead of a second bar that repeats this title. `"rail"` only: the toolbar
+     * frame has no title row of its own to put it in, because the host's page header owns it.
      */
     leading?: ReactNode
+    /** `"rail"` only — the toolbar frame leaves the title and subtitle to the host's page header. */
     title?: string
     subtitle?: string
     searchPlaceholder?: string
     className?: string
+    /**
+     * The frame. `"toolbar"` (the default) renders no rail and no title block — the host's page
+     * chrome names the page — and puts the categories in a narrow column beside search and grid.
+     * `"rail"` is the `FilterRailLayout` variant, which names the page itself (`leading`, `title`,
+     * `subtitle`); mobile uses it unconditionally, having no page header of its own.
+     */
+    layout?: "toolbar" | "rail"
 }
 
 /** True when the template matches the search query across title, description and category. */
@@ -69,7 +80,7 @@ const TemplateSection = ({
                 <span className="text-xs font-bold uppercase tracking-[0.06em] text-colorTextSecondary">
                     {category}
                 </span>
-                <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                <span className="shrink-0 text-xs text-colorTextTertiary">
                     {templates.length} {templates.length === 1 ? "template" : "templates"}
                 </span>
             </div>
@@ -98,6 +109,7 @@ export const TemplateGallery = ({
     subtitle = "Start from a proven agent — review what it does, connect what it needs, and open the playground.",
     searchPlaceholder = "Search templates…",
     className,
+    layout = "toolbar",
 }: TemplateGalleryProps) => {
     const categories = useMemo(() => templateCategories(), [])
     const [query, setQuery] = useState("")
@@ -129,6 +141,92 @@ export const TemplateGallery = ({
 
     const resultCount = sections.reduce((sum, section) => sum + section.templates.length, 0)
     const hasQuery = deferredQuery.length > 0
+
+    /** The grid, or why it is empty. The same in both frames — only the empty card's top inset
+     * differs, since the rail frame has no search box above it to space against. */
+    const renderResults = (emptyInset = false) =>
+        resultCount === 0 ? (
+            <div
+                className={`flex flex-col items-center gap-3 rounded-lg border border-dashed border-colorBorder px-6 py-12 text-center${
+                    emptyInset ? " mt-6" : ""
+                }`}
+            >
+                <span className="text-xs text-colorTextSecondary">
+                    {hasQuery
+                        ? `No templates match "${query.trim()}".`
+                        : `No templates in ${category}.`}
+                </span>
+                <button
+                    type="button"
+                    onClick={() => {
+                        setQuery("")
+                        onCategoryChange(ALL_TEMPLATES_CATEGORY)
+                    }}
+                    className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-colorPrimary"
+                >
+                    {hasQuery ? "Clear search" : "Show all templates"}
+                </button>
+            </div>
+        ) : (
+            sections.map((section) => (
+                <TemplateSection
+                    key={section.category}
+                    category={section.category}
+                    templates={section.templates}
+                    onSelectTemplate={onSelectTemplate}
+                />
+            ))
+        )
+
+    if (layout === "toolbar") {
+        // Filters and grid share the page's own background — one surface, no rail, no divider —
+        // so the whole page reads as a single column of content.
+        return (
+            <div
+                className={`flex min-h-0 w-full flex-1 flex-col gap-6 lg:flex-row lg:gap-10${
+                    className ? ` ${className}` : ""
+                }`}
+            >
+                <nav className="flex shrink-0 flex-col gap-0.5 lg:w-[180px]">
+                    {railItems.map((item) => (
+                        <button
+                            key={item.value}
+                            type="button"
+                            aria-current={item.value === category}
+                            onClick={() => onCategoryChange(item.value)}
+                            className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-colorPrimary ${
+                                item.value === category
+                                    ? "bg-colorFillSecondary text-colorText"
+                                    : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
+                            }`}
+                        >
+                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                            <span className="shrink-0 text-xs text-colorTextTertiary">
+                                {item.count}
+                            </span>
+                        </button>
+                    ))}
+                </nav>
+
+                {/* One scroller: the sections wrapper below scrolls, so search stays pinned. */}
+                <div className="flex min-h-0 flex-1 flex-col gap-5">
+                    <SearchInput
+                        value={query}
+                        onValueChange={setQuery}
+                        placeholder={searchPlaceholder}
+                        className="w-full sm:w-[320px]"
+                    />
+                    {resultCount === 0 ? (
+                        renderResults()
+                    ) : (
+                        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2 pr-1">
+                            {renderResults()}
+                        </div>
+                    )}
+                </div>
+            </div>
+        )
+    }
 
     return (
         <FilterRailLayout
@@ -178,34 +276,7 @@ export const TemplateGallery = ({
                 </>
             }
         >
-            {resultCount === 0 ? (
-                <div className="mt-6 flex flex-col items-center gap-3 rounded-lg border border-dashed border-colorBorder px-6 py-12 text-center">
-                    <span className="text-xs text-colorTextSecondary">
-                        {hasQuery
-                            ? `No templates match "${query.trim()}".`
-                            : `No templates in ${category}.`}
-                    </span>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setQuery("")
-                            onCategoryChange(ALL_TEMPLATES_CATEGORY)
-                        }}
-                        className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-colorPrimary"
-                    >
-                        {hasQuery ? "Clear search" : "Show all templates"}
-                    </button>
-                </div>
-            ) : (
-                sections.map((section) => (
-                    <TemplateSection
-                        key={section.category}
-                        category={section.category}
-                        templates={section.templates}
-                        onSelectTemplate={onSelectTemplate}
-                    />
-                ))
-            )}
+            {renderResults(true)}
         </FilterRailLayout>
     )
 }

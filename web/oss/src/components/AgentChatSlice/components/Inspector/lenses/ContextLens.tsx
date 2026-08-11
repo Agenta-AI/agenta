@@ -77,13 +77,13 @@ const MessageCard = ({m}: {m: ContextMessage}) => (
         <Tag
             tone={ROLE_META[m.role].tone}
             label={m.role === "tool_call" ? `→ ${m.toolName || "tool"}` : m.role}
-            className="m-0 w-fit text-[10px]"
+            className="m-0 w-fit text-[12px]"
         />
         {m.role === "assistant" || m.role === "user" ? (
             <Markdown content={m.text} className="!text-xs" />
         ) : (
             // tool_call input / tool result — raw, mono, capped-height scroll (can be a whole file).
-            <pre className="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-colorTextSecondary">
+            <pre className="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
                 {m.text}
             </pre>
         )}
@@ -133,7 +133,7 @@ export function ContextLens({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-center gap-3 border-0 border-b border-solid border-colorSplit px-3 py-1.5 text-[11px] text-colorTextTertiary">
+            <div className="flex shrink-0 items-center gap-3 border-0 border-b border-solid border-colorSplit px-3 py-1.5 text-xs text-colorTextTertiary">
                 <span>{messages.length} messages</span>
                 <span>~{approxTokens(messages).toLocaleString()} tokens</span>
                 <div className="ml-auto">

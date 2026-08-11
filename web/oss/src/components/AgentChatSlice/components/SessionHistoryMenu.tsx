@@ -102,14 +102,14 @@ const SessionHistoryRow = ({
                 <span className="truncate text-xs text-colorText" title={label}>
                     {label}
                 </span>
-                <span className="flex items-center gap-1.5 text-[11px] text-colorTextSecondary">
+                <span className="flex items-center gap-1.5 text-xs text-colorTextSecondary">
                     {archived && (
-                        <span className="rounded bg-colorFillTertiary px-1 text-[10px] leading-4">
+                        <span className="rounded bg-colorFillTertiary px-1 text-[12px] leading-4">
                             Archived
                         </span>
                     )}
                     {session.ended && (
-                        <span className="rounded bg-colorFillTertiary px-1 text-[10px] leading-4">
+                        <span className="rounded bg-colorFillTertiary px-1 text-[12px] leading-4">
                             Ended
                         </span>
                     )}
@@ -240,7 +240,7 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
                     <button
                         type="button"
                         onClick={() => setShowArchived((v) => !v)}
-                        className="mt-1 flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-2 py-1.5 text-left text-[11px] text-colorTextTertiary transition-colors hover:bg-colorFillTertiary"
+                        className="mt-1 flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-2 py-1.5 text-left text-xs text-colorTextTertiary transition-colors hover:bg-colorFillTertiary"
                     >
                         <CaretRight
                             size={10}

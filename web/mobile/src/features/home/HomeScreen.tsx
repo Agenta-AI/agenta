@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {NextTriggersSection} from "@agenta/entity-ui/agent"
 import {AgentsPanel, HomeOverview, UsageCard, type AgentsPanelEntry} from "@agenta/home-ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -75,6 +76,12 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                     }
                 >
                     <HomeOverview
+                        // The frame every screen here applies: the shared column plus a phone's
+                        // own gutters below `lg`, widening to the page gutters above it — the
+                        // desktop app's `PageLayout` gives its copy of this page the same box.
+                        // No top inset below `lg`: this box is the scroller there, and a
+                        // padding-top on a scroller pushes its `sticky` section headers down.
+                        className={`${pageContentWidthClass} px-4 pb-6 lg:px-16 lg:pb-8 lg:pt-14`}
                         title="What do you want to do?"
                         action={
                             <NewAgentAction
@@ -99,7 +106,6 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                                 entries={agentEntries}
                                 loading={agentsQuery.isPending}
                                 allAgentsHref={`${base}/agents`}
-                                onNewAgent={() => void newAgent.create()}
                                 empty={
                                     <HomeSectionEmpty text="Agents you create will show up here." />
                                 }

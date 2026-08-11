@@ -49,13 +49,18 @@ describe("clientTools registry", () => {
         expect(resolved).toBe(byKind)
     })
 
-    it("falls back to toolName when renderKind is absent or unregistered", () => {
+    it("falls back to toolName when renderKind is absent", () => {
         const w = widget("fallback")
         registerChatSkin({clientTools: {byToolName: {rt_fallback_tool: w}}})
-        expect(
-            resolveClientToolWidget({toolName: "rt_fallback_tool", renderKind: "rt_unregistered"}),
-        ).toBe(w)
         expect(resolveClientToolWidget({toolName: "rt_fallback_tool"})).toBe(w)
+    })
+
+    it("does not reinterpret an explicit unknown render kind by tool name", () => {
+        const w = widget("fallback")
+        registerChatSkin({clientTools: {byToolName: {rt_explicit_tool: w}}})
+        expect(
+            resolveClientToolWidget({toolName: "rt_explicit_tool", renderKind: "rt_unregistered"}),
+        ).toBeUndefined()
     })
 
     it("resolves to undefined for a completely unregistered tool", () => {

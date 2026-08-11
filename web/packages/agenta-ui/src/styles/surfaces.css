@@ -132,3 +132,52 @@
     width: 0;
     height: 0;
 }
+
+/* ── Overlay motion ────────────────────────────────────────────────────────────────────────────
+   Enter/exit for portalled Radix surfaces (popover, and anything else that opts in). Radix keeps
+   a closing element mounted until its animation ends, so this has to be a real, FINITE CSS
+   animation: a `transition` is never observed, and a scroll-driven animation never ends at all —
+   which is the bug the dropdown's `animate-none` exists to dodge (globals.css applies
+   `ag-thumb-fade` on an unbounded scroll timeline to every `.overflow-y-auto`). That rule is
+   wrapped in `:where()`, so it carries no specificity and these class selectors outrank it.
+
+   Deliberately quick: an overlay you summoned should already be there, not on its way. */
+@keyframes ag-overlay-in {
+    from {
+        opacity: 0;
+        transform: scaleY(0.8);
+    }
+}
+
+@keyframes ag-overlay-out {
+    to {
+        opacity: 0;
+        transform: scaleY(0.8);
+    }
+}
+
+.ag-overlay-motion {
+    /* Radix publishes the origin matching the resolved side/align, so this is the edge the panel
+       is anchored to — the trigger's. Scaling Y from there makes the panel UNFOLD out of the
+       trigger (upward for `side="top"`, downward for `side="bottom"`) instead of inflating in
+       place. Same shape as antd's `slide-up`/`slide-down`, which every antd overlay here uses. */
+    transform-origin: var(--radix-popper-transform-origin, center);
+}
+
+.ag-overlay-motion[data-state="open"] {
+    /* antd's easeOutQuint over motionDurationMid — the ladder the neighbouring overlays move on. */
+    animation: ag-overlay-in 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.ag-overlay-motion[data-state="closed"] {
+    animation: ag-overlay-out 120ms cubic-bezier(0.755, 0.05, 0.855, 0.06);
+}
+
+/* Not `animation: none` — Radix would still wait for an `animationend` that never comes on the
+   closing frame. Collapse the duration instead, so the unmount stays immediate and correct. */
+@media (prefers-reduced-motion: reduce) {
+    .ag-overlay-motion[data-state="open"],
+    .ag-overlay-motion[data-state="closed"] {
+        animation-duration: 1ms;
+    }
+}

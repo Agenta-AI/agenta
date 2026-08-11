@@ -2,10 +2,12 @@ import {useState} from "react"
 
 import {ALL_TEMPLATES_CATEGORY} from "@agenta/entities/workflow"
 import {TemplateGallery} from "@agenta/home-ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {BROWSE_LAYOUT, BROWSE_RAIL_MODE} from "@/lib/browseLayout"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -16,9 +18,9 @@ import {useNewAgentAction} from "./useNewAgentAction"
 /**
  * The full template catalogue — where the New agent menu's "Browse all templates" lands.
  *
- * The SHARED gallery does the browsing (rail, search, sections, cards) AND names the page, so this
- * screen adds no header of its own: a second bar would just repeat the title. The drawer trigger
- * rides in the gallery's `leading` slot.
+ * The SHARED gallery does the browsing (search, categories, sections, cards). In the toolbar
+ * layout it leaves identity to its host, so this screen carries the title and the drawer trigger;
+ * in the rail layout the gallery names the page itself and takes the trigger in `leading`.
  *
  * `ScreenScaffold fill` is the shape — the scaffold owns the viewport height and the insets, the
  * gallery owns the scrolling inside it. Hand-rolling that column here would fork the screen shape.
@@ -45,21 +47,44 @@ export const AgentTemplatesScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill
-                    // Only while something is happening — nothing renders at rest.
+                    // The identity row the toolbar layout leaves to its host (the rail carries its
+                    // own), plus the creating strip — which only appears while something happens.
                     header={
-                        newAgent.creating || newAgent.error ? (
-                            <div className="border-border shrink-0 border-b px-4 py-2 text-xs">
-                                {newAgent.error ? (
-                                    <span className="text-destructive">{newAgent.error}</span>
-                                ) : (
-                                    <span className="text-muted-foreground">Creating agent…</span>
-                                )}
-                            </div>
-                        ) : undefined
+                        <>
+                            {BROWSE_RAIL_MODE ? null : (
+                                <div
+                                    className={`${pageContentWidthClass} flex shrink-0 items-center gap-2 px-4 pb-3 pt-2 lg:px-16 lg:pt-14`}
+                                >
+                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                    <h1 className="m-0 text-[24px] font-semibold leading-[1.3333333333333333]">
+                                        Templates
+                                    </h1>
+                                </div>
+                            )}
+                            {newAgent.creating || newAgent.error ? (
+                                <div className="border-border shrink-0 border-b px-4 py-2 text-xs">
+                                    {newAgent.error ? (
+                                        <span className="text-destructive">{newAgent.error}</span>
+                                    ) : (
+                                        <span className="text-muted-foreground">
+                                            Creating agent…
+                                        </span>
+                                    )}
+                                </div>
+                            ) : null}
+                        </>
                     }
                 >
                     <TemplateGallery
-                        leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
+                        // Toolbar by default (#5846): a rail here would be a second sidebar beside
+                        // the nav one, so identity moves to this screen's header above. With the
+                        // flag on, the rail returns and carries its own title and drawer trigger.
+                        layout={BROWSE_LAYOUT}
+                        leading={
+                            BROWSE_RAIL_MODE ? (
+                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                            ) : undefined
+                        }
                         category={category}
                         onCategoryChange={setCategory}
                         // A card OPENS the template, as on the desktop: the detail page is where you

@@ -9,7 +9,7 @@ import {
     type SessionStreamNest,
 } from "@agenta/entities/session"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -95,4 +95,91 @@ export const sessionDotStatusAtomFamily = atomFamily((sessionId: string) =>
         if (nest.isAlive) return "alive"
         return "idle"
     }),
+)
+
+/**
+ * When each session's LOCAL run last settled (ms epoch), stamped when an active run becomes idle
+ * or errors. Read by the running-elsewhere derivation: backend liveness is a poll snapshot
+ * up to 15s stale, so a flag fetched BEFORE our own turn ended says nothing about whether anyone
+ * else is running it (#5844). In-memory only — it describes this browser tab, not history.
+ *
+ * PLACEMENT NOTE: conceptually this belongs in `@agenta/chat/state` next to `setSessionStatusAtom`,
+ * which already owns the run-state record and observes exactly the transition that stamps this.
+ * It lives here because the package is outside this change's scope; see `noteSessionLocalStatusAtom`
+ * for the app-side transition mirror that stands in for the package-side stamp.
+ */
+const sessionLocalSettledAtByIdAtom = atom<Record<string, number>>({})
+
+/** Last local run-state we saw per session — the `wasActive` half of the transition rule below. */
+const lastLocalStatusByIdAtom = atom<Record<string, SessionRunStatus>>({})
+
+/** When this browser's run of a session last settled; `undefined` if it never ran one here. */
+export const sessionLocalSettledAtAtomFamily = atomFamily((id: string) =>
+    selectAtom(sessionLocalSettledAtByIdAtom, (map) => map[id]),
+)
+
+/**
+ * Mirror of a session's local run-state transition, stamping the settle time on the
+ * active → settled edge only:
+ *  - `idle → idle` is a no-op, so an unvisited session never looks like one that just finished;
+ *  - `running`/`awaiting` → `idle` or `error` stamps (an error IS a settle);
+ *  - `error → idle` (the cleanup write on unmount) does NOT restamp — the run already settled.
+ * Driven from `useSessionHydration`, which observes `sessionStatusAtomFamily` for its own session.
+ */
+export const noteSessionLocalStatusAtom = atom(
+    null,
+    (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
+        const prev = get(lastLocalStatusByIdAtom)[id] ?? "idle"
+        if (prev === status) return
+        const wasActive = prev === "running" || prev === "awaiting"
+        if (wasActive && (status === "idle" || status === "error")) {
+            set(sessionLocalSettledAtByIdAtom, {
+                ...get(sessionLocalSettledAtByIdAtom),
+                [id]: Date.now(),
+            })
+        }
+        set(lastLocalStatusByIdAtom, {...get(lastLocalStatusByIdAtom), [id]: status})
+    },
+)
+
+/**
+ * "Is someone ELSE running this session?" — the decision behind the running-elsewhere strip and
+ * the transcript catch-up poll, as a pure function so it can be pinned by tests.
+ *
+ * `isRunning` is a project-wide poll snapshot (10s stale-time, 15s interval); the local run-state
+ * is instant. Two guards close that gap (#5844):
+ *  - an active local state means THIS browser owns the session, so a locally busy or
+ *    approval-parked session never reads as remote (an error is settled, not active);
+ *  - once a local turn has settled, the flag is only trusted again after liveness has been re-read
+ *    (`livenessUpdatedAt` past the settle). Without this, every answer flipped `busy` false against
+ *    a cached `is_running: true` and the strip appeared in the very tab that just ran the turn.
+ */
+export const isRunningElsewhere = ({
+    localStatus,
+    isRunning,
+    localSettledAt,
+    livenessUpdatedAt,
+}: {
+    localStatus: SessionRunStatus
+    isRunning: boolean
+    /** When this browser's own run of the session last settled; absent if it never ran one. */
+    localSettledAt: number | undefined
+    /** `dataUpdatedAt` of the liveness query the `isRunning` flag came from. */
+    livenessUpdatedAt: number
+}): boolean => {
+    if (localStatus === "running" || localStatus === "awaiting") return false
+    if (!isRunning) return false
+    return localSettledAt === undefined || livenessUpdatedAt > localSettledAt
+}
+
+/** `isRunningElsewhere` bound to this session's local status and the shared liveness query. */
+export const sessionRunningElsewhereAtomFamily = atomFamily((sessionId: string) =>
+    atom((get): boolean =>
+        isRunningElsewhere({
+            localStatus: get(sessionStatusAtomFamily(sessionId)),
+            isRunning: get(sessionLivenessAtomFamily(sessionId)).nest.isRunning,
+            localSettledAt: get(sessionLocalSettledAtAtomFamily(sessionId)),
+            livenessUpdatedAt: get(aliveStreamsQueryAtom).dataUpdatedAt,
+        }),
+    ),
 )

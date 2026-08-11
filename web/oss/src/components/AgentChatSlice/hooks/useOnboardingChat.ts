@@ -3,7 +3,6 @@ import {type RefObject, useCallback, useEffect, useMemo, useRef, useState} from 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
-import {message as appMessage} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {type UIMessage} from "ai"
 import {useAtomValue} from "jotai"
@@ -17,7 +16,6 @@ import {
     classifyAgentIntent,
 } from "@/oss/components/pages/agent-home/assets/onboardingAnalytics"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
-import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
@@ -74,7 +72,6 @@ export const useOnboardingChat = ({
     const revisionVersion = revisionQuery.data?.version
     const isFreshAgentRevision =
         !revisionQuery.isPending && typeof revisionVersion === "number" && revisionVersion <= 1
-    const [copiedToastOpen, setCopiedToastOpen] = useState(false)
     const handleStripPick = useCallback(
         (template: AgentStarterTemplate) => {
             stripProvenance.pick(template)
@@ -92,21 +89,6 @@ export const useOnboardingChat = ({
         },
         [stripProvenance.pick, onboardingPosthog, onboardingActive],
     )
-    const handleCodingAgentCopy = useCallback(async () => {
-        const text = richInputRef.current?.getMarkdown().trim() ?? ""
-        try {
-            await navigator.clipboard.writeText(buildCodingAgentClipboard(text))
-            setCopiedToastOpen(true)
-        } catch {
-            appMessage.error("Couldn't copy — copy it manually")
-            return
-        }
-        captureFirstAgentIntent(onboardingPosthog, {
-            source: "composer",
-            properties: {action: "coding_agent_copy"},
-            intentValue: classifyAgentIntent(text),
-        })
-    }, [appMessage, onboardingPosthog])
 
     // Optimistic first turn: the description the user submitted with "Create agent", shown as a sent
     // user message + assistant loading placeholder DURING commit + until the real conversation takes
@@ -262,9 +244,6 @@ export const useOnboardingChat = ({
         selectedTemplateKey: stripProvenance.selectedTemplateKey,
         handleStripPick,
         isFreshAgentRevision,
-        copiedToastOpen,
-        setCopiedToastOpen,
-        handleCodingAgentCopy,
         pendingFirstTurn,
         pendingFirstMessage,
         handleCreateAgent,

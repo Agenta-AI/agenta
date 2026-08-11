@@ -1,6 +1,6 @@
 import {useEffect, useRef} from "react"
 
-import {partToolName} from "@agenta/chat/model"
+import {isToolPart, partToolName} from "@agenta/chat/model"
 import {detectFileActivity, recordFileActivityAtom} from "@agenta/entities/session"
 import type {ToolUIPart, UIMessage} from "ai"
 import {useSetAtom} from "jotai"
@@ -33,8 +33,7 @@ export function useFileActivityDetector({
         const last = messages[messages.length - 1]
         if (!last || last.role !== "assistant") return
         for (const part of last.parts) {
-            const type = part.type as string
-            if (type !== "dynamic-tool" && !type.startsWith("tool-")) continue
+            if (!isToolPart(part.type as string)) continue
             const tool = part as {toolCallId?: string; state?: string; input?: unknown}
             // Only settled, successful calls — the file exists (or is gone) once output landed.
             if (tool.state !== "output-available") continue

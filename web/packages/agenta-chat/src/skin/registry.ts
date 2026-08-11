@@ -58,9 +58,9 @@ export const registerChatSkin = (skin: ChatSkinRegistration): void => {
 export const resolveClientToolWidget = (
     meta: Pick<ClientToolMeta, "toolName" | "renderKind">,
 ): ClientToolWidget | undefined => {
-    if (meta.renderKind && store.clientTools.byRenderKind[meta.renderKind]) {
-        return store.clientTools.byRenderKind[meta.renderKind]
-    }
+    // An explicit `render.kind` is answered on that axis or not at all: reinterpreting an unknown
+    // kind by tool name renders the wrong widget for a payload that deliberately asked for another.
+    if (meta.renderKind !== undefined) return store.clientTools.byRenderKind[meta.renderKind]
     return store.clientTools.byToolName[meta.toolName]
 }
 
@@ -84,21 +84,29 @@ export const resolveApprovalBody = (toolName: string): ApprovalBodyEntry | undef
 // (`override?.kind ?? parsed.kind`), which the OSS `ToolDisplayOverride` cannot do — a
 // deliberate extension over the OSS chain for skin flexibility.
 /** Our in-sandbox MCP server (runner: `INTERNAL_TOOL_MCP_SERVER_NAME`). */
-const INTERNAL_MCP_PREFIX = "mcp__agenta-tools__"
+const INTERNAL_MCP_SERVER = "agenta-tools"
+
+/** How each harness wraps a tool of that server: Claude `mcp__<server>__`, Codex `mcp.<server>.`
+ * (runner `client-tools.ts` strips the same two). */
+const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_MCP_SERVER}.`]
 
 /**
  * The platform tool name behind a harness wrapper.
  *
  * Pi sends `commit_revision`; Claude exposes the same tool over MCP and sends
- * `mcp__agenta-tools__commit_revision`. Anything keyed BY tool name must key on this, or one call
- * renders two different ways depending on the harness.
+ * `mcp__agenta-tools__commit_revision`, Codex `mcp.agenta-tools.commit_revision`. Anything keyed
+ * BY tool name must key on this, or one call renders two different ways depending on the harness.
  *
  * Only OUR server is unwrapped. A third-party MCP tool keeps its full name, so it can never
  * collide with a platform tool of the same bare name. NOT for permission rules: those must match
  * the wire name verbatim (see `useAlwaysAllowTool`).
  */
-export const canonicalToolName = (raw: string): string =>
-    raw.startsWith(INTERNAL_MCP_PREFIX) ? raw.slice(INTERNAL_MCP_PREFIX.length) || raw : raw
+export const canonicalToolName = (raw: string): string => {
+    for (const prefix of INTERNAL_MCP_PREFIXES) {
+        if (raw.startsWith(prefix)) return raw.slice(prefix.length) || raw
+    }
+    return raw
+}
 
 const parseNameShape = (raw: string): {label: string; source?: string; kind: ToolKind} => {
     // mcp__{server}__{tool} → tool from "Server · MCP".

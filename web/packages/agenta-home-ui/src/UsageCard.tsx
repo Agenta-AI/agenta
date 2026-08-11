@@ -28,7 +28,7 @@ const formatPercent = (value: number | null | undefined) =>
 
 const Stat = ({label, value}: {label: string; value: string}) => (
     <div className="flex flex-col gap-0.5">
-        <span className="text-[11px] text-colorTextSecondary">{label}</span>
+        <span className="text-xs text-colorTextSecondary">{label}</span>
         <span className="text-xs font-semibold text-colorText">{value}</span>
     </div>
 )

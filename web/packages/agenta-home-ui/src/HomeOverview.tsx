@@ -24,6 +24,12 @@ export interface HomeOverviewProps {
     agentsPanel?: ReactNode
     triggersPanel?: ReactNode
     usagePanel?: ReactNode
+    /**
+     * The page frame — the shared column cap and gutters (`pageContentWidthClass` /
+     * `pageGutterClass`). It is the HOST's, because each app already has one: desktop's
+     * `PageLayout` applies it to every page, and mobile's screens apply it themselves.
+     */
+    className?: string
 }
 
 const SESSIONS_LIMIT = 6
@@ -40,10 +46,11 @@ const AUTOMATIONS_LIMIT = 5
  * The rail is a third of the width rather than a fixed 400px, which held its proportion only at
  * one screen size — it read as a third on a large display and as a slab on a laptop.
  *
- * The page's own insets live HERE and nowhere else, so both apps inset identically. A host that
- * wraps this in a padded frame (the desktop `PageLayout`, which carries `p-4`) must cancel that
- * frame's padding — otherwise its copy of the page sits 16px further in on every side than the
- * other app's, which is exactly the drift this component exists to prevent.
+ * The page frame — the centred column cap and the gutters — is the HOST's `className`, not this
+ * component's own. Hand-tuned insets here made Home the only page in either app that did not sit
+ * in the shared column (`pageContentWidthClass` + `pageGutterClass`): 300px wider than Sessions
+ * and Agents beside it, and the workaround that cancelled the desktop page frame to make room
+ * for them is what took Home out of the column in the first place.
  */
 export const HomeOverview = ({
     title,
@@ -57,18 +64,32 @@ export const HomeOverview = ({
     agentsPanel,
     triggersPanel,
     usagePanel,
+    className,
 }: HomeOverviewProps) => (
-    // The top inset is the CONTENT's, not this scroller's: a scroll container's padding-top pushes
-    // its `sticky top-0` children down by that much, and rows bleed through the band above them.
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-10 overflow-y-auto px-4 pb-6 lg:flex-row lg:overflow-hidden lg:pb-6 lg:pl-[72px] lg:pr-14 lg:pt-12">
-        {/* `min-w-0` or a wide card would push the column past its share. */}
+    <div
+        className={`flex min-h-0 w-full flex-1 flex-col gap-10 overflow-y-auto lg:flex-row lg:overflow-hidden ${className ?? ""}`}
+    >
+        {/* `min-w-0` or a wide card would push the column past its share. Below `lg` the box above
+            is the scroller, so the top inset is this CONTENT's: a scroll container's padding-top
+            pushes its `sticky top-0` children down by that much and rows bleed through the band. */}
         <div className="box-border flex min-w-0 flex-1 flex-col gap-14 pt-6 lg:overflow-y-auto lg:pr-4 lg:pt-0">
             <div className="flex w-full flex-col">
                 {/* The hero line carries the page's standing action. On its own row above
                     everything it cost a full band of empty width and pushed the question it
                     belongs beside downward. */}
                 <div className="flex items-center justify-between gap-4">
-                    <h1 className="m-0 text-[20px] font-semibold leading-tight text-colorText">
+                    {/* The page-title rung (antd heading 3, 24px/1.3333 — the same tokens
+                        `PageLayout` sizes every other page title from), not a hardcoded size: a
+                        20px hero read a rung below every page it sits next to. The literals are
+                        the fallback for a host without antd (mobile), which generates no
+                        `--ant-*` vars at all. */}
+                    <h1
+                        className="m-0 font-semibold text-colorText"
+                        style={{
+                            fontSize: "var(--ant-font-size-heading-3, 24px)",
+                            lineHeight: "var(--ant-line-height-heading-3, 1.3333333333333333)",
+                        }}
+                    >
                         {title}
                     </h1>
                     {action}

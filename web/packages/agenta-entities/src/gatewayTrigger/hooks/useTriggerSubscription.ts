@@ -1,6 +1,5 @@
 import {useCallback, useState} from "react"
 
-import {getHostQueryClient} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -21,11 +20,8 @@ import type {
     TriggerSubscriptionEdit,
     TriggerSubscriptionResponse,
 } from "../core/types"
+import {invalidateTriggerSubscriptions} from "../state/invalidate"
 import {applySubscriptionActiveOptimistic} from "../state/optimistic"
-
-const invalidateSubscriptions = () => {
-    getHostQueryClient().invalidateQueries({queryKey: ["triggers", "subscriptions"]})
-}
 
 // Single subscription (used to source the full PUT body before editing).
 export const triggerSubscriptionQueryAtomFamily = atomFamily((subscriptionId: string) =>
@@ -49,7 +45,7 @@ export const useTriggerSubscription = (subscriptionId?: string) => {
             setIsMutating(true)
             try {
                 const res = await fn()
-                invalidateSubscriptions()
+                invalidateTriggerSubscriptions()
                 return res.subscription ?? null
             } finally {
                 setIsMutating(false)
@@ -77,7 +73,7 @@ export const useTriggerSubscription = (subscriptionId?: string) => {
         setIsMutating(true)
         try {
             await deleteTriggerSubscription(id)
-            invalidateSubscriptions()
+            invalidateTriggerSubscriptions()
         } finally {
             setIsMutating(false)
         }
@@ -89,10 +85,10 @@ export const useTriggerSubscription = (subscriptionId?: string) => {
         const rollback = applySubscriptionActiveOptimistic(id, active)
         try {
             await (active ? startTriggerSubscription(id) : stopTriggerSubscription(id))
-            invalidateSubscriptions()
+            invalidateTriggerSubscriptions()
         } catch (error) {
             rollback()
-            invalidateSubscriptions()
+            invalidateTriggerSubscriptions()
             throw error
         }
     }, [])

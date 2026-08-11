@@ -151,7 +151,7 @@ export function TimelineLens({
                                     <span className="flex items-center gap-1.5">
                                         Interactions
                                         {interactionCount > 0 ? (
-                                            <span className="min-w-4 rounded-full bg-[var(--ag-colorWarning)] px-1 text-center text-[10px] leading-4 text-[var(--ag-colorTextLightSolid)]">
+                                            <span className="min-w-4 rounded-full bg-[var(--ag-colorWarning)] px-1 text-center text-[12px] leading-4 text-[var(--ag-colorTextLightSolid)]">
                                                 {interactionCount}
                                             </span>
                                         ) : null}

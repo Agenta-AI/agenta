@@ -40,12 +40,19 @@ export interface PageLayoutProps {
 
 /** antd's heading ramp as literals (`fontSizeHeading*` / `lineHeightHeading*` from
  * antd-themeConfig.json), used only as fallbacks for hosts that never generate the vars. */
+/**
+ * The fallbacks for the `--ant-font-size-heading-*` vars, and they must MIRROR
+ * `oss/src/styles/tokens/antd-themeConfig.json` — a host without antd (mobile) renders entirely
+ * from these, so a stale copy silently gives that app a different type scale. They were left at
+ * the pre-#5850 sizes when the ladder moved heading-3 from 20 to 24, which is why every mobile
+ * page title sat one rung below its desktop twin.
+ */
 const HEADING_SCALE: Record<1 | 2 | 3 | 4 | 5, {fontSize: string; lineHeight: number}> = {
     1: {fontSize: "32px", lineHeight: 1.25},
     2: {fontSize: "26px", lineHeight: 1.3076923076923077},
-    3: {fontSize: "20px", lineHeight: 1.4},
-    4: {fontSize: "16px", lineHeight: 1.5},
-    5: {fontSize: "14px", lineHeight: 1.5714285714285714},
+    3: {fontSize: "24px", lineHeight: 1.3333333333333333},
+    4: {fontSize: "18px", lineHeight: 1.5},
+    5: {fontSize: "16px", lineHeight: 1.5},
 }
 
 const PageLayout = ({

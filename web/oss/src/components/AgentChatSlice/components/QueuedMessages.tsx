@@ -55,13 +55,13 @@ const QueuedList = ({
 }) => (
     <div className="w-[300px] max-w-[80vw]">
         <div className="flex items-center justify-between gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1.5">
-            <span className="text-[11px] uppercase tracking-wide text-colorTextSecondary">
+            <span className="text-xs uppercase tracking-wide text-colorTextSecondary">
                 {held ? "Held until you answer the agent" : "Queued — sent one by one"}
             </span>
             <button
                 type="button"
                 onClick={onClear}
-                className="cursor-pointer border-none bg-transparent !text-[11px] text-colorTextTertiary hover:text-colorText"
+                className="cursor-pointer border-none bg-transparent !text-xs text-colorTextTertiary hover:text-colorText"
             >
                 Clear all
             </button>
@@ -72,7 +72,7 @@ const QueuedList = ({
                 const files = message.fileParts ?? []
                 return (
                     <div key={message.id} className="flex items-start gap-1.5 px-2.5 py-1">
-                        <span className="mt-px min-w-[12px] select-none text-[11px] leading-5 text-colorTextTertiary">
+                        <span className="mt-px min-w-[12px] select-none text-xs leading-5 text-colorTextTertiary">
                             {index + 1}
                         </span>
                         <div className="flex min-w-0 flex-1 flex-col gap-1">

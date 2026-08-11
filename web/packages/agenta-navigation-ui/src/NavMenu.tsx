@@ -39,8 +39,10 @@ export interface NavMenuProps {
     className?: string
 }
 
+// calc, not 94%: an exact 8px inset each side, so the row's right edge lines up with the
+// 8px-inset collapse toggle in the brand row.
 const ROW_BASE =
-    "relative box-border flex h-9 w-[94%] mx-auto items-center gap-2 rounded-md px-3 text-xs select-none"
+    "relative box-border flex h-9 w-[calc(100%-16px)] mx-auto items-center gap-2 rounded-md px-3 text-xs select-none"
 const ROW_INTERACTIVE = "cursor-pointer text-colorTextSecondary hover:bg-colorFillQuaternary"
 const ROW_SELECTED = "bg-colorFillSecondary font-medium !text-colorText"
 const ROW_DISABLED = "cursor-default text-colorTextQuaternary"
@@ -50,7 +52,7 @@ const LINK_CLASS =
 
 const TagChip = ({tag}: {tag?: string}) =>
     tag ? (
-        <span className="shrink-0 rounded bg-colorSuccessBg px-1 py-0.5 text-[10px] leading-none text-colorSuccessText">
+        <span className="shrink-0 rounded bg-colorSuccessBg px-1 py-0.5 text-[12px] leading-none text-colorSuccessText">
             {tag}
         </span>
     ) : null
@@ -136,7 +138,7 @@ const RowLabel = ({
 
 /** A group heading inside a submenu — a label over the rows below it, never a row itself. */
 const GroupLabelRow = ({title}: {title: ReactNode}) => (
-    <p className="m-0 mx-auto w-[94%] px-3 pb-0.5 pt-2 text-[10px] uppercase tracking-wide text-colorTextTertiary select-none">
+    <p className="m-0 mx-auto w-[calc(100%-16px)] px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none">
         {title}
     </p>
 )
@@ -262,7 +264,7 @@ const NavMenuImpl = ({
                                 selected && ROW_SELECTED,
                                 collapsed
                                     ? "size-8 justify-center"
-                                    : "h-9 w-[94%] justify-start gap-2 px-3 text-xs",
+                                    : "h-9 w-[calc(100%-16px)] justify-start gap-2 px-3 text-xs",
                             )}
                         >
                             {item.icon}

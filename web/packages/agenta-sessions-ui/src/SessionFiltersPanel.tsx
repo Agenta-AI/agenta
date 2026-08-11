@@ -11,7 +11,7 @@ import {
 } from "./controls/SessionFilterControls"
 
 const RailLabel = ({children}: {children: ReactNode}) => (
-    <h2 className="m-0 text-[11px] font-semibold uppercase tracking-wide text-colorTextTertiary">
+    <h2 className="m-0 text-xs font-semibold uppercase tracking-wide text-colorTextTertiary">
         {children}
     </h2>
 )

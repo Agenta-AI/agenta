@@ -8,19 +8,24 @@ import {
 } from "@agenta/entities/workflow"
 import {TemplateGallery} from "@agenta/home-ui"
 import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {App} from "antd"
+import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {urlAtom} from "@/oss/state/url"
 
-import {TEMPLATES_GALLERY} from "../../assets/constants"
+import {BROWSE_RAIL_MODE, TEMPLATES_GALLERY} from "../../assets/constants"
 import TemplateSetupDrawer, {type TemplateSetupResult} from "../TemplateSetupDrawer"
 
 /**
- * The templates gallery route: the SHARED gallery (rail + search + card sections) under this app's
- * page chrome. What stays here is this app's — the `?category=` deep link, the
+ * The templates gallery route: the SHARED gallery (categories + search + card sections) under this
+ * app's page chrome. What stays here is this app's — the `?category=` deep link, the
  * detail-page navigation a card click opens, and the setup drawer.
+ *
+ * `BROWSE_RAIL_MODE` picks the shell: by default the page owns the title and gutters and the
+ * gallery renders inside that column (#5846); opt in and it goes back to the bled-to-the-edge rail.
  */
 const TemplatesGalleryPage = () => {
     const router = useRouter()
@@ -72,9 +77,41 @@ const TemplatesGalleryPage = () => {
         [message],
     )
 
+    const setupDrawer = (
+        <TemplateSetupDrawer
+            template={setupTemplate}
+            open={!!setupTemplate}
+            onClose={() => setSetupTemplate(null)}
+            onCreate={handleTemplateCreate}
+        />
+    )
+
+    if (!BROWSE_RAIL_MODE)
+        return (
+            // The page's own title, description and gutters (#5846), so the gallery shares one
+            // column width with the rest of the app; the categories and search sit inside it.
+            <PageLayout
+                className={clsx(pageContentWidthClass, "grow min-h-0")}
+                title={TEMPLATES_GALLERY.title}
+                description={TEMPLATES_GALLERY.subtitle}
+            >
+                {/* No `title`/`subtitle` here — `PageLayout` carries them in the toolbar layout. */}
+                <TemplateGallery
+                    layout="toolbar"
+                    category={active}
+                    onCategoryChange={handleCategoryChange}
+                    onSelectTemplate={handleSelectTemplate}
+                    searchPlaceholder={TEMPLATES_GALLERY.searchPlaceholder}
+                />
+
+                {setupDrawer}
+            </PageLayout>
+        )
+
     return (
         <PageLayout className="grow min-h-0 !p-0">
             <TemplateGallery
+                layout="rail"
                 category={active}
                 onCategoryChange={handleCategoryChange}
                 onSelectTemplate={handleSelectTemplate}
@@ -83,12 +120,7 @@ const TemplatesGalleryPage = () => {
                 searchPlaceholder={TEMPLATES_GALLERY.searchPlaceholder}
             />
 
-            <TemplateSetupDrawer
-                template={setupTemplate}
-                open={!!setupTemplate}
-                onClose={() => setSetupTemplate(null)}
-                onCreate={handleTemplateCreate}
-            />
+            {setupDrawer}
         </PageLayout>
     )
 }

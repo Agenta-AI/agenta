@@ -168,11 +168,11 @@ const AgentChatEmptyState = ({
                             size={18}
                             className="relative text-[var(--ag-colorText)]"
                         />
-                        <span className="absolute bottom-1.5 text-[10px] font-semibold text-[var(--ag-colorText)]">
+                        <span className="absolute bottom-1.5 text-[12px] font-semibold text-[var(--ag-colorText)]">
                             {ONBOARDING_COPY.videoDuration}
                         </span>
                     </button>
-                    <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                         {ONBOARDING_COPY.videoLabel}
                     </span>
                 </Reveal>
@@ -184,7 +184,7 @@ const AgentChatEmptyState = ({
                         <Tag
                             tone="processing"
                             label={ONBOARDING_COPY.eyebrowNew}
-                            className="m-0 rounded px-1.5 py-0 text-[10px] font-semibold uppercase leading-5"
+                            className="m-0 rounded px-1.5 py-0 text-[12px] font-semibold uppercase leading-5"
                         />
                         <span className="text-xs font-medium text-[var(--ag-colorTextSecondary)]">
                             {ONBOARDING_COPY.eyebrow}
@@ -250,12 +250,12 @@ const AgentChatEmptyState = ({
                         </span>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                             {model ? (
-                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-[11px] text-colorTextSecondary">
+                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-xs text-colorTextSecondary">
                                     {model}
                                 </span>
                             ) : null}
                             {capabilities ? (
-                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px text-[11px] text-colorTextSecondary">
+                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px text-xs text-colorTextSecondary">
                                     {capabilities}
                                 </span>
                             ) : null}
@@ -271,7 +271,7 @@ const AgentChatEmptyState = ({
 
                 {firstRunPrompt ? (
                     <div className="flex flex-col gap-2">
-                        <span className="text-[11px] font-medium uppercase tracking-wide text-colorTextSecondary">
+                        <span className="text-xs font-medium uppercase tracking-wide text-colorTextSecondary">
                             We'll start with
                         </span>
                         <div className="whitespace-pre-wrap break-words rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2 text-xs leading-relaxed text-colorText">
@@ -286,14 +286,14 @@ const AgentChatEmptyState = ({
                             <ArrowRight size={14} />
                         </Button>
                         {canStart ? null : (
-                            <span className="text-[11px] text-colorTextSecondary">
+                            <span className="text-xs text-colorTextSecondary">
                                 Connect a model below to start.
                             </span>
                         )}
                     </div>
                 ) : showTemplateStrip ? null : ( // The composer-docked strip is up; it replaces the starter pills.
                     <div className="flex flex-col items-start gap-1.5">
-                        <span className="text-[11px] text-colorTextSecondary">Try</span>
+                        <span className="text-xs text-colorTextSecondary">Try</span>
                         {BUILD_STARTERS.map((starter) => (
                             <button
                                 key={starter}

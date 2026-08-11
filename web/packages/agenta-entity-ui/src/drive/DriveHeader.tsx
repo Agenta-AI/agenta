@@ -136,7 +136,7 @@ export const DriveHeader = ({
                     rootLabel={rootLabel}
                     onNavigate={onNavigate}
                 />
-                <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                <span className="shrink-0 text-xs text-colorTextTertiary">
                     {atRoot
                         ? `${totalCount}${totalCapped ? "+" : ""} file${totalCount === 1 ? "" : "s"}`
                         : isFolder
@@ -148,7 +148,7 @@ export const DriveHeader = ({
                             : null}
                 </span>
                 {!isFolder && showOrigin && selectedPath ? (
-                    <Tag className="m-0 shrink-0 text-[10px] font-normal">
+                    <Tag className="m-0 shrink-0 text-[12px] font-normal">
                         {fileOrigin(selectedPath) === "agent" ? "Agent" : "Session"}
                     </Tag>
                 ) : null}
@@ -248,7 +248,7 @@ export const DriveHeader = ({
                             >
                                 <span className="flex flex-col gap-0.5 py-0.5">
                                     <span className="text-xs font-medium">Copy {id.label}</span>
-                                    <span className="font-mono text-[10px] text-colorTextTertiary">
+                                    <span className="font-mono text-[12px] text-colorTextTertiary">
                                         {id.value}
                                     </span>
                                 </span>

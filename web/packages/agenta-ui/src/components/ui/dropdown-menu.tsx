@@ -25,6 +25,9 @@ import {cn} from "./utils"
  * animation. Radix Presence then waits for an animationend that a scroll timeline never fires, so
  * a closed menu stays mounted and painted. Opting out restores unmount-on-close.
  */
+// The global scroll-fade rule (globals.css) drives a scroll-timeline animation that never fires
+// `animationend`, so Radix Presence waits forever and closed content stays mounted, aria-hiding
+// the page. Killing the name AND resetting the timeline is what actually releases it.
 const NO_SCROLL_TIMELINE = "[animation-name:none] [animation-timeline:auto]"
 
 function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {

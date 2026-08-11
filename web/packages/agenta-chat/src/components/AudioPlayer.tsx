@@ -112,7 +112,7 @@ const AudioPlayer = ({
                     <span className="truncate text-xs text-colorText" title={name}>
                         {name}
                     </span>
-                    <span className="shrink-0 text-[11px] tabular-nums text-colorTextSecondary">
+                    <span className="shrink-0 text-xs tabular-nums text-colorTextSecondary">
                         {fmt(current)}
                         {duration > 0 ? ` / ${fmt(duration)}` : ""}
                     </span>

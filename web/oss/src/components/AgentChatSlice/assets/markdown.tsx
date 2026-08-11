@@ -79,7 +79,7 @@ export const MD_CLASS =
     "[&_[data-streamdown=code-block-header]]:!h-7 [&_[data-streamdown=code-block-header]]:!px-3 " +
     "[&_[data-streamdown=code-block-header]]:!border-0 [&_[data-streamdown=code-block-header]]:!border-b " +
     "[&_[data-streamdown=code-block-header]]:!border-solid [&_[data-streamdown=code-block-header]]:!border-colorBorderSecondary " +
-    "[&_[data-streamdown=code-block-header]]:!text-[10px] [&_[data-streamdown=code-block-header]]:!uppercase " +
+    "[&_[data-streamdown=code-block-header]]:!text-[12px] [&_[data-streamdown=code-block-header]]:!uppercase " +
     "[&_[data-streamdown=code-block-header]]:!tracking-wide [&_[data-streamdown=code-block-header]]:!text-colorTextTertiary " +
     "[&_[data-streamdown=code-block-actions]]:!border-0 [&_[data-streamdown=code-block-actions]]:!bg-transparent " +
     "[&_[data-streamdown=code-block-actions]]:!p-0 [&_[data-streamdown=code-block-actions]]:!backdrop-blur-none " +

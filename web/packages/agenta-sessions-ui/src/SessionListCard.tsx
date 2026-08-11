@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, type ReactNode} from "react"
 
 import {applySessionScopeAtom, useSessionCardList} from "@agenta/sessions/state"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
@@ -29,6 +29,27 @@ export interface SessionListCardProps {
     menuFor?: SessionCardListProps["menuFor"]
     onMenuSelect?: SessionCardListProps["onMenuSelect"]
 }
+
+const WAITING_BADGE_CLASS =
+    "shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText"
+
+/** The waiting badge, as a link when the host knows where it goes and as plain text until then. */
+const BadgeShell = ({
+    href,
+    onClick,
+    children,
+}: {
+    href?: string
+    onClick: () => void
+    children: ReactNode
+}) =>
+    href ? (
+        <Link href={href} onClick={onClick} className={WAITING_BADGE_CLASS}>
+            {children}
+        </Link>
+    ) : (
+        <span className={WAITING_BADGE_CLASS}>{children}</span>
+    )
 
 /**
  * THE session list card: the shared `SessionCardList` (same rows, pins and grouping) inside the
@@ -73,13 +94,9 @@ export const SessionListCard = ({
             bodyClassName="flex grow flex-col px-2 pb-2 pt-1"
             titleExtra={
                 list.waitingTotal > 0 ? (
-                    <Link
-                        href={viewAllHref}
-                        onClick={handleWaitingClick}
-                        className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText"
-                    >
+                    <BadgeShell href={viewAllHref} onClick={handleWaitingClick}>
                         {list.waitingTotal} waiting
-                    </Link>
+                    </BadgeShell>
                 ) : null
             }
             extra={

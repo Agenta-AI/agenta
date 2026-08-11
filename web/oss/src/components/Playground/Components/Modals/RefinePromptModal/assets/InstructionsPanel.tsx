@@ -140,7 +140,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
                         type="button"
                         disabled={isLoading}
                         onClick={() => handleSubmit(OPTIMIZE_PROMPT)}
-                        className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-2.5 py-1 text-[11px] text-colorTextSecondary transition-colors hover:bg-colorFillTertiary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-2.5 py-1 text-xs text-colorTextSecondary transition-colors hover:bg-colorFillTertiary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <Lightbulb size={12} />
                         {OPTIMIZE_PROMPT}

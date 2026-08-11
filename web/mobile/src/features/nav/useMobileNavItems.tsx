@@ -31,7 +31,7 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
- * grouping (Pinned first), mobile's own child routes. Desktop's registry entry differs only
+ * pinned-first ordering, mobile's own child routes. Desktop's registry entry differs only
  * in its paths and its pending-open handoff — the model is the reuse, the content is ours.
  */
 const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
@@ -45,9 +45,6 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         childPath: (session) => `/sessions/${session.sessionId}`,
         emptyLabel: "No sessions yet",
         showAllPath: "/sessions",
-        // Both halves are named or neither is: a lone "Pinned" heading over an unlabelled
-        // remainder reads as a stray row. The resolver drops both when nothing is pinned.
-        getGroup: (session) => (session.pinned ? "Pinned" : "Recent"),
         getIcon: (session) =>
             session.pinned
                 ? createElement(Pin, {size: 12})

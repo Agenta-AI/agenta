@@ -119,7 +119,6 @@ const AgentComposerDock = ({
         streamIdeBubble,
         ideHandoffActive,
         handleStartOver,
-        handleCodingAgentCopy,
         showBareOnboardingHero,
     } = onboardingChat
     const {setViewingUid, atMax} = attachments
@@ -306,10 +305,9 @@ const AgentComposerDock = ({
                                     </Button>
                                 ) : TEMPLATE_STRIP_MODE ? (
                                     // Strip era: the SAME action cluster as the home hero composer
-                                    // (shared component), with the one-click copy + toast handoff.
+                                    // (shared component).
                                     <AgentIntentActions
                                         onCreate={handleCreateAgent}
-                                        onCodingAgentCopy={handleCodingAgentCopy}
                                         loading={!!onboarding?.committing}
                                     />
                                 ) : (

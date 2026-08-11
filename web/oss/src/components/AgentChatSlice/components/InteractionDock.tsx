@@ -78,7 +78,7 @@ const ConnectCard = ({
         },
         [onOutput, meta.toolName, meta.toolCallId],
     )
-    const {label, phase, errorText, runConnect, cancel, decline} = useConnectFlow(
+    const {label, phase, errorText, modeResolving, runConnect, cancel, decline} = useConnectFlow(
         meta,
         settle,
         active,
@@ -122,7 +122,13 @@ const ConnectCard = ({
                         <Button variant="outline" onClick={decline}>
                             Not now
                         </Button>
-                        <Button onClick={() => runConnect(true)}>
+                        <Button
+                            disabled={modeResolving}
+                            title={
+                                modeResolving ? "Checking how this toolkit connects…" : undefined
+                            }
+                            onClick={() => runConnect(true)}
+                        >
                             {phase === "error" ? "Retry" : `Connect ${label}`}
                         </Button>
                     </>

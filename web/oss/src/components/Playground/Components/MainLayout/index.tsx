@@ -319,7 +319,7 @@ const PlaygroundMainView = ({
                     <Typography.Text className="mb-3 text-[14px]">
                         Playground is unable to communicate with the service
                     </Typography.Text>
-                    <Button>Try again</Button>
+                    <Button onClick={() => window.location.reload()}>Try again</Button>
                 </div>
             </main>
         )

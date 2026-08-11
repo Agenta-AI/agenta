@@ -168,7 +168,7 @@ export const SessionCardList = ({
                               initial="initial"
                               animate="animate"
                               exit="exit"
-                              className="m-0 overflow-hidden px-2 pt-1 text-[11px] uppercase tracking-wide text-colorTextTertiary"
+                              className="m-0 overflow-hidden px-2 pt-1 text-xs uppercase tracking-wide text-colorTextTertiary"
                           >
                               {group.label}
                           </motion.p>,

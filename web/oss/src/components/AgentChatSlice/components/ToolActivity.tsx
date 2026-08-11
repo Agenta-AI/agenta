@@ -124,9 +124,9 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
  * height with its own scroll so a large payload can't blow up the transcript. */
 const IOBlock = ({label, value, danger}: {label: string; value: string; danger?: boolean}) => (
     <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="font-mono text-[10px] text-colorTextTertiary">{label}</span>
+        <span className="font-mono text-[12px] text-colorTextTertiary">{label}</span>
         <pre
-            className={`ag-surface-inset m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug ${
+            className={`ag-surface-inset m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-xs leading-snug ${
                 danger
                     ? "!bg-[var(--ant-color-error-bg)] !border-transparent !text-colorErrorText"
                     : "text-colorTextSecondary"
@@ -210,7 +210,7 @@ const ToolRow = ({
                 {shownName}
             </span>
             {!detailed && display.source ? (
-                <span className="shrink-0 whitespace-nowrap text-[11px] text-colorTextSecondary">
+                <span className="shrink-0 whitespace-nowrap text-xs text-colorTextSecondary">
                     {display.source}
                 </span>
             ) : null}
@@ -253,7 +253,7 @@ const ToolRow = ({
 
             {callDescription ? (
                 <span
-                    className="mt-0.5 pl-[21px] text-[11px] italic leading-snug text-colorTextSecondary"
+                    className="mt-0.5 pl-[21px] text-xs italic leading-snug text-colorTextSecondary"
                     title={callDescription.text}
                 >
                     {callDescription.text}

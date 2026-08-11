@@ -1,18 +1,22 @@
 import {useEffect, useRef, useState, type CSSProperties, type ReactNode} from "react"
 
+import {pageContentWidthClass, pageGutterClass} from "@agenta/ui/components/page-width"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 /**
  * SettingsPageShell — the frame every Settings tab renders inside.
  *
- * Standalone by design: it does NOT wrap `PageLayout`. Settings has its own gutter scale,
- * its own content cap, and a mandatory description, none of which the other 15 PageLayout
- * pages want. Keeping them separate means Settings can evolve without touching Prompts,
- * Agents, Evaluators, Observability or Testsets.
+ * Standalone by design: it does NOT wrap `PageLayout`. Settings has a sticky, measured header
+ * and a mandatory description, neither of which the other 15 PageLayout pages want. Keeping
+ * them separate means Settings can evolve without touching Prompts, Agents, Evaluators,
+ * Observability or Testsets. The gutters and the centered column are the shared ones
+ * (`pageGutterClass` / `pageContentWidthClass`), so Settings lines up with Home and Agents
+ * instead of keeping its own scale.
  *
- * Renders the gutter, the content cap and the header. Each tab's search and actions live
- * in its own table shell (`filters` / `primaryActions`), not in the central page switch.
+ * Renders the gutter, the centered content column and the header. Each tab's search and
+ * actions live in its own table shell (`filters` / `primaryActions`), not in the central
+ * page switch.
  */
 export interface SettingsPageShellProps {
     title: ReactNode
@@ -24,9 +28,11 @@ export interface SettingsPageShellProps {
     /** Optional tertiary docs link, rendered at the far right of the header. */
     docs?: {label: string; href: string}
     /**
-     * Content cap. `full` (default) = no cap. `table` = 1120px, `form` = 640px. Caps the
-     * body only — the header and its divider always span the full page width. All
-     * left-anchored, so eye travel from the nav rail to the content stays constant.
+     * How wide the body runs inside the shared gutters. `table` (1120px) and `form` (640px)
+     * sit inside the shared centered column, so they line up with Home and Agents; both are
+     * left-anchored, so eye travel from the nav rail stays constant. `full` (default) opts
+     * out of the centered column entirely — it exists for the Audit Log, whose timestamp +
+     * event type + full UUID row is the one thing here that wants the whole monitor.
      */
     variant?: "full" | "table" | "form"
     /**
@@ -63,11 +69,16 @@ const SettingsPageShell = ({
         <div
             style={{"--ag-sticky-top": `${headerHeight}px`} as CSSProperties}
             className={clsx(
-                "flex w-full flex-col self-stretch",
-                // Gutter: 16 / 24 / 32 / 40 as the viewport widens, replacing the flat 16px
-                // every Settings page used to inherit at every size. Vertical rhythm is
-                // fixed (32 top, 64 bottom).
-                "px-4 pt-8 pb-16 md:px-6 lg:px-8 xl:px-10",
+                "flex flex-col self-stretch",
+                // Same gutters + centered column as every PageLayout page, so Settings shares
+                // Home's insets instead of keeping its own responsive scale, and `full` means
+                // "the shared column" rather than "however wide the monitor is".
+                pageGutterClass,
+                // `full` keeps the gutters but escapes the centered cap: it exists for the
+                // Audit Log, whose timestamp + event type + full UUID row is the one thing on
+                // this page that wants the whole monitor. Capping it here would re-lose the
+                // width that moving Audit Log onto its own scroll was for.
+                variant !== "full" && pageContentWidthClass,
                 // The app's body scale, stated rather than inherited: on the desktop it comes
                 // from antd's 12px/1.667 base, and mobile — which has no antd — was rendering
                 // every Settings tab at the browser's 16px default.
@@ -107,8 +118,8 @@ const SettingsPageShell = ({
                     ) : null}
                 </header>
 
-                {/* The cap lives on the content only, so the header + its divider span the
-                    full page width while the body stays left-anchored at its variant width. */}
+                {/* The variant cap lives on the content only, so the header + its divider span
+                    the full shared column while the body stays left-anchored at its own width. */}
                 <div
                     className={clsx(
                         "flex flex-col",

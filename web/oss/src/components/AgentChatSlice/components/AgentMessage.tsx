@@ -59,7 +59,7 @@ const MessageTimestamp = ({createdAt}: {createdAt: number}) => {
     useAtomValue(nowTickAtom)
     return (
         <SimpleTooltip title={new Date(createdAt).toLocaleString()}>
-            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-[11px] text-colorTextTertiary">
+            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-xs text-colorTextTertiary">
                 <Clock size={12} />
                 {timeAgo(createdAt)}
             </span>
@@ -184,7 +184,7 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <span className="text-xs font-medium text-colorError">The agent run failed</span>
                 {big && expanded ? (
-                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-[11px] !text-colorErrorText">
+                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
                         {text}
                     </pre>
                 ) : (
@@ -202,7 +202,7 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
                         type="button"
                         onClick={() => setExpanded({key: stateKey, value: !expanded})}
                         aria-expanded={expanded}
-                        className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-[11px] font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
+                        className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-xs font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
                     >
                         {expanded ? "Show less" : "Show more"}
                     </button>
@@ -561,7 +561,7 @@ const AgentMessage = ({
 
             {sources.length > 0 && (
                 <div className="flex flex-col gap-0.5 pt-1">
-                    <span className="text-[11px] uppercase tracking-wide text-colorTextSecondary">
+                    <span className="text-xs uppercase tracking-wide text-colorTextSecondary">
                         Sources
                     </span>
                     {sources.map((s, i) => (

@@ -33,6 +33,7 @@ import {useStyles} from "./assets/styles"
 import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
 import PostHogThemeCapture from "./PostHogThemeCapture"
+import ProjectWatch from "./ProjectWatch"
 import {SidebarIsland} from "./SidebarIsland"
 import {useAppTheme} from "./ThemeContextProvider"
 
@@ -419,6 +420,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 </Layout>
             ) : (
                 <ProtectedRoute shell="app">
+                    <ProjectWatch />
                     <AppWithVariants
                         isAppRoute={isAppRoute}
                         classes={classes}

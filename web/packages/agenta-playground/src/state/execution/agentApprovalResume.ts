@@ -71,12 +71,12 @@ const isRespondedToolPart = (part: ToolPartLike): boolean =>
  * tools are never approval-gated; an approval-gated client tool would need a richer signal.
  */
 /**
- * Known browser-fulfilled client tools, mirroring the app-layer registry's `BY_TOOL_NAME`
- * (v1: `request_connection`). The package cannot import that registry (layering), so it tracks
- * the same names. A part dispatches as a client tool by `render.kind` (finer axis) OR this name,
- * matching the registry's `render.kind -> toolName` precedence.
+ * Known browser-fulfilled client tools, mirroring the app-layer registry's `byToolName`
+ * (`request_connection`, `request_input`). The package cannot import that registry (layering), so
+ * it tracks the same names. A part dispatches as a client tool by `render.kind` (finer axis) OR
+ * this name, matching the registry's `render.kind -> toolName` precedence.
  */
-const CLIENT_TOOL_NAMES = new Set(["request_connection"])
+const CLIENT_TOOL_NAMES = new Set(["request_connection", "request_input"])
 
 const toolPartName = (part: ToolPartLike): string =>
     typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""

@@ -85,26 +85,8 @@ export const resolveChildren = (
     }
 
     const visibleRefs = refs.slice(0, entity.maxItems)
-    // A heading only earns its row when it separates something: with one group (everything pinned,
-    // or nothing pinned) it labels the whole list and says nothing the list does not.
-    const distinctGroups = new Set(visibleRefs.map((ref) => entity.getGroup?.(ref) ?? null))
-    const groupsAreInformative = distinctGroups.size > 1
     const children: SidebarConfig[] = []
-    let currentGroup: string | null = null
     for (const ref of visibleRefs) {
-        // Headings are inserted, not sorted — an entity supplying `getGroup` must already order
-        // its refs by group, or the same heading would appear more than once.
-        const group = entity.getGroup?.(ref) ?? null
-        if (groupsAreInformative && group && group !== currentGroup) {
-            children.push({
-                key: `${entity.parentKey}-group-${group}`,
-                title: group,
-                disabled: true,
-                isDynamic: true,
-                isGroupLabel: true,
-            })
-        }
-        currentGroup = group
         children.push({
             key: `${entity.parentKey}-${ref.id}`,
             title: entity.getLabel(ref),

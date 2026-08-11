@@ -84,8 +84,21 @@ export const SessionsListView = ({
         [menuFor, onMenuSelect, onOpenRow, revealActionsOnHover, scopedAgentId, togglePin],
     )
 
-    if (list.isError) return <SessionListError onRetry={list.refetch} />
-    if (list.isPending) return <SessionListSkeleton />
+    // Every state renders inside the SAME box: `className` is where the host puts the page's
+    // gutters and its centered column, so returning the skeleton or the error bare made the list
+    // full-bleed until data arrived and then snap into the column on the first painted row.
+    if (list.isError)
+        return (
+            <div className={className}>
+                <SessionListError onRetry={list.refetch} />
+            </div>
+        )
+    if (list.isPending)
+        return (
+            <div className={className}>
+                <SessionListSkeleton />
+            </div>
+        )
 
     return (
         <div className={className}>

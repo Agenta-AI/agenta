@@ -77,17 +77,17 @@ export const PayloadBlock = ({
                         showPayload ? "rotate-90" : ""
                     }`}
                 />
-                <span className="shrink-0 text-[11px] font-medium text-colorTextSecondary">
+                <span className="shrink-0 text-xs font-medium text-colorTextSecondary">
                     {label}
                 </span>
                 {!showPayload ? (
-                    <span className="min-w-0 truncate font-mono text-[11px] text-colorTextTertiary">
+                    <span className="min-w-0 truncate font-mono text-xs text-colorTextTertiary">
                         {payloadPreview}
                     </span>
                 ) : null}
             </button>
             <HeightCollapse open={showPayload}>
-                <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-all px-2.5 pb-2.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
+                <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-all px-2.5 pb-2.5 font-mono text-xs leading-snug text-colorTextSecondary">
                     {payload}
                 </pre>
             </HeightCollapse>
@@ -311,7 +311,7 @@ export const ApprovalCard = ({
                                         align="end"
                                         className={`box-border flex max-w-[320px] flex-col gap-1.5 rounded-lg p-2 shadow-md ${peekSurfaceClassName}`}
                                     >
-                                        <span className="px-1 text-[11px] text-colorTextSecondary">
+                                        <span className="px-1 text-xs text-colorTextSecondary">
                                             Approving all runs these {count} actions:
                                         </span>
                                         <div className="flex max-h-56 flex-col gap-1 overflow-auto">
@@ -332,7 +332,7 @@ export const ApprovalCard = ({
                                                             {label}
                                                         </span>
                                                         {preview ? (
-                                                            <span className="block truncate font-mono text-[11px] text-colorTextSecondary">
+                                                            <span className="block truncate font-mono text-xs text-colorTextSecondary">
                                                                 {preview}
                                                             </span>
                                                         ) : null}
@@ -398,7 +398,7 @@ export const ApprovalCard = ({
             {steerEnabled ? (
                 <HeightCollapse open={steerOpen} fade inert>
                     <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
-                        <span className="text-[11px] text-colorTextSecondary">
+                        <span className="text-xs text-colorTextSecondary">
                             Deny this step and tell the agent what to do instead — your note runs as
                             the next message.
                         </span>
@@ -467,7 +467,7 @@ export const ApprovalCard = ({
                                 </span>{" "}
                                 for this agent
                             </span>
-                            <span className="text-[11px] text-colorTextSecondary">
+                            <span className="text-xs text-colorTextSecondary">
                                 Applies when you approve; commit to use it in triggers.
                             </span>
                         </div>
@@ -507,7 +507,7 @@ export const ApprovalCardFrame = ({
                     Approval needed to continue
                 </span>
                 {count > 1 ? (
-                    <span className="ml-auto text-[11px] tabular-nums text-colorTextSecondary">
+                    <span className="ml-auto text-xs tabular-nums text-colorTextSecondary">
                         1 of {count}
                     </span>
                 ) : null}
@@ -525,7 +525,7 @@ export const ApprovalCardFrame = ({
                         {toolName}
                     </span>
                     {display.source ? (
-                        <span className="shrink-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-1.5 py-px text-[11px] text-colorTextSecondary">
+                        <span className="shrink-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-1.5 py-px text-xs text-colorTextSecondary">
                             {display.source}
                         </span>
                     ) : null}

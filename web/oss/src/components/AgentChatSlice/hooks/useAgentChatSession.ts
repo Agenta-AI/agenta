@@ -42,6 +42,7 @@ import {captureTurnRequestAtom} from "../state/turnCaptures"
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"
 import {useSessionHydration} from "./useSessionHydration"
+import {useToolCacheInvalidation} from "./useToolCacheInvalidation"
 
 /**
  * The chat stream for one session tab: transport, `useChat`, and every side effect that belongs to
@@ -127,6 +128,7 @@ export const useAgentChatSession = ({
 
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
 
@@ -162,10 +164,15 @@ export const useAgentChatSession = ({
         // (historical traces get no such grace; a 404 there means the trace is gone).
         // A finished turn may also have written files: mark the session's drive data stale so
         // every mount surface (open or opened later) refetches — no live channel exists for this.
+        // Liveness too: nothing else invalidates it at turn end, so the project-wide poll's cached
+        // `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch immediately —
+        // the runner awaits its `is_running: false` heartbeat BEFORE closing this stream
+        // (services/runner/src/server.ts `aliveWatchdog.release()`), so the flag is already cleared.
         onFinish: ({message}) => {
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
         },
         onError: (err) => {
             // Render the error in-chat (the `error` alert below); swallow it here so an
@@ -187,6 +194,9 @@ export const useAgentChatSession = ({
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
     useFileActivityDetector({sessionId, messages})
 
+    // Server-side platform ops (create_schedule, …) stale the client cache with no other signal.
+    useToolCacheInvalidation({sessionId, messages})
+
     const {isHydrating, hydratedEmpty, runningElsewhere} = useSessionHydration({
         sessionId,
         initialMessages,
@@ -199,6 +209,7 @@ export const useAgentChatSession = ({
         setMessages,
         persistMessages,
         intent,
+        pendingResumeRef: liveGateInteractionRef,
     })
 
     // A decision made in THIS mount marks the resume as live — a restored approval-requested tail
@@ -360,7 +371,6 @@ export const useAgentChatSession = ({
     }, [messages])
 
     const projectId = useAtomValue(projectIdAtom)
-    const queryClient = useQueryClient()
 
     const handleStop = useCallback(() => {
         markStopped()

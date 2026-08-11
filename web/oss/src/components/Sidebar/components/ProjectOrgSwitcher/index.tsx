@@ -6,23 +6,12 @@ import {
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
-import {Desktop, Moon, Sun} from "@phosphor-icons/react"
+import {themeIcon} from "@agenta/ui/theme"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 
 import {useProjectOrgSwitcher} from "../../hooks/useProjectOrgSwitcher"
-
-const themeIcon = (mode: ThemeMode) => {
-    switch (mode) {
-        case ThemeMode.Dark:
-            return <Moon size={14} className="shrink-0" />
-        case ThemeMode.System:
-            return <Desktop size={14} className="shrink-0" />
-        default:
-            return <Sun size={14} className="shrink-0" />
-    }
-}
 
 interface ProjectOrgSwitcherProps {
     collapsed: boolean

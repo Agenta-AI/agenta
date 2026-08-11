@@ -4,9 +4,11 @@ import {appTemplatesQueryAtom, createEphemeralAppFromTemplate} from "@agenta/ent
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {SearchInput} from "@agenta/ui/ui"
 import {message} from "antd"
+import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -15,6 +17,7 @@ import NewAgentButton from "@/oss/components/NewAgentButton"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
+import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
 import type {AgentColumnActions} from "../agent-home/components/YourAgentsTable/columns"
 import {openDeleteAppModalAtom} from "../app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "../app-management/modals/EditAppModal/store/editAppModalStore"
@@ -85,6 +88,40 @@ export default function AgentsPage() {
             handleArchived,
         ],
     )
+
+    if (!BROWSE_RAIL_MODE)
+        return (
+            // The page's own title and gutters, so the roster shares one column width with the
+            // rest of the app; create, search and the archived link are a toolbar above the grid.
+            <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title="Agents">
+                <div className="flex items-center gap-3">
+                    <NewAgentButton />
+
+                    <SearchInput
+                        value={searchTerm}
+                        onValueChange={setSearchTerm}
+                        placeholder="Search agents by name…"
+                        className="max-w-80"
+                    />
+
+                    {/* The table's bulk-archive control was also the only route to the archived
+                        list; the grid has no bulk mode, so the link stands on its own. */}
+                    <Link
+                        href={`${projectURL}/agents/archived`}
+                        className="ml-auto shrink-0 text-xs !text-colorTextSecondary"
+                    >
+                        Archived agents
+                    </Link>
+                </div>
+
+                <AgentsGrid
+                    rows={rows}
+                    isLoading={isLoading}
+                    actions={cardActions}
+                    onCreate={handleCreate}
+                />
+            </PageLayout>
+        )
 
     return (
         <PageLayout className="grow min-h-0 !p-0">

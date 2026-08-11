@@ -101,7 +101,7 @@ const StatusOverlay = ({
                             style={{width: `${pct}%`}}
                         />
                     </div>
-                    <span className="text-[10px] font-medium tabular-nums text-white">{pct}%</span>
+                    <span className="text-[12px] font-medium tabular-nums text-white">{pct}%</span>
                 </div>
             </>
         )
@@ -337,7 +337,7 @@ const ComposerAttachments = ({
                                 <button
                                     type="button"
                                     onClick={onDismissRejections}
-                                    className="flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-0 py-0 text-[11px] text-colorError hover:underline"
+                                    className="flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-0 py-0 text-xs text-colorError hover:underline"
                                 >
                                     <X size={11} /> Dismiss
                                 </button>
@@ -354,7 +354,7 @@ const ComposerAttachments = ({
                     >
                         <UploadSimple size={18} className="text-colorTextTertiary" />
                         <span className="text-xs font-medium text-colorText">Attach files</span>
-                        <span className="text-[11px] text-colorTextSecondary">
+                        <span className="text-xs text-colorTextSecondary">
                             {describeAccepted(limits)} · up to {limits.maxCount} files
                         </span>
                     </button>
@@ -459,7 +459,7 @@ const ComposerAttachments = ({
                                                                 {f.name}
                                                             </span>
                                                             {size && (
-                                                                <span className="text-[11px] text-colorTextSecondary">
+                                                                <span className="text-xs text-colorTextSecondary">
                                                                     {size}
                                                                 </span>
                                                             )}
@@ -496,7 +496,7 @@ const ComposerAttachments = ({
                         </div>
 
                         {/* Outside the scroller: the count must stay put rather than scroll away. */}
-                        <span className="shrink-0 text-[11px] tabular-nums text-colorTextTertiary">
+                        <span className="shrink-0 text-xs tabular-nums text-colorTextTertiary">
                             {files.length} / {limits.maxCount}
                         </span>
                     </div>

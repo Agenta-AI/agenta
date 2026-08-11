@@ -59,12 +59,12 @@ export interface ProjectOrgSwitcherViewProps {
 type Panel = "projects" | "orgs"
 
 const ROW_CLASS =
-    "flex w-full items-center gap-2 h-8 px-2 rounded-md text-xs leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillTertiary transition-colors"
+    "flex w-full items-center gap-2 h-8 px-2 rounded-md text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillTertiary transition-colors"
 
 /** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
 const ITEM_ROW_CLASS = "shrink-0"
 
-const CAPTION_CLASS = "px-2 pt-1.5 pb-1 text-[11px] font-medium text-colorTextTertiary truncate"
+const CAPTION_CLASS = "px-2 pt-1.5 pb-1 text-xs font-medium text-colorTextTertiary truncate"
 
 const Row = ({
     onClick,
@@ -271,14 +271,25 @@ export const ProjectOrgSwitcherView = ({
     )
 
     return (
-        <div className={clsx("px-2 py-2", collapsed && "flex justify-center")}>
+        <div
+            className={clsx(
+                // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
+                // collapsed geometry on the first frame while the rail is still sliding, and the
+                // switcher reads as a separate, badly-timed element rather than part of the rail.
+                "px-2 py-2 transition-all duration-300",
+                collapsed && "flex justify-center",
+            )}
+        >
             <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
                 <PopoverTrigger asChild>
                     <button
                         type="button"
                         data-project-org-switcher
                         className={clsx(
-                            "flex cursor-pointer items-center rounded-md border border-solid border-colorBorderSecondary bg-transparent transition-colors hover:bg-colorFillTertiary",
+                            // Borderless at rest; the hover fill is the affordance. `transition-all`
+                            // (not just colors) so the width/padding swap below travels with the
+                            // rail rather than snapping ahead of it.
+                            "flex cursor-pointer items-center rounded-md border-0 bg-transparent transition-all duration-300 hover:bg-colorFillTertiary",
                             collapsed ? "h-8 w-8 justify-center p-1" : "w-full gap-2 px-1.5 py-1.5",
                         )}
                         title={`${projectLabel} · ${orgLabel}`}
@@ -287,10 +298,10 @@ export const ProjectOrgSwitcherView = ({
                         {!collapsed && (
                             <>
                                 <div className="flex min-w-0 flex-1 flex-col text-left">
-                                    <span className="truncate text-xs font-medium leading-tight text-colorText">
+                                    <span className="truncate text-sm font-medium leading-tight text-colorText">
                                         {projectLabel}
                                     </span>
-                                    <span className="truncate text-[11px] leading-tight text-colorTextSecondary">
+                                    <span className="truncate text-xs leading-tight text-colorTextSecondary">
                                         {orgLabel}
                                     </span>
                                 </div>

@@ -173,7 +173,8 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
                 entries={showEmpty ? [] : agentEntries}
                 loading={isLoading && rows.length === 0}
                 allAgentsHref={`${projectURL}/agents`}
-                onNewAgent={() => router.push(`${baseAppURL}?new=1`)}
+                // One action only: every surface's page header already carries "New agent", so a
+                // second one in this panel was noise.
                 empty={<EmptyAgents />}
                 limit={RAIL_AGENT_LIMIT}
             />

@@ -498,11 +498,13 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     )
 
     if (!hasMessagesField) {
-        return <div className={cn("min-h-[260px]", className)} />
+        return (
+            <div className={cn("min-h-[260px]", className)} data-testid="prompt-schema-control" />
+        )
     }
 
     return (
-        <div className={cn("flex flex-col gap-3", className)}>
+        <div className={cn("flex flex-col gap-3", className)} data-testid="prompt-schema-control">
             {/* Messages list */}
             <ChatMessageList
                 messages={messages}
