@@ -74,6 +74,11 @@ services/runner/tests/results/
 !.github/**
 !.husky/
 !.husky/**
+!.coderabbit.yaml
+
+# QA gate run outputs: machine artifacts with per-run probe tokens that trip secret
+# scanners (and once rode a blanket commit onto a public branch). Never tracked.
+.agents/skills/agent-release-gate/qa-gate-runs/
 !.dockerignore
 !api/.dockerignore
 !services/.dockerignore
@@ -158,3 +163,6 @@ skills-lock.json
 # Storybook config is real source — carve it out of the dotfile ignore above.
 !web/storybook/.storybook/
 !web/storybook/.storybook/**
+
+# @agenta/sessions test artifacts (vitest writes a junit report on every run).
+web/packages/agenta-sessions/test-results/

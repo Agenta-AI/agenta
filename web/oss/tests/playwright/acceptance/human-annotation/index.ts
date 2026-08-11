@@ -208,72 +208,91 @@ const humanAnnotationTests = () => {
     )
 
     // WEB-ACC-HUMAN-004
-    baseHumanTest(
-        "should create a new evaluator inline and annotate a scenario from the annotate tab",
-        {
-            tag: [
-                createTagString("scope", TestScope.EVALUATIONS),
-                createTagString("coverage", TestCoverage.LIGHT),
-                createTagString("coverage", TestCoverage.FULL),
-                createTagString("path", TestPath.HAPPY),
-                createTagString("license", "oss"),
-                createTagString("speed", TestSpeedType.SLOW),
-            ],
-        },
-        async (
-            {
-                page,
-                apiHelpers,
-                navigateToHumanEvaluation,
-                createHumanEvaluationRun,
-                annotateCurrentHumanScenario,
-            },
-            testInfo,
-        ) => {
-            // Skipped in CI: annotateCurrentHumanScenario waits on an LLM auto-run
-            // against the external mockgpt.wiremockapi.cloud provider, which
-            // consistently times out from the CI-deployed backend (fails all
-            // retries, not just intermittently) but works locally. Needs
-            // diagnosis with CI trace access before re-enabling.
-            testInfo.skip(!!process.env.CI, "Depends on external mock-LLM reachability from CI")
+    // Retry-eligible (Mahmoud, see AGENTS.md/session notes): each run uses a fresh
+    // Date.now()-suffixed app/testset/evaluator name, so a retry never collides with or
+    // destroys a prior attempt's data. annotateCurrentHumanScenario's annotation-form
+    // predicate (tests.ts) has a low-confidence timeout, not a stale selector. Narrowest
+    // scope: this one test only.
+    baseHumanTest.describe(
+        "Should create a new evaluator inline and annotate a scenario from the annotate tab (retry-eligible)",
+        () => {
+            baseHumanTest.describe.configure({retries: 2})
 
-            testInfo.setTimeout(120000)
+            baseHumanTest(
+                "should create a new evaluator inline and annotate a scenario from the annotate tab",
+                {
+                    tag: [
+                        createTagString("scope", TestScope.EVALUATIONS),
+                        createTagString("coverage", TestCoverage.LIGHT),
+                        createTagString("coverage", TestCoverage.FULL),
+                        createTagString("path", TestPath.HAPPY),
+                        createTagString("license", "oss"),
+                        createTagString("speed", TestSpeedType.SLOW),
+                    ],
+                },
+                async (
+                    {
+                        page,
+                        apiHelpers,
+                        navigateToHumanEvaluation,
+                        createHumanEvaluationRun,
+                        annotateCurrentHumanScenario,
+                    },
+                    testInfo,
+                ) => {
+                    // Skipped in CI: annotateCurrentHumanScenario waits on an LLM auto-run
+                    // against the external mockgpt.wiremockapi.cloud provider, which
+                    // consistently times out from the CI-deployed backend (fails all
+                    // retries, not just intermittently) but works locally. Needs
+                    // diagnosis with CI trace access before re-enabling.
+                    testInfo.skip(
+                        !!process.env.CI,
+                        "Depends on external mock-LLM reachability from CI",
+                    )
 
-            const app = await apiHelpers.createApp("completion")
-            const appId = app.id
+                    testInfo.setTimeout(120000)
 
-            const variants = await apiHelpers.getVariants(appId)
-            const variantName = getRequiredVariantName(variants[0]?.name)
+                    const app = await apiHelpers.createApp("completion")
+                    const appId = app.id
 
-            await navigateToHumanEvaluation(appId)
+                    const variants = await apiHelpers.getVariants(appId)
+                    const variantName = getRequiredVariantName(variants[0]?.name)
 
-            const testset = await apiHelpers.createTestset({
-                name: `e2e human annotation inline eval ${Date.now()}`,
-                rows: [
-                    {country: "Say hello"},
-                    {country: "Say goodbye"},
-                    {country: "Tell me a joke"},
-                ],
-            })
+                    await navigateToHumanEvaluation(appId)
 
-            await createHumanEvaluationRun({
-                variants: variantName,
-                testset: testset.name,
-                name: `e2e-human-inline-${Date.now()}`,
-                skipEvaluatorCreation: false,
-                evaluatorMetricName: INLINE_EVALUATOR_METRIC_NAME,
-            })
+                    const testset = await apiHelpers.createTestset({
+                        name: `e2e human annotation inline eval ${Date.now()}`,
+                        rows: [
+                            {country: "Say hello"},
+                            {country: "Say goodbye"},
+                            {country: "Tell me a joke"},
+                        ],
+                    })
 
-            await expect(humanEvaluationModal(page)).toHaveCount(0)
-            await expect
-                .poll(() => new URL(page.url()).pathname)
-                .toContain(`${getProjectScopedBasePath(page)}/apps/${appId}/evaluations/results/`)
-            await expect.poll(() => new URL(page.url()).searchParams.get("type")).toBe("human")
+                    await createHumanEvaluationRun({
+                        variants: variantName,
+                        testset: testset.name,
+                        name: `e2e-human-inline-${Date.now()}`,
+                        skipEvaluatorCreation: false,
+                        evaluatorMetricName: INLINE_EVALUATOR_METRIC_NAME,
+                    })
 
-            await annotateCurrentHumanScenario({
-                metricLabel: INLINE_EVALUATOR_METRIC_NAME,
-                valueLabel: "True",
-            })
+                    await expect(humanEvaluationModal(page)).toHaveCount(0)
+                    await expect
+                        .poll(() => new URL(page.url()).pathname)
+                        .toContain(
+                            `${getProjectScopedBasePath(page)}/apps/${appId}/evaluations/results/`,
+                        )
+                    await expect
+                        .poll(() => new URL(page.url()).searchParams.get("type"))
+                        .toBe("human")
+
+                    await annotateCurrentHumanScenario({
+                        metricLabel: INLINE_EVALUATOR_METRIC_NAME,
+                        valueLabel: "True",
+                    })
+                },
+            )
         },
     )
 

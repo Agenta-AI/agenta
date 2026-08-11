@@ -1,6 +1,8 @@
 import {useMemo} from "react"
 
+import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
 import SidebarBackButton from "../components/SidebarBackButton"
+import SidebarToggleButton from "../components/SidebarToggleButton"
 import WorkflowPicker from "../components/WorkflowPicker"
 import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
 
@@ -12,6 +14,10 @@ interface WorkflowScopeOptions {
     lastPath?: string
 }
 
+const WorkflowSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => (
+    <ProjectOrgSwitcher collapsed={collapsed} />
+)
+
 // The two header rows are 45px tall so the rail's lines land on the same y as the
 // playground header, and read as one line across the app.
 const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
@@ -19,11 +25,24 @@ const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
         <div
             className={[
                 "w-full h-[45px] shrink-0 flex items-center border-0 border-b border-solid border-[var(--ag-shell-line)]",
-                collapsed ? "justify-center" : "px-1.5",
+                collapsed ? "justify-center" : "justify-between px-1.5",
             ].join(" ")}
         >
-            <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
+            {/* Collapsed leads with the TOGGLE — the spot every collapsed rail puts it — and
+                Back takes the next band. Expanded: Back left, toggle right, one row. */}
+            {collapsed ? (
+                <SidebarToggleButton />
+            ) : (
+                <SidebarBackButton collapsed={false} lastPath={lastPath} />
+            )}
+            {!collapsed && <SidebarToggleButton />}
         </div>
+
+        {collapsed && (
+            <div className="w-full h-[45px] shrink-0 flex items-center justify-center border-0 border-b border-solid border-[var(--ag-shell-line)]">
+                <SidebarBackButton collapsed lastPath={lastPath} />
+            </div>
+        )}
 
         <div
             className={[
@@ -52,4 +71,7 @@ export const createWorkflowSidebarScope = ({lastPath}: WorkflowScopeOptions): Si
     useSelection: useWorkflowSidebarSelection,
     useSections: useWorkflowSidebarSections,
     header: WorkflowSidebarHeader,
+    // Same bottom slot as the main and settings scopes: the project/org switcher
+    // stays reachable inside an agent, not only on the top-level sidebar.
+    afterBottom: WorkflowSidebarAfterBottom,
 })

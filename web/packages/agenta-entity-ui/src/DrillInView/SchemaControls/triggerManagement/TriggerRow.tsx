@@ -93,7 +93,7 @@ export function TriggerRow({
                                 className="shrink-0 text-[var(--ag-colorTextSecondary)]"
                             />
                             {chip ? (
-                                <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] text-[var(--ag-colorTextSecondary)]">
+                                <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[12px] text-[var(--ag-colorTextSecondary)]">
                                     {chip}
                                 </span>
                             ) : null}

@@ -297,7 +297,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         <div className="border-0 border-r border-solid border-[var(--ag-shell-line)]">
             <Sider
                 theme={theme}
-                className="sticky top-0 bottom-0 h-screen bg-[var(--ag-sidebar-bg)]"
+                // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
+                // document-scrolling routes; 0px everywhere else.
+                className="sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] bg-[var(--ag-sidebar-bg)]"
                 collapsible
                 width={collapsed ? 48 : 236}
                 trigger={null}

@@ -1,5 +1,6 @@
 import {forwardRef, type ReactNode, useEffect, useImperativeHandle, useRef, useState} from "react"
 
+import {modifierKeyLabel} from "@agenta/shared/utils"
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
 import {HistoryExtension} from "@lexical/history"
 import {LinkNode} from "@lexical/link"
@@ -84,7 +85,7 @@ export interface RichChatInputProps {
     size?: "compact" | "comfortable"
     /** Font-size class for the editor text + placeholder (default `text-xs`). */
     textSizeClassName?: string
-    /** Hide just the Bold/Italic/Send/Newline shortcut hints (keep prefix + trailing). */
+    /** Hide just the Send/Newline shortcut hints (keep prefix + trailing). */
     hideShortcutHints?: boolean
     /** Whether plain Enter submits. Default true (chat); set false for description-style inputs. */
     submitOnEnter?: boolean
@@ -106,8 +107,8 @@ const chatInputExtension = defineExtension({
 
 export function ShortcutHint({keys, label}: {keys: string; label: string}) {
     return (
-        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-[var(--ag-colorTextSecondary)]">
-            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[10px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
+        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]">
+            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[12px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
                 {keys}
             </kbd>
             {label}
@@ -148,13 +149,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         const editorRef = useRef<LexicalEditor | null>(null)
         const dictationRef = useRef<DictationSession | null>(null)
         const [focused, setFocused] = useState(false)
+        // Resolved after mount: SSR has no platform, and answering during render would mismatch on
+        // hydration. `SubmitPlugin` accepts meta OR ctrl, so the binding matches the label on both.
         const [modKey, setModKey] = useState("⌘")
 
-        useEffect(() => {
-            if (typeof navigator !== "undefined" && !/Mac|iPhone|iPad/.test(navigator.userAgent)) {
-                setModKey("Ctrl")
-            }
-        }, [])
+        useEffect(() => setModKey(modifierKeyLabel()), [])
 
         // Seed once at mount. EditorRefBridge (a child) binds the editor in its own effect,
         // which runs before this one, so the ref is live here. Mount-only by design — the
@@ -212,7 +211,10 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // Single rounded border around the whole composer; overflow-hidden clips the
                         // editor + toolbar to the rounded corners. The toolbar has no divider of its
                         // own, so the bottom edge reads as one border, not two.
-                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
+                        // Filled, not transparent: an outlined box reads as an outline, where a fill reads as
+                        // somewhere to type. A FILL token rather than an opaque surface — it lifts off the
+                        // page in dark and settles into it in light, where "elevated" is the page colour.
+                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorFillTertiary)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
                         // The primary input reads as a defined, slightly-lifted field: a visible edge
                         // + soft shadow, then the accent border on focus (1px, no glow).
                         "border-[var(--ag-composer-border)] focus-within:border-[var(--ag-composer-focus)]",
@@ -276,8 +278,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 )}
                                 aria-hidden={!hintsVisible}
                             >
-                                <ShortcutHint keys={`${modKey} B`} label="Bold" />
-                                <ShortcutHint keys={`${modKey} I`} label="Italic" />
+                                {/* Bold/Italic still work (Cmd/Ctrl+B/I) — they just no longer
+                                    advertise themselves; the send/newline pair is the only pair
+                                    you need told to you. */}
                                 <ShortcutHint keys="↵" label="Send" />
                                 <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
                             </div>

@@ -260,6 +260,19 @@ export interface QuerySessionsParams {
     includeArchived?: boolean
     /** Case-insensitive substring match over the session title (`session_streams.name`). */
     search?: string
+    /** Liveness filter (alive ⊇ running ⊇ attached) against the row's mirrored flags. */
+    flags?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
+    /** Restrict to an explicit id set — the pushdown for any predicate that lives outside the
+     * stream row (client-held pins, sessions named by a pending-interaction lookup). The server
+     * still owns the intersection, the ordering and the windowing, so counts and empty states
+     * stay correct; filtering a fetched page client-side would filter the window, not the set. */
+    sessionIds?: string[]
+    /** Its complement — drop ids already rendered as their own group (pins) from the main list. */
+    excludeSessionIds?: string[]
+    /** Who started the session: "manual", "trigger". Absent means every origin. */
+    origin?: string
+    /** Hide one origin while still showing sessions written before origins were stamped. */
+    excludeOrigin?: string
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
@@ -285,6 +298,11 @@ export async function querySessions({
     includeEnded = true,
     includeArchived = true,
     search,
+    flags,
+    sessionIds,
+    excludeSessionIds,
+    origin,
+    excludeOrigin,
     appId,
     abortSignal,
     lowPriority,
@@ -309,10 +327,23 @@ export async function querySessions({
                 include_ended: includeEnded,
                 include_archived: includeArchived,
                 windowing,
-                // TODO(fern-regen): `search` isn't in the generated SessionQueryRequest yet
-                // (regen out of scope) — widen the type until the client picks it up.
+                // TODO(fern-regen): `search`/`flags`/`session_ids`/`exclude_session_ids` aren't in
+                // the generated SessionQueryRequest yet (regen out of scope) — widen the type
+                // until the client picks them up.
                 search,
-            } as AgentaApi.SessionQueryRequest & {search?: string},
+                flags,
+                session_ids: sessionIds,
+                exclude_session_ids: excludeSessionIds,
+                origin,
+                exclude_origin: excludeOrigin,
+            } as AgentaApi.SessionQueryRequest & {
+                search?: string
+                flags?: QuerySessionsParams["flags"]
+                session_ids?: string[]
+                exclude_session_ids?: string[]
+                origin?: string
+                exclude_origin?: string
+            },
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
@@ -548,6 +579,43 @@ export async function querySessionMounts({
         data,
         "[querySessionMounts]",
     )
+    return validated?.mounts ?? null
+}
+
+/**
+ * The durable drive bound to an AGENT rather than to a session — the files an agent carries
+ * between runs (its brief, its reference material) as opposed to a session's scratch mount.
+ *
+ * Backed by `POST /mounts/agents/query`, which takes the workflow ARTIFACT id and resolves the
+ * canonical agent id server-side, so callers pass the same id the rest of the app calls `appId`.
+ * Returns at most one mount; the list shape mirrors the session endpoint.
+ */
+export async function queryAgentMounts({
+    artifactId,
+    projectId,
+    appId,
+    abortSignal,
+    lowPriority,
+}: {
+    artifactId: string
+    projectId: string
+    appId?: string
+    abortSignal?: AbortSignal
+    lowPriority?: boolean
+}): Promise<Mount[] | null> {
+    if (!projectId || !artifactId) return null
+
+    const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    // maxRetries 1: a small query; recover a transient blip once, but never a long retry pit.
+    const data = await callFern("[queryAgentMounts]", () =>
+        client.queryAgentMount(
+            {artifact_id: artifactId},
+            projectScopedRequest(projectId, appId, abortSignal, 1),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(sessionMountsResponseSchema, data, "[queryAgentMounts]")
     return validated?.mounts ?? null
 }
 

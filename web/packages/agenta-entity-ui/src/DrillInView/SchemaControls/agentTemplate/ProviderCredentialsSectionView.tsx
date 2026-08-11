@@ -157,7 +157,7 @@ function ProviderTile({family, label}: {family: string; label: string}) {
     const icon = renderProviderIcon(family)
     return (
         // Fixed-light logo tile: brand glyphs are dark-filled and would vanish on dark fills.
-        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-white text-[10px] font-semibold text-[#586673]">
+        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-white text-[12px] font-semibold text-[#586673]">
             {icon ?? (label.charAt(0).toUpperCase() || "?")}
         </span>
     )
@@ -383,7 +383,7 @@ export function ProviderCredentialsSectionView({
                 <Terminal size={18} className="text-[var(--ag-colorTextSecondary)]" />
             </div>
             <div className="flex flex-col gap-1">
-                <span className="text-[14.5px] font-semibold">Self-managed</span>
+                <span className="text-base font-semibold">Self-managed</span>
                 <ul className="m-0 flex list-disc flex-col gap-0.5 pl-4">
                     <li>
                         <span className="text-xs leading-relaxed text-colorTextDescription">
@@ -414,7 +414,7 @@ export function ProviderCredentialsSectionView({
                 </a>
                 {isCloud ? (
                     // fallback until colorErrorBg token lands
-                    <span className="rounded-full border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg,rgba(255,77,79,0.12))] px-2 py-0.5 text-[11px] text-[var(--ag-colorErrorText)]">
+                    <span className="rounded-full border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg,rgba(255,77,79,0.12))] px-2 py-0.5 text-xs text-[var(--ag-colorErrorText)]">
                         Unavailable in the cloud
                     </span>
                 ) : null}
@@ -426,7 +426,7 @@ export function ProviderCredentialsSectionView({
     const renderCustomSummary = (secret: LlmProvider) => (
         <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-0.5">
-                <span className="text-[14.5px] font-semibold">{secret.name}</span>
+                <span className="text-base font-semibold">{secret.name}</span>
                 <span className="text-xs leading-snug text-colorTextDescription">
                     {PROVIDER_LABELS[secret.provider ?? ""] ?? secret.provider}
                     {" · manage this connection in Settings → Secrets."}
@@ -434,7 +434,7 @@ export function ProviderCredentialsSectionView({
             </div>
             {secret.models?.length ? (
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                    <span className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                         Models
                     </span>
                     <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
@@ -526,7 +526,7 @@ export function ProviderCredentialsSectionView({
                 ))}
                 {addProviderRows ? (
                     <div className="mt-1.5 flex flex-col gap-0.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-1.5">
-                        <span className="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                        <span className="px-2.5 pb-0.5 pt-1 text-[12px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                             Use custom provider
                         </span>
                         {addProviderRows}
@@ -633,7 +633,7 @@ export function ProviderCredentialsSectionView({
             indicator={indicator}
             titleBadge={
                 providerNeedsKey ? (
-                    <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--ag-colorWarningText)]">
+                    <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-1.5 py-0.5 text-[12px] font-medium text-[var(--ag-colorWarningText)]">
                         Connect key
                     </span>
                 ) : null

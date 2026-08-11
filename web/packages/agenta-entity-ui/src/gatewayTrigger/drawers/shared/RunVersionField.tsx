@@ -180,7 +180,7 @@ export function RunVersionField({
         >
             {bindMode === "revision" || hideEnvironment ? (
                 <>
-                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+                    <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                         {revisionHint}
                     </span>
                     <EntityPicker<WorkflowRevisionSelectionResult>
@@ -193,7 +193,7 @@ export function RunVersionField({
                 </>
             ) : (
                 <>
-                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+                    <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                         {envHint}
                     </span>
                     <Select

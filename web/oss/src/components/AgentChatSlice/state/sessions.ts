@@ -462,7 +462,9 @@ export interface ServerSessionSummary {
 /**
  * Fold the server's durable session list for a scope over the localStorage cache:
  *  - adopt sessions the server knows and we don't (cross-device / post-localStorage-wipe),
- *  - enrich `title`/`createdAt` from the server (a local user title always wins),
+ *  - enrich `title`/`createdAt` from the server (a non-empty server title wins: every local
+ *    title is also persisted server-side, and a server-side rename — e.g. the agent's own
+ *    `rename_session` tool — must show without a reload),
  *  - drop a session the server DROPPED — present-before, gone-now = hard-deleted elsewhere —
  *    but never a purely-local optimistic session (one the server never confirmed).
  * Open tabs / active stay per-device. Idempotent: a no-op when already reconciled.
@@ -507,7 +509,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                 merged.push({
                     ...s,
                     serverKnown: true,
-                    title: s.title?.trim() ? s.title : remote.title,
+                    title: remote.title?.trim() ? remote.title : s.title,
                     createdAt: s.createdAt ?? remote.createdAt,
                     // Keep the freshest activity time: a local turn just settled may lead the
                     // server heartbeat, and vice-versa across devices.
@@ -948,20 +950,46 @@ export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
     atom((get) => get(sessionStatusByIdAtom)[id] === "running"),
 )
 
+/**
+ * When each session's LOCAL run last settled (ms epoch), stamped when an active run becomes idle
+ * or errors. Read by the running-elsewhere derivation: backend liveness is a poll snapshot
+ * up to 15s stale, so a flag fetched BEFORE our own turn ended says nothing about whether anyone
+ * else is running it (#5844). In-memory only — it describes this browser tab, not history.
+ */
+const sessionLocalSettledAtByIdAtom = atom<Record<string, number>>({})
+
+/** When this browser's run of a session last settled; `undefined` if it never ran one here. */
+export const sessionLocalSettledAtAtomFamily = atomFamily((id: string) =>
+    selectAtom(sessionLocalSettledAtByIdAtom, (map) => map[id]),
+)
+
 /** Set a session's run state. "idle" is the default, so it's stored as ABSENCE: passing "idle"
  * deletes the entry (clear-on-unmount) instead of accumulating idle keys for every closed session. */
 export const setSessionStatusAtom = atom(
     null,
     (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
         const cur = get(sessionStatusByIdAtom)
+        const wasActive = cur[id] === "running" || cur[id] === "awaiting"
         if (status === "idle") {
             if (!(id in cur)) return
+            if (wasActive) {
+                set(sessionLocalSettledAtByIdAtom, {
+                    ...get(sessionLocalSettledAtByIdAtom),
+                    [id]: Date.now(),
+                })
+            }
             const next = {...cur}
             delete next[id]
             set(sessionStatusByIdAtom, next)
             return
         }
         if (cur[id] === status) return
+        if (status === "error" && wasActive) {
+            set(sessionLocalSettledAtByIdAtom, {
+                ...get(sessionLocalSettledAtByIdAtom),
+                [id]: Date.now(),
+            })
+        }
         set(sessionStatusByIdAtom, {...cur, [id]: status})
     },
 )

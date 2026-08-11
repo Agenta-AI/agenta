@@ -151,13 +151,13 @@ function ChildPanelContent({
                 <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span
-                            className="block truncate text-[10px] font-medium"
+                            className="block truncate text-[12px] font-medium"
                             title={parentLabel}
                         >
                             {parentLabel}
                         </span>
                         {multiSelect && (
-                            <span className="text-colorTextSecondary text-[10px]">
+                            <span className="text-colorTextSecondary text-[12px]">
                                 {selectedCount} of {filteredItems.length} selected
                             </span>
                         )}
@@ -169,7 +169,7 @@ function ChildPanelContent({
                                 type="button"
                                 variant="link"
                                 size="sm"
-                                className="shrink-0 h-auto p-0 text-[10px]"
+                                className="shrink-0 h-auto p-0 text-[12px]"
                                 onClick={handleSelectAll}
                             >
                                 Select all
@@ -265,7 +265,7 @@ function SelectedChildChips({
             {chips.map((chip) => (
                 <span
                     key={chip.id}
-                    className="inline-flex items-center gap-1 rounded bg-[var(--ag-rgba-051729-06)] px-1.5 py-0.5 text-[10px] leading-none"
+                    className="inline-flex items-center gap-1 rounded bg-[var(--ag-rgba-051729-06)] px-1.5 py-0.5 text-[12px] leading-none"
                 >
                     {chip.label}
                     <X
@@ -796,7 +796,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     {/* Selection summary */}
                     {selectionSummaryText ? (
                         <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center justify-between">
-                            <span className="text-colorTextSecondary text-[10px]">
+                            <span className="text-colorTextSecondary text-[12px]">
                                 {selectionSummaryText}
                             </span>
                             {onClearAll && (selectedChildIds?.size ?? 0) > 0 && (
@@ -804,7 +804,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                     type="button"
                                     variant="link"
                                     size="sm"
-                                    className="h-auto p-0 text-[10px]"
+                                    className="h-auto p-0 text-[12px]"
                                     onClick={onClearAll}
                                 >
                                     Clear all
@@ -833,7 +833,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                         <div key={groupKey}>
                                             {showGroupHeaders && (
                                                 <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                                                    <span className="text-[10px] font-medium text-colorTextDescription">
+                                                    <span className="text-[12px] font-medium text-colorTextDescription">
                                                         {rootLevel.getGroupLabel?.(groupKey) ??
                                                             groupKey}
                                                     </span>
@@ -854,7 +854,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                     <div>
                                         {showGroupHeaders && groupedItems.groups.size > 0 && (
                                             <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                                                <span className="text-[10px] font-medium text-colorTextDescription">
+                                                <span className="text-[12px] font-medium text-colorTextDescription">
                                                     Other
                                                 </span>
                                                 <div className="flex-1 h-px bg-[var(--ag-rgba-051729-06)]" />

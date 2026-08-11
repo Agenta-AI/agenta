@@ -67,6 +67,11 @@ function DropdownMenuContent({
                     // portals to <body>, escaping the app font scope. box-border: preflight is off.
                     "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-control-lg p-1",
+                    // `.overflow-y-auto` matches the global scroll-fade rule (globals.css), whose
+                    // scroll-driven animation never fires `animationend` — Radix Presence then
+                    // waits forever and the closed content stays mounted, aria-hiding the page.
+                    // `animate-none` outranks the `:where()` rule; no other animation exists here.
+                    "animate-none",
                     className,
                 )}
                 {...props}
@@ -234,6 +239,8 @@ function DropdownMenuSubContent({
                     // Same overlay chrome as DropdownMenuContent / SelectContent.
                     "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-control-lg p-1",
+                    // See DropdownMenuContent: the scroll-fade animation deadlocks Presence unmount.
+                    "animate-none",
                     className,
                 )}
                 {...props}

@@ -49,6 +49,12 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     maxItems?: number
     /** Project-relative path for the "Show all" overflow row. */
     showAllPath?: string
+    /** Per-row icon, overriding the shared kind icon — for rows whose state differs from each
+     * other (a session's liveness dot, say), where one icon for the whole group says nothing. */
+    getIcon?: (ref: TRef) => ReactElement
+    /** Extra work on click, alongside following `childPath` — e.g. handing the target to the
+     * surface being navigated to. Runs in the default jotai store, not a hook. */
+    getOnClick?: (ref: TRef) => () => void
 }
 
 /**
@@ -66,4 +72,6 @@ export interface SidebarEntity {
     emptyLabel?: string
     maxItems: number
     showAllLink?: (projectURL: string) => string
+    getIcon?: (ref: SidebarEntityRef) => ReactElement
+    getOnClick?: (ref: SidebarEntityRef) => () => void
 }

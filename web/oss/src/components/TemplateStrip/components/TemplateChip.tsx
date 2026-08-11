@@ -30,7 +30,7 @@ const TemplateChip = ({
             transition={{layout: WIDTH_SPRING}}
             // Inline radius so Motion scale-corrects it during the morph (Tailwind radius isn't corrected).
             style={{borderRadius: "9px 9px 0 0"}}
-            className={`relative box-border inline-flex w-fit items-center gap-2 overflow-hidden whitespace-nowrap border-[1.5px] border-b-0 border-solid border-[var(--ag-colorPrimary)] bg-[var(--ag-colorBgContainer)] bg-[image:linear-gradient(var(--ag-strip-selected-bg),var(--ag-strip-selected-bg))] px-3 py-1.5 text-[12.5px] text-[var(--ag-colorTextSecondary)] ${className ?? ""}`}
+            className={`relative box-border inline-flex w-fit items-center gap-2 overflow-hidden whitespace-nowrap border-[1.5px] border-b-0 border-solid border-[var(--ag-colorPrimary)] bg-[var(--ag-colorBgContainer)] bg-[image:linear-gradient(var(--ag-strip-selected-bg),var(--ag-strip-selected-bg))] px-3 py-1.5 text-xs text-[var(--ag-colorTextSecondary)] ${className ?? ""}`}
         >
             <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div

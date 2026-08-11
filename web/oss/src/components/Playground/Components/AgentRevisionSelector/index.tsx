@@ -70,7 +70,7 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                     title={
                         commitMessage ? (
                             <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-medium uppercase tracking-wide opacity-65">
+                                <span className="text-[12px] font-medium uppercase tracking-wide opacity-65">
                                     Commit message
                                 </span>
                                 <div className="max-h-[240px] overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-xs leading-relaxed">

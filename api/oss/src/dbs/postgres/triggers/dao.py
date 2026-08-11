@@ -24,6 +24,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionQuery,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
+from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -45,6 +46,8 @@ from oss.src.dbs.postgres.triggers.mappings import (
     map_subscription_dto_to_dbe_create,
     map_subscription_dto_to_dbe_edit,
 )
+
+log = get_module_logger(__name__)
 
 
 class TriggersDAO(TriggersDAOInterface):
@@ -818,7 +821,22 @@ class TriggersDAO(TriggersDAOInterface):
 
             result = await session.execute(stmt)
 
-            return [
-                (dbe.project_id, map_schedule_dbe_to_dto(schedule_dbe=dbe))
-                for dbe in result.scalars().all()
-            ]
+            schedules: List[Tuple[UUID, TriggerSchedule]] = []
+            for dbe in result.scalars().all():
+                try:
+                    schedules.append(
+                        (dbe.project_id, map_schedule_dbe_to_dto(schedule_dbe=dbe))
+                    )
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    # One malformed row must not drop every project's active
+                    # schedules for the tick; skip it and keep the rest.
+                    # Pydantic's ValidationError.__str__ embeds the offending
+                    # input_value, so log the exception type only, never {e}.
+                    log.error(
+                        "[SCHEDULE] Skipping malformed schedule row",
+                        schedule_id=str(dbe.id),
+                        project_id=str(dbe.project_id),
+                        error_type=type(e).__name__,
+                    )
+
+            return schedules

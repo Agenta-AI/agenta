@@ -55,7 +55,13 @@ export type {
     TriggerSubscriptionResponse,
     TriggerSubscriptionsResponse,
 } from "./core"
-export {isConnectionActive, isConnectionValid, isEntityActive, isEntityValid} from "./core"
+export {
+    isConnectionActive,
+    isConnectionValid,
+    isEntityActive,
+    isEntityValid,
+    triggerBoundAgentId,
+} from "./core"
 // The boundary schemas — exported so Storybook fixtures build their payloads through the
 // SAME validation the API layer uses and cannot drift from the contract silently.
 export {
@@ -136,6 +142,8 @@ export {
 export {
     applyScheduleActiveOptimistic,
     applySubscriptionActiveOptimistic,
+    invalidateTriggerSchedules,
+    invalidateTriggerSubscriptions,
     triggerCatalogDrawerOpenAtom,
     triggerDeliveriesDrawerAtom,
     triggerEventsDrawerAtom,

@@ -535,10 +535,10 @@ export function useModelHarness({
     const versionHistorySkeleton = (
         <div>
             <div className="mb-2 flex items-center gap-1.5">
-                <span className="text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                <span className="text-xs uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
                     Version history
                 </span>
-                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[10px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[12px] text-[var(--ag-c-97A4B0,#97a4b0)]">
                     soon
                 </span>
             </div>
@@ -606,14 +606,14 @@ export function useModelHarness({
                 <div className="flex flex-wrap items-center gap-2.5">
                     <span className="text-sm font-medium">{selectedHarnessLabel}</span>
                     {selectedIsCurrent ? (
-                        <span className="rounded-full bg-[var(--ag-colorFillSecondary)] px-2 py-0.5 text-[11px] text-[var(--ag-colorPrimary)]">
+                        <span className="rounded-full bg-[var(--ag-colorFillSecondary)] px-2 py-0.5 text-xs text-[var(--ag-colorPrimary)]">
                             Current
                         </span>
                     ) : null}
                     {modelId ? (
                         <span
                             className={cn(
-                                "inline-flex items-center gap-1 text-[11px]",
+                                "inline-flex items-center gap-1 text-xs",
                                 selectedKeepsModel
                                     ? "text-[var(--ag-colorSuccess)]"
                                     : "text-[var(--ag-colorWarning)]",
@@ -626,7 +626,7 @@ export function useModelHarness({
                 </div>
                 {selectedProviders.length > 0 ? (
                     <div className="flex flex-col gap-0.5">
-                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                             Providers
                         </span>
                         <span className="text-xs text-[var(--ag-colorTextSecondary)]">
@@ -640,7 +640,7 @@ export function useModelHarness({
                 ) : null}
                 {selectedDeployments.length > 0 ? (
                     <div className="flex flex-col gap-0.5">
-                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                             Hosting
                         </span>
                         <span className="text-xs text-[var(--ag-colorTextSecondary)]">
@@ -694,7 +694,7 @@ export function useModelHarness({
         <div className="flex flex-col gap-2 py-0.5">
             {modelControl}
             {!focus.active && hasInspectModels ? (
-                <span className="text-[11px] leading-snug text-colorTextDescription">
+                <span className="text-xs leading-snug text-colorTextDescription">
                     Filtered to the models this harness can reach. Selecting a model also sets its
                     provider.
                 </span>
@@ -900,7 +900,7 @@ export function useModelHarness({
                     {/* Caption then peer rail rows (mode / allow / ask / deny) sharing the
                         section rail — the control renders its own RailField rows. */}
                     {focus.active ? null : (
-                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[12px] text-[var(--ant-color-primary-text)]">
                             Claude harness
                         </span>
                     )}
@@ -923,7 +923,7 @@ export function useModelHarness({
             {hasPiPermissions ? (
                 <>
                     {focus.active ? null : (
-                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[12px] text-[var(--ant-color-primary-text)]">
                             Pi harness
                         </span>
                     )}
@@ -955,7 +955,7 @@ export function useModelHarness({
                           title: "Execution environment",
                           summary: sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined,
                           caption: (
-                              <span className="text-[11px] leading-snug text-colorTextDescription">
+                              <span className="text-xs leading-snug text-colorTextDescription">
                                   Where the agent&apos;s tools and code run, and what that sandbox
                                   may touch.
                               </span>
@@ -976,7 +976,7 @@ export function useModelHarness({
                           title: "Permissions",
                           summary: runnerPermissionSummary,
                           caption: (
-                              <span className="text-[11px] leading-snug text-colorTextDescription">
+                              <span className="text-xs leading-snug text-colorTextDescription">
                                   What the agent may do on its own before it must ask.
                               </span>
                           ),

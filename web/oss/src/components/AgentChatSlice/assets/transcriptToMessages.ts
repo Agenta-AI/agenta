@@ -104,6 +104,89 @@ const isRunnerSentinelError = (part: Part): boolean => {
     )
 }
 
+/** Tool name from a replayed part's `type`/`toolName` — mirrors clientTools/meta.ts's
+ * `clientToolName`, kept local since this file has no dependency on the app's client-tool layer. */
+const partToolName = (part: Part): string => {
+    if (part.type === "dynamic-tool") return typeof part.toolName === "string" ? part.toolName : ""
+    return typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
+}
+
+/**
+ * The settled output to synthesize for a client-tool interaction the backend already cancelled
+ * (`session_interactions.status === "cancelled"`) whose transcript never got a settling
+ * `tool_result` — see `fetchCancelledClientToolTokensAtom`'s doc for why the record log alone
+ * can't tell. Mirrors each widget's OWN cancelled-terminal shape (`ConnectOutput.reason` /
+ * `ElicitationResult.action`) so a resurrected part renders exactly like a live cancel — an inert
+ * chip, never an interactive, answerable form. Keyed by the same tool name the client-tool
+ * registry dispatches on (`registry.tsx`'s `BY_TOOL_NAME`); an unregistered kind falls back to a
+ * bare empty output, which still settles (out of `input-available`) even with no dedicated chip.
+ */
+const CANCELLED_CLIENT_TOOL_OUTPUT: Record<string, Part> = {
+    request_connection: {connected: false, reason: "cancelled"},
+    request_input: {action: "cancel"},
+}
+
+/** Apply the cancelled-interaction override to every still-`input-available` client-tool part
+ * whose token the interactions join marked cancelled. Runs once, after the full record sweep, so
+ * a LATER `tool_result` for the same toolCallId (a real settle) always wins over this fallback. */
+function applyCancelledInteractions(
+    index: TranscriptIndex,
+    cancelledClientToolTokens: ReadonlySet<string> | undefined,
+): void {
+    if (!cancelledClientToolTokens || cancelledClientToolTokens.size === 0) return
+    for (const [toolCallId, part] of index.tools) {
+        if (part.state !== "input-available") continue
+        if (!cancelledClientToolTokens.has(toolCallId)) continue
+        part.state = "output-available"
+        part.output = CANCELLED_CLIENT_TOOL_OUTPUT[partToolName(part)] ?? {}
+    }
+}
+
+/**
+ * Replay a parked CLIENT TOOL (`interaction_request` `kind: "client_tool"`): its unsettled tool
+ * part plus the sibling `data-render` part that carries `render.kind` — the ONLY thing that tells
+ * the client-tool registry which widget to dispatch (strict AI SDK tool chunks can't carry it
+ * inline, so the live egress emits the same sibling part). Without it a replayed elicitation
+ * resolves to no widget and the fallback settles it as "not handled by this client".
+ */
+function replayClientTool(
+    draft: DraftMessage,
+    payload: Record<string, unknown>,
+    index: TranscriptIndex,
+    str: (v: unknown) => string,
+): void {
+    const reqPayload = (payload.payload ?? {}) as Record<string, unknown>
+    const toolCall = (reqPayload.toolCall ?? {}) as Record<string, unknown>
+    const toolCallId = str(
+        reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
+    )
+    if (!toolCallId) return
+    const toolName = str(reqPayload.toolName ?? toolCall.name ?? toolCall.title)
+    const input = reqPayload.input ?? toolCall.rawInput ?? toolCall.input
+    let part = index.tools.get(toolCallId)
+    if (!part) {
+        // The runner parked without first surfacing the tool call — synthesize one.
+        part = {
+            type: toolPartType(toolName),
+            toolCallId,
+            state: "input-available",
+            input,
+        }
+        draft.parts.push(part)
+        index.tools.set(toolCallId, part)
+    } else {
+        if (toolName) {
+            if (part.type === "dynamic-tool") part.toolName = toolName
+            else part.type = toolPartType(toolName)
+        }
+        if (input !== undefined) part.input = input
+    }
+    const render = reqPayload.render
+    if (render && typeof render === "object" && !Array.isArray(render)) {
+        draft.parts.push({type: "data-render", data: {toolCallId, render}})
+    }
+}
+
 /** Apply one transcript event's payload onto the current assistant/user draft message. */
 function applyEvent(
     draft: DraftMessage,
@@ -199,9 +282,12 @@ function applyEvent(
             return
         }
         case "interaction_request": {
-            // v1 scope: HITL approvals only. The runner emits `kind` `user_approval` for the
-            // Approve/Deny gate; `user_input`/`client_tool` are left to their tool_call/result
-            // parts (a client tool isn't approve/deny) until those are wired.
+            // Two kinds replay: `user_approval` (the Approve/Deny gate, below) and `client_tool`
+            // (a parked browser-fulfilled call). `user_input` is left to its tool_call/result parts.
+            if (payload.kind === "client_tool") {
+                replayClientTool(draft, payload, index, str)
+                return
+            }
             if (payload.kind !== "user_approval") return
             const reqPayload = (payload.payload ?? {}) as Record<string, unknown>
             const toolCall = (reqPayload.toolCall ?? {}) as Record<string, unknown>
@@ -311,10 +397,18 @@ function applyEvent(
             draft.usage = next
             return
         }
-        // done / data / render-hints / attachment_delivery carry no renderable message part — drop.
+        // done / data / attachment_delivery carry no renderable message part — drop.
         default:
             return
     }
+}
+
+export interface TranscriptToMessagesOptions {
+    /** Tokens (== toolCallId) of this session's CANCELLED `client_tool` interactions — see
+     * `fetchCancelledClientToolTokensAtom`. A resurrected part for one of these replays inert
+     * instead of as a live, answerable form. Omit when the caller has no interaction-status join
+     * available; every part then replays exactly as before (unaffected, not a regression). */
+    cancelledClientToolTokens?: ReadonlySet<string>
 }
 
 /**
@@ -322,7 +416,10 @@ function applyEvent(
  * there is nothing renderable (empty transcript or only metadata events) so the caller can
  * fall back to local history.
  */
-export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | null {
+export function transcriptToMessages(
+    records: SessionRecord[],
+    options?: TranscriptToMessagesOptions,
+): UIMessage[] | null {
     const drafts: DraftMessage[] = []
     let current: DraftMessage | null = null
     // Paused resumes close the draft, but later answers and results still target its tool part.
@@ -378,6 +475,12 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             if (part.state === "approval-requested") part.state = "approval-responded"
         }
     }
+
+    // Same "settle whatever the record log alone left parked" idea as the resumed-approval pass
+    // above, for client tools: a token the caller's interaction-status join says is CANCELLED
+    // never got its own `tool_result` (a real settle would have), so it replays parked forever
+    // without this.
+    applyCancelledInteractions(index, options?.cancelledClientToolTokens)
 
     const messages = drafts
         .filter((d) => d.parts.length > 0)

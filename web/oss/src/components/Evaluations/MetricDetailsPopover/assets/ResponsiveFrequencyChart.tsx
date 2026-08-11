@@ -449,10 +449,10 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                             }}
                                         />
                                         <div className="mb-1">
-                                            <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                                            <span className="text-[12px] uppercase tracking-wide text-gray-400">
                                                 Label
                                             </span>
-                                            <span className="ml-2 inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                            <span className="ml-2 inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
                                                 {String(data[hoveredBar].label)}
                                             </span>
                                         </div>

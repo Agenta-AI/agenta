@@ -102,7 +102,7 @@ const SubmittedAnswers = ({
                     <div className="mt-1 flex min-w-0 flex-col gap-1 pl-[21px]">
                         {answered.map((f) => (
                             <div key={f.name} className="flex items-baseline justify-between gap-3">
-                                <Text type="secondary" className="!text-[11px] shrink-0">
+                                <Text type="secondary" className="!text-xs shrink-0">
                                     {f.label}
                                 </Text>
                                 <Text className="!text-xs max-w-[70%] truncate text-right">
@@ -330,7 +330,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 <div className="flex min-w-0 flex-col">
                     <Text className="!text-xs">{parsed.payload.message}</Text>
                     {/* Requester attribution — muted subtext, never a banner (design D-spec). */}
-                    <Text type="secondary" className="!text-[11px]">
+                    <Text type="secondary" className="!text-xs">
                         Asked by {resolveToolDisplay(meta.toolName).label}
                         {requiredCount > 0
                             ? ` · Waiting on your input · ${requiredCount} required`

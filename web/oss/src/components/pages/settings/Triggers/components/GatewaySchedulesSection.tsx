@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {
     describeCron,
     isEntityActive,
+    triggerBoundAgentId,
     triggerDeliveriesDrawerAtom,
     triggerScheduleDrawerAtom,
     useTriggerSchedule,
@@ -147,13 +148,11 @@ export default function GatewaySchedulesSection() {
                     title: "Bound workflow",
                     width: 180,
                     render: (_value, record) => {
-                        const refs = record.data?.references
-                        const wfId =
-                            refs?.application?.id ??
-                            refs?.application_variant?.id ??
-                            refs?.application_revision?.id ??
-                            null
-                        return <BoundWorkflowCell wfId={wfId} />
+                        return (
+                            <BoundWorkflowCell
+                                wfId={triggerBoundAgentId(record.data?.references)}
+                            />
+                        )
                     },
                 },
                 {

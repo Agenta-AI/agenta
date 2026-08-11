@@ -31,6 +31,7 @@
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
 import { mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 
 import { apiBase } from "../../apiBase.ts";
 
@@ -771,6 +772,13 @@ export async function acquireEnvironment(
       isPi: plan.isPi,
       agentMountedPath: environment.agentMountedPath,
       agentMountSkipped: !!agentMountSkipped,
+      // Mirrors prepareWorkspace's materialization split: Pi reads an immutable
+      // `agents/skills/<digest>` snapshot; other harnesses read `.{acpAgent}/skills/<name>`.
+      skillsPath: plan.workspace.skillDirs.length
+        ? plan.isPi
+          ? join(plan.workspace.cwd, "agents", "skills")
+          : join(plan.workspace.cwd, `.${plan.acpAgent}`, "skills")
+        : undefined,
       toolNames: plan.tools.toolSpecs.map((spec) => spec.name),
     });
     const guidedPlan = guidance
@@ -921,9 +929,8 @@ export async function acquireEnvironment(
                 : undefined,
           ])
         : undefined;
-    const claudeAppendixMeta: ClaudeSystemPromptMeta | undefined = claudeAppendix
-      ? claudeSystemPromptMeta(claudeAppendix)
-      : undefined;
+    const claudeAppendixMeta: ClaudeSystemPromptMeta | undefined =
+      claudeAppendix ? claudeSystemPromptMeta(claudeAppendix) : undefined;
     // Claude-only: request visible ("summarized") extended-thinking display so the model's
     // reasoning reaches the runner (and the playground). Without it, recent Claude models
     // return signature-only thinking and no reasoning surfaces. See `claude-thinking.ts`.

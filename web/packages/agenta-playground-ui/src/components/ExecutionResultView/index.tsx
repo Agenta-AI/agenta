@@ -203,7 +203,7 @@ function ResponseContent({
             <div>
                 {repetitionProps && !isComparisonView && (
                     <div className="flex gap-1 items-center mb-1">
-                        <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                        <Typography.Text type="secondary" className="text-[12px] text-nowrap">
                             Total repeats
                         </Typography.Text>
                         <RepetitionNavigation {...repetitionProps} />
@@ -224,7 +224,7 @@ function ResponseContent({
         <div>
             {repetitionProps && !isComparisonView && (
                 <div className="flex gap-1 items-center mb-1">
-                    <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                    <Typography.Text type="secondary" className="text-[12px] text-nowrap">
                         Total repeats
                     </Typography.Text>
                     <RepetitionNavigation {...repetitionProps} />

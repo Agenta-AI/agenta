@@ -39,7 +39,7 @@ from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.dbs.redis.sessions.contract import watch_channel
+from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
 from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.apis.fastapi.sessions.watch import watch_event_stream
 
@@ -348,6 +348,14 @@ class SessionStreamsRouter:
             tags=["Sessions"],
             response_model=None,
         )
+        self.router.add_api_route(
+            "/sessions/watch",
+            self.watch_project,
+            methods=["GET"],
+            operation_id="watch_project",
+            tags=["Sessions"],
+            response_model=None,
+        )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -595,6 +603,49 @@ class SessionStreamsRouter:
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 # Disable proxy buffering so frames flush immediately.
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @intercept_exceptions()
+    async def watch_project(
+        self,
+        request: Request,
+        project_id: UUID = Query(...),
+    ) -> StreamingResponse:
+        """Relay low-frequency entity changes for the authorized project.
+
+        A caller with only one required view permission cannot open this stream and falls back to
+        the lists' polling behavior.
+        """
+        user_id = request.state.user_id
+        authorized_project_id = request.state.project_id
+
+        can_view_sessions = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(authorized_project_id),
+            permission=Permission.VIEW_SESSIONS,
+        )
+        can_view_workflows = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(authorized_project_id),
+            permission=Permission.VIEW_WORKFLOWS,
+        )
+        if not (can_view_sessions and can_view_workflows):
+            raise FORBIDDEN_EXCEPTION
+
+        stream = watch_event_stream(
+            channel=project_watch_channel(str(authorized_project_id)),
+            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
+            retry_milliseconds=env.sessions.watch_retry_milliseconds,
+        )
+        return StreamingResponse(
+            stream,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",
             },
         )
@@ -1648,17 +1699,32 @@ class SessionsRootRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
+        query = SessionQuery(
+            references=body.references,
+            include_ended=body.include_ended,
+            include_archived=body.include_archived,
+            search=body.search,
+            flags=body.flags,
+            session_ids=body.session_ids,
+            exclude_session_ids=body.exclude_session_ids,
+            include_total=body.include_total,
+            origin=body.origin,
+            exclude_origin=body.exclude_origin,
+        )
         sessions = await self.sessions_service.query_sessions(
             project_id=UUID(str(project_id)),
-            query=SessionQuery(
-                references=body.references,
-                include_ended=body.include_ended,
-                include_archived=body.include_archived,
-                search=body.search,
-            ),
+            query=query,
             windowing=body.windowing,
         )
-        return SessionsResponse(count=len(sessions), sessions=sessions)
+        total = (
+            await self.sessions_service.count_sessions(
+                project_id=UUID(str(project_id)),
+                query=query,
+            )
+            if body.include_total
+            else None
+        )
+        return SessionsResponse(count=len(sessions), total=total, sessions=sessions)
 
     @intercept_exceptions()
     async def delete_session(

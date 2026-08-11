@@ -1,8 +1,10 @@
 import {useCallback, useDeferredValue, useEffect, useMemo, useState} from "react"
 
-import {SectionRail, type SectionRailItem} from "@agenta/entity-ui"
+import {type SectionRailItem} from "@agenta/entity-ui"
 import {PageLayout} from "@agenta/ui"
-import {App, Input, Typography} from "antd"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {Input, Typography} from "antd"
+import clsx from "clsx"
 import {Search} from "lucide-react"
 import {useRouter} from "next/router"
 
@@ -15,8 +17,7 @@ import {
     templateCategories,
     type AgentTemplate,
 } from "../../assets/templates"
-import {useTemplateSelect} from "../../hooks/useTemplateSelect"
-import TemplateSetupDrawer, {type TemplateSetupResult} from "../TemplateSetupDrawer"
+import {useCreateAgentFromTemplate} from "../../hooks/useCreateAgentFromTemplate"
 
 import TemplateSection from "./TemplateSection"
 
@@ -30,7 +31,6 @@ const matchesQuery = (template: AgentTemplate, query: string) => {
 /** Full templates gallery — category rail + sectioned card grid, reached from Home's "Browse all". */
 const TemplatesGalleryPage = () => {
     const router = useRouter()
-    const {message} = App.useApp()
 
     const categories = useMemo(() => templateCategories(), [])
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)
@@ -76,18 +76,13 @@ const TemplatesGalleryPage = () => {
         [router],
     )
 
-    // Template card click: builder mode → straight to a seeded playground; else open the setup
-    // drawer. Gated by NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER.
-    const [setupTemplate, setSetupTemplate] = useState<AgentTemplate | null>(null)
-    const handleSelectTemplate = useTemplateSelect(setSetupTemplate)
-
-    // TODO(Phase B): create the ephemeral draft from the template + open the playground.
-    const handleTemplateCreate = useCallback(
-        ({template, name}: TemplateSetupResult) => {
-            setSetupTemplate(null)
-            message.info(`Create "${name}" from ${template.name} — wiring in the next phase`)
-        },
-        [message],
+    // A card IS the create action: picking a template mints the agent and opens its playground,
+    // rather than routing through a detail page and a second "Use this template" click. The detail
+    // page stays reachable by URL for anyone who wants to read what a template does first.
+    const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("gallery")
+    const handleSelectTemplate = useCallback(
+        (template: AgentTemplate) => void createFromTemplate(template),
+        [createFromTemplate],
     )
 
     // Sections to render: All → every present category; otherwise just the active one.
@@ -113,35 +108,45 @@ const TemplatesGalleryPage = () => {
     const hasQuery = deferredQuery.length > 0
 
     return (
-        <PageLayout className="grow min-h-0">
-            <div className="mx-auto flex min-h-0 w-full max-w-[1200px] flex-1 flex-col gap-5 pt-6">
-                <div className="flex shrink-0 flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
-                    <div className="flex min-w-0 flex-col gap-1.5">
-                        <Typography.Title level={2} className="!m-0 !text-[24px] !leading-tight">
-                            {TEMPLATES_GALLERY.title}
-                        </Typography.Title>
-                        <Typography.Text className="max-w-[560px] !text-[13px] !text-[var(--ag-colorTextSecondary)]">
-                            {TEMPLATES_GALLERY.subtitle}
-                        </Typography.Text>
-                    </div>
+        <PageLayout
+            className={clsx(pageContentWidthClass, "grow min-h-0")}
+            title={TEMPLATES_GALLERY.title}
+            description={TEMPLATES_GALLERY.subtitle}
+        >
+            {/* Filters and grid share the page's own background — one surface, no rail, no
+                divider — so the whole page reads as a single column of content. */}
+            <div className="flex min-h-0 w-full flex-1 flex-col gap-6 lg:flex-row lg:gap-10">
+                <nav className="flex shrink-0 flex-col gap-0.5 lg:w-[180px]">
+                    {railItems.map((item) => (
+                        <button
+                            key={item.value}
+                            type="button"
+                            aria-current={item.value === active}
+                            onClick={() => handleCategoryChange(item.value)}
+                            className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-colorPrimary ${
+                                item.value === active
+                                    ? "bg-colorFillSecondary text-colorText"
+                                    : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
+                            }`}
+                        >
+                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                            <span className="shrink-0 text-xs text-colorTextTertiary">
+                                {item.count}
+                            </span>
+                        </button>
+                    ))}
+                </nav>
 
+                {/* One scroller: the sections wrapper below scrolls, so search stays pinned. */}
+                <div className="flex min-h-0 flex-1 flex-col gap-5">
                     <Input
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         allowClear
                         prefix={<Search size={14} className="text-[var(--ag-colorTextTertiary)]" />}
                         placeholder={TEMPLATES_GALLERY.searchPlaceholder}
-                        className="w-full sm:w-[280px]"
+                        className="w-full sm:w-[320px]"
                     />
-                </div>
-
-                <SectionRail
-                    items={railItems}
-                    value={active}
-                    onChange={handleCategoryChange}
-                    railWidth="w-[160px]"
-                    fill
-                >
                     {resultCount === 0 ? (
                         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-[var(--ag-colorBorder)] px-6 py-12 text-center">
                             <Typography.Text className="text-xs text-[var(--ag-colorTextSecondary)]">
@@ -168,19 +173,13 @@ const TemplatesGalleryPage = () => {
                                     category={section.category}
                                     templates={section.templates}
                                     onSelectTemplate={handleSelectTemplate}
+                                    pendingTemplateKey={pendingKey}
                                 />
                             ))}
                         </div>
                     )}
-                </SectionRail>
+                </div>
             </div>
-
-            <TemplateSetupDrawer
-                template={setupTemplate}
-                open={!!setupTemplate}
-                onClose={() => setSetupTemplate(null)}
-                onCreate={handleTemplateCreate}
-            />
         </PageLayout>
     )
 }

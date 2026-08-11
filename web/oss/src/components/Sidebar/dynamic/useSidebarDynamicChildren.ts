@@ -84,13 +84,17 @@ export const resolveChildren = (
     }
 
     const visibleRefs = refs.slice(0, entity.maxItems)
-    const children: SidebarConfig[] = visibleRefs.map((ref) => ({
-        key: `${entity.parentKey}-${ref.id}`,
-        title: entity.getLabel(ref),
-        link: entity.childLink(ref, projectURL),
-        icon: icon(),
-        isDynamic: true,
-    }))
+    const children: SidebarConfig[] = []
+    for (const ref of visibleRefs) {
+        children.push({
+            key: `${entity.parentKey}-${ref.id}`,
+            title: entity.getLabel(ref),
+            link: entity.childLink(ref, projectURL),
+            icon: entity.getIcon?.(ref) ?? icon(),
+            isDynamic: true,
+            onClick: entity.getOnClick?.(ref),
+        })
+    }
 
     if (entity.showAllLink && refs.length > visibleRefs.length) {
         children.push({

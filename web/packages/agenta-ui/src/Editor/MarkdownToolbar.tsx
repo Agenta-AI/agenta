@@ -125,7 +125,7 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
                     )
                 })}
             </div>
-            <span className="text-center text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+            <span className="text-center text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
                 {hover.rows > 0 ? `${hover.rows} × ${hover.cols}` : "Insert table"}
             </span>
         </div>

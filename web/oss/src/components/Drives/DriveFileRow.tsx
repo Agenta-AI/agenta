@@ -185,7 +185,7 @@ export const DriveFileRow = ({
                             style={{width: nameW}}
                         />
                     </span>
-                    <span className="shrink-0 text-[11px]">
+                    <span className="shrink-0 text-xs">
                         <span className={`inline-block h-2.5 w-9 align-middle ${BAR}`} />
                     </span>
                 </div>
@@ -205,7 +205,7 @@ export const DriveFileRow = ({
                             style={{width: nameW}}
                         />
                     </span>
-                    <span className="flex h-4 items-center justify-center text-[11px]">
+                    <span className="flex h-4 items-center justify-center text-xs">
                         <span className={`inline-block h-2 w-1/3 align-middle ${BAR}`} />
                     </span>
                 </div>
@@ -227,7 +227,7 @@ export const DriveFileRow = ({
                             style={{width: nameW}}
                         />
                     </span>
-                    <span className="text-[11px]">
+                    <span className="text-xs">
                         <span className={`inline-block h-2 w-1/3 align-middle ${BAR}`} />
                     </span>
                 </div>
@@ -266,7 +266,7 @@ export const DriveFileRow = ({
                     {showOrigin ? <OriginTag origin={origin} /> : null}
                 </span>
                 {trailing != null ? (
-                    <span className="shrink-0 text-right text-[11px] tabular-nums text-colorTextTertiary">
+                    <span className="shrink-0 text-right text-xs tabular-nums text-colorTextTertiary">
                         {trailing}
                     </span>
                 ) : null}
@@ -328,7 +328,7 @@ export const DriveFileRow = ({
                     {name}
                 </span>
                 {meta ? (
-                    <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
+                    <span className="w-full truncate text-center text-xs text-colorTextTertiary">
                         {meta}
                     </span>
                 ) : null}
@@ -350,7 +350,7 @@ export const DriveFileRow = ({
                     {name}
                 </span>
                 {meta ? (
-                    <span className="truncate text-[11px] text-colorTextTertiary">{meta}</span>
+                    <span className="truncate text-xs text-colorTextTertiary">{meta}</span>
                 ) : null}
             </div>
         </button>

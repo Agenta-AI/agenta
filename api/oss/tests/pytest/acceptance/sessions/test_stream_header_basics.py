@@ -104,3 +104,48 @@ class TestSessionStreamHeaderBasics:
             "GET", "/sessions/streams/", params={"session_id": "foo bar"}
         )
         assert response.status_code == 422
+
+    def test_whitespace_only_name_rejected(self, authed_api):
+        # A non-empty name must contain a non-whitespace character: "   " would clear the
+        # visible title while the row still holds a value. The LLM-facing rename_session
+        # schema already rejects this; the endpoint must too.
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "Real Name"},
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "   "},
+        )
+        assert response.status_code == 422
+
+        response = authed_api(
+            "GET", "/sessions/streams/", params={"session_id": session_id}
+        )
+        assert response.json()["stream"]["name"] == "Real Name"
+
+    def test_empty_name_still_clears_the_title(self, authed_api):
+        # The empty string is the explicit clear-title action the chat rail sends;
+        # it must stay accepted (only whitespace-only garbage is rejected).
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "To Be Cleared"},
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": ""},
+        )
+        assert response.status_code == 200
+        assert response.json()["stream"]["name"] == ""

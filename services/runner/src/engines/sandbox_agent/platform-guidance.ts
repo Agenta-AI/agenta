@@ -65,6 +65,26 @@ export function skillLocationAppendix(): SystemPromptAppendix {
 }
 
 /**
+ * The READ side of the skills folder: its real absolute path.
+ *
+ * THE OBSERVED FAILURE (live session 2026-08-10): asked about its own skills, a model emitted a
+ * fully-formed absolute path from pattern memory as its FIRST move — structurally wrong (one id
+ * segment where the mount has two) — got ENOENT, and only then listed its real cwd to find the
+ * true path, a self-correction that cost a failed call and an approval interruption. Nothing
+ * told it where the rendered skills live; the mount paragraph covers only `agent-files/`.
+ */
+export function skillsReadPathAppendix(
+  skillsPath: string,
+): SystemPromptAppendix {
+  return {
+    id: "skills-read-path",
+    text:
+      `Your rendered skill files live at \`${skillsPath}\` (one folder per skill, each with ` +
+      "its SKILL.md). To read a skill, list that directory; never construct the path from memory.",
+  };
+}
+
+/**
  * The tool that changes a configuration. BOTH config sentences name it, so both apply only to a
  * run that HAS it.
  *
@@ -163,6 +183,8 @@ export interface PlatformGuidanceInput {
   readonly isPi: boolean;
   /** The resolved absolute mount path, when the durable agent folder is live. */
   readonly agentMountedPath: string | undefined;
+  /** The absolute rendered-skills directory, when this run materialized any skills. */
+  readonly skillsPath?: string | undefined;
   /** True when a durable agent folder was ATTEMPTED for this run and refused. */
   readonly agentMountSkipped: boolean;
   /** The names of the tools this run offers the model. */
@@ -217,6 +239,11 @@ export function platformGuidanceAppendix(
   const hasCommitTool = input.toolNames.includes(CONFIG_COMMIT_TOOL);
   const instructions = hasCommitTool ? instructionsSourceAppendix() : undefined;
   const skills = hasCommitTool ? skillLocationAppendix() : undefined;
+  // Gated only on materialized skills, not on the commit tool: the read path is true for any
+  // run that has skills, and stating it prevents the guessed-absolute-path failure above.
+  const skillsReadPath = input.skillsPath
+    ? skillsReadPathAppendix(input.skillsPath)
+    : undefined;
   const mount = mountGuidanceServedElsewhere(input)
     ? undefined
     : input.agentMountedPath
@@ -231,5 +258,11 @@ export function platformGuidanceAppendix(
     hasCommitTool && input.acpAgent === "codex"
       ? codexBundledSkillsAppendix()
       : undefined;
-  return composeSystemPromptAppendix([instructions, skills, codexSkills, mount]);
+  return composeSystemPromptAppendix([
+    instructions,
+    skills,
+    skillsReadPath,
+    codexSkills,
+    mount,
+  ]);
 }

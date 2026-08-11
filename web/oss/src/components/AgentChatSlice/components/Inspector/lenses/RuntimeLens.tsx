@@ -136,7 +136,7 @@ const DriveFilesCard = ({
                             </AnimatePresence>
                         </MotionConfig>
                         {!showSkeleton && (drive.reconciling || drive.isFetching) ? (
-                            <div className="mt-1 flex items-center gap-1.5 px-1.5 text-[11px] text-colorTextTertiary">
+                            <div className="mt-1 flex items-center gap-1.5 px-1.5 text-xs text-colorTextTertiary">
                                 <CircleNotch size={11} className="animate-spin" />
                                 <span>Loading more…</span>
                             </div>

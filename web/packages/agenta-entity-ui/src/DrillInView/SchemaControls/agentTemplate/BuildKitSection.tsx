@@ -73,12 +73,12 @@ export function BuildKitSection({
                 />
             }
         >
-            <span className="text-[11px] leading-snug text-colorTextDescription">
+            <span className="text-xs leading-snug text-colorTextDescription">
                 These playground-only tools, skills, and permissions help the assistant build and
                 revise this agent. None of this is part of the published agent.
             </span>
             {!enabled ? (
-                <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-[11.5px] leading-snug text-[var(--ant-color-info-text)]">
+                <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-xs leading-snug text-[var(--ant-color-info-text)]">
                     The assistant can no longer create files, run code, or edit the agent here.
                 </div>
             ) : null}
@@ -125,10 +125,10 @@ export function BuildKitSection({
                             >
                                 <span className="font-mono">{key}</span>
                                 {/* leading-[22.4px]: antd's `.ant-tag` keeps its own 22.4px
-                                    line-height under a font-size override, but `text-[11px]`
+                                    line-height under a font-size override, but `text-xs`
                                     replaces the Badge ramp's bundled line-height — restate it
                                     or the chip renders 6px shorter. */}
-                                <Tag className="font-mono text-[11px] leading-[22.4px]">
+                                <Tag className="font-mono text-xs leading-[22.4px]">
                                     {formatPermissionValue(value)}
                                 </Tag>
                             </div>
@@ -147,7 +147,7 @@ export function PermissionOverrideHint({keys}: {keys: string[]}): ReactNode {
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <div className="inline-flex w-fit items-center gap-1.5 rounded bg-[var(--ant-color-warning-bg)] px-2 py-1 text-[11px] text-[var(--ant-color-warning-text)]">
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded bg-[var(--ant-color-warning-bg)] px-2 py-1 text-xs text-[var(--ant-color-warning-text)]">
                         <Warning size={12} />
                         Build kit overrides {keys.join(", ")}
                     </div>
