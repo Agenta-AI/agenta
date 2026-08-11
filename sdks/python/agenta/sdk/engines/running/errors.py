@@ -446,6 +446,18 @@ class LLMV0Error(ErrorStatus):
         )
 
 
+class ArchivedReferenceV0Error(ErrorStatus):
+    code: int = 410
+    type: str = f"{ERRORS_BASE_URL}#v0:references:archived"
+
+    def __init__(self, refs: Any):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=f"Archived reference:\nWorkflow, application, or evaluator is archived.\nRefs '{refs}'.",
+        )
+
+
 class ForceNotSupportedV0Error(ErrorStatus):
     """`flags.force=true` before take-over semantics exist (specs.md); maps to HTTP 406."""
 
