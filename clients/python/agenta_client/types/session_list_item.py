@@ -5,13 +5,26 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .reference import Reference
 from .session_delivery import SessionDelivery
+from .session_message_preview import SessionMessagePreview
 from .session_origin import SessionOrigin
 from .session_stream_flags import SessionStreamFlags
 from .session_trigger import SessionTrigger
 
 
-class SessionStream(UniversalBaseModel):
+class SessionListItem(UniversalBaseModel):
+    """
+    A `/sessions/query` row, enriched at READ time with the session's HIGHEST
+    `turn_index` turn's `references` — the agent/workflow that produced the latest turn.
+
+    Also carries the session's last message, so a row can say what happened rather than only
+    when. Both enrichments are batch lookups keyed on the whole page; never one call per row.
+
+    Hydrated by `SessionsService.query_sessions`; never denormalized onto `session_streams`
+    (see that method's docstring).
+    """
+
     created_at: typing.Optional[dt.datetime] = None
     updated_at: typing.Optional[dt.datetime] = None
     deleted_at: typing.Optional[dt.datetime] = None
@@ -31,6 +44,8 @@ class SessionStream(UniversalBaseModel):
     origin: typing.Optional[SessionOrigin] = None
     trigger: typing.Optional[SessionTrigger] = None
     delivery: typing.Optional[SessionDelivery] = None
+    references: typing.Optional[typing.List[Reference]] = None
+    last_message: typing.Optional[SessionMessagePreview] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

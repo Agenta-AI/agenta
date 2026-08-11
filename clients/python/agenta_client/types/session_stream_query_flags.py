@@ -4,15 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .session_list_item import SessionListItem
-from .windowing import Windowing
 
 
-class SessionsResponse(UniversalBaseModel):
-    count: typing.Optional[int] = None
-    total: typing.Optional[int] = None
-    sessions: typing.Optional[typing.List[SessionListItem]] = None
-    windowing: typing.Optional[Windowing] = None
+class SessionStreamQueryFlags(UniversalBaseModel):
+    is_alive: typing.Optional[bool] = None
+    is_running: typing.Optional[bool] = None
+    is_attached: typing.Optional[bool] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

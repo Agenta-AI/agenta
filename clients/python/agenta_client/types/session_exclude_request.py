@@ -4,15 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .session_list_item import SessionListItem
-from .windowing import Windowing
+from .session_origin import SessionOrigin
 
 
-class SessionsResponse(UniversalBaseModel):
-    count: typing.Optional[int] = None
-    total: typing.Optional[int] = None
-    sessions: typing.Optional[typing.List[SessionListItem]] = None
-    windowing: typing.Optional[Windowing] = None
+class SessionExcludeRequest(UniversalBaseModel):
+    origins: typing.Optional[typing.List[SessionOrigin]] = None
+    session_ids: typing.Optional[typing.List[str]] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

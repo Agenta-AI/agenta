@@ -4,15 +4,10 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .session_list_item import SessionListItem
-from .windowing import Windowing
 
 
-class SessionsResponse(UniversalBaseModel):
-    count: typing.Optional[int] = None
-    total: typing.Optional[int] = None
-    sessions: typing.Optional[typing.List[SessionListItem]] = None
-    windowing: typing.Optional[Windowing] = None
+class SessionDelivery(UniversalBaseModel):
+    id: str
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
