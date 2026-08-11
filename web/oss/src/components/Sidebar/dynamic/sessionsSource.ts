@@ -8,7 +8,7 @@ import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionO
 import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {sidebarSessionOptions} from "./sessionOptions"
+import {sidebarSessionOptions, SIDEBAR_SESSION_VISIBLE_LIMIT} from "./sessionOptions"
 import type {SidebarEntityRef} from "./types"
 
 /** A session row as the sidebar needs it: enough to label it, dot it, and open it. */
@@ -64,11 +64,7 @@ const sidebarPinnedSessionsQueryAtom = atomWithQuery<SessionStream[] | null>((ge
 
 /** Null when the row has no open target yet (no turns) — the sidebar drops it rather than
  * rendering a link to `/apps/null`. */
-const toSidebarRef = (
-    row: SessionStream,
-    pinned: Set<string>,
-    agentName: string | null,
-): SessionSidebarRef | null => {
+const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRef | null => {
     const target = sessionOpenTarget(row)
     if (!target) return null
     return {
@@ -78,7 +74,7 @@ const toSidebarRef = (
         appId: target.appId,
         pinned: pinned.has(row.session_id),
         alive: Boolean(row.flags?.is_alive),
-        agentName,
+        agentName: null,
     }
 }
 
@@ -91,8 +87,8 @@ const toSidebarRef = (
 const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     const pinned = new Set(get(pinnedSessionIdsAtom))
     // The owning agent's name for the row tooltip, read off the workflow ARTIFACT (a revision's
-    // own `name` is the variant's, never the entity's). Only the handful of apps these rows point
-    // at are resolved, and the group is gated, so a closed Sessions group asks for nothing.
+    // own `name` is the variant's, never the entity's). The group is gated, so a closed Sessions
+    // group asks for nothing.
     const agentNameOf = (appId: string | null) =>
         appId ? get(workflowMolecule.selectors.artifactName(appId)) : null
     const pinnedRows = get(sidebarPinnedSessionsQueryAtom).data ?? []
@@ -104,9 +100,17 @@ const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     )
 
     const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
-    const toRef = (row: SessionStream) =>
-        toSidebarRef(row, pinned, agentNameOf(sessionOpenTarget(row)?.appId ?? null))
-    return [...pinnedRows.map(toRef).filter(isRef), ...recentRows.map(toRef).filter(isRef)]
+    const refs = [
+        ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
+        ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
+    ]
+    // Names are resolved for the RENDERED rows only. Each one subscribes to that agent's artifact
+    // query, and the request window behind this list is several times what the group ever shows —
+    // resolving all of it would fetch artifacts for rows nobody sees. The full list still goes out
+    // so the "Show all" overflow count stays honest.
+    return refs.map((ref, index) =>
+        index < SIDEBAR_SESSION_VISIBLE_LIMIT ? {...ref, agentName: agentNameOf(ref.appId)} : ref,
+    )
 })
 
 export const sidebarSessionsListAtom = atom((get) => {
