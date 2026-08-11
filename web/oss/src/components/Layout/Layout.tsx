@@ -10,6 +10,7 @@ import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
+import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
 import {
@@ -31,6 +32,7 @@ import {useStyles} from "./assets/styles"
 import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
 import PostHogThemeCapture from "./PostHogThemeCapture"
+import ProjectWatch from "./ProjectWatch"
 import {SidebarIsland} from "./SidebarIsland"
 import {useAppTheme} from "./ThemeContextProvider"
 
@@ -69,6 +71,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isAgentTemplates = pathname.includes("/agent-templates")
     // Covers /agents and /agents/archived, both full-height InfiniteVirtualTable pages.
     const isAgents = pathname.includes("/agents")
+    const isSessions = pathname.includes("/sessions")
 
     return {
         isAuthRoute:
@@ -88,7 +91,11 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isObservability ||
             isAuditLog ||
             isAgentTemplates ||
-            isAgents,
+            isAgents ||
+            isSessions ||
+            // Asked for by the page — see `layoutFullHeightRequestAtom`. Home is one of these:
+            // its returning branch scrolls with the page, its first-run branch asks for the frame.
+            get(layoutFullHeightRequestAtom),
     }
 })
 
@@ -290,7 +297,14 @@ const AppWithVariants = memo(
         }, [demoReturnHintDismissed, lastNonDemoProject, navigate, setDemoReturnHintPending])
 
         return (
-            <div className={clsx([{"flex flex-col grow min-h-0": isFullHeight}])}>
+            <div
+                className={clsx([
+                    {"flex flex-col grow min-h-0": isFullHeight},
+                    // The demo banner is `fixed`, so it covers anything the page pins to the
+                    // viewport top. Sticky content reads this var to offset itself past it.
+                    project?.is_demo && "[--ag-demo-banner-h:38px]",
+                ])}
+            >
                 <Modal
                     title="Want to revisit the demo?"
                     open={isDemoReturnModalOpen}
@@ -353,6 +367,11 @@ const AppWithVariants = memo(
                                                 "pb-0 mb-8": !isFullHeight,
                                                 "h-[calc(100%-30px)]": !isFullHeight && !isAppRoute,
                                                 "flex flex-col min-h-0 grow": isFullHeight,
+                                                // The shared content style carries a 2rem bottom
+                                                // margin for flowing pages. A full-height page
+                                                // fills the frame, so that margin is pure dead
+                                                // space under it.
+                                                "[&.ant-layout-content]:!mb-0": isFullHeight,
                                                 "h-full": isFullHeight && !isAppRoute,
                                                 "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                                     isPlayground ||
@@ -405,6 +424,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 </Layout>
             ) : (
                 <ProtectedRoute shell="app">
+                    <ProjectWatch />
                     <AppWithVariants
                         isAppRoute={isAppRoute}
                         classes={classes}

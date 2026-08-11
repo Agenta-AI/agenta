@@ -72,18 +72,18 @@ export const controlScale = {
         "input-y-ghost": "5px",
         "input-y-ghost-lg": "8px",
     },
-    // Type ramps. Buttons and fields differ at `sm` (12px vs 10px), so they are separate
+    // Type ramps. Buttons and fields differ at `sm` (14px vs 12px), so they are separate
     // ramps rather than one averaged scale. Names avoid every colour-token name, because
     // `text-*` is shared between font-size and text-colour utilities.
     // Exact ratios, not rounded decimals: 1.8667 computes to 22.4004px where antd renders
     // 22.4 and the parity gate flags the difference.
     fontSize: {
-        "btn-sm": ["12px", {lineHeight: "normal"}] as [string, {lineHeight: string}],
-        "btn-md": ["12px", {lineHeight: "normal"}] as [string, {lineHeight: string}],
-        "btn-lg": ["14px", {lineHeight: "normal"}] as [string, {lineHeight: string}],
-        "field-sm": ["10px", {lineHeight: "1.6666666666666667"}] as [string, {lineHeight: string}],
-        "field-md": ["12px", {lineHeight: "1.6666666666666667"}] as [string, {lineHeight: string}],
-        "field-lg": ["14px", {lineHeight: "1.5714285714285714"}] as [string, {lineHeight: string}],
+        "btn-sm": ["14px", {lineHeight: "normal"}] as [string, {lineHeight: string}],
+        "btn-md": ["14px", {lineHeight: "normal"}] as [string, {lineHeight: string}],
+        "btn-lg": ["16px", {lineHeight: "normal"}] as [string, {lineHeight: string}],
+        "field-sm": ["12px", {lineHeight: "1.6666666666666667"}] as [string, {lineHeight: string}],
+        "field-md": ["14px", {lineHeight: "1.4285714285714286"}] as [string, {lineHeight: string}],
+        "field-lg": ["16px", {lineHeight: "1.5"}] as [string, {lineHeight: string}],
         "badge-md": ["12px", {lineHeight: "1.8666666666666667"}] as [string, {lineHeight: string}],
     },
 }

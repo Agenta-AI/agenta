@@ -60,7 +60,7 @@ export function DraftListRow({
                     >
                         {name.trim() || draftLabel}
                     </span>
-                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="block truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
                         Draft · not saved
                     </span>
                 </span>
@@ -110,7 +110,7 @@ export function EntityListRow({
                     >
                         {title}
                     </span>
-                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="block truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
                         {subtitle}
                     </span>
                 </span>
@@ -159,7 +159,7 @@ export function MasterDetailRail({
                     <div className="flex flex-col gap-0.5">
                         {children}
                         {isEmpty && (
-                            <span className="block px-2 py-3 text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+                            <span className="block px-2 py-3 text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                                 {emptyText}
                             </span>
                         )}

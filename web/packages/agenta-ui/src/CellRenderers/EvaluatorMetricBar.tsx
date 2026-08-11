@@ -122,7 +122,7 @@ const BooleanBar = memo(function BooleanBar({
                     style={{width: `${trueSeg.ratio * 100}%`}}
                 >
                     <span
-                        className="text-[10px] leading-[18px] whitespace-nowrap"
+                        className="text-[12px] leading-[18px] whitespace-nowrap"
                         style={{color: TRUE_LABEL_COLOR}}
                     >
                         true
@@ -149,7 +149,7 @@ const BooleanBar = memo(function BooleanBar({
                     style={{width: `${falseSeg.ratio * 100}%`}}
                 >
                     <span
-                        className="text-[10px] leading-[18px] whitespace-nowrap"
+                        className="text-[12px] leading-[18px] whitespace-nowrap"
                         style={{color: FALSE_LABEL_COLOR}}
                     >
                         false
@@ -271,7 +271,7 @@ const EvaluatorMetricBar = memo(
                     ))}
                 </div>
                 <div
-                    className="flex w-full items-center justify-between gap-1 gap-y-1 text-[11px] leading-tight text-gray-600"
+                    className="flex w-full items-center justify-between gap-1 gap-y-1 text-xs leading-tight text-gray-600"
                     style={{width: "100%", maxWidth: width}}
                 >
                     {legendEntries.map((entry, index) => (
@@ -287,7 +287,7 @@ const EvaluatorMetricBar = memo(
                                 }}
                             />
                             <span className="font-medium max-w-[5rem] truncate">{entry.label}</span>
-                            <span className="text-[10px] text-gray-500">
+                            <span className="text-[12px] text-gray-500">
                                 {Formatter.format(entry.percent)}%
                             </span>
                         </div>

@@ -33,7 +33,7 @@ import pytest
 
 _COMPOSIO_ENABLED = bool(os.getenv("COMPOSIO_API_KEY"))
 _COMPOSIO_API_URL = os.getenv(
-    "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3"
+    "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3.1"
 ).rstrip("/")
 
 

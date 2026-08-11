@@ -87,14 +87,17 @@ def make_displacement_payload(*, by: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Watch channel (M3 live relay) — change notifications, never record payloads.
+# Watch channels — change notifications, never record payloads.
 # Published on the DURABLE Redis plane (the SSE endpoint subscribes there via
 # get_streams_engine(); publisher and subscriber must share one plane — the
 # displaced channel above lives on the volatile plane instead).
+# Per-session channels carry high-frequency in-session traffic; the project
+# channel carries low-frequency entity changes for list pages.
 # Payload shapes:
 #   {"type": "records-changed", "session_id": s}
 #   {"type": "lifecycle",       "session_id": s, "state": "running"|"ended"}
 #   {"type": "interaction",     "session_id": s, "status": "pending"|"resolved"}
+#   {"type": "<entity>-changed", "entity": entity, "id": id}
 # ---------------------------------------------------------------------------
 
 WATCH_EVENT_RECORDS_CHANGED = "records-changed"
@@ -116,6 +119,10 @@ def watch_channel(project_id: str, session_id: str) -> str:
     return f"watch:{project_id}:session:{session_id}"
 
 
+def project_watch_channel(project_id: str) -> str:
+    return f"watch:{project_id}:project"
+
+
 def make_watch_records_changed_payload(*, session_id: str) -> dict:
     return {"type": WATCH_EVENT_RECORDS_CHANGED, "session_id": session_id}
 
@@ -126,6 +133,10 @@ def make_watch_lifecycle_payload(*, session_id: str, state: str) -> dict:
 
 def make_watch_interaction_payload(*, session_id: str, status: str) -> dict:
     return {"type": WATCH_EVENT_INTERACTION, "session_id": session_id, "status": status}
+
+
+def make_watch_entity_changed_payload(*, entity: str, id: str) -> dict:
+    return {"type": f"{entity}-changed", "entity": entity, "id": id}
 
 
 # ---------------------------------------------------------------------------

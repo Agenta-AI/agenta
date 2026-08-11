@@ -32,8 +32,8 @@ const EvaluatorMetricsCell = memo(({invocationKey, evaluatorSlug}: Props) => {
     return (
         <div className="flex flex-col gap-[6px]">
             <div className="flex items-center justify-between">
-                <Typography.Text className="text-[10px]">{displayName}</Typography.Text>
-                <Typography.Text className="text-[10px]" type="secondary">
+                <Typography.Text className="text-[12px]">{displayName}</Typography.Text>
+                <Typography.Text className="text-[12px]" type="secondary">
                     {Object.keys(metrics).length}{" "}
                     {Object.keys(metrics).length === 1 ? "metric" : "metrics"}
                 </Typography.Text>

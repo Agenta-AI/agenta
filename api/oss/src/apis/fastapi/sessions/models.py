@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from oss.src.core.sessions.dtos import SessionListItem
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
+    SessionStreamQueryFlags,
 )
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
@@ -36,10 +37,26 @@ class SessionQueryRequest(BaseModel):
     include_archived: bool = False
     # Case-insensitive substring match over the session title (`session_streams.name`).
     search: Optional[str] = None
+    # Liveness filter (alive ⊇ running ⊇ attached) against the row's mirrored flags.
+    flags: Optional[SessionStreamQueryFlags] = None
+    # Restrict to / exclude an explicit id set — the pushdown for predicates that live outside
+    # the stream row (client-held pins, sessions named by a pending-interaction lookup), so the
+    # server still owns the intersection, the ordering and the windowing.
+    session_ids: Optional[List[str]] = None
+    exclude_session_ids: Optional[List[str]] = None
+    # Also return `total`. Off by default — a filter chip wants it, a scroll page does not.
+    include_total: bool = False
+    # Who started the session: "manual", "trigger", … Absent means every origin.
+    origin: Optional[str] = None
+    # Its negation — hides one origin while still showing sessions with no stamp at all.
+    exclude_origin: Optional[str] = None
 
 
 class SessionsResponse(BaseModel):
     count: int = 0
+    # Total matching rows ignoring windowing, when `include_total` was requested. `count` stays
+    # the number of rows in THIS page, per the shared envelope convention.
+    total: Optional[int] = None
     # `SessionListItem` = `SessionStream` + the latest turn's `references` (WP0-R3),
     # absent (excluded by response_model_exclude_none) when the session has no turns yet.
     sessions: List[SessionListItem] = Field(default_factory=list)

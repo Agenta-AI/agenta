@@ -5,6 +5,8 @@ import {Note, PencilSimple, Rocket, Trash} from "@phosphor-icons/react"
 import {AppNameCell} from "@/oss/components/pages/app-management/components/appWorkflowColumns"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 
+import AgentActivityCell from "./AgentActivityCell"
+
 export interface AgentColumnActions {
     onOpen: (record: AppWorkflowRow) => void
     onOpenPlayground: (record: AppWorkflowRow) => void
@@ -12,8 +14,18 @@ export interface AgentColumnActions {
     onArchive: (record: AppWorkflowRow) => void
 }
 
-/** Lean read-only columns for the Home "Your agents" table: name + creator + dates. */
-export function createAgentColumns(actions: AgentColumnActions) {
+/**
+ * Columns for the Home "Your agents" table.
+ *
+ * The roster used to be three provenance columns — created at, last modified, created by — which
+ * answered who made this and when, and nothing about whether the agent is doing anything. Sessions
+ * are the unit of work, so the table now leads with activity and with what is blocked; "Created at"
+ * is gone because "Last modified" already covers it for all but the never-edited agent.
+ */
+export function createAgentColumns(
+    actions: AgentColumnActions,
+    waitingByAgent: Map<string, number>,
+) {
     return createStandardColumns<AppWorkflowRow>([
         {
             type: "text",
@@ -24,16 +36,32 @@ export function createAgentColumns(actions: AgentColumnActions) {
             ),
         },
         {
-            type: "date",
-            key: "updatedAt",
-            title: "Last modified",
-            width: 220,
+            type: "text",
+            key: "lastActivity",
+            title: "Last active",
+            width: 140,
+            render: (_, record) => <AgentActivityCell agentId={record.workflowId} />,
+        },
+        {
+            type: "text",
+            key: "waiting",
+            title: "Waiting",
+            width: 110,
+            render: (_, record) => {
+                const waiting = waitingByAgent.get(record.workflowId) ?? 0
+                if (!waiting) return <span className="text-xs text-colorTextTertiary">—</span>
+                return (
+                    <span className="rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
+                        {waiting}
+                    </span>
+                )
+            },
         },
         {
             type: "date",
-            key: "createdAt",
-            title: "Created at",
-            width: 220,
+            key: "updatedAt",
+            title: "Last modified",
+            width: 200,
         },
         {
             type: "text",

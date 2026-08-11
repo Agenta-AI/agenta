@@ -73,9 +73,9 @@ const TemplatesSection = ({onSelectTemplate, onBrowseAll, hideHeader}: Templates
                 railWidth="w-[132px]"
             >
                 {filtered.length > 0 ? (
-                    // auto-fill fills the content column with ~320px cards (2–4 cols by width),
-                    // fixed row height so switching categories never reflows card sizes.
-                    <div className="grid auto-rows-[132px] grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3">
+                    // auto-fill fills the content column with ~320px cards (2–4 cols by width);
+                    // rows size to their content.
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-x-4 gap-y-10 pt-5">
                         {filtered.map((template) => (
                             <TemplateCard
                                 key={template.key}

@@ -1,3 +1,5 @@
+import {CircleNotchIcon} from "@phosphor-icons/react"
+
 import {
     templateProviderSlugs,
     type AgentTemplate,
@@ -15,20 +17,34 @@ const StripCard = ({
     selected,
     onPick,
     fluid = false,
+    loading = false,
+    disabled = false,
 }: {
     template: AgentTemplate
     selected: boolean
     onPick: (template: AgentTemplate) => void
     fluid?: boolean
+    /** This card's agent is being created — spins its monogram and blocks re-clicks. */
+    loading?: boolean
+    /** Another card's create is in flight. */
+    disabled?: boolean
 }) => (
     <button
         type="button"
         aria-pressed={selected}
+        aria-busy={loading}
+        disabled={loading || disabled}
         onClick={() => onPick(template)}
-        className={`${fluid ? "w-full" : "w-[238px] flex-none snap-start"} cursor-pointer rounded-xl border-[1.5px] border-solid ${fluid ? "p-5" : "p-[15px]"} text-left transition-[border-color,box-shadow] duration-150 ${
+        className={`${fluid ? "w-full" : "w-[238px] flex-none snap-start"} rounded-xl border-[1.5px] border-solid ${fluid ? "p-5" : "p-[15px]"} text-left transition-[border-color,box-shadow] duration-150 ${
+            loading || disabled ? "cursor-default" : "cursor-pointer"
+        } ${disabled ? "opacity-60" : ""} ${
             selected
                 ? "border-[var(--ag-colorPrimary)] bg-[var(--ag-strip-selected-bg)]"
-                : "border-[var(--ag-strip-card-border)] bg-[var(--ag-strip-card-bg)] hover:border-[var(--ag-strip-card-border-hover)] hover:shadow-[var(--ag-strip-card-hover-shadow)]"
+                : `border-[var(--ag-strip-card-border)] bg-[var(--ag-strip-card-bg)] ${
+                      loading || disabled
+                          ? ""
+                          : "hover:border-[var(--ag-strip-card-border-hover)] hover:shadow-[var(--ag-strip-card-hover-shadow)]"
+                  }`
         }`}
     >
         <div className={`${fluid ? "mb-4" : "mb-[11px]"} flex items-start justify-between`}>
@@ -38,16 +54,20 @@ const StripCard = ({
                 }`}
                 style={{background: template.color}}
             >
-                {template.initials}
+                {loading ? (
+                    <CircleNotchIcon size={fluid ? 18 : 15} className="animate-spin" />
+                ) : (
+                    template.initials
+                )}
             </span>
             <IntegrationBadges slugs={templateProviderSlugs(template)} />
         </div>
         <div
-            className={`${fluid ? "mb-1.5 text-[15px]" : "mb-1 text-[14.5px]"} font-semibold text-[var(--ag-colorText)]`}
+            className={`${fluid ? "mb-1.5 text-base" : "mb-1 text-base"} font-semibold text-[var(--ag-colorText)]`}
         >
             {template.name}
         </div>
-        <div className="text-[12.5px] leading-[1.5] text-[var(--ag-colorTextSecondary)]">
+        <div className="text-xs leading-[1.5] text-[var(--ag-colorTextSecondary)]">
             {template.description}
         </div>
     </button>

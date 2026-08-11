@@ -111,7 +111,7 @@ const AudioPlayer = ({
                     <Text className="!text-xs truncate" title={name}>
                         {name}
                     </Text>
-                    <Text type="secondary" className="!text-[11px] shrink-0 tabular-nums">
+                    <Text type="secondary" className="!text-xs shrink-0 tabular-nums">
                         {fmt(current)}
                         {duration > 0 ? ` / ${fmt(duration)}` : ""}
                     </Text>

@@ -8,7 +8,7 @@
     "scripts": {
         "build": "tsc --noEmit",
         "types:check": "tsc --noEmit",
-        "lint": "eslint --config ../eslint.config.mjs src/",
+        "lint": "eslint --config ./eslint.config.mjs src/",
         "test": "vitest run",
         "test:unit": "vitest run",
         "test:watch": "vitest"
@@ -16,6 +16,7 @@
     "exports": {
         ".": "./src/index.ts",
         "./adapters": "./src/adapters/index.ts",
+        "./agent": "./src/agent/index.ts",
         "./drawers/shared": "./src/drawers/shared/index.ts",
         "./drill-in": "./src/DrillInView/index.ts",
         "./gatewayTool": "./src/gatewayTool/index.ts",

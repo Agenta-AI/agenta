@@ -192,7 +192,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                             {/* One mount is in but another is still loading — a quiet hint, NOT a
                                 skeleton that would hide the files already shown. */}
                             {!showSkeleton && (drive.reconciling || drive.isFetching) ? (
-                                <div className="flex items-center gap-1.5 px-1.5 pt-1 text-[11px] text-colorTextTertiary">
+                                <div className="flex items-center gap-1.5 px-1.5 pt-1 text-xs text-colorTextTertiary">
                                     <CircleNotch size={11} className="animate-spin" />
                                     <span>Loading more…</span>
                                 </div>
@@ -212,7 +212,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                             {/* The diagnostic is now secondary + conditional — a retry may well fix a
                                 transient failure; the "not configured" hint only matters if it keeps
                                 failing (self-hosted deploys without an object store). */}
-                            <Text type="secondary" className="!text-[11px] !text-colorTextTertiary">
+                            <Text type="secondary" className="!text-xs !text-colorTextTertiary">
                                 If it keeps failing, the file store may not be configured on this
                                 deployment.
                             </Text>

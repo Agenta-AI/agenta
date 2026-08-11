@@ -622,3 +622,253 @@ describe("transcriptToMessages attachments", () => {
         ).toEqual([{type: "text", text: "Done."}])
     })
 })
+
+/**
+ * A parked client tool (elicitation) must replay with its `data-render` sibling. Dropping it made
+ * every reload / post-turn transcript adoption resolve the call to NO widget, so the fallback
+ * settled it as `{status: "not_handled"}` instead of showing the form (session a21da9cd).
+ */
+describe("transcriptToMessages parked client tool", () => {
+    const toolCallId = "call_4ySJBKMeiDq4u3hUNGJidwkX|fc_05786f8fb9f28034"
+    const elicitationInput = {
+        message: "To configure the PR reviewer, tell me which repository to monitor.",
+        requestedSchema: {
+            type: "object",
+            required: ["repository"],
+            properties: {repository: {type: "string", title: "Repository"}},
+            "x-ag-stepper": true,
+        },
+    }
+    const clientToolRequest = (payload: Record<string, unknown> = {}): SessionRecord =>
+        record("record-interaction", {
+            type: "interaction_request",
+            id: toolCallId,
+            kind: "client_tool",
+            payload: {
+                toolCallId,
+                toolName: "request_input",
+                input: elicitationInput,
+                render: {kind: "elicitation"},
+                toolCall: {id: toolCallId, name: "request_input", rawInput: elicitationInput},
+                ...payload,
+            },
+        })
+
+    it("replays the render hint as the sibling data part the registry dispatches on", () => {
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: toolCallId,
+                name: "request_input",
+                input: elicitationInput,
+            }),
+            clientToolRequest(),
+            record("record-done-paused", {type: "done", stopReason: "paused"}),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            state: "input-available",
+            input: elicitationInput,
+        })
+        expect(parts.find((p) => p.type === "data-render")?.data).toEqual({
+            toolCallId,
+            render: {kind: "elicitation"},
+        })
+    })
+
+    it("synthesizes the tool part when the runner parked without surfacing the call", () => {
+        const messages = transcriptToMessages([clientToolRequest()])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            state: "input-available",
+            input: elicitationInput,
+        })
+        expect(parts.some((p) => p.type === "data-render")).toBe(true)
+    })
+
+    it("refreshes a drifted tool call with the interaction's canonical name and input", () => {
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: toolCallId,
+                name: "__ag__request_input",
+                input: {message: "stale"},
+            }),
+            clientToolRequest(),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            input: elicitationInput,
+        })
+    })
+
+    it("emits no render part when the interaction carries no hint", () => {
+        const messages = transcriptToMessages([clientToolRequest({render: undefined})])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts.some((p) => p.type === "data-render")).toBe(false)
+        expect(parts[0]).toMatchObject({type: "tool-request_input", state: "input-available"})
+    })
+
+    it("leaves a settled client tool settled (a later tool_result still wins)", () => {
+        const messages = transcriptToMessages([
+            clientToolRequest(),
+            record("record-result", {
+                type: "tool_result",
+                id: toolCallId,
+                output: {action: "accept", content: {repository: "octocat/Hello-World"}},
+            }),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({type: "tool-request_input", state: "output-available"})
+    })
+})
+
+/**
+ * Regression: a `session_interactions` row that reached a TERMINAL status (cancelled — e.g. the
+ * stale-interaction sweep) server-side, with no corresponding `tool_result` ever landing in the
+ * transcript, previously replayed as still fully pending — an interactive, answerable form
+ * stacked above the real live interaction (live evidence, session
+ * 3975e362-f64c-4e2d-8f4f-4f36c584bd91 on the 8180 dev stack). `cancelledClientToolTokens` (keyed
+ * by `session_interactions.token`, which equals the record's `toolCallId`) is the join that fixes
+ * it — each client-tool kind renders inert exactly like its own live cancel.
+ */
+describe("transcriptToMessages cancelled client-tool interactions", () => {
+    const elicitationToolCallId = "call_4ySJBKMeiDq4u3hUNGJidwkX|fc_05786f8fb9f28034"
+    const elicitationInput = {
+        message: "To configure the PR reviewer, tell me which repository to monitor.",
+        requestedSchema: {
+            type: "object",
+            required: ["repository"],
+            properties: {repository: {type: "string", title: "Repository"}},
+        },
+    }
+    const elicitationRequest = (): SessionRecord =>
+        record("record-interaction", {
+            type: "interaction_request",
+            id: elicitationToolCallId,
+            kind: "client_tool",
+            payload: {
+                toolCallId: elicitationToolCallId,
+                toolName: "request_input",
+                input: elicitationInput,
+                render: {kind: "elicitation"},
+            },
+        })
+
+    const connectToolCallId = "call_qTG2js6FcMv5thyd5UfpqCsM|fc_0e0b88283f978225"
+    const connectInput = {mode: "oauth", slug: "telegram", integration: "telegram"}
+    const connectRequest = (): SessionRecord =>
+        record("record-interaction", {
+            type: "interaction_request",
+            id: connectToolCallId,
+            kind: "client_tool",
+            payload: {
+                toolCallId: connectToolCallId,
+                toolName: "request_connection",
+                input: connectInput,
+                render: {kind: "connect"},
+            },
+        })
+
+    it("cancelled: an elicitation replays inert (output-available, action:cancel), not as a form", () => {
+        const messages = transcriptToMessages([elicitationRequest()], {
+            cancelledClientToolTokens: new Set([elicitationToolCallId]),
+        })
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId: elicitationToolCallId,
+            state: "output-available",
+            output: {action: "cancel"},
+            // The original request payload is untouched — the widget still needs it to render
+            // its (now inert) chip, e.g. for a submitted-answers style summary.
+            input: elicitationInput,
+        })
+    })
+
+    it("cancelled: a connect request replays inert (connected:false, reason:cancelled)", () => {
+        const messages = transcriptToMessages([connectRequest()], {
+            cancelledClientToolTokens: new Set([connectToolCallId]),
+        })
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_connection",
+            toolCallId: connectToolCallId,
+            state: "output-available",
+            output: {connected: false, reason: "cancelled"},
+        })
+    })
+
+    it("pending: a token NOT in the cancelled set still replays fully interactive (existing behavior)", () => {
+        const messages = transcriptToMessages([elicitationRequest()], {
+            cancelledClientToolTokens: new Set(["some-other-token"]),
+        })
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId: elicitationToolCallId,
+            state: "input-available",
+        })
+    })
+
+    it("pending: omitting the option entirely is a no-op (callers with no interaction join unaffected)", () => {
+        const messages = transcriptToMessages([elicitationRequest()])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({state: "input-available"})
+    })
+
+    it("settled: a real tool_result still wins over a stale cancelled-token entry", () => {
+        // Belt-and-suspenders: even if the interactions join is stale (says cancelled) but the
+        // transcript itself shows a later real settle, the real settle must not be downgraded.
+        const messages = transcriptToMessages(
+            [
+                elicitationRequest(),
+                record("record-result", {
+                    type: "tool_result",
+                    id: elicitationToolCallId,
+                    output: {action: "accept", content: {repository: "octocat/Hello-World"}},
+                }),
+            ],
+            {cancelledClientToolTokens: new Set([elicitationToolCallId])},
+        )
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            state: "output-available",
+            output: {action: "accept", content: {repository: "octocat/Hello-World"}},
+        })
+    })
+
+    it("cancelled: an unregistered client-tool kind still settles (empty output, no crash)", () => {
+        const toolCallId = "call_unknownKind"
+        const messages = transcriptToMessages(
+            [
+                record("record-interaction", {
+                    type: "interaction_request",
+                    id: toolCallId,
+                    kind: "client_tool",
+                    payload: {toolCallId, toolName: "some_future_client_tool", input: {}},
+                }),
+            ],
+            {cancelledClientToolTokens: new Set([toolCallId])},
+        )
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({state: "output-available", output: {}})
+    })
+})

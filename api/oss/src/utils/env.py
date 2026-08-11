@@ -690,7 +690,9 @@ class ComposioConfig(BaseModel):
     """Composio integration configuration"""
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
-    api_url: str = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+    api_url: str = os.getenv(
+        "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3.1"
+    )
     # Dev: when set, unknown-trigger drops log at WARNING instead of INFO.
     webhook_target: str | None = os.getenv("COMPOSIO_WEBHOOK_TARGET")
     # Override the registered webhook URL. Composio requires public HTTPS; in dev

@@ -96,7 +96,7 @@ function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: boolean
                     variant={KIND_COLOR[t.kind] ?? "default"}
                     className={cn(
                         "rounded-full",
-                        small ? "px-1.5 text-[10px] leading-[18px]" : "px-2 text-[10.5px]",
+                        small ? "px-1.5 text-[12px] leading-[18px]" : "px-2 text-[12px]",
                     )}
                 >
                     {t.label}
@@ -110,7 +110,7 @@ function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: boolean
 function HunkRows({hunks, limit}: {hunks: ExtendedDiffLine[]; limit?: number}) {
     const shown = limit ? hunks.slice(0, limit) : hunks
     return (
-        <div className="py-2 font-mono text-[11.5px] leading-[1.8]">
+        <div className="py-2 font-mono text-xs leading-[1.8]">
             {shown.map((line, i) => {
                 if (line.type === "fold") {
                     return (
@@ -210,7 +210,7 @@ function CappedItems({
             {hidden > 0 ? (
                 <button
                     type="button"
-                    className={cn("px-3.5 py-1.5 text-[11.5px]", LINK_BTN)}
+                    className={cn("px-3.5 py-1.5 text-xs", LINK_BTN)}
                     onClick={() => setExpanded(true)}
                 >
                     <DotsThree />
@@ -227,7 +227,7 @@ function ScalarRows({changes}: {changes: ScalarChange[]}) {
             {changes.map((c) => (
                 <div
                     key={c.key}
-                    className="flex items-center gap-2 px-3.5 py-1.5 font-mono text-[11.5px]"
+                    className="flex items-center gap-2 px-3.5 py-1.5 font-mono text-xs"
                 >
                     <span className={textColors.secondary}>{c.key}</span>
                     <span style={{color: "var(--ag-colorError)"}}>{c.before ?? "—"}</span>
@@ -338,7 +338,7 @@ function SectionCard({
                             <div className="flex items-center border-t border-[var(--ag-colorBorderSecondary)] px-3.5 py-2">
                                 <button
                                     type="button"
-                                    className={cn("text-[11.5px]", LINK_BTN)}
+                                    className={cn("text-xs", LINK_BTN)}
                                     onClick={onOpenInstructions}
                                 >
                                     <ArrowRight />
@@ -441,7 +441,7 @@ export default function AgentChangesSummary({
                 {view.kind === "summary" && !compact ? (
                     <button
                         type="button"
-                        className={cn("text-[11.5px]", LINK_BTN)}
+                        className={cn("text-xs", LINK_BTN)}
                         onClick={() => setView({kind: "json"})}
                     >
                         <Code style={{fontSize: 13}} />
@@ -506,9 +506,7 @@ export default function AgentChangesSummary({
                                     {activeTool.label}
                                 </span>
                                 {activeTool.rawKey ? (
-                                    <span
-                                        className={cn("font-mono text-[11px]", textColors.tertiary)}
-                                    >
+                                    <span className={cn("font-mono text-xs", textColors.tertiary)}>
                                         {activeTool.rawKey}
                                     </span>
                                 ) : null}
@@ -520,13 +518,13 @@ export default function AgentChangesSummary({
                                 <>
                                     <div
                                         className={cn(
-                                            "mb-1.5 text-[10.5px] uppercase tracking-wide",
+                                            "mb-1.5 text-[12px] uppercase tracking-wide",
                                             textColors.tertiary,
                                         )}
                                     >
                                         Description
                                     </div>
-                                    <div className="font-mono text-[11.5px] leading-[1.8]">
+                                    <div className="font-mono text-xs leading-[1.8]">
                                         <div style={{color: "var(--ag-colorError)"}}>
                                             − {activeTool.descriptionDiff.before}
                                         </div>
@@ -540,7 +538,7 @@ export default function AgentChangesSummary({
                                 <>
                                     <div
                                         className={cn(
-                                            "mb-1.5 mt-3 text-[10.5px] uppercase tracking-wide",
+                                            "mb-1.5 mt-3 text-[12px] uppercase tracking-wide",
                                             textColors.tertiary,
                                         )}
                                     >
@@ -559,14 +557,9 @@ export default function AgentChangesSummary({
                                                 >
                                                     {kindIcon(f.kind)}
                                                 </span>
-                                                <span className="font-mono text-[11.5px]">
-                                                    {f.field}
-                                                </span>
+                                                <span className="font-mono text-xs">{f.field}</span>
                                                 <span
-                                                    className={cn(
-                                                        "text-[11px]",
-                                                        textColors.tertiary,
-                                                    )}
+                                                    className={cn("text-xs", textColors.tertiary)}
                                                 >
                                                     · {f.detail}
                                                 </span>

@@ -1,0 +1,7 @@
+/**
+ * Agent surfaces — antd-free (eslint-enforced for this directory), so mobile can adopt them.
+ * Data-connected cells (activity, owner) and the classified agents list stay app-side and
+ * arrive as slots/props; the components own only what an agent card or trigger row IS.
+ */
+export {AgentCard, agentAvatar, type AgentCardData, type AgentCardProps} from "./AgentCard"
+export {NextTriggersSection, type NextTriggersSectionProps} from "./NextTriggersSection"

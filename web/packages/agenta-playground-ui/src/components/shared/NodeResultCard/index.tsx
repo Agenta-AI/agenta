@@ -40,7 +40,7 @@ export const NodeNameTag = ({
         {isDraft && (
             <Tag
                 variant="filled"
-                className="!m-0 rounded-[6px] px-1.5 py-[1px] text-[10px] leading-[22px] bg-[var(--ag-c-FFF7E6)] text-[var(--ag-c-D4760A)] border border-solid border-[var(--ag-c-FFE4B5)]"
+                className="!m-0 rounded-[6px] px-1.5 py-[1px] text-[12px] leading-[22px] bg-[var(--ag-c-FFF7E6)] text-[var(--ag-c-D4760A)] border border-solid border-[var(--ag-c-FFE4B5)]"
             >
                 draft
             </Tag>

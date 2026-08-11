@@ -1,5 +1,6 @@
 import type {ElementType, ReactNode} from "react"
 
+import {pageGutterClass} from "./pageWidth"
 import {Tabs, TabsList, TabsTrigger} from "./ui/tabs"
 import {cn} from "./ui/utils"
 
@@ -24,6 +25,11 @@ interface HeaderTabsConfig {
 export interface PageLayoutProps {
     title?: ReactNode
     titleLevel?: 1 | 2 | 3 | 4 | 5
+    /**
+     * One line under the title, in the same block so it reads as the title's own. Opt-in: without
+     * it the header keeps its fixed h-11 row, so pages that don't pass one are unchanged.
+     */
+    description?: ReactNode
     headerTabs?: ReactNode
     /** Header tab bar. Local config type (no runtime/type antd). */
     headerTabsProps?: HeaderTabsConfig
@@ -35,6 +41,7 @@ export interface PageLayoutProps {
 const PageLayout = ({
     title,
     titleLevel = 3,
+    description,
     headerTabs,
     headerTabsProps,
     children,
@@ -69,7 +76,13 @@ const PageLayout = ({
     )
 
     return (
-        <div className={cn("flex w-full flex-col gap-4 p-4 self-stretch min-h-full", className)}>
+        <div
+            className={cn(
+                "flex w-full flex-col gap-4 self-stretch min-h-full",
+                pageGutterClass,
+                className,
+            )}
+        >
             {title ? (
                 <div
                     className={cn(
@@ -79,11 +92,14 @@ const PageLayout = ({
                         // (tabs have a taller min-content height) — producing different
                         // header heights and a layout shift when navigating between
                         // tabbed and non-tabbed full-screen table pages.
-                        "flex shrink-0 items-center justify-between gap-3 h-11",
+                        "flex shrink-0 items-center justify-between gap-3",
+                        // A description makes the block taller than one line, so the fixed row
+                        // height only applies without one.
+                        description ? "items-start" : "h-11",
                         headerClassName,
                     )}
                 >
-                    <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
                         {/* antd Title replacement: a real heading sized off antd's own heading
                             tokens so it flips/scales with the theme; `m-0` kills the UA margin
                             (preflight is off). Weight is fontWeightStrong — antd's own Title rule
@@ -99,6 +115,9 @@ const PageLayout = ({
                         >
                             {title}
                         </HeadingTag>
+                        {description ? (
+                            <p className="m-0 text-colorTextSecondary">{description}</p>
+                        ) : null}
                     </div>
                     {headerTabsContent ? (
                         <div className="flex items-center justify-end">{headerTabsContent}</div>

@@ -107,7 +107,7 @@ export const useSidebarBottomSection = ({
                 title: "Help & Docs",
                 icon: <QuestionIcon size={14} />,
                 suffix: version ? (
-                    <span className="text-[10px] leading-none text-colorTextTertiary">
+                    <span className="text-[12px] leading-none text-colorTextTertiary">
                         v{version}
                     </span>
                 ) : undefined,

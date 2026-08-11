@@ -54,7 +54,7 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
                             <span className="truncate text-xs font-medium leading-5 text-colorText">
                                 Always allowing <span className="font-semibold">{label}</span>
                             </span>
-                            <span className="text-[11px] leading-4 text-colorTextSecondary">
+                            <span className="text-xs leading-4 text-colorTextSecondary">
                                 Saved to this draft — this tool won&apos;t ask again.
                             </span>
                         </div>

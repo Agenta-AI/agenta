@@ -33,6 +33,7 @@ export function useDriveUploads({
     select,
     stagedFiles,
     onStagedChange,
+    onUploaded,
 }: {
     drive: SessionDriveData
     /** Local-file mode — there is no mount to write to, so every upload affordance stays off. */
@@ -41,11 +42,13 @@ export function useDriveUploads({
     select: (path: string | null) => void
     stagedFiles?: DroppedFile[]
     onStagedChange?: (files: DroppedFile[]) => void
+    /** One file's write landed, at its presented path — see {@link useUploadReveal}. */
+    onUploaded?: (path: string) => void
 }) {
     // Upload state lives here (above the tree) so in-flight uploads can be injected as synthetic files —
     // buildDriveTree then nests each UNDER its destination folder, and the real tree row / file tile
     // renders it in place (decorated via pendingUploadByPath), rather than a separate pinned list.
-    const mountUpload = useMountUpload()
+    const mountUpload = useMountUpload(onUploaded)
     const uploadPath = useCallback(
         (it: MountUploadItem) =>
             it.presentedFolder ? `${it.presentedFolder}/${it.relativePath}` : it.relativePath,

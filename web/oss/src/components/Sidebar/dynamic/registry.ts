@@ -7,11 +7,15 @@ import {
     // nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
+import {ChatsCircleIcon, CircleIcon, PushPinIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
-import {atom} from "jotai"
+import {atom, getDefaultStore} from "jotai"
 
-import {MAIN_SIDEBAR_SCOPE_ID} from "../scopes/constants"
+import {pendingSessionOpenAtom} from "@/oss/components/AgentChatSlice/state/pendingSessionOpen"
 
+import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../scopes/constants"
+
+import {sidebarSessionsListAtom, type SessionSidebarRef} from "./sessionsSource"
 import {gatedSidebarSource} from "./source"
 import type {
     SidebarEntity,
@@ -52,6 +56,8 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     showAllLink: config.showAllPath
         ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,
+    getIcon: config.getIcon ? (ref) => config.getIcon!(ref as TRef) : undefined,
+    getOnClick: config.getOnClick ? (ref) => config.getOnClick!(ref as TRef) : undefined,
 })
 
 // ── Add a new dynamic entity by appending one entry here. Nothing else. ──────
@@ -65,6 +71,33 @@ const ENTITIES: SidebarEntity[] = [
         childPath: (workflow) => `/apps/${workflow.id}/playground`,
         emptyLabel: "No prompts",
         showAllPath: "/prompts",
+    }),
+    defineSidebarEntity<SessionSidebarRef>(MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY, {
+        kind: "app",
+        icon: createElement(ChatsCircleIcon, {size: 14}),
+        listAtom: sidebarSessionsListAtom,
+        getLabel: (session) => session.name || "Untitled session",
+        // The link navigates to the owning agent; the click hands over WHICH session, since the
+        // playground has no way to read that from the route.
+        childPath: (session) => `/apps/${session.appId}/playground`,
+        getOnClick: (session) => () => {
+            if (!session.appId) return
+            getDefaultStore().set(pendingSessionOpenAtom, {
+                appId: session.appId,
+                sessionId: session.sessionId,
+                title: session.name ?? undefined,
+            })
+        },
+        getIcon: (session) =>
+            session.pinned
+                ? createElement(PushPinIcon, {size: 14, weight: "fill"})
+                : createElement(CircleIcon, {
+                      size: 10,
+                      weight: session.alive ? "fill" : "regular",
+                  }),
+        emptyLabel: "No sessions",
+        maxItems: 7,
+        showAllPath: "/sessions",
     }),
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
         kind: "app",

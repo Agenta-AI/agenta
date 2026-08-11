@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.sessions.records.dtos import (
+    SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
 )
@@ -124,6 +125,62 @@ class RecordsDAO(RecordsDAOInterface):
 
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    async def latest_message_per_session(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> Dict[str, SessionMessagePreview]:
+        """The newest `message` record for each of `session_ids`, in ONE query.
+
+        `DISTINCT ON` rather than a per-session fetch: a list page asks for up to fifty
+        previews at once, and fifty round-trips per render is not a preview, it is a fan-out.
+        Ordering mirrors `get_records` reversed — producer event time is the only key that is
+        monotonic across turns (`record_index` restarts every turn).
+        """
+        if not session_ids:
+            return {}
+
+        async with self.engine.session() as session:
+            stmt = (
+                select(
+                    RecordDBE.session_id,
+                    RecordDBE.record_source,
+                    RecordDBE.attributes,
+                    RecordDBE.timestamp,
+                    RecordDBE.created_at,
+                )
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id.in_(session_ids),
+                    RecordDBE.record_type == "message",
+                    RecordDBE.deleted_at.is_(None),
+                )
+                .distinct(RecordDBE.session_id)
+                .order_by(
+                    RecordDBE.session_id,
+                    RecordDBE.timestamp.desc().nullslast(),
+                    RecordDBE.created_at.desc(),
+                    RecordDBE.record_index.desc(),
+                )
+            )
+
+            rows = (await session.execute(stmt)).all()
+
+        previews: Dict[str, SessionMessagePreview] = {}
+        for row in rows:
+            text = (row.attributes or {}).get("text")
+            # A message whose payload carries no text (attachment-only) has nothing to preview.
+            if not isinstance(text, str) or not text.strip():
+                continue
+            previews[row.session_id] = SessionMessagePreview(
+                session_id=row.session_id,
+                text=text.strip(),
+                source=row.record_source,
+                timestamp=row.timestamp or row.created_at,
+            )
+        return previews
 
     async def get_event(
         self,

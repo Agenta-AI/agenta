@@ -2428,10 +2428,20 @@ describe("runTurn: real approval park + respondPermission resume", () => {
         carriedForward: [carried],
       },
     });
-    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
-      await Promise.resolve();
+    // The resume holds the pause OPEN until the freshly-approved execution closes (issue
+    // #5907): answer lands first, then the harness streams the real completion, and only
+    // then does the carried sibling re-arm the pause. Deliver the frames in that order.
+    for (let i = 0; i < 20 && calls.permissionReplies.length === 0; i += 1) {
+      await flush();
     }
-    assert.equal(env.currentTurn?.pause.active, true);
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "once" },
+    ]);
+    assert.equal(
+      env.currentTurn?.pause.active,
+      false,
+      "the carried sibling must not re-park before the answered execution's closure window",
+    );
     captured.onEvent!(
       updateEvent({
         sessionUpdate: "tool_call_update",
@@ -2448,6 +2458,10 @@ describe("runTurn: real approval park + respondPermission resume", () => {
         content: "answered result",
       }),
     );
+    for (let i = 0; i < 20 && !env.currentTurn?.pause.active; i += 1) {
+      await flush();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
     const result = await resumeTurn;
 
     assert.equal(result.stopReason, "paused");
@@ -2457,6 +2471,24 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     assert.deepEqual([...env.parkedApprovals.keys()], ["tc-g2"]);
     assert.equal(env.approvalGateCount, 1);
     const run = calls.runs[1];
+    // The answered gate's REAL result must survive the carried sibling's re-park — the
+    // assertion issue #5907 found missing: before the ordering fix the pause destroyed the
+    // session first and this frame was replaced with APPROVED_EXECUTION_RESULT_UNKNOWN.
+    assert.equal(
+      run.handled.some(
+        (update) =>
+          update.toolCallId === "tc-g1" &&
+          update.status === "completed" &&
+          update.content === "answered result",
+      ),
+      true,
+      "the answered gate's real completion must reach the tracer",
+    );
+    assert.equal(
+      run.settled.some((entry) => entry.id === "tc-g1"),
+      false,
+      "no sentinel may replace the answered gate's real result",
+    );
     assert.equal(
       run.handled.some((update) => update.toolCallId === "tc-g2"),
       false,
@@ -2471,6 +2503,127 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       run.settled.some((entry) => entry.id === "tc-g2"),
       false,
       "the carried gate receives no sentinel",
+    );
+
+    await env.destroy();
+  });
+
+  it("holds the carried sibling's re-park open until the approved execution reports its result", async () => {
+    // The live shape of issue #5907: the freshly-approved execution reports its result a few
+    // ticks after the answer, and it only gets OBSERVED while the turn's closure window is
+    // open. Before the ordering fix, the carried sibling's re-park fired synchronously after
+    // the answer batch — before the race, before any window — and the settle replaced the
+    // real result with APPROVED_EXECUTION_RESULT_UNKNOWN. This test delivers the completion
+    // only while the pause has not yet re-armed — red before the fix, green after.
+    const { calls, deps, captured } = pausableHarness();
+    // A short per-call closure bound so the red state fails fast instead of hanging.
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000_000,
+      idleMs: 500_000,
+      ttfbMs: 500_000,
+      toolCallMs: 50,
+    });
+    deps.createRunLimits = () => ({
+      onTrip() {},
+      noteToolCallStart() {},
+      noteToolCallEnd() {},
+      wrapEmit: (emit: (event: any) => void) => emit,
+      notePaused() {},
+      dispose() {},
+    });
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    for (const [toolCallId, title] of [
+      ["tc-g1", "commit"],
+      ["tc-g2", "deploy"],
+    ]) {
+      captured.onEvent!(
+        updateEvent({ sessionUpdate: "tool_call", toolCallId, title }),
+      );
+    }
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-g1", name: "commit", rawInput: {} },
+    });
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-g2", name: "deploy", rawInput: {} },
+    });
+    await firstTurn;
+
+    const answered = env.parkedApprovals.get("tc-g1")!;
+    const carried = env.parkedApprovals.get("tc-g2")!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: answered.permissionId,
+            reply: "once",
+            toolCallId: answered.toolCallId,
+            toolName: answered.toolName,
+            args: answered.args,
+            interactionToken: answered.interactionToken,
+            promptPromise: answered.promptPromise,
+          },
+        ],
+        carriedForward: [carried],
+      },
+    });
+    for (let i = 0; i < 20 && calls.permissionReplies.length === 0; i += 1) {
+      await flush();
+    }
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "once" },
+    ]);
+    // The approved execution takes two ticks to report — and its report is only
+    // observed while the re-park has not yet fired (the closure window the fix opens).
+    setImmediate(() => {
+      setImmediate(() => {
+        if (env.currentTurn?.pause.active) return;
+        captured.onEvent!(
+          updateEvent({
+            sessionUpdate: "tool_call_update",
+            toolCallId: "tc-g1",
+            status: "completed",
+            content: "real output",
+          }),
+        );
+      });
+    });
+    const result = await resumeTurn;
+
+    assert.equal(result.stopReason, "paused");
+    const run = calls.runs[1];
+    assert.equal(
+      run.handled.some(
+        (update) =>
+          update.toolCallId === "tc-g1" &&
+          update.status === "completed" &&
+          update.content === "real output",
+      ),
+      true,
+      "the approved execution's real completion must land inside the pre-park closure window",
+    );
+    assert.equal(
+      run.settled.some((entry) => entry.id === "tc-g1"),
+      false,
+      "the deferred sentinel must not replace the approved execution's result",
+    );
+    assert.deepEqual(
+      [...env.parkedApprovals.keys()],
+      ["tc-g2"],
+      "the carried gate still re-parks",
     );
 
     await env.destroy();

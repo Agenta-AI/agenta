@@ -227,12 +227,12 @@ const config: Config = {
         {
           href: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
           position: "right",
-          html: "<button class='nav_secondary_button'>Book A Demo</button>",
+          html: "<button class='nav_secondary_button'>Book a demo</button>",
         },
         {
           href: "https://cloud.agenta.ai/",
           position: "right",
-          html: "<button class='nav_primary_button'>Start for Free</button>",
+          html: "<button class='nav_primary_button'>Get started</button>",
         },
         {
           href: "https://github.com/Agenta-AI/agenta",

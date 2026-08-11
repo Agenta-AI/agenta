@@ -21,13 +21,13 @@ export const OriginTag = ({origin}: {origin: FileOrigin}) => (
     <Tooltip title={ORIGIN_TIP[origin]}>
         {origin === "agent" ? (
             <span
-                className="inline-flex shrink-0 cursor-default items-center rounded px-1 align-middle text-[10px] font-medium leading-[15px]"
+                className="inline-flex shrink-0 cursor-default items-center rounded px-1 align-middle text-[12px] font-medium leading-[15px]"
                 style={{color: AGENT_ACCENT, border: `1px solid ${AGENT_ACCENT}`}}
             >
                 Agent
             </span>
         ) : (
-            <span className="inline-flex shrink-0 cursor-default items-center rounded border border-solid border-colorBorderSecondary px-1 align-middle text-[10px] font-medium leading-[15px] text-colorTextTertiary">
+            <span className="inline-flex shrink-0 cursor-default items-center rounded border border-solid border-colorBorderSecondary px-1 align-middle text-[12px] font-medium leading-[15px] text-colorTextTertiary">
                 Session
             </span>
         )}

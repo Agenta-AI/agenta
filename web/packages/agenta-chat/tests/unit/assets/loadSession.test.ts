@@ -2,12 +2,16 @@ import type {SessionRecord} from "@agenta/entities/session"
 import {atom} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-// `fetchSessionRecordsAtom` (real impl in @agenta/entities) hits the network via
-// jotai-tanstack-query; loadSessionMessages only needs its {records, refreshed} contract, so the
-// atom is replaced with a controllable stub rather than standing up a query client + fetch mock.
+// `fetchSessionRecordsAtom`/`fetchCancelledClientToolTokensAtom` (real impls in @agenta/entities)
+// hit the network via jotai-tanstack-query; loadSessionMessages only needs their resolved-value
+// contracts, so both are replaced with controllable stubs rather than standing up a query client +
+// fetch mock. The cancelled-tokens set defaults empty — irrelevant to this file's own assertions,
+// which only cover the records half; transcriptToMessages.test.ts covers the join itself.
 let fetchResult: {records: SessionRecord[] | null; refreshed?: Promise<SessionRecord[] | null>}
+let cancelledClientToolTokens = new Set<string>()
 vi.mock("@agenta/entities/session", () => ({
     fetchSessionRecordsAtom: atom(null, async () => fetchResult),
+    fetchCancelledClientToolTokensAtom: atom(null, async () => cancelledClientToolTokens),
 }))
 
 const {loadSessionMessages} = await import("../../../src/assets/loadSession")
@@ -26,6 +30,7 @@ const record = (id: string, payload: Record<string, unknown>, sender = "agent"):
 describe("loadSessionMessages", () => {
     beforeEach(() => {
         fetchResult = {records: null}
+        cancelledClientToolTokens = new Set()
     })
 
     it("returns null when there are no records", async () => {

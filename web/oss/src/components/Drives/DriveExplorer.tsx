@@ -15,7 +15,7 @@
  * keyboard nav ({@link useDriveTreeKeyboard}), selection reveal ({@link useDriveTreeReveal}) and
  * "Download all" ({@link useDriveDownloadAll}).
  */
-import {type ReactNode, useCallback, useState} from "react"
+import {type ReactNode, useCallback, useRef, useState} from "react"
 
 import {type MountFile} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
@@ -47,6 +47,7 @@ import {useDriveTreeViewport} from "./useDriveTreeViewport"
 import {useDriveUploads} from "./useDriveUploads"
 import {driveHasMixedOrigins, type SessionDriveData} from "./useSessionDrive"
 import {useTreeGroupScroll} from "./useTreeGroupScroll"
+import {useUploadReveal} from "./useUploadReveal"
 
 export type {DriveId, DriveScope} from "./driveTypes"
 
@@ -120,6 +121,11 @@ export function DriveExplorer({
         projectId,
     })
 
+    // Uploads sit ABOVE the tree, but a finished upload is only explainable AGAINST the tree (is the
+    // file in the listing, or did a filter swallow it?) — so the completion callback forwards through
+    // a ref that useUploadReveal fills in once both halves exist.
+    const revealUpload = useRef<(path: string) => void>(() => undefined)
+    const onUploaded = useCallback((path: string) => revealUpload.current(path), [])
     // Uploads sit ABOVE the tree: their in-flight files are folded into the build below, so each one
     // renders as a real row/tile under its destination folder.
     const {
@@ -134,7 +140,7 @@ export function DriveExplorer({
         removeStaged,
         retryUpload,
         dismissUpload,
-    } = useDriveUploads({drive, explicitFiles, select, stagedFiles, onStagedChange})
+    } = useDriveUploads({drive, explicitFiles, select, stagedFiles, onStagedChange, onUploaded})
 
     const {
         lazyTree,
@@ -158,6 +164,18 @@ export function DriveExplorer({
         originFilter,
         showHidden,
         showGitignored,
+    })
+    // Closes the loop opened above: a completed upload toasts, and anything the filters would have
+    // hidden (a dotfile, a git-ignored `.env`) reveals itself instead of blinking out.
+    revealUpload.current = useUploadReveal({
+        files: lazyTree.files,
+        loadedDirs: lazyTree.loadedDirs,
+        fetchingDirs: lazyTree.fetchingDirs,
+        inGitScope,
+        showHidden,
+        setShowHidden,
+        showGitignored,
+        setShowGitignored,
     })
     const selectedNode = selectedPath != null ? nodeByPath.get(selectedPath) : undefined
     // The root and any node flagged a folder render the grid; everything else the preview. In lazy

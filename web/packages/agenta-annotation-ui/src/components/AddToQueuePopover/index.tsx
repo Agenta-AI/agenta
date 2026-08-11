@@ -239,7 +239,7 @@ const QueueListContent = ({
                                 >
                                     {queue.name || "Untitled"}
                                 </Typography.Text>
-                                <Typography.Text type="secondary" className="text-[10px]">
+                                <Typography.Text type="secondary" className="text-[12px]">
                                     Updated{" "}
                                     {queue.updated_at ? dayjs(queue.updated_at)?.fromNow() : "—"}
                                 </Typography.Text>

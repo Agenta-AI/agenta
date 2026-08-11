@@ -175,7 +175,7 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
                         <Badge
                             count={Object.values(notes).length}
                             color="#000000"
-                            className="[&_.ant-badge-count]:!rounded-[4px] [&_.ant-badge-count]:!h-[14px] [&_.ant-badge-count]:!min-w-[14px] [&_.ant-badge-count]:text-[10px] [&_.ant-badge-count]:!flex [&_.ant-badge-count]:items-center [&_.ant-badge-count]:justify-center"
+                            className="[&_.ant-badge-count]:!rounded-[4px] [&_.ant-badge-count]:!h-[14px] [&_.ant-badge-count]:!min-w-[14px] [&_.ant-badge-count]:text-[12px] [&_.ant-badge-count]:!flex [&_.ant-badge-count]:items-center [&_.ant-badge-count]:justify-center"
                         />
                     </div>
                 </Flex>
