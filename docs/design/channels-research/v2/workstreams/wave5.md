@@ -106,6 +106,50 @@ doing, because it is cheap and the alternative is finding it at M4:
 The full check is CU-B's, at M4, because a seam between two packages cannot be
 checked until both have landed.
 
+### What the intermediate merges actually caught
+
+Recorded because it settles whether intermediate merges were worth their cost. Every
+item below was invisible to a green unit-only run, and every one of them would have
+been found by the deployment instead — after the wave was declared done.
+
+**M1**, on the adapter port:
+
+- The per-connection capability declaration reached **no production caller**. Every
+  site outside the service still asked for the channel default, so the package's
+  headline change did nothing.
+- The acceptance tests still constructed an adapter with the two arguments the port
+  had just deleted. The suite would have raised at collection on first deployment.
+- A `strict=True` xfail marked a defect that was now fixed, so the suite would have
+  gone red for a bookkeeping reason.
+- Closing the call sites orphaned a helper, which was then removed.
+
+**M2**, on the schema:
+
+- **A split brain across two connection tables.** The ingress resolved from the new
+  table while eight other reads still used the old shared one. The next package
+  populates that table, so every ingested event would have died downstream.
+- `connection.provider_key` read on a DTO whose field is `channel` — nine sites,
+  `AttributeError` on the first real row.
+- The connection key was composed from a hash of one arbitrary locator value, so the
+  declared-identity mechanism the package built was unreached.
+- The verified-identity check compared a string against the whole of `data`, which
+  holds nested dicts. It passed only because a fixture used a flat shape the design
+  does not use; against a real connection it refused every request.
+
+**M3**, on the write path and the first non-Slack channel:
+
+- Credentials now live in the vault, and every adapter reads them as flat keys off
+  the connection. Nothing had decided who resolves the reference, so storing
+  credentials correctly broke every channel that has them.
+- **The shared contract suite was a Slack contract suite.** Its identity fixtures
+  hardcoded `team`/`channel`/`thread_ts`, so any adapter declaring different field
+  names could not pass. Slack and mock passed by sharing the fixture's vocabulary.
+  The suite has never actually tested that the port is a port.
+
+The pattern in all three: **a capability is built, and nothing reaches it.** Five
+instances now, counting the two the clean-up phase found. It is worth treating as the
+default hypothesis rather than a recurring surprise.
+
 ## File ownership
 
 New and changed, on top of the table in [README.md](README.md):
