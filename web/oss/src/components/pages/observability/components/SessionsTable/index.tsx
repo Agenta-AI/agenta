@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {SESSIONS_PAGE_SIZE} from "@agenta/observability"
 import {useSessions} from "@agenta/observability"
-import {SessionStoreProvider} from "@agenta/observability-ui"
+import {AUTO_REFRESH_INTERVAL, SessionStoreProvider} from "@agenta/observability-ui"
 import {EmptySessions} from "@agenta/observability-ui"
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
@@ -14,8 +14,6 @@ import {isNewUserAtom} from "@/oss/lib/onboarding"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {hasReceivedSessionsAtom} from "@/oss/state/observability"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
-
-import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 
@@ -40,10 +38,7 @@ const SessionsTable: React.FC = () => {
         isLoading,
         sessionIds,
         sessionCount,
-        realtimeMode,
-        setRealtimeMode,
         autoRefresh,
-        setAutoRefresh,
         fetchMoreSessions,
         hasMoreSessions,
         isFetchingMore,
@@ -128,10 +123,6 @@ const SessionsTable: React.FC = () => {
                     componentType="sessions"
                     isLoading={isLoading}
                     onRefresh={handleRefresh}
-                    realtimeMode={realtimeMode}
-                    setRealtimeMode={setRealtimeMode}
-                    autoRefresh={autoRefresh}
-                    setAutoRefresh={setAutoRefresh}
                     refreshTrigger={refreshTrigger}
                 />
 

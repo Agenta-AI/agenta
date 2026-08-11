@@ -1,13 +1,13 @@
 import {useMemo, useState} from "react"
 
 import {UsageCard} from "@agenta/home-ui"
+import {RangePicker} from "@agenta/observability-ui"
 import {formatNumber} from "@agenta/shared/utils"
 import {CaretDown, CaretUp, ChartLineIcon} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import Sort from "@/oss/components/Filters/Sort"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
@@ -69,10 +69,11 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                 <div className="flex items-center gap-2">
                     <ChartLineIcon size={16} className="text-[var(--ag-colorTextSecondary)]" />
                     <span className="text-xs font-medium">Usage</span>
-                    <Sort
+                    <RangePicker
                         type="text"
-                        onSortApply={setTimeRange}
-                        defaultSortValue={timeRange.label || "1 month"}
+                        value={timeRange}
+                        onChange={setTimeRange}
+                        fallbackLabel="1 month"
                         exclude={["all time"]}
                         ariaLabel="Usage date range"
                     />

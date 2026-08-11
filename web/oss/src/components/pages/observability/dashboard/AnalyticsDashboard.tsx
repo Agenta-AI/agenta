@@ -1,11 +1,11 @@
 import {useMemo, type ComponentProps} from "react"
 
+import {RangePicker} from "@agenta/observability-ui"
 import {formatCompactNumber, formatCurrency, formatNumber} from "@agenta/shared/utils"
 import {ChartLineIcon} from "@phosphor-icons/react"
 import {Spin} from "antd"
 import {useAtom} from "jotai"
 
-import Sort from "@/oss/components/Filters/Sort"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
@@ -73,11 +73,12 @@ const AnalyticsDashboard = ({
         <div>
             {showTimeRangeSelector ? (
                 <div className="flex justify-end mb-4">
-                    <Sort
+                    <RangePicker
                         type="text"
                         disabled={loading || isFetching}
-                        onSortApply={setTimeRange}
-                        defaultSortValue={timeRange.label || "1 month"}
+                        value={timeRange}
+                        onChange={setTimeRange}
+                        fallbackLabel="1 month"
                         exclude={["all time"]}
                         ariaLabel="Usage date range"
                     />
