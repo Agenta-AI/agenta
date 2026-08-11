@@ -139,7 +139,13 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     </div>
                 </div>
 
-                <div className="flex min-h-0 w-full shrink-0 grow-0 flex-col lg:h-full lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:pr-1">
+                {/* The rail's cards carry the warm tinted surface rather than plain white, so they
+                    read as one object against the page — the same treatment Home's rail gets
+                    (StripHome). Light only: dark restores colorBgElevated, since the shipped dark
+                    card (#242424) is not the tint's dark step (#272727) and dark card surfaces
+                    aren't part of this change. Scoped from here so the cards themselves stay
+                    surface-agnostic and render the same bare anywhere else. */}
+                <div className="flex min-h-0 w-full shrink-0 grow-0 flex-col lg:h-full lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:pr-1 [&_.ag-panel-section-header]:bg-[var(--ag-surface-paper)] [&_.ag-panel-section]:bg-[var(--ag-surface-paper)] dark:[&_.ag-panel-section-header]:bg-colorBgElevated dark:[&_.ag-panel-section]:bg-colorBgElevated">
                     <PanelSurface>
                         <PanelScroll>
                             <AgentConfigurationCard appId={appId} />
