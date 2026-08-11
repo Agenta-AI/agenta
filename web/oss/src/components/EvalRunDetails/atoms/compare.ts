@@ -2,39 +2,33 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {buildRunIndex, type RunIndex} from "@/oss/lib/evaluations/buildRunIndex"
-import {CHART_SERIES_LIGHT} from "@/oss/lib/helpers/chartPalette"
 
 import {evaluationRunQueryAtomFamily} from "./table/run"
 import type {EvaluationRunQueryResult} from "./table/run"
 
 export const MAX_COMPARISON_RUNS = 4
 
+/** One tint per series slot — matches `compareTint` in the theme palette. */
+const COMPARISON_TINT_COUNT = 5
+
 /**
- * Unified color palette for run comparison.
- * Each entry has:
- * - solid: Full color for charts, badges, accents
- * - tint: Light background color for table rows
+ * Row tints for run comparison, one per series slot.
+ *
+ * These route through CSS vars (see theme-variables.css --ag-cmp-tint-*), so the light pastel row
+ * backgrounds become a subtle dark wash in dark mode instead of bright light bands — a var resolves
+ * per theme wherever it is read, which is what lets this module stay outside React.
+ *
+ * The matching SOLID colors do NOT live here: they are plain hex fed to SVG `fill`/`stroke`, which
+ * cannot resolve a var, so they must be picked for the active theme at the call site via
+ * `useChartSeries()`.
  */
-// `tint` routes through CSS vars (see theme-variables.css --ag-cmp-tint-*) so the
-// light pastel row backgrounds become a subtle dark wash in dark mode instead of
-// bright light bands. `solid` is the categorical series set in fixed order; these are
-// read from non-React modules, so they carry the light order in both themes.
-export const RUN_COMPARISON_PALETTE = CHART_SERIES_LIGHT.map((solid, index) => ({
-    solid,
-    tint: `var(--ag-cmp-tint-${index})`,
-}))
-
-/** Light background colors for table row distinction */
-export const COMPARISON_COLORS = RUN_COMPARISON_PALETTE.map((c) => c.tint)
-
-/** Solid colors for charts and visual accents */
-export const COMPARISON_SOLID_COLORS = RUN_COMPARISON_PALETTE.map((c) => c.solid)
+export const COMPARISON_COLORS = Array.from(
+    {length: COMPARISON_TINT_COUNT},
+    (_, index) => `var(--ag-cmp-tint-${index})`,
+)
 
 export const getComparisonColor = (index: number) =>
     COMPARISON_COLORS[index] ?? COMPARISON_COLORS[0]
-
-export const getComparisonSolidColor = (index: number) =>
-    COMPARISON_SOLID_COLORS[index] ?? COMPARISON_SOLID_COLORS[0]
 
 export const compareRunIdsAtom = atom<string[]>([])
 export const compareRunIdsWriteAtom = atom(
