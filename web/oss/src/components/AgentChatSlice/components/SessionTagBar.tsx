@@ -273,7 +273,13 @@ const SessionTag = memo(function SessionTag({
                     {/* Hover actions float over the masked tail — transparent buttons directly on
                     the tag fill, no backing (any painted patch reads as a mismatched box). */}
                     {hot && !renaming && (
-                        <div className="absolute inset-y-0 right-1 flex items-center gap-0.5">
+                        <div
+                            className="absolute inset-y-0 right-1 flex items-center gap-0.5"
+                            // Focusing the tag reveals these, so they are keyboard-reachable — and
+                            // Enter/Space on one would otherwise also bubble to the tab's own
+                            // handler and select the session alongside renaming or closing it.
+                            onKeyDown={(e) => e.stopPropagation()}
+                        >
                             <Tooltip title="Rename session" mouseEnterDelay={0.5}>
                                 <Button
                                     type="text"
@@ -448,12 +454,17 @@ const SessionTagBar = ({
     // the + immediately past it could still clip at the edge. Scrolling the strip to its actual
     // end (not just "the active tag") reveals both together — and is equally correct when the +
     // is docked instead, since then the tags are the only thing in the scrollable content anyway.
-    const prevSessionIdsRef = useRef<Set<string>>(new Set())
+    // `null` until the first populated render. Sessions arrive async, so everything present then is
+    // RESTORED, not newly created — seeding on it stops a reload from yanking the strip to its end
+    // over whatever tab was actually restored.
+    const prevSessionIdsRef = useRef<Set<string> | null>(null)
     useEffect(() => {
         const ids = new Set(sessions.map((s) => s.id))
-        const isNewActiveSession =
-            !!activeId && ids.has(activeId) && !prevSessionIdsRef.current.has(activeId)
+        const seen = prevSessionIdsRef.current
+        if (seen === null && ids.size === 0) return
         prevSessionIdsRef.current = ids
+        const isNewActiveSession =
+            seen !== null && !!activeId && ids.has(activeId) && !seen.has(activeId)
         if (!isNewActiveSession) return
         const strip = stripElRef.current
         const tagsWrap = tagsWrapElRef.current

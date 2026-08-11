@@ -45,8 +45,9 @@ const wrapHeader = (columnKey: string, content: React.ReactNode, label?: string)
 
 const STATUS_STYLE_MAP: Record<string, {dotClass: string; textClass: string}> = {
     success: {
-        dotClass: "bg-[#2E7D3A] dark:bg-[#8FBF7A]",
-        textClass: "text-[#2E7D3A] dark:text-[#8FBF7A]",
+        // The generated token already carries both modes, so no `dark:` variant.
+        dotClass: "bg-[var(--ag-status-success-text)]",
+        textClass: "text-[var(--ag-status-success-text)]",
     },
     failed: {
         dotClass: "bg-red-500",
