@@ -318,6 +318,28 @@ It is legacy. It is not moved, not reinterpreted, and not fixed as part of this 
 
 It is removed only once the gateway is the sole mechanism the whole system uses.
 
+## D25. A governance ceiling rejects; it never silently clamps
+
+When a call exceeds a ceiling the platform set, the gateway denies it and says so. It does not
+quietly lower the value and proceed.
+
+**The distinction that makes this non-obvious.** A stated value can collide with a *physical*
+limit or with an *operator's* limit, and those deserve opposite answers. Asking for more output
+tokens than the context window holds is impossible, and the ecosystem is converging on treating
+such a value as an upper bound and clamping it — that is the upstream's job, not ours. Our
+ceilings are the other kind, and every comparable gateway rejects those: a managed API gateway's
+token policy answers with distinct rate and quota statuses, and another's prompt guard and size
+limiter both refuse rather than edit.
+
+**Why silence is the wrong default here.** A ceiling exists to be accounted for. Lowering a value
+quietly produces a run whose output differs from what was asked for with nothing explaining why,
+and the compliance claim the ceiling exists to support stops being verifiable from the caller's
+side.
+
+**What makes rejection tolerable** is the content of the denial: it names the ceiling, the value
+asked for, and the value allowed, so a caller retries correctly the first time. `open-designs.md`
+records the evidence.
+
 ---
 
 ## Still open
@@ -334,5 +356,4 @@ What remains:
 
 - The order the concerns arrive in, under D12.
 - What each gateway does in its first increment, marked in `scope-checklist.md`.
-- Whether a clamped parameter fails the call or is silently lowered.
 - How an OAuth redirect reaches a firewalled deployment. Belongs to the OAuth checkpoint.

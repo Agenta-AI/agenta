@@ -47,12 +47,40 @@ static-credential servers work everywhere.
 
 Belongs to the OAuth checkpoint, not the first one.
 
-### OD12. Should a clamped parameter be silent
+### OD12. Should a clamped parameter be silent — CLOSED
 
-A ceiling can reject the call or quietly lower the value. Silent clamping keeps a run working
-and hides that it happened; rejecting is honest and breaks a harness that did nothing wrong.
+**No. A governance ceiling rejects, visibly. It never silently lowers a value.** Settled as D25;
+the evidence is below, since the question was to be answered by looking at comparable gateways
+rather than by assertion.
 
-**To establish** by looking at what comparable gateways do, rather than by assertion.
+**The question conflates two different collisions**, and the ecosystem answers them differently.
+
+*A stated value colliding with a physical limit.* Asking for more output tokens than the context
+window can hold is impossible rather than forbidden. Here the direction of travel is to clamp:
+the OpenAI-compatible reading treats the output ceiling as an upper bound rather than a demand,
+and inference servers that reject instead are being asked to clamp so that callers who set a
+safety cap are not punished for it. This case is the upstream's to handle, not ours.
+
+*A stated value colliding with an operator's ceiling.* This is what our ceilings are, and every
+comparable gateway rejects. A managed API gateway's token-limit policy answers a rate breach with
+"too many requests" and an exhausted quota with "forbidden" — two distinct statuses, neither of
+them a quiet edit. Another gateway's prompt-guard plugin answers a denied or non-allowed prompt
+with "bad request", and its size limiter rejects the whole request rather than truncating it.
+
+**Why that split is right for us and not merely conventional.** A governance ceiling exists to be
+accounted for. Silently lowering a value produces a run whose output differs from what was asked
+for, with nothing in the result explaining why — and the compliance claim the ceiling exists to
+support becomes unverifiable from the caller's side. Worse, the caller cannot tell a policy
+ceiling from a bad prompt, so the failure is invisible exactly where it is most expensive.
+
+The objection that rejecting "breaks a harness that did nothing wrong" is real and is answered by
+the error rather than by silence: the denial names the ceiling, the value asked for and the value
+allowed, so the caller can retry correctly on the first attempt.
+
+**Consequence for the north ports.** Both surfaces have externally-fixed error shapes, so this
+needs a denial that fits inside them and still carries the three facts above. That is
+`contract.md`'s open item on expressing a policy denial, and this closes half of it — the content
+is settled even where the envelope is not.
 
 ---
 
