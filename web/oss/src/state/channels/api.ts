@@ -1,8 +1,11 @@
+import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getChannelsClient} from "@agenta/sdk/resources"
 import type {AgentaApi} from "@agentaai/api-client"
 import {getDefaultStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
+
+import {channelConnectionsResponseSchema, type ChannelConnectionsResponse} from "./schemas"
 
 const scope = () => {
     const projectId = getDefaultStore().get(projectIdAtom)
@@ -16,10 +19,20 @@ export const listChannels = () => getChannelsClient().listChannels(scope())
 export const fetchChannelCapabilities = (channel: string) =>
     getChannelsClient().fetchChannelCapabilities({channel}, scope())
 
-// --- connections (read-only view over gateway_connections) ------------- //
+// --- connections (own row shape — see schemas.ts for why this validates) - //
 
-export const queryChannelConnections = (query?: AgentaApi.ChannelConnectionsQueryRequest) =>
-    getChannelsClient().queryChannelConnections(query ?? {}, scope())
+export const queryChannelConnections = async (
+    query?: AgentaApi.ChannelConnectionsQueryRequest,
+): Promise<ChannelConnectionsResponse> => {
+    const data = await getChannelsClient().queryChannelConnections(query ?? {}, scope())
+    return (
+        safeParseWithLogging(
+            channelConnectionsResponseSchema,
+            data,
+            "[queryChannelConnections]",
+        ) ?? {count: 0, connections: []}
+    )
+}
 
 // --- agents -------------------------------------------------------------- //
 

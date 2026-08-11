@@ -18,9 +18,15 @@ vi.mock("@/oss/state/project", () => ({
     projectIdAtom: {},
 }))
 
-vi.mock("jotai", () => ({
-    getDefaultStore: () => ({get: () => "project-1"}),
-}))
+// Partial mock: `api.ts` now pulls in `@agenta/entities/shared`, whose molecule
+// barrel needs jotai's real `atom` at import time, not just `getDefaultStore`.
+vi.mock("jotai", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("jotai")>()
+    return {
+        ...actual,
+        getDefaultStore: () => ({get: () => "project-1"}),
+    }
+})
 
 const {
     editChannelAgent,

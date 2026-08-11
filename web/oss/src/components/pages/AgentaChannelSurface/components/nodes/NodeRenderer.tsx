@@ -88,6 +88,41 @@ export default function NodeRenderer({node, degraded = false, onChoice}: NodeRen
                 />
             )
 
+        // live shape: a run of separate `button` parts, presented as one choice.
+        case "button-run":
+            return (
+                <ChoiceOptions
+                    options={node.buttons.map((button) => ({
+                        id: button.value,
+                        label: button.label,
+                    }))}
+                    degraded={degraded}
+                    asSelect={false}
+                    onChoice={onChoice}
+                />
+            )
+
+        // live shape: title/tool/arguments only -- never model-composed text.
+        case "card":
+            return (
+                <div className="m-0 flex flex-col gap-1 rounded border border-colorBorder p-2">
+                    {node.title && <strong>{node.title}</strong>}
+                    {node.tool && (
+                        <span className="text-xs text-colorTextSecondary">{node.tool}</span>
+                    )}
+                    {node.arguments && (
+                        <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                            {Object.entries(node.arguments).map(([key, value]) => (
+                                <div className="col-span-2 grid grid-cols-[auto_1fr]" key={key}>
+                                    <dt className="font-medium">{key}</dt>
+                                    <dd className="m-0">{String(value)}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                    )}
+                </div>
+            )
+
         case "fields":
             if (degraded) {
                 return (

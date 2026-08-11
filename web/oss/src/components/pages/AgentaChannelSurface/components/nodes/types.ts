@@ -1,9 +1,8 @@
 /**
- * The rendering vocabulary: text, buttons, select, fields, table, image.
- * No canonical wire shape exists yet anywhere in the API for the grouped
- * choice/fields/table/image nodes -- this is the reference definition, kept
- * close to the one shape that IS already live (`{type:"text", text}`, and
- * `id`/`label` on a choice option, per the Slack/mock adapters).
+ * The design vocabulary: text, buttons, select, fields, table, image --
+ * grouped multi-option nodes the API does not send today. It is the
+ * reference definition this surface is meant to grow into. The live shape
+ * (what the API actually emits) is below the `AgentaButtonRunNode` split.
  */
 
 export interface AgentaChoiceOption {
@@ -43,6 +42,28 @@ export interface AgentaImageNode {
     caption?: string
 }
 
+// --- live shape: what `RenderPart` (api/core/channels/render/dtos.py) actually emits
+// today -- text/button/card, one part per button, never a grouped choice. Everything
+// above this line is ahead of the API.
+
+export interface AgentaLiveButton {
+    id?: string
+    label: string
+    value: string
+}
+
+export interface AgentaButtonRunNode {
+    type: "button-run"
+    buttons: AgentaLiveButton[]
+}
+
+export interface AgentaCardNode {
+    type: "card"
+    title?: string
+    tool?: string
+    arguments?: Record<string, unknown>
+}
+
 export type AgentaNode =
     | AgentaTextNode
     | AgentaButtonsNode
@@ -50,6 +71,8 @@ export type AgentaNode =
     | AgentaFieldsNode
     | AgentaTableNode
     | AgentaImageNode
+    | AgentaButtonRunNode
+    | AgentaCardNode
 
 const isChoiceOption = (value: unknown): value is AgentaChoiceOption =>
     !!value &&
@@ -105,4 +128,64 @@ export function parseAgentaNode(value: unknown): AgentaNode | null {
         default:
             return null
     }
+}
+
+/**
+ * One conversation item's `content` array -> a node list. Consecutive live
+ * `button` parts (never grouped by the API) collapse into one `button-run`;
+ * everything else falls through to `parseAgentaNode` per item.
+ */
+export function groupAgentaNodes(parts: unknown[]): AgentaNode[] {
+    const nodes: AgentaNode[] = []
+    let run: AgentaLiveButton[] = []
+
+    const flushRun = () => {
+        if (run.length) {
+            nodes.push({type: "button-run", buttons: run})
+            run = []
+        }
+    }
+
+    for (const raw of parts) {
+        if (!raw || typeof raw !== "object") continue
+        const item = raw as Record<string, unknown>
+
+        if (item.type === "button") {
+            const value =
+                typeof item.value === "string"
+                    ? item.value
+                    : typeof item.id === "string"
+                      ? item.id
+                      : ""
+            if (value) {
+                run.push({
+                    id: typeof item.id === "string" ? item.id : undefined,
+                    label: typeof item.label === "string" ? item.label : value,
+                    value,
+                })
+            }
+            continue
+        }
+
+        flushRun()
+
+        if (item.type === "card") {
+            nodes.push({
+                type: "card",
+                title: typeof item.title === "string" ? item.title : undefined,
+                tool: typeof item.tool === "string" ? item.tool : undefined,
+                arguments:
+                    item.arguments && typeof item.arguments === "object"
+                        ? (item.arguments as Record<string, unknown>)
+                        : undefined,
+            })
+            continue
+        }
+
+        const node = parseAgentaNode(item)
+        if (node) nodes.push(node)
+    }
+
+    flushRun()
+    return nodes
 }

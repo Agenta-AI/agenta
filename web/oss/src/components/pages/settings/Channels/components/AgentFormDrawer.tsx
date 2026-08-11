@@ -158,7 +158,7 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
                         disabled={!!agentId}
                         placeholder="Select a connection"
                         options={connections.map((c) => ({
-                            label: c.name || c.slug || c.integration_key,
+                            label: c.name || c.slug || c.external_key,
                             value: c.id,
                         }))}
                     />

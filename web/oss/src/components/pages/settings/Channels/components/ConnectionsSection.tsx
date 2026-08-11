@@ -1,33 +1,38 @@
 import {useMemo} from "react"
 
-import type {AgentaApi} from "@agentaai/api-client"
 import {PlugsConnected} from "@phosphor-icons/react"
 import {Button, Table, Tag, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {useChannelConnectionsQuery} from "@/oss/state/channels"
+import type {ChannelConnection} from "@/oss/state/channels/schemas"
 
 import {ChannelsEmptyState, ChannelsSectionHeader} from "./ChannelsSection"
 
 /**
- * Read-only list over the shared `gateway_connections` rows, channel-scoped.
+ * Read-only list over the channels domain's own connection rows.
  * Install is the platform's existing connection-creation flow — this
  * package never builds a second one.
  */
 export default function ConnectionsSection() {
     const {connections, isLoading} = useChannelConnectionsQuery()
 
-    const columns: ColumnsType<AgentaApi.Connection> = useMemo(
+    const columns: ColumnsType<ChannelConnection> = useMemo(
         () => [
             {
                 title: "Channel",
-                key: "provider_key",
+                key: "channel",
                 render: (_, record) => (
                     <Tag bordered={false} color="default" className="bg-[var(--ag-c-0517290F)]">
-                        {record.provider_key}
+                        {record.channel}
                     </Tag>
                 ),
+            },
+            {
+                title: "Slug",
+                key: "slug",
+                render: (_, record) => <Typography.Text code>{record.slug}</Typography.Text>,
             },
             {
                 title: "Name",
@@ -37,21 +42,14 @@ export default function ConnectionsSection() {
                 ),
             },
             {
-                title: "Integration",
-                dataIndex: "integration_key",
-                key: "integration_key",
-            },
-            {
                 title: "Status",
                 key: "status",
-                render: (_, record) => {
-                    const isValid = (record.flags as Record<string, unknown> | undefined)?.is_valid
-                    return isValid ? (
+                render: (_, record) =>
+                    (record.flags?.is_active ?? true) ? (
                         <Tag color="green">Active</Tag>
                     ) : (
-                        <Tag color="red">Invalid</Tag>
-                    )
-                },
+                        <Tag>Paused</Tag>
+                    ),
             },
             {
                 title: "Created at",
@@ -76,11 +74,11 @@ export default function ConnectionsSection() {
                     </Button>
                 }
             />
-            <Table<AgentaApi.Connection>
+            <Table<ChannelConnection>
                 className="ph-no-capture"
                 columns={columns}
                 dataSource={connections}
-                rowKey={(record) => record.id ?? record.slug ?? record.integration_key}
+                rowKey={(record) => record.id ?? record.slug ?? record.external_key}
                 bordered
                 pagination={false}
                 loading={isLoading}

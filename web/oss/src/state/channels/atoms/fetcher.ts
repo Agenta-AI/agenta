@@ -16,6 +16,7 @@ import {
     queryChannelOutboxEvents,
     queryChannelThreads,
 } from "../api"
+import type {ChannelConnectionsResponse} from "../schemas"
 
 // --- catalog -------------------------------------------------------------- //
 
@@ -27,17 +28,15 @@ export const channelsCatalogQueryAtom = atomWithQuery<AgentaApi.ChannelsCatalogR
     refetchOnWindowFocus: false,
 }))
 
-// --- connections (read-only view over gateway_connections) --------------- //
+// --- connections (own row shape, validated at the boundary — schemas.ts) - //
 
-export const channelConnectionsQueryAtom = atomWithQuery<AgentaApi.ChannelConnectionsResponse>(
-    (get) => ({
-        queryKey: ["channels", "connections", get(projectIdAtom)],
-        queryFn: () => queryChannelConnections(),
-        enabled: !!get(projectIdAtom),
-        staleTime: 30_000,
-        refetchOnWindowFocus: false,
-    }),
-)
+export const channelConnectionsQueryAtom = atomWithQuery<ChannelConnectionsResponse>((get) => ({
+    queryKey: ["channels", "connections", get(projectIdAtom)],
+    queryFn: () => queryChannelConnections(),
+    enabled: !!get(projectIdAtom),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+}))
 
 export const useChannelConnectionsQuery = () => {
     const query = useAtomValue(channelConnectionsQueryAtom)

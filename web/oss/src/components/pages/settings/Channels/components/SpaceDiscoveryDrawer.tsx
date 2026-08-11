@@ -72,7 +72,7 @@ export default function SpaceDiscoveryDrawer({open, onClose}: SpaceDiscoveryDraw
                     placeholder="Select a connection"
                     style={{width: "100%"}}
                     options={connections.map((c) => ({
-                        label: c.name || c.slug || c.integration_key,
+                        label: c.name || c.slug || c.external_key,
                         value: c.id,
                     }))}
                     onChange={handleDiscover}

@@ -20,7 +20,7 @@ import {
 } from "../state"
 
 import NodeRenderer from "./nodes/NodeRenderer"
-import {parseAgentaNode} from "./nodes/types"
+import {groupAgentaNodes} from "./nodes/types"
 
 export default function ConversationPanel() {
     const projectId = useAtomValue(projectIdAtom)
@@ -137,18 +137,14 @@ export default function ConversationPanel() {
                                         : "self-end rounded bg-colorFillSecondary p-2"
                                 }
                             >
-                                {item.content.map((part, index) => {
-                                    const node = parseAgentaNode(part)
-                                    if (!node) return null
-                                    return (
-                                        <NodeRenderer
-                                            key={index}
-                                            node={node}
-                                            degraded={degraded}
-                                            onChoice={(token) => send(token)}
-                                        />
-                                    )
-                                })}
+                                {groupAgentaNodes(item.content).map((node, index) => (
+                                    <NodeRenderer
+                                        key={index}
+                                        node={node}
+                                        degraded={degraded}
+                                        onChoice={(token) => send(token)}
+                                    />
+                                ))}
                             </div>
                         ))}
                     </div>
