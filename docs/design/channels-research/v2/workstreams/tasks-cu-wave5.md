@@ -80,26 +80,49 @@ that two packages meet.
 Intermediate merges (M1–M3) each checked their own package's new symbols. This phase
 checks the **seams**, which could not be checked before both sides had landed.
 
-- [ ] Every symbol each package introduced, grepped for callers **outside its own
-      module**.
-- [ ] The Agenta adapter reaches every composition root. One factory now builds the
-      registry, so this is a check that WP24 edited that factory rather than any
-      root — a root that builds its own registry again is the regression.
-- [ ] `_PUBLIC_ENDPOINTS` carries all four spellings of
-      `/channels/agenta/events/`.
-- [ ] The connections routes are mounted and reachable.
-- [ ] The outbox still consumes session events and `poll_turn` is still absent —
-      inherited from wave 3, so this is a regression check, not a deliverable.
-- [ ] `grep -rn "agenta"` across `ingress.py` and `tasks/asyncio/channels/` returns
-      only the route registration.
+- [x] Every symbol each package introduced, grepped for callers **outside its own
+      module**. All reached.
+- [x] The Agenta adapter reaches every composition root. **One** construction of
+      `ChannelAdapterRegistry` exists in the tree — the factory — so no root can
+      drift again.
+- [x] `_PUBLIC_ENDPOINTS` carries all four spellings of `/channels/agenta/events/`.
+- [x] The connections routes are registered — six of them, on the channels router.
+
+      **Limit, not a pass:** `routers.py` pins a container path for its alembic
+      config, so the composition root cannot be imported outside Docker. Route
+      *mounting* is therefore evidenced by the router-level tests plus the
+      deployment, not by anything runnable here. Worth stating rather than implying
+      a stronger check than was made.
+- [x] The outbox still consumes session events and `poll_turn` is still absent.
+- [x] `grep -rn "agenta"` across `ingress.py` and `tasks/asyncio/channels/` returns
+      only the route registration — five lines, all of it the route. `_ingest` has
+      no channel-specific branch.
 
 ### Seams
 
-- [ ] WP22 and WP23 agree on the connection DTO — one wrote it, the other consumes
-      it.
-- [ ] WP24's read route and WP25's poller agree on the payload shape.
-- [ ] The contract suite still passes against all four adapters after WP21's change,
-      built as the composition root builds them.
+- [x] WP22 and WP23 agree on the connection DTO. Create composes `external_key`
+      *before* extracting the recorded locator, so the two cannot disagree, and the
+      missing-field path raises a domain error rather than a `KeyError`.
+- [x] WP24's read route and WP25's poller agree on the payload shape — field for
+      field, including the direction literals. The **request** seam agrees too: the
+      surface posts `project`/`bot`/`user`/`text`, and the adapter reads the first
+      two in `connection_locator` and the last two in `parse_event`.
+- [x] The contract suite passes against all four adapters, built as the composition
+      root builds them — and now derives its identity fixtures from each adapter's
+      own declared field names, which is what makes that claim mean anything.
+
+### What CU-B found
+
+- [x] **Two web pages were reading fields the API had stopped returning.** The
+      connection response changed shape mid-wave and no web consumer was updated, so
+      the settings page showed a blank channel and a blank installation column. A
+      third bug sat beside them: the status column read a flag that does not exist,
+      so it was always false.
+- [x] **The new surface could not render a real answer.** It was built from the
+      design's node vocabulary, and the API emits a different one. Fixed at the
+      consumer; the divergence itself is filed, because it is the more serious half.
+- [x] Suites green on the merged base: **2670 API unit, 276 web unit**, 0 xfailed.
+      Integration and acceptance are written and unrun — they need the deployment.
 
 ---
 

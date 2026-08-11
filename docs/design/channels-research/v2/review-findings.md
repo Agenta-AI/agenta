@@ -471,6 +471,59 @@
 - Notes: the gap predates the archive route; the archive route is what makes it
   matter.
 
+### F56. The rendering vocabulary in the design was never built, and the built one is undesigned
+
+- ID: `F56`
+- Origin: `wave-5 CU-B`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `rendering.md` specifies six node types — `text`, `buttons`, `select`,
+  `fields`, `table`, `image` — each with a declared text fallback, and states that
+  this vocabulary is what stops the surface drifting into one platform's feature
+  set. The implemented outbound vocabulary is `RenderPart` with
+  `type: Literal["text", "button", "card"]`. So **four of the six designed nodes do
+  not exist**, `buttons` is singular rather than grouped (the DTO's own docstring:
+  *"One part per button, so a grouped multi-option part is never used"*), and `card`
+  is implemented while appearing in no design document.
+- Evidence: found when a surface was built from `rendering.md` and rendered nothing
+  the API emits. A real answer arrives as several separate `button` parts plus
+  `text`; the surface's grouped-node renderers matched none of it, so a choice could
+  not be clicked — the one thing that surface exists to prove.
+- Files: `api/oss/src/core/channels/render/dtos.py`,
+  `api/oss/src/core/channels/render/render.py`,
+  `docs/design/channels-research/v2/rendering.md`
+- Suggested Fix: settle which vocabulary is real, in one direction, and make the
+  other match. Two consequences either way: the capability declaration's
+  per-node fallback story rests on the designed vocabulary, and `card` needs a
+  designed meaning or removal.
+- Notes: the surface now renders the live shape, so the exit condition is
+  reachable — that is a workaround at the consumer, not a resolution. Nothing was
+  wrong with either vocabulary in isolation; they were simply never reconciled, and
+  a document that reads as current is how that survived four checkpoints.
+
+### F57. The generated API client predates the channels connection shape
+
+- ID: `F57`
+- Origin: `wave-5 CU-B`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: The generated TypeScript client types the connections query response as
+  the old shared gateway shape (`provider_key`, `integration_key`, `is_active`) and
+  has no type for the channels connection at all. Seven routes that now exist are
+  absent from it, and the grant type has no `kind` field, predating kind-based
+  grants. Every web consumer therefore hand-writes its calls and validates at the
+  boundary.
+- Files: `web/packages/agenta-api-client/src/generated/api/types/`
+- Suggested Fix: regenerate against a running API. It could not be done in this wave
+  because regeneration needs a deployment.
+- Notes: two web pages were reading fields the API had stopped returning, which the
+  stale types could not catch — a generated client that lags is worse than none,
+  because it type-checks a shape that no longer exists.
+
 ### F52. Slack slash commands are parsed as noise and silently dropped
 
 - ID: `F52`
