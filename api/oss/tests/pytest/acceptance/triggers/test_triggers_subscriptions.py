@@ -156,6 +156,7 @@ class TestTriggerSubscriptionsLifecycle:
 
     def test_create_list_disable_delete_keeps_connection(self, authed_api):
         connection_id = self._create_connection(authed_api)
+        workflow_slug = _create_workflow(authed_api)
 
         # CREATE — binds the event to a workflow reference on the shared connection
         create = authed_api(
@@ -169,7 +170,7 @@ class TestTriggerSubscriptionsLifecycle:
                         "event_key": "GITHUB_STAR_ADDED_EVENT",
                         "trigger_config": {"owner": "acme", "repo": "widgets"},
                         "inputs_fields": {"repo": "$.event.attributes.repository"},
-                        "references": {"workflow": {"slug": "triage"}},
+                        "references": {"workflow": {"slug": workflow_slug}},
                     },
                 }
             },

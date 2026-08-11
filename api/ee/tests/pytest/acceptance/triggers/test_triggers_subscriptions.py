@@ -229,9 +229,10 @@ class TestTriggerSubscriptionsLifecycle:
 
     def test_create_list_disable_delete_keeps_connection(self, triggers_api):
         connection_id = self._create_connection(triggers_api)
-        workflow_slug = _create_workflow(triggers_api)
 
         try:
+            workflow_slug = _create_workflow(triggers_api)
+
             create = triggers_api(
                 "POST",
                 "/triggers/subscriptions/",

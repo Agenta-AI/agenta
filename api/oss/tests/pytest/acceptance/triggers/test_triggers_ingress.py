@@ -226,6 +226,10 @@ class TestTriggerIngressReplayAndFreshness:
 @_requires_connected_account
 class TestTriggerIngressDedup:
     def test_duplicate_event_id_writes_single_delivery(self, authed_api, unauthed_api):
+        secret = _resolve_webhook_secret()
+        if not secret:
+            pytest.skip("no Composio webhook secret resolvable; signing would 401")
+
         # Create a connection + subscription so an inbound ti_* resolves locally.
         slug = f"acc-{uuid4().hex[:8]}"
         conn = authed_api(
@@ -242,9 +246,10 @@ class TestTriggerIngressDedup:
         )
         assert conn.status_code == 200, conn.text
         connection_id = conn.json()["connection"]["id"]
-        workflow_slug = _create_workflow(authed_api)
 
         try:
+            workflow_slug = _create_workflow(authed_api)
+
             create = authed_api(
                 "POST",
                 "/triggers/subscriptions/",
@@ -273,9 +278,6 @@ class TestTriggerIngressDedup:
                 "payload": {"repository": "acme/widgets"},
             }
             body = json.dumps(envelope).encode()
-            secret = _resolve_webhook_secret()
-            if not secret:
-                pytest.skip("no Composio webhook secret resolvable; signing would 401")
 
             # Post the same logical event twice (provider redelivery) as two DISTINCT
             # provider-level deliveries (own webhook-id/timestamp each) — the
@@ -295,19 +297,25 @@ class TestTriggerIngressDedup:
                 )
                 assert ack.status_code == 202, ack.text
 
-            # The dispatch is async; the dedup guard means at most one delivery row
-            # exists for this (subscription, event_id).
-            deliveries = authed_api(
-                "POST",
-                "/triggers/deliveries/query",
-                json={
-                    "delivery": {
-                        "subscription_id": subscription_id,
-                        "event_id": event_id,
-                    }
-                },
-            ).json()["deliveries"]
-            assert len(deliveries) <= 1
+            # The dispatch is async; poll until the delivery lands, then assert the
+            # dedup guard collapsed both provider-level deliveries into exactly one.
+            deliveries = []
+            deadline = time.time() + 10
+            while time.time() < deadline:
+                deliveries = authed_api(
+                    "POST",
+                    "/triggers/deliveries/query",
+                    json={
+                        "delivery": {
+                            "subscription_id": subscription_id,
+                            "event_id": event_id,
+                        }
+                    },
+                ).json()["deliveries"]
+                if deliveries:
+                    break
+                time.sleep(0.5)
+            assert len(deliveries) == 1
 
             authed_api("DELETE", f"/triggers/subscriptions/{subscription_id}")
         finally:
