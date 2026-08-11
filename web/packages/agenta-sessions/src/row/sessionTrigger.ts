@@ -1,36 +1,37 @@
-import type {SessionStream} from "@agenta/entities/session"
+import type {SessionStream, SessionTriggerKind} from "@agenta/entities/session"
+import {isValidUUID} from "@agenta/shared/utils"
 
-/**
- * Which automation started a session, read off the reserved tags the dispatcher stamps.
- *
- * Only the dispatcher knows this — nothing links a session back to a trigger afterwards — so
- * the row reads a snapshot taken when the run started, not a live join. A renamed automation
- * therefore keeps its old name on past runs.
- */
-export const SESSION_ORIGIN_TAG = "ag.origin"
-export const SESSION_TRIGGER_NAME_TAG = "ag.trigger.name"
-export const SESSION_TRIGGER_KIND_TAG = "ag.trigger.kind"
-
-const tag = (row: SessionStream, key: string): string | null => {
-    const value = row.tags?.[key]
-    return typeof value === "string" && value.trim() ? value.trim() : null
+export interface SessionAutomationVm {
+    id: string
+    kind: SessionTriggerKind
+    name: string | null
+    deliveryId: string | null
 }
 
-export function sessionTriggerName(row: SessionStream): string | null {
-    return tag(row, SESSION_TRIGGER_NAME_TAG)
+export function sessionAutomation(row: SessionStream): SessionAutomationVm | null {
+    if (!row.trigger || !isValidUUID(row.trigger.id)) return null
+
+    return {
+        id: row.trigger.id,
+        kind: row.trigger.kind,
+        name: row.trigger.name?.trim() || null,
+        deliveryId: sessionDeliveryId(row),
+    }
 }
 
-/** "schedule" (a cron fired) or "subscription" (an event arrived). */
-export function sessionTriggerKind(row: SessionStream): string | null {
-    return tag(row, SESSION_TRIGGER_KIND_TAG)
+export function sessionDeliveryId(row: SessionStream): string | null {
+    return row.delivery && isValidUUID(row.delivery.id) ? row.delivery.id : null
 }
 
-/**
- * Was this run started by an automation rather than by a person?
- *
- * `ag.origin` is the stamp the server filters on; the trigger name is a later addition, so a run
- * dispatched before it existed is still an automation and must group with them.
- */
 export function isAutomationSession(row: SessionStream): boolean {
-    return tag(row, SESSION_ORIGIN_TAG) === "trigger" || Boolean(sessionTriggerName(row))
+    return row.origin === "trigger"
+}
+
+export function sessionAutomationKindLabel(kind: SessionTriggerKind): string {
+    return kind === "schedule" ? "Schedule" : "Event subscription"
+}
+
+export function sessionAutomationTitle(automation: SessionAutomationVm): string {
+    if (automation.name) return automation.name
+    return automation.kind === "schedule" ? "Missing schedule" : "Missing event subscription"
 }

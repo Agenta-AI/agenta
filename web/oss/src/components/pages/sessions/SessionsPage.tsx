@@ -22,9 +22,17 @@ import {
     useSessionActions,
     type SessionActionTarget,
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
+import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 
-import {toSessionMenuEntries} from "./assets/menuEntries"
+import {
+    mergeSessionMenuEntries,
+    selectSessionContextMenuItem,
+    toAntdMenuEntries,
+    toSessionMenuEntries,
+} from "./assets/menuEntries"
+import SessionAutomationDrawers from "./components/SessionAutomationDrawers"
 import SessionFiltersBar from "./components/SessionFiltersBar"
+import {useSessionAutomationActions} from "./hooks/useSessionAutomationActions"
 
 interface Props {
     /** Route-supplied agent scope (`/apps/[app_id]/sessions`). Omit for the project-wide list. */
@@ -39,10 +47,15 @@ interface Props {
  * actions (open on a playground, the shared context menu).
  */
 const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
-    const list = useSessionsList({agentId: scopedAgentId})
+    const list = useSessionsList({
+        agentId: scopedAgentId,
+        defaultPolicy: sessionListPolicies.sessionsDefault,
+        automationPolicy: sessionListPolicies.sessionsAutomation,
+    })
     const {toggle: togglePin} = useSessionPins()
     const openSession = useOpenAgentSession()
     const sessionActions = useSessionActions()
+    const automationActions = useSessionAutomationActions()
 
     const renderRow = useCallback(
         (vm: SessionRowVm) => {
@@ -61,13 +74,17 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                     })
             }
             const onSelect = (key: string) => {
+                if (automationActions.onSelect(vm, key)) return
                 if (key === "open") open()
                 if (key === "rename") sessionActions.rename(target)
                 if (key === "pin") togglePin(vm.id)
                 if (key === "archive") void sessionActions.setArchived(target)
                 if (key === "delete") sessionActions.remove(target)
             }
-            const items = sessionActions.menuItems(target, {onOpen: open})
+            const items = mergeSessionMenuEntries(
+                toSessionMenuEntries(sessionActions.menuItems(target, {onOpen: open})),
+                automationActions.menuItems(vm),
+            )
 
             return (
                 <motion.div
@@ -85,10 +102,9 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                     <Dropdown
                         trigger={["contextMenu"]}
                         menu={{
-                            items,
+                            items: toAntdMenuEntries(items),
                             onClick: ({key, domEvent}) => {
-                                domEvent.stopPropagation()
-                                onSelect(key)
+                                selectSessionContextMenuItem(domEvent, key, onSelect)
                             },
                         }}
                     >
@@ -96,7 +112,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                             <SessionRow
                                 row={vm}
                                 showAgent={!scopedAgentId}
-                                menuItems={toSessionMenuEntries(items)}
+                                menuItems={items}
                                 onMenuSelect={onSelect}
                                 onOpen={open}
                                 onTogglePin={togglePin}
@@ -106,57 +122,60 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                 </motion.div>
             )
         },
-        [openSession, scopedAgentId, sessionActions, togglePin],
+        [automationActions, openSession, scopedAgentId, sessionActions, togglePin],
     )
 
     return (
-        <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title={title}>
-            <div className="flex flex-col flex-1 min-h-0">
-                <SessionFiltersBar
-                    waitingCount={list.waitingCount}
-                    hideAgentFilter={Boolean(scopedAgentId)}
-                />
+        <>
+            <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title={title}>
+                <div className="flex flex-col flex-1 min-h-0">
+                    <SessionFiltersBar
+                        waitingCount={list.waitingCount}
+                        hideAgentFilter={Boolean(scopedAgentId)}
+                    />
 
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                    {list.isError ? (
-                        <SessionListError onRetry={list.refetch} />
-                    ) : list.isPending ? (
-                        <SessionListSkeleton />
-                    ) : (
-                        <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
-                            {/* Group headers sit OUTSIDE AnimatePresence. Framer bumps z-index on
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                        {list.isError ? (
+                            <SessionListError onRetry={list.refetch} />
+                        ) : list.isPending ? (
+                            <SessionListSkeleton />
+                        ) : (
+                            <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
+                                {/* Group headers sit OUTSIDE AnimatePresence. Framer bumps z-index on
                                 layout-animating elements, so an animated row paints over a sticky
                                 sibling no matter which element carries the `sticky`. Keeping the
                                 headers out of the animated subtree removes the fight entirely. */}
-                            {list.groups.map((group) => (
-                                <Fragment key={group.key}>
-                                    {group.label ? (
-                                        <SessionGroupHeader label={group.label} />
-                                    ) : null}
-                                    <AnimatePresence initial={false}>
-                                        {group.rows.map(renderRow)}
-                                    </AnimatePresence>
-                                </Fragment>
-                            ))}
+                                {list.groups.map((group) => (
+                                    <Fragment key={group.key}>
+                                        {group.label ? (
+                                            <SessionGroupHeader label={group.label} />
+                                        ) : null}
+                                        <AnimatePresence initial={false}>
+                                            {group.rows.map(renderRow)}
+                                        </AnimatePresence>
+                                    </Fragment>
+                                ))}
 
-                            {list.paging.hasNext ? (
-                                <SessionListLoadMore
-                                    loading={list.paging.isLoadingNext}
-                                    onClick={list.paging.loadNext}
-                                />
-                            ) : null}
+                                {list.paging.hasNext ? (
+                                    <SessionListLoadMore
+                                        loading={list.paging.isLoadingNext}
+                                        onClick={list.paging.loadNext}
+                                    />
+                                ) : null}
 
-                            {list.isEmpty ? (
-                                <SessionListEmpty
-                                    filtered={list.filtersActive}
-                                    onClearFilters={list.resetFilters}
-                                />
-                            ) : null}
-                        </MotionConfig>
-                    )}
+                                {list.isEmpty ? (
+                                    <SessionListEmpty
+                                        filtered={list.filtersActive}
+                                        onClearFilters={list.resetFilters}
+                                    />
+                                ) : null}
+                            </MotionConfig>
+                        )}
+                    </div>
                 </div>
-            </div>
-        </PageLayout>
+            </PageLayout>
+            <SessionAutomationDrawers />
+        </>
     )
 }
 

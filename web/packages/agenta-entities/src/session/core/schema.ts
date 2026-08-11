@@ -95,6 +95,36 @@ export const sessionReferenceSchema = z.object({
     version: z.string().nullish(),
 })
 
+export const sessionOriginSchema = z.enum(["manual", "trigger"])
+export const sessionTriggerKindSchema = z.enum(["schedule", "subscription"])
+export const sessionExpansionSchema = z.enum(["last_message", "trigger"])
+
+export const sessionTriggerSchema = z.object({
+    id: z.string(),
+    kind: sessionTriggerKindSchema,
+    name: z.string().nullish(),
+})
+
+export const sessionDeliverySchema = z.object({
+    id: z.string(),
+})
+
+export const sessionMessagePreviewSchema = z.object({
+    text: z.string(),
+    source: z.string().nullish(),
+    timestamp: z.string().nullish(),
+})
+
+export const sessionWindowingSchema = z.object({
+    newest: z.string().nullish(),
+    oldest: z.string().nullish(),
+    next: z.string().nullish(),
+    limit: z.number().nullish(),
+    order: z.enum(["ascending", "descending"]).nullish(),
+    interval: z.number().nullish(),
+    rate: z.number().nullish(),
+})
+
 /**
  * A live stream handle. Liveness rides `flags` (nested: alive ⊇ running ⊇ attached);
  * `resumable` (alive & !running) and `reattachable` (running & !attached) are derived
@@ -109,8 +139,7 @@ export const sessionStreamSchema = z.object({
     name: z.string().nullish(),
     description: z.string().nullish(),
     turn_id: z.string().nullish(),
-    // Reserved `ag.*` tags. `ag.origin` says a run was automated; `ag.trigger.*` says which
-    // automation, stamped at dispatch because nothing links a session back to a trigger after.
+    // User-visible tags; attribution has dedicated typed fields below.
     tags: z.record(z.string(), z.unknown()).nullish(),
     status: z.object({code: z.string().nullish(), message: z.string().nullish()}).nullish(),
     flags: z
@@ -125,19 +154,15 @@ export const sessionStreamSchema = z.object({
     deleted_at: z.string().nullish(),
     // `archived_at` set = hidden-but-recoverable (distinct from `deleted_at`=ended, still resumable).
     archived_at: z.string().nullish(),
+    origin: sessionOriginSchema.nullish(),
+    trigger: sessionTriggerSchema.nullish(),
+    delivery: sessionDeliverySchema.nullish(),
     // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
     // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
     references: z.array(sessionReferenceSchema).nullish(),
     // `/sessions/query` only: the session's newest `message` record, so a row can say what
     // happened rather than only when. Absent for a session with no message yet.
-    last_message: z
-        .object({
-            text: z.string(),
-            /** "user" or "agent" — a row prefixes your own words so a preview isn't read as a reply. */
-            source: z.string().nullish(),
-            timestamp: z.string().nullish(),
-        })
-        .nullish(),
+    last_message: sessionMessagePreviewSchema.nullish(),
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -149,7 +174,9 @@ export const sessionStreamsResponseSchema = z.object({
  * the turns' workflow references. */
 export const sessionsQueryResponseSchema = z.object({
     count: z.number(),
+    total: z.number().nullish(),
     sessions: z.array(sessionStreamSchema),
+    windowing: sessionWindowingSchema.nullish(),
 })
 
 export const sessionStreamResponseSchema = z.object({
@@ -167,6 +194,14 @@ export const sessionStreamCommandResponseSchema = z.object({
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>
 export type SessionReference = z.infer<typeof sessionReferenceSchema>
+export type SessionOrigin = z.infer<typeof sessionOriginSchema>
+export type SessionTriggerKind = z.infer<typeof sessionTriggerKindSchema>
+export type SessionExpansion = z.infer<typeof sessionExpansionSchema>
+export type SessionTrigger = z.infer<typeof sessionTriggerSchema>
+export type SessionDelivery = z.infer<typeof sessionDeliverySchema>
+export type SessionMessagePreview = z.infer<typeof sessionMessagePreviewSchema>
+export type SessionWindowing = z.infer<typeof sessionWindowingSchema>
+export type SessionsQueryResponse = z.infer<typeof sessionsQueryResponseSchema>
 export type SessionStreamCommandResponse = z.infer<typeof sessionStreamCommandResponseSchema>
 
 /** One entry in a mount's durable file listing. `path` is relative to the mount root; folders

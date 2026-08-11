@@ -474,6 +474,13 @@ export function triggerBoundAgentId(
     )
 }
 
+/** Return an application artifact ID only when the reference proves that entity kind. */
+export function triggerApplicationArtifactId(
+    references?: Record<string, {id?: string | null} | undefined> | null,
+): string | null {
+    return references?.application?.id || null
+}
+
 export function isEntityActive(entity?: {flags?: Record<string, unknown> | null} | null): boolean {
     const raw = entity?.flags?.is_active
     return raw === undefined || raw === null ? true : Boolean(raw)

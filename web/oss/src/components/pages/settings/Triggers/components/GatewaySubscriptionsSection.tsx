@@ -208,6 +208,7 @@ export default function GatewaySubscriptionsSection() {
                             onClick: (record: SubscriptionRow) => {
                                 if (record.id)
                                     openDeliveries({
+                                        mode: "owner-history",
                                         owner: {kind: "subscription", id: record.id},
                                         name: record.name ?? undefined,
                                     })

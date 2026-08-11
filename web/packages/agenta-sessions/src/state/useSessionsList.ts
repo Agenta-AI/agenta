@@ -17,6 +17,7 @@ import {
     sessionStatusFilterAtom,
 } from "./filters"
 import {isSessionPinnedAtom, pinnedSessionIdsAtom, toggleSessionPinAtom} from "./pins"
+import {selectedSessionListPolicy, type SessionListRequestPolicy} from "./sessionListPolicy"
 import {
     pendingBySessionId,
     rowsFromPages,
@@ -36,6 +37,8 @@ export interface SessionGroup {
 }
 
 export interface UseSessionsListArgs {
+    defaultPolicy: SessionListRequestPolicy
+    automationPolicy: SessionListRequestPolicy
     /**
      * Route-supplied agent scope (`/apps/[app_id]/sessions`). Overrides the agent filter rather
      * than writing to it, so the project page's filter is never left holding a value the user
@@ -56,7 +59,11 @@ export interface UseSessionsListArgs {
  * Mixing both in one recency-ordered feed meant a busy schedule buried your own sessions, and
  * grouping them client-side made paging back-fill a group above another.
  */
-export const useSessionsList = ({agentId: scopedAgentId}: UseSessionsListArgs = {}) => {
+export const useSessionsList = ({
+    agentId: scopedAgentId,
+    defaultPolicy,
+    automationPolicy,
+}: UseSessionsListArgs) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const search = useAtomValue(sessionSearchAtom)
     const agentFilter = useAtomValue(sessionAgentFilterAtom)
@@ -80,27 +87,23 @@ export const useSessionsList = ({agentId: scopedAgentId}: UseSessionsListArgs = 
         [pendingBySession],
     )
 
+    const policy = selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy)
     const shared = {
+        originPolicy: policy.origin,
+        expansions: policy.expansions,
         search,
         agentId,
         status,
         includeArchived,
-        showTriggered,
         waitingSessionIds: waitingIds,
     }
     const pinnedQuery = useSessionList({
         ...shared,
         sessionIds: pinnedIds,
-        // Default mode is lenient about pins: without this, its `excludeOrigin` filter would drop
-        // a pinned automation run from its own group. The automations mode still narrows, though —
-        // a Pinned group heading a list of automation runs must not hold your own conversations.
-        showTriggered: true,
-        origin: showTriggered ? "trigger" : undefined,
         enabled: pinnedIds.length > 0,
     })
     const listQuery = useSessionList({
         ...shared,
-        origin: showTriggered ? "trigger" : undefined,
         excludeSessionIds: pinnedIds,
     })
 

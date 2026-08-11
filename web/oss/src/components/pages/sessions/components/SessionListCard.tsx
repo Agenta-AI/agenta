@@ -1,8 +1,18 @@
 import {useCallback, useMemo} from "react"
 
 import {type SessionRowVm} from "@agenta/sessions/row"
-import {applySessionScopeAtom, useSessionCardList, useSessionPins} from "@agenta/sessions/state"
-import {SessionAgentName, SessionPinButton, SessionStatusIcon} from "@agenta/sessions-ui"
+import {
+    applySessionScopeAtom,
+    useSessionCardList,
+    useSessionPins,
+    type SessionListRequestPolicy,
+} from "@agenta/sessions/state"
+import {
+    SessionAgentName,
+    SessionAutomationKind,
+    SessionPinButton,
+    SessionStatusIcon,
+} from "@agenta/sessions-ui"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {ArrowRightIcon} from "@phosphor-icons/react"
 import {Dropdown, Skeleton} from "antd"
@@ -16,12 +26,19 @@ import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessio
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import useURL from "@/oss/hooks/useURL"
 
+import {
+    mergeSessionMenuEntries,
+    selectSessionContextMenuItem,
+    toAntdMenuEntries,
+    toSessionMenuEntries,
+} from "../assets/menuEntries"
+import {useSessionAutomationActions} from "../hooks/useSessionAutomationActions"
+
 interface Props {
     title: string
+    policy: SessionListRequestPolicy
     /** Scope to one agent's sessions — the app overview. Omit for the whole project. */
     agentId?: string
-    /** Restrict to one origin (e.g. automation runs). Omit for everything but automations. */
-    origin?: string
     emptyText: string
     limit?: number
     /** Pinned sessions lead the list, and are excluded from the recent rows below them. */
@@ -43,19 +60,20 @@ interface Props {
  */
 const SessionListCard = ({
     title,
+    policy,
     agentId,
-    origin,
     emptyText,
     limit = 7,
     withPinned = false,
     minHeightClassName,
     viewAllHref,
 }: Props) => {
-    const list = useSessionCardList({agentId, origin, limit, withPinned})
+    const list = useSessionCardList({policy, agentId, limit, withPinned})
     const {toggle: togglePin} = useSessionPins()
     const applyScope = useSetAtom(applySessionScopeAtom)
     const openSession = useOpenAgentSession()
     const actions = useSessionActions()
+    const automationActions = useSessionAutomationActions()
     const {projectURL} = useURL()
 
     const handleOpen = useCallback(
@@ -75,8 +93,11 @@ const SessionListCard = ({
     // leave the project page holding an agent the user never picked.
     const scopedHref = viewAllHref ?? `${projectURL}/sessions`
     const linkScope = useMemo(
-        () => ({agentId: viewAllHref ? null : agentId, origin}),
-        [agentId, origin, viewAllHref],
+        () => ({
+            agentId: viewAllHref ? null : agentId,
+            origin: policy.origin === "trigger-only" ? "trigger" : null,
+        }),
+        [agentId, policy.origin, viewAllHref],
     )
     const handleViewAll = useCallback(() => {
         applyScope(linkScope)
@@ -92,6 +113,15 @@ const SessionListCard = ({
             name: vm.stream.name,
             archived: Boolean(vm.stream.archived_at),
         }
+        const open = () => handleOpen(vm)
+        const menuItems = mergeSessionMenuEntries(
+            toSessionMenuEntries(actions.menuItems(actionTarget, {onOpen: open})),
+            automationActions.menuItems(vm),
+        )
+        const handleMenuSelect = (key: string) => {
+            if (automationActions.onSelect(vm, key)) return
+            actions.onMenuClick(actionTarget, {onOpen: open})({key})
+        }
 
         return (
             <motion.div
@@ -106,8 +136,10 @@ const SessionListCard = ({
                 <Dropdown
                     trigger={["contextMenu"]}
                     menu={{
-                        items: actions.menuItems(actionTarget, {onOpen: () => handleOpen(vm)}),
-                        onClick: actions.onMenuClick(actionTarget, {onOpen: () => handleOpen(vm)}),
+                        items: toAntdMenuEntries(menuItems),
+                        onClick: ({key, domEvent}) => {
+                            selectSessionContextMenuItem(domEvent, key, handleMenuSelect)
+                        },
                     }}
                 >
                     <div
@@ -125,12 +157,15 @@ const SessionListCard = ({
                         }}
                         className="group box-border flex w-full cursor-pointer items-start gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
                     >
-                        <SessionStatusIcon status={vm.status} automation={Boolean(origin)} />
+                        <SessionStatusIcon status={vm.status} automation={vm.isAutomation} />
                         <span className="flex min-w-0 flex-1 flex-col gap-1">
                             <span className="flex w-full items-center gap-2">
                                 <span className="min-w-0 flex-1 truncate text-sm text-colorText">
                                     {vm.title}
                                 </span>
+                                {vm.automation ? (
+                                    <SessionAutomationKind kind={vm.automation.kind} />
+                                ) : null}
                                 {/* Inside a "Waiting on you" group the urgency is already stated, so the
                             chip spends itself on WHAT is being asked and stays visually quiet —
                             the amber lives on the dot and the header badge. The fill is the

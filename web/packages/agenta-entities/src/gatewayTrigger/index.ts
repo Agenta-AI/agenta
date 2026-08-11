@@ -60,6 +60,7 @@ export {
     isConnectionValid,
     isEntityActive,
     isEntityValid,
+    triggerApplicationArtifactId,
     triggerBoundAgentId,
 } from "./core"
 // The boundary schemas — exported so Storybook fixtures build their payloads through the
@@ -157,7 +158,9 @@ export {
 export type {
     DeliveriesDrawerState,
     DeliveriesOwner,
+    ExactDeliveryDrawerState,
     EventsDrawerState,
+    OwnerDeliveriesDrawerState,
     ScheduleDrawerState,
     SubscriptionDrawerState,
     TriggerDeliveryRow,
@@ -172,6 +175,7 @@ export {
     triggerCatalogIntegrationsInfiniteAtom,
     triggerConnectionsQueryAtom,
     triggerConnectionSubscriptionsAtomFamily,
+    triggerDeliveryQueryAtomFamily,
     triggerDeliveriesAtomFamily,
     triggerEventDetailQueryFamily,
     triggerEventsSearchAtom,
@@ -186,6 +190,7 @@ export {
     useTriggerConnectionActions,
     useTriggerConnectionsQuery,
     useTriggerConnectionSubscriptions,
+    useTriggerDelivery,
     useTriggerDeliveries,
     useTriggerEvent,
     useTriggerIntegrationConnections,

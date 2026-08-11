@@ -1,4 +1,4 @@
-import {querySessions, type SessionStream} from "@agenta/entities/session"
+import {type SessionStream} from "@agenta/entities/session"
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -6,6 +6,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
 import {projectIdAtom} from "@/oss/state/project"
 
+import {sidebarSessionOptions} from "./sessionOptions"
 import type {SidebarEntityRef} from "./types"
 
 /** A session row as the sidebar needs it: enough to label it, dot it, and open it. */
@@ -20,20 +21,17 @@ export interface SessionSidebarRef extends SidebarEntityRef {
  * search, filters and paging. Gated by the group's open state like every other entity, so a
  * collapsed Sessions group costs nothing. Pins are fetched by id in their own query: a pinned
  * session older than this window must still appear. */
-const SIDEBAR_SESSION_LIMIT = 20
-
 const sidebarSessionsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
     const projectId = get(projectIdAtom)
+    const pinnedIds = get(pinnedSessionIdsAtom)
+    const options = sidebarSessionOptions({
+        projectId: projectId ?? "",
+        excludeSessionIds: pinnedIds,
+    })
     return {
-        queryKey: ["sidebar-sessions", projectId],
+        queryKey: ["sidebar", ...options.queryKey],
         queryFn: ({signal}) =>
-            querySessions({
-                projectId: projectId ?? "",
-                includeArchived: false,
-                limit: SIDEBAR_SESSION_LIMIT,
-                abortSignal: signal,
-                lowPriority: true,
-            }),
+            options.queryFn({pageParam: null, signal}).then((page) => page?.sessions ?? null),
         enabled: Boolean(projectId),
         staleTime: 30_000,
         refetchOnWindowFocus: true,
@@ -43,16 +41,11 @@ const sidebarSessionsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => 
 const sidebarPinnedSessionsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
     const projectId = get(projectIdAtom)
     const pinnedIds = get(pinnedSessionIdsAtom)
+    const options = sidebarSessionOptions({projectId: projectId ?? "", sessionIds: pinnedIds})
     return {
-        queryKey: ["sidebar-sessions-pinned", projectId, pinnedIds],
+        queryKey: ["sidebar", "pinned", ...options.queryKey],
         queryFn: ({signal}) =>
-            querySessions({
-                projectId: projectId ?? "",
-                includeArchived: false,
-                sessionIds: pinnedIds,
-                abortSignal: signal,
-                lowPriority: true,
-            }),
+            options.queryFn({pageParam: null, signal}).then((page) => page?.sessions ?? null),
         enabled: Boolean(projectId) && pinnedIds.length > 0,
         staleTime: 30_000,
         refetchOnWindowFocus: true,
@@ -83,7 +76,7 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     const pinned = new Set(get(pinnedSessionIdsAtom))
     const pinnedRows = get(sidebarPinnedSessionsQueryAtom).data ?? []
-    // Pins come from their own by-id query; the recent window drops them so nothing shows twice.
+    // The server excludes pins before paging; this remains a defensive dedupe.
     const recentRows = (get(sidebarSessionsQueryAtom).data ?? []).filter(
         (row) => !pinned.has(row.session_id),
     )

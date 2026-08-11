@@ -15,6 +15,7 @@ import clsx from "clsx"
 
 import {isMenuDivider, type SessionMenuEntry} from "./menu"
 import {SessionAgentName} from "./SessionAgentName"
+import {SessionAutomationKind} from "./SessionAutomationKind"
 import {SessionPinButton} from "./SessionPinButton"
 import {SessionStatusIcon} from "./SessionStatusIcon"
 
@@ -76,7 +77,12 @@ const SessionRowImpl = ({
                     openable ? "cursor-pointer" : "cursor-default",
                 )}
             >
-                <span className="w-full text-sm text-colorText truncate">{row.title}</span>
+                <span className="flex w-full min-w-0 items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                        {row.title}
+                    </span>
+                    {row.automation ? <SessionAutomationKind kind={row.automation.kind} /> : null}
+                </span>
                 {row.subtitle ? (
                     <span className="w-full truncate text-[13px] text-colorTextTertiary">
                         {row.subtitle}
@@ -145,7 +151,10 @@ const SessionRowImpl = ({
                                         key={entry.key}
                                         disabled={entry.disabled}
                                         variant={entry.danger ? "destructive" : "default"}
-                                        onSelect={() => onMenuSelect?.(entry.key)}
+                                        onSelect={(event) => {
+                                            event.stopPropagation()
+                                            onMenuSelect?.(entry.key)
+                                        }}
                                     >
                                         {entry.label}
                                     </DropdownMenuItem>
