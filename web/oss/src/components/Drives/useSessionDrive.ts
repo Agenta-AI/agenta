@@ -33,6 +33,15 @@ const stripLeadingSlashes = (s: string): string => {
     return i === 0 ? s : s.slice(i)
 }
 
+/** Drop an `agent-files/` fold prefix when a path still carries one — an agent-only drive presents
+ * the agent mount at its root, but a record-log or chat path may still name the fold. */
+const unfoldAgentPath = (rel: string): string =>
+    rel === AGENT_FILES_DIR
+        ? ""
+        : rel.startsWith(`${AGENT_FILES_DIR}/`)
+          ? rel.slice(AGENT_FILES_DIR.length + 1)
+          : rel
+
 export const fileOrigin = (path: string): FileOrigin => {
     const rel = cleanPath(path)
     return rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`) ? "agent" : "session"
@@ -149,6 +158,11 @@ export function useSessionDrive(
         mountFilesQueryFamily({mountId: agentMount?.id ?? "", includeGitignored}),
     )
 
+    // Agent-only drive (an overview surface — no conversation): the agent mount IS the drive, at its
+    // own root. The `agent-files/` fold needs a session cwd to fold INTO; without one it leaves the
+    // root resolving to no mount, so the lazy explorer subscribes to nothing and browses an empty tree.
+    const agentOnly = !sessionId && Boolean(agentMount)
+
     const activity = useAtomValue(sessionFileActivityAtomFamily(sessionId))
     // Durable, cross-device recency from the record log — the base layer under the live browser
     // activity below (which only sees THIS tab's turns). Without it, files created before this tab
@@ -164,12 +178,14 @@ export function useSessionDrive(
         const cwdStats = driveFileStats(listing)
         const cwdFiles = cwdStats.files.filter((f) => isListableDrivePath(f.path))
 
-        // Agent-mount files, presented under `agent-files/` so they read as a subfolder of cwd.
+        // Agent-mount files, presented under `agent-files/` so they read as a subfolder of cwd — or at
+        // the root when the agent mount is the whole drive.
         const agentListing = agentFilesQuery.data ?? null
         const agentStats = driveFileStats(agentListing)
+        const agentPrefix = agentOnly ? "" : `${AGENT_FILES_DIR}/`
         const agentFiles = agentStats.files.map((f) => ({
             ...f,
-            path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
+            path: `${agentPrefix}${cleanPath(f.path)}`,
         }))
         const files: MountFile[] = [...cwdFiles, ...agentFiles]
 
@@ -187,6 +203,8 @@ export function useSessionDrive(
 
         const resolveMount = (path: string): ResolvedMountPath | null => {
             const rel = cleanPath(path)
+            if (agentOnly)
+                return agentMount ? {mount: agentMount, path: unfoldAgentPath(rel)} : null
             if (agentMount && (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`))) {
                 return {mount: agentMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
             }
@@ -224,10 +242,19 @@ export function useSessionDrive(
 
         const totalSize = cwdStats.totalSize + agentStats.totalSize
 
-        return {mount, files, filesByPath, resolveMount, totalSize, isLoading, errored}
+        return {
+            mount: agentOnly ? agentMount : mount,
+            files,
+            filesByPath,
+            resolveMount,
+            totalSize,
+            isLoading,
+            errored,
+        }
     }, [
         sessionId,
         artifactId,
+        agentOnly,
         mount,
         agentMount,
         filesQuery.data,
@@ -339,6 +366,12 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
     const agentMount = artifactId ? (agentMountQuery.data ?? null) : null
 
+    // The agent mount is the WHOLE drive: no session, or a session that resolved without a cwd mount
+    // (nothing has run in it yet). Folding under `agent-files/` needs a cwd to fold into — without one
+    // the root resolves to no mount and the explorer browses an empty tree. Gated on the mounts query
+    // having ANSWERED so the presentation doesn't flip once a cwd mount appears mid-load.
+    const agentOnly = Boolean(agentMount) && !mount && (!sessionId || !mountsQuery.isPending)
+
     // Recents: the agent's own write/edit events from the durable record log (0 object-store scan).
     const recordRecency = useAtomValue(sessionRecordFileRecencyAtomFamily(sessionId))
 
@@ -397,13 +430,14 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
             .slice(0, SUMMARY_LATEST_LIMIT)
         // No in-conversation changes → present the top-level entries (files carry the store mtime;
         // folders sort after, alphabetically) so the surface reflects the drive's real contents.
-        // The agent mount's entries are presented under `agent-files/`, exactly as the full drive
-        // folds them — `resolveMount` below already maps that prefix back, so the rows open.
+        // The agent mount's entries are presented exactly as the full drive presents them (folded
+        // under `agent-files/`, or at the root when it IS the drive); `resolveMount` maps them back.
+        const agentPrefix = agentOnly ? "" : `${AGENT_FILES_DIR}/`
         const rootEntries: MountFile[] = [
             ...(rootQuery.data ?? []),
             ...(agentRootQuery.data ?? []).map((f) => ({
                 ...f,
-                path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
+                path: `${agentPrefix}${cleanPath(f.path)}`,
             })),
         ]
         const rootRecents: DriveRecentFile[] = rootEntries
@@ -427,6 +461,8 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
 
         const resolveMount = (path: string): ResolvedMountPath | null => {
             const rel = cleanPath(path)
+            if (agentOnly)
+                return agentMount ? {mount: agentMount, path: unfoldAgentPath(rel)} : null
             if (agentMount && (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`))) {
                 return {mount: agentMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
             }
@@ -515,7 +551,7 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
                   : `${countLabel} file${fileCount === 1 && !fileCountCapped ? "" : "s"}`
 
         return {
-            mount,
+            mount: agentOnly ? agentMount : mount,
             files: recents,
             fileCount,
             fileCountCapped,
@@ -533,6 +569,7 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     }, [
         sessionId,
         artifactId,
+        agentOnly,
         mount,
         agentMount,
         recordRecency,

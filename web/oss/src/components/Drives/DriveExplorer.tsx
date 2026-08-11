@@ -357,8 +357,6 @@ export function DriveExplorer({
                         isFolder={selectedIsFolder}
                         rootLabel={rootLabel}
                         itemCount={selectedItemCount}
-                        totalCount={drive.fileCount}
-                        totalCapped={drive.fileCountCapped}
                         fileSize={selectedFileSize}
                         showOrigin={showOrigin}
                         isRepo={headerRepo.isRepo}

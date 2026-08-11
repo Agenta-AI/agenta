@@ -1,5 +1,5 @@
 import {type SessionStream} from "@agenta/entities/session"
-import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
+import {isStartedSession, pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -83,9 +83,11 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     const pinned = new Set(get(pinnedSessionIdsAtom))
     const pinnedRows = get(sidebarPinnedSessionsQueryAtom).data ?? []
-    // The server excludes pins before paging; this remains a defensive dedupe.
+    // The server excludes pins before paging; this remains a defensive dedupe. Chats that were
+    // opened but never used are dropped here (the shared list rule) so the group's few slots hold
+    // real sessions — the window above is sized to have real ones left after this.
     const recentRows = (get(sidebarSessionsQueryAtom).data ?? []).filter(
-        (row) => !pinned.has(row.session_id),
+        (row) => !pinned.has(row.session_id) && isStartedSession(row),
     )
 
     const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
