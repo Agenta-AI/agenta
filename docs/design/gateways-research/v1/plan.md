@@ -152,11 +152,14 @@ core and the two new secret kinds. It carries no unresolved markers.
 | Service methods | Orchestration against interfaces, never concrete DAOs or adapters |
 | Router methods | Route declarations, with the data plane and the management CRUD as separate router objects because their shapes are incompatible |
 
-Beyond the layers, it settled where the code lives (both planes are members inside the gateway
-family, not leaves beside it; the family gets its first API folder), that the policy core is a
-module with a service facade and no tables of its own, that new code uses the frozen auth scope
-rather than the family's current habit of reading request state directly, and the six new
-permission subjects.
+Beyond the layers, it settled where the code lives: a **separate domain**, `gateways/` beside the
+existing `gateway/`, holding both planes and the shared policy core. The existing family is an
+integrations domain that happens to carry the word; sharing a word is not sharing a concern, and
+`notes.md` records the two drafts that got this wrong before it was settled.
+
+It also settled that the policy core is a module with a service facade and no tables of its own,
+that new code uses the frozen auth scope rather than the neighbouring domains' habit of reading
+request state directly, and the six new permission subjects.
 
 **Done test, met:** every symbol a wave 1 package needs to import exists in the document with its
 signature, and no package's surface is described only in prose.

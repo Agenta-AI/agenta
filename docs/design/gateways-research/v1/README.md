@@ -21,8 +21,9 @@ Six claims anchor the design and constrain everything downstream:
    webhook subscriptions and SSO providers already use.
 4. **Most of the secret model is already built.** The auth-scheme axis, the
    ready/needs-auth/needs-input state machine, the one hosted-redirect flow serving both
-   schemes, and the refresh and revoke ports all exist. This extends that domain family; it
-   does not start a new one.
+   schemes, and the refresh and revoke ports all exist. The gateways **copy those shapes into
+   their own domain** rather than joining the one that has them — an integrations domain and a
+   traffic boundary share a word, not a concern.
 5. **Transparent on the data path, never on the consent path.** The gateway absorbs
    selection, injection, refresh, retry and audit. It cannot absorb consent, which needs a
    human at first use and again on a step-up scope challenge.

@@ -46,13 +46,22 @@ The repo's required direction is Router → Service → DAO interface → DAO im
 with concrete dependencies wired only at the entrypoint, and DTO/DBE mapping isolated in the
 DB layer.
 
-The gateways extend the **existing gateway domain family** — catalog, connections, tools,
-triggers — rather than starting a sibling. That family already has ports, registries,
-services and per-provider adapters, so the structural precedent to mirror is the family
-itself, not an unrelated domain.
+The gateways are a **separate domain that mirrors the existing gateway family's shape without
+joining it**. That family — catalog, connections, tools, triggers — already has ports,
+registries, services and per-provider adapters, so it is the structural precedent to copy. It is
+not a family to enter.
 
-*To establish:* whether the model plane becomes a new peer under that family or its own
-domain, and what the folder layout is. `entities.md` carries the proposal.
+**Why the distinction is not pedantry.** Judged by what it holds rather than by what it is
+called, that family is an *integrations* domain: its contracts are integrations and integration
+keys, its one table is a connections table, and its only provider is Composio. The gateways are
+traffic transiting a boundary — identity, policy, secret injection and metering, per call, on the
+data path. Sharing ports and registries is true of every domain in this repo and proves nothing
+about kinship. `notes.md` records the two drafts that concluded otherwise.
+
+Settled in `entities.md`: `core/gateways/` beside the existing `core/gateway/`, holding both
+planes and the shared policy core, with matching folders under the storage and API layers. One
+genuine reference to the older domain survives and is not evidence of kinship — a
+Composio-brokered MCP server points at a connection row.
 
 ## 5. The path of a model call
 

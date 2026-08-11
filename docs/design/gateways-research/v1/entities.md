@@ -3,33 +3,30 @@
 The data model and its full stack, following the codebase's existing layering.
 Column lists are the proposal, not migrations.
 
-The gateways have no sibling domain to mirror — they extend the family that would have been
-it. Catalog, connections, tools and triggers already carry the family's ports, registries,
-services and per-provider adapters; the two planes join that family as members rather than
-copying it from outside (`notes.md`, structural notes). The one place a genuinely new
-structure is chosen is the model plane, which has no domain at all today.
+The gateways have no sibling domain to mirror, and — despite the name — the existing
+`core/gateway/` is not it. That domain is an integrations surface ("connect my project to
+GitHub"); this one is traffic transiting a boundary. §1 makes the argument. The gateways
+are therefore a **new domain**, one parent holding both planes and their shared core,
+which is D7 expressed as a directory: one system, two protocol surfaces, one policy core.
 
-Three layout decisions are made here and argued in §1: the planes live **inside**
-`core/gateway/` as members, not beside it as leaves; the family gets its first API folder,
-`apis/fastapi/gateway/`, with the data plane and the management CRUD as **separate router
-objects** in the same folder; and the model plane's folder is named `llm/`, not `models/`.
+Three layout decisions are made here and argued in §1: the planes live under a new
+plural parent `core/gateways/`, a **sibling** to the existing singular `core/gateway/`,
+not inside it; the data plane and the management CRUD are **separate router objects** in
+one API folder per plane; and the model plane's folder is named `llm/`, not `models/`.
 
 ```text
-core/gateway/
-  catalog/            (exists — untouched)
-  connections/        (exists — untouched in this scope; ownership is designed, not scheduled)
-  providers/          (exists — Composio error helper)
-  dtos.py             NEW: family-shared enums — auth scheme, connection state,
-                      connect affordance, endpoint config (the canonical copies; §4)
-  types.py            NEW: GatewayError, the family base exception
-  policy/             NEW: the shared core both planes evaluate against (D7, D12)
+core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
+  dtos.py             our shared vocabulary — auth scheme, connection state,
+                      connect affordance, endpoint config (§4)
+  types.py            GatewaysError, the base exception
+  policy/             the shared core both planes evaluate against (D7, D12)
     dtos.py           principal-adjacent DTOs: decision, target, outcome, credential triple
     types.py          policy + resolution exceptions
     interfaces.py     CredentialResolverInterface — the one lookup, owner-first (D10)
     resolution.py     the resolve() implementation over VaultService (WP2)
     service.py        GatewayPolicyService: authorize, audit, usage (WP3, WP4)
     audit.py          EventType members + attribute builders for the events stream (D22)
-  llm/                NEW: the model plane (WP1, WP6, WP7)
+  llm/                the model plane (WP1, WP6, WP7)
     dtos.py           enums + core DTOs
     types.py          domain exceptions
     interfaces.py     LlmEndpointsDAOInterface + LlmUpstreamInterface (south port)
@@ -40,7 +37,7 @@ core/gateway/
       passthrough/adapter.py   OpenAI-compatible upstreams, byte-for-byte relay
       translated/adapter.py    the routing library in-process: shape + reseller signing
       fake/adapter.py          the fake LLM endpoint (D23, WP5)
-  mcp/                NEW: the tool plane (WP1, WP8, WP9)
+  mcp/                the tool plane (WP1, WP8, WP9)
     dtos.py
     types.py
     interfaces.py     McpEndpointsDAOInterface + McpGrantsDAOInterface + McpUpstreamInterface
@@ -50,17 +47,20 @@ core/gateway/
     providers/
       http/adapter.py          remote Streamable HTTP servers
       fake/adapter.py          the fake MCP server (D23, WP5)
-dbs/postgres/gateway/
-  connections/        (exists)
-  llm/                NEW: dbas.py, dbes.py, dao.py, mappings.py
-  mcp/                NEW: dbas.py, dbes.py, dao.py, mappings.py
-apis/fastapi/gateway/
-  exceptions.py       NEW: handle_gateway_exceptions(), written once (§9)
-  llm/                NEW: models.py, router.py (management CRUD), proxy.py (OpenAI surface),
+dbs/postgres/gateways/
+  llm/                dbas.py, dbes.py, dao.py, mappings.py
+  mcp/                dbas.py, dbes.py, dao.py, mappings.py
+apis/fastapi/gateways/
+  exceptions.py       handle_gateway_exceptions(), written once (§9)
+  llm/                models.py, router.py (management CRUD), proxy.py (OpenAI surface),
                       utils.py (call-context parsing off the body)
-  mcp/                NEW: models.py, router.py (management CRUD), proxy.py (MCP surface),
+  mcp/                models.py, router.py (management CRUD), proxy.py (MCP surface),
                       utils.py (protocol header parsing)
 ```
+
+The existing `core/gateway/`, `dbs/postgres/gateway/` and their tables are untouched in
+this scope — including `gateway_connections`, whose ownership work is designed, not
+scheduled (`secrets.md`).
 
 Changed in place, in later work packages: `core/secrets/` gains the two OAuth kinds
 (enum member, settings DTO pair, union arm, validator branch — WP16, §4);
@@ -80,60 +80,73 @@ Three new, two reused, one deliberately left alone.
 
 | table | what it is | what it is not |
 | --- | --- | --- |
-| `gateway_llm_endpoints` | one **custom** LLM endpoint: a reachable provider deployment, its route, its model allowlist, its configuration | not a model, and not the catalogue — standard endpoints are generated, never stored (D20) |
-| `gateway_mcp_endpoints` | one **custom** MCP server: its URL, auth mode, tool policy, configuration | not a catalog of tools — the server owns its tool list (D19) |
-| `gateway_mcp_grants` | one owner's authorization on one server, pointing at the vault row that holds the tokens | not a token store — the `oauth_grant` secret is (D3, D14) |
+| `llm_gateway_endpoints` | one **custom** LLM endpoint: a reachable provider deployment, its route, its model allowlist, its configuration | not a model, and not the catalogue — standard endpoints are generated, never stored (D20) |
+| `mcp_gateway_endpoints` | one **custom** MCP server: its URL, auth mode, tool policy, configuration | not a catalog of tools — the server owns its tool list (D19) |
+| `mcp_gateway_grants` | one owner's authorization on one server, pointing at the vault row that holds the tokens | not a token store — the `oauth_grant` secret is (D3, D14) |
 | `secrets` *(reused)* | gains two kinds, `oauth_provider` and `oauth_grant`; the payload is one encrypted blob, so **no schema change** | not gaining the owner column yet — ownership is designed, not scheduled (`secrets.md`) |
 | events stream *(reused)* | one audit record per call, carrying decision, principal, owner, payer and usage | not a new table and not a second pipeline (D22) |
-| `gateway_connections` *(existing)* | untouched in this scope | not the endpoint registry — see below |
+| `gateway_connections` *(existing)* | untouched; a Composio-brokered MCP endpoint will reference a row here | not the endpoint registry, and not our domain — see below |
 
 Reading it as a sentence: *a project registers custom endpoints on either plane; a standard
 endpoint exists the moment a key exists for it; an OAuth-protected server accumulates one
 grant row per owner, each pointing at one vault secret; and every call, allowed or denied,
 becomes one event.*
 
-### Why the planes are family members, not leaves
+### Why the planes are a separate domain, not members of `core/gateway/`
 
-Tools and triggers are **consumers** of the gateway substrate: they sit at the top level
-(`core/tools/`, `core/triggers/`) and reach into `core/gateway/` for catalog and
-connections. The two planes are not consumers of the substrate — they **are** gateways, the
-thing the family folder was named for. Putting them at top level would make `core/gateway/`
-a folder that contains everything gateway-shaped except the gateways, and would leave the
-shared policy core homeless between two top-level domains. Putting them inside makes the
-family name literal, gives `policy/` an owner both planes can import without a layering
-argument, and puts the fourth copy of the auth-scheme enums where the canonical copy
-belongs (§4).
+The skeleton proposed putting the planes inside the existing `core/gateway/`, and the
+tempting argument for it — that the folder already has ports, a registry, services and
+per-provider adapters, so the gateways "extend the family" — does not survive
+examination. **Structural similarity is not domain kinship.** Every well-built domain in
+this repo has ports, a registry and adapters; by that test the gateways belong everywhere,
+which is to say the test proves nothing.
 
-The same answer covers the skeleton's model-plane question. A model provider is not an
-integration in the catalog sense — no hosted redirect, no connected account — but the
-family is not defined by the catalog. It is defined by *outbound third-party brokerage
-behind ports, registries and per-provider adapters*, which is exactly what the model plane
-is. Both `ToolProviderKind` and `ConnectionProviderKind` already reserve an `AGENTA` slot
-with no adapter registered (`core/gateway/connections/dtos.py`); a gateway-owned member is
-what that slot anticipates. The alternative homes are all worse: `core/models/` collides
-with the repo-wide convention that `models.py` means wire schemas, and `core/llm/` starts a
-second family one folder away from the first.
+What `core/gateway/` actually is, read from its own contents rather than its name: its
+DTOs are `CatalogIntegration`, `CatalogProvider`, `integration_key`; its one table is
+`gateway_connections`; its consumers are tools and triggers; its only working provider is
+Composio. It is an **integrations** domain — "connect my project to GitHub" — that happens
+to be named "gateway". The name is the accident. What this design builds is different in
+kind, not in degree: traffic transiting a boundary — identity, policy, secret injection,
+audit, metering, per call, on the data path. The two share a word and nothing else, and a
+domain boundary drawn on a shared word is how unrelated code grows entangled.
 
-**Why `llm/`, not `models/`.** The skeleton proposed `core/gateway/models/`. Renamed: a
-folder called `models` whose API layer contains a `models.py` holding wire models is
-self-parody, and the product noun throughout `v1/` is "the LLM gateway". `llm/` and `mcp/`
-are also symmetric, which D19 says the two gateways are.
+So the gateways are a **new domain**: `core/gateways/`, plural, a sibling of the existing
+singular folder. The plural parent is deliberate and is D7 as a directory — one system,
+two protocol surfaces (`llm/`, `mcp/`), one shared core (`policy/`), inside one parent —
+where three loose top-level siblings would leave the policy core homeless and make the
+"one design" claim invisible in the tree.
 
-### Why the family finally gets an API folder
+**The one genuine connection between the two domains, stated so nobody re-litigates it:**
+a Composio-brokered MCP server will point at a `gateway_connections` row — the Composio
+account that fronts it lives there, and our `mcp_gateway_endpoints` registry references
+it the way any domain references another's entities. A registry referencing a
+neighbouring domain's rows is normal, and it is not a reason to live in that neighbour's
+folder.
 
-There is no `apis/fastapi/gateway/` today, and that is not an accident to correct blindly:
-catalog and connections have no HTTP surface **because they are substrate**, and the leaves
-that consume them own the routes. The planes are not substrate. Each owns two surfaces
-nobody else can own for it — a management CRUD and a protocol data plane — so each gets an
-API folder, and the folders live under `apis/fastapi/gateway/` to mirror
-`core/gateway/` and `dbs/postgres/gateway/`, which already nest per-domain
-(`dbs/postgres/gateway/connections/` is the precedent). The first router in the family
-needs an argument; this is it: the family gains routers exactly when it gains members that
-are themselves products rather than shared plumbing.
+**Why `llm/`, not `models/`.** The skeleton proposed `models/` for the model plane.
+Renamed: a folder called `models` whose API layer contains a `models.py` holding wire
+models is self-parody, and the product noun throughout `v1/` is "the LLM gateway". `llm/`
+and `mcp/` are also symmetric, which D19 says the two gateways are.
 
-### Why the data plane and the CRUD do not share a router object
+### Why the table names do not mirror the folder path
 
-They share the folder and the service; they do not share a router class or its conventions.
+The tables are `llm_gateway_endpoints`, `mcp_gateway_endpoints` and `mcp_gateway_grants` —
+**not** `gateways_*`, although `core/gateway/connections/` ↔ `gateway_connections` sets a
+mirror-the-path precedent. On purpose: a `gateways_*` prefix would sort directly beside
+`gateway_connections` in every schema listing and read as kin to a domain this design just
+argued its way out of. Table names are read far more often in isolation — in `psql`, in
+migrations, in an incident — than folder paths are, so the name leads with the plane,
+which is the part someone scanning a schema actually needs, and carries `gateway` as the
+qualifier.
+
+### The API folder, and why the data plane and the CRUD do not share a router object
+
+The domain has an API folder per plane, `apis/fastapi/gateways/{llm,mcp}/` — unremarkable
+in itself; every domain with HTTP surfaces has one. The part that needs deciding is
+inside it.
+
+The data plane and the management CRUD share the folder and the service; they do not
+share a router class or its conventions.
 The management CRUD follows the house shape — envelopes with `count`, `operation_id`,
 `response_model_exclude_none`, a permission check per handler. The data plane must not: an
 OpenAI-compatible surface and an MCP Streamable HTTP surface have **externally-fixed
@@ -146,18 +159,16 @@ incompatible conventions.
 
 ### Why the endpoint rows do not reuse `gateway_connections`
 
-The channels design reused `gateway_connections` because a Slack install *is* a connection:
-a provider-side authorization with a redirect flow, a provider connection id, and
-`is_valid` driven by provider callbacks. A gateway endpoint is none of that. It is a
-**route plus policy** — a URL, an allowlist, a configuration — whose credential, when it
-has one, is a reference into the vault, not a provider-side account. Forcing endpoints into
-the shared table would leave `provider_key`/`integration_key` meaningless, put
-channel-style lifecycle callbacks on rows that never receive any, and — the deciding
-argument — would put gateway-specific semantics on a table tools and triggers also read,
-which is exactly what the channels design refused to do from the other direction ("no
-channels-specific columns on the shared table"). The connection an OAuth flow eventually
-produces on the MCP side is a **grant**, and grants get their own table because their key
-is the owner, which connections do not have.
+With the domain boundary drawn, this answers itself. `gateway_connections` is one
+authorization of one integration — a provider-side account, a redirect flow, `is_valid`
+driven by provider callbacks. An endpoint is a **route plus policy** — a URL, an
+allowlist, a configuration — with a vault reference where a credential exists. Different
+domain, different noun, different lifecycle; reuse would put our semantics on a table
+tools and triggers read, and would leave `provider_key`/`integration_key` meaningless on
+our rows. The connection an OAuth flow eventually produces on the MCP side is a
+**grant**, and grants get their own table because their key is the owner, which
+connections do not have. The reuse that *is* correct is the reference stated above: a
+Composio-brokered MCP endpoint points at its connection row; it does not become one.
 
 ### Why grants are a row when the tokens are a secret
 
@@ -175,7 +186,7 @@ cannot serve — `is_valid` after a failed refresh (D18), the refresh attempt's 
 The asymmetry is deliberate and follows from what each credential *is*. An OAuth token is
 **audience-bound**: minted for one server, by that server's authorization server, per
 owner — so the binding `(owner, endpoint) → secret` is a fact that must be stored, and
-`gateway_mcp_grants` stores it. A provider key is bound to nothing but its provider:
+`mcp_gateway_grants` stores it. A provider key is bound to nothing but its provider:
 today it is a freestanding vault secret discovered by scanning the project's secrets for
 the provider (the SDK's settings builder does exactly this, `models.md`), and when
 user-owned secrets arrive the same scan runs over the vault's own owner columns
@@ -199,7 +210,7 @@ reused rather than reinvented (`policy.md`).
 the `standard` marker, and the provider's own name (D20). The provider-to-models catalogue
 is already a static map in the SDK (`sdks/python/agenta/sdk/utils/assets.py`,
 `supported_llm_models`, eleven providers), and the API already imports the SDK for exactly
-this kind of static catalogue (`core/workflows/static_catalog.py`). `core/gateway/llm/catalog.py`
+this kind of static catalogue (`core/workflows/static_catalog.py`). `core/gateways/llm/catalog.py`
 wraps that map; a standard endpoint *exists* when a `provider_key` secret exists for its
 provider, and stores nothing.
 
@@ -219,8 +230,8 @@ and in storage later (`secrets.md`, D10); no column changes in this scope.
 
 ## 2. dbas
 
-Abstract mixins declaring columns, composed from `dbs/postgres/shared/dbas.py`. The family
-precedent skips the `dbas.py` file entirely — `ConnectionDBE` composes the shared mixins
+Abstract mixins declaring columns, composed from `dbs/postgres/shared/dbas.py`. The existing
+gateway domain skips the `dbas.py` file entirely — `ConnectionDBE` composes the shared mixins
 directly — but that works only while a domain has one table. These domains have two and
 three, so each gets a `dbas.py`, per the house rule that the file exists "when needed"
 (`api/AGENTS.md`).
@@ -240,7 +251,7 @@ configuration, and user-owned *endpoints* are not designed anywhere in `v1/`. Th
 dimension enters exactly once, on grants, where it is the owner key (§2.2).
 
 ```python
-# dbs/postgres/gateway/llm/dbas.py
+# dbs/postgres/gateways/llm/dbas.py
 
 class LlmEndpointDBA(
     ProjectScopeDBA, IdentifierDBA, SlugDBA, LifecycleDBA,
@@ -264,7 +275,7 @@ class LlmEndpointDBA(
     # data: { route: {...}, model_slugs: [...], config: {...}, extras: {...} } — §2.4
 
 
-# dbs/postgres/gateway/mcp/dbas.py
+# dbs/postgres/gateways/mcp/dbas.py
 
 class McpEndpointDBA(
     ProjectScopeDBA, IdentifierDBA, SlugDBA, LifecycleDBA,
@@ -332,9 +343,9 @@ All three new tables take the constraint, with the delete behaviour chosen per t
   SSO delete path does (`api/ee/src/core/organizations/service.py`); the constraint covers
   the direction where the vault row dies first.
 
-**Why the constraint at all, given the family validates child-to-child references in the
-application layer.** That rule (followed by channels, stated in its entities document) is
-about *domain* children — a grant's `endpoint_id` has no FK to `gateway_mcp_endpoints`,
+**Why the constraint at all, given the house rule that child-to-child references are
+validated in the application layer.** That rule (followed by channels, stated in its entities document) is
+about *domain* children — a grant's `endpoint_id` has no FK to `mcp_gateway_endpoints`,
 because composite-scoped references across domain tables are validated in the service. The
 secrets table is not a domain sibling; it is the platform vault, `secrets.id` is a plain
 unique primary key, and the reference is load-bearing for a security claim. The database
@@ -356,7 +367,7 @@ over-applies it:
   token belongs to whoever consented (`secrets.md`: one per owner per server).
 - **The endpoint DAOs do not grow a user key.** Custom endpoints are project configuration;
   their verbs take `project_id` first and `user_id` only on writes, as authorship for
-  `LifecycleDBA` — the family convention. Reading D10 as "every DAO verb keys on a user"
+  `LifecycleDBA` — the house convention. Reading D10 as "every DAO verb keys on a user"
   would put a dead column on two tables.
 - **The secrets table itself changes later.** `secrets.md` designs the `(project, user)`
   owner for vault rows and explicitly does not schedule it. When it lands it is a default
@@ -369,17 +380,17 @@ D16 requires the identifier in a gateway URL to carry a namespace — an id or a
 a display name. The grammar, shared by both planes:
 
 ```text
-/gateway/llm/{namespace}/{name}/...      namespace ∈ {standard, custom}
-/gateway/mcp/{namespace}/{name}          namespace ∈ {standard, custom}
+/gateways/llm/{namespace}/{name}/...      namespace ∈ {standard, custom}
+/gateways/mcp/{namespace}/{name}          namespace ∈ {standard, custom}
 ```
 
 - **`standard`** — generated endpoints (D20). The name is the provider's own key on the LLM
-  plane (`/gateway/llm/standard/openai/v1`) and the built-in server's key on the MCP plane.
+  plane (`/gateways/llm/standard/openai/v1`) and the built-in server's key on the MCP plane.
   No row, no slug, no collision possible: the set is defined in code
-  (`core/gateway/llm/catalog.py`, and the built-in MCP set which starts empty — its first
+  (`core/gateways/llm/catalog.py`, and the built-in MCP set which starts empty — its first
   members are the fakes).
 - **`custom`** — stored endpoints. The name is the row's `slug`, unique per project
-  (`uq_gateway_llm_endpoints_project_slug`, §3), validated by the shared `Slug` DTO's
+  (`uq_llm_gateway_endpoints_project_slug`, §3), validated by the shared `Slug` DTO's
   `URL_SAFE_SLUG` rule.
 
 The namespace is a **path segment, not a column**: every row is `custom` by construction
@@ -428,9 +439,9 @@ Two partial unique indexes state it exactly, the idiom `trigger_subscriptions` a
 uses (`dbs/postgres/triggers/dbes.py`):
 
 ```python
-Index("uq_gateway_mcp_grants_user", "project_id", "endpoint_id", "user_id",
+Index("uq_mcp_gateway_grants_user", "project_id", "endpoint_id", "user_id",
       unique=True, postgresql_where=text("user_id IS NOT NULL")),
-Index("uq_gateway_mcp_grants_project", "project_id", "endpoint_id",
+Index("uq_mcp_gateway_grants_project", "project_id", "endpoint_id",
       unique=True, postgresql_where=text("user_id IS NULL")),
 ```
 
@@ -441,7 +452,7 @@ the row's identity never moves.
 
 ### 2.6 Flags and status: policy state versus credential state versus attempt outcome
 
-Three different facts, three different homes, following the family:
+Three different facts, three different homes, following the house pattern:
 
 - **`flags.is_active`** — an operator's switch, on endpoints and grants. Server-set default
   `True`; a deactivated endpoint refuses calls at policy time with a reason that names the
@@ -493,53 +504,54 @@ audit table.
 ## 3. dbes
 
 Concrete entities adding `__tablename__` and constraints. Composite primary key on
-`(project_id, id)` and the project FK with `CASCADE`, as everywhere in the family; the
+`(project_id, id)` and the project FK with `CASCADE`, as `gateway_connections` and the
+triggers tables already do; the
 `secret_id` constraints per §2.1.
 
 ```python
-# dbs/postgres/gateway/llm/dbes.py
+# dbs/postgres/gateways/llm/dbes.py
 
 class LlmEndpointDBE(Base, LlmEndpointDBA):
-    __tablename__ = "gateway_llm_endpoints"
+    __tablename__ = "llm_gateway_endpoints"
     __table_args__ = (
         PrimaryKeyConstraint("project_id", "id"),
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         ForeignKeyConstraint(["secret_id"], ["secrets.id"], ondelete="SET NULL"),
         UniqueConstraint("project_id", "slug",
-                         name="uq_gateway_llm_endpoints_project_slug"),
-        Index("ix_gateway_llm_endpoints_project_provider",
+                         name="uq_llm_gateway_endpoints_project_slug"),
+        Index("ix_llm_gateway_endpoints_project_provider",
               "project_id", "provider_key"),
-        Index("ix_gateway_llm_endpoints_flags", "flags", postgresql_using="gin"),
+        Index("ix_llm_gateway_endpoints_flags", "flags", postgresql_using="gin"),
     )
 
 
-# dbs/postgres/gateway/mcp/dbes.py
+# dbs/postgres/gateways/mcp/dbes.py
 
 class McpEndpointDBE(Base, McpEndpointDBA):
-    __tablename__ = "gateway_mcp_endpoints"
+    __tablename__ = "mcp_gateway_endpoints"
     __table_args__ = (
         PrimaryKeyConstraint("project_id", "id"),
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         ForeignKeyConstraint(["secret_id"], ["secrets.id"], ondelete="SET NULL"),
         UniqueConstraint("project_id", "slug",
-                         name="uq_gateway_mcp_endpoints_project_slug"),
-        Index("ix_gateway_mcp_endpoints_flags", "flags", postgresql_using="gin"),
+                         name="uq_mcp_gateway_endpoints_project_slug"),
+        Index("ix_mcp_gateway_endpoints_flags", "flags", postgresql_using="gin"),
     )
 
 
 class McpGrantDBE(Base, McpGrantDBA):
-    __tablename__ = "gateway_mcp_grants"
+    __tablename__ = "mcp_gateway_grants"
     __table_args__ = (
         PrimaryKeyConstraint("project_id", "id"),
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         ForeignKeyConstraint(["secret_id"], ["secrets.id"], ondelete="CASCADE"),
         # one grant per owner per server, under a nullable owner — §2.5
-        Index("uq_gateway_mcp_grants_user", "project_id", "endpoint_id", "user_id",
+        Index("uq_mcp_gateway_grants_user", "project_id", "endpoint_id", "user_id",
               unique=True, postgresql_where=text("user_id IS NOT NULL")),
-        Index("uq_gateway_mcp_grants_project", "project_id", "endpoint_id",
+        Index("uq_mcp_gateway_grants_project", "project_id", "endpoint_id",
               unique=True, postgresql_where=text("user_id IS NULL")),
         # the resolution read: all grants for one endpoint, then filter by owner
-        Index("ix_gateway_mcp_grants_endpoint", "project_id", "endpoint_id"),
+        Index("ix_mcp_gateway_grants_endpoint", "project_id", "endpoint_id"),
     )
 ```
 
@@ -553,7 +565,7 @@ rather than the connection precedent.
 upstream with different tool policies, and one secret may back several endpoints (one
 provider key, several custom deployments). Neither is an error, so neither is constrained.
 
-Deduplication and races, in the family's constraint-not-logic style:
+Deduplication and races, in the constraint-not-logic style the triggers tables set:
 
 | mechanism | absorbs | protects |
 | --- | --- | --- |
@@ -568,30 +580,32 @@ Deduplication and races, in the family's constraint-not-logic style:
 Everything in this section is seed material: complete, importable Pydantic, lifted verbatim
 into the seed commit (`plan.md`, wave 0).
 
-### 4.1 The family-shared definitions, and the end of the triplicate enums
+### 4.1 Our shared vocabulary, and the triplicate enums left where they are
 
 The `oauth | api_key` scheme enum and the ready / needs-auth / needs-input state machine
 exist in three parallel copies today — `ConnectionAuthScheme`
 (`core/gateway/connections/dtos.py`), `ToolConnectionState` plus `ConnectAffordance`
 (`core/tools/dtos.py`), and `TriggerDiscoveryConnectionState` plus
 `TriggerConnectAffordance` (`core/triggers/dtos.py`). The open review on this
-(`open-reviews.md` OR4) is answered here: **the duplication is not load-bearing** — the
-values are byte-identical and the leaves diverge only in class name — so the gateways do
-not add a fourth copy. The canonical definitions land at the family root,
-`core/gateway/dtos.py`; both planes import them; the three existing copies stay where they
-are and migrate to aliases opportunistically, because collapsing live leaves is a refactor
-with its own blast radius and no wave depends on it.
+(`open-reviews.md` OR4) gets its honest answer here: **the gateways are a separate domain
+(§1), so they define their own vocabulary** — the copies below, in `core/gateways/dtos.py`,
+shared by both planes. The three existing copies are **not ours to touch**: the current
+scope is the gateways, agent v0, the runner and the harnesses (D15), and catalog, tools
+and triggers sit outside it. Importing our vocabulary from the integrations domain would
+re-couple the two through the back door for no gain; a fourth definition inside our own
+boundary costs nothing and keeps the boundary real. If all four ever converge, the
+neutral home is `core/shared/dtos.py` — which already holds `Identifier`, `Slug` and
+`Header` — and that convergence is available later rather than done now.
 
 One semantic addition the existing copies lack: `NONE`. The first checkpoint's reachable
 targets are unauthenticated by design (D23 — our own servers and the fakes, no OAuth, no
-static kind), so the scheme enum must be able to say so. The leaves simply never use the
-member.
+static kind), so the scheme enum must be able to say so.
 
 ```python
-# core/gateway/dtos.py
+# core/gateways/dtos.py
 
 class GatewayAuthScheme(str, Enum):
-    """How an upstream authenticates us. The family-canonical copy (OR4)."""
+    """How an upstream authenticates us. The gateways' own copy (OR4, §4.1)."""
     OAUTH = "oauth"
     API_KEY = "api_key"
     NONE = "none"
@@ -635,7 +649,7 @@ class GatewayEndpointConfig(BaseModel):
 ### 4.2 The policy core's DTOs
 
 ```python
-# core/gateway/policy/dtos.py
+# core/gateways/policy/dtos.py
 
 class GatewayPlane(str, Enum):
     LLM = "llm"
@@ -751,7 +765,7 @@ typed ref keeps the owner/mode semantics in one body and makes the lookup shape 
 ### 4.3 The LLM plane
 
 ```python
-# core/gateway/llm/dtos.py
+# core/gateways/llm/dtos.py
 
 class LlmDeploymentKind(str, Enum):
     """How a provider is reached — the wire's `deployment` axis, aligned with
@@ -775,8 +789,9 @@ class LlmEndpointRoute(BaseModel):
 
 
 class LlmEndpointConfig(GatewayEndpointConfig):
-    max_output_tokens: Optional[int] = None   # the ceiling (D21); OD12 decides
-                                              # clamp-vs-reject, not this shape
+    max_output_tokens: Optional[int] = None   # the ceiling (D21). A call above it
+                                              # is REJECTED, never silently
+                                              # clamped (D25) — CeilingExceededError, §5
 
 
 class LlmEndpointData(BaseModel):
@@ -854,7 +869,7 @@ class LlmResolvedRoute(BaseModel):
 ### 4.4 The MCP plane
 
 ```python
-# core/gateway/mcp/dtos.py
+# core/gateways/mcp/dtos.py
 
 class McpToolPolicyMode(str, Enum):
     ALL = "all"
@@ -962,7 +977,7 @@ class McpCallContext(BaseModel):
     """What routing reads from the protocol's method and target headers — the
     body is never parsed for routing (`mcp.md`, header-based routing). The
     exact header names are pinned against the 2026-07-28 revision at
-    implementation time, in apis/fastapi/gateway/mcp/utils.py."""
+    implementation time, in apis/fastapi/gateways/mcp/utils.py."""
     method: str
     target: Optional[str] = None
 
@@ -1079,13 +1094,13 @@ class EventType(str, Enum):
     GATEWAY_MCP_CALLED = "gateway.mcp.called"
 ```
 
-The attribute shape is owned by `core/gateway/policy/audit.py`, not by the enum, in the
+The attribute shape is owned by `core/gateways/policy/audit.py`, not by the enum, in the
 build/publish pair every existing event family uses (`core/events/utils.py` is the
 pattern: a pure attribute builder the tests hit, a publish wrapper that resolves scope,
 runs the L1 soft check and never raises):
 
 ```python
-# core/gateway/policy/audit.py
+# core/gateways/policy/audit.py
 
 def build_gateway_call_attributes(
     *,
@@ -1120,27 +1135,27 @@ async def publish_gateway_call(
 ## 5. types
 
 Domain exceptions, in `types.py` per domain — the newer house convention
-(`api/AGENTS.md`) — with the family's `*Error` suffix rather than the channels design's
-bare names, because these classes will sit in tracebacks next to
-`ConnectionNotFoundError` and `AdapterError` and should read as kin. One family base so
+(`api/AGENTS.md`) — with the `*Error` suffix most of the codebase uses rather than the
+channels design's bare names, because these classes will sit in tracebacks next to
+`ConnectionNotFoundError` and `AdapterError` and should read alike. One domain base so
 the router decorator can catch broadly; no HTTP status on any exception — mapping happens
-at the boundary, and the tools domain's status-carrying exceptions are the one family
-habit not copied.
+at the boundary, and the tools domain's status-carrying exceptions are a habit
+deliberately not copied.
 
 ```python
-# core/gateway/types.py
+# core/gateways/types.py
 
-class GatewayError(Exception):
-    """Base exception for the gateway family's new domains."""
+class GatewaysError(Exception):
+    """Base exception for the gateways domain."""
 
-    def __init__(self, message: str = "Gateway error"):
+    def __init__(self, message: str = "Gateways error"):
         self.message = message
         super().__init__(self.message)
 
 
-# core/gateway/policy/types.py
+# core/gateways/policy/types.py
 
-class PolicyDeniedError(GatewayError):
+class PolicyDeniedError(GatewaysError):
     """The permission check refused (WP3). Carries the subject and the target so
     the denial is explainable on a fixed-shape wire (§9)."""
 
@@ -1150,7 +1165,7 @@ class PolicyDeniedError(GatewayError):
         super().__init__(f"Denied {permission.value} on {target}")
 
 
-class EntitlementDeniedError(GatewayError):
+class EntitlementDeniedError(GatewaysError):
     """The plan-level check refused. Distinct from PolicyDeniedError because
     permissions and entitlements answer different questions and conflating them
     is a known trap (`policy.md`)."""
@@ -1161,7 +1176,7 @@ class EntitlementDeniedError(GatewayError):
         super().__init__(f"Entitlement {key} exceeded for {target}")
 
 
-class CredentialNotFoundError(GatewayError):
+class CredentialNotFoundError(GatewaysError):
     """Resolution failed. Names WHICH owner is missing a credential, so the
     caller learns whether they must connect or an administrator must
     (`secrets.md`: failure is never silent and never a fallback to none)."""
@@ -1175,7 +1190,7 @@ class CredentialNotFoundError(GatewayError):
         )
 
 
-class CredentialInvalidError(GatewayError):
+class CredentialInvalidError(GatewaysError):
     """A credential exists and cannot be used — revoked, or refresh failed.
     Surfaces as needs_auth with a connect affordance (D17, D18)."""
 
@@ -1185,16 +1200,32 @@ class CredentialInvalidError(GatewayError):
         super().__init__(f"Credential for {target} is invalid")
 
 
-# core/gateway/llm/types.py
+class CeilingExceededError(GatewaysError):
+    """A governance ceiling rejects; it never silently clamps (D25). Carries the
+    three facts the denial must name so a caller retries correctly the first
+    time: the ceiling, the value asked for, and the value allowed."""
 
-class LlmEndpointNotFoundError(GatewayError):
+    def __init__(self, *, ceiling: str, requested: Union[int, float],
+                 allowed: Union[int, float], target: str):
+        self.ceiling = ceiling        # the config key, e.g. "max_output_tokens"
+        self.requested = requested
+        self.allowed = allowed
+        self.target = target
+        super().__init__(
+            f"{ceiling} on {target}: requested {requested}, allowed {allowed}"
+        )
+
+
+# core/gateways/llm/types.py
+
+class LlmEndpointNotFoundError(GatewaysError):
     def __init__(self, *, namespace: str, name: str):
         self.namespace = namespace
         self.name = name
         super().__init__(f"LLM endpoint not found: {namespace}/{name}")
 
 
-class LlmModelNotAllowedError(GatewayError):
+class LlmModelNotAllowedError(GatewaysError):
     """The model is outside the endpoint's allowlist — a custom endpoint's
     declared model_slugs, or a standard provider's catalogue (§4.3)."""
 
@@ -1205,7 +1236,7 @@ class LlmModelNotAllowedError(GatewayError):
         super().__init__(f"Model {model} not allowed on {namespace}/{name}")
 
 
-class LlmUpstreamError(GatewayError):
+class LlmUpstreamError(GatewaysError):
     """The upstream failed after policy allowed. Carries the upstream status so
     the proxy can relay a faithful OpenAI-shaped error (§9)."""
 
@@ -1217,16 +1248,16 @@ class LlmUpstreamError(GatewayError):
         super().__init__(f"Upstream {provider_key} failed ({status_code})")
 
 
-# core/gateway/mcp/types.py
+# core/gateways/mcp/types.py
 
-class McpEndpointNotFoundError(GatewayError):
+class McpEndpointNotFoundError(GatewaysError):
     def __init__(self, *, namespace: str, name: str):
         self.namespace = namespace
         self.name = name
         super().__init__(f"MCP endpoint not found: {namespace}/{name}")
 
 
-class McpToolNotAllowedError(GatewayError):
+class McpToolNotAllowedError(GatewaysError):
     """The named tool is outside the endpoint's tool policy (§2.4)."""
 
     def __init__(self, *, tool: str, namespace: str, name: str):
@@ -1236,7 +1267,7 @@ class McpToolNotAllowedError(GatewayError):
         super().__init__(f"Tool {tool} not allowed on {namespace}/{name}")
 
 
-class McpAuthRequiredError(GatewayError):
+class McpAuthRequiredError(GatewaysError):
     """No usable grant for this owner on an OAuth endpoint. Carries the
     requirement so the boundary can return the connect affordance instead of a
     bare failure (D17)."""
@@ -1246,7 +1277,7 @@ class McpAuthRequiredError(GatewayError):
         super().__init__(f"Authorization required for {requirement.target}")
 
 
-class McpScopeInsufficientError(GatewayError):
+class McpScopeInsufficientError(GatewaysError):
     """A step-up scope challenge from the upstream (D17; `mcp.md`). Raised by
     the OAuth checkpoint's client; until then unreachable. Declared now so the
     interaction path can be typed against it."""
@@ -1257,7 +1288,7 @@ class McpScopeInsufficientError(GatewayError):
         super().__init__(f"Additional scopes required for {target}: {scopes}")
 
 
-class McpUpstreamError(GatewayError):
+class McpUpstreamError(GatewaysError):
     def __init__(self, *, target: str, status_code: Optional[int] = None,
                  detail: Optional[str] = None):
         self.target = target
@@ -1272,6 +1303,14 @@ second maps to the needs-auth / needs-input interaction path (D17) and carries e
 build the affordance; the first never does — offering a connect affordance to a caller who
 lacks the permission would be an escalation invitation.
 
+**`CeilingExceededError` names all three numbers, and that is what makes rejection
+tolerable** (D25): a denial carrying the ceiling, the asked-for value and the allowed
+value lets a caller retry correctly on the first attempt, where a silent clamp would
+produce output that differs from what was asked with nothing explaining why. The
+distinction D25 draws is preserved in *where* this raises: it guards **our** ceilings —
+the per-endpoint config (D21) — and never second-guesses a physical limit like a model's
+context window, which is the upstream's to clamp or refuse in its own shape.
+
 **`McpScopeInsufficientError` is declared, not deferred.** Step-up is out of the first
 increments (`scope-checklist.md` marks it detect-and-fail-visibly), but the *type* costs
 nothing and lets WP8's proxy write its handler arm now, so wave 3 changes behaviour
@@ -1281,18 +1320,18 @@ without touching signatures.
 
 ## 6. models
 
-FastAPI wire models in `apis/fastapi/gateway/{llm,mcp}/models.py`, for the **management
+FastAPI wire models in `apis/fastapi/gateways/{llm,mcp}/models.py`, for the **management
 routers only**. The data-plane proxies have no wire models at all: their request and
 response shapes belong to the OpenAI surface and the MCP transport respectively, are
 relayed as bytes, and wrapping them would break every client (§1). That absence is the
 router-layer split made visible in this section.
 
-The house triple, exactly as the family and channels ship it — create/edit requests wrap
+The house triple, exactly as triggers and channels ship it — create/edit requests wrap
 the core DTO under a named field, queries add `Windowing`, responses carry `count` plus
 the entity:
 
 ```python
-# apis/fastapi/gateway/llm/models.py
+# apis/fastapi/gateways/llm/models.py
 
 class LlmEndpointCreateRequest(BaseModel):
     endpoint: LlmEndpointCreate
@@ -1313,7 +1352,7 @@ class LlmEndpointsResponse(BaseModel):
     endpoints: List[LlmEndpoint] = Field(default_factory=list)
 
 
-# apis/fastapi/gateway/mcp/models.py
+# apis/fastapi/gateways/mcp/models.py
 
 class McpEndpointCreateRequest(BaseModel):
     endpoint: McpEndpointCreate
@@ -1371,8 +1410,8 @@ second consent UI shape.
 
 ## 7. daos
 
-Interfaces in `core/gateway/{llm,mcp}/interfaces.py`, implementations in
-`dbs/postgres/gateway/{llm,mcp}/dao.py`. DAOs open their own sessions; services never
+Interfaces in `core/gateways/{llm,mcp}/interfaces.py`, implementations in
+`dbs/postgres/gateways/{llm,mcp}/dao.py`. DAOs open their own sessions; services never
 touch the engine.
 
 Conventions, each load-bearing:
@@ -1384,7 +1423,7 @@ Conventions, each load-bearing:
   where the writer is a flow rather than a person (grant creation, whose author is the
   consent callback).
 - **Verb naming is `create_/fetch_/edit_/delete_/query_`**, the newer house style
-  (`core/workflows/`), not the connections DAO's `get_/update_`. The family's older names
+  (`core/workflows/`), not the connections DAO's `get_/update_`. That domain's older names
   stay where they are; a new domain follows the current convention, and the divergence is
   confined to one file that predates it.
 - **Implementations wrap reads in `@suppress_exceptions(...)`** with
@@ -1393,7 +1432,7 @@ Conventions, each load-bearing:
   else degrades to `None` / `[]` / `False`.
 
 ```python
-# core/gateway/llm/interfaces.py
+# core/gateways/llm/interfaces.py
 
 class LlmEndpointsDAOInterface(ABC):
     """Persistence contract for custom LLM endpoints. Standard endpoints are
@@ -1411,7 +1450,7 @@ class LlmEndpointsDAOInterface(ABC):
         endpoint: LlmEndpointCreate,
     ) -> Optional[LlmEndpoint]:
         """Insert. Raises EntityCreationConflict on a slug collision — the one
-        exception a create surfaces, per the family DAO discipline."""
+        exception a create surfaces, per the connections DAO discipline."""
         ...
 
     @abstractmethod
@@ -1432,7 +1471,7 @@ class LlmEndpointsDAOInterface(ABC):
         slug: str,
     ) -> Optional[LlmEndpoint]:
         """The data-plane route lookup (§2.3). Backed by
-        uq_gateway_llm_endpoints_project_slug, so at most one row by
+        uq_llm_gateway_endpoints_project_slug, so at most one row by
         construction. None means the custom namespace has no such name — the
         proxy 404s in the surface's own error shape (§9)."""
         ...
@@ -1472,10 +1511,10 @@ class LlmEndpointsDAOInterface(ABC):
     ) -> List[LlmEndpoint]: ...
 
 
-# core/gateway/mcp/interfaces.py
+# core/gateways/mcp/interfaces.py
 
 class McpEndpointsDAOInterface(ABC):
-    """Same six verbs, same semantics, over gateway_mcp_endpoints."""
+    """Same six verbs, same semantics, over mcp_gateway_endpoints."""
 
     @abstractmethod
     async def create_endpoint(
@@ -1647,7 +1686,7 @@ The result types are dataclasses, not Pydantic models, because a relay result ca
 validated, stored or serialized.
 
 ```python
-# core/gateway/llm/interfaces.py
+# core/gateways/llm/interfaces.py
 
 @dataclass
 class LlmRelayResult:
@@ -1688,7 +1727,7 @@ class LlmUpstreamInterface(ABC):
     # will occupy so nothing in the surface design forecloses it.
 
 
-# core/gateway/mcp/interfaces.py
+# core/gateways/mcp/interfaces.py
 
 @dataclass
 class McpRelayResult:
@@ -1737,8 +1776,9 @@ the upstream's own definition. A pure function in `registry.py`,
 register under a third key. The constraint is therefore honest: byte-for-byte wherever
 the protocol matches, and only there.
 
-**Registries copy the family verbatim** — the four existing registry classes are
-structurally identical, and these are the fifth and sixth:
+**Registries copy an existing shape verbatim** — four structurally identical registry
+classes already exist in catalog, connections, tools and triggers; these are the fifth
+and sixth, the same shape borrowed rather than shared:
 
 ```python
 class LlmUpstreamRegistry:
@@ -1754,13 +1794,13 @@ class McpUpstreamRegistry:
 
 ### 7.2 The credential resolver port
 
-The third port, in `core/gateway/policy/interfaces.py`, implemented by
+The third port, in `core/gateways/policy/interfaces.py`, implemented by
 `policy/resolution.py` over `VaultService` and the grants DAO (WP2). This is the signature
 the seed must get right (D10, `plan.md`): the owner is in it from the first commit, while
 the only answer is the project.
 
 ```python
-# core/gateway/policy/interfaces.py
+# core/gateways/policy/interfaces.py
 
 class CredentialResolverInterface(ABC):
     """One lookup, called by both planes (`secrets.md`). Fakeable (D23): the
@@ -1821,12 +1861,12 @@ rather than a signature change.
 
 The OAuth client is not written here — the official MCP SDK's `OAuthClientProvider` is
 adopted whole (`libraries.md`), persisting through a `TokenStorage` protocol we implement.
-The adapter is `core/gateway/mcp/token_storage.py`, and it is deliberately thin: **it is
+The adapter is `core/gateways/mcp/token_storage.py`, and it is deliberately thin: **it is
 the resolve-and-store glue between the SDK's protocol and the shapes this document already
 defined**, not a fourth place credentials live.
 
 ```python
-# core/gateway/mcp/token_storage.py
+# core/gateways/mcp/token_storage.py
 
 class VaultTokenStorage:
     """Implements the pinned MCP SDK's TokenStorage protocol over the vault.
@@ -1862,7 +1902,7 @@ version pin itself — no MCP SDK is a dependency anywhere today, in either lang
 
 Constructors take the DAO interfaces and the ports via keyword-only DI, never concrete
 classes; cross-domain composition passes concrete service objects, which is the house rule
-the composition root already enforces for the family (`api/entrypoints/routers.py` — every
+the composition root already enforces elsewhere (`api/entrypoints/routers.py` — every
 leaf service receives the shared `connections_service` instance, and the interface rule is
 enforced at the DAO and adapter seams, not between services).
 
@@ -2005,6 +2045,8 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
     self._check_allowlist(target, context)        # LlmModelNotAllowedError /
                                                   # McpToolNotAllowedError — before
                                                   # any credential is touched
+    self._check_ceilings(target, context)         # CeilingExceededError: reject,
+                                                  # never clamp (D25)
 
     decision = await self.policy.authorize(
         scope=scope, permission=Permission.USE_LLM_ENDPOINTS,
@@ -2064,14 +2106,14 @@ presence (`NEEDS_INPUT` when no provider secret exists). Nothing stores these (�
 
 Two router objects per plane (§1): `router.py` — the management CRUD, house rules — and
 `proxy.py` — the protocol surface, whose shapes are not ours. Both live in
-`apis/fastapi/gateway/{llm,mcp}/` and are mounted at the entrypoint:
+`apis/fastapi/gateways/{llm,mcp}/` and are mounted at the entrypoint:
 
 ```python
 # api/entrypoints/routers.py — mounts
-app.include_router(router=llm_gateway.router,  prefix="/gateway/llm", tags=["Gateway: LLM"])
-app.include_router(router=llm_gateway.proxy,   prefix="/gateway/llm", include_in_schema=False)
-app.include_router(router=mcp_gateway.router,  prefix="/gateway/mcp", tags=["Gateway: MCP"])
-app.include_router(router=mcp_gateway.proxy,   prefix="/gateway/mcp", include_in_schema=False)
+app.include_router(router=llm_gateway.router,  prefix="/gateways/llm", tags=["Gateway: LLM"])
+app.include_router(router=llm_gateway.proxy,   prefix="/gateways/llm", include_in_schema=False)
+app.include_router(router=mcp_gateway.router,  prefix="/gateways/mcp", tags=["Gateway: MCP"])
+app.include_router(router=mcp_gateway.proxy,   prefix="/gateways/mcp", include_in_schema=False)
 ```
 
 The proxies share the plane prefix with the CRUD without collision because their first
@@ -2190,8 +2232,8 @@ async def create_endpoint(
     return LlmEndpointResponse(count=1 if endpoint else 0, endpoint=endpoint)
 ```
 
-**`AuthScope` over `request.state`, resolved for the whole family's new code.** The
-existing gateway routers read `request.state.project_id` / `request.state.user_id` as raw
+**`AuthScope` over `request.state`.** The
+existing gateway, tools and triggers routers read `request.state.project_id` / `request.state.user_id` as raw
 strings and re-wrap them in `UUID(...)` per call site; the design's principal claims (D2)
 rest on `AuthScope` — frozen, four required UUIDs, assembled once by the auth middleware
 and ContextVar-backed (`api/oss/src/utils/context.py`). The new code uses
@@ -2202,13 +2244,14 @@ and the events domain already prefers it for exactly these reasons
 converge when touched.
 
 **`handle_gateway_exceptions()` is written once**, in a shared
-`apis/fastapi/gateway/exceptions.py`, not duplicated per router — the family currently
-duplicates `handle_adapter_exceptions()` verbatim across tools and triggers, which is
-inconsistency to resolve, not precedent. Mapping: `*NotFoundError` → 404,
+`apis/fastapi/gateways/exceptions.py`, not duplicated per router — tools and
+triggers currently duplicate `handle_adapter_exceptions()` verbatim, and those domains
+are out of scope to fix (D15); ours is simply written once. Mapping: `*NotFoundError` → 404,
 `PolicyDeniedError` / `EntitlementDeniedError` → 403, `*NotAllowedError` → 403,
-`McpAuthRequiredError` → 409 carrying the `GatewayConnectionRequirement` (an interaction,
-not a failure — D17), `*UpstreamError` → 424, or 502 when the upstream answered ≥500 (the
-family's existing 424/502 split).
+`CeilingExceededError` → 400, its body naming the ceiling, the requested and the allowed
+values (D25), `McpAuthRequiredError` → 409 carrying the `GatewayConnectionRequirement`
+(an interaction, not a failure — D17), `*UpstreamError` → 424, or 502 when the upstream
+answered ≥500 (the 424/502 split tools and triggers already use).
 
 **The connect callback is the one route with no permission check**, authenticated by the
 signed state token instead — precisely the `GET /tools/connections/callback` shape,
@@ -2232,16 +2275,16 @@ class LlmGatewayProxy:
         self.router = APIRouter()
 
         # The OpenAI-compatible surface. base_url for a client is
-        #   {api_url}/gateway/llm/{namespace}/{name}/v1
+        #   {api_url}/gateways/llm/{namespace}/{name}/v1
         self.router.add_api_route(
             "/{namespace}/{name}/v1/chat/completions",
             self.chat_completions, methods=["POST"],
-            operation_id="gateway_llm_chat_completions",
+            operation_id="llm_gateway_chat_completions",
         )
         self.router.add_api_route(
             "/{namespace}/{name}/v1/models",
             self.list_models, methods=["GET"],
-            operation_id="gateway_llm_list_models",
+            operation_id="llm_gateway_list_models",
         )
         # /v1/models answers from the allowlist — the static catalogue for
         # standard, model_slugs for custom — so a harness that lists before
@@ -2261,7 +2304,7 @@ class McpGatewayProxy:
         # internal tool server already does.
         self.router.add_api_route(
             "/{namespace}/{name}", self.relay, methods=["POST"],
-            operation_id="gateway_mcp_relay",
+            operation_id="mcp_gateway_relay",
         )
         self.router.add_api_route(
             "/{namespace}/{name}", self.reject_stream_verbs,
@@ -2273,14 +2316,14 @@ Each proxy's `utils.py` holds the one pure function that reads the caller's requ
 routing, and nothing else — both are fully unit-testable and both fail typed:
 
 ```python
-# apis/fastapi/gateway/llm/utils.py
+# apis/fastapi/gateways/llm/utils.py
 def parse_llm_call_context(*, body: bytes) -> LlmCallContext:
     """Extract model and stream from the JSON body without materializing a
     parsed copy for relay — the body itself stays byte-for-byte (§7.1).
     Raises ValueError when the body names no model; the proxy translates that
     into the surface's own invalid-request error shape."""
 
-# apis/fastapi/gateway/mcp/utils.py
+# apis/fastapi/gateways/mcp/utils.py
 def parse_mcp_call_context(*, headers: Dict[str, str]) -> McpCallContext:
     """Read the protocol's method and target headers (`mcp.md`, header-based
     routing) — the body is never parsed for routing. Header names are pinned
@@ -2295,7 +2338,7 @@ the next mint.
 **Denials wear the surface's own error shape.** The LLM proxy translates the mapped
 HTTP status into the OpenAI error body — `{"error": {"message", "type", "code"}}` — with
 `code` carrying the stable cause (`policy_denied`, `model_not_allowed`,
-`credential_missing`); the MCP proxy answers protocol-shaped errors at the transport
+`ceiling_exceeded`, `credential_missing`); the MCP proxy answers protocol-shaped errors at the transport
 status the relay produced, and gateway-authored refusals as the protocol's error result
 with the same stable causes in the error data. What it must never do is leak the house
 envelope onto either surface, or swallow the upstream's own error, which passes through

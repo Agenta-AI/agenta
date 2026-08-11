@@ -190,16 +190,41 @@ model work from folder names will size the wrong thing.
 
 ## Structural notes
 
-### There is no sibling domain to mirror
+### The sibling is mirrored, not joined — a position that was wrong twice
 
 The channels design chose an existing multi-provider integration domain as its structural
-sibling and copied its layout. The gateways have no such sibling **because they extend the
-family that would have been it** — catalog, connections, tools and triggers.
+sibling and copied its layout.
 
-The consequence shaped `entities.md`: most structural questions are already answered by what
-exists, and the design work is additive rather than parallel. The exception is the model
-plane, which has no domain at all today and is therefore the one place where a genuinely new
-structure has to be chosen.
+**First position, wrong.** The gateways have no such sibling, because they *extend* the family
+that would have been it — catalog, connections, tools and triggers.
+
+**Second position, also wrong.** The same reasoning survived into a draft of `entities.md`,
+which put both planes inside that family on the grounds that the family is defined by outbound
+brokerage behind ports and registries.
+
+That is structural similarity, not domain kinship, and it proves nothing: **every** domain in
+this repo has ports, a registry and adapters. Judged by what it holds rather than by what it is
+called, the existing family is an *integrations* domain — its contracts are integrations and
+integration keys, its one table is a connections table, its consumers are tools and triggers, and
+its only provider is Composio. The word "gateway" in its name means an integration gateway to
+that one provider.
+
+Ours is traffic transiting a boundary: identity, policy, secret injection and metering, per call,
+on the data path. It shares a word and nothing else.
+
+**Settled position.** A separate domain that mirrors the family's shape without joining it —
+`gateways/` beside the existing `gateway/`, with both planes and the shared policy core inside
+it. Table names deliberately do not mirror the folder path, because a name sorting beside the
+connections table would read as kin.
+
+Two consequences. The shared auth-scheme and connection-state vocabulary is defined in our own
+domain rather than unified into theirs, which would have re-coupled us through the back door;
+the existing copies are out of scope (D15). And one genuine reference survives without being
+evidence of kinship: a Composio-brokered MCP server points at a connection row, which is our
+registry referencing theirs.
+
+**The general lesson: shared vocabulary is not shared domain.** Two things called gateways were
+nearly merged because of a word.
 
 ### Why there are two quarantine documents
 
