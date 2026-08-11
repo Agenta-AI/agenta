@@ -251,6 +251,14 @@ async def lifespan(*args, **kwargs):
         cache: A boolean value that indicates whether to use the cached data or not.
     """
 
+    import litellm
+
+    log.info(
+        "litellm cost map loaded",
+        local_only=env.litellm.local_model_cost_map,
+        model_count=len(litellm.model_cost),
+    )
+
     await check_for_new_core_migrations()
     await check_for_new_tracing_migrations()
 

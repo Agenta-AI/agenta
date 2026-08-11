@@ -35,6 +35,14 @@ dependencies = [
     "cachetools>=7,<8",
     "supertokens-python>=0.31,<0.32",
     "openai>=2,<3",
+    # Pinned exactly (not a range): pricing is sourced from litellm's local
+    # cost map (see LITELLM_LOCAL_MODEL_COST_MAP in oss/src/utils/env.py),
+    # which is bundled with the package. A litellm bump is therefore the
+    # deliberate, reviewable moment cost figures change — bump this
+    # intentionally and update the pinned count in
+    # oss/tests/pytest/unit/utils/test_litellm_cost_map.py (currently 2923
+    # local model_cost entries) in the same PR.
+    "litellm==1.92.0",
     "sendgrid>=6,<7",
     "stripe>=15,<16",
     "posthog>=7,<8",

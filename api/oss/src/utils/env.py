@@ -13,6 +13,27 @@ _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 _LICENSE = "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
 
+# ---------------------------------------------------------------------------
+# litellm cost-map: force local-only pricing before litellm is ever imported.
+#
+# litellm reads LITELLM_LOCAL_MODEL_COST_MAP from os.environ once, at the
+# moment `litellm` is first imported anywhere in the process. Left unset, it
+# fetches the price map from GitHub main over the network, so two workers
+# booted at different times can price the same call differently, and a
+# firewalled/offline deployment pays a network call (or failure) on import.
+#
+# Defaulting this to True makes pricing a property of the pinned litellm
+# version (a deliberate, reviewable bump) instead of a property of whatever
+# GitHub had at boot time. This assignment must run before any `import
+# litellm` in the codebase — env.py must stay one of the first agenta
+# modules imported at app startup.
+# ---------------------------------------------------------------------------
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = (
+    "True"
+    if (os.getenv("LITELLM_LOCAL_MODEL_COST_MAP") or "true").strip().lower() in _TRUTHY
+    else "False"
+)
+
 
 # ---------------------------------------------------------------------------
 # Helper JSON loaders (used by access + billing configs).
@@ -914,6 +935,28 @@ class IdentityConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# litellm — cost-map source (local pinned backup vs. live GitHub fetch).
+# ---------------------------------------------------------------------------
+
+
+class LiteLLMConfig(BaseModel):
+    """Whether litellm uses its version-pinned local cost map (default) or
+    fetches the live map from GitHub main at import time.
+
+    The actual effect happens via the os.environ assignment at the top of
+    this module — litellm reads the raw env var, not this model. This field
+    exists so the resolved value is inspectable/loggable like the rest of
+    `env`, and so tests can assert on it directly.
+    """
+
+    local_model_cost_map: bool = _parse_bool_env(
+        "LITELLM_LOCAL_MODEL_COST_MAP", default=True
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # llm — provider API keys (top-level by vendor).
 # ---------------------------------------------------------------------------
 
@@ -1543,6 +1586,7 @@ class EnvironSettings(BaseModel):
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
     identity: IdentityConfig = IdentityConfig()
+    litellm: LiteLLMConfig = LiteLLMConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
     mounts: MountsConfig = MountsConfig()
