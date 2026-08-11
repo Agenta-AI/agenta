@@ -93,6 +93,9 @@ async def channels_scope():
             channel="slack",
             external_key=uuid.uuid4(),
             created_by_id=user_id,
+            # stands for a live connection: the write path sets this once
+            # verification succeeds, and routing refuses a row without it
+            flags={"is_active": True, "is_verified": True},
         )
         session.add(connection)
 

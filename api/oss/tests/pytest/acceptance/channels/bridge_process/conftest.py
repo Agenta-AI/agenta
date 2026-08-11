@@ -133,6 +133,8 @@ async def bridge_scope():
                     external_key=external_key,
                     created_by_id=user_id,
                     data=data,
+                    # a registered bridge: routing refuses an unverified row
+                    flags={"is_active": True, "is_verified": True},
                 )
             )
             await session.commit()
