@@ -1,7 +1,6 @@
-import {FilterGroup, FilterLeaf, FilterMenuNode} from "@/oss/components/Filters/types"
-
-import {FILTER_COLUMNS} from "./constants"
-import {AttributeKeyTreeOption} from "./filters/attributeKeyOptions"
+import {AttributeKeyTreeOption} from "./attributeKeyOptions"
+import {FILTER_COLUMNS} from "./filterColumns"
+import type {FilterGroup, FilterLeaf, FilterMenuNode, IconSlot} from "./types"
 
 const cloneTreeOption = (option: AttributeKeyTreeOption): AttributeKeyTreeOption => ({
     ...option,
@@ -81,8 +80,24 @@ const applyAttributeKeyOptions = (
     return nodes
 }
 
+/** Host icon set, keyed by a node's `label`. Nodes with no entry render iconless. */
+export type FilterColumnIcons = Record<string, IconSlot>
+
+const applyIcons = (nodes: FilterMenuNode[], icons?: FilterColumnIcons): FilterMenuNode[] => {
+    if (!icons) return nodes
+    nodes.forEach((node) => {
+        const icon = icons[node.label]
+        if (icon) node.icon = icon
+        if (node.kind === "group") applyIcons((node as FilterGroup).children, icons)
+    })
+    return nodes
+}
+
 /** Single entry-point used by the UI */
-const getFilterColumns = (attributeKeyOptions?: AttributeKeyTreeOption[]): FilterMenuNode[] =>
-    applyAttributeKeyOptions(cloneNodes(FILTER_COLUMNS), attributeKeyOptions)
+const getFilterColumns = (
+    attributeKeyOptions?: AttributeKeyTreeOption[],
+    icons?: FilterColumnIcons,
+): FilterMenuNode[] =>
+    applyIcons(applyAttributeKeyOptions(cloneNodes(FILTER_COLUMNS), attributeKeyOptions), icons)
 
 export default getFilterColumns

@@ -1,9 +1,8 @@
+import {getOperator, type FieldConfig} from "@agenta/observability"
 import {TreeSelectProps} from "antd"
 
-import {getOperator} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
 import {FilterConditions} from "@/oss/lib/Types"
 
-import {FieldConfig} from "../../pages/observability/assets/filters/fieldAdapter"
 import {FilterItem} from "../types"
 import {CustomValueType, FilterGroup, FilterLeaf, FilterMenuNode, SelectOption} from "../types"
 

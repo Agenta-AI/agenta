@@ -1,4 +1,4 @@
-import {FilterConditions} from "@/oss/lib/Types"
+import type {FilterConditions} from "../core/types"
 
 import {FieldConfig} from "./fieldAdapter"
 import {getOperator, valueShapeFor} from "./operatorRegistry"
