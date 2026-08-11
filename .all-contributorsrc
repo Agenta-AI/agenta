@@ -671,6 +671,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "mannietech15",
+      "name": "MannieTech",
+      "avatar_url": "https://avatars.githubusercontent.com/u/221562541?v=4",
+      "profile": "http://adekolamanasseh-tech.vercel.app",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
