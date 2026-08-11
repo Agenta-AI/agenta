@@ -29,7 +29,10 @@ Why this order wins: the sweep only closes `pending` rows. A row that is already
 plan tried to record the answer at delivery time; the review proved the sweep runs
 before delivery, so that shape loses the race. Recording first cannot lose it.
 
-If the "answered" call fails, nothing blocks: the flow falls back to today's behavior.
+The resume waits for the "answered" call, but not forever: the wait is capped at two
+seconds. If the call fails, or the cap runs out, the resume goes out exactly as today,
+and a late "answered" call still lands if the sweep has not run yet. So a broken call
+costs at most today's behavior, never the turn.
 
 The approval card already works this way. We extend its pattern; we invent nothing.
 
@@ -43,8 +46,9 @@ wins:
 
 1. A real recorded answer in the conversation. Show the answered card.
 2. An outcome saved on the row (exists only after Change 1). Show that outcome.
-3. An old row that says `cancelled` with no saved answer. Show a neutral, dead
-   "interaction ended" card. Never guess whether it was answered or abandoned.
+3. A row that ended (`cancelled`, `responded` or `resolved`) with no saved answer. Show
+   a neutral, dead "interaction ended" card. Never guess whether it was answered or
+   abandoned.
 4. Nothing above applies: the card is still open. Show it live and clickable.
 
 Version 1 wanted a new record type for answers. The review showed the conversation
@@ -80,7 +84,13 @@ slow one day, we can enrich it then.
 
 - Mobile answering of form and connect cards.
 - Making the agent's "am I connected?" check verify the connection is valid.
-- Reusing an existing connection (issue #5911).
+- Reusing an existing connection
+  ([#5911](https://github.com/Agenta-AI/agenta/issues/5911)).
+- Announcing a carried approval gate again. When one turn raises two gates and the
+  resume answers one, the other is parked again but never announced, so the user is
+  never asked and its row waits forever. The ordering half was fixed in
+  [#5910](https://github.com/Agenta-AI/agenta/pull/5910); the rest sits with the open
+  runner race, [#5907](https://github.com/Agenta-AI/agenta/issues/5907).
 - Small cleanups: stale form drafts, one missing error catch, one unreachable sweep
   edge case.
 

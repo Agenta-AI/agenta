@@ -24,7 +24,10 @@ Nothing tested the seams: park, answer, resume, reload, adopt. In detail:
 
 For every card kind and every outcome (complete, decline, walk away): call the real
 API on a deployed stack and assert the row's final state and saved outcome match the
-contract. This single test forbids "success recorded as abandonment" forever.
+contract. For walk away, run the real next-turn sweep and assert it closed the row.
+Never write `cancelled` by hand: the sweep is the step that caused the production bug,
+so the test has to run it. This single test forbids "success recorded as abandonment"
+forever.
 
 ### 2. Replay tests for every rule line
 

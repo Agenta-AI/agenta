@@ -5,8 +5,8 @@ plain language. This file says which files change, in which order, and what will
 
 Everything below was checked against the working tree on 2026-08-10, on top of the tip of
 release/v0.112.0. Where the plan or the research no longer matches the code, the correction is
-recorded here and repeated in [Plan corrections](#plan-corrections). Neither plan.md nor
-research.md is edited.
+recorded here and repeated in [Plan corrections](#plan-corrections). plan.md and research.md
+keep their own wording; they carry only small factual fixes, never the detail below.
 
 ## Code reality check
 
@@ -433,8 +433,11 @@ Change 1. Everything else reads the state this creates.
   over the existing generated route, in the style of `respondInteraction` at line 189.
 - `web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts:225-240`
   (`handleClientToolOutput`): before `addToolOutput`, fire the transition to `responded` with
-  the outcome. It must not block the resume: on failure, log and continue, which is exactly
-  today's behavior.
+  the outcome, and wait for it before dispatching the resume, under a short cap. The resume
+  starts the new turn whose sweep cancels the row, so the two must not race. On failure or on
+  the cap, log and resume anyway, which is exactly today's behavior. Shipped as the pure helper
+  `recordAnswerThenResume` (2 s cap) in
+  `web/oss/src/components/AgentChatSlice/assets/clientToolAnswer.ts`.
 - The card widgets need the row token to name what they are answering. Resolve it from the
   rows the browser already fetches (see Slice B's map), matching on
   `data.request.tool_call_id` first and falling back to `token == toolCallId` for legacy rows.

@@ -14,9 +14,10 @@ agent, and the agent continues. Good. But the interaction ROW is never updated. 
 stays `pending`. Then the next turn starts, the sweep runs, and the sweep closes every
 old `pending` row as `cancelled`.
 
-So in the database, an answered card and an abandoned card look exactly the same:
-`cancelled`, with no answer attached. This has been true since these cards were built.
-We checked every row from the whole day:
+So in the database, form and connect rows never carry the answer. An answered form and an
+abandoned form both end `cancelled`, with nothing attached, so nothing can tell them
+apart. An untouched connect card stays `pending` instead. This has been true since these
+cards were built. We checked every row from the whole day:
 
 | Card kind | User completes it | User declines it | User walks away |
 |---|---|---|---|
@@ -70,7 +71,8 @@ against that claim. The result surprised us:
 
 - The root defect (Finding 1) is NOT a regression. It shipped complete in version
   0.105.0. The delivery code is byte-identical between 0.108.1 and today. A resolve
-  call never existed. Nothing was lost; it was never written.
+  call never existed in the form and connect delivery code (approval cards always had
+  one, see Finding 1). Nothing was lost; it was never written.
 - Version 0.108 looked correct for one reason: nothing read the broken rows. Replay
   ignored them and rebuilt cards from the conversation records, which DO carry the
   answers. The lie existed, but no screen displayed it.
