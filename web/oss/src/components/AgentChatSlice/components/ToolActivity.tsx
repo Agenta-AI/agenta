@@ -145,9 +145,7 @@ const IOBlock = ({label, value, danger}: {label: string; value: string; danger?:
     </div>
 )
 
-/** One tool's row: humanized name + status + one-line summary; in Build (`detailed`) the row also
- * expands to the tool's input and output/error as monospace blocks. The Approve/Deny action lives
- * in the persistent ApprovalDock, so a gate here is just marked "Awaiting approval". */
+/** One tool row: humanized name + status + summary; Build rows expand to input/output blocks. */
 const ToolRow = ({
     part,
     live,
@@ -170,8 +168,7 @@ const ToolRow = ({
     // a sibling part, so this must not spin forever (the cold-replay lingering-gate spinner).
     const running =
         !isSettled(state) && state !== "approval-requested" && state !== "approval-responded"
-    // The line after the name: an awaiting-approval marker, a live "running…", or the settled
-    // one-line summary (Build's full payload lives in the row expander below).
+    // Status line: an approval marker, a live "running…", or the settled one-line summary.
     const midText =
         state === "approval-requested"
             ? "Awaiting approval"
@@ -280,30 +277,20 @@ interface ToolActivityProps {
     parts: ToolUIPart[]
     /** This turn is the one being generated right now. */
     isStreaming?: boolean
-    /** Build mode: rows in the expanded list also expose the tool's input + output/error as
-     * expandable monospace blocks (the full payloads; Chat keeps one-line summaries only). */
+    /** Build mode: expanded rows expose full input/output/error payload expanders. */
     detailed?: boolean
 }
 
 /**
- * Renders a group of tool calls inside an agent turn. Two modes:
- *  - **Live** (streaming + a tool still in flight): a left-gutter timeline of every tool, so you
- *    watch each tool fire. In Build the rows also expand to full payloads.
- *  - **Settled**: a single quiet "Used N tools" line; click to expand the row list. Build rows
- *    keep their per-tool input/output/error expanders there, so no payload is ever out of reach.
- *
- * An `approval-requested` tool is marked "Awaiting approval" in every mode; the Approve/Deny action
- * lives in the persistent ApprovalDock. The FE only renders tool calls — it never executes them.
+ * A group of tool calls in one turn: a live gutter timeline while streaming, else a collapsed
+ * "Used N tools" summary. Approve/Deny lives in the ApprovalDock; the FE never executes tools.
  */
 const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivityProps) => {
     const anyUnsettled = parts.some((p) => !isSettled(p.state as string))
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
 
-    // In-thread file cards: one artifact card per file this group wrote/updated (successful calls
-    // only), deduped by path with the LAST op winning. The card is anchored to the TOOL step that
-    // produced it; a bare filename the reply mentions renders as a compact inline reference
-    // instead (see the markdown file-link resolver), never a second block card.
+    // One card per file this group wrote (successful calls only, last op per path wins).
     const fileCards = dedupeByPath(
         parts
             .filter((p) => (p.state as string) === "output-available")
@@ -319,7 +306,7 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
     // Keep the gate visible in-context: force the list open whenever one is awaiting approval.
     const expanded = open || approvalPending
 
-    // ---- Live streaming: the gutter timeline, always visible while tools are in flight ----
+    // ---- Live: the gutter timeline while tools are in flight ----
     if (live) {
         return (
             <div className="flex min-w-0 flex-col border-0 border-l-2 border-solid border-colorBorderSecondary pl-3">

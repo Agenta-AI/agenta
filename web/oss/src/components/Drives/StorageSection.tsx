@@ -83,7 +83,9 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
     const setQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
     const setPaneStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
     const openPane = (initialPath: string | null) => {
-        if (initialPath) setQuickLook({path: initialPath})
+        // No resolved session id → the per-session quick-look atom is not the one the docked
+        // pane reads, so open at the root instead of writing into an orphaned bucket.
+        if (initialPath && sessionId) setQuickLook({path: initialPath})
         else openPaneRoot()
     }
     // Drop-to-stage: a file drag over the Files peek opens the pane with the files staged, so the

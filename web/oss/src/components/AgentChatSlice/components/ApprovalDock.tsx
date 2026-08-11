@@ -331,9 +331,7 @@ const ApprovalDock = ({
                             ) : null}
                         </div>
 
-                        {/* The ask: one humanized sentence in BOTH modes — the raw tool name stays
-                            reachable via the tooltip and the payload expander. A friendly body
-                            (headline: null) says the rest. */}
+                        {/* One humanized sentence in both modes; the raw name lives in the tooltip. */}
                         {renderer?.headline !== null ? (
                             !renderer ? (
                                 <Text

@@ -16,7 +16,7 @@ import {useSessionFilesPane} from "./SessionFilesPane"
 export default function StorageFilesHeader({revisionId}: {revisionId?: string | null}) {
     const {drive, sessionId} = useConfigDrive(revisionId)
     // A toggle, not just an opener: clicking "N files" tucks the pane away again if it is open.
-    const {toggle: togglePane} = useSessionFilesPane(sessionId)
+    const {open: paneOpen, toggle: togglePane} = useSessionFilesPane(sessionId)
 
     if (drive.isLoading) {
         return <Skeleton.Button active size="small" style={{width: 44, height: 14}} />
@@ -39,6 +39,7 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
             return (
                 <button
                     type="button"
+                    aria-expanded={paneOpen}
                     onClick={(e) => {
                         e.currentTarget.blur()
                         togglePane()
@@ -58,6 +59,7 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
     return (
         <button
             type="button"
+            aria-expanded={paneOpen}
             // Blur on open so the drawer's ESC-close doesn't restore a (keyboard-modality) focus ring
             // to this trigger. Genuine Tab focus still shows the ring via FOCUS_RING.
             onClick={(e) => {

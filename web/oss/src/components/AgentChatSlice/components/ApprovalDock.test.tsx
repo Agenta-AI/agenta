@@ -228,8 +228,7 @@ describe("Build mode, commit with a committed base to diff against", () => {
     })
 
     it("humanizes the ask — the raw wire name stays out of the card body", () => {
-        // Build now reads like Chat: the friendly body carries the ask; the raw name lives in
-        // tooltips / the payload expander, never as a header row.
+        // Build reads like Chat: raw wire names live in tooltips, never as a header row.
         const rendered = render(TEXT_ONLY_APPROVAL)
 
         expect(rendered).not.toContain("commit_revision")
