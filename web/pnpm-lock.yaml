@@ -1500,6 +1500,9 @@ importers:
       '@agenta/observability':
         specifier: workspace:../agenta-observability
         version: link:../agenta-observability
+      '@agenta/observability-ui':
+        specifier: workspace:../agenta-observability-ui
+        version: link:../agenta-observability-ui
       '@agenta/sessions':
         specifier: workspace:../agenta-sessions
         version: link:../agenta-sessions

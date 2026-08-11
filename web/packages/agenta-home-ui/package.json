@@ -19,6 +19,7 @@
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
         "@agenta/observability": "workspace:../agenta-observability",
+        "@agenta/observability-ui": "workspace:../agenta-observability-ui",
         "@agenta/sessions": "workspace:../agenta-sessions",
         "@agenta/sessions-ui": "workspace:../agenta-sessions-ui",
         "@agenta/shared": "workspace:../agenta-shared",
