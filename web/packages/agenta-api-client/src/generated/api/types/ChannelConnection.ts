@@ -2,22 +2,22 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface Connection {
-    flags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;
+export interface ChannelConnection {
+    flags?: AgentaApi.ChannelConnectionFlags | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;
     meta?: (Record<string, AgentaApi.FullJsonOutput | null> | null) | undefined;
+    name?: (string | null) | undefined;
+    description?: (string | null) | undefined;
     created_at?: (string | null) | undefined;
     updated_at?: (string | null) | undefined;
     deleted_at?: (string | null) | undefined;
     created_by_id?: (string | null) | undefined;
     updated_by_id?: (string | null) | undefined;
     deleted_by_id?: (string | null) | undefined;
-    name?: (string | null) | undefined;
-    description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
     id?: (string | null) | undefined;
-    provider_key: AgentaApi.ConnectionProviderKind;
-    integration_key: string;
-    data?: (Record<string, AgentaApi.FullJsonOutput | null> | null) | undefined;
-    status?: (AgentaApi.ConnectionStatus | null) | undefined;
+    channel: string;
+    external_key: string;
+    data?: (Record<string, unknown> | null) | undefined;
+    status?: (AgentaApi.Status | null) | undefined;
 }

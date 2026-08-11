@@ -11,5 +11,6 @@ export interface ChannelCapabilities {
     fill?: AgentaApi.ChannelFill | undefined;
     rendering?: AgentaApi.ChannelRendering | undefined;
     identity?: AgentaApi.ChannelIdentity | undefined;
+    setup?: AgentaApi.ChannelSetup | undefined;
     commands?: string[] | undefined;
 }

@@ -22,7 +22,7 @@ export const fetchChannelCapabilities = (channel: string) =>
 // --- connections (own row shape — see schemas.ts for why this validates) - //
 
 export const queryChannelConnections = async (
-    query?: AgentaApi.ChannelConnectionsQueryRequest,
+    query?: AgentaApi.ChannelConnectionQueryRequest,
 ): Promise<ChannelConnectionsResponse> => {
     const data = await getChannelsClient().queryChannelConnections(query ?? {}, scope())
     return (

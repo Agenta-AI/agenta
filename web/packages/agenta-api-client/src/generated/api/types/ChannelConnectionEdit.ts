@@ -2,15 +2,14 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface ChannelGrantCreate {
-    flags?: AgentaApi.ChannelGrantFlags | undefined;
+export interface ChannelConnectionEdit {
+    flags?: AgentaApi.ChannelConnectionFlags | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonInput | null> | null) | undefined;
     meta?: (Record<string, AgentaApi.FullJsonInput | null> | null) | undefined;
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
-    agent_id: string;
-    effect: AgentaApi.ChannelGrantEffect;
-    kind?: (AgentaApi.ChannelSpaceKind | null) | undefined;
-    space_id?: (string | null) | undefined;
-    data: AgentaApi.ChannelGrantData;
+    id?: (string | null) | undefined;
+    slug?: (string | null) | undefined;
+    data?: (Record<string, unknown> | null) | undefined;
+    credentials?: (Record<string, unknown> | null) | undefined;
 }

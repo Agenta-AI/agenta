@@ -2,7 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface ChannelConnectionsResponse {
+export interface ChannelConnectionResponse {
     count?: number | undefined;
-    connections?: AgentaApi.ChannelConnection[] | undefined;
+    connection?: (AgentaApi.ChannelConnection | null) | undefined;
 }

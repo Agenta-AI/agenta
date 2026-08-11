@@ -5,4 +5,5 @@ import type * as AgentaApi from "../index.js";
 export interface ChannelInboxEventData {
     external_locator: Record<string, unknown>;
     processed: AgentaApi.ChannelInboxEventProcessed;
+    space_kind?: (AgentaApi.ChannelSpaceKind | null) | undefined;
 }

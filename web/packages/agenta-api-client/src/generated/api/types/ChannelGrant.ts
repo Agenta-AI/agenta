@@ -16,6 +16,8 @@ export interface ChannelGrant {
     deleted_by_id?: (string | null) | undefined;
     id?: (string | null) | undefined;
     agent_id: string;
-    space_id: string;
+    effect: AgentaApi.ChannelGrantEffect;
+    kind?: (AgentaApi.ChannelSpaceKind | null) | undefined;
+    space_id?: (string | null) | undefined;
     data: AgentaApi.ChannelGrantData;
 }

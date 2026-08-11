@@ -76,6 +76,9 @@ export default function GrantFormDrawer({
                 await create({
                     agent_id: values.agent_id,
                     space_id: values.space_id,
+                    // this drawer grants access; a denial is a different intent
+                    // and would need its own control before it can be authored
+                    effect: "allow",
                     data,
                 })
                 message.success("Grant created")

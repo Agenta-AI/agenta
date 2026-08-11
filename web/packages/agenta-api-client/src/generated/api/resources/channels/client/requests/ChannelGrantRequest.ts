@@ -7,7 +7,7 @@ import type * as AgentaApi from "../../../../index.js";
  *     {
  *         grant: {
  *             agent_id: "agent_id",
- *             space_id: "space_id",
+ *             effect: "allow",
  *             data: {}
  *         }
  *     }

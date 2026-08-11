@@ -584,7 +584,7 @@
 - Origin: `wave-5 CU-B`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Completeness`
 - Summary: The generated TypeScript client types the connections query response as
   the old shared gateway shape (`provider_key`, `integration_key`, `is_active`) and
@@ -598,6 +598,13 @@
 - Notes: two web pages were reading fields the API had stopped returning, which the
   stale types could not catch — a generated client that lags is worse than none,
   because it type-checks a shape that no longer exists.
+- Resolution: regenerated against the running API. The regeneration was itself a
+  check: it deleted three types the gateway-connection era left behind, renamed the
+  connection query request, and made a grant's `effect` required. Two consumers did
+  not compile against the real contract. The grant drawer never sent an `effect` at
+  all, so every grant it authored would have been refused -- the UI had never been
+  built against a generated client that matched the API. It now sends `allow`, which
+  is the only intent the drawer offers; authoring a denial needs its own control.
 
 ### F52. Slack slash commands are parsed as noise and silently dropped
 
