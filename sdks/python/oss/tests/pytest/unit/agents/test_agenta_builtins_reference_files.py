@@ -182,8 +182,15 @@ def test_no_json_example_writes_a_builtin_tool_entry():
     # examples verbatim, so an example that still writes one would keep producing configs the
     # resolver has to ignore.
     # Parse each fenced JSON block so whitespace variants like `"type":"builtin"` still fail.
+    # Match indented / spaced fences and require at least one block so the test cannot pass vacuously.
     content = _file("references/config-schema.md").content
-    for block in re.findall(r"```json\n(.*?)```", content, flags=re.DOTALL):
+    blocks = re.findall(
+        r"^[ \t]*```json[ \t]*\r?\n(.*?)^[ \t]*```",
+        content,
+        flags=re.DOTALL | re.IGNORECASE | re.MULTILINE,
+    )
+    assert blocks, "config-schema.md must contain a fenced JSON example"
+    for block in blocks:
         data = json.loads(block)
         assert not _contains_builtin_type(data), (
             "a JSON example in config-schema.md still writes a builtin tool entry"
