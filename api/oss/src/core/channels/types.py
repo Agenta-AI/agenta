@@ -116,6 +116,16 @@ class ChannelConnectionIncomplete(ChannelsError):
         super().__init__(f"Connection for channel {channel} is missing: {field}")
 
 
+class ChannelConnectionVerificationFailed(ChannelsError):
+    """Raised by `verify_connection` when the platform rejects a credential.
+    Nothing is written on this path — surfaced as the platform said it,
+    since "invalid token" is a genuinely useful message rather than a leak."""
+
+    def __init__(self, *, channel: str, message: str):
+        self.channel = channel
+        super().__init__(message)
+
+
 class ChannelPolicyDenied(ChannelsError):
     """Raised when the effective policy forbids what was asked."""
 

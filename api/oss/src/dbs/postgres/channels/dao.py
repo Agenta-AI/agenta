@@ -169,6 +169,75 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_connection_dbe_to_dto(connection_dbe=connection_dbe)
 
+    async def archive_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelConnectionDBE).where(
+                ChannelConnectionDBE.project_id == project_id,
+                ChannelConnectionDBE.id == connection_id,
+            )
+
+            result = await session.execute(stmt)
+            connection_dbe = result.scalar_one_or_none()
+
+            if not connection_dbe:
+                return None
+
+            now = datetime.now(timezone.utc)
+
+            connection_dbe.deleted_at = now
+            connection_dbe.deleted_by_id = user_id
+
+            await session.execute(
+                update(ChannelAgentDBE)
+                .where(
+                    ChannelAgentDBE.project_id == project_id,
+                    ChannelAgentDBE.connection_id == connection_id,
+                    ChannelAgentDBE.deleted_at.is_(None),
+                )
+                .values(deleted_at=now, deleted_by_id=user_id)
+            )
+
+            await session.commit()
+            await session.refresh(connection_dbe)
+
+            return map_connection_dbe_to_dto(connection_dbe=connection_dbe)
+
+    async def unarchive_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelConnectionDBE).where(
+                ChannelConnectionDBE.project_id == project_id,
+                ChannelConnectionDBE.id == connection_id,
+            )
+
+            result = await session.execute(stmt)
+            connection_dbe = result.scalar_one_or_none()
+
+            if not connection_dbe:
+                return None
+
+            connection_dbe.deleted_at = None
+            connection_dbe.deleted_by_id = None
+            connection_dbe.updated_by_id = user_id
+
+            await session.commit()
+            await session.refresh(connection_dbe)
+
+            return map_connection_dbe_to_dto(connection_dbe=connection_dbe)
+
     async def delete_connection(
         self,
         *,

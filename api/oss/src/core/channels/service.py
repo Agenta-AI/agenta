@@ -1,6 +1,8 @@
 import re
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import UUID
+
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.channels.dtos import (
     ChannelAgent,
@@ -22,8 +24,10 @@ from oss.src.core.channels.dtos import (
     ChannelInboxEventCreate,
     ChannelInboxTrigger,
     ChannelInboxTriggerCreate,
+    ChannelKeyGrain,
     ChannelResolution,
     ChannelSessionScope,
+    ChannelSetup,
     ChannelSpace,
     ChannelSpaceCandidate,
     ChannelSpaceCreate,
@@ -44,18 +48,25 @@ from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionNotFound,
     ChannelGrantRuleInvalid,
+    ChannelsError,
     ChannelSpaceNotFound,
     ChannelThreadNotFound,
 )
-from oss.src.core.channels.utils import (
-    ChannelKeyGrain,
-    compose_external_key,
-    evaluate_grant_effect,
+from oss.src.core.channels.utils import compose_external_key, evaluate_grant_effect
+from oss.src.core.secrets.dtos import (
+    ChannelSecretDTO,
+    ChannelSecretSettingsDTO,
+    CreateSecretDTO,
+    SecretDTO,
+    UpdateSecretDTO,
 )
-from oss.src.core.shared.dtos import Status, Windowing
+from oss.src.core.secrets.enums import ChannelSecretKind, SecretKind
+from oss.src.core.shared.dtos import Header, Status, Windowing
+from oss.src.core.shared.exceptions import EntityCreationConflict
 
 if TYPE_CHECKING:
     from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
+    from oss.src.core.secrets.services import VaultService
 
 
 class ChannelsService:
@@ -66,9 +77,14 @@ class ChannelsService:
         *,
         channels_dao: ChannelsDAOInterface,
         adapter_registry: "ChannelAdapterRegistry",
+        vault_service: Optional["VaultService"] = None,
     ) -> None:
         self.channels_dao = channels_dao
         self.adapter_registry = adapter_registry
+        # Optional so every existing composition site that predates the
+        # write path keeps constructing: only create/edit-with-credentials
+        # and archive-cascade need it.
+        self.vault_service = vault_service
 
     # --- connections ---------------------------------------------------------- #
 
@@ -80,12 +96,57 @@ class ChannelsService:
         #
         connection: ChannelConnectionCreate,
     ) -> ChannelConnection:
-        return await self.channels_dao.create_connection(
-            project_id=project_id,
-            user_id=user_id,
-            #
+        """Verify, then store. A failed verification writes nothing.
+
+        `connection.external_key` is always derived here, never taken from
+        the caller -- same discipline as `create_space`. The declared
+        `data` and whatever `verify_connection` discovers are merged into one
+        locator; the identity-key subset of that locator is what gets
+        recorded under `data["connection_locator"]`, which is the only place
+        the ingress seam (`_connection_owns_identity`) looks.
+        """
+
+        adapter = self.adapter_registry.get(connection.channel)
+        capabilities = await adapter.fetch_capabilities(connection=None)
+
+        discovered = await adapter.verify_connection(
             connection=connection,
+            credentials=connection.credentials or {},
         )
+
+        locator_input = {**(connection.data or {}), **discovered}
+        connection.external_key = compose_external_key(
+            capabilities, ChannelKeyGrain.CONNECTION, locator_input
+        )
+
+        credential_secret_id = None
+        if connection.credentials:
+            secret = await self._write_credential_secret(
+                project_id=project_id,
+                channel=connection.channel,
+                slug=connection.slug,
+                credentials=connection.credentials,
+            )
+            credential_secret_id = secret.id
+
+        connection.data = _compose_connection_data(
+            capabilities=capabilities,
+            locator_input=locator_input,
+            credential_secret_id=credential_secret_id,
+        )
+        connection.credentials = None
+
+        try:
+            return await self.channels_dao.create_connection(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                connection=connection,
+            )
+        except IntegrityError as e:
+            raise _connection_conflict(
+                channel=connection.channel, slug=connection.slug, error=e
+            ) from e
 
     async def fetch_connection(
         self,
@@ -108,11 +169,97 @@ class ChannelsService:
         #
         connection: ChannelConnectionEdit,
     ) -> Optional[ChannelConnection]:
-        return await self.channels_dao.edit_connection(
+        """Rename, re-slug, rotate credentials. `channel`/`external_key`
+        never move -- rotation re-verifies but leaves the identity alone."""
+
+        existing = await self.channels_dao.fetch_connection(
+            project_id=project_id,
+            connection_id=connection.id,
+        )
+        if existing is None:
+            return None
+
+        if connection.credentials:
+            adapter = self.adapter_registry.get(existing.channel)
+            verify_target = ChannelConnectionCreate(
+                channel=existing.channel,
+                external_key=existing.external_key,
+                slug=existing.slug,
+                data=existing.data,
+            )
+            # re-verified before it replaces the old one -- same rule as create
+            await adapter.verify_connection(
+                connection=verify_target,
+                credentials=connection.credentials,
+            )
+
+            existing_data = existing.data if isinstance(existing.data, dict) else {}
+            existing_secret_id = existing_data.get("credential_secret_id")
+            secret = await self._rotate_credential_secret(
+                project_id=project_id,
+                channel=existing.channel,
+                slug=existing.slug,
+                credentials=connection.credentials,
+                existing_secret_id=(
+                    UUID(existing_secret_id) if existing_secret_id else None
+                ),
+            )
+
+            data = (
+                dict(connection.data)
+                if connection.data is not None
+                else dict(existing_data)
+            )
+            data["credential_secret_id"] = str(secret.id)
+            connection.data = data
+
+        connection.credentials = None
+
+        try:
+            return await self.channels_dao.edit_connection(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                connection=connection,
+            )
+        except IntegrityError as e:
+            raise _connection_conflict(
+                channel=existing.channel, slug=connection.slug, error=e
+            ) from e
+
+    async def archive_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]:
+        """Archive, never delete. Cascades to the connection's own
+        `channel_agents` rows; leaves spaces, grants, threads and the event
+        log untouched -- the transcript stays readable in web because
+        sessions are never touched at all."""
+
+        return await self.channels_dao.archive_connection(
             project_id=project_id,
             user_id=user_id,
             #
-            connection=connection,
+            connection_id=connection_id,
+        )
+
+    async def unarchive_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]:
+        return await self.channels_dao.unarchive_connection(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            connection_id=connection_id,
         )
 
     async def delete_connection(
@@ -142,6 +289,117 @@ class ChannelsService:
             connection=connection,
             #
             windowing=windowing,
+        )
+
+    async def get_connection_setup(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection_id: UUID,
+        request_url: str,
+    ) -> ChannelSetup:
+        """The declaration, plus the generated document. `instructions` and
+        `fields` come straight off the capability declaration; `document` is
+        rebuilt every call since it is request-url-dependent."""
+
+        connection = await self.channels_dao.fetch_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        if connection is None:
+            raise ChannelConnectionNotFound(connection_id=connection_id)
+
+        adapter = self.adapter_registry.get(connection.channel)
+        capabilities = await adapter.fetch_capabilities(connection=connection)
+        document = await adapter.build_setup_document(request_url=request_url)
+
+        return ChannelSetup(
+            instructions=capabilities.setup.instructions,
+            fields=capabilities.setup.fields,
+            document=document,
+        )
+
+    # --- connections: credentials ------------------------------------------ #
+
+    def _channel_secret_kind(self, channel: str) -> ChannelSecretKind:
+        try:
+            return ChannelSecretKind(channel)
+        except ValueError as e:
+            raise ChannelsError(
+                f"Channel {channel} declares no CHANNEL_SECRET kind"
+            ) from e
+
+    async def _write_credential_secret(
+        self,
+        *,
+        project_id: UUID,
+        channel: str,
+        slug: Optional[str],
+        credentials: Dict[str, Any],
+    ):
+        if self.vault_service is None:
+            raise ChannelsError(
+                "ChannelsService needs a vault_service to store channel credentials"
+            )
+
+        return await self.vault_service.create_secret(
+            project_id=project_id,
+            create_secret_dto=CreateSecretDTO(
+                header=Header(
+                    name=f"channel-{channel}-{slug or 'connection'}",
+                    description="Channel credential",
+                ),
+                secret=SecretDTO(
+                    kind=SecretKind.CHANNEL_SECRET,
+                    data=ChannelSecretDTO(
+                        kind=self._channel_secret_kind(channel),
+                        channel=ChannelSecretSettingsDTO(**credentials),
+                    ),
+                ),
+            ),
+        )
+
+    async def _rotate_credential_secret(
+        self,
+        *,
+        project_id: UUID,
+        channel: str,
+        slug: Optional[str],
+        credentials: Dict[str, Any],
+        existing_secret_id: Optional[UUID],
+    ):
+        if self.vault_service is None:
+            raise ChannelsError(
+                "ChannelsService needs a vault_service to store channel credentials"
+            )
+
+        channel_secret = SecretDTO(
+            kind=SecretKind.CHANNEL_SECRET,
+            data=ChannelSecretDTO(
+                kind=self._channel_secret_kind(channel),
+                channel=ChannelSecretSettingsDTO(**credentials),
+            ),
+        )
+
+        if existing_secret_id is not None:
+            updated = await self.vault_service.update_secret(
+                secret_id=existing_secret_id,
+                project_id=project_id,
+                update_secret_dto=UpdateSecretDTO(secret=channel_secret),
+            )
+            if updated is not None:
+                return updated
+
+        return await self.vault_service.create_secret(
+            project_id=project_id,
+            create_secret_dto=CreateSecretDTO(
+                header=Header(
+                    name=f"channel-{channel}-{slug or 'connection'}",
+                    description="Channel credential",
+                ),
+                secret=channel_secret,
+            ),
         )
 
     # --- agents ------------------------------------------------------------- #
@@ -943,6 +1201,61 @@ class ChannelsService:
             #
             windowing=windowing,
         )
+
+
+def _compose_connection_data(
+    *,
+    capabilities: ChannelCapabilities,
+    locator_input: Dict[str, Any],
+    credential_secret_id: Optional[UUID],
+) -> Dict[str, Any]:
+    """The identity-key subset goes under `connection_locator`, nested --
+    the only place `_connection_owns_identity` looks. Everything else
+    discovered or declared (Slack's `bot_user_id`) stays flat."""
+
+    key_fields = set(capabilities.identity.keys.get(ChannelKeyGrain.CONNECTION) or [])
+    connection_locator = {field: locator_input[field] for field in key_fields}
+    extra = {
+        key: value for key, value in locator_input.items() if key not in key_fields
+    }
+
+    data: Dict[str, Any] = {"connection_locator": connection_locator, **extra}
+    if credential_secret_id is not None:
+        data["credential_secret_id"] = str(credential_secret_id)
+
+    return data
+
+
+def _connection_conflict(
+    *,
+    channel: str,
+    slug: Optional[str],
+    error: IntegrityError,
+) -> EntityCreationConflict:
+    """Two projects creating the same installation collide on
+    `uq_channel_connections_external_key`; two connections in one project
+    collide on slug -- either way a clean domain error, not a 500."""
+
+    text = str(getattr(error, "orig", None) or error)
+
+    if "uq_channel_connections_external_key" in text:
+        return EntityCreationConflict(
+            entity="ChannelConnection",
+            message=f"A {channel} connection for this installation already exists.",
+            conflict={"channel": channel},
+        )
+
+    if "uq_channel_connections_project_channel_slug" in text:
+        return EntityCreationConflict(
+            entity="ChannelConnection",
+            message=f"A {channel} connection with slug '{slug}' already exists.",
+            conflict={"channel": channel, "slug": slug},
+        )
+
+    return EntityCreationConflict(
+        entity="ChannelConnection",
+        message="Connection already exists.",
+    )
 
 
 def _canonical_locator(locator: Optional[dict]) -> str:

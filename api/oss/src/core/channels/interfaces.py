@@ -74,6 +74,35 @@ class ChannelsDAOInterface(ABC):
     ) -> Optional[ChannelConnection]: ...
 
     @abstractmethod
+    async def archive_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]:
+        """Set `deleted_at`/`deleted_by_id` in place -- never a delete.
+        Cascades to this connection's own `channel_agents` rows in the same
+        transaction; leaves spaces, grants, threads and the event log alone.
+        """
+        ...
+
+    @abstractmethod
+    async def unarchive_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]:
+        """Clear `deleted_at`/`deleted_by_id` on this row. Does not restore
+        the agents archived alongside it -- that is a separate, explicit
+        choice, the same way re-enabling one is."""
+        ...
+
+    @abstractmethod
     async def delete_connection(
         self,
         *,

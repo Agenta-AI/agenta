@@ -5,8 +5,10 @@ from uuid import UUID
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
+    ChannelConnectionCreate,
     ChannelInboundEvent,
     ChannelRequestContext,
+    ChannelSetupDoc,
     ChannelSpaceCandidate,
 )
 
@@ -26,6 +28,37 @@ class ChannelAdapterInterface(ABC):
         """Normalised by core, never trusted. A channel with one fixed
         declaration ignores `connection`; one whose declaration varies by
         installation reads it."""
+
+    # --- setup ---
+
+    async def build_setup_document(
+        self, *, request_url: str
+    ) -> Optional[ChannelSetupDoc]:
+        """What we generate for the operator to apply — a manifest, a
+        package, whatever the platform's setup form takes. Defaults to
+        nothing: a channel with no document to generate answers with none,
+        the same discipline as an empty capability slot."""
+
+        return None
+
+    async def verify_connection(
+        self,
+        *,
+        connection: ChannelConnectionCreate,
+        credentials: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Prove the credential works, and return what it discovered — the
+        fields a human should not have to type because the platform will
+        hand them back. Defaults to trivial success: a channel with nothing
+        to verify verifies by declaring nothing.
+
+        Called before any row is written; a raised exception here means
+        nothing is stored. Where the platform's own setup call WRITES
+        (Telegram's `setWebhook`, not built yet) the order has to invert —
+        store, call, verify — so nothing is left pointing at a row that does
+        not exist; this default assumes a read-only check."""
+
+        return {}
 
     # --- ingress ---
 

@@ -1,13 +1,14 @@
 import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 from uuid import UUID
 
 import httpx
 
 from oss.src.core.channels.adapters.interface import ChannelAdapterInterface
 from oss.src.core.channels.adapters.slack.capabilities import fetch_slack_capabilities
+from oss.src.core.channels.adapters.slack.manifest import build_slack_manifest
 from oss.src.core.channels.adapters.slack.mapping import (
     BUTTONS_MAX,
     MAX_CHARS,
@@ -22,15 +23,18 @@ from oss.src.core.channels.adapters.slack.signature import verify_slack_signatur
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
+    ChannelConnectionCreate,
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
     ChannelRequestContext,
+    ChannelSetupDoc,
     ChannelSpaceCandidate,
     ChannelSpaceKind,
 )
 from oss.src.core.channels.types import (
     ChannelConnectionIncomplete,
+    ChannelConnectionVerificationFailed,
     ChannelSignatureInvalid,
 )
 
@@ -85,6 +89,49 @@ class SlackAdapter(ChannelAdapterInterface):
         self, *, connection: Optional[ChannelConnection] = None
     ) -> ChannelCapabilities:
         return fetch_slack_capabilities()
+
+    # --- setup --- #
+
+    async def build_setup_document(
+        self, *, request_url: str
+    ) -> Optional[ChannelSetupDoc]:
+        manifest = build_slack_manifest(request_url=request_url)
+        content = json.dumps(manifest, indent=2, sort_keys=True)
+        link = "https://api.slack.com/apps?new_app=1&manifest_json=" + quote(content)
+        return ChannelSetupDoc(
+            format="json",
+            content=content,
+            filename="agenta-slack-manifest.json",
+            link=link,
+        )
+
+    async def verify_connection(
+        self,
+        *,
+        connection: ChannelConnectionCreate,
+        credentials: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        bot_token = (credentials or {}).get("bot_token")
+        if not bot_token:
+            raise ChannelConnectionIncomplete(channel=self.channel, field="bot_token")
+
+        response = await self._client.post(
+            "auth.test",
+            headers={"Authorization": f"Bearer {bot_token}"},
+        )
+        body = response.json()
+        if not body.get("ok"):
+            raise ChannelConnectionVerificationFailed(
+                channel=self.channel,
+                message=body.get("error", "unknown_error"),
+            )
+
+        discovered = {
+            "team_id": body.get("team_id"),
+            "bot_user_id": body.get("user_id"),
+            "api_app_id": body.get("api_app_id"),
+        }
+        return {key: value for key, value in discovered.items() if value}
 
     # --- ingress --- #
 

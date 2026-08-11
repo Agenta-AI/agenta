@@ -179,6 +179,12 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def edit_connection(self, **kwargs):
         raise NotImplementedError
 
+    async def archive_connection(self, **kwargs):
+        raise NotImplementedError
+
+    async def unarchive_connection(self, **kwargs):
+        raise NotImplementedError
+
     async def delete_connection(self, **kwargs):
         raise NotImplementedError
 
