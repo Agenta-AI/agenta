@@ -101,6 +101,65 @@ const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
 
 const toolPartType = (name?: string | null): string => (name ? `tool-${name}` : "dynamic-tool")
 
+/** Envelope keys an MCP-style `tool_call` record wraps its real arguments in. */
+const TOOL_ARGUMENT_ENVELOPE_KEYS = new Set([
+    "tool",
+    "server",
+    "name",
+    "toolName",
+    "serverName",
+    "tool_name",
+    "server_name",
+])
+
+/**
+ * Unwrap a `{tool, server, arguments}` record wrapper to the bare arguments. Card bodies read their
+ * fields at the top level (`input.workflow_revision`), and the live stream hands them the ACP
+ * `rawInput`, which is already bare — only the durable record carries the wrapper, so without this
+ * a replayed call drops to the raw-JSON fallback the same call renders a card for live.
+ * Unwraps only when every sibling of `arguments` is a string-valued envelope key, so a tool whose
+ * real input carries its own `arguments` field passes through untouched.
+ */
+function unwrapToolArguments(input: unknown): unknown {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return input
+    const wrapper = input as Record<string, unknown>
+    const args = wrapper.arguments
+    if (!args || typeof args !== "object" || Array.isArray(args)) return input
+    const siblings = Object.keys(wrapper).filter((key) => key !== "arguments")
+    if (siblings.length === 0) return input
+    const isEnvelope = siblings.every(
+        (key) => TOOL_ARGUMENT_ENVELOPE_KEYS.has(key) && typeof wrapper[key] === "string",
+    )
+    return isEnvelope ? args : input
+}
+
+/** Keys an ACP tool call can carry its resolved agenta tool spec under (`_tool_spec_of`). */
+const TOOL_SPEC_KEYS = ["spec", "toolSpec", "resolvedTool", "tool"] as const
+
+/**
+ * The gated tool's name, in the live egress's order (`_approval_tool_name`, stream.py:817-833):
+ * the STABLE `resolvedName` the runner stamps on the gate first — it is the runner's own
+ * `gate.toolName` (acp-interactions.ts:243), the name the permission gate matches on — then the
+ * resolved spec's canonical `name`, and only then the ACP display fields, which drift.
+ * The durable `tool_call` row carries the harness-wrapped name instead
+ * (`mcp.agenta-tools.commit_revision`), so reading it here labelled a replayed gate
+ * "Mcp.agenta tools.commit revision" and keyed its "always allow" grant off that string.
+ */
+function approvalToolName(toolCall: Record<string, unknown>): string | undefined {
+    const spec = TOOL_SPEC_KEYS.map((key) => toolCall[key]).find(
+        (value): value is Record<string, unknown> =>
+            Boolean(value) && typeof value === "object" && !Array.isArray(value),
+    )
+    const candidates = [
+        toolCall.resolvedName,
+        spec?.name,
+        toolCall.name,
+        toolCall.title,
+        toolCall.kind,
+    ]
+    return candidates.find((value): value is string => typeof value === "string" && value !== "")
+}
+
 const isRunnerSentinelError = (part: Part): boolean => {
     const errorText = typeof part.errorText === "string" ? part.errorText : ""
     return (
@@ -197,7 +256,7 @@ function replayClientTool(
     )
     if (!toolCallId) return
     const toolName = str(reqPayload.toolName ?? toolCall.name ?? toolCall.title)
-    const input = reqPayload.input ?? toolCall.rawInput ?? toolCall.input
+    const input = unwrapToolArguments(reqPayload.input ?? toolCall.rawInput ?? toolCall.input)
     let part = index.tools.get(toolCallId)
     if (!part) {
         // The runner parked without first surfacing the tool call — synthesize one.
@@ -289,14 +348,14 @@ function applyEvent(
                 // A resume re-emits the approved call with the same toolCallId. Update the existing
                 // part (kept across the pause boundary) in place instead of rendering a duplicate;
                 // its tool_result then settles that one part to a single ✓.
-                if (payload.input !== undefined) existing.input = payload.input
+                if (payload.input !== undefined) existing.input = unwrapToolArguments(payload.input)
                 return
             }
             const part: Part = {
                 type: toolPartType(payload.name as string),
                 toolCallId,
                 state: "input-available",
-                input: payload.input,
+                input: unwrapToolArguments(payload.input),
             }
             draft.parts.push(part)
             index.tools.set(toolCallId, part)
@@ -329,21 +388,25 @@ function applyEvent(
             const toolCallId = str(
                 reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
             )
+            const toolName = approvalToolName(toolCall)
             let part = index.tools.get(toolCallId)
             if (!part) {
                 // The runner parked without first surfacing the tool call — synthesize one.
                 part = {
-                    type: toolPartType(
-                        (toolCall.name as string) ||
-                            (toolCall.title as string) ||
-                            (toolCall.kind as string),
-                    ),
+                    type: toolPartType(toolName),
                     toolCallId,
                     state: "input-available",
-                    input: toolCall.rawInput ?? toolCall.input,
+                    input: unwrapToolArguments(toolCall.rawInput ?? toolCall.input),
                 }
                 draft.parts.push(part)
                 index.tools.set(toolCallId, part)
+            } else if (toolName) {
+                // Live re-stamps an already-surfaced call with the gate's resolved name
+                // (stream.py:711-726), so the card never shows the durable row's harness-wrapped
+                // name. Rename here too, or the same gate replays under a different name than it
+                // streamed — and `useAlwaysAllowTool` keys the grant off that name verbatim.
+                if (part.type === "dynamic-tool") part.toolName = toolName
+                else part.type = toolPartType(toolName)
             }
             index.approvals.set(str(payload.id), part)
             const canRequestApproval =

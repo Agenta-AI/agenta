@@ -1,0 +1,272 @@
+[
+  {
+    "id": "019fec2e-3811-7753-b5c4-cd6a74dee185",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "turn_id": "6d5e0a55-2d1e-4c44-9703-8e17fca3cef0",
+    "token": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab",
+    "kind": "client_tool",
+    "status": "cancelled",
+    "created_at": "2026-08-10T14:57:59.825957+00:00",
+    "data": {
+      "request": {
+        "tool": "request_connection",
+        "args": {
+          "integration": "telegram",
+          "slug": "telegram-main",
+          "mode": "api_key"
+        }
+      },
+      "references": {
+        "workflow": {
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck",
+          "id": "019febd8-d9b7-7351-a7d4-8b4fa4a5a4cb"
+        },
+        "workflow_variant": {
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck.default",
+          "id": "019febd8-d9e5-74a0-8ed1-71453438c78e"
+        },
+        "workflow_revision": {
+          "version": "1",
+          "slug": "189c3d56677b",
+          "id": "019febd8-da57-7d41-bfd0-c286c198f19d"
+        }
+      }
+    }
+  },
+  {
+    "id": "019fec31-2e9c-7e50-9e0b-d56a706e9f0f",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "turn_id": "7f530533-8394-446e-be2d-212b476cb2c1",
+    "token": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb",
+    "kind": "client_tool",
+    "status": "cancelled",
+    "created_at": "2026-08-10T15:01:14.012506+00:00",
+    "data": {
+      "request": {
+        "tool": "request_input",
+        "args": {
+          "message": "The Telegram connection attempt timed out, but we can continue configuring the a… <182 chars elided>",
+          "requestedSchema": {
+            "type": "object",
+            "x-ag-stepper": true,
+            "properties": {
+              "morning_time": {
+                "type": "string",
+                "format": "cron",
+                "title": "Daily schedule",
+                "description": "Five-field UTC cron expression for the delivery time. Example: 0 7 * * * means 07:00 UTC every day.",
+                "default": "0 7 * * *"
+              },
+              "timezone": {
+                "type": "string",
+                "title": "Time zone",
+                "description": "IANA time zone used to convert your preferred local morning time, such as Europe/Paris or Asia/Riyadh.",
+                "default": "Asia/Riyadh"
+              },
+              "chat_id": {
+                "type": "string",
+                "title": "Telegram chat ID",
+                "description": "Numeric chat ID or @channel username. For a private chat, message the bot first.",
+                "default": ""
+              }
+            },
+            "required": [
+              "morning_time",
+              "timezone",
+              "chat_id"
+            ]
+          }
+        }
+      },
+      "references": {
+        "workflow": {
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck",
+          "id": "019febd8-d9b7-7351-a7d4-8b4fa4a5a4cb"
+        },
+        "workflow_variant": {
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck.default",
+          "id": "019febd8-d9e5-74a0-8ed1-71453438c78e"
+        },
+        "workflow_revision": {
+          "version": "1",
+          "slug": "189c3d56677b",
+          "id": "019febd8-da57-7d41-bfd0-c286c198f19d"
+        }
+      }
+    }
+  },
+  {
+    "id": "019fed5d-3831-7693-9797-62af93351e9f",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "turn_id": "3d544f94-aab5-4341-b620-f82d22999371",
+    "token": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064",
+    "kind": "client_tool",
+    "status": "responded",
+    "created_at": "2026-08-10T20:28:57.266128+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "message": "Choose the daily local delivery time and time zone for your Arabic poetry message.",
+          "requestedSchema": {
+            "type": "object",
+            "required": [
+              "morning_time",
+              "timezone"
+            ],
+            "properties": {
+              "timezone": {
+                "type": "string",
+                "title": "Time zone",
+                "default": "Asia/Riyadh",
+                "description": "IANA time zone, such as Asia/Riyadh, Europe/Paris, or America/New_York."
+              },
+              "morning_time": {
+                "type": "string",
+                "title": "Morning delivery time",
+                "format": "cron",
+                "default": "0 7 * * *",
+                "description": "Five-field cron expression in UTC; the schedule builder can help set the local time."
+              }
+            },
+            "x-ag-stepper": true
+          }
+        },
+        "tool": "request_input",
+        "tool_call_id": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064"
+      },
+      "references": {
+        "workflow": {
+          "id": "019febd8-d9b7-7351-a7d4-8b4fa4a5a4cb",
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck"
+        },
+        "workflow_variant": {
+          "id": "019febd8-d9e5-74a0-8ed1-71453438c78e",
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck.default"
+        },
+        "workflow_revision": {
+          "id": "019febd8-da57-7d41-bfd0-c286c198f19d",
+          "slug": "189c3d56677b",
+          "version": "1"
+        }
+      },
+      "resolution": {
+        "output": {
+          "action": "accept",
+          "content": {
+            "timezone": "berlun",
+            "morning_time": "0 7 * * *"
+          },
+          "humanFriendlyMessage": "Provided the requested input."
+        },
+        "outcome": "completed",
+        "tool_name": "request_input",
+        "tool_call_id": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064"
+      }
+    }
+  },
+  {
+    "id": "019fed5d-8870-7d22-8b43-e0266399d9f0",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "turn_id": "f0571f12-65ce-4430-896e-1d76185b3d5a",
+    "token": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df",
+    "kind": "client_tool",
+    "status": "responded",
+    "created_at": "2026-08-10T20:29:17.808742+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "message": "Please confirm the time zone for the daily Telegram delivery.",
+          "requestedSchema": {
+            "type": "object",
+            "required": [
+              "timezone"
+            ],
+            "properties": {
+              "timezone": {
+                "type": "string",
+                "title": "Time zone",
+                "default": "Europe/Berlin",
+                "description": "IANA time-zone name, for example Europe/Berlin or Asia/Riyadh."
+              }
+            }
+          }
+        },
+        "tool": "request_input",
+        "tool_call_id": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df"
+      },
+      "references": {
+        "workflow": {
+          "id": "019febd8-d9b7-7351-a7d4-8b4fa4a5a4cb",
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck"
+        },
+        "workflow_variant": {
+          "id": "019febd8-d9e5-74a0-8ed1-71453438c78e",
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck.default"
+        },
+        "workflow_revision": {
+          "id": "019febd8-da57-7d41-bfd0-c286c198f19d",
+          "slug": "189c3d56677b",
+          "version": "1"
+        }
+      },
+      "resolution": {
+        "output": {
+          "action": "accept",
+          "content": {
+            "timezone": "berlin"
+          },
+          "humanFriendlyMessage": "Provided the requested input."
+        },
+        "outcome": "completed",
+        "tool_name": "request_input",
+        "tool_call_id": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df"
+      }
+    }
+  },
+  {
+    "id": "019fed5d-cc63-7a13-8695-c3aff230dcc8",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "turn_id": "adea2a42-2cf2-4387-b467-a77168884a2a",
+    "token": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b",
+    "kind": "client_tool",
+    "status": "responded",
+    "created_at": "2026-08-10T20:29:35.203559+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "mode": "api_key",
+          "slug": "telegram-main",
+          "integration": "telegram"
+        },
+        "tool": "request_connection",
+        "tool_call_id": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b"
+      },
+      "references": {
+        "workflow": {
+          "id": "019febd8-d9b7-7351-a7d4-8b4fa4a5a4cb",
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck"
+        },
+        "workflow_variant": {
+          "id": "019febd8-d9e5-74a0-8ed1-71453438c78e",
+          "slug": "create-an-agent-that-sends-me-a-telegram-message-msn9jybyck.default"
+        },
+        "workflow_revision": {
+          "id": "019febd8-da57-7d41-bfd0-c286c198f19d",
+          "slug": "189c3d56677b",
+          "version": "1"
+        }
+      },
+      "resolution": {
+        "output": {
+          "slug": "telegram-main",
+          "reason": "Connection failed. Please try again.",
+          "connected": false,
+          "integration": "telegram"
+        },
+        "outcome": "completed",
+        "tool_name": "request_connection",
+        "tool_call_id": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b"
+      }
+    }
+  }
+]

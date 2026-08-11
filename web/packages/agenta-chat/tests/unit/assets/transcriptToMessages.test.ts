@@ -807,3 +807,140 @@ describe("golden: an abandoned form card from a real pre-fix session", () => {
         expect(part?.output).not.toEqual({action: "cancel"})
     })
 })
+
+/**
+ * The durable `tool_call` record wraps the model's arguments in an MCP envelope
+ * (`{tool, server, arguments}`), while the live stream emits the bare ACP `rawInput`. Replay has to
+ * hand the cards that same bare shape or a call that rendered a friendly card live comes back as
+ * raw JSON on reload. Payload trimmed from real session `3d99d178-b76b-4eb7-a9e9-ad43295ee2b8`.
+ */
+describe("transcriptToMessages tool input unwrapping", () => {
+    const bareArguments = {
+        description: "تكوين الوكيل لإرسال قصيدة عربية يومية عبر تيليغرام.",
+        workflow_revision: {
+            delta: {
+                operations: [
+                    {
+                        value: {
+                            name: "telegram_send_message",
+                            type: "gateway",
+                            action: "SEND_MESSAGE",
+                            provider: "composio",
+                            connection: "telegram-main",
+                            integration: "telegram",
+                        },
+                        target: ["parameters", "agent", "tools"],
+                        operation: "add_item",
+                    },
+                ],
+            },
+            base_revision_id: "019fefed-a8a0-7720-bbe6-85b60d5b2ace",
+        },
+    }
+    const wrappedInput = {tool: "commit_revision", server: "agenta-tools", arguments: bareArguments}
+
+    const toolPart = (records: SessionRecord[]): Record<string, unknown> => {
+        const messages = transcriptToMessages(records)
+        expect(messages).not.toBeNull()
+        return (messages?.[0].parts ?? [])[0] as unknown as Record<string, unknown>
+    }
+
+    const toolCall = (id: string, input: unknown): SessionRecord =>
+        record(id, {
+            type: "tool_call",
+            id: "tool-1",
+            name: "mcp.agenta-tools.commit_revision",
+            input,
+        })
+
+    it("unwraps the envelope so the card reads `workflow_revision` at the top level", () => {
+        const part = toolPart([toolCall("record-call", wrappedInput)])
+
+        expect(part.input).toEqual(bareArguments)
+        expect(part.input).toHaveProperty("workflow_revision")
+        expect(part.input).not.toHaveProperty("arguments")
+    })
+
+    it("unwraps a resume's re-emitted call, which updates the kept part in place", () => {
+        const part = toolPart([
+            toolCall("record-call", wrappedInput),
+            toolCall("record-resume-call", wrappedInput),
+        ])
+
+        expect(part.input).toEqual(bareArguments)
+    })
+
+    it("unwraps the envelope on a part built from an interaction_request", () => {
+        const part = toolPart([
+            record("record-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {
+                    toolCallId: "tool-1",
+                    toolCall: {
+                        kind: "execute",
+                        toolCallId: "tool-1",
+                        resolvedName: "commit_revision",
+                        rawInput: wrappedInput,
+                    },
+                },
+            }),
+        ])
+
+        expect(part.state).toBe("approval-requested")
+        expect(part.input).toEqual(bareArguments)
+    })
+
+    it("passes an already-bare input through unchanged", () => {
+        expect(toolPart([toolCall("record-call", bareArguments)]).input).toEqual(bareArguments)
+    })
+
+    it("leaves a real `arguments` field alone when a sibling is not an envelope key", () => {
+        const realInput = {arguments: {"--json": true}, workflow_revision: {message: "keep me"}}
+
+        expect(toolPart([toolCall("record-call", realInput)]).input).toEqual(realInput)
+    })
+
+    it("leaves a lone `arguments` field alone — nothing proves it is an envelope", () => {
+        const realInput = {arguments: {"--json": true}}
+
+        expect(toolPart([toolCall("record-call", realInput)]).input).toEqual(realInput)
+    })
+})
+
+/** Parity with the OSS original: the durable record keeps codex-acp's `{tool, server, arguments}`
+ * wrapper while the live stream hands the FE the bare ACP `rawInput`. Unwrap it, but only when
+ * every sibling of `arguments` is a string-valued envelope key. */
+describe("transcriptToMessages MCP argument wrapper", () => {
+    const bareArgs = {description: "commit it", workflow_revision: {base_revision_id: "rev-1"}}
+    const inputOf = (input: unknown): unknown => {
+        const parts = (transcriptToMessages([
+            record("r-call", {
+                type: "tool_call",
+                id: "exec-1",
+                name: "mcp.agenta-tools.commit_revision",
+                input,
+            }),
+        ])?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+        return parts[0]?.input
+    }
+
+    it("unwraps the wrapper so a replayed call matches the live part", () => {
+        expect(
+            inputOf({tool: "commit_revision", server: "agenta-tools", arguments: bareArgs}),
+        ).toEqual(bareArgs)
+    })
+
+    it("leaves a real input that merely HAS an arguments field untouched", () => {
+        expect(inputOf({arguments: {a: 1}, timeout: 30})).toEqual({arguments: {a: 1}, timeout: 30})
+    })
+
+    it("leaves a lookalike whose envelope key is not a string untouched", () => {
+        expect(inputOf({tool: "x", server: 42, arguments: {a: 1}})).toEqual({
+            tool: "x",
+            server: 42,
+            arguments: {a: 1},
+        })
+    })
+})
