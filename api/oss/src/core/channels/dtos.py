@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set
 from uuid import UUID
@@ -333,9 +334,31 @@ class ChannelGrantData(BaseModel):
     policy: Optional[ChannelPolicy] = None
 
 
+class ChannelPendingChoiceItem(BaseModel):
+    """One rendered option. `label` is the agent's own words; `token` is
+    ours and never shown -- it is what a click's `value` and a numbered
+    reply's resolved position both collapse to."""
+
+    label: str
+    token: str
+
+
+class ChannelPendingChoice(BaseModel):
+    """The thread's single open question. Written wholesale by the outbox
+    each time a choice renders -- a newer one replaces this field entirely,
+    which is what makes an older token stop resolving without any separate
+    expiry bookkeeping."""
+
+    choices: List[ChannelPendingChoiceItem]
+    posted_at: datetime
+
+
 class ChannelThreadData(BaseModel):
     # tracks the nullable external_key column: absent together, present together
     external_locator: Optional[Dict[str, Any]] = None
+    # lives in this JSON blob rather than its own column -- no migration to
+    # add a field here, and "newest wins" is exactly "this field is single-slot"
+    pending_choice: Optional[ChannelPendingChoice] = None
 
 
 # Defensive, not exhaustive: the union of every channel's own secret field

@@ -47,6 +47,48 @@ def build_locator(
     return locator
 
 
+def parse_block_action(
+    payload: Dict[str, Any],
+) -> Optional[Tuple[str, str, Dict[str, Any], str]]:
+    """(token, external_id, locator, user_id) from a `block_actions`
+    payload, or None if the shape carries no usable action.
+
+    The locator comes from `container`/`team`, never `event` -- a
+    `block_actions` payload has no `event` key at all, which is the shape
+    difference from `event_callback` that makes this more than a branch.
+
+    `external_id` is the action's own identity, not the message's: Slack
+    redelivers the same click, and every button on one message would
+    otherwise share the message's own id and dedup into one row.
+    """
+
+    actions = payload.get("actions")
+    if not isinstance(actions, list) or not actions:
+        return None
+
+    action = actions[0]
+    token = action.get("value")
+    action_id = action.get("action_id")
+    if not token or not action_id:
+        return None
+
+    action_ts = action.get("action_ts") or ""
+    external_id = f"{action_id}:{action_ts}" if action_ts else action_id
+
+    container = payload.get("container") or {}
+    message = payload.get("message") or {}
+    team = payload.get("team") or {}
+    user = payload.get("user") or {}
+
+    locator = build_locator(
+        team=team.get("id", ""),
+        channel=container.get("channel_id", ""),
+        thread_ts=message.get("thread_ts") or container.get("message_ts"),
+    )
+
+    return token, external_id, locator, user.get("id", "")
+
+
 def is_bot_authored(event: Dict[str, Any], *, bot_user_id: Optional[str]) -> bool:
     """The domain must never treat the adapter's own posts as input."""
 

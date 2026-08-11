@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 
 from oss.src.core.channels.dtos import ChannelCapabilities
-from oss.src.core.channels.render.dtos import RenderItem, RenderPart
+from oss.src.core.channels.render.dtos import RenderChoiceOption, RenderItem, RenderPart
 
 INDICATOR_TEXT = "Working…"
 
@@ -57,6 +57,7 @@ def _render_pending_interaction(
     title = f"Approval needed: {tool}" if tool else "Approval needed"
 
     options = [("Approve", "approve"), ("Deny", "deny")]
+    choice = [RenderChoiceOption(label=label, token=value) for label, value in options]
 
     buttons_supported = capabilities.rendering.buttons.supported
     max_buttons = capabilities.rendering.buttons.max
@@ -74,7 +75,8 @@ def _render_pending_interaction(
                     RenderPart(type="button", id=str(i), label=label, value=value)
                     for i, (label, value) in enumerate(options)
                 ),
-            ]
+            ],
+            choice=choice,
         )
 
     # buttons unsupported, or the option count exceeds the declared max
@@ -90,7 +92,8 @@ def _render_pending_interaction(
                 text="\n".join(lines),
                 format=capabilities.rendering.text.format,
             )
-        ]
+        ],
+        choice=choice,
     )
 
 

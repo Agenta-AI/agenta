@@ -15,6 +15,7 @@ from oss.src.core.channels.dtos import (
     ChannelConnectionEdit,
     ChannelConnectionQuery,
     ChannelEffectivePolicy,
+    ChannelEventKind,
     ChannelGrant,
     ChannelGrantCreate,
     ChannelGrantEdit,
@@ -25,6 +26,7 @@ from oss.src.core.channels.dtos import (
     ChannelInboxTrigger,
     ChannelInboxTriggerCreate,
     ChannelKeyGrain,
+    ChannelPendingChoice,
     ChannelResolution,
     ChannelSessionScope,
     ChannelSetup,
@@ -63,10 +65,13 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.enums import ChannelSecretKind, SecretKind
 from oss.src.core.shared.dtos import Header, Status, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.utils.logging import get_module_logger
 
 if TYPE_CHECKING:
     from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
     from oss.src.core.secrets.services import VaultService
+
+log = get_module_logger(__name__)
 
 
 class ChannelsService:
@@ -1084,6 +1089,37 @@ class ChannelsService:
                 agent_id=agent.id,
             )
 
+        # A click and a numbered reply converge here: both carry a candidate
+        # string, and resolve_pending_choice treats them identically. A click
+        # that fails to resolve is ignored outright — there is no thread
+        # continuity yet to fall back to as an ordinary message.
+        pending_choice = (
+            thread.data.pending_choice
+            if thread is not None and thread.flags.is_active
+            else None
+        )
+        resolved_token = resolve_pending_choice(
+            pending_choice=pending_choice,
+            candidate=_first_text(event.data.processed.content),
+        )
+
+        if event.kind is ChannelEventKind.ACTION and resolved_token is None:
+            log.info(
+                "[CHANNELS] action token unresolved (stale, superseded, or "
+                "unknown) for event=%s — ignored, nothing posted",
+                event.id,
+            )
+            return None
+
+        if resolved_token is not None:
+            resolved_event = await self.channels_dao.resolve_inbox_event_as_action(
+                project_id=project_id,
+                event_id=event.id,
+                content=[{"type": "text", "text": resolved_token}],
+            )
+            if resolved_event is not None:
+                event = resolved_event
+
         if thread is None or not thread.flags.is_active:
             thread = await self.channels_dao.create_thread(
                 project_id=project_id,
@@ -1324,6 +1360,48 @@ def _admitting_grant(
     allows = [g for g in grants if g.effect is ChannelGrantEffect.ALLOW]
     by_space = next((g for g in allows if g.space_id == space_id), None)
     return by_space or (allows[0] if allows else None)
+
+
+def resolve_pending_choice(
+    *,
+    pending_choice: Optional[ChannelPendingChoice],
+    candidate: str,
+) -> Optional[str]:
+    """A click's token and a numbered reply's position resolve through this
+    one function to the same token — that equality is the whole mechanism.
+
+    Tried in order: exact token match (a click, or Agenta's token-as-message),
+    then a 1-based index into the current choice list (a numbered reply).
+    `None` covers every non-answer uniformly: no pending choice at all, a
+    superseded one (it was overwritten wholesale, so its tokens are simply
+    gone), an unknown token, or ordinary text that never meant to answer
+    anything.
+    """
+
+    if pending_choice is None:
+        return None
+
+    candidate = (candidate or "").strip()
+    if not candidate:
+        return None
+
+    for choice in pending_choice.choices:
+        if choice.token == candidate:
+            return choice.token
+
+    if candidate.isdigit():
+        index = int(candidate) - 1
+        if 0 <= index < len(pending_choice.choices):
+            return pending_choice.choices[index].token
+
+    return None
+
+
+def _first_text(content: List[dict]) -> str:
+    for part in content:
+        if isinstance(part, dict) and part.get("type") == "text":
+            return part.get("text") or ""
+    return ""
 
 
 def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:
