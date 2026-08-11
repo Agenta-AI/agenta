@@ -85,6 +85,10 @@ _PUBLIC_ENDPOINTS = (
     "/api/channels/bridge/events/",
     "/preview/channels/bridge/events/",
     "/api/preview/channels/bridge/events/",
+    "/channels/agenta/events/",
+    "/api/channels/agenta/events/",
+    "/preview/channels/agenta/events/",
+    "/api/preview/channels/agenta/events/",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"

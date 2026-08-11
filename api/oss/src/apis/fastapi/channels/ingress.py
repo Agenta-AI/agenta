@@ -98,10 +98,24 @@ class ChannelsIngressRouter:
             status_code=status.HTTP_202_ACCEPTED,
         )
 
+        self.router.add_api_route(
+            "/agenta/events/",
+            self.ingest_agenta_event,
+            methods=["POST"],
+            operation_id="ingest_agenta_event",
+            response_model=ChannelEventAck,
+            status_code=status.HTTP_202_ACCEPTED,
+        )
+
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()
     async def ingest_slack_event(self, request: Request) -> Any:
         return await self._ingest(channel="slack", request=request)
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def ingest_agenta_event(self, request: Request) -> Any:
+        return await self._ingest(channel="agenta", request=request)
 
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()
