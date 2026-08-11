@@ -295,8 +295,15 @@ async def test_reserved_gateway_name_fails_before_adapter_call():
 
 
 async def test_a_bare_tool_name_string_is_ignored_too():
-    # `coerce_tool_config` turns a bare string into a BuiltinToolConfig.
-    resolved = await ToolResolver().resolve(coerce_tool_configs(["read"]))
+    # `coerce_tool_configs` turns a bare string into a BuiltinToolConfig.
+    # Pass `.tool_configs` — the parse result itself is not a sequence of configs
+    # (iterating the pydantic model yields field tuples, so resolve would not see
+    # the coerced BuiltinToolConfig and would pass for the wrong reason).
+    parsed = coerce_tool_configs(["read"])
+    assert len(parsed.tool_configs) == 1
+    assert isinstance(parsed.tool_configs[0], BuiltinToolConfig)
+
+    resolved = await ToolResolver().resolve(parsed.tool_configs)
 
     assert resolved.tool_specs == []
 
