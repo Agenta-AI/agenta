@@ -55,15 +55,35 @@ check. Read the code.
 ### The guards that lie
 
 - [ ] **The contract suite builds adapters the way tests find convenient**, not the
-      way the composition root builds them. `waves.md` names this for the wave, and
-      M3 of wave 5 found the same suite hardcoding one platform's identity field
-      names. This is the wave where the adapter under test finally has real
-      credentials behind it, so a suite that only passes for Slack passes for the
-      wrong reason.
+      way the composition root builds them. **Checked, and it is narrower than the
+      ledger implied** — two of the three worries are already closed:
+
+      - *Identity fixtures:* **fixed.** The suite derives its locators from each
+        adapter's own declared field names. The Slack-shaped constants survive only
+        as the fake adapter's own fixture, and say so in place.
+      - *Coverage:* **fine.** All four real adapters run the suite — slack, agenta,
+        mock, bridge.
+      - *Construction:* **this is the live half.* Agenta runs the suite with a null
+        DAO and a resolver that always returns nothing, where the composition root
+        passes a real `ChannelsDAO` and a real API-key resolver. Slack runs it with
+        a subclass whose `verify_signature` is swapped for the suite's fake header
+        scheme, so the real HMAC never runs inside the suite. Both are documented
+        choices, and both mean the object under test is not the object production
+        builds.
+      - *And one the ledger never named:* **the bridge is not in the registry at
+        all.** `build_channel_adapter_registry` registers slack, mock and agenta;
+        the bridge route resolves its own adapter at runtime. So any check phrased
+        as "compare the suite against the registry" cannot see the bridge — which is
+        the adapter with three defects against it.
 - [ ] **`F22`** — the channels integration tests error instead of skipping without
-      Postgres, and the guard resolves a hostname that only exists inside the
-      compose network. A guard that cannot pass from the host is a suite nobody runs
-      locally.
+      Postgres. **Confirmed, and the cause is simpler than the finding says: there is
+      no guard at all.** `integration/channels/conftest.py` calls
+      `get_transactions_engine()` from an autouse fixture, so a missing database
+      raises during setup rather than skipping. Separately, the guard that exists
+      elsewhere resolves the compose-internal hostname, which cannot resolve from the
+      host — so a developer who *has* Postgres running still sees the suite skip.
+      Two different defects wearing one finding: no guard here, an unreachable guard
+      there.
 - [ ] **`F14`** — 30 unit tests open external connections and collide over them.
       Unit tests need nothing running; these are misfiled by definition.
 
