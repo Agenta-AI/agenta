@@ -317,7 +317,7 @@ export function AgentIntegrationDrawer({
             }}
             footer={
                 <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
                         {addedCount > 0
                             ? `${addedCount} app ${addedCount === 1 ? "tool" : "tools"} added`
                             : "Pick actions from a connected app — added instantly."}

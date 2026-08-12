@@ -339,7 +339,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 {!onReview && !fields[step].required && (
                                     <Button
                                         variant="ghost"
-                                        className="h-6 px-1.5 text-[11px] opacity-60"
+                                        className="h-6 px-1.5 text-xs opacity-60"
                                         onClick={() => {
                                             // Skip = no answer: clear the field (incl. a schema
                                             // default the user didn't endorse). setFieldValue
@@ -366,7 +366,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 >
                                     <CaretLeft size={12} />
                                 </Button>
-                                <span className="text-[11px] tabular-nums text-colorTextDescription">
+                                <span className="text-xs tabular-nums text-colorTextDescription">
                                     {`${Math.min(step + 1, fields.length)}/${fields.length}`}
                                 </span>
                                 <Button
@@ -534,7 +534,7 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
                 {field.required && <span className="text-red-500 ml-1">*</span>}
             </span>
             {field.description && (
-                <span className="text-[11px] font-normal leading-snug text-colorTextDescription">
+                <span className="text-xs font-normal leading-snug text-colorTextDescription">
                     {field.description}
                 </span>
             )}
@@ -694,7 +694,7 @@ const choiceCardCls = (selected: boolean) =>
 const DigitBadge = ({digit}: {digit: number}) => (
     <span
         aria-hidden
-        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-[11px] leading-none text-colorTextTertiary"
+        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-xs leading-none text-colorTextTertiary"
     >
         {digit}
     </span>
@@ -847,7 +847,7 @@ function ChoiceCards({
                     <div className="flex min-w-0 flex-col">
                         <span className="text-xs font-medium">{o.label ?? o.value}</span>
                         {o.description && (
-                            <span className="text-[11px] leading-snug text-colorTextDescription">
+                            <span className="text-xs leading-snug text-colorTextDescription">
                                 {o.description}
                             </span>
                         )}
@@ -1220,7 +1220,7 @@ function ArrayField({
                             {field.required && <span className="text-red-500 ml-1">*</span>}
                         </span>
                         {field.description && (
-                            <span className="text-[11px] font-normal leading-snug text-colorTextDescription">
+                            <span className="text-xs font-normal leading-snug text-colorTextDescription">
                                 {field.description}
                             </span>
                         )}

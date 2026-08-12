@@ -139,17 +139,17 @@ export function ConfigItemDrawer({
                             {badge ? (
                                 <Badge
                                     variant={badgeVariantFor(badge.color)}
-                                    // `text-[11px]` displaces Badge's `text-badge-md` and
+                                    // `text-xs` displaces Badge's `text-badge-md` and
                                     // brings no line-height; antd Tag keeps its absolute
                                     // tagLineHeight (lineHeightSM x fontSizeSM = 22.4px).
-                                    className="shrink-0 text-[11px] font-normal leading-[22.4px]"
+                                    className="shrink-0 text-xs font-normal leading-[22.4px]"
                                 >
                                     {badge.text}
                                 </Badge>
                             ) : null}
                         </div>
                         {subtitle ? (
-                            <div className="truncate text-xs font-normal text-[var(--ag-c-97A4B0,#97a4b0)]">
+                            <div className="truncate text-xs font-normal text-[var(--ag-zinc-5)]">
                                 {subtitle}
                             </div>
                         ) : null}
@@ -172,7 +172,7 @@ export function ConfigItemDrawer({
             }
             footer={
                 <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
                         {footerNote}
                     </span>
                     <div className="flex shrink-0 items-center gap-2">

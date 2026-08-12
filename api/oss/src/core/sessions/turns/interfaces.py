@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
@@ -50,6 +50,21 @@ class SessionTurnsDAOInterface(ABC):
         query: Optional[SessionTurnQuery] = None,
         windowing: Optional[Windowing] = None,
     ) -> List[SessionTurn]: ...
+
+    @abstractmethod
+    async def query_session_ids_by_references(
+        self,
+        *,
+        project_id: UUID,
+        references: List[Reference],
+        limit: int,
+    ) -> List[str]:
+        """Distinct session ids whose turns match `references`, capped at `limit`.
+
+        Narrower than `query_turns` (which loads full turn rows, unbounded) — the
+        session list's turn_references filter only ever needs the id set (P2-12).
+        """
+        ...
 
     @abstractmethod
     async def latest_turn(

@@ -37,9 +37,9 @@ const STATUS_TAG_TONE = {
     incomplete: "gold",
 } as const satisfies Record<ItemRowStatusTone, string>
 // antd pins `.ant-tag`'s line-height in px (22.4), so overriding only the FONT size leaves it
-// intact; Badge's `text-badge-md` BUNDLES its line-height, which a bare `text-[11px]` drops
+// intact; Badge's `text-badge-md` BUNDLES its line-height, which a bare `text-xs` drops
 // (tags rendered 20.3px instead of 24.4px until this was restated).
-const TAG_CLS = "m-0 text-[11px] leading-[22.4px]"
+const TAG_CLS = "m-0 text-xs leading-[22.4px]"
 // Solid accent for borderless child rows (an inset left bar, so rounded corners survive).
 const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
     new: "var(--ag-colorSuccess)",
@@ -73,7 +73,7 @@ export function StatusTag({status}: {status: ItemRowStatus}) {
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
     return (
         <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[10px] font-semibold leading-none text-white"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none text-white"
             style={{background: descriptor.color}}
         >
             {descriptor.icon ?? descriptor.mono}
@@ -109,10 +109,10 @@ export function ItemRow({
         <div
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors",
-                interactive &&
-                    !status &&
-                    "cursor-pointer hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2 transition-colors",
+                // Item cards read as white sheets sitting ON the expanded section's band.
+                !locked && "bg-[var(--ag-surface-section-content)]",
+                interactive && !status && "cursor-pointer hover:border-[var(--ag-zinc-5)]",
                 interactive && status && "cursor-pointer",
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
             )}
@@ -168,14 +168,12 @@ export function ItemRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-[var(--ag-c-FF4D4F,#ff4d4f)] group-hover:opacity-100"
+                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                {interactive ? (
-                    <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
-                ) : null}
+                {interactive ? <CaretRight size={14} className="text-[var(--ag-zinc-5)]" /> : null}
             </div>
         </div>
     )
@@ -228,7 +226,7 @@ export function ItemChildRow({
                     {descriptor.name}
                 </div>
                 {descriptor.description ? (
-                    <span className="block truncate text-[11px] leading-snug text-colorTextDescription">
+                    <span className="block truncate text-xs leading-snug text-colorTextDescription">
                         {descriptor.description}
                     </span>
                 ) : null}
@@ -247,12 +245,12 @@ export function ItemChildRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-[var(--ag-c-FF4D4F,#ff4d4f)] group-hover:opacity-100"
+                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
             </div>
         </div>
     )
@@ -293,8 +291,8 @@ export function InstructionsFileRow({
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2.5 transition-colors",
-                !status && "hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2.5 transition-colors",
+                !status && "hover:border-[var(--ag-zinc-5)]",
             )}
         >
             <ItemAvatar descriptor={descriptor} />
@@ -307,7 +305,7 @@ export function InstructionsFileRow({
                     </span>
                     {/* antd's Typography carries `line-height: token.lineHeight` (5/3); a bare
                         span would inherit the row's instead, so restate it. */}
-                    <span className="shrink-0 text-[11px] leading-[1.6667] text-colorTextDescription">
+                    <span className="shrink-0 text-xs leading-[1.6667] text-colorTextDescription">
                         {meta}
                     </span>
                     {status ? <StatusTag status={status} /> : null}
@@ -318,7 +316,7 @@ export function InstructionsFileRow({
                     {descriptor.description}
                 </span>
             </div>
-            <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
+            <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-zinc-5)]" />
         </div>
     )
 }

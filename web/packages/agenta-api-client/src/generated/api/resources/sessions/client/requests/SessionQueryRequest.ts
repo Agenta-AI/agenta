@@ -7,8 +7,19 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface SessionQueryRequest {
-    references?: AgentaApi.Reference[] | null;
-    windowing?: AgentaApi.Windowing | null;
+    session?: AgentaApi.SessionPredicatesRequest | null;
+    session_ids?: string[] | null;
+    exclude?: AgentaApi.SessionExcludeRequest | null;
+    turn_references?: AgentaApi.Reference[] | null;
     include_ended?: boolean;
     include_archived?: boolean;
+    include_total?: boolean;
+    expand?: AgentaApi.SessionExpansion[];
+    windowing?: AgentaApi.Windowing | null;
+    references?: AgentaApi.Reference[] | null;
+    search?: string | null;
+    flags?: AgentaApi.SessionStreamQueryFlags | null;
+    exclude_session_ids?: string[] | null;
+    origin?: AgentaApi.SessionOrigin | null;
+    exclude_origin?: AgentaApi.SessionOrigin | null;
 }

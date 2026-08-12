@@ -496,6 +496,12 @@ importers:
       '@agenta/sdk':
         specifier: workspace:../packages/agenta-sdk
         version: link:../packages/agenta-sdk
+      '@agenta/sessions':
+        specifier: workspace:../packages/agenta-sessions
+        version: link:../packages/agenta-sessions
+      '@agenta/sessions-ui':
+        specifier: workspace:../packages/agenta-sessions-ui
+        version: link:../packages/agenta-sessions-ui
       '@agenta/shared':
         specifier: workspace:../packages/agenta-shared
         version: link:../packages/agenta-shared
@@ -1433,6 +1439,92 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/agenta-sessions:
+    dependencies:
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+    devDependencies:
+      '@tanstack/react-query':
+        specifier: 5.100.9
+        version: 5.100.9(react@19.2.6)
+      '@types/node':
+        specifier: ^20.19.20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      '@vitest/coverage-v8':
+        specifier: ^4.1.4
+        version: 4.1.6(vitest@4.1.6)
+      jotai:
+        specifier: ^2.15.0
+        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+
+  packages/agenta-sessions-ui:
+    dependencies:
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
+      '@agenta/sessions':
+        specifier: workspace:../agenta-sessions
+        version: link:../agenta-sessions
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@tanstack/react-query':
+        specifier: 5.100.9
+        version: 5.100.9(react@19.2.6)
+      '@types/node':
+        specifier: ^20.19.20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.4
+        version: 19.2.3(@types/react@19.2.14)
+      jotai:
+        specifier: ^2.15.0
+        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      jsdom:
+        specifier: ^26.1.0
+        version: 26.1.0
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+
   packages/agenta-shared:
     dependencies:
       '@tanstack/query-persist-client-core':
@@ -1613,6 +1705,9 @@ importers:
       fast-deep-equal:
         specifier: ^3.1.3
         version: 3.1.3
+      immer:
+        specifier: ^10.1.3
+        version: 10.2.0
       jotai:
         specifier: ^2.16.1
         version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
@@ -1621,7 +1716,7 @@ importers:
         version: 1.0.1(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
       jotai-immer:
         specifier: ^0.4.3
-        version: 0.4.3(immer@11.1.7)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
+        version: 0.4.3(immer@10.2.0)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
       jotai-scheduler:
         specifier: ^0.0.5
         version: 0.0.5(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
@@ -1692,6 +1787,9 @@ importers:
       '@types/react-resizable':
         specifier: ^3.0.7
         version: 3.0.8
+      '@vitest/coverage-v8':
+        specifier: ^4.1.4
+        version: 4.1.6(vitest@4.1.6)
       ajv:
         specifier: ^8.18.0
         version: 8.20.0
@@ -1701,6 +1799,9 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
 
   storybook:
     dependencies:
@@ -11144,7 +11245,7 @@ snapshots:
 
   '@babel/helper-annotate-as-pure@7.29.7':
     dependencies:
-      '@babel/types': 7.29.7
+      '@babel/types': 7.29.8
 
   '@babel/helper-compilation-targets@7.29.7':
     dependencies:
@@ -11190,7 +11291,7 @@ snapshots:
   '@babel/helper-member-expression-to-functions@7.29.7':
     dependencies:
       '@babel/traverse': 7.29.7
-      '@babel/types': 7.29.7
+      '@babel/types': 7.29.8
     transitivePeerDependencies:
       - supports-color
 
@@ -11212,7 +11313,7 @@ snapshots:
 
   '@babel/helper-optimise-call-expression@7.29.7':
     dependencies:
-      '@babel/types': 7.29.7
+      '@babel/types': 7.29.8
 
   '@babel/helper-plugin-utils@7.29.7': {}
 
@@ -11237,7 +11338,7 @@ snapshots:
   '@babel/helper-skip-transparent-expression-wrappers@7.29.7':
     dependencies:
       '@babel/traverse': 7.29.7
-      '@babel/types': 7.29.7
+      '@babel/types': 7.29.8
     transitivePeerDependencies:
       - supports-color
 
@@ -11251,7 +11352,7 @@ snapshots:
     dependencies:
       '@babel/template': 7.29.7
       '@babel/traverse': 7.29.7
-      '@babel/types': 7.29.7
+      '@babel/types': 7.29.8
     transitivePeerDependencies:
       - supports-color
 
@@ -14737,24 +14838,24 @@ snapshots:
 
   '@types/babel__core@7.20.5':
     dependencies:
-      '@babel/parser': 7.29.7
-      '@babel/types': 7.29.7
+      '@babel/parser': 7.29.8
+      '@babel/types': 7.29.8
       '@types/babel__generator': 7.27.0
       '@types/babel__template': 7.4.4
       '@types/babel__traverse': 7.28.0
 
   '@types/babel__generator@7.27.0':
     dependencies:
-      '@babel/types': 7.29.7
+      '@babel/types': 7.29.8
 
   '@types/babel__template@7.4.4':
     dependencies:
-      '@babel/parser': 7.29.7
-      '@babel/types': 7.29.7
+      '@babel/parser': 7.29.8
+      '@babel/types': 7.29.8
 
   '@types/babel__traverse@7.28.0':
     dependencies:
-      '@babel/types': 7.29.7
+      '@babel/types': 7.29.8
 
   '@types/chai@5.2.3':
     dependencies:
@@ -17905,11 +18006,6 @@ snapshots:
       immer: 10.2.0
       jotai: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
 
-  jotai-immer@0.4.3(immer@11.1.7)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)):
-    dependencies:
-      immer: 11.1.7
-      jotai: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
-
   jotai-scheduler@0.0.5(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6):
     dependencies:
       jotai: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
@@ -18342,8 +18438,8 @@ snapshots:
 
   magicast@0.5.3:
     dependencies:
-      '@babel/parser': 7.29.7
-      '@babel/types': 7.29.7
+      '@babel/parser': 7.29.8
+      '@babel/types': 7.29.8
       source-map-js: 1.2.1
 
   make-dir@3.1.0:

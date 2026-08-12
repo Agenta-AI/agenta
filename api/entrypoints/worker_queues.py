@@ -73,6 +73,7 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.dbs.postgres.shared.engine import (
     get_analytics_engine,
@@ -174,7 +175,9 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         approximate=True,
     )
 
-    triggers_dao = TriggersDAO()
+    transactions_engine = get_transactions_engine()
+    triggers_dao = TriggersDAO(engine=transactions_engine)
+    session_streams_dao = SessionStreamsDAO(engine=transactions_engine)
     workflows_dao = GitDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
@@ -185,7 +188,10 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         VariantDBE=EnvironmentVariantDBE,
         RevisionDBE=EnvironmentRevisionDBE,
     )
-    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        watch_publisher=SessionsWatchPublisher(),
+    )
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -197,6 +203,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
 
     triggers_dispatcher = TriggersDispatcher(
         triggers_dao=triggers_dao,
+        session_claims_dao=session_streams_dao,
         workflows_service=workflows_service,
     )
     TriggersWorker(
@@ -280,7 +287,10 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
         VariantDBE=EnvironmentVariantDBE,
         RevisionDBE=EnvironmentRevisionDBE,
     )
-    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        watch_publisher=SessionsWatchPublisher(),
+    )
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -349,7 +359,10 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
         testsets_dao=testsets_dao, testcases_service=testcases_service
     )
     SimpleTestsetsService(testsets_service=testsets_service)
-    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        watch_publisher=SessionsWatchPublisher(),
+    )
     evaluators_service = EvaluatorsService(workflows_service=workflows_service)
     simple_evaluators_service = SimpleEvaluatorsService(
         evaluators_service=evaluators_service

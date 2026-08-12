@@ -6,6 +6,7 @@ import {
     modalitiesForModel,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {messageHasPendingHitl} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {UploadSimple} from "@phosphor-icons/react"
@@ -16,15 +17,9 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
-import {
-    SessionFilesDrawer,
-    filesDrawerOpenAtomFamily,
-    filesDrawerStagedAtomFamily,
-} from "@/oss/components/Drives/SessionFilesDrawer"
-import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
+import {filesDrawerStagedAtomFamily} from "@/oss/components/Drives/SessionFilesDrawer"
+import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
-import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 
 import {describeAccepted} from "./assets/attachments"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
@@ -149,12 +144,13 @@ const AgentConversation = ({
         turnNumbers,
     } = useTurnInspector({sessionId, messages})
 
-    // Quick Look + Files-window hosts: cards/tiles/rail request via atoms; these resolve against
+    // Quick Look + Files openers: cards/tiles/rail request via atoms; these resolve against
     // THIS conversation's drive: the link provider makes filename mentions clickable, and the
-    // Files drawer (below) hosts both the grid and the single-file preview in one surface.
+    // docked Files pane (hosted a level up in AgentChatPanel, beside the whole chat column)
+    // shows the grid and the single-file preview — every opener (cards, links, rail, the
+    // session bar "«") lands there.
     const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} artifactId={artifactId} />
-    const filesWindowHost = <SessionFilesDrawer sessionId={sessionId} />
-    const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
+    const {openPane: openFilesPane} = useSessionFilesPane(sessionId)
     const setFilesStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
 
     // ── "Run in playground" seam (producer: a trigger drawer's Run-in-playground) ──
@@ -272,11 +268,16 @@ const AgentConversation = ({
     const handleSubmitRef = useRef<(text: string) => void | Promise<void>>(() => {})
     const {firstRunPrompt} = useFirstRunSeed({
         entityId,
+        scopeKey,
         sessionId,
         activeSessionId,
         messagesCount: messages.length,
         modelBlocked,
         handleSubmitRef,
+        // Files picked on Home / the overview, where there was no session to upload against.
+        onSeedFiles: attachments.addFiles,
+        attachmentsSettled,
+        isHydrating,
     })
     const consumedRunNonceRef = useRef<number | null>(null)
 
@@ -342,12 +343,10 @@ const AgentConversation = ({
     // opens the paused turn's own trace drawer.
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
-    // Parked connect interaction on the paused turn → the InteractionDock owns its actions (the
-    // inline row is a passive marker). Gated off while busy (`input-streaming` isn't parked yet)
-    // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
+    // The connect dock stays visible for the newest parked card unless the run was stopped.
     const pendingInteraction = useMemo(
-        () => (busy || stopped ? null : getPendingConnectInteraction(messages)),
-        [messages, busy, stopped],
+        () => (stopped ? null : getPendingConnectInteraction(messages)),
+        [messages, stopped],
     )
     const openPausedTurnTrace = useMemo(() => {
         const last = messages[messages.length - 1]
@@ -359,6 +358,10 @@ const AgentConversation = ({
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
     // tab keeps no stale dot and stops claiming it's the live watcher.
+    // A still-pending interaction in an EARLIER message must keep the status at `awaiting`, or the
+    // status collapses to idle, the settle stamp lands, and the running-elsewhere strip flickers in
+    // the very tab that owns the parked widget (Mahmoud's session e627d80a). `hitlPending` scans
+    // the whole transcript for exactly that, approvals included.
     useEffect(() => {
         const status: SessionRunStatus = error
             ? "error"
@@ -566,9 +569,9 @@ const AgentConversation = ({
                 showWorking={
                     isLast && busy && (!isAssistantTurn || message.parts.some(isVisiblePart))
                 }
-                // Paused on the user (never concurrently with showWorking — hitlPending implies not
-                // busy): keeps the turn from reading as finished while the queue holds sends.
-                showWaiting={isLast && isAssistantTurn && !busy && hitlPending}
+                // Paused on the user: painted on the turn that actually HOLDS the gate, not the
+                // newest one, so a card parked several turns up marks its own turn.
+                showWaiting={isAssistantTurn && !busy && !stopped && messageHasPendingHitl(message)}
                 showStopped={stopped && isLast && isAssistantTurn}
                 resendDisabled={busy}
                 onResend={handleResend}
@@ -589,7 +592,6 @@ const AgentConversation = ({
                 {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
                 {modalContextHolder}
                 {quickLookHost}
-                {filesWindowHost}
                 {uploadsEnabled ? (
                     <AttachmentViewerDrawer
                         uploads={files}
@@ -598,7 +600,9 @@ const AgentConversation = ({
                     />
                 ) : null}
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
-                pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
+                pushes the chat aside rather than overlaying it, and collapses to 0 when closed.
+                (The Files pane is NOT here: it docks a level up, beside the whole chat column —
+                session bar included — see AgentChatPanel.) */}
                 <RightPanelSplit
                     open={inspectorOpen}
                     // Same bar inset as the transcript column: the Inspector is a separate split pane,
@@ -695,7 +699,6 @@ const AgentConversation = ({
                                 onApprovalResponse={handleApprovalResponse}
                                 onViewTrace={openPausedTurnTrace}
                                 pendingInteraction={pendingInteraction}
-                                onClientToolOutput={handleClientToolOutput}
                                 onSubmit={handleSubmit}
                                 onStop={handleStop}
                                 richInputRef={richInputRef}
@@ -716,21 +719,13 @@ const AgentConversation = ({
                             sessionId={sessionId}
                             busy={busy}
                             hidden={buildMode || inspectorOpen}
-                            onOpenFiles={() => setFilesWindowOpen(true)}
+                            onOpenFiles={openFilesPane}
                             onStageFiles={
                                 uploadsEnabled ? (files) => setFilesStaged(files) : undefined
                             }
                         />
                     </div>
                 </RightPanelSplit>
-
-                {TEMPLATE_STRIP_MODE ? (
-                    <CopiedToast
-                        open={onboardingChat.copiedToastOpen}
-                        text={STRIP_COPY.copiedToast}
-                        onDone={() => onboardingChat.setCopiedToastOpen(false)}
-                    />
-                ) : null}
             </div>
         </DriveSessionProvider>
     )

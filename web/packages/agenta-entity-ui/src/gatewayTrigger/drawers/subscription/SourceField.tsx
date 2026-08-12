@@ -61,7 +61,7 @@ export function SourceField({
                 <span className="flex-1 text-xs text-[var(--ag-colorTextSecondary)]">
                     Choose a connected app and the event that fires this trigger
                 </span>
-                <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">→</span>
+                <span className="text-xs text-[var(--ag-colorTextTertiary)]">→</span>
             </button>
         )
     }
@@ -81,7 +81,7 @@ export function SourceField({
                     <AppLogo logo={logo} size={20} />
                     <div className="min-w-0 flex-1">
                         <div className="truncate text-xs font-medium">{eventName || eventKey}</div>
-                        <div className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
+                        <div className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
                             via {connectionName(selected) || "connection"}
                         </div>
                     </div>
@@ -94,7 +94,7 @@ export function SourceField({
                 </button>
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+                <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                     Event filters
                 </span>
                 {triggerConfigSchema ? (
@@ -107,7 +107,7 @@ export function SourceField({
                         />
                     </div>
                 ) : (
-                    <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
+                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
                         No filters for this event.
                     </span>
                 )}

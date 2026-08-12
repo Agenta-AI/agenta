@@ -126,6 +126,14 @@ async def test_managed_connection_with_empty_key_fails_closed(fake_http, connect
         )
 
 
+async def test_empty_vault_reports_missing_not_ambiguous(fake_http, connection):
+    fake_http(connections, payload=[])
+    with pytest.raises(MissingCredentialError):
+        await VaultConnectionResolver(connection).resolve(
+            model=_model(slug=None), context=_context()
+        )
+
+
 async def test_default_connection_ambiguous(fake_http, connection):
     fake_http(
         connections,

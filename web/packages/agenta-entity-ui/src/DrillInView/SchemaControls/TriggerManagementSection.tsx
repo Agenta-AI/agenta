@@ -125,6 +125,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                     onSelect={() => {
                         if (record.id)
                             openDeliveries({
+                                mode: "owner-history",
                                 owner: {kind: "subscription", id: record.id},
                                 name: record.name ?? undefined,
                                 playgroundEntityId: entityId ?? undefined,
@@ -215,6 +216,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                     onSelect={() => {
                         if (record.id)
                             openDeliveries({
+                                mode: "owner-history",
                                 owner: {kind: "schedule", id: record.id},
                                 name: record.name ?? undefined,
                                 playgroundEntityId: entityId ?? undefined,
@@ -309,6 +311,9 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 }
                 defaultOpen={scopedSubscriptions.length > 0}
                 animateInitialOpen
+                // Same expanded-header band Tools uses (see AgentTemplateSectionList): white while
+                // collapsed, recoloured while open. The bleed matches this region's px-4 container.
+                headerBand="-mx-4 px-4"
             >
                 {scopedSubscriptions.length > 0 ? (
                     // Grouped by provider. The connections + catalog queries live inside this child
@@ -322,7 +327,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                         subscriptionMenu={subscriptionMenu}
                     />
                 ) : !disabled ? (
-                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    <span className="text-xs text-[var(--ag-zinc-5)]">
                         No subscriptions yet —{" "}
                         <AddTextLink label="add a subscription" onClick={openSubscriptionCreate} />
                     </span>
@@ -339,6 +344,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 defaultOpen={scopedSchedules.length > 0}
                 noDivider
                 animateInitialOpen
+                headerBand="-mx-4 px-4"
             >
                 {scopedSchedules.length > 0 ? (
                     <div className="flex flex-col gap-2">
@@ -371,7 +377,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                         })}
                     </div>
                 ) : !disabled ? (
-                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    <span className="text-xs text-[var(--ag-zinc-5)]">
                         No schedules yet —{" "}
                         <AddTextLink label="add a schedule" onClick={openScheduleCreate} />
                     </span>

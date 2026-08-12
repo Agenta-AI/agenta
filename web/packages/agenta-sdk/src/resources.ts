@@ -19,6 +19,7 @@ import {SessionsClient} from "@agentaai/api-client/resources/sessions"
 import {TestsetsClient} from "@agentaai/api-client/resources/testsets"
 import {ToolsClient} from "@agentaai/api-client/resources/tools"
 import {TracesClient} from "@agentaai/api-client/resources/traces"
+import {TriggersClient} from "@agentaai/api-client/resources/triggers"
 import {WorkflowsClient} from "@agentaai/api-client/resources/workflows"
 
 import {buildClientOptions, withLowPriorityFetch} from "./config"
@@ -89,6 +90,11 @@ export function getEvaluationsClient(): EvaluationsClient {
 let _sessions: SessionsClient | undefined
 export function getSessionsClient(): SessionsClient {
     return (_sessions ??= new SessionsClient(buildClientOptions()))
+}
+
+let _triggers: TriggersClient | undefined
+export function getTriggersClient(): TriggersClient {
+    return (_triggers ??= new TriggersClient(buildClientOptions()))
 }
 
 let _sessionsLowPriority: SessionsClient | undefined

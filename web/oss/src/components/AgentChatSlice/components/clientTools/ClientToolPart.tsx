@@ -59,7 +59,11 @@ const ClientToolPart = ({
         [onOutput, meta.toolName, meta.toolCallId],
     )
 
-    return createElement(handler, {meta, settle, degradedEarlierInTurn})
+    return (
+        <div data-client-tool-call-id={meta.toolCallId}>
+            {createElement(handler, {meta, settle, degradedEarlierInTurn})}
+        </div>
+    )
 }
 
 export default memo(ClientToolPart)

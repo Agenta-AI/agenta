@@ -1,30 +1,82 @@
+from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
-from oss.src.core.sessions.streams.dtos import SessionStream
+from oss.src.core.sessions.records.dtos import SessionMessagePreview
+from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQueryFlags
 from oss.src.core.shared.dtos import Reference
+from oss.src.core.sessions.types import SessionDelivery as SessionDelivery
+from oss.src.core.sessions.types import SessionOrigin as SessionOrigin
+from oss.src.core.sessions.types import SessionTrigger as SessionTrigger
+from oss.src.core.sessions.types import (
+    SessionTriggerAttribution as SessionTriggerAttribution,
+)
+from oss.src.core.sessions.types import SessionTriggerKind as SessionTriggerKind
 
 
 class SessionListItem(SessionStream):
     """A `/sessions/query` row, enriched at READ time with the session's HIGHEST
     `turn_index` turn's `references` — the agent/workflow that produced the latest turn.
 
-    Hydrated by `SessionsService.query_sessions` via a batch turns lookup; never
-    denormalized onto `session_streams` (see that method's docstring)."""
+    Also carries the session's last message, so a row can say what happened rather than only
+    when. Both enrichments are batch lookups keyed on the whole page; never one call per row.
+
+    Hydrated by `SessionsService.query_sessions`; never denormalized onto `session_streams`
+    (see that method's docstring)."""
 
     references: Optional[List[Reference]] = None
+    # The session's newest `message` record, hydrated by the same batch pattern. Absent when the
+    # session has no message yet, or when the deployment runs without the records (tracing) engine.
+    last_message: Optional[SessionMessagePreview] = None
+
+
+class SessionExpansion(str, Enum):
+    last_message = "last_message"
+    trigger = "trigger"
 
 
 class SessionQuery(BaseModel):
     """Root `/sessions/query` filter: reference-scoped, joined through the turns'
-    references (WP1's GIN `.contains()`), not denormalized onto the stream row."""
+    references (WP1's GIN `.contains()`), not denormalized onto the stream row.
 
-    references: Optional[List[Reference]] = None
-    # Include ended (killed) sessions so the durable list keeps resumable history — absence then
-    # means genuinely hard-deleted, which the frontend uses to prune a locally-cached session.
-    include_ended: bool = False
-    # Include archived sessions — off by default (archive hides); on for the archived view.
-    include_archived: bool = False
+    Every predicate a list view offers must live here. A client that filters a windowed
+    page filters the window, not the set — wrong counts, wrong empty states."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn_references: Optional[List[Reference]] = None
     # Case-insensitive substring match over the session title (`session_streams.name`).
     search: Optional[str] = None
+    # Liveness (alive ⊇ running ⊇ attached), matched against the row's mirrored `flags`.
+    flags: Optional[SessionStreamQueryFlags] = None
+    # Restrict to an explicit id set. The pushdown for any predicate that lives outside the
+    # stream row — pinned ids held client-side, sessions named by a pending-interaction lookup —
+    # so the server still owns the intersection, the ordering and the windowing.
+    session_ids: Optional[List[str]] = None
+    # Its complement: drop known ids from the list, so a group rendered separately (pins) does
+    # not appear twice.
+    exclude_session_ids: Optional[List[str]] = None
+    origins: Optional[List[SessionOrigin]] = None
+    exclude_origins: Optional[List[SessionOrigin]] = None
+
+
+class SessionQueryLifecycle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    include_ended: bool = False
+    include_archived: bool = False
+
+
+class SessionQueryOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    include_total: bool = False
+    expand: List[SessionExpansion] = Field(default_factory=list)
+
+
+class SessionQueryPage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sessions: List[SessionListItem] = Field(default_factory=list)
+    total: Optional[int] = None

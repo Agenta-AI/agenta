@@ -159,7 +159,7 @@ function ConnectionRow({connection, onTest}: {connection: ToolConnection; onTest
                 <Typography.Text className="text-xs truncate">
                     {connection.name || connection.slug}
                 </Typography.Text>
-                <Typography.Text className="text-[10px] text-slate-400 truncate">
+                <Typography.Text className="text-[12px] text-slate-400 truncate">
                     {label} / {connection.slug}
                 </Typography.Text>
             </div>

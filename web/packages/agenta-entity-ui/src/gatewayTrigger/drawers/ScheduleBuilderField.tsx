@@ -362,7 +362,7 @@ function CronEditor({
                 onChange={(e) => onChange(e.target.value)}
                 aria-invalid={valid ? undefined : true}
             />
-            <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+            <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                 5-field cron in UTC (e.g.{" "}
                 <code className="mx-[0.2em] rounded-[3px] border border-solid border-[rgba(100,100,100,0.2)] bg-[rgba(150,150,150,0.1)] px-[0.4em] pb-[0.1em] pt-[0.2em] text-[85%]">
                     0 9 * * *
@@ -372,7 +372,7 @@ function CronEditor({
             {match && (
                 <button
                     type="button"
-                    className="cursor-pointer self-start border-0 bg-transparent p-0 text-[11px] text-btn-link hover:text-btn-link-hover active:text-btn-link-active"
+                    className="cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-btn-link hover:text-btn-link-hover active:text-btn-link-active"
                     onClick={() => onUseBuilder(match)}
                 >
                     This is a {cadenceLabel(match)} schedule — use the builder

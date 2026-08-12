@@ -130,7 +130,7 @@ const AgentChatEmptyState = ({
                     <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
                         {ONBOARDING_COPY.title}
                     </Typography.Title>
-                    <Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                    <Text className="!text-base !text-[var(--ag-colorTextSecondary)]">
                         {ONBOARDING_COPY.subtitleStrip}
                     </Text>
                 </Reveal>
@@ -163,11 +163,11 @@ const AgentChatEmptyState = ({
                             size={18}
                             className="relative text-[var(--ag-colorText)]"
                         />
-                        <span className="absolute bottom-1.5 text-[10px] font-semibold text-[var(--ag-colorText)]">
+                        <span className="absolute bottom-1.5 text-[12px] font-semibold text-[var(--ag-colorText)]">
                             {ONBOARDING_COPY.videoDuration}
                         </span>
                     </button>
-                    <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                         {ONBOARDING_COPY.videoLabel}
                     </span>
                 </Reveal>
@@ -178,7 +178,7 @@ const AgentChatEmptyState = ({
                     <div className="flex items-center gap-2">
                         <Tag
                             color="processing"
-                            className="!m-0 !rounded !px-1.5 !py-0 !text-[10px] !font-semibold !uppercase !leading-5"
+                            className="!m-0 !rounded !px-1.5 !py-0 !text-[12px] !font-semibold !uppercase !leading-5"
                         >
                             {ONBOARDING_COPY.eyebrowNew}
                         </Tag>
@@ -189,7 +189,7 @@ const AgentChatEmptyState = ({
                     <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
                         {ONBOARDING_COPY.title}
                     </Typography.Title>
-                    <Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                    <Text className="!text-base !text-[var(--ag-colorTextSecondary)]">
                         {ONBOARDING_COPY.subtitle}
                     </Text>
                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">
@@ -244,12 +244,12 @@ const AgentChatEmptyState = ({
                         </Text>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                             {model ? (
-                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-[11px] text-colorTextSecondary">
+                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-xs text-colorTextSecondary">
                                     {model}
                                 </span>
                             ) : null}
                             {capabilities ? (
-                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px text-[11px] text-colorTextSecondary">
+                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px text-xs text-colorTextSecondary">
                                     {capabilities}
                                 </span>
                             ) : null}
@@ -267,7 +267,7 @@ const AgentChatEmptyState = ({
                     <div className="flex flex-col gap-2">
                         <Text
                             type="secondary"
-                            className="!text-[11px] !font-medium uppercase tracking-wide"
+                            className="!text-xs !font-medium uppercase tracking-wide"
                         >
                             We'll start with
                         </Text>
@@ -284,14 +284,14 @@ const AgentChatEmptyState = ({
                             <ArrowRight size={14} />
                         </Button>
                         {canStart ? null : (
-                            <Text type="secondary" className="!text-[11px]">
+                            <Text type="secondary" className="!text-xs">
                                 Connect a model below to start.
                             </Text>
                         )}
                     </div>
                 ) : TEMPLATE_STRIP_MODE ? null : ( // Strip era: the composer-docked strip replaces the starter pills.
                     <div className="flex flex-col items-start gap-1.5">
-                        <Text type="secondary" className="!text-[11px]">
+                        <Text type="secondary" className="!text-xs">
                             Try
                         </Text>
                         {BUILD_STARTERS.map((starter) => (

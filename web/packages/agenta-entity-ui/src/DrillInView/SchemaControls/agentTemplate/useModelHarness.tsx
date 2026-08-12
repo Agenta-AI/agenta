@@ -45,7 +45,13 @@ import {
 } from "../connectionUtils"
 import {EnumSelectControl, getEnumOptions} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
+import {selectableHarnesses} from "../harnessMeta"
 import {HarnessSelectControl} from "../HarnessSelectControl"
+import {
+    isPermissionPolicy,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+} from "../permissionPolicy"
 import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
@@ -61,23 +67,7 @@ import {useBuildKit} from "./useBuildKit"
 // flash a false "Connect key" warning on the section, rail item, and config-panel row.
 const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
-type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
-
-const PERMISSION_POLICY_OPTIONS: {value: PermissionPolicy; label: string; help: string}[] = [
-    {value: "allow_reads", label: "Allow reads", help: "Reads run, writes ask; default"},
-    {value: "allow", label: "Allow all", help: "Every tool runs without asking"},
-    {value: "ask", label: "Ask", help: "A human approves every tool call"},
-    {value: "deny", label: "Deny all", help: "Every tool call is refused"},
-]
-const PERMISSION_POLICY_VALUES = new Set<string>(
-    PERMISSION_POLICY_OPTIONS.map((option) => option.value),
-)
-
-const HIDDEN_HARNESSES = new Set(["pi_agenta"])
-
-function isPermissionPolicy(value: unknown): value is PermissionPolicy {
-    return typeof value === "string" && PERMISSION_POLICY_VALUES.has(value)
-}
+// Shared with the chat composer's `/harness` palette so a hidden harness stays hidden everywhere.
 
 export function useModelHarness({
     schema,
@@ -371,18 +361,18 @@ export function useModelHarness({
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     const hasClaudePermissions = harnessValue === "claude"
     const hasPiPermissions = isPiHarness
-    const runnerPermissionOptions = useMemo(() => {
-        const schemaValues = Array.isArray(runnerPermissionSchema?.enum)
-            ? new Set((runnerPermissionSchema.enum as unknown[]).filter(isPermissionPolicy))
-            : null
-        return PERMISSION_POLICY_OPTIONS.filter(
-            (option) => !schemaValues || schemaValues.has(option.value),
-        ).map((option) => ({value: option.value, title: option.label, help: option.help}))
-    }, [runnerPermissionSchema])
+    // Shared with the composer's `/permissions` palette, so the two lists cannot drift.
+    const runnerPermissionOptions = useMemo(
+        () =>
+            permissionPolicyOptionsForEnum(runnerPermissionSchema?.enum).map((option) => ({
+                value: option.value,
+                title: option.label,
+                help: option.help,
+            })),
+        [runnerPermissionSchema],
+    )
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
-    const runnerPermissionSummary = PERMISSION_POLICY_OPTIONS.find(
-        (option) => option.value === currentRunnerPermission,
-    )?.label
+    const runnerPermissionSummary = permissionPolicyLabel(currentRunnerPermission)
 
     // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
     // sandbox-permission keys the overlay overrides for the user's own permission control below.
@@ -531,41 +521,14 @@ export function useModelHarness({
         </RailField>
     ) : null
 
-    // Shared version-history placeholder for the section drawers (real revision diffs are deferred).
-    const versionHistorySkeleton = (
-        <div>
-            <div className="mb-2 flex items-center gap-1.5">
-                <span className="text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                    Version history
-                </span>
-                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[10px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                    soon
-                </span>
-            </div>
-            <div className="flex flex-col gap-2.5 opacity-50">
-                {["w-[42%]", "w-[32%]", "w-[38%]"].map((widthClass, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
-                        <span
-                            className={cn(
-                                "h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]",
-                                widthClass,
-                            )}
-                        />
-                    </div>
-                ))}
-            </div>
-        </div>
-    )
-
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card (below).
     // GAP (tracked): harness_capabilities covers model/provider/mode/hosting only — NOT tools/skills/
     // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
     const schemaHarnesses = Array.isArray(harnessProps.kind?.enum)
         ? (harnessProps.kind.enum as unknown[]).map(String)
         : []
-    const harnessList = (capabilities ? Object.keys(capabilities) : schemaHarnesses).filter(
-        (harnessId) => !HIDDEN_HARNESSES.has(harnessId),
+    const harnessList = selectableHarnesses(
+        capabilities ? Object.keys(capabilities) : schemaHarnesses,
     )
 
     // Harness as a `[rail │ detail]` (experiment): the harness list on the rail with a model-compat dot,
@@ -583,7 +546,13 @@ export function useModelHarness({
     // different id namespaces; the provider is the reliable cross-harness signal on the config).
     const selectedKeepsModel =
         !modelId ||
-        harnessAllowsModel(capabilities, harnessValue, modelId) ||
+        harnessAllowsModel(
+            capabilities,
+            harnessValue,
+            modelId,
+            customSecrets,
+            connection.slug || null,
+        ) ||
         (!!connection.provider && selectedProviders.includes(connection.provider))
     const selectedIsCurrent = !!harnessValue && (savedHarnessValue ?? harnessValue) === harnessValue
     const selectedHarnessLabel =
@@ -606,14 +575,14 @@ export function useModelHarness({
                 <div className="flex flex-wrap items-center gap-2.5">
                     <span className="text-sm font-medium">{selectedHarnessLabel}</span>
                     {selectedIsCurrent ? (
-                        <span className="rounded-full bg-[var(--ag-colorFillSecondary)] px-2 py-0.5 text-[11px] text-[var(--ag-colorPrimary)]">
+                        <span className="rounded-full bg-[var(--ag-colorFillSecondary)] px-2 py-0.5 text-xs text-[var(--ag-colorPrimary)]">
                             Current
                         </span>
                     ) : null}
                     {modelId ? (
                         <span
                             className={cn(
-                                "inline-flex items-center gap-1 text-[11px]",
+                                "inline-flex items-center gap-1 text-xs",
                                 selectedKeepsModel
                                     ? "text-[var(--ag-colorSuccess)]"
                                     : "text-[var(--ag-colorWarning)]",
@@ -626,7 +595,7 @@ export function useModelHarness({
                 </div>
                 {selectedProviders.length > 0 ? (
                     <div className="flex flex-col gap-0.5">
-                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                             Providers
                         </span>
                         <span className="text-xs text-[var(--ag-colorTextSecondary)]">
@@ -640,7 +609,7 @@ export function useModelHarness({
                 ) : null}
                 {selectedDeployments.length > 0 ? (
                     <div className="flex flex-col gap-0.5">
-                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                             Hosting
                         </span>
                         <span className="text-xs text-[var(--ag-colorTextSecondary)]">
@@ -694,7 +663,7 @@ export function useModelHarness({
         <div className="flex flex-col gap-2 py-0.5">
             {modelControl}
             {!focus.active && hasInspectModels ? (
-                <span className="text-[11px] leading-snug text-colorTextDescription">
+                <span className="text-xs leading-snug text-colorTextDescription">
                     Filtered to the models this harness can reach. Selecting a model also sets its
                     provider.
                 </span>
@@ -783,16 +752,11 @@ export function useModelHarness({
         </>
     )
 
-    // The two-panel layout (controls + version-history aside) is DRAWER chrome. Under a focus filter
-    // this same body renders INLINE in the config panel (the "what changed" view), where the version
-    // history and its fixed-width aside don't belong — drop to a single column of the narrowed controls.
+    // Single column: the controls own the drawer's full width.
     const modelHarnessDrawerBody =
         capabilities && !focus.active ? (
-            <div className="flex h-full min-h-0 gap-6">
-                <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-                    {modelHarnessControls}
-                </div>
-                <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
+            <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto">
+                {modelHarnessControls}
             </div>
         ) : (
             <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
@@ -900,7 +864,7 @@ export function useModelHarness({
                     {/* Caption then peer rail rows (mode / allow / ask / deny) sharing the
                         section rail — the control renders its own RailField rows. */}
                     {focus.active ? null : (
-                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[12px] text-[var(--ant-color-primary-text)]">
                             Claude harness
                         </span>
                     )}
@@ -923,7 +887,7 @@ export function useModelHarness({
             {hasPiPermissions ? (
                 <>
                     {focus.active ? null : (
-                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[12px] text-[var(--ant-color-primary-text)]">
                             Pi harness
                         </span>
                     )}
@@ -955,7 +919,7 @@ export function useModelHarness({
                           title: "Execution environment",
                           summary: sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined,
                           caption: (
-                              <span className="text-[11px] leading-snug text-colorTextDescription">
+                              <span className="text-xs leading-snug text-colorTextDescription">
                                   Where the agent&apos;s tools and code run, and what that sandbox
                                   may touch.
                               </span>
@@ -976,7 +940,7 @@ export function useModelHarness({
                           title: "Permissions",
                           summary: runnerPermissionSummary,
                           caption: (
-                              <span className="text-[11px] leading-snug text-colorTextDescription">
+                              <span className="text-xs leading-snug text-colorTextDescription">
                                   What the agent may do on its own before it must ask.
                               </span>
                           ),
@@ -989,18 +953,9 @@ export function useModelHarness({
 
     // The stacked sections carry their own dividers; drop the trailing one on whichever section
     // renders last (they're conditional, so target the last child rather than a fixed section).
-    // Same as Model & harness: the version-history aside is drawer chrome; under a focus filter this
-    // body renders inline in the panel, so drop to a single column of the narrowed controls.
-    const advancedDrawerBody = focus.active ? (
+    const advancedDrawerBody = (
         <div className="flex h-full flex-col overflow-y-auto [&>*:last-child]:!border-b-0">
             {advancedControls}
-        </div>
-    ) : (
-        <div className="flex h-full min-h-0 gap-6">
-            <div className="flex min-w-0 flex-1 flex-col overflow-y-auto pr-1 [&>*:last-child]:!border-b-0">
-                {advancedControls}
-            </div>
-            <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
         </div>
     )
 

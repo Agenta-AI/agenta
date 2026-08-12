@@ -4,20 +4,23 @@ import {Skeleton} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
+import {
+    SIDEBAR_COLLAPSED_WIDTH,
+    sidebarCollapsedAtom,
+    sidebarWidthAtom,
+} from "@/oss/lib/atoms/sidebar"
 
 const SidebarSkeletonLoader = () => {
     const collapsed = useAtomValue(sidebarCollapsedAtom)
+    const width = useAtomValue(sidebarWidthAtom)
 
     return (
         <section
             className={clsx(
                 "flex flex-col justify-between h-screen border border-r border-solid border-gray-100",
-                {
-                    "w-[48px] items-center": collapsed,
-                    "w-[236px]": !collapsed,
-                },
+                collapsed && "items-center",
             )}
+            style={{width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}}
         >
             <div className="w-full h-full flex flex-col items-center">
                 <Skeleton

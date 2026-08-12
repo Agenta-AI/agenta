@@ -43,10 +43,10 @@ export function ProviderLogo({logo, size = 24}: {logo?: string | null; size?: nu
 /** A sub-section label above a group of rows: uppercase text + a bordered count tag. */
 export function SubSectionHeader({label, count}: {label: string; count: number}) {
     return (
-        <div className="flex items-center gap-1.5 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+        <div className="flex items-center gap-1.5 px-0.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
             <span>{label}</span>
             {/* antd v6 `bordered` (truthy) is a no-op; colourless Tag == Badge `default`. */}
-            <Badge className="m-0 px-1.5 text-[10px] font-normal leading-4">{count}</Badge>
+            <Badge className="m-0 px-1.5 text-[12px] font-normal leading-4">{count}</Badge>
         </div>
     )
 }
@@ -81,7 +81,8 @@ export function CollapsibleProviderGroup({
     children: ReactNode
 }) {
     return (
-        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
+        // White sheet on the expanded section's band; the header keeps its own fill on top.
+        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)]">
             {/* Header stays clickable but is not the role=button node — it holds the + button
                 (nested-interactive). The role lives on the name span below. */}
             <div
@@ -115,7 +116,7 @@ export function CollapsibleProviderGroup({
                     {name}
                 </span>
                 {statusTag ? <span className="shrink-0">{statusTag}</span> : null}
-                <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
                     {countText}
                 </span>
                 {onAdd ? (

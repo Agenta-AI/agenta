@@ -58,7 +58,14 @@ class _FakeStreamsService:
         self.rows = rows
 
     async def query_streams(
-        self, *, project_id, filter, windowing=None, session_ids=None
+        self,
+        *,
+        project_id,
+        filter,
+        windowing=None,
+        session_ids=None,
+        exclude_session_ids=None,
+        read_options=None,
     ):
         if session_ids is not None:
             return [s for s in self.rows if s.session_id in session_ids]

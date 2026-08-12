@@ -321,8 +321,8 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
                         title="Click to collapse"
                         {...hoverProps}
                     >
-                        <span className="text-[10px] text-blue-500 mt-[2px] select-none">[-]</span>
-                        <span className="text-[10px] text-blue-500 mt-[2px] shrink-0 select-none">
+                        <span className="text-[12px] text-blue-500 mt-[2px] select-none">[-]</span>
+                        <span className="text-[12px] text-blue-500 mt-[2px] shrink-0 select-none">
                             [{formatCharCount(parsed.charCount)}]
                         </span>
                         <span
@@ -369,7 +369,7 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
                     {...hoverProps}
                 >
                     &quot;{parsed.preview}...&quot;
-                    <span className="text-[10px] text-blue-500 ml-1">
+                    <span className="text-[12px] text-blue-500 ml-1">
                         [{formatCharCount(parsed.charCount)}]
                     </span>
                 </span>

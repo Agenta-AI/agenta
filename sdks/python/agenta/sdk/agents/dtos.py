@@ -525,9 +525,9 @@ class RunContext(BaseModel):
 
     The inner keys are deliberately snake_case (``workflow.variant.id``, ``trace.trace_id``): they
     are the binding NAMESPACE that a catalog entry's ``$ctx.<dotted.path>`` token addresses, so
-    they match those tokens exactly rather than the wire's camelCase convention. The conversation
-    id is NOT carried here — it rides the top-level ``sessionId`` field, and the runner owns the
-    live id across turns; duplicating it in run context would only let it go stale. ``to_wire``
+    they match those tokens exactly rather than the wire's camelCase convention. The service sends
+    the conversation id through the top-level ``sessionId`` field; the runner adds the live
+    ``$ctx.session.id`` token to its internal dispatch blob, never through this model. ``to_wire``
     emits only the sub-objects/fields that are set, so a run with no identity yields an empty blob
     (and the serializer omits the key entirely)."""
 

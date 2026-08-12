@@ -107,7 +107,7 @@ export const RequestPreview: FC<Props> = ({form}) => {
     return (
         <div className="relative overflow-x-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-code)] font-mono">
             <div className="mb-3 flex items-center justify-between border-b border-[var(--color-border)] pb-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
                     Example HTTP Request
                 </span>
             </div>

@@ -84,9 +84,7 @@ function DeployForm({
                         {o.hint ? (
                             <span className="flex items-center gap-2">
                                 {o.label}
-                                <span className={cn("text-[11px]", textColors.tertiary)}>
-                                    {o.hint}
-                                </span>
+                                <span className={cn("text-xs", textColors.tertiary)}>{o.hint}</span>
                             </span>
                         ) : (
                             o.label

@@ -39,6 +39,7 @@ export function MappingSection({
     isEdit,
     isChat,
     primaryKey,
+    disabled,
 }: {
     value: string
     onChange: (next: string) => void
@@ -55,6 +56,9 @@ export function MappingSection({
     isEdit: boolean
     isChat: boolean
     primaryKey: string
+    /** The surrounding fieldset covers native controls (buttons); the raw-JSON `Editor` and the
+     * composer's contenteditable `PillEditor` aren't native form controls, so they need this. */
+    disabled?: boolean
 }) {
     const samplePayload = eventSample
     const context = useMemo(() => buildPreviewContext(eventSample), [eventSample])
@@ -137,7 +141,7 @@ export function MappingSection({
         return (
             <div className="flex min-w-0 flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+                    <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                         Map the event into the workflow inputs (JSON).
                     </span>
                     <EventSourcePicker
@@ -145,7 +149,7 @@ export function MappingSection({
                         trigger={
                             <button
                                 type="button"
-                                className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[11px] font-medium text-[var(--ag-colorPrimary)] hover:opacity-80"
+                                className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorPrimary)] hover:opacity-80"
                             >
                                 <Lightning size={12} weight="fill" /> Test event
                             </button>
@@ -163,6 +167,7 @@ export function MappingSection({
                     error={error}
                     onErrorChange={onErrorChange}
                     eventPayload={eventSample}
+                    disabled={disabled}
                 />
             </div>
         )
@@ -170,7 +175,7 @@ export function MappingSection({
 
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+            <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                 {isChat
                     ? "Write the message your agent receives. Click a field to drop in its live value."
                     : "Build the agent's input from the event. Click a field to drop in its live value."}
@@ -185,6 +190,7 @@ export function MappingSection({
                         showToolbar={false}
                         language="json"
                         dimensions={{width: "100%", height: 140}}
+                        disabled={disabled}
                     />
                 </div>
             ) : (
@@ -192,7 +198,7 @@ export function MappingSection({
                     {/* Left rail = the data (event fields + live values), like the other sections' rails. */}
                     <div className="flex w-[200px] shrink-0 flex-col gap-1">
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
+                            <span className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
                                 Event fields
                             </span>
                             <EventSourcePicker
@@ -200,7 +206,7 @@ export function MappingSection({
                                 trigger={
                                     <button
                                         type="button"
-                                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[11px] font-medium text-[var(--ag-colorPrimary)] hover:opacity-80"
+                                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorPrimary)] hover:opacity-80"
                                     >
                                         <Lightning size={12} weight="fill" /> Test event
                                     </button>
@@ -231,7 +237,7 @@ export function MappingSection({
                                                         <span className="block truncate text-xs font-medium text-[var(--ag-colorText)]">
                                                             {f.label}
                                                         </span>
-                                                        <span className="block truncate font-mono text-[11px] text-[var(--ag-colorTextSecondary)]">
+                                                        <span className="block truncate font-mono text-xs text-[var(--ag-colorTextSecondary)]">
                                                             {f.value}
                                                         </span>
                                                     </span>
@@ -250,7 +256,7 @@ export function MappingSection({
                                     </TooltipProvider>
                                 ))
                             ) : (
-                                <div className="rounded-md border border-dashed border-[var(--ag-colorBorder)] px-2 py-3 text-center text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                                <div className="rounded-md border border-dashed border-[var(--ag-colorBorder)] px-2 py-3 text-center text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                                     Get a sample event to see its fields and values.
                                 </div>
                             )}
@@ -259,7 +265,7 @@ export function MappingSection({
 
                     {/* Right = the message built from that data (divider mirrors the other sections). */}
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                        <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
+                        <span className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
                             Message
                         </span>
                         <PillEditor
@@ -271,23 +277,24 @@ export function MappingSection({
                                     ? "Type a message and click a field on the left to insert its value…"
                                     : "Build the agent's input — type text and click fields on the left…"
                             }
+                            disabled={disabled}
                         />
                         {samplePayload && template.trim() && (
                             <div className="rounded-md bg-[var(--ag-colorFillQuaternary)] px-2.5 py-1.5">
-                                <div className="mb-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                <div className="mb-0.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                                     {deliveryPreview ? "Agent would receive" : "Agent receives"}
                                 </div>
-                                <div className="max-h-[120px] overflow-y-auto whitespace-pre-wrap break-words text-[11px] text-[var(--ag-colorText)]">
+                                <div className="max-h-[120px] overflow-y-auto whitespace-pre-wrap break-words text-xs text-[var(--ag-colorText)]">
                                     {preview}
                                 </div>
                             </div>
                         )}
                         {deliveryPreview && (
                             <div className="rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] px-2.5 py-1.5">
-                                <div className="mb-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                <div className="mb-0.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                                     Agent received · last real delivery
                                 </div>
-                                <div className="max-h-[120px] overflow-y-auto whitespace-pre-wrap break-words text-[11px] text-[var(--ag-colorText)]">
+                                <div className="max-h-[120px] overflow-y-auto whitespace-pre-wrap break-words text-xs text-[var(--ag-colorText)]">
                                     {getScheduleMessagePreview(deliveryPreview) || "—"}
                                 </div>
                             </div>
@@ -299,12 +306,12 @@ export function MappingSection({
             <button
                 type="button"
                 onClick={() => setRaw((r) => !r)}
-                className="cursor-pointer self-start border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                className="cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
             >
                 {raw ? "← Back to composer" : "Advanced · raw JSON"}
             </button>
 
-            {error && <span className="text-[11px] text-[var(--ag-colorErrorText)]">{error}</span>}
+            {error && <span className="text-xs text-[var(--ag-colorErrorText)]">{error}</span>}
         </div>
     )
 }

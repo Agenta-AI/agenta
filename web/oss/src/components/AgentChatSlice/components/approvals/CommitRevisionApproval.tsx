@@ -25,7 +25,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const MESSAGE_CLAMP_CHARS = 220
 
 const FieldLabel = ({children}: {children: string}) => (
-    <div className="text-[11px] font-medium text-colorTextTertiary">{children}</div>
+    <div className="text-xs font-medium text-colorTextTertiary">{children}</div>
 )
 
 /**
@@ -68,7 +68,7 @@ const CommitMessage = ({
                 <button
                     type="button"
                     onClick={onToggle}
-                    className="mt-1 cursor-pointer border-0 bg-transparent p-0 text-[11px] text-colorTextTertiary transition-colors hover:text-colorText"
+                    className="mt-1 cursor-pointer border-0 bg-transparent p-0 text-xs text-colorTextTertiary transition-colors hover:text-colorText"
                 >
                     {expanded ? "Show less" : "Show more"}
                 </button>

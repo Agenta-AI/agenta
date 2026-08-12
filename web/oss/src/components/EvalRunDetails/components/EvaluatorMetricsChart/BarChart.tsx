@@ -12,6 +12,8 @@ import {
 } from "recharts"
 import type {TooltipContentProps} from "recharts"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
+
 type ChartDatum = Record<string, string | number | boolean | undefined>
 
 interface BarChartProps {
@@ -53,6 +55,7 @@ const BarChart = ({
     getCellProps,
     barProps,
 }: BarChartProps) => {
+    const series0 = useChartSeries()[0]
     const chartBarSize = !barSize ? undefined : barSize
     const yAxisWidth = typeof yAxisProps?.width === "number" ? yAxisProps.width : 58
     const {
@@ -114,7 +117,7 @@ const BarChart = ({
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
                                     fontSize: "10px",
-                                    color: "#666",
+                                    color: "var(--ag-chart-axis-text)",
                                 }}
                             >
                                 {payload?.value}
@@ -126,8 +129,8 @@ const BarChart = ({
                 />
                 <YAxis
                     domain={yDomain as any}
-                    tickLine={{stroke: "#05172933"}}
-                    tick={{fill: "#666"}}
+                    tickLine={{stroke: "var(--ag-chart-axis-line)"}}
+                    tick={{fill: "var(--ag-chart-axis-text)"}}
                     tickMargin={8}
                     width={yAxisWidth}
                     {...yAxisProps}
@@ -136,7 +139,7 @@ const BarChart = ({
                     strokeDasharray="3 2"
                     horizontal
                     vertical={false}
-                    stroke="#05172933"
+                    stroke="var(--ag-chart-grid)"
                     {...cartesianGridProps}
                 />
 
@@ -174,7 +177,7 @@ const BarChart = ({
                                                 ? (rawRow[colorKey] as string)
                                                 : undefined) ||
                                             entry?.color ||
-                                            "#3B82F6"
+                                            series0
                                         const entryLabel = (() => {
                                             const rawLabel = rawRow?.[xKey]
                                             if (
@@ -235,7 +238,7 @@ const BarChart = ({
                 <Bar
                     dataKey={yKey}
                     name={tooltipLabel ?? "Value"}
-                    fill="#3B82F6"
+                    fill={series0}
                     radius={[8, 8, 0, 0]}
                     barSize={chartBarSize}
                     maxBarSize={100}

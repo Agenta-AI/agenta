@@ -12,6 +12,9 @@ export {
     validateUUID,
 } from "./validators"
 
+// Platform detection (modifier-key naming)
+export {isMacPlatform, modifierKeyLabel} from "./platform"
+
 // Filtering utilities
 export {filterItems} from "./filterItems"
 export type {FilterItemLabel} from "./filterItems"
@@ -19,6 +22,7 @@ export type {FilterItemLabel} from "./filterItems"
 // Date/time utilities
 export {default as dayjs} from "./dayjs"
 export {normalizeEntityTimestamps, normalizeTimestamps, parseEntityDate} from "./entityTransforms"
+export {timeAgo} from "./timeAgo"
 
 // Path utilities for nested data navigation
 export {

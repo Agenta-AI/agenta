@@ -59,6 +59,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamFlags,
     SessionStreamHeaderEdit,
     SessionStreamQuery,
+    SessionStreamReadOptions,
 )
 from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
@@ -150,6 +151,22 @@ class SessionStreamsService:
                 project_id=str(project_id),
                 session_id=session_id,
                 state=state,
+            )
+
+    async def _publish_changed(self, *, project_id: UUID, session_id: str) -> None:
+        if self._watch is None:
+            return
+        try:
+            await self._watch.changed(
+                project_id=str(project_id),
+                entity="session",
+                id=session_id,
+            )
+        except Exception:
+            log.warning(
+                "[WATCH] session change publish failed",
+                project_id=str(project_id),
+                session_id=session_id,
             )
 
     async def command(
@@ -641,8 +658,8 @@ class SessionStreamsService:
     ) -> Optional[SessionStream]:
         """The rename edit: full-PUT {name, description} onto the merged stream row.
 
-        Pure DB write — no Redis nest interaction, no flags/turn_id touched. Off the
-        runner's write path. Creates the row if the session has never heartbeat/run
+        Header-only durable write — no Redis nest interaction, no flags/turn_id touched. Off
+        the runner's write path. Creates the row if the session has never heartbeat/run
         yet (a caller may name a session before its first turn), mirroring
         `_start_turn`'s create-or-update pattern.
         """
@@ -653,27 +670,30 @@ class SessionStreamsService:
             session_id=session_id,
             header=header,
         )
-        if updated is not None:
-            return updated
-        try:
-            return await self._dao.create(
-                project_id=project_id,
-                user_id=user_id,
-                stream=SessionStreamCreate(
+        if updated is None:
+            try:
+                updated = await self._dao.create(
+                    project_id=project_id,
+                    user_id=user_id,
+                    stream=SessionStreamCreate(
+                        session_id=session_id,
+                        name=header.name,
+                        description=header.description,
+                    ),
+                )
+            except SessionStreamAlreadyExists:
+                # A concurrent first touch (heartbeat/rename) won the race; the row now
+                # exists — apply the header edit onto it.
+                updated = await self._dao.update_header(
+                    project_id=project_id,
+                    user_id=user_id,
                     session_id=session_id,
-                    name=header.name,
-                    description=header.description,
-                ),
-            )
-        except SessionStreamAlreadyExists:
-            # A concurrent first touch (heartbeat/rename) won the race; the row now
-            # exists — apply the header edit onto it.
-            return await self._dao.update_header(
-                project_id=project_id,
-                user_id=user_id,
-                session_id=session_id,
-                header=header,
-            )
+                    header=header,
+                )
+
+        if updated is not None:
+            await self._publish_changed(project_id=project_id, session_id=session_id)
+        return updated
 
     async def query_streams(
         self,
@@ -682,14 +702,52 @@ class SessionStreamsService:
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
+        read_options: Optional[SessionStreamReadOptions] = None,
     ) -> List[SessionStream]:
         if filter.session_id:
             _validate_session_id(filter.session_id)
-        return await self._dao.query(
+        results = await self._dao.query(
             project_id=project_id,
             filter=filter,
             windowing=windowing,
             session_ids=session_ids,
+            exclude_session_ids=exclude_session_ids,
+            read_options=read_options,
+        )
+        streams = []
+        for result in results:
+            stream = result.stream
+            if (
+                read_options
+                and read_options.include_trigger_details
+                and stream.trigger is not None
+            ):
+                stream = stream.model_copy(
+                    update={
+                        "trigger": stream.trigger.model_copy(
+                            update={"name": result.trigger_name}
+                        )
+                    }
+                )
+            streams.append(stream)
+        return streams
+
+    async def count_streams(
+        self,
+        *,
+        project_id: UUID,
+        filter: SessionStreamQuery,
+        session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
+    ) -> int:
+        if filter.session_id:
+            _validate_session_id(filter.session_id)
+        return await self._dao.count(
+            project_id=project_id,
+            filter=filter,
+            session_ids=session_ids,
+            exclude_session_ids=exclude_session_ids,
         )
 
     async def hard_delete(

@@ -7,10 +7,11 @@ import {Button, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
 import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
-import {compareRunIdsAtom, compareRunIdsWriteAtom, getComparisonSolidColor} from "../atoms/compare"
+import {compareRunIdsAtom, compareRunIdsWriteAtom} from "../atoms/compare"
 import {
     runDisplayNameAtomFamily,
     runInvocationRefsAtomFamily,
@@ -173,6 +174,8 @@ const PreviewEvalRunMeta = ({
         [orderedRunIds],
     )
     const runDescriptors = useAtomValue(runDescriptorsAtom)
+    // Theme-resolved solid series colors (plain hex for the close icon — solids can't be CSS vars).
+    const series = useChartSeries()
 
     return (
         <div className={clsx("flex items-center justify-between gap-4 px-4", className)}>
@@ -181,7 +184,7 @@ const PreviewEvalRunMeta = ({
                 <div className="flex flex-nowrap gap-2 min-w-0 overflow-x-auto">
                     {runDescriptors.map((run, index) => {
                         const isBaseRun = index === 0
-                        const tagColor = getComparisonSolidColor(index)
+                        const tagColor = series[index] ?? series[0]
                         return (
                             <EvaluationRunTag
                                 key={run.id}
