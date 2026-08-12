@@ -59,8 +59,7 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
 
     const visit = (nodes: SidebarConfig[], ancestors: string[]) => {
         nodes.forEach((item) => {
-            // `matchLinks` lets a row own more routes than it navigates to (Agents owns every
-            // agent's pages); an empty list opts it out of matching entirely.
+            // A row can own more routes than it navigates to; an empty list opts it out.
             const matchLinks = item.matchLinks ?? (item.link ? [item.link] : [])
             for (const matchLink of matchLinks) {
                 if (!pathMatchesLink(currentPath, matchLink)) continue

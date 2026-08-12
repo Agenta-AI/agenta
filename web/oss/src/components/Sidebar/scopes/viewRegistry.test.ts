@@ -1,7 +1,6 @@
 import {describe, expect, it, vi} from "vitest"
 
-// The registry's `create` functions pull in the scope components, and with them next/font —
-// which needs the Next build pipeline. Matching itself is pure.
+// The registry's `create` functions reach next/font, which needs the Next build pipeline.
 vi.mock("next/font/google", () => ({
     Inter: () => ({className: "", variable: "", style: {fontFamily: "Inter"}}),
 }))
@@ -17,6 +16,7 @@ const ctx = (overrides: Partial<SidebarViewMatchContext> = {}): SidebarViewMatch
     pathname: "/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground",
     routeLayer: "app",
     agentState: "unknown",
+    agentTypeSettled: false,
     ...overrides,
 })
 
@@ -57,6 +57,33 @@ describe("resolveSidebarView", () => {
 
     it("ignores agent-ness outside an app route", () => {
         expect(resolveSidebarView(ctx({routeLayer: "project", agentState: "non-agent"})).id).toBe(
+            MAIN_SIDEBAR_SCOPE_ID,
+        )
+    })
+
+    it("settles a failed lookup on the app-context rail instead of stranding it", () => {
+        expect(resolveSidebarView(ctx({agentTypeSettled: true})).id).toBe(WORKFLOW_SIDEBAR_SCOPE_ID)
+    })
+
+    it("settles the same way from the project rail, so the swap still happens", () => {
+        expect(
+            resolveSidebarView(ctx({agentTypeSettled: true, currentViewId: MAIN_SIDEBAR_SCOPE_ID}))
+                .id,
+        ).toBe(WORKFLOW_SIDEBAR_SCOPE_ID)
+    })
+
+    it("does not settle while the lookup can still answer", () => {
+        expect(resolveSidebarView(ctx({agentTypeSettled: false})).id).toBe(MAIN_SIDEBAR_SCOPE_ID)
+    })
+
+    it("keeps a known agent on the project rail once its lookup settles", () => {
+        expect(resolveSidebarView(ctx({agentState: "agent", agentTypeSettled: true})).id).toBe(
+            MAIN_SIDEBAR_SCOPE_ID,
+        )
+    })
+
+    it("never settles a non-app route onto the app-context rail", () => {
+        expect(resolveSidebarView(ctx({routeLayer: "project", agentTypeSettled: true})).id).toBe(
             MAIN_SIDEBAR_SCOPE_ID,
         )
     })

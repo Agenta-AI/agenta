@@ -26,8 +26,7 @@ export interface SidebarConfig {
     isPlaceholder?: boolean
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
-    /** Route prefixes that select this row, when they differ from `link`. An empty array opts the
-     * row out of route matching. Defaults to `[link]`. */
+    /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */
     matchLinks?: string[]
     /** Workflow categories that support this item. Omit to support every category. */
     workflowCategories?: readonly SidebarWorkflowCategory[]

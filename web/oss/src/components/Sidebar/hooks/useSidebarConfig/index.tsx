@@ -83,16 +83,13 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 isHidden: hideAdvancedNav,
                 disabled: !hasProjectURL,
             },
-            // Agents before Sessions: a session is something an agent has, so the agent it belongs
-            // to reads first.
+            // Agents before Sessions: a session is something an agent has.
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: "Agents",
                 link: `${projectURL}/agents`,
                 icon: <RobotIcon size={14} />,
-                // An agent's own pages keep this rail, so Agents stays the active area throughout
-                // them. Only agents reach `/apps/<id>` with the project rail up — classic apps and
-                // evaluators swap to the app-context rail — so the prefix can't over-claim.
+                // Only agents reach `/apps/<id>` with this rail up, so the prefix can't over-claim.
                 matchLinks: [`${projectURL}/agents`, `${baseAppURL}/`],
                 // Onboarding IS agent creation — the list page is an empty dead-end until it commits.
                 disabled: !hasProjectURL || deadEndNavDisabled,
@@ -206,9 +203,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 icon: <LightningIcon size={14} />,
                 disabled: !hasProjectURL,
                 dataTour: "registry-nav",
-                // Agents navigate flat: no Registry, Evaluations or per-app Observability. They
-                // keep the project rail, so these never render for one — the categories say so
-                // outright, and cover the instant before agent-ness resolves.
+                // Agents navigate flat: no Registry, Evaluations or per-app Observability.
                 workflowCategories: ["app"],
             },
             {

@@ -17,6 +17,8 @@ export interface SidebarViewMatchContext {
     routeLayer: RouteLayer
     /** Agent-ness of the routed app — "unknown" until its workflow type resolves. */
     agentState: PlaygroundAgentState
+    /** Whether the type lookup has given its final answer, even if that answer is nothing. */
+    agentTypeSettled: boolean
     /** The view on screen right now; held while `agentState` is unknown so the rail can't flash. */
     currentViewId?: string
 }
@@ -45,8 +47,7 @@ export const SIDEBAR_VIEWS = [
     },
     {
         id: WORKFLOW_SIDEBAR_SCOPE_ID,
-        // Agents navigate flat: they keep the project rail and never swap to the app-context one.
-        // Only classic prompt apps and evaluators get this view.
+        // Agents navigate flat and keep the project rail; only classic apps and evaluators swap.
         matches: (ctx: SidebarViewMatchContext) =>
             ctx.routeLayer === "app" && ctx.agentState === "non-agent",
         create: ({lastPath}: SidebarViewContext) => createWorkflowSidebarScope({lastPath}),
@@ -65,18 +66,21 @@ const BASE_VIEW = SIDEBAR_VIEWS[SIDEBAR_VIEWS.length - 1]
 
 /** First view whose `matches` accepts the path; falls back to the base view. */
 export const resolveSidebarView = (ctx: SidebarViewMatchContext): SidebarViewDefinition => {
-    const matched: SidebarViewDefinition =
-        SIDEBAR_VIEWS.find((view) => view.matches(ctx)) ?? BASE_VIEW
+    // A settled lookup that still can't say never will — don't strand a classic app on this rail.
+    const resolved: SidebarViewMatchContext =
+        ctx.agentState === "unknown" && ctx.agentTypeSettled
+            ? {...ctx, agentState: "non-agent"}
+            : ctx
 
-    // App route whose agent-ness hasn't resolved yet. An agent ends on the base view and a classic
-    // app on the workflow view, so committing now would swap the rail a moment later: hold the
-    // workflow rail if it is already up. A cold load with no rail to hold lands on the base view,
-    // which is where agents — the common case — belong anyway.
+    const matched: SidebarViewDefinition =
+        SIDEBAR_VIEWS.find((view) => view.matches(resolved)) ?? BASE_VIEW
+
+    // Still loading: hold the app-context rail if it is up, rather than swap it away and back.
     if (
         matched.isBase &&
-        ctx.routeLayer === "app" &&
-        ctx.agentState === "unknown" &&
-        ctx.currentViewId === WORKFLOW_SIDEBAR_SCOPE_ID
+        resolved.routeLayer === "app" &&
+        resolved.agentState === "unknown" &&
+        resolved.currentViewId === WORKFLOW_SIDEBAR_SCOPE_ID
     ) {
         return getSidebarViewDefinition(WORKFLOW_SIDEBAR_SCOPE_ID)
     }

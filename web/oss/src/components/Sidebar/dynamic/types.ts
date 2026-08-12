@@ -43,9 +43,7 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     getLabel: (ref: TRef) => string
     /** Project-relative detail path, e.g. `(ref) => `/testsets/${ref.id}``. */
     childPath: (ref: TRef) => string
-    /** Project-relative prefixes the row is highlighted on, when they differ from `childPath`. An
-     * empty array keeps the row out of route matching (rows that share one URL can't tell each
-     * other apart from the path alone). Defaults to `[childPath]`. */
+    /** Prefixes the row is highlighted on; empty opts it out. Defaults to `[childPath]`. */
     childMatchPaths?: (ref: TRef) => string[]
     /** Shown (muted, disabled) when the group is open but has no items. */
     emptyLabel?: string
@@ -56,8 +54,7 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     /** Per-row icon, overriding the shared kind icon — for rows whose state differs from each
      * other (a session's liveness dot, say), where one icon for the whole group says nothing. */
     getIcon?: (ref: TRef) => ReactElement
-    /** Hover tooltip for the row, for context the label can't carry (which agent a session
-     * belongs to). Omit — or return undefined — and the row keeps the default hover. */
+    /** Optional row tooltip for context not shown by the label. */
     getTooltip?: (ref: TRef) => string | undefined
     /** Extra work on click, alongside following `childPath` — e.g. handing the target to the
      * surface being navigated to. Runs in the default jotai store, not a hook. */

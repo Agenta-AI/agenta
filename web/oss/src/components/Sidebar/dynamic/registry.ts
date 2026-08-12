@@ -86,8 +86,7 @@ const ENTITIES: SidebarEntity[] = [
         // The link navigates to the owning agent; the click hands over WHICH session, since the
         // playground has no way to read that from the route.
         childPath: (session) => `/apps/${session.appId}/playground`,
-        // Every session of an agent shares that one URL, so the path can't say which one is open —
-        // matching would highlight an arbitrary row. The agent row owns the highlight instead.
+        // Every session shares that one URL, so matching would highlight an arbitrary row.
         childMatchPaths: () => [],
         getOnClick: (session) => () => {
             if (!session.appId) return
@@ -104,8 +103,7 @@ const ENTITIES: SidebarEntity[] = [
                       size: 10,
                       weight: session.alive ? "fill" : "regular",
                   }),
-        // Which agent this conversation belongs to — the row's title is the session's own, and
-        // several agents' sessions sit in one flat list. No agent resolved yet, no tooltip.
+        // Show the owning agent because sessions from multiple agents share this list.
         getTooltip: (session) => session.agentName ?? undefined,
         emptyLabel: "No sessions",
         maxItems: SIDEBAR_SESSION_VISIBLE_LIMIT,
@@ -117,8 +115,7 @@ const ENTITIES: SidebarEntity[] = [
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
         childPath: (workflow) => `/apps/${workflow.id}/overview`,
-        // Agents keep the project rail, so this row stays visible on every page of the agent —
-        // overview, playground, sessions — and stays highlighted across all of them.
+        // Stays highlighted across all of the agent's pages, not just the one it links to.
         childMatchPaths: (workflow) => [`/apps/${workflow.id}`],
         emptyLabel: "No agents",
         showAllPath: "/agents",
