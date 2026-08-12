@@ -203,7 +203,11 @@ export const VirtualTable = <RecordType extends object>({
     const colGroup = (
         <colgroup>
             {leadingColumnWidth ? (
-                <col className={AVT.selectionCol} style={{width: leadingColumnWidth}} />
+                <col
+                    key="leading"
+                    className={AVT.selectionCol}
+                    style={{width: leadingColumnWidth}}
+                />
             ) : null}
             {leafColumns.map((column) => (
                 <col key={column.id} style={{width: column.getSize()}} />
@@ -223,6 +227,7 @@ export const VirtualTable = <RecordType extends object>({
                             <tr key={headerGroup.id}>
                                 {leadingColumnWidth && groupIndex === 0 ? (
                                     <th
+                                        key="leading"
                                         rowSpan={headerGroups.length}
                                         className={cn(
                                             AVT.headerCell,
@@ -316,6 +321,7 @@ export const VirtualTable = <RecordType extends object>({
                                         >
                                             {leadingColumnWidth ? (
                                                 <td
+                                                    key="leading"
                                                     className={cn(
                                                         AVT.cell,
                                                         "box-border bg-colorBgContainer px-2 align-middle",

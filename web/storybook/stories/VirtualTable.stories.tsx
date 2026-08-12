@@ -1,6 +1,7 @@
-import {useMemo, useRef, useState} from "react"
+import type {Key} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
-import {VirtualTable, type ColumnDefs} from "@agenta/ui/table"
+import {VirtualTable, useVirtualTableRowSelection, type ColumnDefs} from "@agenta/ui/table"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Table as AntTable} from "antd"
 
@@ -155,6 +156,100 @@ const InfiniteLoadingDemo = () => {
 }
 
 export const InfiniteLoading: Story = {render: () => <InfiniteLoadingDemo />}
+
+/**
+ * The antd-shaped `rowSelection` prop, driven through `useVirtualTableRowSelection`.
+ *
+ * This is the shape ~80 existing call sites already pass. The adapter turns it into the
+ * `RowSelectionState` + leading-cell props VirtualTable speaks, so those call sites move
+ * over without edits. Every branch is exercised here: select-all, the indeterminate
+ * header, `getCheckboxProps` disabling rows, and `selectOnRowClick`.
+ */
+const SelectionAdapterDemo = () => {
+    const rows = useMemo(() => makeRows(30), [])
+    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+    const [lastRows, setLastRows] = useState(0)
+    const rowKeyFn = useCallback((row: Row) => row.key, [])
+
+    // Every 5th row is locked: it must never enter the set, not even via select-all.
+    const getCheckboxProps = useCallback(
+        (row: Row) => ({disabled: Number(row.key.split("-")[1]) % 5 === 0}),
+        [],
+    )
+
+    const selection = useVirtualTableRowSelection<Row>({
+        rowSelection: {
+            selectedRowKeys,
+            getCheckboxProps,
+            selectOnRowClick: true,
+            onChange: (keys, records) => {
+                setSelectedRowKeys(keys)
+                setLastRows(records.length)
+            },
+        },
+        dataSource: rows,
+        rowKey: rowKeyFn,
+    })
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Note>
+                Selected {selectedRowKeys.length} (onChange handed back {lastRows} records). Every
+                5th row is disabled and must stay unselected, including after Select all. Clicking a
+                row toggles it.
+            </Note>
+            <Frame>
+                <VirtualTable<Row>
+                    columns={baseColumns}
+                    dataSource={rows}
+                    rowKey={rowKeyFn}
+                    rowHeight={48}
+                    height={420}
+                    {...selection}
+                    onRow={(record, index) => ({
+                        onClick: () => selection?.onRowClickSelect?.(record, index),
+                    })}
+                />
+            </Frame>
+        </div>
+    )
+}
+
+export const SelectionAdapter: Story = {render: () => <SelectionAdapterDemo />}
+
+/** `type: "radio"` keeps exactly one row selected and drops the select-all header. */
+const SelectionRadioDemo = () => {
+    const rows = useMemo(() => makeRows(20), [])
+    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+    const rowKeyFn = useCallback((row: Row) => row.key, [])
+
+    const selection = useVirtualTableRowSelection<Row>({
+        rowSelection: {type: "radio", selectedRowKeys, onChange: setSelectedRowKeys},
+        dataSource: rows,
+        rowKey: rowKeyFn,
+    })
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Note>
+                Radio: selecting a second row replaces the first. Selected:{" "}
+                {selectedRowKeys.length === 0 ? "none" : String(selectedRowKeys[0])}
+            </Note>
+            <Frame>
+                <VirtualTable<Row>
+                    columns={baseColumns}
+                    dataSource={rows}
+                    rowKey={rowKeyFn}
+                    rowHeight={48}
+                    height={420}
+                    {...selection}
+                />
+            </Frame>
+        </div>
+    )
+}
+
+export const SelectionRadio: Story = {render: () => <SelectionRadioDemo />}
 
 /** Left- and right-pinned columns must stay put and not overlap while scrolling sideways. */
 const stickyColumns: ColumnDefs<Row> = [
