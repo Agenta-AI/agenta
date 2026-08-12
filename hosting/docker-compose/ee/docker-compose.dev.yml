@@ -674,7 +674,7 @@ services:
             retries: 30
             start_period: 5s
 
-    ngrok:
+    ngrok-fs:
         # === ACTIVATION =========================================== #
         # Only for REMOTE sandboxes (Daytona/E2B): geesefs runs inside the cloud sandbox and
         # cannot reach `seaweedfs:8333` on the compose network, so this tunnels the store to a
@@ -695,7 +695,7 @@ services:
         command:
             - |
               if [ -z "$${NGROK_AUTHTOKEN}" ]; then
-                echo "ngrok: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
+                echo "ngrok-fs: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
                 exit 0
               fi
               printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
@@ -730,8 +730,8 @@ services:
         # A browser redirect needs none of this: the user is already looking at this deployment,
         # so the address that got them there is one their browser reaches.
         #
-        # Separate from the `ngrok` service on purpose. That one publishes the object store and
-        # the runner finds it at `ngrok:4040`; keeping them apart means neither can be handed the
+        # Separate from the `ngrok-fs` service on purpose. That one publishes the object store and
+        # the runner finds it at `ngrok-fs:4040`; keeping them apart means neither can be handed the
         # other's URL. Costs two agent sessions -- if the plan allows only one, run a single agent
         # with two named endpoints instead: the runner matches a tunnel by the upstream it
         # forwards to, so that arrangement is safe too. Design: docs/design/dev-ingress/

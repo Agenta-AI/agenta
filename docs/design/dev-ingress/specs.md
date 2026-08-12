@@ -1,7 +1,8 @@
 # The development ingress — specs
 
-**Add** a second development tunnel that publishes this deployment's ingress. The
-store's tunnel is untouched.
+**Add** a second development tunnel that publishes this deployment's ingress, beside the
+one that publishes the object store. Each service is named for what it publishes:
+`ngrok-fs` and `ngrok-api`. The store tunnel keeps its behaviour; only its name moves.
 
 Research: [research.md](research.md). Tasks: [tasks.md](tasks.md).
 
@@ -29,16 +30,22 @@ URL into a sandbox.
 
 ## The target
 
-### 1. A second tunnel, beside the store's
+### 1. Two tunnels, named for what they publish
 
-A new `ngrok-api` service in both development compose files, forwarding to `traefik:80`.
+`ngrok` becomes **`ngrok-fs`** — it publishes the object store, and its name should say
+so. A new **`ngrok-api`** service publishes the ingress, forwarding to `traefik:80`.
 Same `with-tunnel` profile, same token gate, same quiet exit-0 when no token is set.
 `NGROK_API_DOMAIN` pins a reserved domain.
 
-**The existing `ngrok` service is not modified.** It still publishes
-`seaweedfs:8333`, the runner still finds it at `ngrok:4040`, and Daytona sandboxes with
-the bundled store keep their durable working folder. Nothing that works today stops
-working.
+**The store tunnel keeps its behaviour exactly.** Same target, same token gate, same
+comments — only the service name changes, and with it the one place that addresses it.
+Daytona sandboxes with the bundled store keep their durable working folder.
+
+**The rename has one consequence.** Nothing sets `AGENTA_MOUNTS_TUNNEL_API`, so the
+runner reaches the agent through its compiled-in default, which was `http://ngrok:4040`
+and is now `http://ngrok-fs:4040`. The environment variable stays an override. An
+operator with a stack already up also has an orphaned `ngrok` container, which
+`--remove-orphans` clears.
 
 **Every inbound route arrives on its normal path.** `/api/` is already routed in
 development, in the self-host compose files, and in production, so no integration needs
@@ -55,9 +62,9 @@ a tunnel or a route of its own:
 
 ### 2. Why two services rather than one agent with two endpoints
 
-Two separate services keep the store tunnel's invocation byte-for-byte as it is today,
-which is the form already proven in this repo, and keep the runner's `ngrok:4040`
-pointing at an agent that only ever lists the store. Neither tunnel can be handed the
+Two separate services keep the store tunnel's invocation as it is today, which is the
+form already proven in this repo, and keep the runner's agent address pointing at an
+agent that only ever lists the store. Neither tunnel can be handed the
 other's URL.
 
 **The cost is two simultaneous agent sessions.** If the tunnel plan allows only one, the
@@ -96,7 +103,8 @@ before relying on a browser path through the tunnel.
 
 ## What it does not change
 
-- **The store tunnel.** Untouched, including its comments.
+- **What the store tunnel does.** Same target, same gate, same comments — the name
+  changes and the runner's default address follows it. Nothing else.
 - **Nothing in Traefik.** `/api/` already routes, in every compose file.
 - **Nothing in production.** No tunnel exists there and none is added.
 - **No API code, no new routes, no new configuration the API reads.**

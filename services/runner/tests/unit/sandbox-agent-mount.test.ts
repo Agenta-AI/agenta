@@ -468,7 +468,7 @@ describe("unmountStorage confirmation", () => {
 describe("discoverTunnelEndpoint (remote)", () => {
   it("prefers the https public_url from the ngrok agent API", async () => {
     const url = await discoverTunnelEndpoint({
-      ngrokApi: "http://ngrok:4040",
+      ngrokApi: "http://ngrok-fs:4040",
       fetchImpl: (async () =>
         okResponse({
           tunnels: [

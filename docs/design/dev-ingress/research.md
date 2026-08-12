@@ -33,6 +33,9 @@ nobody proposes it again.
 | Composio | `dispatcher_composio.py` subscribes over Composio's **own** WebSocket and forwards to the local ingress, HMAC-signed with the real secret so the true signature path runs | no |
 | ngrok | a real tunnel — pointed at `seaweedfs:8333`, for remote sandbox mounts | yes, but only for the store |
 
+The tunnel service is addressed by its compose name: the runner's compiled-in default is
+`http://<service>:4040` and nothing overrides it, so the service name is load-bearing.
+
 The Composio dispatcher describes itself as the `stripe listen` equivalent. Both
 depend on the provider offering a subscribe call. **An arbitrary platform offers
 nothing equivalent**, which is why a tunnel is the only general answer.

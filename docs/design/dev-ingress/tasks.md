@@ -10,9 +10,13 @@ see `specs.md` for why.
 - [x] New `ngrok-api` service in `hosting/docker-compose/oss/docker-compose.dev.yml`
       and the EE twin, forwarding to `traefik:80`, on the `with-tunnel` profile, gated
       on `NGROK_AUTHTOKEN`, with `NGROK_API_DOMAIN` optional.
-- [x] **The existing `ngrok` service is byte-for-byte unchanged from `main`.** Verified
-      with `git diff origin/main` — the store tunnel keeps its target, its comments and
-      its `depends_on`.
+- [x] `ngrok` renamed to **`ngrok-fs`**, so each service is named for what it
+      publishes. Its target, token gate, comments and `depends_on` are otherwise
+      unchanged from `main`.
+- [x] The runner's compiled-in agent address follows the rename:
+      `http://ngrok:4040` becomes `http://ngrok-fs:4040`. Nothing sets
+      `AGENTA_MOUNTS_TUNNEL_API`, so that default is what is live; the variable stays
+      an override.
 - [x] `discoverTunnelEndpoint` takes `storeEndpoint` and matches a tunnel by its
       upstream host and port; returns null when none matches rather than another
       tunnel's URL.
@@ -32,14 +36,16 @@ see `specs.md` for why.
 Each item is here because it can fail quietly.
 
 - [ ] Set `NGROK_AUTHTOKEN`, and `NGROK_API_DOMAIN` if a reserved domain exists.
-- [ ] Bring the stack up with the tunnel profile on (it is on by default).
+- [ ] Bring the stack up with the tunnel profile on (it is on by default), and pass
+      `--remove-orphans` the first time: the rename leaves an orphaned `ngrok`
+      container behind otherwise, which is confusing rather than harmful.
 - [ ] **Both tunnels come up.** Two agent sessions are needed. If the plan allows only
       one, the second will fail to start — that is the case to watch for, and the
       fallback is a single agent with two named endpoints.
 - [ ] **The ingress tunnel reaches the API.** `curl https://<ngrok-api-url>/api/health`
       answers from the API. If it answers HTML, it reached `web` and the path is wrong.
 - [ ] **The store tunnel still reaches the store**, and the runner still finds it:
-      `curl http://ngrok:4040/api/tunnels` from inside the network lists one tunnel
+      `curl http://ngrok-fs:4040/api/tunnels` from inside the network lists one tunnel
       whose upstream is `seaweedfs:8333`.
 - [ ] **A Daytona run with the bundled store still mounts its durable folder.** This is
       the regression that matters most: it is what the first draft of this change broke.
@@ -62,6 +68,9 @@ Each item is here because it can fail quietly.
 - **Do not repoint or remove the store tunnel.** The first draft of this change did,
   and it silently cost Daytona sandboxes their durable folder. The two tunnels are
   independent on purpose.
+- **If you rename either service again, move the runner's default with it.** The
+  service name is a hostname the runner resolves, and nothing in compose sets the
+  override, so a rename alone breaks discovery silently.
 - **Do not route the store on a subpath.** S3 signatures cover the path, so a stripped
   prefix invalidates every request. The store gets a host, never a prefix.
 - **Do not write a routing rule against a literal bucket name.**
