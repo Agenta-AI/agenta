@@ -1,75 +1,71 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuites name="vitest tests" tests="30" failures="0" errors="0" time="0.032288188">
-    <testsuite name="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" timestamp="2026-08-01T11:09:33.230Z" hostname="hetznerdev" tests="11" failures="0" errors="0" skipped="0" time="0.010121087">
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; posts the multipart fields and returns a validated response" time="0.003471653">
+<testsuites name="vitest tests" tests="29" failures="0" errors="0" time="0.025659775">
+    <testsuite name="src/components/Sidebar/dynamic/dropArchivedAgentSessions.test.ts" timestamp="2026-08-12T09:15:15.367Z" hostname="hetznerdev" tests="5" failures="0" errors="0" skipped="0" time="0.006595871">
+        <testcase classname="src/components/Sidebar/dynamic/dropArchivedAgentSessions.test.ts" name="dropArchivedAgentSessions &gt; drops sessions whose agent is archived" time="0.00298518">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; reports upload progress" time="0.000814108">
+        <testcase classname="src/components/Sidebar/dynamic/dropArchivedAgentSessions.test.ts" name="dropArchivedAgentSessions &gt; keeps a PINNED session even when its agent is archived" time="0.000411566">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; forwards the abort signal and preserves cancellation" time="0.000653035">
+        <testcase classname="src/components/Sidebar/dynamic/dropArchivedAgentSessions.test.ts" name="dropArchivedAgentSessions &gt; keeps sessions that have no agent at all" time="0.000352505">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; turns a network failure into a retryable user-safe error" time="0.000686211">
+        <testcase classname="src/components/Sidebar/dynamic/dropArchivedAgentSessions.test.ts" name="dropArchivedAgentSessions &gt; keeps everything until the archived answer arrives (null)" time="0.000385075">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 413 to a short non-retryable error" time="0.000424088">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 422 to a short non-retryable error" time="0.000196312">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 429 to a short non-retryable error" time="0.000154228">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 404 to a short non-retryable error" time="0.000152516">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; honours Retry-After for an upload already in flight" time="0.000302608">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; logs schema drift and throws a controlled retryable error" time="0.001929139">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; rejects uppercase attachment ids emitted outside the canonical server contract" time="0.000383141">
+        <testcase classname="src/components/Sidebar/dynamic/dropArchivedAgentSessions.test.ts" name="dropArchivedAgentSessions &gt; frees capped slots for live sessions" time="0.000417075">
         </testcase>
     </testsuite>
-    <testsuite name="src/components/AgentChatSlice/assets/attachments.test.ts" timestamp="2026-08-01T11:09:33.231Z" hostname="hetznerdev" tests="3" failures="0" errors="0" skipped="0" time="0.00468596">
-        <testcase classname="src/components/AgentChatSlice/assets/attachments.test.ts" name="attachment validation &gt; accepts an unrecognized media type through the other bucket" time="0.00267367">
+    <testsuite name="src/components/Sidebar/dynamic/sessionOptions.test.ts" timestamp="2026-08-12T09:15:15.368Z" hostname="hetznerdev" tests="5" failures="0" errors="0" skipped="0" time="0.006274991">
+        <testcase classname="src/components/Sidebar/dynamic/sessionOptions.test.ts" name="sidebarSessionFilters &gt; excludes pinned ids from the recent request before pagination" time="0.002145593">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachments.test.ts" name="attachment validation &gt; enforces the 10 MB cap for the other bucket" time="0.000485362">
+        <testcase classname="src/components/Sidebar/dynamic/sessionOptions.test.ts" name="sidebarSessionFilters &gt; widens the explicit id group to cover every pinned row" time="0.000358212">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachments.test.ts" name="attachment validation &gt; enforces the per-message count cap" time="0.000246304">
+        <testcase classname="src/components/Sidebar/dynamic/sessionOptions.test.ts" name="sidebarSessionFilters &gt; drops the exclude-trigger filter and requests the trigger expansion for the pinned request" time="0.000233281">
         </testcase>
-    </testsuite>
-    <testsuite name="src/components/AgentChatSlice/assets/files.test.ts" timestamp="2026-08-01T11:09:33.232Z" hostname="hetznerdev" tests="2" failures="0" errors="0" skipped="0" time="0.002946947">
-        <testcase classname="src/components/AgentChatSlice/assets/files.test.ts" name="attachment file parts &gt; stores size under providerMetadata.agenta" time="0.001929868">
+        <testcase classname="src/components/Sidebar/dynamic/sessionOptions.test.ts" name="sidebarSessionFilters &gt; requests a window far wider than the rows the group renders" time="0.000233093">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/files.test.ts" name="attachment file parts &gt; uses attachment when a replayed part has no filename" time="0.000179434">
+        <testcase classname="src/components/Sidebar/dynamic/sessionOptions.test.ts" name="sidebarSessionFilters &gt; sends pinned exclusions in the canonical recent request" time="0.001710749">
         </testcase>
     </testsuite>
-    <testsuite name="src/components/AgentChatSlice/assets/inFlightSubmit.test.ts" timestamp="2026-08-01T11:09:33.232Z" hostname="hetznerdev" tests="1" failures="0" errors="0" skipped="0" time="0.004511831">
-        <testcase classname="src/components/AgentChatSlice/assets/inFlightSubmit.test.ts" name="in-flight submit guard &gt; drops a second submit while the first await is unresolved" time="0.003093821">
+    <testsuite name="src/components/Sidebar/dynamic/useSidebarDynamicChildren.test.ts" timestamp="2026-08-12T09:15:15.369Z" hostname="hetznerdev" tests="3" failures="0" errors="0" skipped="0" time="0.004142973">
+        <testcase classname="src/components/Sidebar/dynamic/useSidebarDynamicChildren.test.ts" name="resolveChildren &gt; carries the entity&apos;s tooltip onto each row" time="0.001744459">
+        </testcase>
+        <testcase classname="src/components/Sidebar/dynamic/useSidebarDynamicChildren.test.ts" name="resolveChildren &gt; leaves the tooltip unset when the entity declares none" time="0.000210302">
+        </testcase>
+        <testcase classname="src/components/Sidebar/dynamic/useSidebarDynamicChildren.test.ts" name="resolveChildren &gt; renders up to maxItems rows and adds Show all beyond it" time="0.000943581">
         </testcase>
     </testsuite>
-    <testsuite name="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" timestamp="2026-08-01T11:09:33.232Z" hostname="hetznerdev" tests="11" failures="0" errors="0" skipped="0" time="0.005936531">
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; overlays a persisted approval response with the live response shape" time="0.001695614">
+    <testsuite name="src/components/Sidebar/scopes/viewRegistry.test.ts" timestamp="2026-08-12T09:15:15.370Z" hostname="hetznerdev" tests="11" failures="0" errors="0" skipped="0" time="0.005574563">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; keeps the project rail on an agent&apos;s own pages" time="0.001910912">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; keeps an unanswered request pending" time="0.000248943">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; swaps to the app-context rail for a classic app or evaluator" time="0.00024845">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; lets an executed tool result supersede a later approval response" time="0.00020205">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; holds the app-context rail while agent-ness is unknown" time="0.000304673">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; falls back to the interaction id when the response omits the tool-call id" time="0.00017115">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; falls back to the project rail when unknown with no rail to hold" time="0.000288891">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; reopens deferred call b when its turn-2 approval request arrives" time="0.00078471">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; lets settings win over the held rail" time="0.00022323">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; keeps a real tool error closed when a late approval request arrives" time="0.000160332">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; ignores agent-ness outside an app route" time="0.000221317">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; merges a paused turn with its resume into one message and settles the re-emitted call once" time="0.000819154">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; settles a failed lookup on the app-context rail instead of stranding it" time="0.000220787">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages paused end-marker &gt; flags the message whose turn ended paused (done.stopReason)" time="0.000186444">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; settles the same way from the project rail, so the swap still happens" time="0.000201564">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages paused end-marker &gt; does not flag a normally completed turn" time="0.00014934">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; does not settle while the lookup can still answer" time="0.00022567">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages attachments &gt; rebuilds user attachment references as file parts with filenames" time="0.000353669">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; keeps a known agent on the project rail once its lookup settles" time="0.000251638">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages attachments &gt; ignores an attachment delivery record instead of rendering a part" time="0.000128959">
+        <testcase classname="src/components/Sidebar/scopes/viewRegistry.test.ts" name="resolveSidebarView &gt; never settles a non-app route onto the app-context rail" time="0.000159585">
         </testcase>
     </testsuite>
-    <testsuite name="src/components/AgentChatSlice/hooks/useAttachmentUploads.test.ts" timestamp="2026-08-01T11:09:33.232Z" hostname="hetznerdev" tests="2" failures="0" errors="0" skipped="0" time="0.004085832">
-        <testcase classname="src/components/AgentChatSlice/hooks/useAttachmentUploads.test.ts" name="attachment upload controls &gt; aborts an in-flight upload before removing its chip" time="0.002586717">
+    <testsuite name="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" timestamp="2026-08-12T09:15:15.370Z" hostname="hetznerdev" tests="5" failures="0" errors="0" skipped="0" time="0.003071377">
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; uses the workflow resolved from the current route first" time="0.001260199">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/hooks/useAttachmentUploads.test.ts" name="attachment upload controls &gt; holds retry until the Retry-After deadline" time="0.000224426">
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; resolves the current route workflow id before falling back to recents" time="0.000173705">
+        </testcase>
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; falls back to recents when the current route workflow id is stale" time="0.000126304">
+        </testcase>
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; prefers the recent app on project-level routes" time="0.00010657">
+        </testcase>
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; falls back to the recent evaluator when there is no recent app" time="0.000098764">
         </testcase>
     </testsuite>
 </testsuites>

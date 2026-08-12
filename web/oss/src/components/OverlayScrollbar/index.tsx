@@ -123,8 +123,11 @@ const OverlayScrollbar = ({target}: OverlayScrollbarProps) => {
     if (!metrics) return null
 
     return (
+        // right-[6px]: the panel's edge belongs to the splitter divider, whose dragger hit area
+        // extends 6px into the panel with a HIGHER z — a thumb at the edge sat on the resize grip
+        // and stole its pointer. Inset past the dragger so scrollbar and divider never overlap.
         <div
-            className="pointer-events-none absolute right-0 z-20 w-2"
+            className="pointer-events-none absolute right-[6px] z-20 w-2"
             style={{top: metrics.trackTop, height: metrics.trackHeight}}
         >
             <div
