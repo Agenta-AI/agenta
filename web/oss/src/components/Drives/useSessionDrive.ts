@@ -63,10 +63,16 @@ export const fileOrigin = (path: string): FileOrigin => {
  * Excluded: runner plumbing ({@link isInternalDrivePath}), and the bare `agent-files` entry — that
  * one is the fold-point SYMLINK into the agent mount, not a file. Its CONTENTS are listed, folded
  * under `agent-files/` from the agent mount itself; the marker never is.
+ *
+ * That exclusion is about PROVENANCE, not the name: the marker only exists in the SESSION mount.
+ * Inside the agent mount, `agent-files` is an ordinary directory a user is free to create, so a
+ * caller listing agent-mount entries passes `fromAgentMount` and keeps it — otherwise the folder
+ * vanishes from the root listing while the file count still counts what is inside it.
  */
-export const isListableDrivePath = (path: string): boolean => {
+export const isListableDrivePath = (path: string, opts?: {fromAgentMount?: boolean}): boolean => {
     const rel = cleanPath(path)
-    return Boolean(rel) && rel !== AGENT_FILES_DIR && !isInternalDrivePath(rel)
+    if (!rel || isInternalDrivePath(rel)) return false
+    return opts?.fromAgentMount === true || rel !== AGENT_FILES_DIR
 }
 
 /** True when a listing holds BOTH agent and session files — the only time the origin tags/filter
@@ -395,7 +401,8 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     // fallback over a row the list then drops. Computed here (cheap — records are few) to GATE the
     // queries off when records already carry the list, so an active conversation pays nothing extra.
     const hasVisibleRecords = useMemo(
-        () => [...recordRecency.keys()].some(isListableDrivePath),
+        // Wrapped, not passed by reference: `some` would hand the index in as the options arg.
+        () => [...recordRecency.keys()].some((p) => isListableDrivePath(p)),
         [recordRecency],
     )
 
@@ -449,15 +456,19 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         const agentPrefix = agentOnly ? "" : `${AGENT_FILES_DIR}/`
         const agentOwnsFold =
             agentOnly && ownsAgentFilesEntry((agentRootQuery.data ?? []).map((f) => f.path))
+        // Filtered per SOURCE, before the fold prefix, so provenance is still known: a bare
+        // `agent-files` from the session mount is the fold marker and goes, the same name from the
+        // agent mount is a real directory and stays.
         const rootEntries: MountFile[] = [
-            ...(rootQuery.data ?? []),
-            ...(agentRootQuery.data ?? []).map((f) => ({
-                ...f,
-                path: `${agentPrefix}${cleanPath(f.path)}`,
-            })),
+            ...(rootQuery.data ?? []).filter((f) => isListableDrivePath(f.path)),
+            ...(agentRootQuery.data ?? [])
+                .filter((f) => isListableDrivePath(f.path, {fromAgentMount: true}))
+                .map((f) => ({
+                    ...f,
+                    path: `${agentPrefix}${cleanPath(f.path)}`,
+                })),
         ]
         const rootRecents: DriveRecentFile[] = rootEntries
-            .filter((f) => isListableDrivePath(f.path))
             .map((f) => ({...f, touchedAt: typeof f.mtime === "number" ? f.mtime : undefined}))
             .sort((a, b) =>
                 (b.touchedAt ?? 0) !== (a.touchedAt ?? 0)
