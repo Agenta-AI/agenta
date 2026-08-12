@@ -375,6 +375,26 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         rowKey: resolveRowKey,
     })
 
+    // The tanstack engine does not implement every prop yet. Warn loudly rather than let a
+    // consumer flip `engine` and silently lose a feature; each name here is a TODO.
+    useEffect(() => {
+        if (engine !== "tanstack" || process.env.NODE_ENV === "production") return
+        const unsupported = [
+            keyboardShortcuts && "keyboardShortcuts",
+            tableRef && "tableRef",
+            // onRow flows through via mergedOnRow; the rest of tableProps is antd-only.
+            tableProps && Object.keys(tableProps).some((k) => k !== "onRow")
+                ? "tableProps (except onRow)"
+                : null,
+        ].filter(Boolean)
+        if (unsupported.length > 0) {
+            console.warn(
+                `[InfiniteVirtualTable] engine="tanstack" ignores: ${unsupported.join(", ")}. ` +
+                    `Keep engine="antd" for this table until they are implemented.`,
+            )
+        }
+    }, [engine, keyboardShortcuts, tableRef, tableProps])
+
     const resolvedTableProps = useMemo<TableProps<RecordType>>(
         () => tableProps ?? ({} as TableProps<RecordType>),
         [tableProps],
@@ -796,6 +816,12 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                                         : undefined
                                 }
                                 enableColumnResizing={resizableEnabled}
+                                // Row clicks (and the interactive-click guard) are composed the
+                                // same way for both engines; without this, rows are inert here.
+                                onRow={(record, index) => {
+                                    const {onClick, className} = mergedOnRow(record, index) ?? {}
+                                    return {onClick, className}
+                                }}
                                 // antd's table stretches columns to fill the container; without
                                 // this the tanstack engine would leave the surplus unused.
                                 autoLayout

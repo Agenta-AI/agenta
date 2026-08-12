@@ -667,16 +667,22 @@ export const AntdComparison: Story = {render: () => <AntdComparisonDemo />}
  */
 const EngineSwapDemo = () => {
     const rows = useMemo(() => makeRows(12), [])
+    const [clicked, setClicked] = useState("none")
     const common = {
         columns: baseColumns,
         dataSource: rows,
         rowKey: "key" as const,
         bodyHeight: 300,
+        // Row clicks must survive the engine swap; they were the one silent loss.
+        tableProps: {
+            onRow: (record: Row) => ({onClick: () => setClicked(record.id)}),
+        },
     }
     return (
         <div className="flex flex-col gap-4">
             <Note>
-                Top: engine=&quot;antd&quot; (shipping). Bottom: engine=&quot;tanstack&quot;.
+                Top: engine=&quot;antd&quot; (shipping). Bottom: engine=&quot;tanstack&quot;. Last
+                row clicked: <span data-clicked>{clicked}</span>
             </Note>
             <div data-engine="antd" className="h-[340px]">
                 <InfiniteVirtualTable<Row> {...common} engine="antd" />
