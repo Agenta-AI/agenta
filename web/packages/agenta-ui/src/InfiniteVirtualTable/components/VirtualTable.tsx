@@ -1,36 +1,43 @@
 import type {CSSProperties, Key, ReactNode, UIEvent} from "react"
-import {isValidElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {isValidElement, useCallback, useMemo, useRef} from "react"
+
+import type {
+    ColumnSizingState,
+    OnChangeFn,
+    RowSelectionState,
+    VisibilityState,
+} from "@tanstack/react-table"
+import {flexRender, getCoreRowModel, useReactTable} from "@tanstack/react-table"
+import {useVirtualizer} from "@tanstack/react-virtual"
 
 import {cn} from "../../utils/styles"
-import type {ColumnDef, ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
-import {isColumnGroupDef} from "../columnDef"
+import type {ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
 import {AVT} from "../tableDom"
+import {sourceOf, toTanstackColumns} from "../tanstackColumns"
 
 /**
  * The antd-free render leaf.
  *
- * Replaces `<Table virtual>` with plain table DOM plus row windowing. It exists because the
- * table is the last antd component in the package, and `/m` — which replaces the desktop apps —
- * cannot ship antd.
+ * TanStack Table owns the model (columns, visibility, sizing, selection) and TanStack Virtual
+ * owns the windowing; this file owns only the markup. That split is the point: the model logic
+ * it replaces was ~1,500 lines of bespoke hooks in this package, and the rendering is the part
+ * that has to emit *our* DOM contract, which no library can do for us.
  *
- * What antd was actually supplying, and how each part is met here:
- *
- * - **Virtualization** — a fixed row height and a scroll offset decide the visible slice; only
- *   that slice plus an overscan is mounted. Uniform rows make this arithmetic rather than
- *   measurement, which is why a windowing library is not pulled in for it.
- * - **Sticky header** — the header is its own non-scrolling table above the scroller, sharing a
- *   `<colgroup>` with the body so the columns cannot drift.
- * - **Fixed columns** — `position: sticky` with a computed left/right offset per pinned column.
- * - **The DOM contract** — the class hooks and `data-column-key` attributes the package's own
- *   hooks query, so resize, visibility and scroll keep working unchanged.
+ * - **Virtualization** — `useVirtualizer` MEASURES rows, so unlike a fixed-height window this
+ *   copes with rows whose height comes from their content. `rowHeight` is only an estimate.
+ * - **Sticky header** — its own table above the scroller, sharing column widths with the body.
+ * - **Fixed columns** — `position: sticky` at an offset accumulated across pinned columns.
+ * - **The DOM contract** — the `avt-*` hooks and `data-column-key` attributes this package's
+ *   own hooks query, so resize, visibility and scroll keep working unchanged.
  */
 
 export interface VirtualTableProps<RecordType extends object> {
     columns: ColumnDefs<RecordType>
     dataSource: RecordType[]
     rowKey: (record: RecordType, index: number) => Key
+    /** Starting row height. Rows are measured after mount, so this only needs to be close. */
     rowHeight: number
-    /** Body viewport height. Without it the body grows to content and nothing windows. */
+    /** Body viewport height. Without it the body fills its flex parent instead. */
     height?: number
     overscan?: number
     onScroll?: (event: UIEvent<HTMLDivElement>) => void
@@ -41,24 +48,20 @@ export interface VirtualTableProps<RecordType extends object> {
     ) => {onClick?: (event: React.MouseEvent<HTMLTableRowElement>) => void; className?: string}
     emptyText?: ReactNode
     className?: string
+    /** Controlled column visibility, keyed by column id. */
+    columnVisibility?: VisibilityState
+    onColumnVisibilityChange?: OnChangeFn<VisibilityState>
+    /** Controlled column widths, keyed by column id. */
+    columnSizing?: ColumnSizingState
+    onColumnSizingChange?: OnChangeFn<ColumnSizingState>
+    /** Controlled row selection, keyed by row id. */
+    rowSelection?: RowSelectionState
+    onRowSelectionChange?: OnChangeFn<RowSelectionState>
     /** Rendered before the first column — the selection checkbox column. */
     leadingColumnWidth?: number
     renderLeadingCell?: (record: RecordType, index: number) => ReactNode
     renderLeadingHeader?: () => ReactNode
 }
-
-/** Groups are flattened for rendering; the leaves are what actually own a cell. */
-const flattenLeaves = <RecordType extends object>(
-    columns: ColumnDefs<RecordType>,
-): ColumnDef<RecordType>[] =>
-    columns.flatMap((column) =>
-        isColumnGroupDef(column)
-            ? flattenLeaves(column.children)
-            : [column as ColumnDef<RecordType>],
-    )
-
-const widthOf = <RecordType extends object>(column: ColumnDef<RecordType>): number =>
-    typeof column.width === "number" ? column.width : (column.minWidth ?? 160)
 
 /**
  * `render` may return a node, or antd's cell-override shape carrying colSpan/rowSpan and cell
@@ -74,122 +77,126 @@ const unpackRender = (
     return {children: result as ReactNode}
 }
 
-const cellValue = <RecordType extends object>(
-    record: RecordType,
-    column: ColumnDef<RecordType>,
-) => {
-    const path = column.dataIndex
-    if (path == null) return undefined
-    const keys = Array.isArray(path) ? path : [path]
-    return keys.reduce<unknown>(
-        (acc, key) => (acc == null ? acc : (acc as Record<string, unknown>)[String(key)]),
-        record,
-    )
-}
-
-/** Left offset for a left-pinned column is the total width of the pinned columns before it. */
-const stickyOffsets = <RecordType extends object>(
-    leaves: ColumnDef<RecordType>[],
-    leadingWidth: number,
-) => {
-    const left = new Map<number, number>()
-    const right = new Map<number, number>()
-
-    let runningLeft = leadingWidth
-    leaves.forEach((column, index) => {
-        if (column.fixed === "left" || column.fixed === true) {
-            left.set(index, runningLeft)
-            runningLeft += widthOf(column)
-        }
-    })
-
-    let runningRight = 0
-    for (let index = leaves.length - 1; index >= 0; index -= 1) {
-        const column = leaves[index]
-        if (column.fixed === "right") {
-            right.set(index, runningRight)
-            runningRight += widthOf(column)
-        }
-    }
-
-    return {left, right}
-}
-
 export const VirtualTable = <RecordType extends object>({
     columns,
     dataSource,
     rowKey,
     rowHeight,
     height,
-    overscan = 6,
+    overscan = 8,
     onScroll,
     rowClassName,
     onRow,
     emptyText,
     className,
+    columnVisibility,
+    onColumnVisibilityChange,
+    columnSizing,
+    onColumnSizingChange,
+    rowSelection,
+    onRowSelectionChange,
     leadingColumnWidth = 0,
     renderLeadingCell,
     renderLeadingHeader,
 }: VirtualTableProps<RecordType>) => {
     const bodyRef = useRef<HTMLDivElement | null>(null)
     const headerScrollRef = useRef<HTMLDivElement | null>(null)
-    const [scrollTop, setScrollTop] = useState(0)
 
-    const leaves = useMemo(() => flattenLeaves(columns).filter((c) => !c.hidden), [columns])
-    const offsets = useMemo(
-        () => stickyOffsets(leaves, leadingColumnWidth),
-        [leaves, leadingColumnWidth],
+    const tanstackColumns = useMemo(() => toTanstackColumns(columns), [columns])
+
+    const table = useReactTable<RecordType>({
+        data: dataSource,
+        columns: tanstackColumns,
+        getCoreRowModel: getCoreRowModel(),
+        getRowId: (record, index) => String(rowKey(record, index)),
+        columnResizeMode: "onChange",
+        state: {
+            ...(columnVisibility ? {columnVisibility} : {}),
+            ...(columnSizing ? {columnSizing} : {}),
+            ...(rowSelection ? {rowSelection} : {}),
+        },
+        onColumnVisibilityChange,
+        onColumnSizingChange,
+        onRowSelectionChange,
+        enableRowSelection: Boolean(onRowSelectionChange),
+    })
+
+    const rows = table.getRowModel().rows
+    const leafColumns = table.getVisibleLeafColumns()
+
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => bodyRef.current,
+        estimateSize: () => rowHeight,
+        overscan,
+    })
+
+    const virtualRows = virtualizer.getVirtualItems()
+    const totalWidth = leafColumns.reduce(
+        (sum, column) => sum + column.getSize(),
+        leadingColumnWidth,
     )
-    const totalWidth = useMemo(
-        () => leaves.reduce((sum, c) => sum + widthOf(c), leadingColumnWidth),
-        [leaves, leadingColumnWidth],
+
+    /** Pinned columns stack: each one starts where the previous pinned column ended. */
+    const stickyOffsets = useMemo(() => {
+        const left = new Map<string, number>()
+        const right = new Map<string, number>()
+
+        let runningLeft = leadingColumnWidth
+        leafColumns.forEach((column) => {
+            const fixed = sourceOf<RecordType>(column.columnDef.meta)?.fixed
+            if (fixed === "left" || fixed === true) {
+                left.set(column.id, runningLeft)
+                runningLeft += column.getSize()
+            }
+        })
+
+        let runningRight = 0
+        for (let i = leafColumns.length - 1; i >= 0; i -= 1) {
+            const column = leafColumns[i]
+            if (sourceOf<RecordType>(column.columnDef.meta)?.fixed === "right") {
+                right.set(column.id, runningRight)
+                runningRight += column.getSize()
+            }
+        }
+
+        return {left, right}
+    }, [leafColumns, leadingColumnWidth])
+
+    const stickyStyle = useCallback(
+        (columnId: string): CSSProperties | undefined => {
+            const left = stickyOffsets.left.get(columnId)
+            if (left !== undefined) return {position: "sticky", left, zIndex: 2}
+            const right = stickyOffsets.right.get(columnId)
+            if (right !== undefined) return {position: "sticky", right, zIndex: 2}
+            return undefined
+        },
+        [stickyOffsets],
     )
 
-    const viewportHeight = height ?? 0
-    const first = viewportHeight ? Math.max(0, Math.floor(scrollTop / rowHeight) - overscan) : 0
-    const visibleCount = viewportHeight
-        ? Math.ceil(viewportHeight / rowHeight) + overscan * 2
-        : dataSource.length
-    const last = Math.min(dataSource.length, first + visibleCount)
-    const slice = useMemo(() => dataSource.slice(first, last), [dataSource, first, last])
-
-    // The header is a separate table, so it has to be scrolled in step with the body.
+    // The header is a separate table, so it has to track the body's horizontal scroll.
     const handleScroll = useCallback(
         (event: UIEvent<HTMLDivElement>) => {
-            const node = event.currentTarget
-            setScrollTop(node.scrollTop)
-            if (headerScrollRef.current) headerScrollRef.current.scrollLeft = node.scrollLeft
+            if (headerScrollRef.current) {
+                headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft
+            }
             onScroll?.(event)
         },
         [onScroll],
     )
-
-    // A shrinking dataset can leave the scroller past the new end, which windows to nothing.
-    useEffect(() => {
-        const node = bodyRef.current
-        if (!node) return
-        const maxScroll = Math.max(0, dataSource.length * rowHeight - viewportHeight)
-        if (node.scrollTop > maxScroll) node.scrollTop = maxScroll
-    }, [dataSource.length, rowHeight, viewportHeight])
 
     const colGroup = (
         <colgroup>
             {leadingColumnWidth ? (
                 <col className={AVT.selectionCol} style={{width: leadingColumnWidth}} />
             ) : null}
-            {leaves.map((column, index) => (
-                <col key={String(column.key ?? index)} style={{width: widthOf(column)}} />
+            {leafColumns.map((column) => (
+                <col key={column.id} style={{width: column.getSize()}} />
             ))}
         </colgroup>
     )
 
-    const stickyStyle = (index: number): CSSProperties | undefined => {
-        const left = offsets.left.get(index)
-        if (left !== undefined) return {position: "sticky", left, zIndex: 2}
-        const right = offsets.right.get(index)
-        if (right !== undefined) return {position: "sticky", right, zIndex: 2}
-        return undefined
-    }
+    const headerGroups = table.getHeaderGroups()
 
     return (
         <div className={cn(AVT.container, "flex min-h-0 flex-col overflow-hidden", className)}>
@@ -197,45 +204,58 @@ export const VirtualTable = <RecordType extends object>({
                 <table className="w-full table-fixed border-collapse" style={{width: totalWidth}}>
                     {colGroup}
                     <thead className={AVT.header}>
-                        <tr>
-                            {leadingColumnWidth ? (
-                                <th
-                                    className={cn(
-                                        AVT.headerCell,
-                                        "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-2 py-2 text-left",
-                                    )}
-                                    style={{position: "sticky", left: 0, zIndex: 3}}
-                                >
-                                    {renderLeadingHeader?.()}
-                                </th>
-                            ) : null}
-                            {leaves.map((column, index) => {
-                                const props = column.onHeaderCell?.(column, index) ?? {}
-                                return (
+                        {headerGroups.map((headerGroup, groupIndex) => (
+                            <tr key={headerGroup.id}>
+                                {leadingColumnWidth && groupIndex === 0 ? (
                                     <th
-                                        {...props}
-                                        key={String(column.key ?? index)}
-                                        data-column-key={String(column.key ?? index)}
+                                        rowSpan={headerGroups.length}
                                         className={cn(
                                             AVT.headerCell,
-                                            "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2 text-left text-field-md font-medium text-colorText",
-                                            column.ellipsis && "truncate",
-                                            column.className,
-                                            props.className,
+                                            "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-2 py-2 text-left",
                                         )}
-                                        style={{
-                                            ...stickyStyle(index),
-                                            textAlign: column.align,
-                                            ...props.style,
-                                        }}
+                                        style={{position: "sticky", left: 0, zIndex: 3}}
                                     >
-                                        {typeof column.title === "function"
-                                            ? column.title({})
-                                            : column.title}
+                                        {renderLeadingHeader?.()}
                                     </th>
-                                )
-                            })}
-                        </tr>
+                                ) : null}
+                                {headerGroup.headers.map((header) => {
+                                    const source = sourceOf<RecordType>(
+                                        header.column.columnDef.meta,
+                                    )
+                                    const props =
+                                        source && source.onHeaderCell
+                                            ? (source.onHeaderCell(source, header.index) ?? {})
+                                            : {}
+                                    return (
+                                        <th
+                                            {...props}
+                                            key={header.id}
+                                            colSpan={header.colSpan}
+                                            data-column-key={header.column.id}
+                                            className={cn(
+                                                AVT.headerCell,
+                                                "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2 text-left text-field-md font-medium text-colorText",
+                                                source?.ellipsis && "truncate",
+                                                source?.className,
+                                                props.className,
+                                            )}
+                                            style={{
+                                                ...stickyStyle(header.column.id),
+                                                textAlign: source?.align,
+                                                ...props.style,
+                                            }}
+                                        >
+                                            {header.isPlaceholder
+                                                ? null
+                                                : flexRender(
+                                                      header.column.columnDef.header,
+                                                      header.getContext(),
+                                                  )}
+                                        </th>
+                                    )
+                                })}
+                            </tr>
+                        ))}
                     </thead>
                 </table>
             </div>
@@ -246,28 +266,33 @@ export const VirtualTable = <RecordType extends object>({
                 style={height ? {height} : undefined}
                 onScroll={handleScroll}
             >
-                {dataSource.length === 0 ? (
+                {rows.length === 0 ? (
                     <div className="flex items-center justify-center py-10">{emptyText}</div>
                 ) : (
-                    <div style={{height: dataSource.length * rowHeight, position: "relative"}}>
+                    <div style={{height: virtualizer.getTotalSize(), position: "relative"}}>
                         <table
                             className="absolute left-0 w-full table-fixed border-collapse"
-                            style={{width: totalWidth, top: first * rowHeight}}
+                            style={{
+                                width: totalWidth,
+                                transform: `translateY(${virtualRows[0]?.start ?? 0}px)`,
+                            }}
                         >
                             {colGroup}
                             <tbody>
-                                {slice.map((record, sliceIndex) => {
-                                    const index = first + sliceIndex
-                                    const rowProps = onRow?.(record, index) ?? {}
+                                {virtualRows.map((virtualRow) => {
+                                    const row = rows[virtualRow.index]
+                                    const record = row.original
+                                    const rowProps = onRow?.(record, virtualRow.index) ?? {}
                                     return (
                                         <tr
                                             {...rowProps}
-                                            key={String(rowKey(record, index))}
-                                            style={{height: rowHeight}}
+                                            key={row.id}
+                                            data-index={virtualRow.index}
+                                            ref={virtualizer.measureElement}
                                             className={cn(
                                                 AVT.row,
                                                 "border-0 border-b border-solid border-colorBorderSecondary hover:bg-colorFillTertiary",
-                                                rowClassName?.(record, index),
+                                                rowClassName?.(record, virtualRow.index),
                                                 rowProps.className,
                                             )}
                                         >
@@ -279,33 +304,40 @@ export const VirtualTable = <RecordType extends object>({
                                                     )}
                                                     style={{position: "sticky", left: 0, zIndex: 1}}
                                                 >
-                                                    {renderLeadingCell?.(record, index)}
+                                                    {renderLeadingCell?.(record, virtualRow.index)}
                                                 </td>
                                             ) : null}
-                                            {leaves.map((column, columnIndex) => {
-                                                const props = column.onCell?.(record, index) ?? {}
-                                                const value = cellValue(record, column)
-                                                const rendered = column.render
+                                            {row.getVisibleCells().map((cell) => {
+                                                const source = sourceOf<RecordType>(
+                                                    cell.column.columnDef.meta,
+                                                )
+                                                const props =
+                                                    source?.onCell?.(record, virtualRow.index) ?? {}
+                                                const rendered = source?.render
                                                     ? unpackRender(
-                                                          column.render(value, record, index),
+                                                          source.render(
+                                                              cell.getValue(),
+                                                              record,
+                                                              virtualRow.index,
+                                                          ),
                                                       )
-                                                    : {children: value as ReactNode}
+                                                    : {children: cell.getValue() as ReactNode}
                                                 if (rendered.props?.colSpan === 0) return null
                                                 return (
                                                     <td
                                                         {...props}
                                                         {...rendered.props}
-                                                        key={String(column.key ?? columnIndex)}
+                                                        key={cell.id}
                                                         className={cn(
                                                             AVT.cell,
                                                             "box-border bg-colorBgContainer px-3 align-top text-field-md text-colorText",
-                                                            column.ellipsis && "truncate",
-                                                            column.className,
+                                                            source?.ellipsis && "truncate",
+                                                            source?.className,
                                                             props.className,
                                                         )}
                                                         style={{
-                                                            ...stickyStyle(columnIndex),
-                                                            textAlign: column.align,
+                                                            ...stickyStyle(cell.column.id),
+                                                            textAlign: source?.align,
                                                             ...props.style,
                                                         }}
                                                     >
