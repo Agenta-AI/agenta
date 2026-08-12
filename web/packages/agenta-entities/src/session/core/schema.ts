@@ -87,12 +87,25 @@ export type SessionInteraction = z.infer<typeof sessionInteractionSchema>
 export type SessionInteractionStatusCode = "pending" | "responded" | "resolved" | "cancelled"
 export type SessionInteractionKind = "user_approval" | "user_input" | "client_tool"
 
+/**
+ * The workflow-family keys the frontend acts on, same vocabulary the evaluation-run references
+ * use. Producers and tests may lean on it; the wire is deliberately NOT validated against it.
+ * The backend stores reference keys permissively, and narrowing an unrecognized key to undefined
+ * would make the element read as unkeyed — handing the row back to the legacy first-id fallback
+ * and the dead route it produces.
+ */
+export type SessionReferenceKey = "workflow" | "workflow_variant" | "workflow_revision"
+
 /** A `{id, slug, version}` workflow/agent reference — mirrors `QuerySessionsParams.references`
  * on the request side. Every field is optional: a turn's reference may carry only a subset. */
 export const sessionReferenceSchema = z.object({
     id: z.string().nullish(),
     slug: z.string().nullish(),
     version: z.string().nullish(),
+    // Which family member this id is. Absent on rows written before the runner stamped it; open
+    // string, see `SessionReferenceKey`. `.catch(undefined)` keeps a non-string from failing the
+    // whole page's parse.
+    key: z.string().nullish().catch(undefined),
 })
 
 export const sessionOriginSchema = z.enum(["manual", "trigger"])

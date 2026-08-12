@@ -59,6 +59,8 @@ export {
     type SessionInteractionStatusCode,
     type SessionStream,
     type SessionsQueryResponse,
+    type SessionReference,
+    type SessionReferenceKey,
     type SessionOrigin,
     type SessionTriggerKind,
     type SessionExpansion,
