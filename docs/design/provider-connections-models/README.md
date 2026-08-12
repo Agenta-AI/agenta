@@ -16,9 +16,12 @@ connections in one menu without storing them as the same object.
 ## Reading order
 
 1. [context.md](context.md) explains the user experience, goal, and scope.
-2. [research.md](research.md) explains the current data and code constraints.
-3. [provider-discovery.md](provider-discovery.md) separates credential testing, model refresh, and
-   default-active models.
-4. [data-model.md](data-model.md) defines the compatibility-first connection shape.
-5. [plan.md](plan.md) splits the work into dependent pull requests.
-6. [status.md](status.md) records open decisions and progress.
+2. [experience.md](experience.md) records the founder-provided interface design. The clickable
+   prototype [`model-providers-ux-prototype.html`](model-providers-ux-prototype.html) sits beside
+   it.
+3. [research.md](research.md) explains the current data and code constraints.
+4. [provider-discovery.md](provider-discovery.md) separates credential testing, model refresh, and
+   recommended models.
+5. [data-model.md](data-model.md) defines the compatibility-first connection shape.
+6. [plan.md](plan.md) splits the work into dependent pull requests.
+7. [status.md](status.md) records open decisions and progress.

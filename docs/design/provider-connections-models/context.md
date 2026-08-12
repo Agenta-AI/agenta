@@ -21,6 +21,14 @@ The first unnamed standard connection should use the provider's display name, su
 Later unnamed connections should use `OpenAI 2`, `OpenAI 3`, and so on. A user-provided name replaces
 that generated display name.
 
+## Target interface
+
+The founder-provided design in [experience.md](experience.md) fixes the target interface. One term,
+"Model providers", covers the playground banner, the picker footer, the drawer title, and the
+Settings tab, which is renamed from "LLMs". The model picker lists connections rather than vendors.
+One drawer component serves both the playground and Settings. Subscriptions stay
+configuration-only. They appear beside stored connections without becoming vault records.
+
 ## Delivery approach
 
 First make the API preserve the shared fields and make the resolver address both stored formats by

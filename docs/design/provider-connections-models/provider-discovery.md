@@ -2,10 +2,12 @@
 
 > AGENT-GENERATED, low weight. This is a draft. Mahmoud must approve product and interface decisions.
 
-## The settings card needs two separate results
+## One Test action, two separate results
 
-The proposed connection card has a Test button and a Refresh models action. A provider may support
-both through one request, but the API must report them separately:
+The founder-provided connection card in [experience.md](experience.md) has one Test action. It
+validates the credential and fetches the model catalog together, and a timestamped line offers
+re-fetch later. One action in the interface does not mean one status in the API. The API must
+report two results separately:
 
 1. **Credential test:** did the provider accept this API key?
 2. **Model discovery:** which model identifiers did the provider return?
@@ -76,13 +78,19 @@ The backend should normalize each provider adapter into this result:
 `unknown` is a useful and honest result. It means Agenta found no safe, free read endpoint that
 proves the key works. The UI should say `Model list refreshed. Key not tested`, not `Key valid`.
 
+The `unknown` status collides with one card rule. The design disables Done until the key is valid.
+DeepInfra, Perplexity, MiniMax, and Aleph Alpha offer no free validation, so a literal reading
+blocks those providers forever. The recommended resolution lets Done enable when a key is present
+and the credential status is `unknown`, with honest copy that the key was saved untested. This
+needs a founder decision and is recorded in [status.md](status.md).
+
 ## Three model lists have different jobs
 
 The implementation needs three separate concepts:
 
 ```text
 provider models       models the remote endpoint reports now
-Agenta defaults       small curated list checked when a connection is first created
+recommended models    small curated list pre-checked when a connection is first created
 active models         exact user choice saved on this connection
 ```
 
@@ -94,16 +102,22 @@ When discovery is unsupported or temporarily fails, Agenta must keep the shipped
 prevents the feature from reducing the model choice users have today. Users can always add a model
 identifier manually, including for a standard provider such as OpenAI or OpenRouter.
 
-## Draft default-active models
+## Draft recommended models
 
-Default-active models are product policy, not a provider fact. Store them in Agenta's versioned
-model catalog. Do not copy them into every connection. A missing connection selection means apply
-these defaults. A saved list, including an empty list, means use exactly what the user saved.
+Recommended models are product policy, not a provider fact. Store them in Agenta's versioned model
+catalog. Do not copy them into every connection. A missing connection selection means apply these
+recommendations. A saved list, including an empty list, means use exactly what the user saved.
+
+The interface tags these models "recommended", never "default". The connection card pre-checks them
+after the first successful fetch, so a connection created through settings normally saves an
+explicit list on Done. Whether Done should save that untouched pre-checked set as a pinned explicit
+list, or record no explicit choice so the connection follows future recommendations, is an open
+decision in [status.md](status.md).
 
 This is a ready first draft for the eight provider families the Pi harness currently accepts from
 the Agenta vault:
 
-| Provider | Default-active model identifiers |
+| Provider | Recommended model identifiers |
 | --- | --- |
 | OpenAI | `openai/gpt-5.5`, `openai/gpt-5.6-luna` |
 | Anthropic | `anthropic/claude-sonnet-5`, `anthropic/claude-haiku-4-5` |
@@ -116,7 +130,7 @@ the Agenta vault:
 
 These identifiers exist in the repository's current generated Pi model catalog. They still need a
 founder product decision before implementation. Providers not accepted by a harness should have no
-default-active models for that harness, even if settings can store their credentials.
+recommended models for that harness, even if settings can store their credentials.
 
 ## Recommended first API behavior
 
@@ -126,5 +140,5 @@ default-active models for that harness, even if settings can store their credent
 4. Keep discovered results temporary in the first change. Save only the user's active model list.
 5. Use the current Agenta catalog when discovery is unsupported or fails.
 6. Accept manual model identifiers for every connection type.
-7. Resolve default-active models from the harness catalog only when `models` is absent.
+7. Resolve recommended models from the harness catalog only when `models` is absent.
 8. Treat `models: []` as an explicit choice to show no models from that connection.

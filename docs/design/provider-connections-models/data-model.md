@@ -25,9 +25,15 @@ Do not add a third secret kind in the first change. Do not convert existing reco
 }
 ```
 
-`models` missing means use Agenta's default-active models for this provider and harness. `models`
+`models` missing means use Agenta's recommended models for this provider and harness. `models`
 present means use the saved list. An empty list means show no models from this connection. This
 keeps an explicit user choice distinct from a record that predates model selection.
+
+The settings card pre-checks the recommended models after the first successful fetch, so a
+connection created through settings normally saves an explicit list on Done. The missing-`models`
+path then mainly serves records created before this feature and records created through the API
+without a list. Whether an untouched pre-checked set should be saved as an explicit list or as no
+choice is an open decision in [status.md](status.md).
 
 `harnesses` missing means use Agenta's technical compatibility. `harnesses` present means apply the
 saved subset. The effective harnesses are always the intersection of the saved list and Agenta's
