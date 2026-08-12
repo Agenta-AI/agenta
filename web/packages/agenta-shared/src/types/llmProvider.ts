@@ -28,6 +28,8 @@ export interface LlmProvider {
     bearerToken?: string
     models?: string[]
     modelKeys?: string[]
+    /** Harnesses this connection may drive; absent means any harness Agenta supports. */
+    harnesses?: string[]
     id?: string
     type?: string
     created_at?: string

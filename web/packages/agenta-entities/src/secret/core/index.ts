@@ -31,6 +31,7 @@ export {
     transformSecret,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
+    transformStandardProviderPayloadData,
     getEnvNameMap,
 } from "./transforms"
 

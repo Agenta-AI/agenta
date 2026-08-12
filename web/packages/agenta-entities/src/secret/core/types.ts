@@ -31,11 +31,27 @@ export type SecretResponseDto = AgentaApi.SecretResponseDto
 export type CreateSecretDto = AgentaApi.CreateSecretDto
 export type UpdateSecretDto = AgentaApi.UpdateSecretDto
 
-export type StandardProviderDto = AgentaApi.StandardProviderDto
 export type StandardProviderSettingsDto = AgentaApi.StandardProviderSettingsDto
-export type CustomProviderDto = AgentaApi.CustomProviderDto
 export type CustomProviderSettingsDto = AgentaApi.CustomProviderSettingsDto
 export type CustomModelSettingsDto = AgentaApi.CustomModelSettingsDto
+
+/**
+ * The connection policy both stored record shapes carry: the models this connection offers
+ * and the harnesses it may drive. A missing `models` means "use Agenta's defaults" and an
+ * empty one means "no models from this connection"; a missing `harnesses` means "any harness
+ * Agenta supports". The custom-provider record already declares `models`, so it only gains
+ * `harnesses` here.
+ *
+ * Layered onto the Fern types until the client is regenerated from the OpenAPI spec; dropping
+ * the intersections once Fern declares the fields is a no-op for callers.
+ */
+export type StandardProviderDto = AgentaApi.StandardProviderDto & {
+    models?: CustomModelSettingsDto[] | null
+    harnesses?: string[] | null
+}
+export type CustomProviderDto = AgentaApi.CustomProviderDto & {
+    harnesses?: string[] | null
+}
 
 export type CustomSecretDto = AgentaApi.CustomSecretDto
 export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto

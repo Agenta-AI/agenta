@@ -85,6 +85,10 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 name: envName,
                 id: secret.id ?? undefined,
                 type: secret.kind,
+                // Absent stays absent: no saved list means "use the defaults", which an empty
+                // array would misreport as "this connection offers no models".
+                models: data.models?.map((model) => model.slug),
+                harnesses: data.harnesses ?? undefined,
                 created_at: secret.lifecycle?.created_at ?? undefined,
             })
         } else if (secret.kind === SecretKind.CustomProvider) {
@@ -108,6 +112,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 bearerToken: extras.aws_bearer_token_bedrock || "",
                 models: data.models.map((model) => model.slug),
                 modelKeys: data.model_keys ?? undefined,
+                harnesses: data.harnesses ?? undefined,
                 version: data.provider.version ?? "",
                 created_at: secret.lifecycle?.created_at ?? "",
             })
@@ -131,6 +136,34 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
         return acc
     }, [] as LlmProvider[])
 }
+
+/**
+ * Transform a form-shaped `LlmProvider` into a `CreateSecretDto` for a standard provider
+ * connection.
+ *
+ * `models` and `harnesses` ride along only when the caller has them: a connection that saved
+ * no list keeps using Agenta's defaults, and sending an empty one instead would mean "offer
+ * nothing".
+ */
+export const transformStandardProviderPayloadData = (
+    values: LlmProvider,
+    providerKind: StandardProviderKind,
+): CreateSecretDto => ({
+    header: {
+        name: values.title,
+    },
+    secret: {
+        kind: SecretKind.ProviderKey,
+        data: {
+            kind: providerKind,
+            provider: {
+                key: values.key ?? "",
+            },
+            ...(values.models ? {models: values.models.map((slug) => ({slug}))} : {}),
+            ...(values.harnesses ? {harnesses: values.harnesses} : {}),
+        } as StandardProviderDto,
+    },
+})
 
 /**
  * Transform a form-shaped `LlmProvider` into a `CreateSecretDto` suitable
@@ -168,6 +201,7 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
                     },
                 },
                 models: values.models?.map((slug) => ({slug})) ?? [],
+                ...(values.harnesses ? {harnesses: values.harnesses} : {}),
             } as CustomProviderDto,
         },
     }

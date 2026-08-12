@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from agenta.sdk.agents.capabilities import (
     CLAUDE_MODEL_ALIASES,
     HARNESS_CONNECTION_CAPABILITIES,
+    PROVIDER_DEFAULT_MODELS,
     harness_catalog_document,
 )
 from agenta.sdk.agents.model_catalog import (
@@ -244,3 +245,49 @@ def test_pricing_and_ratings_never_collide_in_type():
             assert isinstance(entry.pricing.input_per_mtok, float)
         if entry.ratings is not None and entry.ratings.cost is not None:
             assert isinstance(entry.ratings.cost, int)
+
+
+def test_default_models_are_published_per_harness_in_its_own_spelling():
+    catalog = harness_catalog_document()
+
+    pi_defaults = catalog["pi_core"]["capabilities"]["default_models"]
+    assert set(pi_defaults) == set(PROVIDER_DEFAULT_MODELS)
+    # Pi spells the openai family bare and every other family provider-prefixed; the defaults
+    # follow the accepted set rather than the curated list's canonical spelling.
+    assert pi_defaults["openai"] == ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+    assert pi_defaults["anthropic"] == [
+        "anthropic/claude-fable-5",
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-4-5",
+    ]
+    assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
+
+    # Claude selects by alias: `claude-fable-5` is its own alias, and the versioned sonnet and
+    # haiku ids arrive under the tier alias Claude actually accepts. Opus is absent because it
+    # is not curated yet, not because the alias is missing.
+    assert catalog["claude"]["capabilities"]["default_models"] == {
+        "anthropic": ["claude-fable-5", "sonnet", "haiku"]
+    }
+    # Codex reaches openai only, and names its models bare.
+    assert catalog["codex"]["capabilities"]["default_models"] == {
+        "openai": ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+    }
+
+
+def test_default_models_are_a_subset_of_what_the_harness_can_select():
+    for harness, caps in HARNESS_CONNECTION_CAPABILITIES.items():
+        catalog_ids = {str(entry["id"]) for entry in caps.model_catalog}
+        for provider, defaults in caps.default_models.items():
+            assert provider in caps.providers, harness
+            selectable = set(caps.models.get(provider) or []) | catalog_ids
+            assert set(defaults) <= selectable, (harness, provider)
+
+
+def test_curated_default_models_exist_in_the_pinned_pi_catalog():
+    catalog_ids = {entry.id for entry in pi_model_catalog().models}
+    for provider, models in PROVIDER_DEFAULT_MODELS.items():
+        for model_id in models:
+            assert model_id in catalog_ids, (provider, model_id)
+    # Pending a catalog refresh: the founder-approved Anthropic list also names Opus 5, which
+    # the pinned pi-ai version does not carry yet (see the note in capabilities.py).
+    assert "anthropic/claude-opus-5" not in catalog_ids
