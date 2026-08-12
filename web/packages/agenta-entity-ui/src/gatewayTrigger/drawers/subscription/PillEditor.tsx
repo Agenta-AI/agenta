@@ -13,11 +13,13 @@ export function PillEditor({
     onChange,
     placeholder,
     insertApi,
+    disabled,
 }: {
     value: string
     onChange: (next: string) => void
     placeholder?: string
     insertApi?: React.MutableRefObject<{insert: (path: string) => void} | null>
+    disabled?: boolean
 }) {
     const ref = useRef<HTMLDivElement>(null)
     const lastSerialized = useRef<string>("")
@@ -29,7 +31,7 @@ export function PillEditor({
         span.dataset.token = inner
         span.contentEditable = "false"
         span.className =
-            "mx-0.5 inline-flex select-none items-center rounded bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--ag-colorPrimary)]"
+            "mx-0.5 inline-flex select-none items-center rounded bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)]"
         span.textContent = selectorLabel(selector)
         return span
     }, [])
@@ -160,14 +162,15 @@ export function PillEditor({
         <div className="relative">
             <div
                 ref={ref}
-                contentEditable
+                contentEditable={!disabled}
                 suppressContentEditableWarning
                 role="textbox"
                 aria-multiline="true"
+                aria-disabled={disabled}
                 onInput={commit}
                 onPaste={onPaste}
                 onKeyDown={onKeyDown}
-                className="box-border max-h-[280px] min-h-[120px] w-full overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2 text-xs leading-relaxed outline-none focus:border-[var(--ag-colorPrimary)]"
+                className="box-border max-h-[280px] min-h-[120px] w-full overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2 text-xs leading-relaxed outline-none focus:border-[var(--ag-colorPrimary)] aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
             />
             {empty && placeholder && (
                 <div className="pointer-events-none absolute left-3 top-2 text-xs text-[var(--ag-colorTextPlaceholder)]">

@@ -5,6 +5,7 @@ import {expect, Page, Response} from "@playwright/test"
 import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
 import {SnakeToCamelCaseKeys, testset} from "../../../../../oss/src/lib/Types"
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
+import {pollLocatorState} from "../../../../utils"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 
@@ -256,10 +257,9 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
         // The "New prompt" entry opens a Chat/Completion/Agent submenu on
         // hover (antd Menu's default triggerSubMenuAction) — click alone
         // won't reveal it.
-        const menuItemVisible = await newPromptMenuItem
-            .waitFor({state: "visible", timeout: 4000})
-            .then(() => true)
-            .catch(() => false)
+        const menuItemVisible = await pollLocatorState(() =>
+            newPromptMenuItem.waitFor({state: "visible", timeout: 4000}).then(() => true),
+        )
 
         if (!menuItemVisible) {
             await page.keyboard.press("Escape").catch(() => undefined)
@@ -268,10 +268,9 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
 
         await newPromptMenuItem.hover()
 
-        const typeSelectorVisible = await typeSelector
-            .waitFor({state: "visible", timeout: 4000})
-            .then(() => true)
-            .catch(() => false)
+        const typeSelectorVisible = await pollLocatorState(() =>
+            typeSelector.waitFor({state: "visible", timeout: 4000}).then(() => true),
+        )
 
         if (!typeSelectorVisible) {
             await page.keyboard.press("Escape").catch(() => undefined)
@@ -280,10 +279,9 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
 
         await typeSelector.click()
 
-        const drawerOpened = await drawer
-            .waitFor({state: "visible", timeout: 8000})
-            .then(() => true)
-            .catch(() => false)
+        const drawerOpened = await pollLocatorState(() =>
+            drawer.waitFor({state: "visible", timeout: 8000}).then(() => true),
+        )
 
         if (drawerOpened) {
             return drawer

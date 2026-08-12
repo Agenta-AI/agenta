@@ -149,7 +149,7 @@ const MappingPopover = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className="justify-start text-blue-600 dark:text-[#58a6ff]"
+                                className="justify-start text-[var(--ag-btn-link)]"
                                 onClick={() => setShowNewColumnInput(true)}
                             >
                                 + Create new column
@@ -228,7 +228,7 @@ function ViewModeDropdown({
                     {option.label}
                 </span>
                 {option.value === value ? (
-                    <span className="text-[11px] text-[var(--ag-rgba-051729-55)]">default</span>
+                    <span className="text-xs text-[var(--ag-rgba-051729-55)]">default</span>
                 ) : null}
             </div>
         ),
@@ -363,7 +363,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-[var(--ag-btn-link)]" : "text-gray-500"}`}
                                 icon={<Code size={12} />}
                                 onClick={onToggleRawMode}
                             />
@@ -374,7 +374,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-[var(--ag-btn-link)]" : "text-gray-500"}`}
                                 icon={
                                     isMarkdownView ? (
                                         <TextAa size={12} />

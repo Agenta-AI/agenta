@@ -3,7 +3,12 @@ import type {ParsedUrlQuery} from "querystring"
 import type {ParsedAppLocation, QueryRecord, RouteLayer} from "./types"
 
 const isBrowser = typeof window !== "undefined"
-const RESERVED_APP_COLLECTION_ROUTES = new Set(["archived"])
+/**
+ * Static pages under `/apps/` — they sit where an app id would, so without this they parse as
+ * one and put the whole app in the "app" route layer (entity sidebar, bogus `useAppId()`).
+ * Every non-dynamic route under `apps/` belongs here.
+ */
+const RESERVED_APP_COLLECTION_ROUTES = new Set(["archived", "agent-templates"])
 
 const sanitizeId = (value: string | null | undefined): string | null => {
     if (value === undefined || value === null) return null

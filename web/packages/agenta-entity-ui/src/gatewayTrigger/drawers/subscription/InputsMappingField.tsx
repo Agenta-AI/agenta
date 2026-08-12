@@ -75,12 +75,14 @@ export function InputsMappingField({
     error,
     onErrorChange,
     eventPayload,
+    disabled,
 }: {
     value: string
     onChange: (next: string) => void
     error: string | null
     onErrorChange: (next: string | null) => void
     eventPayload: Record<string, unknown> | null
+    disabled?: boolean
 }) {
     const context = useMemo(() => buildPreviewContext(eventPayload), [eventPayload])
     const {leaves, parseError} = useMemo(() => analyzeMapping(value, context), [value, context])
@@ -105,14 +107,15 @@ export function InputsMappingField({
                         showToolbar={false}
                         language="json"
                         dimensions={{width: "100%", height: 120}}
+                        disabled={disabled}
                     />
                 </div>
                 {!error && (
-                    <span className="mt-1 block text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+                    <span className="mt-1 block text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                         Maps event context to the workflow inputs (JSON)
                     </span>
                 )}
-                <span className="mt-1 block text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+                <span className="mt-1 block text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                     String values are selectors against the event payload:{" "}
                     <code className="mx-[0.2em] rounded-[3px] border border-solid border-[rgba(100,100,100,0.2)] bg-[rgba(150,150,150,0.1)] px-[0.4em] pb-[0.1em] pt-[0.2em] text-[85%]">
                         $.path
@@ -125,19 +128,19 @@ export function InputsMappingField({
                 </span>
                 {payloadKeys.length > 0 && (
                     <div className="mt-1 flex flex-wrap items-center gap-1">
-                        <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
+                        <span className="text-xs text-[var(--ag-colorTextDescription)]">
                             Available:
                         </span>
                         {payloadKeys.slice(0, 12).map((k) => (
                             <code
                                 key={k}
-                                className="rounded bg-[var(--ag-colorFillSecondary)] px-1 text-[11px] text-[var(--ag-colorText)]"
+                                className="rounded bg-[var(--ag-colorFillSecondary)] px-1 text-xs text-[var(--ag-colorText)]"
                             >
                                 $.{k}
                             </code>
                         ))}
                         {payloadKeys.length > 12 && (
-                            <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
+                            <span className="text-xs text-[var(--ag-colorTextDescription)]">
                                 +{payloadKeys.length - 12} more
                             </span>
                         )}
@@ -152,12 +155,12 @@ export function InputsMappingField({
                     >
                         <AccordionItem value="sample">
                             <AccordionTrigger className="px-0 py-1">
-                                <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
+                                <span className="text-xs text-[var(--ag-colorTextDescription)]">
                                     test event attributes
                                 </span>
                             </AccordionTrigger>
                             <AccordionContent className="[&>div]:p-0">
-                                <pre className="m-0 max-h-[240px] overflow-auto rounded bg-[var(--ag-colorFillTertiary)] p-2 text-[11px] leading-snug text-[var(--ag-colorText)]">
+                                <pre className="m-0 max-h-[240px] overflow-auto rounded bg-[var(--ag-colorFillTertiary)] p-2 text-xs leading-snug text-[var(--ag-colorText)]">
                                     {JSON.stringify(eventPayload, null, 2)}
                                 </pre>
                             </AccordionContent>
@@ -169,7 +172,7 @@ export function InputsMappingField({
                         {leaves.map((leaf, i) => (
                             <div
                                 key={`${leaf.key}-${i}`}
-                                className="flex items-center gap-1.5 text-[11px] leading-snug"
+                                className="flex items-center gap-1.5 text-xs leading-snug"
                             >
                                 <code className="text-[var(--ag-colorTextSecondary)]">
                                     {leaf.key}
@@ -177,7 +180,7 @@ export function InputsMappingField({
                                 <span className="text-[var(--ag-colorTextTertiary)]">→</span>
                                 {leaf.isSelector ? (
                                     leaf.resolved === undefined ? (
-                                        <span className="text-[11px] text-[var(--ag-colorWarningText)]">
+                                        <span className="text-xs text-[var(--ag-colorWarningText)]">
                                             no sample value
                                         </span>
                                     ) : (
@@ -186,7 +189,7 @@ export function InputsMappingField({
                                         </code>
                                     )
                                 ) : (
-                                    <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
+                                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
                                         literal
                                     </span>
                                 )}

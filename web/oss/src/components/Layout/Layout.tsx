@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
@@ -9,7 +10,10 @@ import {eagerAtom} from "jotai-eager"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
+import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
+import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
+import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
 import {
@@ -19,6 +23,7 @@ import {
     lastNonDemoProjectAtom,
 } from "@/oss/state/project/selectors/project"
 import {urlAtom} from "@/oss/state/url"
+import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
@@ -31,6 +36,7 @@ import {useStyles} from "./assets/styles"
 import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
 import PostHogThemeCapture from "./PostHogThemeCapture"
+import ProjectWatch from "./ProjectWatch"
 import {SidebarIsland} from "./SidebarIsland"
 import {useAppTheme} from "./ThemeContextProvider"
 
@@ -69,6 +75,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isAgentTemplates = pathname.includes("/agent-templates")
     // Covers /agents and /agents/archived, both full-height InfiniteVirtualTable pages.
     const isAgents = pathname.includes("/agents")
+    const isSessions = pathname.includes("/sessions")
 
     return {
         isAuthRoute:
@@ -88,7 +95,11 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isObservability ||
             isAuditLog ||
             isAgentTemplates ||
-            isAgents,
+            isAgents ||
+            isSessions ||
+            // Asked for by the page — see `layoutFullHeightRequestAtom`. Home is one of these:
+            // its returning branch scrolls with the page, its first-run branch asks for the frame.
+            get(layoutFullHeightRequestAtom),
     }
 })
 
@@ -166,6 +177,13 @@ const appRouteSliceAtom = selectAtom(
 // String-valued so org/app churn inside urlAtom doesn't re-render AppWithVariants
 const baseAppURLAtom = eagerAtom((get) => get(urlAtom).baseAppURL)
 
+// True once the type lookup has given its final answer, even when that answer is nothing.
+const agentTypeSettledAtom = atom((get) => {
+    const appId = get(routerAppIdAtom)
+    if (!appId) return true
+    return !get(workflowLatestRevisionQueryAtomFamily(appId)).isPending
+})
+
 type StyleClasses = ReturnType<typeof useStyles>
 
 const {Content} = Layout
@@ -199,10 +217,21 @@ const AppWithVariants = memo(
         const isAnnotations = appState.pathname.includes("/annotations")
         const lastBasePathRef = useRef<string | null>(null)
         const lastNonSettingsPathRef = useRef<string | null>(null)
+        // Same signal the playground shell reads, so sidebar and content commit together.
+        const agentState = useAtomValue(playgroundEarlyAgentStateAtom)
+        const agentTypeSettled = useAtomValue(agentTypeSettledAtom)
+        const currentSidebarViewIdRef = useRef<string | undefined>(undefined)
         const activeSidebarView = resolveSidebarView({
             pathname: appState.pathname,
             routeLayer: appState.routeLayer,
+            agentState,
+            agentTypeSettled,
+            currentViewId: currentSidebarViewIdRef.current,
         })
+        // Update only after commit so abandoned renders cannot change the visible view.
+        useIsomorphicLayoutEffect(() => {
+            currentSidebarViewIdRef.current = activeSidebarView.id
+        }, [activeSidebarView.id])
 
         useEffect(() => {
             if (activeSidebarView.isBase) {
@@ -290,7 +319,14 @@ const AppWithVariants = memo(
         }, [demoReturnHintDismissed, lastNonDemoProject, navigate, setDemoReturnHintPending])
 
         return (
-            <div className={clsx([{"flex flex-col grow min-h-0": isFullHeight}])}>
+            <div
+                className={clsx([
+                    {"flex flex-col grow min-h-0": isFullHeight},
+                    // The demo banner is `fixed`, so it covers anything the page pins to the
+                    // viewport top. Sticky content reads this var to offset itself past it.
+                    project?.is_demo && "[--ag-demo-banner-h:38px]",
+                ])}
+            >
                 <Modal
                     title="Want to revisit the demo?"
                     open={isDemoReturnModalOpen}
@@ -353,6 +389,11 @@ const AppWithVariants = memo(
                                                 "pb-0 mb-8": !isFullHeight,
                                                 "h-[calc(100%-30px)]": !isFullHeight && !isAppRoute,
                                                 "flex flex-col min-h-0 grow": isFullHeight,
+                                                // The shared content style carries a 2rem bottom
+                                                // margin for flowing pages. A full-height page
+                                                // fills the frame, so that margin is pure dead
+                                                // space under it.
+                                                "[&.ant-layout-content]:!mb-0": isFullHeight,
                                                 "h-full": isFullHeight && !isAppRoute,
                                                 "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                                     isPlayground ||
@@ -405,6 +446,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 </Layout>
             ) : (
                 <ProtectedRoute shell="app">
+                    <ProjectWatch />
                     <AppWithVariants
                         isAppRoute={isAppRoute}
                         classes={classes}

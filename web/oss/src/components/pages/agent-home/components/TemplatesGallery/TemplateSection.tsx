@@ -5,10 +5,17 @@ interface TemplateSectionProps {
     category: string
     templates: AgentTemplate[]
     onSelectTemplate: (template: AgentTemplate) => void
+    /** Key of the template whose agent is being created (spins that card, dims the rest). */
+    pendingTemplateKey?: string | null
 }
 
 /** One category block in the gallery: uppercase header + per-section count, then a 3-col card grid. */
-const TemplateSection = ({category, templates, onSelectTemplate}: TemplateSectionProps) => {
+const TemplateSection = ({
+    category,
+    templates,
+    onSelectTemplate,
+    pendingTemplateKey,
+}: TemplateSectionProps) => {
     if (templates.length === 0) return null
 
     return (
@@ -17,17 +24,21 @@ const TemplateSection = ({category, templates, onSelectTemplate}: TemplateSectio
                 <span className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--ag-colorTextSecondary)]">
                     {category}
                 </span>
-                <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
                     {templates.length} {templates.length === 1 ? "template" : "templates"}
                 </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+            {/* `pt-5` is the room the card's overhanging monogram needs — it belongs to the grid,
+                not to each card, so every cell in a row still starts at the same y. */}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-10 pt-5 sm:grid-cols-2 xl:grid-cols-3">
                 {templates.map((template) => (
                     <TemplateCard
                         key={template.key}
                         template={template}
                         onSelect={onSelectTemplate}
+                        loading={template.key === pendingTemplateKey}
+                        disabled={!!pendingTemplateKey && template.key !== pendingTemplateKey}
                     />
                 ))}
             </div>

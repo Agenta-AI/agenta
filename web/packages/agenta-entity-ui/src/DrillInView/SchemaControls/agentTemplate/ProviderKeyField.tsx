@@ -78,7 +78,7 @@ const ProviderKeyField = ({
         <div className="flex flex-col gap-3">
             {hideHeader ? (
                 hasKey ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-[var(--ag-colorSuccess)]">
+                    <span className="inline-flex items-center gap-1 text-xs text-[var(--ag-colorSuccess)]">
                         <CheckCircle size={13} weight="fill" />
                         Key configured · enter a new value to replace it.
                     </span>
@@ -90,7 +90,7 @@ const ProviderKeyField = ({
                         Standard provider · add your key and we auto-list its models.
                     </span>
                     {hasKey ? (
-                        <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-[var(--ag-colorSuccess)]">
+                        <span className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--ag-colorSuccess)]">
                             <CheckCircle size={13} weight="fill" />
                             Key configured · enter a new value to replace it.
                         </span>
@@ -122,7 +122,7 @@ const ProviderKeyField = ({
                         {hasKey ? "Replace" : "Save"}
                     </LoadingButton>
                 </div>
-                <span className="text-[11px] text-colorTextDescription">
+                <span className="text-xs text-colorTextDescription">
                     This secret is encrypted in transit and at rest.
                 </span>
             </div>

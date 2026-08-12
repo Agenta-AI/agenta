@@ -326,6 +326,75 @@ describe("parseElicitationPayload", () => {
         expect(parsed.channels.items?.enum).toEqual(["slack", "email"])
     })
 
+    it("accepts the stepper + choice-card payload from the PR-reviewer session verbatim", () => {
+        // Verbatim `request_input` input from session a21da9cd (the "not handled" report): a
+        // stepper form whose two choice fields use the oneOf/const idiom with defaults. It must
+        // parse and build fields — a widget that can't render this settles a degradation instead.
+        const payload = {
+            message: "To configure the PR reviewer, tell me which repository to monitor.",
+            requestedSchema: {
+                type: "object",
+                required: ["repository", "review_posture", "risk_criteria"],
+                properties: {
+                    repository: {
+                        type: "string",
+                        title: "Repository",
+                        description: "GitHub repository in owner/repo form.",
+                    },
+                    risk_criteria: {
+                        type: "string",
+                        title: "Risk criteria",
+                        default: "diff",
+                        oneOf: [
+                            {
+                                const: "diff",
+                                title: "Discover from the diff (recommended)",
+                                description: "Prioritize auth, secrets, migrations, deletions.",
+                            },
+                            {
+                                const: "security",
+                                title: "Security-sensitive review",
+                                description: "Emphasize auth, secrets, permissions, migrations.",
+                            },
+                        ],
+                    },
+                    review_posture: {
+                        type: "string",
+                        title: "Review posture",
+                        default: "advisory",
+                        oneOf: [
+                            {const: "advisory", title: "Advisory comments (recommended)"},
+                            {const: "blocking", title: "Request changes when tests are missing"},
+                        ],
+                    },
+                },
+                "x-ag-stepper": true,
+            },
+        }
+        const result = parseElicitationPayload(payload)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.payload.requestedSchema["x-ag-stepper"]).toBe(true)
+        expect(result.payload.requestedSchema.properties.risk_criteria.enum).toEqual([
+            "diff",
+            "security",
+        ])
+        const fields = buildFormFieldsFromSchema(
+            result.payload.requestedSchema as unknown as Record<string, unknown>,
+            "",
+            {formats: true, openEnums: true},
+        )
+        expect(fields.map((f) => f.name).sort()).toEqual([
+            "repository",
+            "review_posture",
+            "risk_criteria",
+        ])
+        expect(fields.find((f) => f.name === "review_posture")?.enumValues).toEqual([
+            "advisory",
+            "blocking",
+        ])
+    })
+
     it("rejects malformed oneOf options", () => {
         const payload = validPayload()
         ;(payload.requestedSchema.properties as Record<string, unknown>).process = {

@@ -660,6 +660,7 @@ session_turns_service = SessionTurnsService(
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
     static_catalog=StaticWorkflowCatalog(),
+    watch_publisher=_sessions_watch_publisher,
 )
 
 environments_service = EnvironmentsService(
@@ -799,6 +800,7 @@ else:
 
 tools_adapter_registry = ToolsGatewayRegistry(
     adapters=_composio_adapters,
+    unconfigured=({} if env.composio.enabled else {"composio": "COMPOSIO_API_KEY"}),
 )
 
 tools_service = ToolsService(
@@ -817,6 +819,7 @@ if env.composio.enabled:
 
 triggers_adapter_registry = TriggersGatewayRegistry(
     adapters=_composio_triggers_adapters,
+    unconfigured=({} if env.composio.enabled else {"composio": "COMPOSIO_API_KEY"}),
 )
 
 triggers_dao = TriggersDAO(engine=_transactions_engine)
@@ -882,6 +885,7 @@ _triggers_broker = ProducerOnlyRedisStreamBroker(
 
 _triggers_dispatcher = TriggersDispatcher(
     triggers_dao=triggers_dao,
+    session_claims_dao=session_streams_dao,
     workflows_service=workflows_service,
     dispatch_fn=_dispatch_detached_run,
 )
@@ -1093,6 +1097,8 @@ sessions_service = SessionsService(
     turns_service=session_turns_service,
     interactions_service=interactions_service,
     mounts_service=mounts_service,
+    # Read-only, for the list's message preview — records themselves stay the records router's.
+    records_service=records_service,
 )
 
 sessions = SessionsRouter(

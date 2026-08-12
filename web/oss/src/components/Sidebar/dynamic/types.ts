@@ -1,4 +1,4 @@
-import type {ReactElement} from "react"
+import type {ReactElement, ReactNode} from "react"
 
 import type {ListQueryState} from "@agenta/entities/shared"
 import type {Atom} from "jotai"
@@ -43,12 +43,25 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     getLabel: (ref: TRef) => string
     /** Project-relative detail path, e.g. `(ref) => `/testsets/${ref.id}``. */
     childPath: (ref: TRef) => string
+    /** Prefixes the row is highlighted on; empty opts it out. Defaults to `[childPath]`. */
+    childMatchPaths?: (ref: TRef) => string[]
     /** Shown (muted, disabled) when the group is open but has no items. */
     emptyLabel?: string
     /** Cap on rendered rows; overflow adds a "Show all" row. Defaults to 3. */
     maxItems?: number
     /** Project-relative path for the "Show all" overflow row. */
     showAllPath?: string
+    /** Per-row icon, overriding the shared kind icon — for rows whose state differs from each
+     * other (a session's liveness dot, say), where one icon for the whole group says nothing. */
+    getIcon?: (ref: TRef) => ReactElement
+    /** Optional row tooltip for context not shown by the label. */
+    getTooltip?: (ref: TRef) => string | undefined
+    /** Extra work on click, alongside following `childPath` — e.g. handing the target to the
+     * surface being navigated to. Runs in the default jotai store, not a hook. */
+    getOnClick?: (ref: TRef) => () => void
+    /** Wraps the rendered row so an entity can add per-row chrome (a kebab menu, a right-click
+     * menu). Returns an ELEMENT, so the wrapper component — not this closure — owns the hooks. */
+    wrapRow?: (ref: TRef, node: ReactNode) => ReactElement
 }
 
 /**
@@ -63,7 +76,12 @@ export interface SidebarEntity {
     activeSourceAtom: Atom<SidebarEntitySource>
     getLabel: (ref: SidebarEntityRef) => string
     childLink: (ref: SidebarEntityRef, projectURL: string) => string
+    childMatchLinks?: (ref: SidebarEntityRef, projectURL: string) => string[]
     emptyLabel?: string
     maxItems: number
     showAllLink?: (projectURL: string) => string
+    getIcon?: (ref: SidebarEntityRef) => ReactElement
+    getTooltip?: (ref: SidebarEntityRef) => string | undefined
+    getOnClick?: (ref: SidebarEntityRef) => () => void
+    wrapRow?: (ref: SidebarEntityRef, node: ReactNode) => ReactElement
 }

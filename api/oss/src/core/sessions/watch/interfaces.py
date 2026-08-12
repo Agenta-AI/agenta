@@ -26,3 +26,7 @@ class SessionsWatchPublisherInterface(Protocol):
     ) -> None:
         """A gate became actionable or was answered (`pending` | `resolved`)."""
         ...
+
+    async def changed(self, *, project_id: str, entity: str, id: str) -> None:
+        """A project-scoped entity changed."""
+        ...

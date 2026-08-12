@@ -36,7 +36,7 @@ INGRESS_URL = os.getenv(
     "AGENTA_INGRESS_URL", "http://api:8000/triggers/composio/events/"
 )
 COMPOSIO_API_URL = os.getenv(
-    "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3"
+    "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3.1"
 ).rstrip("/")
 
 

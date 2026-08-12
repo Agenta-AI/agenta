@@ -131,7 +131,7 @@ export function EventSourcePicker({
                             {waiting ? "Waiting for an event…" : waitLabel}
                         </span>
                         {waitHint && !waiting && (
-                            <span className="block text-[11px] text-[var(--ag-colorTextTertiary)]">
+                            <span className="block text-xs text-[var(--ag-colorTextTertiary)]">
                                 {waitHint}
                             </span>
                         )}
@@ -139,14 +139,14 @@ export function EventSourcePicker({
                 </button>
             )}
 
-            <div className="mb-1 mt-1.5 px-2.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+            <div className="mb-1 mt-1.5 px-2.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                 Recent events
             </div>
             {recentEvents.length === 0 ? (
                 <EmptyState
                     image="simple"
                     description={
-                        <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             None captured yet
                         </span>
                     }
@@ -168,7 +168,7 @@ export function EventSourcePicker({
                                     {event.preview ? ` · ${event.preview}` : ""}
                                 </span>
                                 {event.timeAgo && (
-                                    <span className="block text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                    <span className="block text-xs text-[var(--ag-colorTextTertiary)]">
                                         {event.timeAgo}
                                     </span>
                                 )}

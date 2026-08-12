@@ -48,7 +48,8 @@ export function TriggerRow({
                 row hosts a run button + a ⋯ menu. Same geometry — the outer flex keeps the
                 gap-2.5 the three children used to sit in. */}
             <div
-                className={`group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:border-[var(--ag-colorBorder)]"}`}
+                // White sheet on the expanded section's band, like the tool/skill item cards.
+                className={`group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2 transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:border-[var(--ag-colorBorder)]"}`}
             >
                 <div
                     role="button"
@@ -93,7 +94,7 @@ export function TriggerRow({
                                 className="shrink-0 text-[var(--ag-colorTextSecondary)]"
                             />
                             {chip ? (
-                                <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] text-[var(--ag-colorTextSecondary)]">
+                                <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[12px] text-[var(--ag-colorTextSecondary)]">
                                     {chip}
                                 </span>
                             ) : null}

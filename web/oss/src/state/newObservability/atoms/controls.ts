@@ -8,6 +8,7 @@ import {atomFamily, atomWithStorage} from "jotai/utils"
 
 import type {SortResult} from "@/oss/components/Filters/Sort"
 import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
+import {utcRangeStamp} from "@/oss/lib/helpers/dateTimeHelper"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import type {Filter} from "@/oss/lib/Types"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
@@ -20,7 +21,7 @@ export type ObservabilityTabInfo = "traces" | "sessions"
 
 export const DEFAULT_SORT: SortResult = {
     type: "standard",
-    sorted: dayjs().utc().subtract(24, "hours").toISOString().split(".")[0],
+    sorted: utcRangeStamp(dayjs().subtract(24, "hours")),
 }
 
 const HAS_RECEIVED_TRACES_STORAGE_KEY = "agenta:observability:has-received-traces"

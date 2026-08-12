@@ -23,6 +23,10 @@ const gridLayout2Class = "grid grid-cols-2 gap-5 [@media(max-width:768px)]:grid-
 const gridLayout4Class =
     "grid grid-cols-2 gap-5 [@media(min-width:1360px)]:grid-cols-4 [@media(max-width:850px)]:grid-cols-1"
 
+// Both grids key off the VIEWPORT, so a narrow container on a wide screen still gets four
+// columns. `stack` is for containers, not screens: the rail is ~340px whatever the display does.
+const stackLayoutClass = "flex flex-col gap-5"
+
 const EmptyChart = ({className}: {className: string}) => (
     <div className={className}>
         <ChartLineIcon size={18} />
@@ -31,7 +35,7 @@ const EmptyChart = ({className}: {className: string}) => (
 )
 
 interface AnalyticsDashboardProps {
-    layout?: "grid-2" | "grid-4"
+    layout?: "grid-2" | "grid-4" | "stack"
     showTimeRangeSelector?: boolean
 }
 
@@ -48,7 +52,6 @@ const AnalyticsDashboard = ({
     const defaultGraphProps = useMemo<ComponentProps<typeof CustomAreaChart>>(
         () => ({
             className: "h-[140px]",
-            colors: ["cyan-600", "rose"],
             tickCount: 5,
             index: "timestamp",
             data: chartData,
@@ -58,7 +61,12 @@ const AnalyticsDashboard = ({
         [chartData],
     )
 
-    const gridClassName = layout === "grid-4" ? gridLayout4Class : gridLayout2Class
+    const gridClassName =
+        layout === "stack"
+            ? stackLayoutClass
+            : layout === "grid-4"
+              ? gridLayout4Class
+              : gridLayout2Class
 
     return (
         <div>
@@ -160,7 +168,6 @@ const AnalyticsDashboard = ({
                             <CustomAreaChart
                                 {...defaultGraphProps}
                                 categories={["cost"]}
-                                colors={["cyan-600"]}
                                 valueFormatter={(value) => formatCurrency(value)}
                             />
                         ) : (
@@ -188,11 +195,7 @@ const AnalyticsDashboard = ({
                         }
                     >
                         {hasData ? (
-                            <CustomAreaChart
-                                {...defaultGraphProps}
-                                categories={["total_tokens"]}
-                                colors={["cyan-600"]}
-                            />
+                            <CustomAreaChart {...defaultGraphProps} categories={["total_tokens"]} />
                         ) : (
                             <EmptyChart className={emptyStateClass} />
                         )}

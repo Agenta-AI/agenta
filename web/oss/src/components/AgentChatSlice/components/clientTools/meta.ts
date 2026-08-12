@@ -66,7 +66,7 @@ export const isClientToolPart = (
     const meta = clientToolMeta(part, renderMap)
     if (hasClientToolHandler(meta)) return true
 
-    // Parked unknown client tool: the run ended with this part still unsettled.
+    // Keep this last-message-only so old parked parts are not auto-settled.
     const parkedUnsettled = !ctx.isStreaming && ctx.isLastMessage && !meta.settled
     return parkedUnsettled
 }

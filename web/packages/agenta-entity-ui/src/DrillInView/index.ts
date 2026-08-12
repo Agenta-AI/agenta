@@ -275,6 +275,39 @@ export {
     readHarnessAllowList,
     findGrantableHarnessTool,
     withHarnessToolAllow,
+    PLATFORM_OPS,
+    // Model / harness write-through + row presentation, shared with the chat composer's `/` palette.
+    withModel,
+    withHarnessKind,
+    withRunnerPermission,
+    readModelId,
+    readModelConnectionSlug,
+    readHarnessKind,
+    readRunnerPermission,
+    readAgentItems,
+    DEFAULT_PERMISSION_POLICY,
+    isPermissionPolicy,
+    PERMISSION_POLICY_OPTIONS,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+    permissionPolicyOptionsForSchema,
+    permissionPolicySchema,
+    allowedDeployments,
+    allowedProviders,
+    buildModelOptionGroups,
+    harnessAllowsModel,
+    modelLabel,
+    providerForModel,
+    vaultModelGroups,
+    vaultPickedProviderFamily,
+    describeMcp,
+    describeSkill,
+    describeTool,
+    staticEmbedSlug,
+    toolName,
+    HARNESS_META,
+    harnessMetaFor,
+    selectableHarnesses,
     type OptionGroup,
 } from "./SchemaControls"
 
@@ -304,6 +337,13 @@ export type {
     GrantableTool,
     ToolPermission,
     GrantableHarnessTool,
+    ModelPatch,
+    ModelOptionGroup,
+    VaultModelSource,
+    ItemDescriptor,
+    HarnessMeta,
+    PermissionPolicy,
+    PermissionPolicyOption,
 } from "./SchemaControls"
 
 // Operational panel regions (Triggers, Mounts) — siblings of the Configuration section.
@@ -394,3 +434,7 @@ export type {
     SectionTitleBadgeProps,
     SectionTitleBadgeTone,
 } from "./SchemaControls/agentTemplate/SectionTitleBadge"
+
+// The panel's instructions file row, reused read-only by surfaces that show an agent's brief
+// without editing it (the agent overview).
+export {InstructionsFileRow} from "./SchemaControls/agentTemplate/ItemRow"

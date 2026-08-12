@@ -38,7 +38,7 @@ export function DriveEmptyState({scope}: {scope: DriveScope}) {
         <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
             <Tray size={28} className="text-colorTextQuaternary" />
             <div className="text-xs font-medium">This drive is empty</div>
-            <div className="text-[11px] text-colorTextTertiary">
+            <div className="text-xs text-colorTextTertiary">
                 {scope === "session"
                     ? "Created on the conversation's first run."
                     : "Files the agent keeps across conversations land here."}

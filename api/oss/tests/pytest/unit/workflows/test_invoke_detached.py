@@ -211,6 +211,7 @@ def test_dispatch_fn_injected_into_both_consumers():
     )
     dispatcher = TriggersDispatcher(
         triggers_dao=SimpleNamespace(),
+        session_claims_dao=SimpleNamespace(),
         workflows_service=SimpleNamespace(),
         dispatch_fn=_dispatch,
     )
