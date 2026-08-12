@@ -301,7 +301,9 @@ export function FilterRow({
             const current = Array.isArray(item.value) ? item.value[0] : item.value
             return (
                 <Select
-                    value={current == null || current === "" ? undefined : String(current)}
+                    // "" not undefined: undefined makes Radix treat the Select as uncontrolled,
+                    // so the first pick flips it to controlled and React warns.
+                    value={current == null ? "" : String(current)}
                     onValueChange={(next) =>
                         onChange("value", valueOptionByString.get(next) ?? next)
                     }
@@ -406,7 +408,7 @@ export function FilterRow({
 
                     {!singleOperator && (
                         <Select
-                            value={operatorValue || undefined}
+                            value={operatorValue || ""}
                             onValueChange={(next) => onChange("operator", next as FilterConditions)}
                             disabled={disabled}
                         >

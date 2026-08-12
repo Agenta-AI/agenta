@@ -922,7 +922,7 @@ export function AnnotationFeedbackControl(props: AnnotationFilterRowProps) {
             />
 
             <Select
-                value={feedback?.operator || undefined}
+                value={feedback?.operator || ""}
                 onValueChange={(next) => {
                     const option = ALL_FEEDBACK_OPERATOR_OPTIONS.find((opt) => opt.value === next)
                     if (option) handleFeedbackOperatorChange(option.value)
