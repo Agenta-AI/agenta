@@ -53,6 +53,40 @@ The subscription-status design asks the runner to inspect mounted login files. A
 appear beside stored provider connections in the frontend, but it is not a vault secret and should
 not be introduced into the provider-connection persistence work.
 
+### The prompt playground and LLM-as-a-judge resolve by provider family
+
+The prompt playground (completion and chat) does not use the agent connection resolver. Its model
+list comes from `supported_llm_models` in `sdks/python/agenta/sdk/utils/assets.py`, served through
+the `model` catalog type in `sdks/python/agenta/sdk/utils/types.py`. At run time,
+`SecretsManager.get_provider_settings_from_workflow` in
+`sdks/python/agenta/sdk/managers/secrets.py` maps the chosen model string back to a provider
+family through `model_to_provider_mapping` and returns the first matching `provider_key` secret's
+key. Custom-provider records are matched by scanning their generated `model_keys`.
+
+LLM-as-a-judge (`auto_ai_critique_v0` in `sdks/python/agenta/sdk/engines/running/handlers.py`)
+uses exactly the same `SecretsManager` call and the same `model` catalog type, so the judge
+dropdown and the prompt dropdown show the same grouped list, and both paths break the same way
+with two keys for one provider: the family mapping cannot tell them apart.
+
+Two further constraints matter for planning:
+
+- The resolver logic is duplicated across the RoutingContext and RunningContext paths inside
+  `secrets.py`, and a third provider_key-only path exists in `llm_v0`. Any slug-aware change must
+  land in each.
+- The prompt-side catalog is stale relative to the agent catalog. It has no `claude-fable-5`,
+  no `claude-sonnet-5`, and an old OpenRouter list, while the agent catalog under
+  `sdks/python/agenta/sdk/agents/data/` is current. The two catalogs have no shared source today.
+
+### Structured-credential providers already exist as custom kinds
+
+`CustomProviderKind` already includes `azure`, `bedrock`, `sagemaker`, and `vertex_ai`, and the
+frontend field catalog `web/packages/agenta-entities/src/secret/core/providerFields.ts` already
+declares their per-kind fields and auth rules. `LLMIconMap` in `@agenta/ui` already carries icons
+for AWS Bedrock, Azure OpenAI, and Google Vertex AI. Presenting these providers in the main
+catalog is a presentation change over existing storage, not a new record type. Note that the
+credential extras vocabulary is declared three times (frontend transforms, prompt-path resolver,
+agent-path env alias map) and one review must keep them consistent.
+
 ## Relevant files
 
 - `api/oss/src/core/secrets/dtos.py`: vault record validation and response enrichment.
@@ -64,3 +98,8 @@ not be introduced into the provider-connection persistence work.
 - `web/packages/agenta-entity-ui/src/secretProvider/CustomProviderForm.tsx`: current custom-provider form.
 - `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/useModelHarness.tsx`:
   current Playground model and connection composition.
+- `sdks/python/agenta/sdk/utils/assets.py`: prompt-side model catalog (`supported_llm_models`).
+- `sdks/python/agenta/sdk/managers/secrets.py`: prompt and judge credential resolution.
+- `sdks/python/agenta/sdk/engines/running/handlers.py`: `completion_v0`, `auto_ai_critique_v0`.
+- `web/packages/agenta-entities/src/secret/core/providerFields.ts`: per-kind credential fields.
+- `web/oss/src/hooks/useLLMProviderConfig.tsx`: vault groups in the prompt model picker.

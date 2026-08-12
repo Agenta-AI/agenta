@@ -12,6 +12,10 @@ can also add custom-provider model groups from the project vault. Users cannot c
 shown for a standard provider connection, and the current settings behavior assumes one standard
 key per provider.
 
+The prompt playground (completion and chat) and LLM-as-a-judge use a separate, older model catalog
+and resolve credentials by mapping the chosen model back to a provider family. They know nothing
+about named connections today.
+
 ## Goal
 
 Let every stored provider connection carry optional model and harness choices. Support several
@@ -21,19 +25,27 @@ The first unnamed standard connection should use the provider's display name, su
 Later unnamed connections should use `OpenAI 2`, `OpenAI 3`, and so on. A user-provided name replaces
 that generated display name.
 
+Every run path that consumes provider credentials must work with connections: agent runs through
+their harness, prompt, completion, and chat runs, and LLM-as-a-judge evaluations. This is part of
+the acceptance criteria, not a follow-up.
+
 ## Target interface
 
 The founder-provided design in [experience.md](experience.md) fixes the target interface. One term,
-"Model providers", covers the playground banner, the picker footer, the drawer title, and the
+"AI providers", covers the playground banner, the picker footer, the drawer title, and the
 Settings tab, which is renamed from "LLMs". The model picker lists connections rather than vendors.
-One drawer component serves both the playground and Settings. Subscriptions stay
-configuration-only. They appear beside stored connections without becoming vault records.
+One drawer component serves both the playground and Settings, with one difference by design: opened
+from Settings, the drawer shows only the provider catalog, because the Settings table beside it
+already lists the existing connections and a table row opens that connection's configuration
+directly. Subscriptions stay configuration-only. They appear beside stored connections without
+becoming vault records.
 
 ## Delivery approach
 
 First make the API preserve the shared fields and make the resolver address both stored formats by
-connection slug. Next add settings that edit those fields. Finally make the Playground list and save
-connections rather than provider families alone.
+connection slug. Next add settings that edit those fields. Then make the Playground list and save
+connections rather than provider families alone. Finally wire the prompt playground and
+LLM-as-a-judge to the same connection concept.
 
 ## Non-goals
 
@@ -51,3 +63,5 @@ connections rather than provider families alone.
 - Several standard connections can coexist for one provider.
 - Settings can reopen exactly what the user saved.
 - The later Playground can select and persist an exact connection, model, provider, and harness.
+- Agent runs, prompt, completion, and chat runs, and LLM-as-a-judge evaluations all resolve the
+  selected connection and model correctly.
