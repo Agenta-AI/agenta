@@ -262,8 +262,11 @@ export const VirtualTable = <RecordType extends object>({
 
             <div
                 ref={bodyRef}
-                className={cn(AVT.body, "min-h-0 flex-1 overflow-auto")}
-                style={height ? {height} : undefined}
+                // flex-1 ONLY without an explicit height: `flex: 1 1 0%` makes the flex algorithm
+                // compute the main size and ignore `height`, so the scroller grows to content and
+                // the virtualizer sees an unbounded viewport — every row mounts.
+                className={cn(AVT.body, "min-h-0 overflow-auto", height ? "shrink-0" : "flex-1")}
+                style={height ? {height, flex: "none"} : undefined}
                 onScroll={handleScroll}
             >
                 {rows.length === 0 ? (
