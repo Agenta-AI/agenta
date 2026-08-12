@@ -490,6 +490,68 @@ describe("discoverTunnelEndpoint (remote)", () => {
     assert.equal(url, null);
   });
 
+  it("picks the tunnel forwarding to the store, not the first one listed", async () => {
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://ingress.example",
+              config: { addr: "http://traefik:80" },
+            },
+            {
+              proto: "https",
+              public_url: "https://store.example",
+              config: { addr: "http://seaweedfs:8333" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, "https://store.example");
+  });
+
+  it("returns null rather than another tunnel's URL when none forwards to the store", async () => {
+    // The development compose files point the agent at the platform ingress, so a
+    // live tunnel is no longer evidence that the store is reachable. Handing back
+    // the ingress URL would mount an HTTP API as an object store.
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://ingress.example",
+              config: { addr: "http://traefik:80" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, null);
+  });
+
+  it("matches the upstream on host and port however the agent spells it", async () => {
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://store.example",
+              config: { addr: "seaweedfs:8333" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, "https://store.example");
+  });
+
   it("returns null when the agent API is unreachable", async () => {
     const url = await discoverTunnelEndpoint({
       fetchImpl: (async () => {

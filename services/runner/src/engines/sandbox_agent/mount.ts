@@ -497,20 +497,42 @@ async function defaultCheckMountpoint(
 // --- Remote (Daytona / E2B): geesefs runs INSIDE the sandbox ---------------- //
 
 export interface TunnelDeps {
+  /**
+   * The in-network store endpoint the tunnel has to forward to. Supplied, only a tunnel
+   * whose own upstream is this endpoint is accepted; omitted, the first https tunnel wins.
+   */
+  storeEndpoint?: string;
   /** ngrok agent API base (its local :4040 dashboard). */
   ngrokApi?: string;
   fetchImpl?: typeof fetch;
   log?: (msg: string) => void;
 }
 
+/** host:port of a URL-ish string, for comparing a tunnel's upstream against ours. */
+function upstreamAuthority(value: string): string | null {
+  const raw = value.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.includes("://") ? raw : `http://${raw}`);
+    return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Resolve the public tunnel URL for the in-network store endpoint. A remote sandbox cannot
  * reach `seaweedfs:8333` on the compose network, so geesefs there must hit a public URL; the
- * `ngrok` service (compose profile `remote`) tunnels the store, and its agent API lists the
- * active tunnels. Returns null when no tunnel is up. The remote mount is then skipped rather than
- * failing the run, but the skip is NOT silent: the caller warns the operator with the cause named,
- * and tells the model the durable folder is unreachable this turn, because a model whose history
- * shows the folder working will otherwise report the user's saved work as lost.
+ * `ngrok` service (compose profile `with-tunnel`) tunnels it, and its agent API lists the
+ * active tunnels. Returns null when no tunnel forwards to the store. The remote mount is then
+ * skipped rather than failing the run, but the skip is NOT silent: the caller warns the operator
+ * with the cause named, and tells the model the durable folder is unreachable this turn, because
+ * a model whose history shows the folder working will otherwise report the user's work as lost.
+ *
+ * The agent may be tunnelling something else entirely — the development compose files point it
+ * at the platform's own ingress so providers can reach webhooks — so a tunnel is matched on the
+ * upstream it forwards to and never on the order the agent lists them. Returning the wrong URL
+ * would mount an HTTP API as an object store, which fails far from its cause.
  */
 export async function discoverTunnelEndpoint(
   deps: TunnelDeps = {},
@@ -528,10 +550,35 @@ export async function discoverTunnelEndpoint(
       return null;
     }
     const body = (await res.json()) as {
-      tunnels?: Array<{ public_url?: string; proto?: string }>;
+      tunnels?: Array<{
+        public_url?: string;
+        proto?: string;
+        config?: { addr?: string };
+      }>;
     };
     const tunnels = body.tunnels ?? [];
-    // Prefer https; fall back to any public_url.
+
+    const wanted = deps.storeEndpoint
+      ? upstreamAuthority(deps.storeEndpoint)
+      : null;
+    if (wanted) {
+      const match = tunnels.find(
+        (t) =>
+          !!t.public_url &&
+          !!t.config?.addr &&
+          upstreamAuthority(t.config.addr) === wanted,
+      );
+      if (!match) {
+        log(
+          `tunnel discovery: no tunnel forwards to ${wanted} ` +
+            `(${tunnels.length} tunnel(s) up); not using another tunnel's URL`,
+        );
+        return null;
+      }
+      return match.public_url ?? null;
+    }
+
+    // No store endpoint to match against: prefer https, then any public_url.
     const https = tunnels.find(
       (t) => t.proto === "https" && !!t.public_url,
     )?.public_url;

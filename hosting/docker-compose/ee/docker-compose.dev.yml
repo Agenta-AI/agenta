@@ -676,44 +676,61 @@ services:
 
     ngrok:
         # === ACTIVATION =========================================== #
-        # Only for REMOTE sandboxes (Daytona/E2B): geesefs runs inside the cloud sandbox and
-        # cannot reach `seaweedfs:8333` on the compose network, so this tunnels the store to a
-        # public URL the runner discovers via the ngrok agent API (:4040/api/tunnels). Local
-        # sandboxes never tunnel. Shares `with-tunnel` with composio (on by default, off with
-        # --no-tunnel); a deploy with no NGROK_AUTHTOKEN starts no tunnel and the remote mount
-        # is skipped, not fatal.
+        # Publishes THIS deployment's ingress on a public HTTPS address, for the cases where
+        # something outside has to reach us: a platform posting a webhook, or an authorization
+        # server fetching a document we serve. It forwards to traefik, so every inbound route
+        # arrives on its normal path -- `/api/...` is already routed here, in the self-host
+        # compose files, and in production, so no route needs a tunnel of its own.
+        #
+        # A browser redirect needs none of this. The user is already looking at this deployment,
+        # so the address that got them here is one their browser reaches.
+        #
+        # Shares `with-tunnel` with composio (on by default, off with --no-tunnel); with no
+        # NGROK_AUTHTOKEN it exits 0 and nothing is published.
+        #
+        # It no longer tunnels the object store. Daytona sandboxes with the BUNDLED in-network
+        # store therefore cannot mount a durable cwd: the runner refuses the mount and says so
+        # to both the operator and the model. Point AGENTA_STORE_ENDPOINT_URL at a public store
+        # (what production does -- it runs no bundled store at all), or run a second tunnel for
+        # it. Design: docs/design/dev-ingress/README.md
         profiles:
             - with-tunnel
         # === IMAGE ================================================ #
         image: ngrok/ngrok:latest
         # === EXECUTION ============================================ #
-        # Tunnel the SeaweedFS S3 port. Without a token ngrok would exit non-zero and, under
-        # `restart: on-failure`, loop; exit 0 instead so an unconfigured deploy stays quiet.
-        # The agent API defaults to 127.0.0.1:4040 (unreachable from the runner container), so
-        # bind it on all interfaces: that API is how the runner discovers the public URL.
+        # Without a token ngrok would exit non-zero and, under `restart: on-failure`, loop; exit 0
+        # instead so an unconfigured deploy stays quiet. The agent API defaults to 127.0.0.1:4040
+        # (unreachable from other containers), so bind it on all interfaces: that API is how the
+        # runner discovers a tunnel's public URL. NGROK_DOMAIN pins a reserved domain, which is
+        # what keeps an address we hand to a provider valid across restarts.
         entrypoint: ["/bin/sh", "-c"]
         command:
             - |
               if [ -z "$${NGROK_AUTHTOKEN}" ]; then
-                echo "ngrok: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
+                echo "ngrok: NGROK_AUTHTOKEN unset; no tunnel (nothing published)."
                 exit 0
               fi
+              DOMAIN_ARG=""
+              if [ -n "$${NGROK_DOMAIN}" ]; then
+                DOMAIN_ARG="--domain=$${NGROK_DOMAIN}"
+              fi
               printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
-              exec /bin/ngrok http seaweedfs:8333 --log stdout --config /tmp/ngrok.yml
+              exec /bin/ngrok http traefik:80 $${DOMAIN_ARG} --log stdout --config /tmp/ngrok.yml
         # === CONFIGURATION ======================================== #
         environment:
             NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+            NGROK_DOMAIN: ${NGROK_DOMAIN:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
-        # The agent runner reads the public URL from this API (host:4040 inside the network).
+        # The agent runner reads tunnel URLs from this API (host:4040 inside the network).
         # ports:
         #     - "4040:4040"
         # === LIFECYCLE ============================================ #
         # Not `always`: that would restart the intentional exit-0 above into a loop.
         restart: on-failure
         depends_on:
-            seaweedfs:
+            traefik:
                 condition: service_healthy
 
     traefik:
