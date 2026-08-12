@@ -1,5 +1,5 @@
 import {type SessionStream} from "@agenta/entities/session"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {queryWorkflows, workflowMolecule} from "@agenta/entities/workflow"
 import {isStartedSession, pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -79,6 +79,60 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 }
 
 /**
+ * Ids of agents the user archived — ONE list request for the whole group, never a lookup per row.
+ *
+ * It has to be its own request: the app's workflows list sends `include_archived: false`, so an
+ * archived agent is simply ABSENT there, and absence is not proof — a workflow missing from a
+ * windowed list would read as archived and its live sessions would vanish. Asking WITH archived
+ * included and keeping the `deleted_at` ones gives a positive answer instead. Archived-ness is the
+ * same `deleted_at` signal the agents page splits its "Archived agents" tab on.
+ *
+ * Null until the answer arrives, so the filter below stays inert rather than hiding rows on a
+ * pending query. Gated with the rest of the group: a collapsed Sessions group never asks.
+ */
+const archivedAgentIdsQueryAtom = atomWithQuery<ReadonlySet<string> | null>((get) => {
+    const projectId = get(projectIdAtom)
+    return {
+        queryKey: ["sidebar", "workflows", "archived", projectId],
+        queryFn: async () => {
+            const response = await queryWorkflows({
+                projectId: projectId ?? "",
+                flags: {is_evaluator: false},
+                includeArchived: true,
+                lowPriority: true,
+            })
+            const archived = new Set<string>()
+            for (const workflow of response.workflows ?? []) {
+                if (workflow.deleted_at) archived.add(workflow.id)
+            }
+            return archived as ReadonlySet<string>
+        },
+        enabled: Boolean(projectId),
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
+    }
+})
+
+/**
+ * Drops sessions whose agent has been archived — an archived agent's conversations are not what the
+ * sidebar's short list is for.
+ *
+ * Rows that survive regardless: a PINNED one (a pin is explicit, the same exemption every other
+ * list rule gives it), one with no agent at all, and — while `archivedAgentIds` is null, i.e. the
+ * answer hasn't arrived — every row. A row is dropped only on positive proof its agent is archived,
+ * never on absent evidence.
+ *
+ * Runs BEFORE the visible cap so archived rows can't eat slots the backfill should have used.
+ */
+export const dropArchivedAgentSessions = (
+    refs: readonly SessionSidebarRef[],
+    archivedAgentIds: ReadonlySet<string> | null,
+): SessionSidebarRef[] =>
+    archivedAgentIds === null
+        ? [...refs]
+        : refs.filter((ref) => ref.pinned || !ref.appId || !archivedAgentIds.has(ref.appId))
+
+/**
  * Pinned sessions first, then the rest by activity.
  *
  * Pins are pulled to the top rather than left in place because a pinned conversation is one you
@@ -100,10 +154,16 @@ const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     )
 
     const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
-    const refs = [
-        ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
-        ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
-    ]
+    // Archived agents' sessions go before anything downstream counts rows: the name resolution
+    // below and the group's visible cap both work off this list, so filtering here keeps archived
+    // rows from eating slots the backfill should have given to live ones.
+    const refs = dropArchivedAgentSessions(
+        [
+            ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
+            ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
+        ],
+        get(archivedAgentIdsQueryAtom).data ?? null,
+    )
     // Names are resolved for the RENDERED rows only. Each one subscribes to that agent's artifact
     // query, and the request window behind this list is several times what the group ever shows —
     // resolving all of it would fetch artifacts for rows nobody sees. The full list still goes out
