@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {type SessionExpansion, type SessionStream} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -7,7 +7,12 @@ import {useAtomValue} from "jotai"
 import {sessionRowVm, type SessionRowVm} from "../row/viewModel"
 
 import {pinnedSessionIdsAtom} from "./pins"
-import type {SessionListRequestPolicy} from "./sessionListPolicy"
+import {
+    awaitingHiddenRows,
+    shouldLoadMoreForHiddenRows,
+    startedSessions,
+    type SessionListRequestPolicy,
+} from "./sessionListPolicy"
 import {
     pendingBySessionId,
     rowsFromPages,
@@ -109,7 +114,13 @@ export const useSessionCardList = ({
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
     // Memoized: `rowsFromPages` mints a new array per call, and an unstable array here would
     // re-derive every row VM (and re-render every memoized row) on every render.
-    const listRows = useMemo(() => rowsFromPages(listQuery.data?.pages), [listQuery.data?.pages])
+    // A chat that was opened but never used is not a session anyone is looking for — see
+    // `isStartedSession`. Pins and waiting rows are exempt: both are explicit, and a gated row
+    // has a turn by definition.
+    const listRows = useMemo(
+        () => startedSessions(rowsFromPages(listQuery.data?.pages)),
+        [listQuery.data?.pages],
+    )
     const waitingRowsAll = useMemo(
         () => (useWaiting ? rowsFromPages(waitingQuery.data?.pages) : []),
         [useWaiting, waitingQuery.data?.pages],
@@ -189,10 +200,24 @@ export const useSessionCardList = ({
         if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
     }, [limit, hasNextPage, isFetchingNextPage, fetchNextPage])
 
+    // A whole page can be unstarted rows (they are the newest) — pull the next one rather than
+    // showing the card's empty state over sessions that exist one page down.
+    const topUpArgs = {
+        visibleRows: shownCount,
+        hasNextPage: Boolean(hasNextPage),
+        isError: listQuery.isFetchNextPageError,
+    }
+    // Held across the in-flight request too, or the card would flash empty mid-top-up.
+    const awaitingTopUp = awaitingHiddenRows(topUpArgs)
+    const shouldTopUp = shouldLoadMoreForHiddenRows({...topUpArgs, isFetchingNextPage})
+    useEffect(() => {
+        if (shouldTopUp) void fetchNextPage()
+    }, [shouldTopUp, fetchNextPage])
+
     return {
         groups,
-        isPending: listQuery.isPending,
-        isEmpty,
+        isPending: listQuery.isPending || awaitingTopUp,
+        isEmpty: isEmpty && !awaitingTopUp,
         /** All gated rows in this card's scope — the header's "N waiting" badge. */
         waitingTotal: waitingRowsAll.length,
         canShowMore,

@@ -163,7 +163,7 @@ export function useFieldSlots({
             return (
                 <div
                     className={clsx(
-                        "flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] cursor-pointer select-none sticky z-[2]",
+                        "flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-surface-section-header)] border-0 border-b border-solid border-colorBorderSecondary cursor-pointer select-none sticky z-[2]",
                         // Space above the code/hook section when params precede it.
                         isSibling && hasParameters(activeData) && "mt-4",
                     )}

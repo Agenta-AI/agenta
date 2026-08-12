@@ -244,8 +244,6 @@ const ApprovalDock = ({
     // Chat-mode display name: raw "scary" names stay Build-only; the shared resolver humanizes
     // gateway/MCP/plain names. Raw name stays reachable via the tooltip and the payload expander.
     const friendly = current ? resolveToolDisplay(current.toolName) : null
-    // A source badge we can state factually from the tool name — not a guessed risk level.
-    const source = friendly?.kind === "mcp" ? "MCP tool" : null
 
     // "Always allow this tool": writes a config permission so the runner stops gating this tool
     // (per-tool `permission` for gateway/custom-function tools; `harness.permissions.allow` for
@@ -333,28 +331,9 @@ const ApprovalDock = ({
                             ) : null}
                         </div>
 
-                        {/* Identity + ask. Build always keeps the raw tool name, friendly body or
-                            not (debuggers steer by it); Chat folds a humanized name into one
-                            sentence — the raw name stays reachable via the tooltip and the payload
-                            expander. A friendly body (headline: null) says the rest. */}
-                        {!chatMode ? (
-                            <div className="flex min-w-0 items-center gap-2">
-                                <Text
-                                    className="!text-xs !font-medium min-w-0 truncate"
-                                    title={current.toolName}
-                                >
-                                    {current.toolName}
-                                </Text>
-                                {source ? (
-                                    <span className="shrink-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-1.5 py-px text-xs text-colorTextSecondary">
-                                        {source}
-                                    </span>
-                                ) : null}
-                            </div>
-                        ) : null}
-
+                        {/* One humanized sentence in both modes; the raw name lives in the tooltip. */}
                         {renderer?.headline !== null ? (
-                            !renderer && chatMode ? (
+                            !renderer ? (
                                 <Text
                                     type="secondary"
                                     className="!text-xs"
@@ -369,7 +348,7 @@ const ApprovalDock = ({
                                 </Text>
                             ) : (
                                 <Text type="secondary" className="!text-xs">
-                                    {renderer?.headline ??
+                                    {renderer.headline ??
                                         "The agent wants to run this tool before it can keep going."}
                                 </Text>
                             )

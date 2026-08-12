@@ -7,10 +7,12 @@ import {useAtomValue} from "jotai"
 
 import type {VariantStatusInfo} from "../types"
 
+// The dot takes each environment's saturated tag tone (palette.ts `environmentTag`), not a
+// separate hue — same semantic, so the badge and the environment tag can never disagree.
 export const statusMap: Record<string, {badge: string}> = {
-    production: {badge: "#73D13D"},
-    staging: {badge: "#FF7A45"},
-    development: {badge: "#9254DE"},
+    production: {badge: "var(--ag-env-production-text)"},
+    staging: {badge: "var(--ag-env-staging-text)"},
+    development: {badge: "var(--ag-env-development-text)"},
 }
 
 const EnvironmentStatus: FC<{

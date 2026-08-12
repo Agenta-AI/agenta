@@ -166,3 +166,4 @@ skills-lock.json
 
 # @agenta/sessions test artifacts (vitest writes a junit report on every run).
 web/packages/agenta-sessions/test-results/
+junit.xml

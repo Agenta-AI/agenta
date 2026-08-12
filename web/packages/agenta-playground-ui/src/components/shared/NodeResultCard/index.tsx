@@ -62,7 +62,7 @@ const RUNNING_BORDER_EFFECT_ENABLED = false
  * The node name appears as a legend-style label on the top border.
  * Border color and animation can change based on execution status:
  * - idle/cancelled/success: neutral border
- * - running/pending: optional animated prismatic gradient border (currently disabled)
+ * - running/pending: optional soft accent pulse on the border (currently disabled)
  * - error: red border
  */
 export const NodeResultCard = ({
@@ -122,15 +122,6 @@ export const NodeResultCard = ({
                         style={{borderRadius: BORDER_RADIUS}}
                     />
                     <div
-                        className="node-result-card__gradient absolute pointer-events-none"
-                        style={{
-                            inset: -3,
-                            borderRadius: BORDER_RADIUS + 3,
-                            filter: "blur(8px)",
-                            opacity: 0.4,
-                        }}
-                    />
-                    <div
                         className="relative bg-[var(--ag-c-FFFFFF)] px-3 pb-2 pt-6"
                         style={{
                             borderRadius: BORDER_RADIUS - BORDER_WIDTH,
@@ -182,11 +173,8 @@ export const NodeResultCard = ({
 let keyframesInjected = false
 
 /**
- * Injects the CSS for the Apple Intelligence-style animated gradient border.
- *
- * Uses `@property` for smooth angle interpolation of a `conic-gradient`
- * that rotates around the card. The gradient fills the outer container,
- * and a white inner div covers everything except the border-width gap.
+ * Injects the CSS for the running-node border: a single soft pulse in the brand accent (flat
+ * fill, no gradient). Motion is opacity only, and it holds still under reduced-motion.
  */
 export function ensureNodeCardKeyframes() {
     if (typeof window === "undefined" || keyframesInjected) return
@@ -195,34 +183,21 @@ export function ensureNodeCardKeyframes() {
     const style = document.createElement("style")
     style.setAttribute("data-node-card", "")
     style.textContent = `
-        @property --node-card-angle {
-            syntax: "<angle>";
-            initial-value: 0deg;
-            inherits: false;
-        }
-
-        @keyframes nodeCardSpin {
-            to {
-                --node-card-angle: 360deg;
-            }
-        }
-
-        .node-result-card--running {
-            --node-card-angle: 0deg;
+        @keyframes nodeCardPulse {
+            0%, 100% { opacity: 0.35; }
+            50% { opacity: 1; }
         }
 
         .node-result-card__gradient {
-            background: conic-gradient(
-                from var(--node-card-angle),
-                #ff6b8a,
-                #c084fc,
-                #60a5fa,
-                #34d399,
-                #fbbf24,
-                #fb923c,
-                #ff6b8a
-            );
-            animation: nodeCardSpin 3s linear infinite;
+            background: #D1D151;
+            animation: nodeCardPulse 1.8s ease-in-out infinite;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .node-result-card__gradient {
+                animation: none;
+                opacity: 0.7;
+            }
         }
     `
     document.head.appendChild(style)

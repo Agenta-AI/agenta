@@ -7,7 +7,17 @@ import {
 
 import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 
-export const SIDEBAR_SESSION_LIMIT = 20
+/**
+ * One request, deliberately much wider than the {@link SIDEBAR_SESSION_VISIBLE_LIMIT} rows the
+ * sidebar shows. Unstarted sessions (a beat-only stream row, see `isStartedSession`) are the
+ * NEWEST, are dropped before render, and a burst of them would otherwise eat the whole window and
+ * leave the group empty. Rows are small here — this policy requests no expansions — and the server
+ * caps a window at 200.
+ */
+export const SIDEBAR_SESSION_LIMIT = 100
+
+/** Rows the Sessions group renders before it collapses the rest behind "Show all". */
+export const SIDEBAR_SESSION_VISIBLE_LIMIT = 14
 
 export const sidebarSessionFilters = ({
     projectId,

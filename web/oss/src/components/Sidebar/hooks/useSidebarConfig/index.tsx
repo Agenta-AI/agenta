@@ -83,6 +83,18 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 isHidden: hideAdvancedNav,
                 disabled: !hasProjectURL,
             },
+            // Agents before Sessions: a session is something an agent has.
+            {
+                key: AGENTS_SIDEBAR_KEY,
+                title: "Agents",
+                link: `${projectURL}/agents`,
+                icon: <RobotIcon size={14} />,
+                // Only agents reach `/apps/<id>` with this rail up, so the prefix can't over-claim.
+                matchLinks: [`${projectURL}/agents`, `${baseAppURL}/`],
+                // Onboarding IS agent creation — the list page is an empty dead-end until it commits.
+                disabled: !hasProjectURL || deadEndNavDisabled,
+                tooltip: deadEndNavDisabled ? "Your agents will appear here" : undefined,
+            },
             {
                 key: SESSIONS_SIDEBAR_KEY,
                 title: "Sessions",
@@ -91,15 +103,6 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 // Sessions only exist once an agent has run — a dead-end during onboarding.
                 disabled: !hasProjectURL || deadEndNavDisabled,
                 tooltip: deadEndNavDisabled ? "Your sessions will appear here" : undefined,
-            },
-            {
-                key: AGENTS_SIDEBAR_KEY,
-                title: "Agents",
-                link: `${projectURL}/agents`,
-                icon: <RobotIcon size={14} />,
-                // Onboarding IS agent creation — the list page is an empty dead-end until it commits.
-                disabled: !hasProjectURL || deadEndNavDisabled,
-                tooltip: deadEndNavDisabled ? "Your agents will appear here" : undefined,
             },
             {
                 key: "evaluation-group",
@@ -152,6 +155,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Observability",
                 link: `${projectURL}/observability`,
                 icon: <ChartLineUpIcon size={14} />,
+                isHidden: hideAdvancedNav,
                 disabled: !hasProjectURL,
             },
         ],
@@ -199,7 +203,8 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 icon: <LightningIcon size={14} />,
                 disabled: !hasProjectURL,
                 dataTour: "registry-nav",
-                workflowCategories: ["app", "agent"],
+                // Agents navigate flat: no Registry, Evaluations or per-app Observability.
+                workflowCategories: ["app"],
             },
             {
                 key: "app-evaluations-link",
@@ -210,14 +215,16 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 // Enabled for evaluators too — shows the runs scoped by the evaluator's id.
                 disabled: !hasProjectURL,
                 dataTour: "evaluations-nav",
+                workflowCategories: ["app", "evaluator"],
             },
             {
                 key: "app-traces-link",
                 title: "Observability",
                 icon: <TreeViewIcon size={14} />,
-                isHidden,
+                isHidden: isHidden || hideAdvancedNav,
                 link: `${appURL || recentlyVisitedAppURL}/traces`,
                 disabled: !hasProjectURL,
+                workflowCategories: ["app", "evaluator"],
             },
         ]
     }, [

@@ -89,10 +89,13 @@ export const resolveChildren = (
         children.push({
             key: `${entity.parentKey}-${ref.id}`,
             title: entity.getLabel(ref),
+            tooltip: entity.getTooltip?.(ref),
             link: entity.childLink(ref, projectURL),
+            matchLinks: entity.childMatchLinks?.(ref, projectURL),
             icon: entity.getIcon?.(ref) ?? icon(),
             isDynamic: true,
             onClick: entity.getOnClick?.(ref),
+            wrapRow: entity.wrapRow ? (node) => entity.wrapRow!(ref, node) : undefined,
         })
     }
 

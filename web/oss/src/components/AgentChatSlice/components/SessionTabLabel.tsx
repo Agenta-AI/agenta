@@ -11,19 +11,22 @@ export interface SessionTabLabelHandle {
  * A session tab's label. Double-click (or `ref.startEditing()`) to rename inline (commit on
  * Enter/blur). While editing, the input owns its own pointer + keyboard events (stopped from
  * bubbling) so the surrounding tab's activation handler never sees them — otherwise Space couldn't
- * be typed into a name and Enter would also switch tabs. `className` styles the resting display
- * span (the tag passes `truncate` so a long title clips with an ellipsis).
+ * be typed into a name and Enter would also switch tabs. `className`/`style` style the resting
+ * display span (the tag clips long titles with a right-edge fade mask, never an ellipsis).
  */
 const SessionTabLabel = ({
     label,
     onRename,
     className,
+    style,
     ref,
     onEditingChange,
 }: {
     label: string
     onRename: (next: string) => void
     className?: string
+    /** Styles the resting span (the tag passes its fade mask here). */
+    style?: React.CSSProperties
     ref?: Ref<SessionTabLabelHandle>
     /** Fires on enter/exit of rename mode so the parent can hide its hover actions meanwhile. */
     onEditingChange?: (editing: boolean) => void
@@ -77,7 +80,7 @@ const SessionTabLabel = ({
     }
 
     return (
-        <span className={className} onDoubleClick={startEditing}>
+        <span className={className} style={style} onDoubleClick={startEditing}>
             {label}
         </span>
     )

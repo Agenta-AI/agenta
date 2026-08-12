@@ -249,13 +249,16 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         </span>
                     )
 
-                    const labelNode = item.dataTour ? (
+                    const tourNode = item.dataTour ? (
                         <span className="w-full" data-tour={item.dataTour}>
                             {node}
                         </span>
                     ) : (
                         node
                     )
+                    // Per-row chrome (kebab / right-click menu). A collapsed rail has no room for
+                    // it, and its own Tooltip wrapper below owns the row instead.
+                    const labelNode = item.wrapRow && !collapsed ? item.wrapRow(tourNode) : tourNode
 
                     const menuItem = {
                         icon: item.icon,
@@ -270,6 +273,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                 <div className="flex items-center justify-center w-full">
                                     {labelNode}
                                 </div>
+                            </Tooltip>
+                        ) : item.tooltip ? (
+                            // Expanded rows only show explicitly configured tooltips.
+                            <Tooltip title={item.tooltip} placement="right" mouseEnterDelay={0.8}>
+                                <span className="w-full">{labelNode}</span>
                             </Tooltip>
                         ) : (
                             labelNode
@@ -316,6 +324,10 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 "[&_.ant-menu-item]:relative [&_.ant-menu-submenu-title]:relative",
                 "[&_.ant-menu-item-disabled_a]:pointer-events-none [&_.ant-menu-submenu-disabled_a]:pointer-events-none",
                 "[&_.ant-menu-item]:!rounded-md [&_.ant-menu-submenu-title]:!rounded-md",
+                // The selected pill's hairline. An inset ring, not a border, so the row's box
+                // never changes size between states. The token is transparent in dark, which
+                // leaves the shipped dark selection (olive bg + olive text) exactly as-is.
+                "[&_.ant-menu-item-selected]:!shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]",
                 "[&_.ant-menu-item-icon]:!shrink-0",
                 "!border-0 [&_.ant-menu-item-divider]:!w-full [&_.ant-menu-item-divider]:!my-2",
                 {

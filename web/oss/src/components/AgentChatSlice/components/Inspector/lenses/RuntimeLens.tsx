@@ -21,7 +21,7 @@ import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@/oss/components/Drives/driveMoti
 import {useDriveArtifactId} from "@/oss/components/Drives/driveSessionContext"
 import {humanSize} from "@/oss/components/Drives/driveTree"
 import {driveQuickLookAtomFamily} from "@/oss/components/Drives/quickLook"
-import {filesDrawerOpenAtomFamily} from "@/oss/components/Drives/SessionFilesDrawer"
+import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {driveHasMixedOrigins, useSessionDriveSummary} from "@/oss/components/Drives/useSessionDrive"
 import StatesTab from "@/oss/components/SessionInspector/tabs/StatesTab"
 import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
@@ -36,7 +36,7 @@ const DriveFilesCard = ({
     drive: ReturnType<typeof useSessionDriveSummary>
 }) => {
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
-    const openFiles = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
+    const {openPane: openFiles} = useSessionFilesPane(sessionId)
 
     // The loading skeleton is the SAME list rendering placeholder rows, so skeleton → real is a
     // per-row content swap inside one AnimatePresence (no block→list jump, no layout shift). Terminal
@@ -75,7 +75,7 @@ const DriveFilesCard = ({
                     // from its record log) — say so instead of an empty list.
                     <button
                         type="button"
-                        onClick={() => openFiles(true)}
+                        onClick={() => openFiles()}
                         className="w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-colorTextTertiary hover:text-colorText"
                     >
                         No changes yet — browse all {drive.fileCount}
@@ -127,7 +127,7 @@ const DriveFilesCard = ({
                                                   showOrigin={driveHasMixedOrigins(drive.recents)}
                                                   onOpen={() =>
                                                       f.is_folder
-                                                          ? openFiles(true)
+                                                          ? openFiles()
                                                           : openQuickLook({path: f.path})
                                                   }
                                               />
@@ -144,7 +144,7 @@ const DriveFilesCard = ({
                         {drive.fileCount > 5 ? (
                             <button
                                 type="button"
-                                onClick={() => openFiles(true)}
+                                onClick={() => openFiles()}
                                 className="mt-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline"
                             >
                                 View all files

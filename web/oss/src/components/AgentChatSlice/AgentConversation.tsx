@@ -17,11 +17,8 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
-import {
-    SessionFilesDrawer,
-    filesDrawerOpenAtomFamily,
-    filesDrawerStagedAtomFamily,
-} from "@/oss/components/Drives/SessionFilesDrawer"
+import {filesDrawerStagedAtomFamily} from "@/oss/components/Drives/SessionFilesDrawer"
+import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
 import {describeAccepted} from "./assets/attachments"
@@ -147,12 +144,13 @@ const AgentConversation = ({
         turnNumbers,
     } = useTurnInspector({sessionId, messages})
 
-    // Quick Look + Files-window hosts: cards/tiles/rail request via atoms; these resolve against
+    // Quick Look + Files openers: cards/tiles/rail request via atoms; these resolve against
     // THIS conversation's drive: the link provider makes filename mentions clickable, and the
-    // Files drawer (below) hosts both the grid and the single-file preview in one surface.
+    // docked Files pane (hosted a level up in AgentChatPanel, beside the whole chat column)
+    // shows the grid and the single-file preview — every opener (cards, links, rail, the
+    // session bar "«") lands there.
     const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} artifactId={artifactId} />
-    const filesWindowHost = <SessionFilesDrawer sessionId={sessionId} />
-    const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
+    const {openPane: openFilesPane} = useSessionFilesPane(sessionId)
     const setFilesStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
 
     // ── "Run in playground" seam (producer: a trigger drawer's Run-in-playground) ──
@@ -279,6 +277,7 @@ const AgentConversation = ({
         // Files picked on Home / the overview, where there was no session to upload against.
         onSeedFiles: attachments.addFiles,
         attachmentsSettled,
+        isHydrating,
     })
     const consumedRunNonceRef = useRef<number | null>(null)
 
@@ -593,7 +592,6 @@ const AgentConversation = ({
                 {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
                 {modalContextHolder}
                 {quickLookHost}
-                {filesWindowHost}
                 {uploadsEnabled ? (
                     <AttachmentViewerDrawer
                         uploads={files}
@@ -602,7 +600,9 @@ const AgentConversation = ({
                     />
                 ) : null}
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
-                pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
+                pushes the chat aside rather than overlaying it, and collapses to 0 when closed.
+                (The Files pane is NOT here: it docks a level up, beside the whole chat column —
+                session bar included — see AgentChatPanel.) */}
                 <RightPanelSplit
                     open={inspectorOpen}
                     // Same bar inset as the transcript column: the Inspector is a separate split pane,
@@ -719,7 +719,7 @@ const AgentConversation = ({
                             sessionId={sessionId}
                             busy={busy}
                             hidden={buildMode || inspectorOpen}
-                            onOpenFiles={() => setFilesWindowOpen(true)}
+                            onOpenFiles={openFilesPane}
                             onStageFiles={
                                 uploadsEnabled ? (files) => setFilesStaged(files) : undefined
                             }

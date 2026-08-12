@@ -11,10 +11,13 @@ import {ChatsCircleIcon, CircleIcon, PushPinIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
+import {SessionRunSpinner} from "@/oss/components/AgentChatSlice/components/SessionRunSpinner"
 import {pendingSessionOpenAtom} from "@/oss/components/AgentChatSlice/state/pendingSessionOpen"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../scopes/constants"
 
+import {SIDEBAR_SESSION_VISIBLE_LIMIT} from "./sessionOptions"
+import SessionRowActions from "./SessionRowActions"
 import {sidebarSessionsListAtom, type SessionSidebarRef} from "./sessionsSource"
 import {gatedSidebarSource} from "./source"
 import type {
@@ -51,13 +54,19 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     activeSourceAtom: gatedSidebarSource(scopeId, parentKey, config.listAtom),
     getLabel: (ref) => config.getLabel(ref as TRef),
     childLink: (ref, projectURL) => `${projectURL}${config.childPath(ref as TRef)}`,
+    childMatchLinks: config.childMatchPaths
+        ? (ref, projectURL) =>
+              config.childMatchPaths!(ref as TRef).map((path) => `${projectURL}${path}`)
+        : undefined,
     emptyLabel: config.emptyLabel,
     maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
     showAllLink: config.showAllPath
         ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,
     getIcon: config.getIcon ? (ref) => config.getIcon!(ref as TRef) : undefined,
+    getTooltip: config.getTooltip ? (ref) => config.getTooltip!(ref as TRef) : undefined,
     getOnClick: config.getOnClick ? (ref) => config.getOnClick!(ref as TRef) : undefined,
+    wrapRow: config.wrapRow ? (ref, node) => config.wrapRow!(ref as TRef, node) : undefined,
 })
 
 // ── Add a new dynamic entity by appending one entry here. Nothing else. ──────
@@ -80,6 +89,8 @@ const ENTITIES: SidebarEntity[] = [
         // The link navigates to the owning agent; the click hands over WHICH session, since the
         // playground has no way to read that from the route.
         childPath: (session) => `/apps/${session.appId}/playground`,
+        // Every session shares that one URL, so matching would highlight an arbitrary row.
+        childMatchPaths: () => [],
         getOnClick: (session) => () => {
             if (!session.appId) return
             getDefaultStore().set(pendingSessionOpenAtom, {
@@ -88,15 +99,23 @@ const ENTITIES: SidebarEntity[] = [
                 title: session.name ?? undefined,
             })
         },
+        // A turn in flight outranks the pin: "this one is working right now" is the state you scan
+        // the list for, and the pin is still readable from the row's position at the top. Same
+        // glyph and motion the playground's session chips use — one animation for one meaning.
         getIcon: (session) =>
-            session.pinned
-                ? createElement(PushPinIcon, {size: 14, weight: "fill"})
-                : createElement(CircleIcon, {
-                      size: 10,
-                      weight: session.alive ? "fill" : "regular",
-                  }),
+            session.running
+                ? createElement(SessionRunSpinner)
+                : session.pinned
+                  ? createElement(PushPinIcon, {size: 14, weight: "fill"})
+                  : createElement(CircleIcon, {
+                        size: 10,
+                        weight: session.alive ? "fill" : "regular",
+                    }),
+        wrapRow: (session, node) => createElement(SessionRowActions, {session, children: node}),
+        // Show the owning agent because sessions from multiple agents share this list.
+        getTooltip: (session) => session.agentName ?? undefined,
         emptyLabel: "No sessions",
-        maxItems: 7,
+        maxItems: SIDEBAR_SESSION_VISIBLE_LIMIT,
         showAllPath: "/sessions",
     }),
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
@@ -104,7 +123,9 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(RobotIcon, {size: 14}),
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-        childPath: (workflow) => `/apps/${workflow.id}/playground`,
+        childPath: (workflow) => `/apps/${workflow.id}/overview`,
+        // Stays highlighted across all of the agent's pages, not just the one it links to.
+        childMatchPaths: (workflow) => [`/apps/${workflow.id}`],
         emptyLabel: "No agents",
         showAllPath: "/agents",
     }),

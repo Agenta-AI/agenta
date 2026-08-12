@@ -45,7 +45,7 @@ const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.Driv
  * place by `useDriveSelection` (remounting there would wipe a search typed against the skeleton),
  * and drive→null is just a host tearing down on close.
  */
-const useDriveGeneration = (mountId: string | null | undefined): string => {
+export const useDriveGeneration = (mountId: string | null | undefined): string => {
     const seen = useRef<string | null>(null)
     const generation = useRef(0)
     if (mountId && seen.current !== mountId) {
