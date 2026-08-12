@@ -30,24 +30,26 @@ in `secrets.md` and the lookup already takes an owner (D10), so nothing is forec
 
 Per-endpoint tokens arrive with this, not before.
 
-### OD6. OAuth on a deployment with no public IP — RECOMMENDED, see D26
+### OD6. OAuth callback reachability — CLOSED, and it was never a real problem
 
-**The framing was wrong and that mattered.** This was written up as a firewall problem. It is
-not: the constraint is having no address the public internet can name — `localhost`, a home
-network, a corporate LAN.
+**Nothing to build.** The user is already looking at the Agenta interface in a browser when they
+click connect, so the address that got them there is one their browser reaches. The authorization
+server never fetches the redirect target; it only sends the browser somewhere it has already
+been. Cloud has a domain, a self-hosted production deployment has a domain, and development has
+the tunnel that is already wired into the compose files. See D26.
 
-Splitting it by *who* needs to reach the deployment collapses most of it. The **browser** needs
-the redirect, and the browser is usually on the same network as the deployment, so a private
-address works. The **authorization server** needs to fetch a client identity document, and that
-fetch comes from the internet — which is the part that genuinely breaks, and it is solved by
-registering outbound instead, using the older mechanism that inverts the direction.
+The one thing that can genuinely fail is unrelated to the redirect: the newer client-registration
+mechanism has the **authorization server** fetch a client identity document over the internet, so
+a deployment on an internal-only domain cannot use it. The fallback is registering outbound, and
+D26 makes that the standing rule.
 
-Only a deployment whose *browser* is also elsewhere needs the hosted code relay. D26 carries the
-three situations, the relay's mechanism, and why holding the code is safe.
+Two questions were wrong rather than open, and `notes.md` records both: this was written up first
+as a firewall problem, then as a private-address problem, and the deployment shape both worried
+about — a production web application with no address — does not exist.
 
-To establish at implementation time, none of it blocking: which authorization servers accept a
-private-address redirect target; whether the older outbound registration is still accepted by the
-servers we care about; the relay's retention window; and how an abandoned flow is collected.
+To establish at implementation time, neither blocking: whether the servers we care about still
+accept the older outbound registration, and whether any of them reject a redirect target on a
+non-public domain.
 
 Belongs to the OAuth wave, not the first one.
 

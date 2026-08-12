@@ -318,60 +318,49 @@ It is legacy. It is not moved, not reinterpreted, and not fixed as part of this 
 
 It is removed only once the gateway is the sole mechanism the whole system uses.
 
-## D26. No public IP is two problems, and only one of them is the redirect
+## D26. The OAuth redirect needs nothing built
 
-The constraint is **not a firewall**. It is that a deployment on a private address —
-`localhost`, a home network, a corporate LAN — has no address anything on the internet can name.
-Splitting that into who actually needs to reach the deployment collapses most of the problem.
+**There is no redirect problem.** The user is already looking at the Agenta interface in a
+browser when they click connect. Whatever address got them there is an address their browser
+reaches. The authorization server does not fetch the redirect target; it only tells the browser
+where to go next, and the browser has already proved it can get there.
 
-**Two parties want to address it, and they are not the same party.**
+That holds in every deployment:
 
-*The user's browser*, for the redirect. The browser usually sits on **the same network as the
-deployment** — the developer running it locally, the employee on the company LAN or VPN. A
-private address is perfectly reachable from there. **This is the case that looks broken and is
-not.**
+| Deployment | The redirect address |
+|---|---|
+| Cloud | Our domain |
+| Self-hosted, production | Their domain. A production web application has one, or nobody can log in |
+| Development | The existing tunnel service, already wired into the development compose files |
 
-*The authorization server*, to fetch the client identity document that modern registration uses.
-That fetch comes from the public internet, and no amount of same-network luck helps. **This is
-the case that is actually broken.**
+**The tunnel stays development-only.** It is in the development compose files under a profile,
+gated on an authorization token, exiting quietly when none is set, and the runner already
+discovers its public address at runtime through the tunnel agent's own API. That is the right
+scope for it. Outside development a deployment has a domain, and if an operator chooses to run a
+tunnel anyway that is their arrangement, not something the product ships.
 
-### Three situations
+### The one thing that can genuinely fail
 
-| The deployment | The redirect | The client identity |
-|---|---|---|
-| Has a public hostname | Direct | Its own document. Nothing hosted. |
-| Private address, browser on the same network | **Direct — no relay** | Register outbound at first use, or use a hosted document |
-| Private address, browser elsewhere | Hosted code relay | Hosted document |
+The newer client-registration mechanism makes the client identifier an HTTPS URL and has **the
+authorization server fetch it** to read the application's name and permitted redirect addresses.
+That fetch comes from the public internet, so it needs a publicly resolvable name — which a
+deployment on an internal-only domain does not have, even though its own users reach it fine.
 
-**Registering outbound is what makes the middle row need nothing.** The older registration
-mechanism is a plain outbound call: the deployment posts its own metadata to the authorization
-server and receives an identifier. It is deprecated in favour of the document-fetch approach, and
-it is exactly the right fallback here, because it is the one path that inverts the direction. A
-deployment with no public address should prefer it rather than treat it as a downgrade.
+The answer is the older registration mechanism: the deployment posts its own metadata outbound to
+the authorization server and receives an identifier. Nothing is ever fetched from us. It is
+deprecated in general and it is the correct choice here, because it is the one path with no
+inbound direction at all.
 
-### The relay, for the last row only
+So the rule is: **prefer the document, fall back to registering outbound**, and a deployment on an
+internal domain simply always takes the fallback.
 
-One public callback host receives the redirect, demultiplexes on the signed state the connections
-domain already mints — which already carries the project and the user — holds the authorization
-code briefly, and serves it outbound to the deployment that started the flow.
+### What was rejected, and why it was wrong
 
-**It mixes the two patterns already in the tree and adds nothing novel.** Demultiplexing on a
-routing value behind one shared registered URL is the payment provider's pattern. Having the
-deployment reach out rather than be reached is the trigger bridge's. What it does *not* borrow is
-that bridge's transport, which works only through the provider's own subscribe call — a browser
-redirect is a navigation, not an event, and cannot travel down an outbound socket. The
-development tunnel stays what it is: development only.
-
-**Why holding the code is safe, and this is the load-bearing part.** With proof key exchange the
-code is worthless without the verifier, and the verifier never leaves the deployment, which
-redeems the code itself, outbound. **The relay never sees a token and could not redeem what it
-holds.** That is what makes a hosted component acceptable in a self-hosted product.
-
-### What this rules out
-
-Documenting that OAuth-protected servers simply need a publicly addressable deployment. It would
-be wrong as well as unhelpful: most deployments without a public address can complete the flow
-untouched, and saying otherwise would send people building tunnels they do not need.
+A hosted service on our domain to receive redirects for deployments that could not. It solved a
+deployment shape that does not exist — a production web application with no address — and it
+would have added a shared component holding other customers' authorization codes for no reason.
+The mistake was reasoning about network topology in the abstract instead of asking how the user
+got to the connect button in the first place.
 
 ## D25. A governance ceiling rejects; it never silently clamps
 

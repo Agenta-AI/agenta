@@ -114,10 +114,15 @@ clutters a decision surface.
 
 ---
 
-## Reachability: what exists, and why none of it carries an OAuth redirect
+## Reachability: what exists, and why the OAuth callback does not need any of it
 
-Three patterns exist in the tree for "the provider needs to reach us and cannot". None of them
-solves the OAuth callback, and the reason is worth stating so nobody proposes them again.
+**The callback needs nothing built (D26).** The user is already looking at the Agenta interface
+in a browser when they click connect, so the address that got them there is one their browser
+reaches. Cloud has a domain, self-hosted production has a domain, development has the tunnel
+already in the compose files. The tunnel stays development-only.
+
+The three patterns below exist for a different problem — a provider needing to reach us — and are
+recorded so nobody proposes them for this one.
 
 **A provider-side relay keyed by a routing value.** Stripe config carries a `webhook_target`
 falling back to `STRIPE_TARGET` and then to the machine's MAC address, so many developers share
@@ -147,17 +152,15 @@ deployment opened outward.
 
 The payment-provider pattern is server-to-server routing, and has the same problem.
 
-### What the question actually is
+### And why the callback does not need one anyway
 
-It is **not a firewall question.** It is that a deployment on a private address has no name
-anything on the internet can use. Splitting that by *who* needs to reach it settles most of it:
-the user's browser usually sits on the same network and reaches a private address fine, while the
-authorization server's fetch of a client identity document comes from the internet and does not.
-The second is answered by registering outbound instead, and only a deployment whose browser is
-also elsewhere needs a hosted relay. D26 carries it.
+The three patterns above answer "a provider must reach us and cannot." The OAuth callback is not
+that question. Nobody needs to reach us who has not already: the browser being redirected is the
+browser that just loaded our interface.
 
-What survives from the three patterns above is their *shape*: shared-URL demultiplexing on a
-routing value, and an outbound fetch instead of an inbound push. Their transports do not survive.
+The only part of an OAuth flow that requires an inbound connection from a stranger is the
+**authorization server fetching a client identity document**, and a deployment on an
+internal-only domain answers that by registering outbound instead (D26).
 
 ## Deferred, with the reason
 

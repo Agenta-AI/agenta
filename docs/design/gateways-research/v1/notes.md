@@ -154,6 +154,33 @@ The MCP OAuth work therefore inherits the state signer, the unauthenticated-call
 the popup-closing response. What it does not inherit is reachability, which is why that stays
 open — see `open-designs.md`.
 
+### The OAuth callback problem was invented, three times
+
+There was never a callback reachability problem, and it took three wrong framings to see it.
+
+**First: a firewall problem.** Wrong word. A firewall blocks inbound connections; the thing being
+described was having no routable address at all.
+
+**Second: a private-address problem.** Closer, and still wrong, because it treated "who can reach
+this deployment" as an abstract network question.
+
+**Third: a hosted relay** to catch redirects for deployments that could not receive them — a
+public service holding other customers' authorization codes, justified by a deployment shape that
+does not exist. A production web application has a domain, or nobody can log into it.
+
+**The question that dissolves all three:** how did the user get to the connect button? They are
+looking at our interface in a browser. Whatever address served that page is an address their
+browser reaches, and the authorization server never fetches the redirect target — it only sends
+the browser back somewhere it has already been.
+
+What survives is one real constraint, and it is not about the callback: the newer
+client-registration mechanism has the *authorization server* fetch a client identity document, so
+an internal-only domain must register outbound instead (D26).
+
+**The lesson: check where the user actually is before reasoning about network topology.** Three
+framings were spent on a diagram of hosts and routes when the answer was in the flow of the
+person using it.
+
 ### One flaw in that machinery, worth fixing rather than copying
 
 The callback path the connections service builds is hardcoded to the tool domain's mount, even

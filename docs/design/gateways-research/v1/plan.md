@@ -122,7 +122,7 @@ flowchart LR
     CB --> WP16["WP16<br/>secret kinds"]
     WP16 --> WP17["WP17<br/>OAuth client"]
     WP17 --> WP18["WP18<br/>consent flow"]
-    WP17 --> WP20["WP20<br/>reachability"]
+    WP17 --> WP20["WP20<br/>registration fallback"]
     WP18 --> WP19["WP19<br/>step-up"]
     WP19 & WP20 --> CC(["Checkpoint C<br/>DEPLOY"])
 ```
@@ -293,15 +293,14 @@ secrets service; connect callbacks pointed at the dashboard rather than a local 
 missing-connection path.
 *Depends on:* WP17, WP18.
 
-**WP20 — Callback reachability.** The hosted code relay (D26): a public callback host that
-receives the redirect, demultiplexes on the signed state the connections domain already mints,
-holds the authorization code briefly, and serves it outbound to the deployment that started the
-flow (D26). Most deployments never touch it: a deployment on a private address whose user's
-browser is on the same network redirects directly, and registers itself outbound rather than
-serving a public identity document. The relay is for the case where the browser is elsewhere too.
-*Depends on:* WP17. **Needed for Checkpoint C to be testable at all.**
-*Done when:* a deployment with no public address completes a full authorization from a browser
-outside its network, and the relay is observed to hold no token at any point.
+**WP20 — Client registration fallback.** There is no callback-reachability work: the browser
+reaches the redirect in every deployment, because it is the address the user is already on
+(D26). What remains is registration. Prefer the client identity document; fall back to
+registering outbound when the deployment's domain is not publicly resolvable, and make that
+fallback automatic rather than a configuration flag.
+*Depends on:* WP17.
+*Done when:* a deployment on an internal-only domain completes a full authorization without any
+hosted component of ours in the path.
 
 **Merge M4 → Checkpoint C.** Deploy. Acceptance tests above.
 
