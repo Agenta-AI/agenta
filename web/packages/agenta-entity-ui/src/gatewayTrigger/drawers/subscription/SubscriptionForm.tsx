@@ -29,7 +29,7 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
 import {HeightCollapse} from "@agenta/ui/components"
-import {Input, Spinner} from "@agenta/ui/ui"
+import {Input} from "@agenta/ui/ui"
 import {CaretDown, SlidersHorizontal} from "@phosphor-icons/react"
 // The SchemaForm bridge: SchemaForm (gatewayTool) still requires an antd FormInstance.
 import {Form} from "antd"
@@ -41,6 +41,7 @@ import {type SchemaFormHandle} from "../../../gatewayTool/components/SchemaForm"
 import {AgentField} from "../shared/AgentField"
 import {loadRecentSamples, waitForNewDelivery} from "../shared/deliveries"
 import {type SampledEvent} from "../shared/EventSourcePicker"
+import {SubscriptionFormSkeleton} from "../shared/FormSkeleton"
 import {normalizeJson} from "../shared/normalizeJson"
 import {
     bindingKey,
@@ -493,11 +494,7 @@ export function SubscriptionForm({
     )
 
     if (isEdit && subLoading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Spinner />
-            </div>
-        )
+        return <SubscriptionFormSkeleton showAgent={!playgroundEntityId} />
     }
 
     if (browsing) {

@@ -21,7 +21,7 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
 import {HeightCollapse} from "@agenta/ui/components"
-import {Input, Spinner} from "@agenta/ui/ui"
+import {Input} from "@agenta/ui/ui"
 import {CaretDown, SlidersHorizontal} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
@@ -29,6 +29,7 @@ import {DrawerFooter} from "../../../drawers/shared/DrawerFooter"
 import {Labelled} from "../../../drawers/shared/Labelled"
 import {ScheduleBuilderField} from "../ScheduleBuilderField"
 import {AgentField} from "../shared/AgentField"
+import {ScheduleFormSkeleton} from "../shared/FormSkeleton"
 import {normalizeJson} from "../shared/normalizeJson"
 import {useShapeChange} from "../shared/useShapeChange"
 import {
@@ -326,11 +327,7 @@ export function ScheduleForm({
         (isEdit ? isDirty : cronValidation.valid && versionChosen && !!composedMessage.trim())
 
     if (isEdit && scheduleLoading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Spinner />
-            </div>
-        )
+        return <ScheduleFormSkeleton showAgent={!playgroundEntityId} />
     }
 
     return (
