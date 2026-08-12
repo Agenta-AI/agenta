@@ -117,7 +117,7 @@ const BarChart = ({
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
                                     fontSize: "10px",
-                                    color: "#666",
+                                    color: "var(--ag-chart-axis-text)",
                                 }}
                             >
                                 {payload?.value}
@@ -129,8 +129,8 @@ const BarChart = ({
                 />
                 <YAxis
                     domain={yDomain as any}
-                    tickLine={{stroke: "#05172933"}}
-                    tick={{fill: "#666"}}
+                    tickLine={{stroke: "var(--ag-chart-axis-line)"}}
+                    tick={{fill: "var(--ag-chart-axis-text)"}}
                     tickMargin={8}
                     width={yAxisWidth}
                     {...yAxisProps}
@@ -139,7 +139,7 @@ const BarChart = ({
                     strokeDasharray="3 2"
                     horizontal
                     vertical={false}
-                    stroke="#05172933"
+                    stroke="var(--ag-chart-grid)"
                     {...cartesianGridProps}
                 />
 

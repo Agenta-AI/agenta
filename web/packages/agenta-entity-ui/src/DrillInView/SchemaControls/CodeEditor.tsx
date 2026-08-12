@@ -77,7 +77,7 @@ export function CodeEditor({
     }
 
     return (
-        <div className="overflow-hidden rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
+        <div className="overflow-hidden rounded border border-solid border-[var(--ag-c-EAEFF5)]">
             <SharedEditor
                 editorType="border"
                 initialValue={text}

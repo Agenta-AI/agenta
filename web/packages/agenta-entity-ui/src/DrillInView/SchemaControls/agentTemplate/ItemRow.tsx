@@ -109,12 +109,10 @@ export function ItemRow({
         <div
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors",
+                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2 transition-colors",
                 // Item cards read as white sheets sitting ON the expanded section's band.
                 !locked && "bg-[var(--ag-surface-section-content)]",
-                interactive &&
-                    !status &&
-                    "cursor-pointer hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+                interactive && !status && "cursor-pointer hover:border-[var(--ag-zinc-5)]",
                 interactive && status && "cursor-pointer",
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
             )}
@@ -170,14 +168,12 @@ export function ItemRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-[var(--ag-c-FF4D4F,#ff4d4f)] group-hover:opacity-100"
+                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                {interactive ? (
-                    <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
-                ) : null}
+                {interactive ? <CaretRight size={14} className="text-[var(--ag-zinc-5)]" /> : null}
             </div>
         </div>
     )
@@ -249,12 +245,12 @@ export function ItemChildRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-[var(--ag-c-FF4D4F,#ff4d4f)] group-hover:opacity-100"
+                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
             </div>
         </div>
     )
@@ -295,8 +291,8 @@ export function InstructionsFileRow({
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2.5 transition-colors",
-                !status && "hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2.5 transition-colors",
+                !status && "hover:border-[var(--ag-zinc-5)]",
             )}
         >
             <ItemAvatar descriptor={descriptor} />
@@ -320,7 +316,7 @@ export function InstructionsFileRow({
                     {descriptor.description}
                 </span>
             </div>
-            <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
+            <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-zinc-5)]" />
         </div>
     )
 }

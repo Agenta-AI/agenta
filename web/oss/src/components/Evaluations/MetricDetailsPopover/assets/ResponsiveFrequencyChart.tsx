@@ -231,7 +231,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                             margin.top +
                                                             yScaleVertical(val as number)
                                                         }
-                                                        stroke="#faad14"
+                                                        stroke="var(--ag-colorWarning)"
                                                         strokeWidth={2}
                                                         strokeDasharray="4 2"
                                                     />
@@ -271,7 +271,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                             xScaleHorizontal(val as number)
                                                         }
                                                         y2={margin.top + plotHeight}
-                                                        stroke="#faad14"
+                                                        stroke="var(--ag-colorWarning)"
                                                         strokeWidth={2}
                                                         strokeDasharray="4 2"
                                                     />
@@ -421,7 +421,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                 {/* Tooltip rendered outside SVG, absolutely positioned */}
                                 {hoveredBar !== null && data[hoveredBar] && mousePos && (
                                     <div
-                                        className="pointer-events-none z-50 absolute rounded-xl border border-[#d0d7e3]/80 dark:border-[var(--ag-rgba-051729-10)] bg-white/90 dark:bg-[var(--ant-color-bg-elevated)] px-3 py-2 text-xs text-gray-900 shadow-[0_6px_18px_rgba(15,23,42,0.12)] backdrop-blur-sm"
+                                        className="pointer-events-none z-50 absolute rounded-xl border border-colorBorderSecondary dark:border-[var(--ag-rgba-051729-10)] bg-white/90 dark:bg-[var(--ant-color-bg-elevated)] px-3 py-2 text-xs text-gray-900 shadow-[0_6px_18px_rgba(15,23,42,0.12)] backdrop-blur-sm"
                                         style={{
                                             left: clamp(
                                                 mousePos.x + 10,

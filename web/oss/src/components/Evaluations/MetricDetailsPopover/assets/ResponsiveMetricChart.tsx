@@ -294,7 +294,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         ? yScaleVertical(tick)
                                                         : yScale(tick))
                                                 }
-                                                stroke="#05172933"
+                                                stroke="var(--ag-chart-grid)"
                                                 strokeWidth={1}
                                                 strokeDasharray="5 5"
                                             />
@@ -588,7 +588,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         margin.left + xScaleVertical(highlightValue)
                                                     }
                                                     y2={margin.top + plotHeight}
-                                                    stroke="#52c41a"
+                                                    stroke="var(--ag-colorSuccess)"
                                                     strokeWidth={3}
                                                     strokeDasharray="6 2"
                                                     style={{filter: "drop-shadow(0 0 2px #fff)"}}
@@ -610,7 +610,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                 <text
                                                     x={margin.left + xScaleVertical(highlightValue)}
                                                     y={margin.top - 5}
-                                                    fill="#52c41a"
+                                                    fill="var(--ag-colorSuccess)"
                                                     fontSize="10"
                                                     fontWeight="bold"
                                                     textAnchor="middle"
@@ -632,7 +632,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         margin.top +
                                                         yScaleHorizontal(highlightValue)
                                                     }
-                                                    stroke="#52c41a"
+                                                    stroke="var(--ag-colorSuccess)"
                                                     strokeWidth={3}
                                                     strokeDasharray="6 2"
                                                     style={{filter: "drop-shadow(0 0 2px #fff)"}}
@@ -662,7 +662,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         yScaleHorizontal(highlightValue) -
                                                         5
                                                     }
-                                                    fill="#52c41a"
+                                                    fill="var(--ag-colorSuccess)"
                                                     fontSize="10"
                                                     fontWeight="bold"
                                                     textAnchor="end"

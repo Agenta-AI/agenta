@@ -8,12 +8,7 @@ import {Tooltip} from "antd"
 
 import {type FileOrigin} from "./useSessionDrive"
 
-// Agent accent (recolor spec): deep info ink in light, the approved #8CCFFF in dark. `light-dark()`
-// resolves off the root's color-scheme, which ThemeContextProvider keeps in sync with the theme.
-export const AGENT_ACCENT = "light-dark(#113955, #8CCFFF)"
-/** Tag well behind the accent — the dark pair is founder-approved verbatim. */
-export const AGENT_ACCENT_BG = "light-dark(#E5F1F9, rgba(140,207,255,0.14))"
-/** Same accent at 55% — the recent-file left rule. */
+/** The agent accent at 55% — the recent-file left rule. */
 export const AGENT_ACCENT_SOFT = "light-dark(rgba(17,57,85,0.55), rgba(140,207,255,0.55))"
 
 // Shared so the Files filter tabs (All / Agent / Session) explain the same distinction the tags do.
@@ -25,10 +20,7 @@ export const ORIGIN_TIP: Record<FileOrigin, string> = {
 export const OriginTag = ({origin}: {origin: FileOrigin}) => (
     <Tooltip title={ORIGIN_TIP[origin]}>
         {origin === "agent" ? (
-            <span
-                className="inline-flex shrink-0 cursor-default items-center rounded px-1 align-middle text-[12px] font-medium leading-[15px]"
-                style={{color: AGENT_ACCENT, background: AGENT_ACCENT_BG}}
-            >
+            <span className="inline-flex shrink-0 cursor-default items-center rounded bg-[var(--ag-type-agent-bg)] px-1 align-middle text-[12px] font-medium leading-[15px] text-[var(--ag-type-agent-text)]">
                 Agent
             </span>
         ) : (
