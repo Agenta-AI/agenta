@@ -234,7 +234,7 @@ export function ConfigAccordionSection({
           ? "var(--ag-colorSuccess)"
           : status === "warning"
             ? "var(--ag-colorWarning)"
-            : "var(--ag-c-586673,#586673)"
+            : "var(--ag-c-586673)"
     const isControlled = open !== undefined
     // With `animateInitialOpen`, a default-open section still MOUNTS closed and expands via the
     // effect below, so its first paint is the collapsed row (matching skeletons), not the content.
@@ -334,11 +334,10 @@ export function ConfigAccordionSection({
                                     "bg-transparent",
                                     noDivider
                                         ? "border-transparent"
-                                        : "border-[var(--ag-c-EAEFF5,#eaeff5)]",
+                                        : "border-[var(--ag-c-EAEFF5)]",
                                 ),
                       )
-                    : !noDivider &&
-                          "border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]",
+                    : !noDivider && "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
                 className,
             )}
         >

@@ -1,18 +1,15 @@
 /**
- * The one categorical chart series palette (recolor spec). Series are assigned in this fixed
- * order and cycle — never picked per item. Flat fills only; no gradient ramps.
+ * The one categorical chart series palette. Series are assigned in this fixed order and cycle —
+ * never picked per item. Flat fills only; no gradient ramps.
  *
- * Pure by design (no React import): charts render as SVG presentation attributes (`fill=`/
- * `stroke=`), which take a plain color rather than a CSS `light-dark()` value, so components
- * resolve the mode with `useAppTheme()` and call `chartSeries(isDark)`.
+ * Values come from `styles/theme/palette.ts` (the single source of truth) — this module only
+ * flattens the {light, dark} pairs for the call sites that need a RESOLVED colour in JS, e.g.
+ * deriving an area fill at 8% of the series colour. Everything that just paints a colour uses
+ * the `var(--ag-chart-*)` custom properties instead, which follow the theme on their own.
  */
-export const CHART_SERIES_LIGHT = ["#D97757", "#54B5FA", "#D9D92C", "#113955", "#9D9D9D"]
-export const CHART_SERIES_DARK = ["#D1D151", "#8CCFFF", "#FF8E8C", "#8FBF7A", "#787878"]
+import {chartSeries as chartSeriesPairs} from "@/oss/styles/theme/palette"
 
-export const chartSeries = (isDark: boolean): string[] =>
-    isDark ? CHART_SERIES_DARK : CHART_SERIES_LIGHT
+const LIGHT = chartSeriesPairs.map((p) => p.light as string)
+const DARK = chartSeriesPairs.map((p) => p.dark as string)
 
-export const chartSeriesColor = (index: number, isDark: boolean): string => {
-    const set = chartSeries(isDark)
-    return set[((index % set.length) + set.length) % set.length]
-}
+export const chartSeries = (isDark: boolean): string[] => (isDark ? DARK : LIGHT)

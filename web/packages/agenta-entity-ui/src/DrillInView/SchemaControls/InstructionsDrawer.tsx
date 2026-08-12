@@ -158,7 +158,7 @@ export function InstructionsDrawer({
                                                 expanded ? "Collapse preview" : "Expand preview"
                                             }
                                             onClick={() => setExpanded((e) => !e)}
-                                            className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-[var(--ag-c-FFFFFF,#fff)] text-[var(--ag-c-586673,#586673)] hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
+                                            className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-solid border-[var(--ag-c-EAEFF5)] bg-[var(--ag-c-FFFFFF)] text-[var(--ag-c-586673)] hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
                                         >
                                             {expanded ? (
                                                 <ArrowsIn size={14} />
@@ -189,7 +189,7 @@ export function InstructionsDrawer({
                     <div className="flex w-[240px] shrink-0 flex-col gap-6">
                         {filename === "AGENTS.md" ? (
                             <div className="rounded-md bg-[var(--ag-rgba-051729-04,rgba(5,23,41,0.04))] p-3">
-                                <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--ag-c-586673,#586673)]">
+                                <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--ag-c-586673)]">
                                     <Lightbulb size={14} />
                                     Writing a good AGENTS.md
                                 </div>
@@ -217,7 +217,7 @@ export function InstructionsDrawer({
                                         type="button"
                                         disabled={disabled || mode === "preview"}
                                         onClick={() => appendSnippet(s.snippet)}
-                                        className="cursor-pointer rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-transparent px-2.5 py-1 text-xs text-[var(--ag-c-586673,#586673)] transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)] disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="cursor-pointer rounded-full border border-solid border-[var(--ag-c-EAEFF5)] bg-transparent px-2.5 py-1 text-xs text-[var(--ag-c-586673)] transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)] disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         + {s.label}
                                     </button>

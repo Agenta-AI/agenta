@@ -8,11 +8,10 @@ import {Tooltip} from "antd"
 
 import {type FileOrigin} from "./useSessionDrive"
 
-// Agent accent (recolor spec): deep info ink in light, the approved #8CCFFF in dark. `light-dark()`
-// resolves off the root's color-scheme, which ThemeContextProvider keeps in sync with the theme.
-export const AGENT_ACCENT = "light-dark(#113955, #8CCFFF)"
+// Agent accent — the `workflowType.agent` pair in palette.ts, the same one the agent chips use.
+export const AGENT_ACCENT = "var(--ag-type-agent-text)"
 /** Tag well behind the accent — the dark pair is founder-approved verbatim. */
-export const AGENT_ACCENT_BG = "light-dark(#E5F1F9, rgba(140,207,255,0.14))"
+export const AGENT_ACCENT_BG = "var(--ag-type-agent-bg)"
 /** Same accent at 55% — the recent-file left rule. */
 export const AGENT_ACCENT_SOFT = "light-dark(rgba(17,57,85,0.55), rgba(140,207,255,0.55))"
 

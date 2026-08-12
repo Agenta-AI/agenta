@@ -373,6 +373,25 @@ const tagTone = (slot: (typeof TAG_SLOT)[keyof typeof TAG_SLOT]) => ({
     border: slot.bg,
 })
 
+const rgbChannels = (hex: string): string => {
+    const h = hex.replace("#", "")
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).join(", ")
+}
+
+/** Outline alpha, one pair for all six slots so the chips read as one set. */
+const TAG_OUTLINE_ALPHA = {light: 0.22, dark: 0.3}
+
+/** A tag triplet with the classic bordered-tag outline: the slot's own text colour at low
+ * alpha, so the edge stays in the slot's hue without introducing a seventh colour. */
+const outlinedTagTone = (slot: (typeof TAG_SLOT)[keyof typeof TAG_SLOT]) => ({
+    text: slot.text,
+    bg: slot.bg,
+    border: {
+        light: `rgba(${rgbChannels(slot.text.light as string)}, ${TAG_OUTLINE_ALPHA.light})`,
+        dark: `rgba(${rgbChannels(slot.text.dark as string)}, ${TAG_OUTLINE_ALPHA.dark})`,
+    } satisfies Pair,
+})
+
 /**
  * Reference-tag tones — on the categorical set, one slot each.
  *
@@ -380,14 +399,17 @@ const tagTone = (slot: (typeof TAG_SLOT)[keyof typeof TAG_SLOT]) => ({
  * collide. The assignment keeps each tone's nearest existing hue (app was blue, variant green,
  * query orange→amber, evaluator magenta→red); testset and environment take the two slots with no
  * near match (neutral, olive) rather than doubling up on a used one.
+ *
+ * These are the one tag family drawn OUTLINED — reference chips carry an identifier, so the edge
+ * bounds it; the flat brand fills elsewhere (environmentTag, presetTag) stay flat.
  */
 export const referenceTag = {
-    app: tagTone(TAG_SLOT.blue),
-    variant: tagTone(TAG_SLOT.green),
-    testset: tagTone(TAG_SLOT.neutral),
-    query: tagTone(TAG_SLOT.amber),
-    evaluator: tagTone(TAG_SLOT.red),
-    environment: tagTone(TAG_SLOT.olive),
+    app: outlinedTagTone(TAG_SLOT.blue),
+    variant: outlinedTagTone(TAG_SLOT.green),
+    testset: outlinedTagTone(TAG_SLOT.neutral),
+    query: outlinedTagTone(TAG_SLOT.amber),
+    evaluator: outlinedTagTone(TAG_SLOT.red),
+    environment: outlinedTagTone(TAG_SLOT.olive),
 }
 
 /**
@@ -402,6 +424,53 @@ export const environmentTag = {
     staging: tagTone(TAG_SLOT.amber),
     development: tagTone(TAG_SLOT.neutral),
 }
+
+/**
+ * CHARTS — the one categorical series set, in FIXED order. Series are assigned by position and
+ * cycle; never picked per item. Flat fills only, no gradient ramps.
+ *
+ * Consumed two ways: as `var(--ag-chart-series-N)` (SVG presentation attributes do resolve
+ * `var()`), and as resolved hex through `lib/helpers/chartPalette` for the call sites that
+ * derive a value in JS (e.g. an area fill at 8% of the series colour).
+ */
+export const chartSeries = [
+    {light: "#D97757", dark: "#D1D151"},
+    {light: "#54B5FA", dark: "#8CCFFF"},
+    {light: "#D9D92C", dark: "#FF8E8C"},
+    {light: "#113955", dark: "#8FBF7A"},
+    {light: "#9D9D9D", dark: "#787878"},
+] satisfies Pair[]
+
+/**
+ * Chart chrome. THEME-BLIND on purpose: each half carries the literal the chart components
+ * rendered inline before tokenization, in both modes, so this is a pure move of where the value
+ * lives. That freezes a known defect — grid/axis/tick are navy-on-navy in dark, i.e. barely
+ * visible — which is a separate, deliberate fix (see the palette notes in the migration report).
+ */
+export const chart = {
+    grid: {light: "#05172933", dark: "#05172933"}, // cartesian/polar grid lines
+    axisLine: {light: "#05172933", dark: "#05172933"}, // axis + tick lines
+    axisText: {light: "#666666", dark: "#666666"}, // tick labels
+    reference: {light: "#94A3B8", dark: "#94A3B8"}, // threshold / reference lines
+    // Unfilled remainder of a stacked bar — the part with no series.
+    track: {light: "#E5E5E3", dark: "#333333"},
+} satisfies Record<string, Pair>
+
+/**
+ * Evaluation run-status dots. One table behind what were three byte-identical copies
+ * (StatusCells, RunSummaryCard, MetadataSummaryTable).
+ *
+ * THEME-BLIND today: both halves carry the shipped literal, so this is a pure consolidation and
+ * dark renders unchanged. The light steps are still the pre-recolor Untitled-UI hues — retuning
+ * them onto the warm ramp is now a one-line edit here instead of a three-file hunt.
+ */
+export const runStatus = {
+    success: {light: "#12B76A", dark: "#12B76A"},
+    processing: {light: "#3B82F6", dark: "#3B82F6"},
+    default: {light: "#98A2B3", dark: "#98A2B3"},
+    error: {light: "#F04438", dark: "#F04438"},
+    warning: {light: "#F79009", dark: "#F79009"},
+} satisfies Record<string, Pair>
 
 /** Run-comparison row tints (keep in sync with RUN_COMPARISON_PALETTE). */
 export const compareTint = {
@@ -832,6 +901,9 @@ export const palette = {
     alphaFill,
     referenceTag,
     environmentTag,
+    chartSeries,
+    chart,
+    runStatus,
     draftTag,
     presetTag,
     tabs,

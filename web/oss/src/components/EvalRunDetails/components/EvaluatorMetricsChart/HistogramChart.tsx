@@ -96,14 +96,14 @@ const HistogramChart = ({
                 <XAxis
                     dataKey={xKey}
                     tickLine={false}
-                    tick={{fill: "#666"}}
+                    tick={{fill: "var(--ag-chart-axis-text)"}}
                     height={20}
                     {...xAxisProps}
                 />
                 <YAxis
                     domain={yDomain as any}
-                    tickLine={{stroke: "#05172933"}}
-                    tick={{fill: "#666"}}
+                    tickLine={{stroke: "var(--ag-chart-axis-line)"}}
+                    tick={{fill: "var(--ag-chart-axis-text)"}}
                     tickMargin={8}
                     width={yAxisWidth}
                     {...yAxisProps}
@@ -112,7 +112,7 @@ const HistogramChart = ({
                     strokeDasharray="3 2"
                     horizontal
                     vertical={false}
-                    stroke="#05172933"
+                    stroke="var(--ag-chart-grid)"
                     {...cartesianGridProps}
                 />
 
@@ -156,7 +156,7 @@ const HistogramChart = ({
                     <ReferenceLine
                         key={`${line.label ?? "line"}-${line.value}`}
                         x={line.value}
-                        stroke={line.color ?? "#94A3B8"}
+                        stroke={line.color ?? "var(--ag-chart-reference)"}
                         strokeDasharray="4 2"
                         label={line.label}
                     />

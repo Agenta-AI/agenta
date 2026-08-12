@@ -315,6 +315,13 @@ const FEATURES: [string, FVal][] = [
     ...Object.entries(pf.compareTint).map(
         ([n, p]) => [`cmp-tint-${n}`, pairOf(p)] as [string, FVal],
     ),
+    ...pf.chartSeries.map((p, i) => [`chart-series-${i}`, pairOf(p)] as [string, FVal]),
+    ...Object.entries(pf.chart).map(
+        ([k, p]) => [`chart-${camelToKebab(k)}`, pairOf(p)] as [string, FVal],
+    ),
+    ...Object.entries(pf.runStatus).map(
+        ([k, p]) => [`run-status-${camelToKebab(k)}`, pairOf(p)] as [string, FVal],
+    ),
     ...Object.entries(pf.workflowType).flatMap(([k, x]) => [
         [`type-${k}-bg`, pairOf(x.bg)] as [string, FVal],
         [`type-${k}-text`, pairOf(x.text)] as [string, FVal],

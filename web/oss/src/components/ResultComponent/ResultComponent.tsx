@@ -15,7 +15,7 @@ interface ResultComponentProps {
 const ResultComponent: React.FC<ResultComponentProps> = ({status, title, subtitle, spinner}) => {
     return (
         <Result
-            icon={status === "error" && <CloseCircleFilled className="text-[#ff4d4f]" />}
+            icon={status === "error" && <CloseCircleFilled className="text-colorError" />}
             title={
                 <Title level={3} className="capitalize">
                     {title}

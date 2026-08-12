@@ -109,7 +109,7 @@ export function ItemRow({
         <div
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors",
+                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2 transition-colors",
                 // Item cards read as white sheets sitting ON the expanded section's band.
                 !locked && "bg-[var(--ag-surface-section-content)]",
                 interactive &&
@@ -170,7 +170,7 @@ export function ItemRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-[var(--ag-c-FF4D4F,#ff4d4f)] group-hover:opacity-100"
+                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
@@ -249,7 +249,7 @@ export function ItemChildRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-[var(--ag-c-FF4D4F,#ff4d4f)] group-hover:opacity-100"
+                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
@@ -295,7 +295,7 @@ export function InstructionsFileRow({
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2.5 transition-colors",
+                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2.5 transition-colors",
                 !status && "hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
             )}
         >

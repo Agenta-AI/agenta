@@ -95,7 +95,7 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             {
                 title: "Output",
                 id: "output",
-                icon: <Sparkle size={14} className="text-[#113955] dark:text-[#8CCFFF]" />,
+                icon: <Sparkle size={14} className="text-[var(--ag-type-agent-text)]" />,
                 anchorId:
                     groupAnchorMap.get("outputs") ??
                     groupAnchorMap.get("invocation") ??

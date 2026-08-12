@@ -33,7 +33,7 @@ const PlaygroundLoadingShell = ({agent, children}: PlaygroundLoadingShellProps =
             >
                 {isAgent ? (
                     <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#E5F1F9] text-[#113955] dark:bg-[rgba(140,207,255,0.14)] dark:text-[#8CCFFF]">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ag-type-agent-bg)] text-[var(--ag-type-agent-text)]">
                             <Robot size={15} weight="fill" />
                         </span>
                         <Typography className="text-[16px] leading-[18px] font-[600]">

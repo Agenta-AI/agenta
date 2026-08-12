@@ -12,8 +12,8 @@ const CustomAppCreationLoader = ({isFinish}: {isFinish: boolean}) => {
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
                 className={clsx(
-                    "text-[#113955] dark:text-[#8CCFFF]",
-                    isFinish && "!text-[#2E7D3A] dark:!text-[#8FBF7A] *:!stroke-current",
+                    "text-[var(--ag-type-agent-text)]",
+                    isFinish && "!text-[var(--ag-status-success-text)] *:!stroke-current",
                 )}
             >
                 <path
