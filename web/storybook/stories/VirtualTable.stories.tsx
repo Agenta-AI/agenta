@@ -251,6 +251,44 @@ const SelectionRadioDemo = () => {
 
 export const SelectionRadio: Story = {render: () => <SelectionRadioDemo />}
 
+/**
+ * Column resizing, on TanStack's `columnResizingFeature`.
+ *
+ * The handle is a plain span wired to `header.getResizeHandler()` — no `react-resizable`, no
+ * antd. Widths live in `columnSizing`, so the host owns them and can persist them; TanStack
+ * clamps to each column's `minSize`, which comes from the column's `minWidth`.
+ */
+const ResizableDemo = () => {
+    const rows = useMemo(() => makeRows(20), [])
+    const [columnSizing, setColumnSizing] = useState<Record<string, number>>({})
+    const sizes = Object.entries(columnSizing)
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Note>
+                Drag any header edge. Sizes:{" "}
+                {sizes.length === 0
+                    ? "none yet (all at declared width)"
+                    : sizes.map(([id, w]) => `${id}=${Math.round(w)}`).join(", ")}
+            </Note>
+            <Frame>
+                <VirtualTable<Row>
+                    columns={baseColumns}
+                    dataSource={rows}
+                    rowKey={(row) => row.key}
+                    rowHeight={48}
+                    height={420}
+                    enableColumnResizing
+                    columnSizing={columnSizing}
+                    onColumnSizingChange={setColumnSizing}
+                />
+            </Frame>
+        </div>
+    )
+}
+
+export const Resizable: Story = {render: () => <ResizableDemo />}
+
 /** Left- and right-pinned columns must stay put and not overlap while scrolling sideways. */
 const stickyColumns: ColumnDefs<Row> = [
     {...baseColumns[0], fixed: "left"},

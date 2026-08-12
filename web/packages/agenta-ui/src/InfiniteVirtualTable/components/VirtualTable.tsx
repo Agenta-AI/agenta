@@ -63,6 +63,10 @@ export interface VirtualTableProps<RecordType extends object> {
     /** Controlled row selection, keyed by row id. */
     rowSelection?: RowSelectionState
     onRowSelectionChange?: OnChangeFn<RowSelectionState>
+    /** Draws a drag handle on every resizable header cell. */
+    enableColumnResizing?: boolean
+    /** "onChange" resizes live while dragging; "onEnd" commits once on release. */
+    columnResizeMode?: "onChange" | "onEnd"
     /** Rendered before the first column — the selection checkbox column. */
     leadingColumnWidth?: number
     renderLeadingCell?: (record: RecordType, index: number) => ReactNode
@@ -103,6 +107,8 @@ export const VirtualTable = <RecordType extends object>({
     onColumnSizingChange,
     rowSelection,
     onRowSelectionChange,
+    enableColumnResizing = false,
+    columnResizeMode = "onChange",
     leadingColumnWidth = 0,
     renderLeadingCell,
     renderLeadingHeader,
@@ -117,6 +123,8 @@ export const VirtualTable = <RecordType extends object>({
         data: dataSource,
         columns: tanstackColumns,
         getRowId: (record, index) => String(rowKey(record, index)),
+        columnResizeMode,
+        enableColumnResizing,
         state: {
             ...(columnVisibility ? {columnVisibility} : {}),
             ...(columnSizing ? {columnSizing} : {}),
@@ -254,7 +262,7 @@ export const VirtualTable = <RecordType extends object>({
                                             data-column-key={header.column.id}
                                             className={cn(
                                                 AVT.headerCell,
-                                                "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2 text-left text-field-md font-medium text-colorText",
+                                                "relative box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2 text-left text-field-md font-medium text-colorText",
                                                 source?.ellipsis && "truncate",
                                                 source?.className,
                                                 props.className,
@@ -271,6 +279,27 @@ export const VirtualTable = <RecordType extends object>({
                                                       header.column.columnDef.header,
                                                       header.getContext(),
                                                   )}
+                                            {enableColumnResizing &&
+                                            header.column.getCanResize() ? (
+                                                <span
+                                                    role="separator"
+                                                    aria-orientation="vertical"
+                                                    aria-label={`Resize ${header.column.id}`}
+                                                    data-resize-handle={header.column.id}
+                                                    className={cn(
+                                                        AVT.resizeHandle,
+                                                        "absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none select-none",
+                                                        "hover:bg-colorPrimary",
+                                                        header.column.getIsResizing() &&
+                                                            "bg-colorPrimary",
+                                                    )}
+                                                    onMouseDown={header.getResizeHandler()}
+                                                    onTouchStart={header.getResizeHandler()}
+                                                    // The handle sits inside the header button/label; a click here
+                                                    // must not read as a sort/menu click on the header itself.
+                                                    onClick={(event) => event.stopPropagation()}
+                                                />
+                                            ) : null}
                                         </th>
                                     )
                                 })}

@@ -1,4 +1,5 @@
 import {
+    columnResizingFeature,
     columnSizingFeature,
     columnVisibilityFeature,
     rowSelectionFeature,
@@ -14,6 +15,7 @@ import {
  * Add a feature here in the same change that wires the option needing it, never ahead of it.
  */
 export const TABLE_FEATURES = {
+    columnResizingFeature,
     columnSizingFeature,
     columnVisibilityFeature,
     rowSelectionFeature,
