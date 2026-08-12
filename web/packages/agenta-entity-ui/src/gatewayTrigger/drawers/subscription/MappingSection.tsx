@@ -9,7 +9,7 @@ import {
 import {HeightCollapse} from "@agenta/ui/components"
 import {Editor} from "@agenta/ui/editor"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {CaretDown, Info, Lightning} from "@phosphor-icons/react"
+import {CaretDown, Info} from "@phosphor-icons/react"
 
 import {EventSourcePicker, type SampledEvent} from "../shared/EventSourcePicker"
 import {useShapeChange} from "../shared/useShapeChange"
@@ -167,7 +167,7 @@ export function MappingSection({
                                 type="button"
                                 className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
                             >
-                                <Lightning size={12} weight="fill" /> Test event
+                                Test event
                             </button>
                         }
                         recentEvents={recentEvents}
@@ -204,7 +204,7 @@ export function MappingSection({
                             type="button"
                             className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
                         >
-                            <Lightning size={12} weight="fill" /> Test event
+                            Test event
                         </button>
                     }
                     recentEvents={recentEvents}

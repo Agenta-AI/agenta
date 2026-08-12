@@ -1,7 +1,13 @@
 import {useRef, useState, type ReactNode} from "react"
 
-import {EmptyState, Popover, PopoverContent, PopoverTrigger, Spinner} from "@agenta/ui/ui"
-import {ClockCountdown, Lightning} from "@phosphor-icons/react"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from "@agenta/ui/ui"
+import {ClockCountdown, X} from "@phosphor-icons/react"
 
 /**
  * A real event sampled from the provider — used to build the inputs mapping against
@@ -68,6 +74,9 @@ export function EventSourcePicker({
     const [open, setOpen] = useState(defaultOpen ?? false)
     const [waiting, setWaiting] = useState(false)
     const settledRef = useRef(false)
+    // Identifies the current wait so cancelling can disown it. A ref, not `settledRef`:
+    // cancelling must not also block a wait the user starts again straight after.
+    const waitIdRef = useRef(0)
 
     const pick = (event: SampledEvent) => {
         settledRef.current = true
@@ -77,10 +86,11 @@ export function EventSourcePicker({
 
     const wait = async () => {
         if (!onWaitForEvent || waiting) return
+        const id = ++waitIdRef.current
         setWaiting(true)
         try {
             const event = await onWaitForEvent()
-            if (event && !settledRef.current) {
+            if (event && !settledRef.current && waitIdRef.current === id) {
                 settledRef.current = true
                 // Capture mode keeps the popover open — the event lands in recentEvents.
                 if (!captureMode) setOpen(false)
@@ -90,8 +100,15 @@ export function EventSourcePicker({
             // Callers surface their own error before rejecting; swallow so the fire-and-forget
             // `void wait()` never becomes an unhandled rejection.
         } finally {
-            setWaiting(false)
+            if (waitIdRef.current === id) setWaiting(false)
         }
+    }
+
+    // Stop waiting. The provider poll it started can't be aborted from here, so the wait is
+    // disowned instead: whatever it returns is discarded rather than landing minutes later.
+    const cancelWait = () => {
+        waitIdRef.current += 1
+        setWaiting(false)
     }
 
     const handleOpenChange = (next: boolean) => {
@@ -106,90 +123,109 @@ export function EventSourcePicker({
         }
     }
 
-    const content = (
-        <div className="w-[280px]">
-            {onWaitForEvent && (
-                <button
-                    type="button"
-                    onClick={wait}
-                    disabled={waiting}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded border-0 bg-transparent px-2.5 py-2 text-left hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-default"
-                >
-                    {waiting ? (
-                        <Spinner size="small" />
-                    ) : (
-                        <ClockCountdown size={16} className="text-[var(--ag-colorTextSecondary)]" />
-                    )}
-                    <span className="min-w-0 flex-1">
-                        <span className="block text-xs text-[var(--ag-colorText)]">
-                            {waiting ? "Waiting for an event…" : "Wait for a new event"}
-                        </span>
-                        {waitHint && !waiting && (
-                            <span className="block text-xs text-[var(--ag-colorTextTertiary)]">
-                                {waitHint}
-                            </span>
-                        )}
-                    </span>
-                </button>
-            )}
-
-            <div className="mb-1 mt-1.5 px-2.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                Recent events
-            </div>
-            {recentEvents.length === 0 ? (
-                <EmptyState
-                    image="simple"
-                    description={
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                            None captured yet
-                        </span>
-                    }
-                    className="my-2"
-                />
-            ) : (
-                <div className="flex flex-col">
-                    {recentEvents.map((event) => (
-                        <button
-                            key={event.id}
-                            type="button"
-                            onClick={() => pick(event)}
-                            className="flex cursor-pointer items-center gap-2.5 rounded border-0 bg-transparent px-2.5 py-1.5 text-left hover:bg-[var(--ag-colorFillTertiary)]"
-                        >
-                            <Lightning size={15} className="text-[var(--ag-colorTextSecondary)]" />
-                            <span className="min-w-0 flex-1">
-                                <span className="block truncate text-xs text-[var(--ag-colorText)]">
-                                    {event.label}
-                                    {event.preview ? ` · ${event.preview}` : ""}
-                                </span>
-                                {event.timeAgo && (
-                                    <span className="block text-xs text-[var(--ag-colorTextTertiary)]">
-                                        {event.timeAgo}
-                                    </span>
-                                )}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    )
-
     const {side, align} = PLACEMENTS[placement]
     return (
-        <Popover open={open} onOpenChange={handleOpenChange}>
-            <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-            {/* p-3 = antd `.ant-popover-inner` padding (12px). antd never moves focus into a
-                popover, so block Radix's auto-focus (else the wait button paints a focus ring). */}
-            <PopoverContent
+        <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+            <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+            <DropdownMenuContent
                 side={side}
                 align={align}
                 aria-label="Select event source"
-                className="p-3"
+                className="w-[280px]"
                 container={container}
-                onOpenAutoFocus={(e) => e.preventDefault()}
             >
-                {content}
-            </PopoverContent>
-        </Popover>
+                {onWaitForEvent && (
+                    <DropdownMenuItem
+                        // The wait resolves minutes later; closing the menu on click would
+                        // leave no sign that it is still running.
+                        onSelect={(e) => {
+                            e.preventDefault()
+                            void wait()
+                        }}
+                        className="items-start"
+                    >
+                        {waiting ? (
+                            // Same "this is live" language as the connection dots, and honest
+                            // about a wait measured in minutes rather than a spinner's seconds.
+                            <span className="relative mt-1 flex size-2 shrink-0 items-center justify-center">
+                                <span className="absolute inline-flex size-full rounded-full bg-colorInfo opacity-60 motion-safe:animate-ping" />
+                                <span className="relative inline-flex size-1.5 rounded-full bg-colorInfo" />
+                            </span>
+                        ) : (
+                            <ClockCountdown
+                                size={14}
+                                className="mt-0.5 text-[var(--ag-colorTextSecondary)]"
+                            />
+                        )}
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-xs">
+                                {waiting ? "Waiting for an event…" : "Wait for a new event"}
+                            </span>
+                            {waitHint && !waiting && (
+                                <span className="block text-xs text-[var(--ag-colorTextTertiary)]">
+                                    {waitHint}
+                                </span>
+                            )}
+                        </span>
+                        {waiting && (
+                            // A wait runs for minutes; without this the only way out is closing
+                            // the menu, which in capture mode doesn't stop it either.
+                            <span
+                                role="button"
+                                tabIndex={0}
+                                aria-label="Stop waiting"
+                                title="Stop waiting"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    cancelWait()
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key !== "Enter" && e.key !== " ") return
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    cancelWait()
+                                }}
+                                className="mt-0.5 flex shrink-0 cursor-pointer items-center text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
+                            >
+                                <X size={12} />
+                            </span>
+                        )}
+                    </DropdownMenuItem>
+                )}
+
+                <DropdownMenuLabel className="mt-1 text-xs font-medium text-[var(--ag-colorTextDescription)]">
+                    Recent events
+                </DropdownMenuLabel>
+
+                {recentEvents.length === 0 ? (
+                    // The same dashed one-liner EventFieldList uses for "nothing sampled yet",
+                    // rather than a second empty-state language a few pixels away.
+                    <div className="mx-1 mb-1 rounded-md border border-dashed border-[var(--ag-colorBorder)] px-2 py-3 text-center text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
+                        Events you capture appear here.
+                    </div>
+                ) : (
+                    recentEvents.map((event) => (
+                        <DropdownMenuItem key={event.id} onSelect={() => pick(event)}>
+                            {/* Content leads, timestamp is metadata on the right — the row
+                                grammar the revision list already uses. */}
+                            <span className="min-w-0 flex-1 truncate text-xs">
+                                {event.label}
+                                {event.preview ? (
+                                    <span className="text-[var(--ag-colorTextTertiary)]">
+                                        {` · ${event.preview}`}
+                                    </span>
+                                ) : null}
+                            </span>
+                            {event.timeAgo && (
+                                <span className="shrink-0 text-xs text-[var(--ag-colorTextDescription)]">
+                                    {event.timeAgo}
+                                </span>
+                            )}
+                        </DropdownMenuItem>
+                    ))
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
