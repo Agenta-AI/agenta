@@ -4,28 +4,37 @@ Ordered so each item is one reviewable commit. Depends on the seed commit
 and on merge M1 (WP1's DAO implementations, WP3's six new `Permission`
 members) having landed.
 
-## exceptions.py
+## exceptions.py — NOT this package's file any more (R1)
 
-- [ ] `apis/fastapi/gateways/exceptions.py`: implement
-      `handle_gateway_exceptions()` as a `@wraps`-decorated closure,
-      structurally matching `apis/fastapi/tools/router.py::handle_adapter_exceptions()`
-      and `apis/fastapi/triggers/router.py::handle_adapter_exceptions()`.
-- [ ] Map `*NotFoundError` (import each concrete `core/gateways/{llms,mcps}/types.py`
-      subclass explicitly, do not catch the bare domain base) → 404.
-- [ ] Map `PolicyDeniedError` / `EntitlementDeniedError` → 403.
-- [ ] Map `LlmModelNotAllowedError` / `McpToolNotAllowedError` → 403.
-- [ ] Map `CeilingExceededError` → 400, body naming `ceiling`, `requested`,
-      `allowed` (D25) — assert the body shape explicitly in the test, not
-      just the status code.
-- [ ] Map `McpAuthRequiredError` → 409, body carrying the
-      `GatewayConnectionRequirement` from `.requirement`.
-- [ ] Map `LlmUpstreamError` / `McpUpstreamError` → 424, or 502 when
-      `status_code >= 500` — same split `handle_adapter_exceptions()`
-      already uses.
-- [ ] Unit test: one test per mapped exception type, asserting status code
-      and body shape.
+- [ ] **Do not write `apis/fastapi/gateways/exceptions.py`.** R1 moved it to the
+      seed, so it is already on the branch: three packages need
+      `handle_gateway_exceptions()` — this one and both proxies (WP6, WP8) — and
+      the three are siblings in the dependency graph, so no one of them could own
+      it. Import it and verify the mapping matches `specs-wp10.md`; report a
+      mismatch rather than editing a seed file.
+
+## SSRF gate on custom MCP endpoint registration (D28)
+
+- [ ] `from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip`
+      — the **no-DNS** variant. Write no new guard.
+- [ ] Call it on the URL in `McpEndpointCreateRequest` / `McpEndpointEditRequest`
+      for the `custom` namespace only. `agenta` and `builtin` URLs are not
+      user-supplied. The precedent to copy exactly is
+      `api/oss/src/core/secrets/dtos.py:140`, which gates `custom_provider.url`
+      the same way and re-raises naming the field.
+- [ ] Surface a rejection as a 400 through the domain-exception path, never a
+      leaked `ValueError`; the message names the field and the reason.
+- [ ] Check whether the LLM `custom` endpoint DTO carries a base URL. If it does,
+      gate it identically; if not, add nothing speculatively.
+- [ ] Unit tests **with `AGENTA_INSECURE_EGRESS_ALLOWED=false` set explicitly** —
+      it defaults to `true`, so a test that omits it passes while proving
+      nothing: create with `http://169.254.169.254/mcp` → 400; with
+      `http://127.0.0.1/mcp` → 400; with `http://10.0.0.1/mcp` → 400; plain
+      `http://` to a public host → 400; `https://` to a public hostname →
+      accepted **without a DNS lookup happening** (that is the whole point of
+      this variant — assert no resolution is attempted).
 - [ ] `ruff format` && `ruff check --fix`; run tests; fix failures.
-- [ ] Commit: "gateways: handle_gateway_exceptions".
+- [ ] Commit: "gateways(mcp): SSRF gate on custom endpoint registration".
 
 ## llms/models.py
 

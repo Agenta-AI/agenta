@@ -86,7 +86,28 @@ class CredentialResolverInterface(ABC):
         and the exceptions carry which owner is missing so the boundary can
         build the connect affordance."""
         ...
+
+    @abstractmethod
+    async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
+        """Provider keys with a resolvable project-owned secret. Names only,
+        never a value — an existence test that must not read a credential."""
+        ...
 ```
+
+**The second method is R2's ruling, added at kickoff.** D20 makes a generated `builtin`
+endpoint exist for a project exactly when a provider key exists for it, so
+`LlmGatewayService.list_endpoints` (WP7) needs to ask that question — and it has no vault
+dependency, by design. Handing the service a `VaultService` would give it two credential
+seams and defeat the port; calling `resolve()` once per provider and catching
+`CredentialNotFoundError` is control flow by exception plus eleven vault reads per list.
+Existence of a credential is a credential-layer question, so it belongs on the credential
+port.
+
+Implement it over the same scan `ProviderKeyRef` uses — the project's `provider_key` and
+`custom_provider` secrets — returning the set of provider names found. It returns names,
+never secret values, and it never raises for "none found": the empty set is the correct
+answer, unlike `resolve()`, which raises because a caller asking to resolve has already
+committed to needing one.
 
 ## DTOs used (reproduce verbatim, seed-owned — `core/gateways/policy/dtos.py`)
 

@@ -41,11 +41,21 @@ waits. It is small — declarations only — and it is the reason nothing waits 
       in it.
 - [ ] **Verify**: the declarations import, and a test instantiating each DTO with representative
       values passes. Unit level — nothing running.
-- [ ] **Settle the four seed-blocking rulings first.** `open-designs.md` lists them as R1 to R4:
-      who owns the shared exception decorator (assigned to the seed), whether the LLM service's
-      constructor gains a vault dependency, what backs the model-listing route, and the fact that
-      the policy service's record method must be a safe no-op rather than the not-implemented
-      default. Each changes a signature the seed freezes, so none can be deferred into a worktree.
+- [x] **The four seed-blocking rulings are settled** (`open-designs.md`, R1–R4). Each changed a
+      signature the seed freezes, so none could be deferred into a worktree:
+
+      - **R1** — `apis/fastapi/gateways/exceptions.py` moves into the **seed**. Three packages
+        need `handle_gateway_exceptions()` and they are siblings in the dependency graph, so no
+        one of them could own it.
+      - **R2** — the resolver port gains `available_provider_keys(*, scope) -> Set[str]`;
+        `LlmGatewayService`'s constructor is **unchanged**. Existence of a credential is a
+        credential-layer question, and a vault dependency on the service would give it two
+        credential seams.
+      - **R3** — `GET /v1/models` is backed by `LlmGatewayService.list_models(*, scope,
+        namespace, name) -> List[str]`, per endpoint, answering from the allowlist. No new DTO.
+      - **R4** — `GatewayPolicyService.record()` ships as a no-op returning `None` that never
+        raises. It is WP3's file, not a seed file; what the seed freezes is the call, so wave 2
+        changes a body and never a call site.
 - [ ] **Commit, and record the SHA.** Every worktree branches from exactly this commit.
 
 If the seed is wrong, every worktree inherits the error. Review it properly even though it does
@@ -111,9 +121,11 @@ Checkpoint A is reached when this runs on the merged base, not when five package
 - [ ] A model outside a custom endpoint's list is refused.
 - [ ] A tool outside a server's allowlist is refused.
 - [ ] A hung upstream times out rather than hanging the gateway.
-- [ ] A custom MCP server URL pointing at a private or loopback address is refused, at registration
-      **and** at relay. See R7 in `open-designs.md` — the runner already guards this and the
-      gateway now makes the outbound call.
+- [ ] A custom MCP server URL pointing at a private, loopback or link-local address — including
+      `169.254.169.254` — is refused at registration (WP10) **and** at relay (WP8), and the relay
+      connects to the pinned literal IP rather than re-resolving. **Run this check with
+      `AGENTA_INSECURE_EGRESS_ALLOWED=false`**: it defaults to `true`, so the guard is inert
+      otherwise and the check would pass while proving nothing (D28).
 - [ ] Deploy.
 
 **What is deliberately absent:** no audit record, no usage recorded, no per-endpoint

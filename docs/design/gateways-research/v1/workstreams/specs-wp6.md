@@ -212,8 +212,17 @@ return Response(content=chunk, status_code=result.status_code, headers=result.he
 ```
 
 `list_models_builtin` / `list_models_custom`: answer from the endpoint's allowlist — "the static
-catalogue for builtin, `model_slugs` for custom" (§9's comment on the route declarations) — see
-**Missing from the design** below; the service method this needs is not in the frozen §8 surface.
+catalogue for builtin, `model_slugs` for custom" (§9's comment on the route declarations). **R3
+named the backing method at kickoff**: `await self.service.list_models(scope=..., namespace=...,
+name=...) -> List[str]`, owned by WP7. It authorizes and resolves the target itself; this handler
+shapes the OpenAI list body inline —
+
+```python
+slugs = await self.service.list_models(scope=scope, namespace="builtin", name=provider)
+return {"object": "list", "data": [{"id": s, "object": "model"} for s in slugs]}
+```
+
+— because the data plane has no wire models (§6).
 
 **Audit timing is not this package's problem.** §9: "Streaming rides `StreamingResponse` over
 `LlmRelayResult.body`, with the audit record written in the handler's finally after the iterator
@@ -336,24 +345,24 @@ times out rather than hanging the gateway."*
 
 - `core/gateways/llms/service.py`, `registry.py`, `catalog.py`, `providers/translated/` — WP7.
 - `apis/fastapi/gateways/llms/router.py`, `models.py` (management CRUD) — WP10.
-- `apis/fastapi/gateways/exceptions.py` — WP10.
+- `apis/fastapi/gateways/exceptions.py` — **the seed** (R1). Already on the branch when this
+  package starts; import `handle_gateway_exceptions()`, never write a local copy.
 - Anything on the MCP plane — WP8/WP9.
 - Audit event emission itself (`publish_gateway_call`) — wave 2, WP4; WP6 must not add a second
   recording path even provisionally.
 
+## Settled at kickoff — was "needs a ruling"
+
+- **`GET /v1/models` has no backing service method → `LlmGatewayService.list_models`, R3.** It
+  resolves one target by `(namespace, name)`, authorizes with `USE_LLM_ENDPOINTS`, and returns
+  the allowlist as `List[str]`. WP7 owns it, this package calls it. The alternative considered
+  and rejected — filtering `list_endpoints` client-side — pulls full entities for a listing use
+  case on every models request, and re-derives a static catalogue each time for `builtin`.
+- **`apis/fastapi/gateways/exceptions.py` → the seed, R1.** Already on the branch when this
+  package forks; import the decorator.
+
 ## Missing from the design, needs a ruling
 
-- **`GET /v1/models` has no backing service method.** `entities.md` §9 describes the *behavior*
-  ("`/v1/models` answers from the allowlist — the static catalogue for builtin, `model_slugs` for
-  custom") but §8's frozen `LlmGatewayService` surface has no method that returns one endpoint's
-  model list by `(namespace, name)` — only `list_endpoints` (every namespace, full entities) and
-  the private `_resolve_target` (service-internal, not exported). WP6 cannot call a name that
-  does not exist and does not own `service.py` to add one. Raise at the M1→M2 merge: either WP7
-  adds a public method (e.g. resolving one target and returning just `data.model_slugs`), or WP6
-  is told to filter `list_endpoints`'s result client-side (works for `custom` since `slug` is
-  unique, but `list_endpoints` returns full `LlmEndpoint` objects for a listing use case, not a
-  models-endpoint use case, and doing this per request is wasteful for `builtin` where the
-  catalogue is static). Do not implement either option without WP7 confirming which.
 - **The default request timeout constant.** No document states a value. WP6 must pick one (a
   defensible number, e.g. 60s, is fine) and record it in code with a comment — flagged here so a
   reviewer knows it is this package's own call, not a transcribed design number.

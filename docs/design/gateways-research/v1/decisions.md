@@ -534,6 +534,60 @@ side.
 asked for, and the value allowed, so a caller retries correctly the first time. `open-designs.md`
 records the evidence.
 
+## D28. The outbound guard is the one the repo already has, called at both ends
+
+A custom endpoint's URL is typed by a user, and the gateway is the process that connects to it.
+That is a server-side request forgery sink: without a guard, a tenant can point an endpoint at
+`http://169.254.169.254/` and have us fetch cloud credentials for them, with our own network
+position and our own outbound allowances.
+
+**Nothing new gets written.** `api/oss/src/core/webhooks/utils.py` already implements exactly this
+guard, and three call sites already use it — webhook delivery, the EE organization OIDC issuer, and
+the custom-provider URL on a secret. Its three functions are the whole vocabulary we need:
+
+- `validate_url_format_and_literal_ip(url)` — scheme, host, no embedded credentials, and a literal-IP
+  block, with **no DNS lookup**. This is the save-time gate; it exists because resolving at save time
+  would reject a hostname that happens to be momentarily unresolvable.
+- `resolve_validated_webhook_ip(url) -> str` — the same checks plus a DNS resolution, returning the
+  single literal IP the caller must connect to.
+- `validate_webhook_url(url)` — the same, discarding the IP.
+
+Blocked means private, loopback, link-local (which is what covers the metadata address), reserved,
+multicast or unspecified, and plain `http` is refused alongside them.
+
+**Both ends, because one end is not enough.** Validating only at registration leaves the window
+between saving a row and using it, during which the hostname's DNS answer can change. Validating
+only at relay time means a plainly-bad URL is accepted, stored, and fails later at a confusing
+moment. So: registration calls the no-DNS gate, and relay calls the resolving one.
+
+**Relay connects to the returned IP, not the hostname.** This is the part that is easy to drop and
+is the only reason the resolving variant returns a value at all. `core/webhooks/delivery.py`'s
+`send_webhook_request` is the worked example: swap the host in the URL for the literal IP, set the
+`Host` header back to the original authority, and pass `extensions={"sni_hostname": ...}` so TLS
+still validates against the real name. Re-resolving the hostname at connect time reopens the rebind
+window the check just closed.
+
+**The runner's version is the closest sibling and contributes two refinements.**
+`services/runner/src/engines/sandbox_agent/mcp.ts::validateUserMcpUrl` guards a user-supplied MCP
+URL today, against a TypeScript range table deliberately mirrored from the Python one. It adds a
+host allowlist read from `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`, so a self-hoster can permit one known
+internal server without disabling the guard globally; and it separates "could not be resolved" from
+"resolves somewhere blocked", so an operator reading a DNS typo does not see a security rejection.
+Both are worth carrying. The runner cannot pin the resolved IP because it hands the URL to a harness
+that reconnects; the gateway makes the call itself, so it can, and should.
+
+**The flag that turns it all off is on by default.** `AGENTA_INSECURE_EGRESS_ALLOWED` defaults to
+`true` in `api/oss/src/utils/env.py` — zero-config self-hosting is the reason — and it is set in no
+deployment configuration in this repo, cloud included. So the guard as it stands is inert in
+production. Two consequences, both on checkpoint A's list rather than deferred: the acceptance check
+runs with the flag `false`, and turning it `false` on a shared deployment is a named deployment
+action rather than an assumption.
+
+**What is deliberately not decided here** is where the guard's code should live. Its home is a
+webhook module and there are now four near-copies of it across the API, the SDK and the runner. The
+gateway imports the API one exactly as EE's organization service already does — a cross-domain
+import with precedent — and `cleanups.md` carries the consolidation.
+
 ---
 
 ## Still open

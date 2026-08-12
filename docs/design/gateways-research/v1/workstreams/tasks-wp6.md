@@ -81,9 +81,11 @@ commit and fix all errors, per `api/AGENTS.md`.
       ceiling, requested, allowed per D25); `CredentialNotFoundError` /
       `LlmEndpointNotFoundError` → 404 `credential_missing` / `endpoint_not_found`;
       `LlmUpstreamError` → 424, or 502 when `status_code >= 500`.
-- [ ] `list_models_builtin`/`list_models_custom`: **blocked** — see `specs-wp6.md`'s "Missing
-      from the design" entry. Stub both routes returning `501` with a comment pointing at the
-      merge-point question, and revisit once WP7 confirms the backing method at M1→M2.
+- [ ] `list_models_builtin`/`list_models_custom`: **unblocked (R3)** — call
+      `self.service.list_models(scope=..., namespace=..., name=...)`, which returns
+      `List[str]`, and shape the OpenAI list body inline (`{"object": "list", "data":
+      [{"id": s, "object": "model"} for s in slugs]}`). No wire model — the data plane
+      has none (§6). WP7 owns the method; code against its declaration.
 - [ ] Ruff format + check; run and fix.
 - [ ] Unit tests: `chat_completions_custom` against a stubbed `LlmGatewayService` (a
       `unittest.mock`/hand-written fake service, not WP5's fixture — this is testing the proxy in

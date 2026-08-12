@@ -242,12 +242,9 @@ which is a service-level concern, not this adapter's.
   `get_auth_scope()`, never `request.state.project_id` /
   `request.state.user_id`.
 - **Exceptions are mapped once, not duplicated.** `handle_gateway_exceptions()`
-  lives in `apis/fastapi/gateways/exceptions.py`, owned by **WP10**, not this
-  package. WP8's proxy handlers use `@intercept_exceptions()` and
-  `@handle_gateway_exceptions()` exactly as `router.py` does (§9) — this is a
-  real cross-package dependency the plan does not name explicitly (see
-  "Missing / contradictory" below); code `proxy.py` against the decorator's
-  documented mapping (§9's table) and coordinate the import at the M2 merge.
+  lives in `apis/fastapi/gateways/exceptions.py`, which the **seed** owns (R1) —
+  three packages need the decorator, so no one package can. It is already on the
+  branch when this package starts; import it, do not write it.
 - **`McpAuthRequiredError` maps to 409, carrying `GatewayConnectionRequirement`**
   — an interaction, not a failure (D17). Unreachable in wave 1 (no OAuth
   targets exist yet), but the mapping must exist so nothing breaks when
@@ -262,19 +259,61 @@ which is a service-level concern, not this adapter's.
   that decides whether a tool is allowed — it relays whatever
   `McpGatewayService.relay` hands it after that decision already passed.
 
+## The SSRF guard at relay time (D28) — this package owns the relay half
+
+A `custom` endpoint's URL was typed by a user and **this adapter is the process that
+connects to it**. Without the guard, a tenant can point an endpoint at
+`http://169.254.169.254/` and have the gateway fetch cloud credentials with our network
+position. WP10 gates the URL at registration; that is not sufficient on its own, because
+a hostname's DNS answer can change between the row being saved and this relay running.
+
+**Write no new guard.** `api/oss/src/core/webhooks/utils.py` already implements it, and
+three call sites already import it across domains (webhook delivery, EE's organization
+OIDC issuer, the custom-provider URL on a secret) — so the cross-domain import has
+precedent. Blocked means private, loopback, link-local (which is what covers the metadata
+address), reserved, multicast or unspecified, plus plain `http`.
+
+```python
+from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
+```
+
+In `HttpMcpAdapter.relay`, before the outbound POST:
+
+1. `resolved_ip = resolve_validated_webhook_ip(route.url)` — raises `ValueError` on a
+   blocked target. Translate it into `McpUpstreamError`; it is a transport-layer refusal,
+   not a protocol error, so it must not be relayed as an upstream body.
+2. **Connect to the returned IP, not the hostname.** This is the part that is easy to drop
+   and is the only reason the function returns a value. Copy the pinning from
+   `api/oss/src/core/webhooks/delivery.py::send_webhook_request`: swap the host in the URL
+   for the literal IP (bracketing IPv6, preserving an explicit port), set `Host` back to
+   the original authority, and pass `extensions={"sni_hostname": parsed.hostname}` so TLS
+   still validates against the real name. Re-resolving the hostname in the HTTP client
+   reopens the rebind window the check just closed.
+3. **Distinguish the two failure messages.** `resolve_validated_webhook_ip` raises with
+   "could not be resolved" for a DNS failure and "blocked IP range" for a guard hit — keep
+   them distinct in the error text, so an operator reading a hostname typo does not see a
+   security rejection. The runner's guard makes the same distinction on purpose
+   (`services/runner/src/engines/sandbox_agent/mcp.ts:191`).
+
+**Only the `custom` namespace needs this.** `agenta` targets are ours and `builtin` targets
+are the broker's — neither URL comes from a user. Guard on the namespace rather than
+guarding unconditionally, or the fakes (WP5, reachable on a compose host) fail their own
+acceptance tests.
+
+**Two facts about the flag, both load-bearing.** `AGENTA_INSECURE_EGRESS_ALLOWED` defaults
+to `true` (`api/oss/src/utils/env.py`), and the guard is a no-op when it is on — so a unit
+test that does not set it `false` will pass while proving nothing. Set it explicitly in the
+test. The second: nothing in this repo's deployment configuration sets it, so the
+checkpoint A verification runs with it `false`.
+
+**The host allowlist.** Carry the runner's escape hatch so a self-hoster can permit one
+known internal server without disabling the guard globally — the runner reads
+`AGENTA_AGENT_MCPS_HOST_ALLOWLIST` (comma-separated hostnames). Add the API-side equivalent
+through `api/oss/src/utils/env.py` and the shared `env` object, never `os.getenv` in feature
+code (`api/AGENTS.md`).
+
 ## Missing from the design, needs a ruling
 
-- **No SSRF guard is assigned to the gateway's own outbound relay to
-  `custom` MCP server URLs.** The runner has one for its own outbound calls
-  to user-declared HTTP MCP servers
-  (`services/runner/src/engines/sandbox_agent/mcp.ts::validateUserMcpUrl`,
-  backed by `tools/ssrf-guard.ts`: blocks loopback, link-local — including
-  the `169.254.169.254` cloud metadata host — private and IPv4-mapped
-  ranges, DNS-resolved). The gateway now makes the equivalent outbound call
-  on behalf of every project once `custom` MCP endpoints exist, and
-  `entities.md`/`decisions.md`/`scope-checklist.md` do not assign this
-  responsibility to either WP8 (relay time) or WP10 (creation time). Not
-  invented here — flagged for a ruling.
 - **Exact HTTP header names for MCP routing are undecided by design**
   (noted above; `entities.md` explicitly defers this to implementation
   time, so it is not treated as a gap needing a ruling, only as
@@ -343,7 +382,8 @@ POST /gateways/mcps/agenta/<fake-slug>   {"method":"tools/call","tool":"<not-in-
   touching `McpBrokeredAuth` — not owned by any wave-1 package; `builtin`
   MCP servers are not reachable under D23 in Checkpoint A.
 - The management CRUD router (`apis/fastapi/gateways/mcps/{router,models}.py`)
-  and `apis/fastapi/gateways/exceptions.py` — **WP10**.
+  — **WP10**. `apis/fastapi/gateways/exceptions.py` — **the seed** (R1),
+  already present; import it.
 - OAuth, grants, step-up — wave 3 (WP16–WP20). `McpAuthRequiredError`'s 409
   mapping must exist (it is part of the frozen exceptions table) but is
   unreachable until then.

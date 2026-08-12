@@ -169,6 +169,37 @@ already registered it.
 **Done.** The callback path is a property of the connections domain rather than of one consumer,
 and a third consumer needs no new special case.
 
+## 12. Collapse the four copies of the outbound SSRF guard
+
+**What.** The same guard — block private, loopback, link-local, reserved, multicast and
+unspecified addresses, refuse plain `http`, resolve once and pin the literal IP — now exists four
+times. In the API at `core/webhooks/utils.py`, whose three functions the gateways import (D28). In
+the SDK at `agenta/sdk/utils/net.py`, whose own docstring says "unify these three if a clean shared
+package ever spans API + SDK". In the SDK again, inline in the workflow handler as
+`_validate_webhook_url`. And in TypeScript at `services/runner/src/tools/ssrf-guard.ts`, which
+carries a hand-transcribed copy of Python's `ipaddress` special-registry tables and a comment
+saying they once drifted apart.
+
+**Why not sooner.** Two of the copies are in a different language and a third is in a package that
+ships to users, so there is no import that spans them today. Collapsing the two Python ones is
+possible now, and the gateway does not need it: it imports the API copy, exactly as EE's
+organization service already does.
+
+**Why the gateway makes it worth doing.** Until now each copy guarded one narrow path — a webhook,
+an OIDC issuer, a custom provider base URL. The gateway makes this guard the single control on
+every outbound call the platform makes on a tenant's behalf, so the copies stop being four small
+risks and become one contract with four implementations that can disagree.
+
+**Also on this item, and larger than the duplication:** `AGENTA_INSECURE_EGRESS_ALLOWED` defaults
+to `true` and is set in no deployment configuration in this repo, so every copy is currently
+inert. The default exists so zero-config self-hosting works, which is a real requirement; what is
+missing is that a shared deployment turns it off. Checkpoint A verifies with it `false`, and
+cloud setting it `false` is a deployment action rather than an assumption.
+
+**Done.** One definition per language, with the range tables generated or tested against each
+other rather than transcribed, and the flag explicitly `false` wherever more than one tenant
+shares a deployment.
+
 ---
 
 ## What is not on this list

@@ -363,8 +363,8 @@ list_endpoints(project_id=P)
 - The HTTP surface, `McpGatewayProxy`, `parse_mcp_call_context`, and the
   `HttpMcpAdapter` south-port implementation — **WP8**.
 - The management CRUD router and models
-  (`apis/fastapi/gateways/mcps/{router,models}.py`) and
-  `apis/fastapi/gateways/exceptions.py` — **WP10**.
+  (`apis/fastapi/gateways/mcps/{router,models}.py`) — **WP10**.
+  `apis/fastapi/gateways/exceptions.py` — **the seed** (R1).
 - `ComposioMcpAdapter` — not owned by any wave-1 package; `builtin` targets
   are not called until a package for it is scheduled.
 - The real bodies of `connect_endpoint`, `complete_connect`, `revoke_grant`,

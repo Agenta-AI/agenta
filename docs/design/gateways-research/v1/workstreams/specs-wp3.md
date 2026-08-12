@@ -177,7 +177,13 @@ names. See "Missing from the design, needs a ruling" below — this is the one i
 this package that cannot be fully closed without a decision outside this spec's
 authority.
 
-## `record()` — the wave-1 stub
+## `record()` — the wave-1 stub, ruled at kickoff (R4)
+
+This is now a ruling, not this spec's proposal. R4 asked whether a method on the checkpoint A
+hot path may be the seed's usual not-implemented default; the answer is no — **it ships as a
+no-op that returns `None` and never raises.** What the seed freezes is the *call*, which every
+wave 1 relay makes unconditionally on both the allow and the deny branch, so wave 2 changes a
+body and never a call site.
 
 ```python
 async def record(

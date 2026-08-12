@@ -14,25 +14,53 @@ Writing the nine specs against `entities.md` found ten places the design is **si
 wrong. None is a contradiction. Four change a signature the seed freezes and therefore must be
 settled before the seed is written; the rest can be settled during wave 1.
 
-### Must be settled before the seed
+### Settled before the seed — all four
 
-**R1. `apis/fastapi/gateways/exceptions.py` has no owner.** Both proxies and the CRUD routers need
-`handle_gateway_exceptions()`, so no single package can own the file. **Resolved by assignment:**
-it moves into the seed, like the DTOs, because shared infrastructure with three consumers is
-exactly what the seed is for. The ownership table now says so.
+**R1. `apis/fastapi/gateways/exceptions.py` has no owner. → The seed owns it.** Both proxies and
+the CRUD routers need `handle_gateway_exceptions()`, so no single package can. It moves into the
+seed like the DTOs, because shared infrastructure with three consumers is exactly what the seed is
+for. The ownership table says so.
 
 **R2. `LlmGatewayService`'s frozen constructor takes no vault dependency**, yet `list_endpoints`
-must decide which generated endpoints exist, which under D20 means "those a key exists for". Either
-the constructor gains the dependency or the method's contract changes. A signature the seed freezes,
-so it cannot be deferred.
+must decide which generated endpoints exist, which under D20 means "those a key exists for".
+**→ The resolver port gains one method; the service gains no dependency.**
 
-**R3. `GET /v1/models` has no backing service method.** The route's behaviour is described; the call
-it makes is not. Two packages need it.
+```python
+@abstractmethod
+async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
+    """Provider keys with a resolvable project-owned secret. Names only, never a
+    value — an existence test that must not read a credential (D20)."""
+```
+
+Handing the service a `VaultService` would give it two credential seams and defeat the port. The
+question "does a key exist for this provider" is a credential-layer question, and the resolver is
+the credential layer. The alternative — calling `resolve()` eleven times and catching
+`CredentialNotFoundError` — is control flow by exception and eleven vault reads per list.
+
+Three packages gain a line: **WP2** implements it in `resolution.py`, **WP5** implements it in the
+fake resolver from its dict, **WP7** calls it from `list_endpoints`.
+
+**R3. `GET /v1/models` has no backing service method. → `list_models`, on the data-plane half of
+`LlmGatewayService`, returning the allowlist.**
+
+```python
+async def list_models(self, *, scope, namespace, name) -> List[str]: ...
+# Resolves the target, authorizes with USE_LLM_ENDPOINTS, and returns what
+# policy will allow: the static catalogue's slugs for builtin, model_slugs for
+# custom. No new DTO — the proxy shapes the OpenAI list body inline, as it has
+# no wire models (§6).
+```
+
+It is per endpoint, not global — the route is `/{namespace}/{name}/v1/models` (§9). Owned by
+**WP7**, called by **WP6**, exactly like `relay_chat_completion`.
 
 **R4. `GatewayPolicyService.record()` sits on the checkpoint A hot path, but its real body is a
-wave 2 package's file.** Every wave 1 relay calls it. It has to be a safe non-raising no-op rather
-than the not-implemented default the rest of the seed uses, and that exception to the seed's own
-rule should be explicit rather than inferred.
+wave 2 file. → WP3 ships it as a no-op that returns `None` and never raises.**
+
+Note this is not actually a seed file: `core/gateways/policy/service.py` belongs to **WP3**, and the
+seed carries only DTOs, types and interfaces. What the seed freezes is the *call*, which every wave
+1 relay makes unconditionally. So wave 2 changes a body, never a call site — and no relay path can
+be broken by an audit sink that does not exist yet.
 
 ### Can be settled during wave 1
 
@@ -42,14 +70,26 @@ fits, and the nearest candidate is the legacy credits counter that D24 says must
 placeholder.
 
 **R6. `PolicyDecision.reason` has no fixed vocabulary** beyond "stable and terse". Three packages
-will otherwise each invent their own strings, and the audit attributes and the boundary's error map
-both key off it.
+would otherwise each invent their own strings, and the audit attributes and the boundary's error
+map both key off it. **Settled at kickoff by adopting WP3's two:** `"permission_denied"` and
+`"entitlement_denied"` — the only two failure modes `authorize()` produces. WP4's audit attribute
+builder and WP10's exception mapping read these verbatim rather than each choosing. A third value
+needs a decision here, not a commit.
 
-**R7. No SSRF guard is assigned for the gateway's own outbound relay** to a user-supplied custom
-MCP server URL. The runner already guards exactly this risk before handing a URL to a harness, and
-the gateway now becomes the thing making that outbound call. Both the registration path and the
-relay path need it, and neither package's scope currently names it. **This is the one item on this
-list that is a security gap rather than an unstated detail.**
+**R7. No SSRF guard was assigned for the gateway's own outbound relay** to a user-supplied custom
+MCP server URL — the one item on this list that was a security gap rather than an unstated detail.
+**Settled as D28: reuse `core/webhooks/utils.py`, call it at both ends.** Registration (**WP10**)
+calls the no-DNS gate `validate_url_format_and_literal_ip`; relay (**WP8**) calls
+`resolve_validated_webhook_ip` and connects to the literal IP it returns, keeping the `Host` header
+and `sni_hostname` on the original name — the pinning `core/webhooks/delivery.py` already
+demonstrates. Two refinements come from the runner's sibling guard: a host allowlist so a
+self-hoster can permit one internal server without disabling the guard, and a distinct message for
+"could not be resolved" so a DNS typo does not read as a security rejection.
+
+The catch that makes this more than paperwork: `AGENTA_INSECURE_EGRESS_ALLOWED` defaults to `true`
+and is set in no deployment configuration in this repo, so today the guard is inert everywhere it
+runs. Checkpoint A verifies with it `false`, and setting it `false` on shared deployments is a
+named action.
 
 **R8. The Composio-backed MCP adapter has no owning package in wave 1** — and on inspection it
 should not, because checkpoint A's reachable targets are our own servers and the fakes (D23). It

@@ -108,7 +108,12 @@ because a consent flow completed ... never because someone POSTed a grant
 document." Do not add `McpGrantCreateRequest` or `McpGrantEditRequest` —
 they do not exist in `entities.md` and must not be invented.
 
-### `handle_gateway_exceptions()` (§9)
+### `handle_gateway_exceptions()` (§9) — **seed-owned, read only**
+
+**R1 moved this file to the seed.** It is already on the branch when this package
+starts; import the decorator, do not write it. It is reproduced here because this
+package's routers are its principal consumer and the mapping is what their behaviour
+is specified against.
 
 ```python
 # apis/fastapi/gateways/exceptions.py
@@ -140,9 +145,43 @@ whether `cause.response.status_code >= 500`). `entities.md` explicitly
 says this decorator is "written once ... not duplicated per router" —
 those two domains each duplicate their own copy verbatim; the gateways
 domain does not repeat that mistake, and this file is the one place it
-lives (§9). **Both the CRUD routers (this package) and the two data-plane
-proxies (WP6, WP8) import it from here** — a real cross-package dependency
-this file's single ownership creates; see "Missing / contradictory" below.
+lives (§9). Both the CRUD routers (this package) and the two data-plane
+proxies (WP6, WP8) import it from there — three consumers, which is
+precisely why R1 put it in the seed rather than in any one package.
+
+### The SSRF gate at registration (D28) — this package owns the save-time half
+
+A `custom` MCP endpoint's URL arrives in a create or edit request body typed by a user,
+and the gateway will later connect to it. WP8 guards the relay; this package guards the
+save, and both are needed: a gate only at relay time accepts and stores a plainly-bad URL
+and fails later at a confusing moment, while a gate only at save time leaves the window in
+which a hostname's DNS answer changes after the row lands.
+
+**Write no new guard, and use the no-DNS variant here:**
+
+```python
+from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
+```
+
+It checks scheme, host, absence of embedded credentials, and blocks a literal IP in a
+private / loopback / link-local / reserved / multicast / unspecified range — **without a
+DNS lookup**. The docstring states why the resolving variant is wrong at save time: it
+would reject a hostname that happens to be momentarily unresolvable. The precedent to copy
+is exact — `api/oss/src/core/secrets/dtos.py:140` gates `custom_provider.url` this way, on
+the same kind of user-typed upstream URL, and re-raises with the field name in the message.
+
+Applies to `custom` MCP endpoint create and edit only. `agenta` and `builtin` URLs are not
+user-supplied — `agenta` is ours and `builtin` is the broker's — and neither is stored as a
+row this router writes. The LLM plane's `custom` endpoints get the same gate if and when
+they carry a base URL field; check the DTO before adding the call, and do not add it
+speculatively.
+
+A rejection is a 400 through the domain-exception path (`api/AGENTS.md`), never a leaked
+`ValueError`. The message says which field was rejected and why.
+
+**The flag makes the guard inert by default.** `AGENTA_INSECURE_EGRESS_ALLOWED` defaults to
+`true` (`api/oss/src/utils/env.py`), so a unit test that does not set it `false` passes
+while proving nothing. Set it explicitly in the test.
 
 ### `LlmGatewayRouter` (§9), in full
 
@@ -341,23 +380,14 @@ rule.
   extra route class is not warranted here — noted as a deliberate
   omission, not an oversight.
 
-## Missing from the design, needs a ruling
+## Settled at kickoff — was "needs a ruling"
 
-- **`apis/fastapi/gateways/exceptions.py` is a real cross-package
-  dependency `plan.md`'s dependency graph does not name.** WP6 and WP8
-  (proxy.py, owned by them) both need `handle_gateway_exceptions()` from
-  this package's file, per `entities.md`'s own statement that it is
-  "written once ... not duplicated per router." But `plan.md`'s dependency
-  graph lists WP6, WP8 and WP10 as three siblings each depending only on
-  M1 — none depends on another. This file is not part of the frozen seed
-  either (`plan.md`'s wave-0 section lists ports, DTOs, domain exceptions
-  and the resolver signature as the seed's contents; an API-layer
-  exception-mapping decorator is not among them). Concretely: WP6/WP8 must
-  either code `proxy.py` against the documented decorator name and mapping
-  table (§9) without the file existing yet in their worktree, and resolve
-  the import at the M2 merge, or `exceptions.py` needs to move into the
-  seed. Not resolved here — flagged for the wave-1 kickoff to decide, and
-  cross-referenced from `specs-wp8.md`.
+- **`apis/fastapi/gateways/exceptions.py` → the seed (R1).** Three packages need
+  `handle_gateway_exceptions()` — this one and both proxies (WP6, WP8) — and
+  `plan.md`'s dependency graph listed the three as siblings depending only on M1,
+  so no one of them could own it without inventing a dependency. It is now written
+  once in the seed, before any worktree forks, and all three import it.
+- **The SSRF gate at registration → this package (R7, D28).** Section above.
 
 ## Test layer
 

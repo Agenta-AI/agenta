@@ -54,6 +54,20 @@ implementation, and a fake of it for tests.
 - [ ] Same explicit-mode-dispatch note as the `BoundSecretRef` branch.
 - [ ] Same explicit `origin=SecretOrigin.VAULT` construction.
 
+## resolution.py — available_provider_keys (R2, added at kickoff)
+
+- [ ] Implement `available_provider_keys(self, *, scope) -> Set[str]` over the
+      same `list_secrets` scan `_resolve_provider_key` uses, returning the set
+      of provider names found across `PROVIDER_KEY` and `CUSTOM_PROVIDER`.
+- [ ] Return names only — never a secret value, never a `ResolvedCredential`.
+- [ ] **Never raise for "none found."** The empty set is the correct answer; only
+      `resolve()` raises, because a caller resolving has already committed to
+      needing a credential. WP7 calls this to decide which generated endpoints
+      exist (D20) and an empty project is an ordinary state, not an error.
+- [ ] Unit test: a project with an OpenAI `provider_key` and an Azure
+      `custom_provider` returns exactly `{"openai", "azure"}`; a project with no
+      secrets returns an empty set without raising.
+
 ## resolution.py — GrantRef
 
 - [ ] Implement `_resolve_grant`, writing out the full three-way `mode` table from

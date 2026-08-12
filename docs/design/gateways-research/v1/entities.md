@@ -1965,7 +1965,15 @@ class McpUpstreamInterface(ABC):
         failure; protocol-level errors from the server are NOT exceptions — they
         are the response body, relayed, because the server's own failure reason
         is what lets the model correct itself (the pass-through rule in
-        api/AGENTS.md's error-envelope scope)."""
+        api/AGENTS.md's error-envelope scope).
+
+        A `custom` route's URL was typed by a user and the adapter is what
+        connects to it, so the outbound guard runs here before the POST: the
+        resolving variant in core/webhooks/utils.py, connecting to the literal
+        IP it returns rather than re-resolving the hostname (D28). A blocked
+        target is McpUpstreamError — a transport refusal, never relayed as an
+        upstream body. Only `custom` needs it: agenta targets are ours and
+        builtin targets are the broker's."""
         ...
 ```
 
@@ -2050,7 +2058,27 @@ class CredentialResolverInterface(ABC):
         (`secrets.md`), and the exceptions carry which owner is missing so the
         boundary can build the connect affordance (§5)."""
         ...
+
+    @abstractmethod
+    async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
+        """Provider keys with a resolvable project-owned secret. Names only,
+        never a value — an existence test that must not read a credential.
+
+        Same scan as the ProviderKeyRef arm (provider_key + custom_provider),
+        returning the provider names found. Unlike resolve() it does NOT raise
+        when nothing matches: the empty set is the correct answer for a project
+        with no keys, whereas a caller reaching resolve() has already committed
+        to needing one."""
+        ...
 ```
+
+**Why the existence question is on this port** (R2). D20 makes a generated `builtin` endpoint
+exist for a project exactly when a provider key exists for it, so `LlmGatewayService.list_endpoints`
+(§8) has to ask — and its constructor has no vault dependency, deliberately. Handing it a
+`VaultService` would give one service two credential seams and defeat the port; calling `resolve()`
+once per provider to catch `CredentialNotFoundError` is control flow by exception plus eleven vault
+reads per list. Existence of a credential is a credential-layer question, so it lives with the
+credential layer.
 
 **`builtin` deliberately never passes through this port.** Its credential lives at the
 broker and never enters our vault, so there is nothing here to resolve — the MCP service
@@ -2189,7 +2217,9 @@ class LlmGatewayService:
     # list_endpoints is the merge: generated builtin endpoints (catalog.py,
     # existing iff a provider_key secret exists for the provider — D20) plus the
     # custom rows; agenta joins when it has members (D27). The only read that
-    # spans namespaces.
+    # spans namespaces. Existence comes from the resolver port's
+    # available_provider_keys (§7.2, R2) — names only, no vault dependency on
+    # this constructor.
 
     # catalog.py — the generation, two pure functions over the SDK's static map
     # (sdks/python/agenta/sdk/utils/assets.py::supported_llm_models), imported
@@ -2213,6 +2243,14 @@ class LlmGatewayService:
     async def relay_chat_completion(
         self, *, scope, namespace, name, body, headers,
     ) -> LlmRelayResult: ...
+
+    async def list_models(self, *, scope, namespace, name) -> List[str]: ...
+    # What backs GET /v1/models (§9, R3). Per endpoint, not global: resolve the
+    # target as the relay does, authorize with USE_LLM_ENDPOINTS — it is a
+    # data-plane read that reveals configuration — and return the allowlist: the
+    # static catalogue's slugs for builtin, model_slugs for custom. No credential
+    # resolved, no upstream called, and no new DTO: the proxy shapes the OpenAI
+    # list body inline, because the data plane has no wire models (§6).
 
 
 class McpGatewayService:
@@ -2538,7 +2576,9 @@ class LlmGatewayProxy:
         )
         # /v1/models answers from the allowlist — the static catalogue for
         # builtin, model_slugs for custom — so a harness that lists before
-        # calling sees exactly what policy will allow.
+        # calling sees exactly what policy will allow. Backed by
+        # LlmGatewayService.list_models (§8, R3); the handler shapes the
+        # OpenAI list body inline, since the data plane has no wire models.
         #
         # "/agenta/{slug:path}/v1/chat/completions"
         # Reserved, empty today (D27) — declared when the namespace gains its

@@ -22,6 +22,26 @@ WP2 secret resolution, WP3 policy core, WP5 fakes) having landed.
       `McpUpstreamError`; do NOT raise on a non-2xx HTTP status or a
       JSON-RPC error body — return it as `McpRelayResult` untouched (D16
       pass-through rule).
+- [ ] **SSRF guard, before the POST (D28).** `from oss.src.core.webhooks.utils
+      import resolve_validated_webhook_ip`; call it on `route.url` for `custom`
+      targets only. Write no new guard — that module is the one three other
+      call sites already use.
+- [ ] Translate its `ValueError` into `McpUpstreamError`, keeping the two
+      messages distinct: a "could not be resolved" DNS failure must not read as
+      a security rejection (the runner's guard makes the same distinction,
+      `services/runner/src/engines/sandbox_agent/mcp.ts:191`).
+- [ ] **Connect to the returned literal IP, not the hostname** — the whole
+      reason the function returns a value. Copy the pinning from
+      `api/oss/src/core/webhooks/delivery.py::send_webhook_request`: literal IP
+      in the URL (bracket IPv6, keep an explicit port), `Host` header set back
+      to the original authority, `extensions={"sni_hostname": parsed.hostname}`
+      so TLS validates against the real name. Re-resolving in the client
+      reopens the rebind window.
+- [ ] Add the host-allowlist escape hatch to `api/oss/src/utils/env.py` and read
+      it through the shared `env` object — never `os.getenv` in feature code
+      (`api/AGENTS.md`). Mirrors the runner's `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`,
+      so a self-hoster can permit one internal server without disabling the
+      guard globally.
 - [ ] `ruff format` && `ruff check --fix` from the repo root; fix all
       errors.
 - [ ] Commit: "gateways(mcp): HttpMcpAdapter south-port implementation".
@@ -43,6 +63,18 @@ WP2 secret resolution, WP3 policy core, WP5 fakes) having landed.
 - [ ] Unit test: fake upstream returns HTTP 200 with a JSON-RPC `error`
       object in the body → `McpRelayResult` returned with that body intact,
       no exception.
+- [ ] **SSRF unit tests, all with `AGENTA_INSECURE_EGRESS_ALLOWED=false` set
+      explicitly** — it defaults to `true`, so a test that omits it passes while
+      proving nothing: a `custom` route at `http://169.254.169.254/` is refused;
+      at `http://127.0.0.1/` refused; at `http://10.0.0.1/` refused; a plain
+      `http://` public host refused; an unresolvable hostname produces the
+      resolution message, not the blocked-range one.
+- [ ] Unit test: with a public hostname resolving to a public IP (patch the
+      resolver, as `api/oss/tests/pytest/unit/webhooks/test_webhooks_utils.py`
+      does), the outbound request goes to the **literal IP** while the `Host`
+      header carries the hostname.
+- [ ] Unit test: an `agenta` route to a private address is NOT refused — the
+      guard is namespace-scoped, and WP5's fakes live on a compose host.
 - [ ] `ruff format` && `ruff check --fix`; run the new unit tests; fix
       failures.
 - [ ] Commit: "gateways(mcp): HttpMcpAdapter unit tests".
@@ -90,10 +122,8 @@ WP2 secret resolution, WP3 policy core, WP5 fakes) having landed.
       (§6: the data plane has no wire models).
 - [ ] Decorate each handler with `@intercept_exceptions()` and
       `@handle_gateway_exceptions()`, importing the latter from
-      `apis/fastapi/gateways/exceptions.py`. If WP10's file has not landed
-      in this worktree yet, code against the documented decorator name and
-      mapping table (§9) and leave a merge-point note in this task file
-      rather than writing a local copy.
+      `apis/fastapi/gateways/exceptions.py` — a **seed** file (R1), already on
+      the branch. Import it; never write a local copy.
 - [ ] `ruff format` && `ruff check --fix`; fix all errors.
 - [ ] Commit: "gateways(mcp): McpGatewayProxy routes".
 

@@ -68,11 +68,22 @@ namespaces — `query_endpoints` filters rows only, per §9's router comment: "g
 have nothing to filter on but the provider, which GET already shows."
 
 To compute "existing iff a `provider_key` secret exists," `list_endpoints` needs the project's
-provider keys. `entities.md` does not name a vault-listing call on this signature — the natural
-source is `VaultService` (already injected into `CredentialResolver`, WP2, not into
-`LlmGatewayService`'s constructor above). This package must either call through `resolver`
-somehow or take a vault dependency the frozen constructor does not list; see "Missing from the
-design" below.
+provider keys. **R2 settled this at kickoff: the resolver port gained one method, and the
+constructor above is unchanged.**
+
+```python
+keys = await self.resolver.available_provider_keys(scope=scope)   # Set[str], names only
+```
+
+Intersect `standard_llm_endpoints()` with that set. The port answers because existence of a
+credential is a credential-layer question; handing this service a `VaultService` would give it two
+credential seams and defeat the port, and calling `resolve()` once per provider to catch
+`CredentialNotFoundError` is control flow by exception plus eleven vault reads per list. The method
+returns the empty set for a project with no keys — that is an ordinary state, not an error, so
+there is nothing to catch here.
+
+WP2 implements it; this package calls it. A test double for the resolver in this package's unit
+tests must implement it too.
 
 ### `catalog.py` — two pure functions over the SDK's static map
 
@@ -239,6 +250,26 @@ finally."* Concretely, this package must wrap `result.body` in a generator that 
 pseudocode above (record-after-relay) silently becomes record-before-drain for every streaming
 call, which breaks WP6's stated assumption that it owns nothing audit-related.
 
+### `list_models` — the backing method for `GET /v1/models` (R3, added at kickoff)
+
+```python
+async def list_models(self, *, scope, namespace, name) -> List[str]: ...
+```
+
+The route existed in `entities.md` §9 with no service method behind it; R3 named one. It is per
+endpoint, not global — the routes are `/builtin/{provider}/v1/models` and
+`/custom/{slug}/v1/models` — and it answers **from the allowlist**, so a harness that lists
+before calling sees exactly what policy will allow: the catalogue's `model_slugs` for a generated
+`builtin` endpoint, the row's `model_slugs` for a `custom` one.
+
+Body: `_resolve_target` exactly as the relay does, then `policy.authorize` with
+`Permission.USE_LLM_ENDPOINTS` — it is a data-plane read that reveals configuration, so it is
+authorized like one — then return the slugs. No credential is resolved and no upstream is called.
+
+**No new DTO.** It returns `List[str]`, and WP6's proxy shapes the OpenAI list body inline; the
+data plane has no wire models (§6). Inventing a response DTO here would break the "do not invent
+names" rule for no gain.
+
 ### The three orderings, restated as this package's obligations
 
 - **Allowlist before credential** (`_check_allowlist` before `self.resolver.resolve`) — a refused
@@ -368,21 +399,17 @@ list is refused."*
 - Embeddings (`relay_embedding`) — deferred with the evaluator path (D15); the seam is declared
   in `LlmUpstreamInterface` as a comment, not implemented.
 
+## Settled at kickoff — was "needs a ruling"
+
+- **`list_endpoints`'s constructor cannot reach the vault → option (b), R2.** The resolver port
+  gains `available_provider_keys(*, scope) -> Set[str]`; the constructor is untouched. Option (a)
+  would have given this service two credential seams, and (c) breaks §8's own DI rule for this
+  very service. The seed carries the new method, so nothing here is a mid-wave signature change.
+- **`GET /v1/models` has no backing method → `list_models`, R3.** Owned here, called by WP6.
+  Section above.
+
 ## Missing from the design, needs a ruling
 
-- **`list_endpoints`'s constructor cannot reach the vault.** `LlmGatewayService.__init__` (§8,
-  frozen) takes `llm_endpoints_dao`, `policy`, `resolver`, `upstream_registry` — no
-  `vault_service`. But `list_endpoints` must know which `provider_key` secrets exist to decide
-  which generated `builtin` entries are "existing" (D20: "existence is a fact about the
-  project... not the catalogue"). Options, none of which this spec picks: (a) add a
-  `vault_service` parameter to the constructor (a signature change to a frozen §8 surface — needs
-  a ruling, since the seed is supposed to be taken verbatim), (b) route the existence check
-  through `resolver` with a new method that isn't `resolve()` (also a signature change, to a
-  seed-owned interface WP7 doesn't own), (c) accept that `list_endpoints` calls
-  `VaultService` directly as an un-declared dependency wired at the entrypoint (breaks the
-  "constructors take DAO interfaces and ports via keyword-only DI, never concrete classes" rule
-  §8 states explicitly for this very service). Raise at the M1 merge before writing this method;
-  do not silently pick (c).
 - **litellm as a direct API dependency.** `api/pyproject.toml` does not list `litellm` — it
   reaches the API today only transitively through the `agenta` SDK package (confirmed: `grep
   litellm api/pyproject.toml` finds nothing; `core/tracing/utils/trees.py` already imports
@@ -391,6 +418,3 @@ list is refused."*
   explicit `api/pyproject.toml` dependency (recommended — transitive reliance on another
   package's dependency is fragile) is not decided in any `v1/` document; raise it, do not decide
   it silently in a commit.
-- **`GET /v1/models`'s backing method** — the same gap WP6's spec flags from the other side. This
-  package is the one that would add the method if the M1→M2 merge decides that is the fix;
-  `specs-wp7.md` and `specs-wp6.md` should be read together at that merge.

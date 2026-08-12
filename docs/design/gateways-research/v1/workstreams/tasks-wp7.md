@@ -77,20 +77,41 @@ commit and fix all errors, per `api/AGENTS.md`.
 ## Phase 5 — `LlmGatewayService` management surface
 
 - [ ] `core/gateways/llms/service.py`: `LlmGatewayService.__init__(self, *, llm_endpoints_dao,
-      policy, resolver, upstream_registry)` — resolve the vault-access gap flagged in
-      `specs-wp7.md`'s "Missing from the design" section **before** writing `list_endpoints`; do
-      not silently add an undeclared dependency.
+      policy, resolver, upstream_registry)` — **exactly this, unchanged**. R2 settled the
+      vault-access gap by adding `available_provider_keys` to the resolver port instead of a
+      dependency here; do not add `vault_service`.
 - [ ] Implement `create_endpoint`, `fetch_endpoint`, `edit_endpoint`, `delete_endpoint`,
       `query_endpoints` as thin delegations to `llm_endpoints_dao`.
-- [ ] Implement `list_endpoints`: merge `standard_llm_endpoints()` filtered by the resolved
-      existence check, plus `query_endpoints(project_id=project_id)`'s full result — no
-      duplicates, no `builtin` entry for a provider with no key.
+- [ ] Implement `list_endpoints`: intersect `standard_llm_endpoints()` with
+      `await self.resolver.available_provider_keys(scope=scope)` (WP2 implements it; it returns
+      names only and never raises for an empty project), plus
+      `query_endpoints(project_id=project_id)`'s full result — no duplicates, no `builtin` entry
+      for a provider with no key.
 - [ ] Ruff format + check; run and fix.
-- [ ] Unit tests: `list_endpoints` with a stubbed existence source returning two provider keys
-      yields exactly those two `builtin` entries plus every custom row; `create_endpoint`/
+- [ ] Unit tests: `list_endpoints` with a stubbed resolver whose `available_provider_keys`
+      returns two provider keys yields exactly those two `builtin` entries plus every custom
+      row; an empty set yields custom rows only, with no exception; `create_endpoint`/
       `fetch_endpoint`/`edit_endpoint`/`delete_endpoint`/`query_endpoints` each delegate to the
       stubbed DAO with the arguments unchanged.
+- [ ] The resolver test double in this package's tests must implement **both** port methods —
+      `resolve` and `available_provider_keys`.
 - [ ] Commit: "wp7: LlmGatewayService management surface".
+
+## Phase 5b — `list_models` (R3)
+
+- [ ] Implement `async def list_models(self, *, scope, namespace, name) -> List[str]`:
+      `_resolve_target` as the relay does, `policy.authorize` with
+      `Permission.USE_LLM_ENDPOINTS`, then return the target's `model_slugs` — the static
+      catalogue's for `builtin`, the row's for `custom`.
+- [ ] Resolve no credential and call no upstream. It answers from the allowlist, so a harness
+      that lists before calling sees exactly what policy will allow.
+- [ ] Return `List[str]`; invent no response DTO — WP6's proxy shapes the OpenAI body inline
+      because the data plane has no wire models (§6).
+- [ ] Unit tests: a `custom` endpoint with `model_slugs: ["a", "b"]` returns exactly those; a
+      `builtin` provider returns the catalogue's slugs verbatim (litellm prefixes intact, not
+      re-derived); an unknown name raises `LlmEndpointNotFoundError`; a denied decision raises
+      `PolicyDeniedError` before any slug is read.
+- [ ] Commit: "wp7: LlmGatewayService.list_models".
 
 ## Phase 6 — `LlmGatewayService.relay_chat_completion`
 
