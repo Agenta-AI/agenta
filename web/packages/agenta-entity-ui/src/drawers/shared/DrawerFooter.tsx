@@ -4,13 +4,11 @@ import {Button, Divider, LoadingButton} from "@agenta/ui/ui"
 
 /**
  * Shared footer for entity config drawers (triggers: schedule + subscription; tools: integration
- * + reference). Cancel / [run slot] / Save on the right, an optional `left` slot on the left.
- * The run affordance differs per surface, so it is passed in as a slot rather than baked in.
+ * + reference). Cancel / Save on the right, an optional `left` slot on the left.
  */
 export function DrawerFooter({
     left,
     onCancel,
-    run,
     isMutating,
     canSave,
     submitLabel,
@@ -18,8 +16,6 @@ export function DrawerFooter({
 }: {
     left?: ReactNode
     onCancel: () => void
-    /** Optional run-in-playground affordance (playground only). */
-    run?: ReactNode
     isMutating?: boolean
     canSave: boolean
     submitLabel: string
@@ -34,7 +30,6 @@ export function DrawerFooter({
                     <Button variant="outline" onClick={onCancel}>
                         Cancel
                     </Button>
-                    {run}
                     <LoadingButton
                         variant="default"
                         loading={isMutating}

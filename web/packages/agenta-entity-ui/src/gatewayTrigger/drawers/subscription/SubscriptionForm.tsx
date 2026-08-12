@@ -55,7 +55,6 @@ import {VersionField} from "../shared/VersionField"
 import {browseHeaderAtom, DEFAULT_INPUTS_MAPPING} from "./constants"
 import {eventExampleFromPayload, suggestSubscriptionName} from "./helpers"
 import {MappingSection} from "./MappingSection"
-import {RunSubscriptionButton} from "./RunSubscriptionButton"
 import {SourceBrowsePage} from "./SourceBrowsePage"
 import {EventFiltersField, SourceField} from "./SourceField"
 
@@ -649,17 +648,6 @@ export function SubscriptionForm({
                     ) : undefined
                 }
                 onCancel={onClose}
-                run={
-                    playgroundEntityId && !isDeleted ? (
-                        <RunSubscriptionButton
-                            playgroundEntityId={playgroundEntityId}
-                            name={name}
-                            eventKey={eventKey}
-                            disabled={!isEdit}
-                            onClose={onClose}
-                        />
-                    ) : undefined
-                }
                 isMutating={isMutating}
                 canSave={canSubmit && !alreadySubscribed}
                 submitLabel={isEdit ? "Save" : "Create"}
