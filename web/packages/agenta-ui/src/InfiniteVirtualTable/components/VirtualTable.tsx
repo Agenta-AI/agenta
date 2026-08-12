@@ -5,15 +5,16 @@ import type {
     ColumnSizingState,
     OnChangeFn,
     RowSelectionState,
-    VisibilityState,
+    ColumnVisibilityState,
 } from "@tanstack/react-table"
-import {flexRender, getCoreRowModel, useReactTable} from "@tanstack/react-table"
+import {flexRender, useTable} from "@tanstack/react-table"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
 import {cn} from "../../utils/styles"
 import type {ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
 import useInfiniteScroll from "../hooks/useInfiniteScroll"
 import {AVT} from "../tableDom"
+import {TABLE_FEATURES, type VirtualTableFeatures} from "../tableFeatures"
 import {sourceOf, toTanstackColumns} from "../tanstackColumns"
 
 /**
@@ -54,8 +55,8 @@ export interface VirtualTableProps<RecordType extends object> {
     emptyText?: ReactNode
     className?: string
     /** Controlled column visibility, keyed by column id. */
-    columnVisibility?: VisibilityState
-    onColumnVisibilityChange?: OnChangeFn<VisibilityState>
+    columnVisibility?: ColumnVisibilityState
+    onColumnVisibilityChange?: OnChangeFn<ColumnVisibilityState>
     /** Controlled column widths, keyed by column id. */
     columnSizing?: ColumnSizingState
     onColumnSizingChange?: OnChangeFn<ColumnSizingState>
@@ -111,12 +112,11 @@ export const VirtualTable = <RecordType extends object>({
 
     const tanstackColumns = useMemo(() => toTanstackColumns(columns), [columns])
 
-    const table = useReactTable<RecordType>({
+    const table = useTable<VirtualTableFeatures, RecordType>({
+        features: TABLE_FEATURES,
         data: dataSource,
         columns: tanstackColumns,
-        getCoreRowModel: getCoreRowModel(),
         getRowId: (record, index) => String(rowKey(record, index)),
-        columnResizeMode: "onChange",
         state: {
             ...(columnVisibility ? {columnVisibility} : {}),
             ...(columnSizing ? {columnSizing} : {}),

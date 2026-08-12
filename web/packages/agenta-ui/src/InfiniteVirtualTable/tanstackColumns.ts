@@ -1,7 +1,8 @@
-import type {ColumnDef as TanstackColumnDef} from "@tanstack/react-table"
+import type {ColumnDef as TanstackColumnDef, RowData} from "@tanstack/react-table"
 
 import type {ColumnDef, ColumnDefs} from "./columnDef"
 import {isColumnGroupDef} from "./columnDef"
+import type {VirtualTableFeatures} from "./tableFeatures"
 
 /**
  * The one place the table's public column model meets TanStack's.
@@ -40,9 +41,9 @@ const idOf = <RecordType>(column: ColumnDef<RecordType>, index: number): string 
 const sizeOf = <RecordType>(column: ColumnDef<RecordType>): number =>
     typeof column.width === "number" ? column.width : (column.minWidth ?? 160)
 
-export const toTanstackColumns = <RecordType>(
+export const toTanstackColumns = <RecordType extends RowData>(
     columns: ColumnDefs<RecordType>,
-): TanstackColumnDef<RecordType, unknown>[] =>
+): TanstackColumnDef<VirtualTableFeatures, RecordType, unknown>[] =>
     columns.map((column, index) => {
         const id = idOf(column as ColumnDef<RecordType>, index)
 
@@ -53,7 +54,7 @@ export const toTanstackColumns = <RecordType>(
                     typeof column.title === "function" ? column.title({}) : column.title,
                 columns: toTanstackColumns(column.children),
                 meta: {source: column as unknown as ColumnDef<RecordType>},
-            } as TanstackColumnDef<RecordType, unknown>
+            } as TanstackColumnDef<VirtualTableFeatures, RecordType, unknown>
         }
 
         const leaf = column as ColumnDef<RecordType>
@@ -69,7 +70,7 @@ export const toTanstackColumns = <RecordType>(
             enableHiding: true,
             enableResizing: true,
             meta: {source: leaf} satisfies ColumnMeta<RecordType>,
-        } as TanstackColumnDef<RecordType, unknown>
+        } as TanstackColumnDef<VirtualTableFeatures, RecordType, unknown>
     })
 
 /** Reads the original column back off a TanStack column, for rendering. */
