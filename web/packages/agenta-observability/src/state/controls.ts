@@ -2,7 +2,7 @@
 import type {Key} from "react"
 
 import {defaultTraceTypeForWorkflow} from "@agenta/entities/workflow"
-import dayjs from "dayjs"
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import {atom} from "jotai"
 import {atomFamily, atomWithStorage} from "jotai/utils"
 

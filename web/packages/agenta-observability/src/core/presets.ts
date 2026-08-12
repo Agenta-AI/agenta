@@ -1,4 +1,4 @@
-import dayjs from "dayjs"
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import utc from "dayjs/plugin/utc"
 
 import type {AnalyticsRange, AnalyticsRangeLabel} from "./types"

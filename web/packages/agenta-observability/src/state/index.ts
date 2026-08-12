@@ -1,14 +1,11 @@
 import {projectIdAtom} from "@agenta/shared/state"
-import dayjs from "dayjs"
-import utc from "dayjs/plugin/utc"
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchDashboardAnalytics} from "../api/dashboard"
 import type {AnalyticsRange, DashboardData} from "../core/types"
-
-dayjs.extend(utc)
 
 const DEFAULT_RANGE_DAYS = 30
 
