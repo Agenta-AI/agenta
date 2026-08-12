@@ -15,6 +15,7 @@ import {pendingSessionOpenAtom} from "@/oss/components/AgentChatSlice/state/pend
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../scopes/constants"
 
+import {SIDEBAR_SESSION_VISIBLE_LIMIT} from "./sessionOptions"
 import {sidebarSessionsListAtom, type SessionSidebarRef} from "./sessionsSource"
 import {gatedSidebarSource} from "./source"
 import type {
@@ -51,12 +52,17 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     activeSourceAtom: gatedSidebarSource(scopeId, parentKey, config.listAtom),
     getLabel: (ref) => config.getLabel(ref as TRef),
     childLink: (ref, projectURL) => `${projectURL}${config.childPath(ref as TRef)}`,
+    childMatchLinks: config.childMatchPaths
+        ? (ref, projectURL) =>
+              config.childMatchPaths!(ref as TRef).map((path) => `${projectURL}${path}`)
+        : undefined,
     emptyLabel: config.emptyLabel,
     maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
     showAllLink: config.showAllPath
         ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,
     getIcon: config.getIcon ? (ref) => config.getIcon!(ref as TRef) : undefined,
+    getTooltip: config.getTooltip ? (ref) => config.getTooltip!(ref as TRef) : undefined,
     getOnClick: config.getOnClick ? (ref) => config.getOnClick!(ref as TRef) : undefined,
 })
 
@@ -80,6 +86,8 @@ const ENTITIES: SidebarEntity[] = [
         // The link navigates to the owning agent; the click hands over WHICH session, since the
         // playground has no way to read that from the route.
         childPath: (session) => `/apps/${session.appId}/playground`,
+        // Every session shares that one URL, so matching would highlight an arbitrary row.
+        childMatchPaths: () => [],
         getOnClick: (session) => () => {
             if (!session.appId) return
             getDefaultStore().set(pendingSessionOpenAtom, {
@@ -95,8 +103,10 @@ const ENTITIES: SidebarEntity[] = [
                       size: 10,
                       weight: session.alive ? "fill" : "regular",
                   }),
+        // Show the owning agent because sessions from multiple agents share this list.
+        getTooltip: (session) => session.agentName ?? undefined,
         emptyLabel: "No sessions",
-        maxItems: 7,
+        maxItems: SIDEBAR_SESSION_VISIBLE_LIMIT,
         showAllPath: "/sessions",
     }),
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
@@ -104,7 +114,9 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(RobotIcon, {size: 14}),
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-        childPath: (workflow) => `/apps/${workflow.id}/playground`,
+        childPath: (workflow) => `/apps/${workflow.id}/overview`,
+        // Stays highlighted across all of the agent's pages, not just the one it links to.
+        childMatchPaths: (workflow) => [`/apps/${workflow.id}`],
         emptyLabel: "No agents",
         showAllPath: "/agents",
     }),

@@ -271,6 +271,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                     {labelNode}
                                 </div>
                             </Tooltip>
+                        ) : item.tooltip ? (
+                            // Expanded rows only show explicitly configured tooltips.
+                            <Tooltip title={item.tooltip} placement="right" mouseEnterDelay={0.8}>
+                                <span className="w-full">{labelNode}</span>
+                            </Tooltip>
                         ) : (
                             labelNode
                         ),

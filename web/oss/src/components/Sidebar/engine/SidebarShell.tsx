@@ -41,6 +41,8 @@ class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {has
 // path equals it or continues with a path/query/hash boundary. Query string and hash on
 // `currentPath` (router.asPath) are tolerated by the boundary check.
 const pathMatchesLink = (currentPath: string, link: string) => {
+    // A trailing slash means descendants only: `/apps/` claims `/apps/<id>` but not `/apps`.
+    if (link.endsWith("/")) return currentPath.startsWith(link)
     if (currentPath === link) return true
     if (!currentPath.startsWith(link)) return false
     const nextChar = currentPath.charAt(link.length)
@@ -57,13 +59,17 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
 
     const visit = (nodes: SidebarConfig[], ancestors: string[]) => {
         nodes.forEach((item) => {
-            if (item.link && pathMatchesLink(currentPath, item.link)) {
-                const isExact = currentPath === item.link
-                const isSameLength = item.link.length === matchedLength
+            // A row can own more routes than it navigates to; an empty list opts it out.
+            const matchLinks = item.matchLinks ?? (item.link ? [item.link] : [])
+            for (const matchLink of matchLinks) {
+                if (!pathMatchesLink(currentPath, matchLink)) continue
+
+                const isExact = currentPath === matchLink
+                const isSameLength = matchLink.length === matchedLength
                 const isBetterMatch =
                     !matched ||
                     (isExact && !matchedIsExact) ||
-                    (isExact === matchedIsExact && item.link.length > matchedLength) ||
+                    (isExact === matchedIsExact && matchLink.length > matchedLength) ||
                     (isExact === matchedIsExact &&
                         isSameLength &&
                         matched.isDynamic &&
@@ -71,7 +77,7 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
 
                 if (isBetterMatch) {
                     matched = item
-                    matchedLength = item.link.length
+                    matchedLength = matchLink.length
                     matchedIsExact = isExact
                     openKeys = ancestors
                 }
