@@ -1,4 +1,13 @@
-import {lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties} from "react"
+import {
+    lazy,
+    Suspense,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    useSyncExternalStore,
+    type CSSProperties,
+} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
@@ -20,7 +29,12 @@ import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "./state/panelLayout"
 import {pendingSessionOpenAtom} from "./state/pendingSessionOpen"
 import {useReconcileServerSessions} from "./state/projectSessions"
-import {FILES_PANE_MAX, FILES_PANE_MIN, filesPaneWidthAtom} from "./state/rightPanel"
+import {
+    FILES_PANE_MAX,
+    FILES_PANE_MIN,
+    filesPaneWidthAtom,
+    PANES_COEXIST_MIN_WINDOW,
+} from "./state/rightPanel"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -48,6 +62,22 @@ const SessionRail = lazy(() => import("./components/SessionRail"))
 const RAIL_WIDTH = 300
 const RAIL_MIN_WIDTH = 240
 const RAIL_MAX_WIDTH = 480
+
+// Media-query subscription for the coexistence threshold (window width, not container width, on
+// purpose: the rule assumes the nav sidebar at its default width, per the threshold's derivation).
+const coexistMediaQuery = () => window.matchMedia(`(min-width: ${PANES_COEXIST_MIN_WINDOW}px)`)
+const subscribeCoexist = (onChange: () => void) => {
+    const mql = coexistMediaQuery()
+    mql.addEventListener("change", onChange)
+    return () => mql.removeEventListener("change", onChange)
+}
+/** True when the window fits config pane + transcript + Files pane together at fair widths. */
+const useCanPanesCoexist = () =>
+    useSyncExternalStore(
+        subscribeCoexist,
+        () => coexistMediaQuery().matches,
+        () => false,
+    )
 
 /**
  * AgentChatPanel — the agent-generation surface hosted INSIDE the playground (the third
@@ -152,21 +182,34 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // DriveSessionProvider needs it here because it sits OUTSIDE the per-tab conversations.
     const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
 
-    // Config pane and Files pane are mutually exclusive: opening one collapses the other, so the
-    // transcript always keeps room. Transition-edge effects (prev refs), not state syncs — each
-    // watches only the flip that should evict the other, so they can't ping-pong.
+    // On windows too narrow to fit config pane + transcript + Files pane at fair widths, the two
+    // side panes are mutually exclusive: opening one collapses the other, so the transcript always
+    // keeps room. Wide windows skip the eviction and let both stay open. Transition-edge effects
+    // (prev refs), not state syncs — each watches only the flip that should evict the other, so
+    // they can't ping-pong.
+    const canPanesCoexist = useCanPanesCoexist()
     const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
     const prevFilesOpenRef = useRef(filesPane.open)
     useEffect(() => {
-        if (filesPane.open && !prevFilesOpenRef.current) setConfigPanelCollapsed(true)
+        if (filesPane.open && !prevFilesOpenRef.current && !canPanesCoexist)
+            setConfigPanelCollapsed(true)
         prevFilesOpenRef.current = filesPane.open
-    }, [filesPane.open, setConfigPanelCollapsed])
+    }, [filesPane.open, canPanesCoexist, setConfigPanelCollapsed])
     const closeFilesPane = filesPane.close
     const prevConfigCollapsedRef = useRef(configPanelCollapsed)
     useEffect(() => {
-        if (!configPanelCollapsed && prevConfigCollapsedRef.current) closeFilesPane()
+        if (!configPanelCollapsed && prevConfigCollapsedRef.current && !canPanesCoexist)
+            closeFilesPane()
         prevConfigCollapsedRef.current = configPanelCollapsed
-    }, [configPanelCollapsed, closeFilesPane])
+    }, [configPanelCollapsed, canPanesCoexist, closeFilesPane])
+    // Shrinking below the threshold with BOTH open: keep the Files pane (the content surface the
+    // user opened deliberately) and collapse the config pane — the same choice opening Files makes.
+    const prevCoexistRef = useRef(canPanesCoexist)
+    useEffect(() => {
+        if (!canPanesCoexist && prevCoexistRef.current && filesPane.open && !configPanelCollapsed)
+            setConfigPanelCollapsed(true)
+        prevCoexistRef.current = canPanesCoexist
+    }, [canPanesCoexist, filesPane.open, configPanelCollapsed, setConfigPanelCollapsed])
 
     // A trigger test asks for a fresh session: create + activate one, then clear the flag so the
     // new session's conversation consumes the turn (the per-session consumer skips flagged runs).
