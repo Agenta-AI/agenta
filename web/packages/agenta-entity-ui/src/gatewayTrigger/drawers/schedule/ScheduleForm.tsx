@@ -42,7 +42,6 @@ import {VersionField} from "../shared/VersionField"
 
 import {DEFAULT_CRON, SCHEDULE_EVENT_KEY} from "./constants"
 import {MessageComposer} from "./MessageComposer"
-import {RunInPlaygroundButton} from "./RunInPlaygroundButton"
 import {WindowField} from "./WindowField"
 
 // ---------------------------------------------------------------------------
@@ -437,19 +436,6 @@ export function ScheduleForm({
                     ) : undefined
                 }
                 onCancel={onClose}
-                run={
-                    playgroundEntityId && !isDeleted ? (
-                        <RunInPlaygroundButton
-                            playgroundEntityId={playgroundEntityId}
-                            name={name}
-                            cron={cron}
-                            inputsText={inputsText}
-                            message={composedMessage}
-                            disabled={!isEdit}
-                            onClose={onClose}
-                        />
-                    ) : undefined
-                }
                 isMutating={isMutating}
                 canSave={canSubmit}
                 submitLabel={isEdit ? "Save" : "Create schedule"}

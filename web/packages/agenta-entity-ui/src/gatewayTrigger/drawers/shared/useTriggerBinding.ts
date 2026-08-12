@@ -19,6 +19,27 @@ import type {TriggerReferences} from "./RunVersionField"
 
 export type TriggerBindingMode = "latest" | "pinned"
 
+/**
+ * Which reference family a trigger is bound through. The backend accepts `application_*`,
+ * `workflow_*` and `evaluator_*` as parallel families and REJECTS a payload that populates
+ * more than one (`core/workflows/service.py`), so a binding has to remember which family it
+ * was read from and write back into that same one. UI-created triggers use `application_*`;
+ * SDK/API-created ones commonly use `workflow_*`.
+ */
+export type TriggerReferenceFamily = "application" | "workflow"
+
+const FAMILY_KEYS: Record<
+    TriggerReferenceFamily,
+    {artifact: string; variant: string; revision: string}
+> = {
+    application: {
+        artifact: "application",
+        variant: "application_variant",
+        revision: "application_revision",
+    },
+    workflow: {artifact: "workflow", variant: "workflow_variant", revision: "workflow_revision"},
+}
+
 /** Stable identity for a dirty check — a binding is its mode plus whichever id it pins. */
 export function bindingKey(binding: TriggerBinding): string {
     return `${binding.mode}:${binding.workflowId ?? ""}:${binding.variantId ?? ""}:${
@@ -35,12 +56,15 @@ export function buildTriggerReferences(
     binding: TriggerBinding,
     stored?: TriggerReferences,
 ): TriggerReferences {
+    // Write back into the family this binding was read from — migrating a `workflow_*` trigger
+    // to `application_*` would change how the backend resolves it.
+    const keys = FAMILY_KEYS[binding.family ?? "application"]
     const references: Record<string, {id: string}> = {}
-    if (binding.workflowId) references.application = {id: binding.workflowId}
+    if (binding.workflowId) references[keys.artifact] = {id: binding.workflowId}
     if (binding.mode === "pinned" && binding.revisionId) {
-        references.application_revision = {id: binding.revisionId}
+        references[keys.revision] = {id: binding.revisionId}
     } else if (binding.variantId) {
-        references.application_variant = {id: binding.variantId}
+        references[keys.variant] = {id: binding.variantId}
     }
     return Object.keys(references).length ? references : (stored ?? undefined)
 }
@@ -52,6 +76,8 @@ export interface TriggerBinding {
     variantId: string | null
     /** Set only when `mode` is "pinned". */
     revisionId: string | null
+    /** The reference family to read from and write back into. */
+    family: TriggerReferenceFamily
 }
 
 export const EMPTY_BINDING: TriggerBinding = {
@@ -59,6 +85,7 @@ export const EMPTY_BINDING: TriggerBinding = {
     workflowId: null,
     variantId: null,
     revisionId: null,
+    family: "application",
 }
 
 /**
@@ -68,11 +95,22 @@ export const EMPTY_BINDING: TriggerBinding = {
  */
 export function parseStoredBinding(references: TriggerReferences): TriggerBinding {
     if (!references) return EMPTY_BINDING
-    const workflowId = references.application?.id ?? null
-    const revisionId = references.application_revision?.id ?? null
-    if (revisionId) return {mode: "pinned", workflowId, variantId: null, revisionId}
-    const variantId = references.application_variant?.id ?? null
-    return {mode: "latest", workflowId, variantId, revisionId: null}
+    // A trigger written through the SDK usually binds `workflow_*`; the drawer used to read
+    // only `application_*` and rendered those as unbound (blank, disabled version picker).
+    const family: TriggerReferenceFamily =
+        (references.application ??
+        references.application_variant ??
+        references.application_revision)
+            ? "application"
+            : (references.workflow ?? references.workflow_variant ?? references.workflow_revision)
+              ? "workflow"
+              : "application"
+    const keys = FAMILY_KEYS[family]
+    const workflowId = references[keys.artifact]?.id ?? null
+    const revisionId = references[keys.revision]?.id ?? null
+    if (revisionId) return {mode: "pinned", workflowId, variantId: null, revisionId, family}
+    const variantId = references[keys.variant]?.id ?? null
+    return {mode: "latest", workflowId, variantId, revisionId: null, family}
 }
 
 /**
@@ -117,7 +155,15 @@ export function useTriggerBinding({
         if (stored) {
             return {
                 ...stored,
-                workflowId: stored.workflowId ?? pinnedRevision?.workflow_id ?? null,
+                // A variant-only binding names no artifact, and without one the version list has
+                // nothing to query — fall back to the open agent's workflow, which is the same
+                // artifact. Never overrides a stored id, so it can't rebind the trigger.
+                workflowId:
+                    stored.workflowId ??
+                    pinnedRevision?.workflow_id ??
+                    playgroundRevision?.workflow_id ??
+                    agentWorkflowId ??
+                    null,
                 variantId: stored.variantId ?? pinnedRevision?.workflow_variant_id ?? null,
             }
         }
@@ -127,6 +173,7 @@ export function useTriggerBinding({
                 workflowId: playgroundRevision?.workflow_id ?? playgroundEntityId,
                 variantId: playgroundRevision?.workflow_variant_id ?? null,
                 revisionId: null,
+                family: "application",
             }
         }
         const only = variants.data.length === 1 ? variants.data[0] : null
@@ -135,6 +182,7 @@ export function useTriggerBinding({
             workflowId: agentWorkflowId ?? null,
             variantId: only?.id ?? null,
             revisionId: null,
+            family: "application",
         }
     }, [stored, pinnedRevision, playgroundEntityId, playgroundRevision, agentWorkflowId, variants])
 }

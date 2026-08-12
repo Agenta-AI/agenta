@@ -68,8 +68,8 @@ export function WindowField({
             />
             <Row label="End" placeholder="Never ends" value={endTime} onChange={onChangeEnd} />
             <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
-                Runs only within [start, end), in UTC. Leave either empty for no bound; a past end
-                stops the schedule.
+                Times are UTC. Leave either empty for no limit — a start in the future delays the
+                first run, and an end in the past stops the schedule.
             </span>
         </div>
     )

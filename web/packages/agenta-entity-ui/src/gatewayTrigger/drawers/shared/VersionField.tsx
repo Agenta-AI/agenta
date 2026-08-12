@@ -46,13 +46,19 @@ function versionTag(version?: number | null): string {
 const latestValue = (variantId: string) => `latest:${variantId}`
 const pinnedValue = (variantId: string, revisionId: string) => `rev:${variantId}:${revisionId}`
 
-function parseValue(value: string, workflowId: string | null): TriggerBinding | null {
+function parseValue(
+    value: string,
+    workflowId: string | null,
+    // Carried through: re-picking a version must not migrate the trigger to another
+    // reference family (the backend rejects a payload that mixes two).
+    family: TriggerBinding["family"],
+): TriggerBinding | null {
     const [kind, variantId, revisionId] = value.split(":")
     if (!variantId) return null
     if (kind === "rev" && revisionId) {
-        return {mode: "pinned", workflowId, variantId, revisionId}
+        return {mode: "pinned", workflowId, variantId, revisionId, family}
     }
-    if (kind === "latest") return {mode: "latest", workflowId, variantId, revisionId: null}
+    if (kind === "latest") return {mode: "latest", workflowId, variantId, revisionId: null, family}
     return null
 }
 
@@ -158,11 +164,18 @@ export function VersionField({
         return {label: "Latest", hint: bound ? `— ${versionTag(bound.version)} right now` : ""}
     }, [binding.mode, bound])
 
+    // What to say when there is nothing to show, rather than an empty control.
+    const placeholder = !workflowId
+        ? "Select an agent first"
+        : variants.isPending
+          ? "Loading versions…"
+          : "No versions yet"
+
     return (
         <Select
             value={value}
             onValueChange={(next) => {
-                const parsed = parseValue(next, workflowId)
+                const parsed = parseValue(next, workflowId, binding.family)
                 if (parsed) onChange(parsed)
             }}
             disabled={disabled || !workflowId}
@@ -170,7 +183,9 @@ export function VersionField({
             {/* Derive the height from padding + line-height like Input does, so this lines up
                 with the other fields. SelectTrigger's own `h-control` is 2px shorter. */}
             <SelectTrigger className="h-auto py-input-y">
-                <SelectValue>
+                {/* Radix renders the PLACEHOLDER, not these children, whenever there is no
+                    value — so an unresolved binding showed an empty control. */}
+                <SelectValue placeholder={placeholder}>
                     <span className="flex min-w-0 items-baseline gap-2">
                         <span className="shrink-0 text-xs font-medium text-[var(--ag-colorText)]">
                             {label}
