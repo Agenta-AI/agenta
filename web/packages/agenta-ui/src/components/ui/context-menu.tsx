@@ -40,6 +40,9 @@ function ContextMenuContent({
                     // Chrome copied from DropdownMenuContent (antd `.ant-dropdown-menu`).
                     "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-control-lg p-1",
+                    // Same scroll-timeline opt-out as DropdownMenuContent: without it a host
+                    // scrollbar-fade rule keeps the closed menu mounted and painted.
+                    "[animation-name:none] [animation-timeline:auto]",
                     className,
                 )}
                 {...props}

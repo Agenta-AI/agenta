@@ -20,6 +20,13 @@ import {cn} from "./utils"
  *   open→open · getPopupContainer→container · trigger→Radix defaults · danger→variant="destructive"
  */
 
+/**
+ * A host scrollbar-fade rule matches our overflow utility and hands this node a scroll-driven
+ * animation. Radix Presence then waits for an animationend that a scroll timeline never fires, so
+ * a closed menu stays mounted and painted. Opting out restores unmount-on-close.
+ */
+const NO_SCROLL_TIMELINE = "[animation-name:none] [animation-timeline:auto]"
+
 function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
     return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
 }
@@ -67,6 +74,7 @@ function DropdownMenuContent({
                     // portals to <body>, escaping the app font scope. box-border: preflight is off.
                     "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-control-lg p-1",
+                    NO_SCROLL_TIMELINE,
                     className,
                 )}
                 {...props}
@@ -234,6 +242,7 @@ function DropdownMenuSubContent({
                     // Same overlay chrome as DropdownMenuContent / SelectContent.
                     "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-control-lg p-1",
+                    NO_SCROLL_TIMELINE,
                     className,
                 )}
                 {...props}
