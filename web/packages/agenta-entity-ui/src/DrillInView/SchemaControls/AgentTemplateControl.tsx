@@ -806,7 +806,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         mh.hasModelOrHarness && {
             key: "model-harness",
             icon: <Cpu size={16} />,
-            title: "Model & harness",
+            title: "Model",
             titleBadge: modelHarnessBadge,
             summary: mh.modelSummary,
             indicator: sectionIndicator("model-harness"),
@@ -1051,7 +1051,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
             <SectionDrawer
                 open={openSection === "model-harness"}
-                title="Model & harness"
+                title="Model"
                 icon={<Cpu size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}

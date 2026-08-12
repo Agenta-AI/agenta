@@ -74,7 +74,7 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
         {
             key: "model",
             icon: <CpuIcon size={16} />,
-            title: "Model & harness",
+            title: "Model",
             // A model is the one required setting, so its absence is a warning rather than a gap.
             ...(model ? stated(model) : {summary: "Choose a model", status: "warning" as const}),
         },
