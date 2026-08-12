@@ -17,24 +17,44 @@ const node = (): FakeNode => {
     return {classes, classList: {add: (c: string) => classes.add(c)}}
 }
 
-/** Minimal stand-in for the mounted table: querySelector over a fixed selector map. */
-const container = (found: Record<string, FakeNode>) =>
+/**
+ * Minimal stand-in for the mounted table. `querySelector` honours comma selectors the way the
+ * DOM does — first present match wins — because the body hook depends on exactly that.
+ */
+const container = (present: Record<string, FakeNode>) =>
     ({
-        querySelector: (selector: string) => found[selector] ?? null,
+        querySelector: (selector: string) => {
+            for (const part of selector.split(",").map((s) => s.trim())) {
+                if (present[part]) return present[part]
+            }
+            return null
+        },
     }) as unknown as HTMLElement
 
 describe("stampTableDom", () => {
-    it("stamps the structural hooks onto antd's nodes", () => {
+    /**
+     * The shipping table is always `virtual`, and antd emits the virtual holder INSTEAD of
+     * `.ant-table-body` in that mode. Stamping only the plain selector left `avt-body` absent
+     * from every real table while the tests passed against a fake that had it.
+     */
+    it("stamps the body hook on a virtual table, which has no .ant-table-body", () => {
         const nodes = {
             ".ant-table-container": node(),
-            ".ant-table-body": node(),
+            ".ant-table-tbody-virtual-holder": node(),
             ".ant-table-thead": node(),
         }
         stampTableDom(container(nodes))
 
         expect([...nodes[".ant-table-container"].classes]).toEqual([AVT.container])
-        expect([...nodes[".ant-table-body"].classes]).toEqual([AVT.body])
+        expect([...nodes[".ant-table-tbody-virtual-holder"].classes]).toEqual([AVT.body])
         expect([...nodes[".ant-table-thead"].classes]).toEqual([AVT.header])
+    })
+
+    it("stamps the body hook on a non-virtual table too", () => {
+        const nodes = {".ant-table-body": node()}
+        stampTableDom(container(nodes))
+
+        expect([...nodes[".ant-table-body"].classes]).toEqual([AVT.body])
     })
 
     it("skips nodes that are not present rather than throwing", () => {

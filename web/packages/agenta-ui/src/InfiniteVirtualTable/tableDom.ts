@@ -25,6 +25,14 @@ export const ANTD_SELECTOR = {
     container: ".ant-table-container",
     body: ".ant-table-body",
     bodyInner: ".ant-table-body-inner",
+    /**
+     * What the scrolling body actually is. This table always renders `virtual`, and in that
+     * mode antd emits the virtual holder INSTEAD of `.ant-table-body` — so the plain selector
+     * above matches nothing here. Kept separate from `body` so stamping the hook does not
+     * change what `useScrollContainer` resolves, which has always fallen through to the
+     * container.
+     */
+    bodyForStamp: ".ant-table-tbody-virtual-holder, .ant-table-body",
     header: ".ant-table-thead",
     headerCellWithKey: ".ant-table-thead th[data-column-key]",
     headerSelectionCell: ".ant-table-thead th.ant-table-selection-column",
@@ -37,7 +45,7 @@ export const ANTD_SELECTOR = {
 /** Structural nodes rendered once per table, so a mount-time stamp is enough. */
 const STAMPED: [selector: string, className: string][] = [
     [ANTD_SELECTOR.container, AVT.container],
-    [ANTD_SELECTOR.body, AVT.body],
+    [ANTD_SELECTOR.bodyForStamp, AVT.body],
     [ANTD_SELECTOR.header, AVT.header],
 ]
 
