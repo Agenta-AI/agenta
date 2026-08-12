@@ -7,10 +7,11 @@ import type {
     TableFeaturePagination,
     TableScopeConfig,
 } from "@agenta/ui/table"
+import type {ColumnDefs} from "@agenta/ui/table"
 import {FolderIcon, PlusIcon, SquaresFourIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Space} from "antd"
 import type {MenuProps} from "antd"
-import type {ColumnsType, TableProps} from "antd/es/table"
+import type {TableProps} from "antd/es/table"
 
 import {getAppTypeIcon} from "../assets/iconHelpers"
 import type {FolderTreeItem} from "../assets/utils"
@@ -19,7 +20,7 @@ import type {PromptsTableRow} from "../types"
 import SetupWorkflowIcon from "./SetupWorkflowIcon"
 
 interface PromptsTableSectionProps {
-    columns: ColumnsType<PromptsTableRow>
+    columns: ColumnDefs<PromptsTableRow>
     tableRows: PromptsTableRow[]
     tableScope: TableScopeConfig
     tablePagination: TableFeaturePagination<PromptsTableRow>

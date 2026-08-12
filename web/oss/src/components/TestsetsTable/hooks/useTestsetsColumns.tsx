@@ -1,9 +1,9 @@
 import {useMemo} from "react"
 
 import {formatDate} from "@agenta/shared/utils/dateTime"
+import type {ColumnDefs} from "@agenta/ui/table"
 import {ArchiveIcon, GearSix, Note, Copy, PencilSimple} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
-import type {ColumnsType} from "antd/es/table"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 
@@ -22,7 +22,7 @@ export const useTestsetsColumns = ({
     onClone,
     onRename,
     onDelete,
-}: UseTestsetsColumnsParams): ColumnsType<TestsetTableRow> => {
+}: UseTestsetsColumnsParams): ColumnDefs<TestsetTableRow> => {
     return useMemo(
         () => [
             {

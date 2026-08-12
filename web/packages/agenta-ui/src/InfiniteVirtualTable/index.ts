@@ -116,6 +116,27 @@ export type {UseTypeChipFeatureResult} from "./hooks/useTypeChipFeature"
 export {RowHeightContext, useRowHeightContext} from "./context/RowHeightContext"
 export type {RowHeightContextValue} from "./context/RowHeightContext"
 export * from "./types"
+export {isColumnGroupDef} from "./columnDef"
+export type {
+    ColumnDef,
+    ColumnDefs,
+    ColumnGroupDef,
+    ColumnAlign,
+    ColumnFixed,
+    ColumnEllipsis,
+    ColumnRowScope,
+    ColumnDataIndex,
+    ColumnSortOrder,
+    ColumnCellProps,
+    ColumnRenderResult,
+    RenderedColumnCell,
+    ColumnFilterItem,
+    ColumnTitle,
+    ColumnTitleContext,
+    ColumnCompareFn,
+    ColumnSorterConfig,
+} from "./columnDef"
+export {toAntdColumns, fromAntdColumns} from "./antdColumns"
 export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
 
 // Shared hooks for cell renderers

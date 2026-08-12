@@ -4,7 +4,6 @@ import {MoreOutlined} from "@ant-design/icons"
 import {Copy, DownloadSimple} from "@phosphor-icons/react"
 import {Dropdown, Tooltip, Typography} from "antd"
 import type {MenuProps} from "antd"
-import type {ColumnsType, ColumnType} from "antd/es/table"
 
 import {InitialsAvatar} from "../../components/presentational/avatar"
 import {CopyButton} from "../../components/presentational/CopyButton"
@@ -12,6 +11,7 @@ import {StatusIndicator, type StatusTone} from "../../components/presentational/
 import {Tag, type TagProps} from "../../components/presentational/tag"
 import {Button} from "../../components/ui/button"
 import {copyToClipboard} from "../../utils/copyToClipboard"
+import type {ColumnDef, ColumnDefs} from "../columnDef"
 import ColumnVisibilityMenuTrigger from "../components/columnVisibility/ColumnVisibilityMenuTrigger"
 import SkeletonLine from "../components/common/SkeletonLine"
 import type {InfiniteTableRowBase} from "../types"
@@ -60,7 +60,7 @@ export interface TextColumnDef<T = unknown> {
     /** Lock column from being hidden in visibility menu (defaults to true if fixed is set) */
     columnVisibilityLocked?: boolean
     /** Custom value extractor for CSV export (read by useTableExport) */
-    exportValue?: (row: T, column?: ColumnsType<T>[number], columnIndex?: number) => unknown
+    exportValue?: (row: T, column?: ColumnDefs<T>[number], columnIndex?: number) => unknown
 }
 
 export interface DateColumnDef {
@@ -225,7 +225,7 @@ export type StandardColumnDef<T = unknown> =
  */
 export function createStandardColumns<T extends InfiniteTableRowBase>(
     defs: StandardColumnDef<T>[],
-): ColumnsType<T> {
+): ColumnDefs<T> {
     return defs.map((def) => {
         switch (def.type) {
             case "text":
@@ -251,7 +251,7 @@ export function createStandardColumns<T extends InfiniteTableRowBase>(
     })
 }
 
-function createTextColumn<T>(def: TextColumnDef<T>): ColumnType<T> {
+function createTextColumn<T>(def: TextColumnDef<T>): ColumnDef<T> {
     return {
         title: def.title,
         dataIndex: def.key,
@@ -263,14 +263,14 @@ function createTextColumn<T>(def: TextColumnDef<T>): ColumnType<T> {
             if ((record as InfiniteTableRowBase).__isSkeleton) return <SkeletonLine width="55%" />
             if (def.render) return def.render(value, record)
             return value as ReactNode
-        }) as ColumnType<T>["render"],
+        }) as ColumnDef<T>["render"],
         // Lock column from being toggled in visibility menu (explicit or derived from fixed)
         columnVisibilityLocked: def.columnVisibilityLocked ?? Boolean(def.fixed),
         ...(def.exportValue ? {exportValue: def.exportValue} : {}),
         onHeaderCell: () => ({
             style: {minWidth: def.width},
         }),
-    } as ColumnType<T>
+    } as ColumnDef<T>
 }
 
 const formatDateCell = (value?: string | null) => {
@@ -288,7 +288,7 @@ const formatDateCell = (value?: string | null) => {
     }
 }
 
-function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
+function createDateColumn<T>(def: DateColumnDef): ColumnDef<T> {
     const width = def.width || 200
     return {
         title: def.title,
@@ -317,7 +317,7 @@ const readCell = <T,>(
     return typeof raw === "string" ? raw : ""
 }
 
-function createMonoColumn<T extends InfiniteTableRowBase>(def: MonoColumnDef<T>): ColumnType<T> {
+function createMonoColumn<T extends InfiniteTableRowBase>(def: MonoColumnDef<T>): ColumnDef<T> {
     const {key, title, width, fixed, getValue, emptyText = "—"} = def
 
     return {
@@ -340,10 +340,10 @@ function createMonoColumn<T extends InfiniteTableRowBase>(def: MonoColumnDef<T>)
             )
         },
         onHeaderCell: () => ({style: {minWidth: width}}),
-    } as ColumnType<T>
+    } as ColumnDef<T>
 }
 
-function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>): ColumnType<T> {
+function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>): ColumnDef<T> {
     const {key, title, width, fixed, getValue, emptyText = "—"} = def
 
     return {
@@ -378,12 +378,10 @@ function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>)
             )
         },
         onHeaderCell: () => ({style: {minWidth: width}}),
-    } as ColumnType<T>
+    } as ColumnDef<T>
 }
 
-function createEntityColumn<T extends InfiniteTableRowBase>(
-    def: EntityColumnDef<T>,
-): ColumnType<T> {
+function createEntityColumn<T extends InfiniteTableRowBase>(def: EntityColumnDef<T>): ColumnDef<T> {
     const {key, title, width, fixed, getName, getChips, hideAvatar} = def
 
     return {
@@ -433,12 +431,12 @@ function createEntityColumn<T extends InfiniteTableRowBase>(
             )
         },
         onHeaderCell: () => ({style: {minWidth: width}}),
-    } as ColumnType<T>
+    } as ColumnDef<T>
 }
 
 function createActionsColumn<T extends InfiniteTableRowBase>(
     def: ActionsColumnDef<T>,
-): ColumnType<T> & {columnVisibilityLocked?: boolean; exportEnabled?: boolean} {
+): ColumnDef<T> & {columnVisibilityLocked?: boolean; exportEnabled?: boolean} {
     const {
         items,
         width = 56, // TODO: try 61px here
@@ -613,7 +611,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
     }
 }
 
-function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>): ColumnType<T> {
+function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>): ColumnDef<T> {
     const {key, title, width = 180, getUserId} = def
 
     return {

@@ -2,13 +2,13 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {Key, MouseEvent, ReactNode, RefObject} from "react"
 
 import {Grid} from "antd"
-import type {ColumnsType} from "antd/es/table"
 import type {WritableAtom} from "jotai"
 import {useAtom} from "jotai"
 import {atom} from "jotai"
 
 import {SearchInput} from "../../components/ui/input-composed"
 import {cn} from "../../utils/styles"
+import type {ColumnDefs} from "../columnDef"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import type {
     TableScopeConfig,
@@ -158,7 +158,7 @@ export interface UseTableManagerReturn<T extends InfiniteTableRowBase> {
     rowExportingKey: string | null
 
     /** Ref to store current columns for export */
-    columnsRef: RefObject<ColumnsType<T> | null>
+    columnsRef: RefObject<ColumnDefs<T> | null>
 
     /** Search term value (only meaningful when search config is provided) */
     searchTerm: string
@@ -281,7 +281,7 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     // Export state
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)
     const tableExport = useTableExport<T>()
-    const columnsRef = useRef<ColumnsType<T> | null>(null)
+    const columnsRef = useRef<ColumnDefs<T> | null>(null)
 
     // Auto-reset pagination when search dependencies change (skip initial mount)
     const searchDepsInitialized = useRef(false)

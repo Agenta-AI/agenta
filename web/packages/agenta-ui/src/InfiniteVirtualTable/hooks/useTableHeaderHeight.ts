@@ -1,10 +1,12 @@
 import {useLayoutEffect, useState, type RefObject} from "react"
 
-import type {ColumnsType, TableProps} from "antd/es/table"
+import type {TableProps} from "antd/es/table"
+
+import type {ColumnDefs} from "../columnDef"
 
 interface UseTableHeaderHeightOptions<RecordType> {
     containerRef: RefObject<HTMLDivElement | null>
-    columns: ColumnsType<RecordType>
+    columns: ColumnDefs<RecordType>
     dataSource: RecordType[]
     components?: TableProps<RecordType>["components"]
 }

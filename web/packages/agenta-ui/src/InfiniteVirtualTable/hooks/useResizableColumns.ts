@@ -1,28 +1,28 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import type {ColumnsType, ColumnType} from "antd/es/table"
 import {useAtom} from "jotai"
 
 import {getColumnWidthsAtom} from "../atoms/columnWidths"
+import type {ColumnDef, ColumnDefs} from "../columnDef"
 import {ResizableTitle, type ResizableTitleProps} from "../components/common/ResizableTitle"
 
 const DEFAULT_MIN_WIDTH = 48
 
-type ColumnEntry<RowType> = ColumnsType<RowType>[number]
-type ColumnWithChildren<RowType> = ColumnType<RowType> & {children?: ColumnsType<RowType>}
+type ColumnEntry<RowType> = ColumnDefs<RowType>[number]
+type ColumnWithChildren<RowType> = ColumnDef<RowType> & {children?: ColumnDefs<RowType>}
 
 const getColumnChildren = <RowType>(column: ColumnEntry<RowType>) =>
     (column as ColumnWithChildren<RowType>).children
 
-const collectLeafColumns = <RowType>(columns: ColumnsType<RowType>): ColumnType<RowType>[] => {
-    const result: ColumnType<RowType>[] = []
-    const visit = (cols: ColumnsType<RowType>) => {
+const collectLeafColumns = <RowType>(columns: ColumnDefs<RowType>): ColumnDef<RowType>[] => {
+    const result: ColumnDef<RowType>[] = []
+    const visit = (cols: ColumnDefs<RowType>) => {
         cols.forEach((col) => {
             const children = getColumnChildren(col)
             if (children && children.length) {
                 visit(children)
             } else {
-                result.push(col as ColumnType<RowType>)
+                result.push(col as ColumnDef<RowType>)
             }
         })
     }
@@ -31,7 +31,7 @@ const collectLeafColumns = <RowType>(columns: ColumnsType<RowType>): ColumnType<
 }
 
 const computeTotalWidth = <RowType>(
-    columns: ColumnsType<RowType>,
+    columns: ColumnDefs<RowType>,
     widthOverrides: Record<string, number>,
     minWidth: number,
 ): number => {
@@ -44,18 +44,18 @@ const computeTotalWidth = <RowType>(
 }
 
 export interface UseResizableColumnsArgs<RowType> {
-    columns: ColumnsType<RowType>
+    columns: ColumnDefs<RowType>
     enabled?: boolean
     minWidth?: number
     scopeId?: string | null
 }
 
 export interface UseResizableColumnsResult<RowType> {
-    columns: ColumnsType<RowType>
+    columns: ColumnDefs<RowType>
     headerComponents: {
         cell: typeof ResizableTitle
     } | null
-    getTotalWidth: (cols?: ColumnsType<RowType>) => number
+    getTotalWidth: (cols?: ColumnDefs<RowType>) => number
     isResizing: boolean
 }
 
@@ -121,10 +121,10 @@ export const useResizableColumns = <RowType>({
     )
 
     const makeColumnsResizable = useCallback(
-        (cols: ColumnsType<RowType>): ColumnsType<RowType> =>
+        (cols: ColumnDefs<RowType>): ColumnDefs<RowType> =>
             cols.map((colEntry) => {
-                const column = colEntry as ColumnType<RowType> & {
-                    children?: ColumnsType<RowType>
+                const column = colEntry as ColumnDef<RowType> & {
+                    children?: ColumnDefs<RowType>
                 }
 
                 const colKey = (column.key ??
@@ -139,7 +139,7 @@ export const useResizableColumns = <RowType>({
 
                 if (hasChildren) {
                     const nextChildren = makeColumnsResizable(
-                        column.children as ColumnsType<RowType>,
+                        column.children as ColumnDefs<RowType>,
                     )
                     if (isFixed) {
                         return {
@@ -205,7 +205,7 @@ export const useResizableColumns = <RowType>({
     }, [columns, enabled, makeColumnsResizable])
 
     const getTotalWidth = useCallback(
-        (cols: ColumnsType<RowType> = resizableColumns) =>
+        (cols: ColumnDefs<RowType> = resizableColumns) =>
             computeTotalWidth(cols, columnWidths, minWidth),
         [columnWidths, minWidth, resizableColumns],
     )

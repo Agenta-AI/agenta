@@ -6,15 +6,16 @@ import type {
     TableFeaturePagination,
     TableScopeConfig,
 } from "@agenta/ui/table"
+import type {ColumnDefs} from "@agenta/ui/table"
 import {PlusIcon, TrayIcon} from "@phosphor-icons/react"
 import {Button, Input, Space} from "antd"
-import type {ColumnsType, TableProps} from "antd/es/table"
+import type {TableProps} from "antd/es/table"
 
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 import {useDebounceInput} from "@/oss/hooks/useDebounceInput"
 
 interface AgentsTableSectionProps {
-    columns: ColumnsType<AppWorkflowRow>
+    columns: ColumnDefs<AppWorkflowRow>
     rows: AppWorkflowRow[]
     tableScope: TableScopeConfig
     pagination: TableFeaturePagination<AppWorkflowRow>
