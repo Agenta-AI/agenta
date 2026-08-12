@@ -736,3 +736,59 @@ const ScrollToDemo = () => {
 }
 
 export const ScrollTo: Story = {render: () => <ScrollToDemo />}
+
+/**
+ * Everything at once, through the public `InfiniteVirtualTable` API on the tanstack engine.
+ *
+ * This is the "is the swap actually complete" test: selection, resizing, row clicks,
+ * infinite loading, an imperative scrollTo, and a full-width expanded panel, all driven by
+ * the props real call sites pass. It should render with no console warnings.
+ */
+const KitchenSinkDemo = () => {
+    const [rows, setRows] = useState(() => makeRows(40))
+    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+    const [clicked, setClicked] = useState("none")
+    const ref = useRef<VirtualTableHandle | null>(null)
+    const loading = useRef(false)
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Note>
+                Selected <span data-selected>{selectedRowKeys.length}</span>, rows{" "}
+                <span data-rows>{rows.length}</span>, clicked <span data-clicked-ks>{clicked}</span>
+            </Note>
+            <button
+                type="button"
+                data-jump-ks
+                className="w-24 border border-solid border-colorBorder bg-colorBgContainer px-2 py-1 text-xs"
+                onClick={() => ref.current?.scrollTo({index: 30, align: "top"})}
+            >
+                Go to 30
+            </button>
+            <div className="h-[340px]">
+                <InfiniteVirtualTable<Row>
+                    engine="tanstack"
+                    columns={baseColumns}
+                    dataSource={rows}
+                    rowKey="key"
+                    bodyHeight={300}
+                    tableRef={ref}
+                    resizableColumns
+                    loadMore={() => {
+                        if (loading.current || rows.length >= 80) return
+                        loading.current = true
+                        setRows((prev) => [...prev, ...makeRows(20, prev.length)])
+                        loading.current = false
+                    }}
+                    rowSelection={{
+                        selectedRowKeys,
+                        onChange: (keys) => setSelectedRowKeys(keys),
+                    }}
+                    tableProps={{onRow: (record: Row) => ({onClick: () => setClicked(record.id)})}}
+                />
+            </div>
+        </div>
+    )
+}
+
+export const KitchenSink: Story = {render: () => <KitchenSinkDemo />}

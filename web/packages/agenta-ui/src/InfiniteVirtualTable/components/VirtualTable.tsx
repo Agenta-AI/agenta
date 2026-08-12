@@ -218,16 +218,29 @@ export const VirtualTable = <RecordType extends object>({
 
     const tanstackColumns = useMemo(() => toTanstackColumns(columns), [columns])
 
-    // The user's drags are the input to the distribution, not the final widths.
+    // Drags have to survive auto-layout: they are its INPUT, not something it overwrites.
+    // When sizing is uncontrolled we keep our own copy, else a drag would be recomputed away
+    // on the very next render and the column would snap back.
+    const [internalSizing, setInternalSizing] = useState<ColumnSizingState>({})
+    const userWidths = columnSizing ?? internalSizing
+
+    const handleColumnSizingChange = useCallback<OnChangeFn<ColumnSizingState>>(
+        (updater) => {
+            setInternalSizing((prev) => (typeof updater === "function" ? updater(prev) : updater))
+            onColumnSizingChange?.(updater)
+        },
+        [onColumnSizingChange],
+    )
+
     const effectiveSizing = useMemo(() => {
-        if (!autoLayout || containerWidth === 0) return columnSizing
+        if (!autoLayout || containerWidth === 0) return userWidths
         return distributeColumnWidths({
             columns: toDistributable(columns),
             containerWidth,
-            userWidths: columnSizing,
+            userWidths,
             leadingColumnWidth,
         })
-    }, [autoLayout, containerWidth, columns, columnSizing, leadingColumnWidth])
+    }, [autoLayout, containerWidth, columns, userWidths, leadingColumnWidth])
 
     const table = useTable<VirtualTableFeatures, RecordType>({
         features: TABLE_FEATURES,
@@ -243,7 +256,7 @@ export const VirtualTable = <RecordType extends object>({
             ...(expanded !== undefined ? {expanded} : {}),
         },
         onColumnVisibilityChange,
-        onColumnSizingChange,
+        onColumnSizingChange: handleColumnSizingChange,
         onRowSelectionChange,
         enableRowSelection: Boolean(onRowSelectionChange),
         onExpandedChange,
