@@ -26,6 +26,8 @@ export const EMPTY_STR_SET: ReadonlySet<string> = new Set<string>()
 // content pane (flex-fill) tracks it exactly — no antd ResizeObserver re-deriving flex-basis after the
 // tween and snapping the width a second time. A custom pointer handle drags the width in [MIN, MAX].
 export const TREE_WIDTH = 260
+/** Narrower rest width for the docked (mirrored) Files pane, which has less room than the drawer. */
+export const TREE_WIDTH_COMPACT = 200
 export const TREE_MIN = 180
 export const TREE_MAX = 480
 export const TREE_TRANSITION = {

@@ -32,7 +32,7 @@ import {useRepoInfo} from "./driveRepo"
 import {DriveToolbar} from "./DriveToolbar"
 import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
-import {looksLikeFilePath} from "./driveTreeView"
+import {TREE_WIDTH_COMPACT, looksLikeFilePath} from "./driveTreeView"
 import {type DriveId, type DriveScope} from "./driveTypes"
 import {type DroppedFile} from "./dropEntries"
 import {FolderView} from "./FolderView"
@@ -67,6 +67,9 @@ export function DriveExplorer({
     onToggleExpand,
     stagedFiles,
     onStagedChange,
+    mirrored = false,
+    initialShowTree = true,
+    closeVariant = "close",
 }: {
     drive: SessionDriveData
     /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
@@ -87,6 +90,12 @@ export function DriveExplorer({
      * and clicks "Upload here" — shown as ghost tiles in the grid. The host owns the list. */
     stagedFiles?: DroppedFile[]
     onStagedChange?: (files: DroppedFile[]) => void
+    /** Mirror the two-pane body: tree docked RIGHT, content LEFT (the in-chat Files pane). */
+    mirrored?: boolean
+    /** Open with the tree collapsed — a single-file quick look; the toolbar toggle reveals it. */
+    initialShowTree?: boolean
+    /** How `onClose` reads in the header: an "×" (overlay drawer) or a "»" collapse (docked pane). */
+    closeVariant?: "close" | "collapse"
 }) {
     const rootLabel = driveRootLabel(drive.mount)
     const {
@@ -114,7 +123,12 @@ export function DriveExplorer({
     const chrome = onClose != null
     // Details toggle, lifted so the ONE header owns it (file meta OR repo facts, per selection).
     const [detailsOpen, setDetailsOpen] = useState(false)
-    const pane = useDriveTreePane({searchActive})
+    const pane = useDriveTreePane({
+        searchActive,
+        mirrored,
+        initialWidth: mirrored ? TREE_WIDTH_COMPACT : undefined,
+        initialShow: initialShowTree,
+    })
     const {showTree, toggleTree, treeVisible, treeShift} = pane
     const {archiveMounts, downloadingAll, handleDownloadAll} = useDriveDownloadAll({
         drive,
@@ -312,6 +326,7 @@ export function DriveExplorer({
         body = (
             <DriveTreePane
                 pane={pane}
+                mirrored={mirrored}
                 treeScrollRef={treeScrollRef}
                 onTreeKeyDown={onTreeKeyDown}
                 treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
@@ -364,6 +379,7 @@ export function DriveExplorer({
                         onToggleDetails={() => setDetailsOpen((v) => !v)}
                         onNavigate={select}
                         onClose={onClose}
+                        closeVariant={closeVariant}
                         copyText={copyText}
                         ids={driveIds ?? []}
                         downloadMount={
@@ -407,6 +423,7 @@ export function DriveExplorer({
                         drawer-global), so no separate header banner here — a banner that mounts/unmounts
                         shoved the toolbar + panes on every upload state change. */}
                     <DriveToolbar
+                        mirrored={mirrored}
                         search={search}
                         setSearch={setSearch}
                         searchActive={searchActive}
