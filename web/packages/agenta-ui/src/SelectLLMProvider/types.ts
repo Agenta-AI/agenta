@@ -5,11 +5,24 @@ export interface ProviderOption {
     value: string
     key?: string
     metadata?: Record<string, unknown>
+    /** Neutral tag after the label (the agent picker names the harness here). */
+    tag?: string
+    /** Muted second line in the cascade column. */
+    caption?: string
+    /** Muted second line in the flat/search list, where no group column names the source. */
+    searchCaption?: string
 }
 
 export interface ProviderGroup {
     label?: string | null
     options: ProviderOption[]
+    /**
+     * Stable group identity. Defaults to `label`; pass it when two groups can share a display
+     * name (the agent picker's rows are connections, not provider families).
+     */
+    key?: string
+    /** Provider family the group's logo is looked up by, when the label is not one. */
+    iconKey?: string
 }
 
 /** antd's size vocabulary, kept verbatim so call sites keep passing `size="small"`. */
@@ -88,6 +101,8 @@ export interface SelectLLMProviderBaseProps extends SelectProps {
     hideTrigger?: boolean
     /** Right-aligned adornment in the search row (e.g. the `/model` command that opened it). */
     searchSuffix?: ReactNode
+    /** Full-width strip above the search row (e.g. a one-line explainer). */
+    panelHeader?: ReactNode
     /** Full-width bar below the panel body, under its own divider. */
     panelFooter?: ReactNode
 }

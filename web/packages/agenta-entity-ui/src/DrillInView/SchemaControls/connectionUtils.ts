@@ -376,32 +376,38 @@ export function harnessAllowsModel(
     slug?: string | null | undefined,
 ): boolean {
     if (!modelId) return true
-    if (slug) {
-        if (customSecrets?.length) {
-            for (const secret of customSecrets) {
-                const secretSlug = secret.name?.trim()
-                const kind = secret.provider?.toLowerCase() || null
-                const secretModels = (secret.models ?? []).filter(Boolean)
-                if (!secretModels.includes(modelId)) continue
-                if (secretSlug !== slug) continue
-                if (!kind || harnessReachesCustomProviderKind(capabilities, harness, kind))
-                    return true
-            }
-        }
-        return false
-    }
 
     const caps = capsFor(capabilities, harness)
     const catalog = caps?.model_catalog
     const models = caps?.models
     const hasCatalog = Boolean(catalog && catalog.length)
     const hasModels = Boolean(models && Object.keys(models).length > 0)
-    if (hasCatalog && catalog!.some((e) => e.id === modelId)) return true
-    if (
-        hasModels &&
-        Object.values(models!).some((ids) => Array.isArray(ids) && ids.includes(modelId))
-    )
-        return true
+    const inHarnessCatalog =
+        (hasCatalog && catalog!.some((e) => e.id === modelId)) ||
+        (hasModels &&
+            Object.values(models!).some((ids) => Array.isArray(ids) && ids.includes(modelId)))
+
+    if (slug) {
+        let namesCustomConnection = false
+        if (customSecrets?.length) {
+            for (const secret of customSecrets) {
+                if (vaultSourceSlug(secret) !== slug) continue
+                namesCustomConnection = true
+                const kind = secret.provider?.toLowerCase() || null
+                const secretModels = (secret.models ?? []).filter(Boolean)
+                if (!secretModels.includes(modelId)) continue
+                if (!kind || harnessReachesCustomProviderKind(capabilities, harness, kind))
+                    return true
+            }
+        }
+        // A slug naming a CUSTOM connection is the whole answer: that connection's models are the
+        // only ones it reaches. A slug naming none is a STANDARD connection — every pick persists
+        // one now — so the harness's own catalog decides. Deliberately NOT the other connections'
+        // models: a slug that resolves to nothing must not borrow another connection's model.
+        return namesCustomConnection ? false : inHarnessCatalog || (!hasCatalog && !hasModels)
+    }
+
+    if (inHarnessCatalog) return true
 
     if (customSecrets?.length) {
         for (const secret of customSecrets) {
@@ -426,13 +432,19 @@ export function harnessAllowsModel(
 
 /** A vault custom_provider entry rich enough to contribute model options (its own models). */
 export interface VaultModelSource {
-    /** The connection name == the slug the resolver matches on. */
+    /** The stored slug — the connection's identity. Absent on records that predate it. */
+    slug?: string
+    /** The connection name; the slug a record without a stored one is still addressed by. */
     name?: string
     /** The provider family (data.kind), e.g. "bedrock". */
     provider?: string
     /** The connection's own model ids (bare slugs). */
     models?: string[]
 }
+
+/** The identity the resolver matches this connection on — its stored slug, else its name. */
+const vaultSourceSlug = (secret: VaultModelSource): string | null =>
+    secret.slug?.trim() || secret.name?.trim() || null
 
 /**
  * The model FAMILY a hosted model id encodes, matched against the provider families the capability
@@ -552,13 +564,13 @@ export function vaultModelGroups(
 
     const groups: ModelOptionGroup[] = []
     for (const secret of secrets) {
-        const slug = secret.name?.trim()
+        const slug = vaultSourceSlug(secret)
         const kind = secret.provider?.toLowerCase() || null
         const models = (secret.models ?? []).filter(Boolean)
         if (!slug || !models.length) continue
         if (kind && !harnessReachesCustomProviderKind(capabilities, harness, kind)) continue
         groups.push({
-            label: secret.name ?? slug,
+            label: secret.name?.trim() || slug,
             options: models.map((id) => ({
                 label: id,
                 value: id,

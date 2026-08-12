@@ -28,6 +28,9 @@ const TRIGGER_SIZE: Record<SelectSize, "sm" | "default" | "lg"> = {
 const ROW_CLASS =
     "box-border flex w-full min-h-control cursor-pointer select-none items-center gap-2 rounded-control-sm px-3 py-1 text-field-md"
 
+/** A group's hover/selection identity: its own `key` when it has one, else its display label. */
+const groupKeyOf = (group: ProviderGroup): string | null => group.key ?? group.label ?? null
+
 /**
  * Base LLM provider select component.
  *
@@ -78,6 +81,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     anchorRef,
     hideTrigger = false,
     searchSuffix,
+    panelHeader,
     panelFooter,
 }) => {
     const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
@@ -118,6 +122,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
         return options.map((group) => ({
             label: group?.label as string | undefined,
+            key: group?.key,
+            iconKey: group?.iconKey,
             options:
                 (group.options
                     ?.map((option: unknown) => {
@@ -142,6 +148,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                             value: resolvedValue,
                             key: (opt.key as string | undefined) ?? resolvedValue,
                             metadata: opt.metadata as Record<string, unknown> | undefined,
+                            tag: opt.tag as string | undefined,
+                            caption: opt.caption as string | undefined,
+                            searchCaption: opt.searchCaption as string | undefined,
                         }
                     })
                     .filter(Boolean) as ProviderOption[]) ?? [],
@@ -157,7 +166,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
         const normalizedSearchTerm = searchTerm.trim().toLowerCase()
 
         const filterGroupOptions = (group: ProviderGroup): ProviderGroup => ({
-            label: group?.label,
+            ...group,
             options: group.options.filter(
                 (option) =>
                     option.label.toLowerCase().includes(normalizedSearchTerm) ||
@@ -174,12 +183,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     // The panel cascade only renders when there is nothing to search through.
     const showPanels = shouldUseProviderPanels && !isSearching
     const hoveredGroup = useMemo(
-        () => filteredProviders.find((group) => group.label === hoveredProvider) ?? null,
+        () => filteredProviders.find((group) => groupKeyOf(group) === hoveredProvider) ?? null,
         [filteredProviders, hoveredProvider],
     )
     /** Where the provider cursor sits, so the search field can name that row to a screen reader. */
     const activeProviderIndex = useMemo(
-        () => filteredProviders.findIndex((group) => group.label === hoveredProvider),
+        () => filteredProviders.findIndex((group) => groupKeyOf(group) === hoveredProvider),
         [filteredProviders, hoveredProvider],
     )
     // Anchored to a caller's element (the composer's `/model`), the panel spans that element —
@@ -249,7 +258,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
         panelRef.current?.querySelector("[data-active=true]")?.scrollIntoView({block: "nearest"})
     }, [open, activeIndex, activeModelIndex, hoveredProvider])
 
-    const providerIndex = filteredProviders.findIndex((g) => g.label === hoveredProvider)
+    const providerIndex = filteredProviders.findIndex((g) => groupKeyOf(g) === hoveredProvider)
 
     // The enclosing drawer (a modal Radix Sheet) locks page scroll via react-remove-scroll,
     // which intercepts wheel events globally and doesn't recognize this popover's own list —
@@ -277,7 +286,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                         providerIndex < 0 ? -1 : providerIndex,
                         dir,
                     )
-                    setHoveredProvider(filteredProviders[next]?.label ?? null)
+                    setHoveredProvider(
+                        filteredProviders[next] ? groupKeyOf(filteredProviders[next]) : null,
+                    )
                 }
             } else if (e.key === "ArrowRight" && models.length) {
                 e.preventDefault()
@@ -351,21 +362,49 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
         </div>
     )
 
-    /** The label node — shown BOTH in the list row and (for the selected option) in the trigger. */
-    const renderOptionContent = (option: ProviderOption) => {
+    /**
+     * The label node — shown BOTH in the list row and (for the selected option) in the trigger.
+     * `caption` is the option's own second line; in the flat/search view `searchCaption` replaces
+     * it, because there is no group column there to say where the row came from. The trigger takes
+     * neither: it renders one line.
+     */
+    const renderOptionContent = (option: ProviderOption, view?: "cascade" | "flat") => {
         const Icon = getProviderIcon(option.value) || LLMIconMap[option.label]
+        const caption = view === "flat" ? (option.searchCaption ?? option.caption) : option.caption
         return (
             <span className="flex w-full min-w-0 items-center gap-2 overflow-hidden">
                 {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-                <span className="truncate">{option.label}</span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate">{option.label}</span>
+                        {view && option.tag ? (
+                            <span className="shrink-0 rounded-control-sm bg-muted px-1.5 text-field-sm text-colorTextSecondary">
+                                {option.tag}
+                            </span>
+                        ) : null}
+                    </span>
+                    {view && caption ? (
+                        <span className="truncate text-field-sm text-colorTextTertiary">
+                            {caption}
+                        </span>
+                    ) : null}
+                </span>
             </span>
         )
     }
 
-    const renderOption = (option: ProviderOption) => {
-        const content = renderOptionContent(option)
+    const renderOption = (option: ProviderOption, view: "cascade" | "flat" = "cascade") => {
+        const content = renderOptionContent(option, view)
 
-        if (option.metadata) {
+        // Metadata is also how an option carries routing (connection slug, harness); only the
+        // descriptive fields are worth a tooltip, and an empty one must never open.
+        const describable =
+            option.metadata &&
+            (option.metadata.description !== undefined ||
+                option.metadata.input !== undefined ||
+                option.metadata.output !== undefined)
+
+        if (describable) {
             return (
                 <TooltipProvider delayDuration={300}>
                     <Tooltip>
@@ -375,7 +414,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                             container={container ?? undefined}
                             className="bg-colorBgElevated text-colorText [&_svg]:fill-colorBgElevated"
                         >
-                            {renderTooltipContent(option.metadata)}
+                            {renderTooltipContent(option.metadata ?? {})}
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
@@ -402,7 +441,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     : "data-[active=true]:bg-muted",
             )}
         >
-            {renderOption(option)}
+            {renderOption(option, "flat")}
         </div>
     )
 
@@ -491,6 +530,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     className="flex flex-col gap-1"
                     style={shouldUseProviderPanels ? {width: providerDropdownWidthCss} : undefined}
                 >
+                    {panelHeader ? (
+                        <div className="-mx-1 -mt-1 mb-1 border-0 border-b border-solid border-border bg-muted/40 px-3 py-1.5">
+                            {panelHeader}
+                        </div>
+                    ) : null}
+
                     {showSearch && (
                         <div className="relative border-0 border-b border-solid border-border">
                             <Input
@@ -566,7 +611,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     </div>
                                 ) : (
                                     filteredProviders.map((group, idx) => {
-                                        const GroupIcon = getProviderIcon(group.label || "")
+                                        const GroupIcon = getProviderIcon(
+                                            group.iconKey || group.label || "",
+                                        )
                                         const rows = group.options.map((option) => {
                                             flatRowIndex += 1
                                             return renderListRow(option, flatRowIndex)
@@ -613,15 +660,19 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     aria-label="Providers"
                                 >
                                     {filteredProviders.map((group, idx) => {
-                                        const Icon = getProviderIcon(group.label || "")
-                                        const isHovered = hoveredProvider === group.label
-                                        const displayName = getProviderDisplayName(
-                                            group.label || "",
+                                        const Icon = getProviderIcon(
+                                            group.iconKey || group.label || "",
                                         )
+                                        const isHovered = hoveredProvider === groupKeyOf(group)
+                                        // A group naming itself (a connection) is shown verbatim;
+                                        // a provider-family label still gets its display name.
+                                        const displayName = group.iconKey
+                                            ? (group.label ?? "")
+                                            : getProviderDisplayName(group.label || "")
 
                                         return (
                                             <div
-                                                key={`provider-${group.label}-${idx}`}
+                                                key={`provider-${groupKeyOf(group)}-${idx}`}
                                                 id={providerOptionId(idx)}
                                                 role="option"
                                                 // The open column IS this listbox's chosen row —
@@ -629,8 +680,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                 aria-selected={isHovered}
                                                 data-active={isHovered && activeModelIndex === null}
                                                 onMouseEnter={() => {
-                                                    setHoveredProvider(group.label || null)
+                                                    setHoveredProvider(groupKeyOf(group))
                                                     setActiveModelIndex(null)
+                                                }}
+                                                onClick={() => {
+                                                    setHoveredProvider(groupKeyOf(group))
+                                                    setActiveModelIndex(0)
                                                 }}
                                                 className={clsx(
                                                     ROW_CLASS,

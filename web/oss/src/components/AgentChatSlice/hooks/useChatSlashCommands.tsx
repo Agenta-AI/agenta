@@ -1,9 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {customSecretsAtom} from "@agenta/entities/secret"
+import {customSecretsAtom, providerConnectionsAtom} from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
+    buildConnectionPickerRows,
     buildModelOptionGroups,
+    buildPickerGroups,
+    pickerSelectionFrom,
     describeMcp,
     describeSkill,
     describeTool,
@@ -131,27 +134,30 @@ export function useChatSlashCommands({
         (!parametersSchema || permissionPolicySchema(parametersSchema) !== null) &&
         permissionOptions.length > 0
 
-    /**
-     * The same model source the config drawer uses: the harness-filtered inspect catalog PLUS the
-     * vault's custom_provider models, so a configured Bedrock/custom connection is selectable here
-     * too. Built from one recipe with `useModelHarness` so the two pickers cannot list different
-     * models for the same agent.
-     */
-    const modelGroups = useMemo(
-        () => [
-            ...buildModelOptionGroups(capabilities, currentHarness),
-            ...vaultModelGroups(customSecrets, capabilities, currentHarness),
-        ],
-        [capabilities, currentHarness, customSecrets],
-    )
-    // With neither source the drawer falls back to a schema-driven picker, which this palette does
-    // not host — so offer no `/model` at all rather than a command that opens an empty panel.
-    const modelAvailable = modelGroups.length > 0
-
     const harnessIds = useMemo(
         () => selectableHarnesses(capabilities ? Object.keys(capabilities) : []),
         [capabilities],
     )
+
+    /**
+     * The same model source the config drawer uses: one group per stored connection (and per
+     * subscription), each listing its models crossed with the harnesses that may drive them.
+     * Built from one recipe with `useModelHarness` so the two pickers cannot list different models
+     * for the same agent. A project with no connections falls back to the pre-connections menu —
+     * the harness catalog plus the vault's custom-provider models.
+     */
+    const connections = useAtomValue(providerConnectionsAtom)
+    const modelGroups = useMemo(() => {
+        const rows = buildConnectionPickerRows({connections, capabilities, harnessIds})
+        if (rows.length) return buildPickerGroups(rows)
+        return [
+            ...buildModelOptionGroups(capabilities, currentHarness),
+            ...vaultModelGroups(customSecrets, capabilities, currentHarness),
+        ]
+    }, [connections, capabilities, harnessIds, currentHarness, customSecrets])
+    // With neither source the drawer falls back to a schema-driven picker, which this palette does
+    // not host — so offer no `/model` at all rather than a command that opens an empty panel.
+    const modelAvailable = modelGroups.length > 0
 
     const write = useCallback(
         (
@@ -175,27 +181,40 @@ export function useChatSlashCommands({
     )
 
     /**
-     * Apply a picked model. A vault-hosted option carries its own connection slug and deployment
-     * kind in `metadata` (put there by `vaultModelGroups`); a catalog option carries neither. Read
-     * them off the PICKED option rather than re-deriving from the model id — duplicate ids exist
-     * across providers/connections — and mirror the drawer's provider rule: a vault pick resolves
-     * to the model FAMILY, since a connection's own kind (bedrock/…) would fail the harness check.
+     * Apply a picked model. A connection row's option carries its connection slug, mode, provider
+     * family and harness in `metadata`; a fallback catalog option carries only what
+     * `vaultModelGroups` put there. Read them off the PICKED option rather than re-deriving from
+     * the model id — duplicate ids exist across providers/connections — and mirror the drawer's
+     * provider rule: a vault pick resolves to the model FAMILY, since a connection's own kind
+     * (bedrock/…) would fail the harness check.
+     *
+     * A row names a model AND the harness that runs it, so both are written in one patch chain.
      */
     const applyModel = useCallback(
         (modelId: string, option?: {metadata?: Record<string, unknown>}) => {
-            const metadata = option?.metadata
-            const connectionSlug =
-                typeof metadata?.connectionSlug === "string" ? metadata.connectionSlug : null
-            const metadataProvider =
-                typeof metadata?.provider === "string" ? metadata.provider : null
-            const provider = connectionSlug
-                ? (vaultPickedProviderFamily(modelId, metadataProvider, capabilities) ??
-                  providerForModel(capabilities, currentHarness, modelId))
-                : providerForModel(capabilities, currentHarness, modelId)
-            const label = modelLabel(capabilities, currentHarness, modelId) ?? modelId
+            const selection = pickerSelectionFrom(modelId, option?.metadata)
+            const harness = selection.harness ?? currentHarness
+            const provider =
+                selection.provider ??
+                (selection.slug
+                    ? (vaultPickedProviderFamily(modelId, null, capabilities) ??
+                      providerForModel(capabilities, harness, modelId))
+                    : providerForModel(capabilities, harness, modelId))
+            const label = modelLabel(capabilities, harness, modelId) ?? modelId
+            const base =
+                selection.harness && selection.harness !== currentHarness
+                    ? (withHarnessKind(config, selection.harness) ?? config)
+                    : config
             write(
-                withModel(config, {modelId, provider, slug: connectionSlug}),
-                `Model set to ${label}`,
+                withModel(base, {
+                    modelId,
+                    provider,
+                    mode: selection.mode,
+                    slug: selection.slug,
+                }),
+                selection.harness && selection.harness !== currentHarness
+                    ? `Model set to ${label} · ${harnessMetaFor(selection.harness).label}`
+                    : `Model set to ${label}`,
             )
             setPicker(null)
         },

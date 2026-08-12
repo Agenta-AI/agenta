@@ -29,6 +29,7 @@ import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPath
 import {RailField, railInfoLabel} from "../../../drawers/shared/RailField"
 import {SectionRail} from "../../../drawers/shared/SectionRail"
 import {ClaudePermissionsControl} from "../ClaudePermissionsControl"
+import type {PickerSelection} from "../connectionPicker"
 import {
     allowedConnectionModes,
     buildModelOptionGroups,
@@ -57,6 +58,7 @@ import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
+import ModelPickerControl from "./ModelPickerControl"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
 import ProviderCredentialsSection from "./ProviderCredentialsSection"
 import {RevertGroupButton} from "./RevertGroupButton"
@@ -300,6 +302,33 @@ export function useModelHarness({
         [setAgentField, modelId, connection, llm, capabilities, harnessValue],
     )
 
+    // A picked connection row carries its model, provider family, connection and harness. All four
+    // land in ONE `onChange`: writing `llm` and `harness` through two calls would have the second
+    // overwrite the first, since both compose from the same (stale) `config`.
+    const applyPickerSelection = useCallback(
+        (selection: PickerSelection) => {
+            const nextHarness = selection.harness ?? harnessValue
+            const nextLlm = composeModelValue({
+                modelId: selection.modelId,
+                provider:
+                    selection.provider ??
+                    providerForModel(capabilities, nextHarness, selection.modelId) ??
+                    connection.provider,
+                mode: selection.mode,
+                slug: selection.slug,
+                existing: llm,
+            })
+            onChange({
+                ...config,
+                llm: nextLlm,
+                ...(nextHarness && nextHarness !== harnessValue
+                    ? {harness: {...harness, kind: nextHarness}}
+                    : {}),
+            })
+        },
+        [capabilities, config, connection.provider, harness, harnessValue, llm, onChange],
+    )
+
     // Adopt a custom provider created FROM this pane: after the user opens the Configure-provider
     // drawer via an "Add custom provider" rail row, the first NEW vault connection that appears becomes the
     // selection — its first model + its connection slug — so the pane reflects what was just added.
@@ -455,12 +484,29 @@ export function useModelHarness({
         hasBuildKitOverlay,
     )
 
+    // Harness list, from the inspect capabilities map. Model compatibility is shown per-card
+    // (below); the model picker also needs it, to cross each connection with the harnesses that
+    // may drive it.
+    // GAP (tracked): harness_capabilities covers model/provider/mode/hosting only — NOT tools/skills/
+    // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
+    const schemaHarnesses = Array.isArray(harnessProps.kind?.enum)
+        ? (harnessProps.kind.enum as unknown[]).map(String)
+        : []
+    const harnessList = useMemo(
+        () => selectableHarnesses(capabilities ? Object.keys(capabilities) : schemaHarnesses),
+
+        [capabilities, schemaHarnesses.join(",")],
+    )
+
     // The Model picker (inspect-filtered when available, else the schema catalog), as a rail row —
     // the info tooltip only applies to the inspect-filtered variant (the fallback is the full catalog).
     // The bare model control (no label). In the capabilities layout the "Model" section header carries
     // the label (matching the schedule drawer's "Name" section — title + bare input), so we render this
     // directly; the flat/no-capabilities branch wraps it in a labelled `RailField` (`modelPicker`).
-    const modelControl = props.llm ? (
+    // The pre-connections menu: the harness's own catalog grouped by provider family, plus the
+    // vault's custom-provider models. It stays as the fallback for a backend that publishes no
+    // capabilities, and for a project whose connections yield no rows.
+    const catalogModelControl = props.llm ? (
         hasInspectModels ? (
             <SelectLLMProviderBase
                 showGroup
@@ -504,6 +550,25 @@ export function useModelHarness({
         )
     ) : null
 
+    // Connection-first: level 1 is the project's connections and subscriptions, level 2 their
+    // models crossed with the harnesses that may drive them. Picking a row writes model, provider,
+    // connection and harness together.
+    const modelControl = props.llm ? (
+        <ModelPickerControl
+            capabilities={capabilities}
+            harnessIds={harnessList}
+            modelId={modelId}
+            mode={connection.mode}
+            disabled={disabled}
+            // A subscription is a login mounted into the deployment; cloud has nowhere to mount one.
+            // isCloud is really isEE today, which would hide subscriptions on self-hosted EE,
+            // exactly where mounted logins exist. Ungated until a real cloud signal exists.
+            showSubscriptions={true}
+            onSelect={applyPickerSelection}
+            fallback={catalogModelControl}
+        />
+    ) : null
+
     const modelPicker = modelControl ? (
         <RailField
             label={
@@ -520,16 +585,6 @@ export function useModelHarness({
             {modelControl}
         </RailField>
     ) : null
-
-    // Harness list, from the inspect capabilities map. Model compatibility is shown per-card (below).
-    // GAP (tracked): harness_capabilities covers model/provider/mode/hosting only — NOT tools/skills/
-    // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
-    const schemaHarnesses = Array.isArray(harnessProps.kind?.enum)
-        ? (harnessProps.kind.enum as unknown[]).map(String)
-        : []
-    const harnessList = selectableHarnesses(
-        capabilities ? Object.keys(capabilities) : schemaHarnesses,
-    )
 
     // Harness as a `[rail │ detail]` (experiment): the harness list on the rail with a model-compat dot,
     // the selected harness's providers / hosting / models + compatibility badge in the content panel.

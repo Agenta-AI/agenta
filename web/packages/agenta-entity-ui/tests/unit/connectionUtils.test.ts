@@ -309,6 +309,51 @@ describe("connectionUtils: harness-filtered model picker", () => {
         ).toBe(true)
     })
 
+    it("matches a slugged record on its stored slug, and a legacy one on its name", () => {
+        // What the picker persists is the record's slug when it has one, so that is what the
+        // reachability check has to match on; a record predating slugs is still found by name.
+        const slugged = [
+            {
+                slug: "my-bedrock-a1b2c3",
+                name: "My Bedrock",
+                provider: "bedrock",
+                models: ["custom-bedrock-model-id-123"],
+            },
+        ]
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                slugged,
+                "my-bedrock-a1b2c3",
+            ),
+        ).toBe(true)
+        // The display name is not the identity once a slug is stored.
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                slugged,
+                "My Bedrock",
+            ),
+        ).toBe(false)
+
+        const legacy = [
+            {name: "my-bedrock", provider: "bedrock", models: ["custom-bedrock-model-id-123"]},
+        ]
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                legacy,
+                "my-bedrock",
+            ),
+        ).toBe(true)
+    })
+
     it("selectedKeepsModel regression: vault model flagged unavailable without secrets, available with them", () => {
         // Reproduces the false 'model not available' badge: the selectedKeepsModel derivation in
         // useModelHarness called harnessAllowsModel WITHOUT customSecrets or slug. The function is
@@ -560,6 +605,36 @@ describe("connectionUtils: vaultModelGroups (custom_provider connections)", () =
                 "claude",
             ),
         ).toHaveLength(1)
+    })
+
+    it("stamps the stored slug, not the display name, when the record carries one", () => {
+        // Records created since the vault slice carry a real slug, and the picker persists it —
+        // so the group's option metadata must name the slug the resolver matches on.
+        expect(
+            vaultModelGroups(
+                [
+                    {
+                        slug: "my-bedrock-a1b2c3",
+                        name: "My Bedrock",
+                        provider: "bedrock",
+                        models: ["eu.anthropic.claude-haiku-4-5"],
+                    },
+                ],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toEqual([
+            {
+                label: "My Bedrock",
+                options: [
+                    {
+                        label: "eu.anthropic.claude-haiku-4-5",
+                        value: "eu.anthropic.claude-haiku-4-5",
+                        metadata: {connectionSlug: "my-bedrock-a1b2c3", provider: "bedrock"},
+                    },
+                ],
+            },
+        ])
     })
 
     it("regression: a non-custom deployment connection to Claude is unchanged by the custom gate", () => {
