@@ -326,6 +326,9 @@ class FakeTurnsDAO(SessionTurnsDAOInterface):
     async def query_turns(self, **kwargs):
         raise NotImplementedError
 
+    async def query_session_ids_by_references(self, **kwargs):
+        raise NotImplementedError
+
     async def latest_turn(self, *, project_id, session_id):
         return self.turns.get(session_id)
 
