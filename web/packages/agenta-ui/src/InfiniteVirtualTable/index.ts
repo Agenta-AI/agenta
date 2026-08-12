@@ -138,6 +138,7 @@ export type {
 } from "./columnDef"
 export {toAntdColumns, fromAntdColumns} from "./antdColumns"
 export {AVT, ANTD_SELECTOR, stampTableDom, type AvtClass} from "./tableDom"
+export {renderTableMenuItems, type TableMenuItem} from "./tableMenu"
 export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
 
 // Shared hooks for cell renderers

@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
+import type {TableMenuItem} from "@agenta/ui/table"
 import {Rows} from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
 import {useAtom} from "jotai"
 
 import {ROW_HEIGHT_CONFIG, scenarioRowHeightAtom, type ScenarioRowHeight} from "../state/rowHeight"
@@ -11,25 +11,28 @@ const ROW_HEIGHT_OPTIONS: ScenarioRowHeight[] = ["small", "medium", "large"]
 /**
  * Hook that returns menu items for row height selection in the settings dropdown
  */
-const useRowHeightMenuItems = (): MenuProps["items"] => {
+const useRowHeightMenuItems = (): TableMenuItem[] => {
     const [rowHeight, setRowHeight] = useAtom(scenarioRowHeightAtom)
 
-    return useMemo(() => {
-        const items: MenuProps["items"] = [
+    return useMemo(
+        () => [
             {
                 key: "row-height",
                 label: "Row height",
                 icon: <Rows size={16} />,
                 children: ROW_HEIGHT_OPTIONS.map((height) => ({
                     key: `row-height-${height}`,
-                    label: ROW_HEIGHT_CONFIG[height].label,
+                    label: (
+                        <span className={rowHeight === height ? "font-semibold" : undefined}>
+                            {ROW_HEIGHT_CONFIG[height].label}
+                        </span>
+                    ),
                     onClick: () => setRowHeight(height),
-                    style: rowHeight === height ? {fontWeight: 600} : undefined,
                 })),
             },
-        ]
-        return items
-    }, [rowHeight, setRowHeight])
+        ],
+        [rowHeight, setRowHeight],
+    )
 }
 
 export default useRowHeightMenuItems

@@ -10,11 +10,10 @@ import {
     useTypeChipFeature,
     type ExtendedColumn,
 } from "@agenta/ui/table"
-import type {ColumnDef, ColumnDefs} from "@agenta/ui/table"
+import type {ColumnDef, ColumnDefs, TableMenuItem} from "@agenta/ui/table"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Skeleton, Tooltip} from "antd"
-import type {MenuProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -101,7 +100,7 @@ export interface TestcasesTableShellProps {
         size: "small" | "medium" | "large"
         heightPx: number
         maxLines: number
-        menuItems: MenuProps["items"]
+        menuItems: TableMenuItem[]
     }
     selectedRowKeys: React.Key[]
     onSelectedRowKeysChange: (keys: React.Key[]) => void
@@ -303,7 +302,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         entityObjectSubKeys,
     ])
 
-    const settingsMenuItems = useMemo<MenuProps["items"]>(
+    const settingsMenuItems = useMemo<TableMenuItem[]>(
         () => rowHeight.menuItems,
         [rowHeight.menuItems],
     )
