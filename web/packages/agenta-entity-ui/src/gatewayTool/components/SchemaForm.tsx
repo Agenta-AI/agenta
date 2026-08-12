@@ -21,6 +21,10 @@ import {
     InputNumber,
     Textarea,
     TimePicker,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
 // DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
@@ -527,19 +531,40 @@ function cleanFormValues(values: Record<string, unknown>): Record<string, unknow
 // Field components
 // ---------------------------------------------------------------------------
 
+/**
+ * A field's label, with its description behind a `?`. Provider schemas ship descriptions that
+ * run to several sentences (Gmail's `label_ids` enumerates eleven label constants); rendering
+ * them inline buried every control under a paragraph it only needed to read once.
+ */
 function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
-        <div className="flex flex-col leading-tight">
+        <span className="inline-flex items-center gap-1 leading-tight">
             <span>
                 {field.label}
                 {field.required && <span className="text-red-500 ml-1">*</span>}
             </span>
             {field.description && (
-                <span className="text-xs font-normal leading-snug text-colorTextDescription">
-                    {field.description}
-                </span>
+                <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label={`About ${field.label}`}
+                                className="flex size-[14px] shrink-0 cursor-help items-center justify-center rounded-full border border-solid border-[var(--ag-colorBorder)] bg-transparent text-[10px] font-normal leading-none text-colorTextDescription hover:border-[var(--ag-colorTextSecondary)] hover:text-colorTextSecondary"
+                            >
+                                ?
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[320px]">
+                            <span className="mb-0.5 block font-medium">{field.label}</span>
+                            <span className="block font-normal leading-snug">
+                                {field.description}
+                            </span>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
-        </div>
+        </span>
     )
 }
 

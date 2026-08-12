@@ -21,6 +21,20 @@ export function connectionName(conn: TriggerConnection | undefined): string {
     return conn?.name || conn?.slug || conn?.integration_key || ""
 }
 
+/**
+ * The Name placeholder, and what gets saved when the field is left empty — "Issue opened —
+ * Bug report". Without it an unnamed trigger renders as its raw id in the triggers table.
+ */
+export function suggestSubscriptionName(
+    eventLabel?: string | null,
+    agentName?: string | null,
+): string {
+    const event = eventLabel?.trim() || ""
+    const agent = agentName?.trim() || ""
+    if (event && agent) return `${event} — ${agent}`
+    return event || agent || ""
+}
+
 // Friendly label for a selector pill/field row: "$.event.attributes.message_user" → "Message user".
 export function selectorLabel(selector: string): string {
     if (selector === "$" || selector === "$.") return "Full event"

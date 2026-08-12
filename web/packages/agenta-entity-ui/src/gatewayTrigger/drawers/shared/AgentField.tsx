@@ -1,4 +1,4 @@
-/** The schedule drawer's agent picker — settings only; the playground already knows the agent. */
+/** The trigger drawers' agent picker — settings only; the playground already knows the agent. */
 import {useMemo} from "react"
 
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"

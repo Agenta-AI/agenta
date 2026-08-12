@@ -1,4 +1,4 @@
-/** The "When this happens" section body: the chosen source summary + its event filters. */
+/** The subscription's source control (which app event fires it) and its event filters. */
 import {useMemo} from "react"
 
 import {
@@ -6,7 +6,8 @@ import {
     type TriggerCatalogIntegration,
     type TriggerConnection,
 } from "@agenta/entities/gatewayTrigger"
-import {PencilSimple, Plus} from "@phosphor-icons/react"
+import {cn, selectTriggerVariants} from "@agenta/ui/ui"
+import {ChevronDown} from "lucide-react"
 
 import {AppLogo} from "../../../drawers/shared/CatalogAppCard"
 import SchemaForm, {type SchemaFormHandle} from "../../../gatewayTool/components/SchemaForm"
@@ -14,13 +15,11 @@ import SchemaForm, {type SchemaFormHandle} from "../../../gatewayTool/components
 import {connectionName} from "./helpers"
 
 // ---------------------------------------------------------------------------
-// SourceField — connection + event selection and the event-config schema. This
-// is the subscription analog of the schedule's cron builder ("when").
+// SourceField — the chosen app event as ONE field-height control, the subscription analog of
+// the schedule's cron row. The actual app/event selection happens on the full SourceBrowsePage
+// (opened via `onBrowse`); this only shows what is bound and opens that page.
 // ---------------------------------------------------------------------------
 
-// SourceField (in the section): the CHOSEN source as a 2-panel summary (source on the
-// left rail + its event filters on the right), or a CTA when nothing is chosen. The actual
-// app/event selection happens on the full SourceBrowsePage (opened via `onBrowse`).
 export function SourceField({
     connections,
     connectionId,
@@ -28,9 +27,6 @@ export function SourceField({
     eventName,
     onBrowse,
     isEdit,
-    triggerConfigSchema,
-    configForm,
-    configFormRef,
 }: {
     connections: TriggerConnection[]
     connectionId?: string
@@ -38,10 +34,6 @@ export function SourceField({
     eventName?: string
     onBrowse: () => void
     isEdit: boolean
-    triggerConfigSchema: Record<string, unknown> | null
-    /** antd FormInstance bridge — SchemaForm (gatewayTool) still requires one; typed via its props so this file stays antd-free. */
-    configForm: React.ComponentProps<typeof SchemaForm>["form"]
-    configFormRef: React.RefObject<SchemaFormHandle | null>
 }) {
     const {integrations} = useTriggerCatalogIntegrations()
     const byKey = useMemo(() => {
@@ -50,68 +42,65 @@ export function SourceField({
         return m
     }, [integrations])
 
-    if (!eventKey) {
-        return (
-            <button
-                type="button"
-                onClick={onBrowse}
-                className="box-border flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-dashed border-[var(--ag-colorBorder)] bg-transparent px-3 py-3 text-left hover:border-[var(--ag-colorPrimary)]"
-            >
-                <Plus size={16} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
-                <span className="flex-1 text-xs text-[var(--ag-colorTextSecondary)]">
-                    Choose a connected app and the event that fires this trigger
-                </span>
-                <span className="text-xs text-[var(--ag-colorTextTertiary)]">→</span>
-            </button>
-        )
-    }
-
     const selected = connections.find((c) => c.id === connectionId)
     const logo = selected ? byKey.get(selected.integration_key)?.logo : undefined
+    const via = connectionName(selected)
+
     return (
-        <div className="flex gap-3">
-            <div className="flex w-[200px] shrink-0 flex-col">
-                <button
-                    type="button"
-                    onClick={onBrowse}
-                    disabled={isEdit}
-                    title={isEdit ? undefined : "Change trigger"}
-                    className="group flex items-start gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-transparent px-3 py-2 text-left enabled:cursor-pointer enabled:hover:border-[var(--ag-colorPrimary)]"
-                >
-                    <AppLogo logo={logo} size={20} />
-                    <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-medium">{eventName || eventKey}</div>
-                        <div className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
-                            via {connectionName(selected) || "connection"}
-                        </div>
-                    </div>
-                    {!isEdit && (
-                        <PencilSimple
-                            size={14}
-                            className="mt-0.5 shrink-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity group-hover:opacity-100"
-                        />
-                    )}
-                </button>
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
-                    Event filters
-                </span>
-                {triggerConfigSchema ? (
-                    <div className="max-w-prose">
-                        <SchemaForm
-                            ref={configFormRef}
-                            form={configForm}
-                            schema={triggerConfigSchema}
-                            flat
-                        />
-                    </div>
+        <button
+            type="button"
+            onClick={onBrowse}
+            // The source is part of the trigger's identity — changing it on a live
+            // subscription would rebind the provider hook, so edit mode is read-only.
+            disabled={isEdit}
+            title={isEdit ? undefined : "Change trigger"}
+            // Derive the height from padding + line-height like Input does, so this lines up
+            // with the Name field. SelectTrigger's own `h-control` is 2px shorter.
+            className={cn(selectTriggerVariants(), "h-auto py-input-y")}
+        >
+            <span className="flex min-w-0 items-center gap-2">
+                {eventKey ? (
+                    <>
+                        <AppLogo logo={logo} size={16} />
+                        <span className="min-w-0 truncate">{eventName || eventKey}</span>
+                        {via ? (
+                            <span className="min-w-0 shrink truncate text-[var(--ag-colorTextDescription)]">
+                                via {via}
+                            </span>
+                        ) : null}
+                    </>
                 ) : (
-                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
-                        No filters for this event.
+                    <span className="truncate text-[var(--ag-colorTextPlaceholder)]">
+                        Choose a connected app and event
                     </span>
                 )}
-            </div>
-        </div>
+            </span>
+            {isEdit ? null : <ChevronDown className="size-3 shrink-0 text-placeholder" />}
+        </button>
     )
+}
+
+// ---------------------------------------------------------------------------
+// EventFiltersField — the event's own `trigger_config` schema (e.g. which repo, which label).
+// Optional per event, so it lives under Advanced.
+// ---------------------------------------------------------------------------
+
+export function EventFiltersField({
+    triggerConfigSchema,
+    configForm,
+    configFormRef,
+}: {
+    triggerConfigSchema: Record<string, unknown> | null
+    /** antd FormInstance bridge — SchemaForm (gatewayTool) still requires one; typed via its props so this file stays antd-free. */
+    configForm: React.ComponentProps<typeof SchemaForm>["form"]
+    configFormRef: React.RefObject<SchemaFormHandle | null>
+}) {
+    if (!triggerConfigSchema) {
+        return (
+            <span className="text-xs text-[var(--ag-colorTextDescription)]">
+                No filters for this event.
+            </span>
+        )
+    }
+    return <SchemaForm ref={configFormRef} form={configForm} schema={triggerConfigSchema} flat />
 }

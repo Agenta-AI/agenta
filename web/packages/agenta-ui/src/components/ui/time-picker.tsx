@@ -72,7 +72,18 @@ function Column({
             <span className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--ag-colorTextDescription)]">
                 {label}
             </span>
-            <div ref={ref} className="flex max-h-[188px] flex-col gap-0.5 overflow-y-auto px-1">
+            <div
+                ref={ref}
+                // A modal host's scroll lock swallows wheel events on portaled content; apply
+                // the delta ourselves so the column still scrolls.
+                onWheel={(e) => {
+                    const el = e.currentTarget
+                    if (el.scrollHeight <= el.clientHeight) return
+                    el.scrollTop += e.deltaY
+                    e.stopPropagation()
+                }}
+                className="flex max-h-[188px] flex-col gap-0.5 overflow-y-auto px-1"
+            >
                 {options.map((option) => {
                     const active = option === selected
                     return (
@@ -129,9 +140,7 @@ function TimePicker({
     }
 
     return (
-        // `modal`: the columns scroll, and a host that locks page scroll (drawer, dialog)
-        // otherwise swallows wheel events on this content since it portals to <body>.
-        <Popover open={open} onOpenChange={setOpen} modal>
+        <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button
                     id={id}

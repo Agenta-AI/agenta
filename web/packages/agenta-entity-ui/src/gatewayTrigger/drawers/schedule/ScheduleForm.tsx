@@ -1,5 +1,5 @@
 /** The schedule drawer's create/edit form (one per drawer open). */
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     getScheduleMessage,
@@ -25,16 +25,21 @@ import {CaretDown, SlidersHorizontal} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
 import {DrawerFooter} from "../../../drawers/shared/DrawerFooter"
+import {Labelled} from "../../../drawers/shared/Labelled"
 import {ScheduleBuilderField} from "../ScheduleBuilderField"
+import {AgentField} from "../shared/AgentField"
 import {normalizeJson} from "../shared/normalizeJson"
-import type {TriggerReferences} from "../shared/RunVersionField"
+import {
+    bindingKey,
+    buildTriggerReferences,
+    useTriggerBinding,
+    type TriggerBinding,
+} from "../shared/useTriggerBinding"
+import {VersionField} from "../shared/VersionField"
 
-import {AgentField} from "./AgentField"
 import {DEFAULT_CRON, SCHEDULE_EVENT_KEY} from "./constants"
 import {MessageComposer} from "./MessageComposer"
 import {RunInPlaygroundButton} from "./RunInPlaygroundButton"
-import {useScheduleBinding, type ScheduleBinding} from "./useScheduleBinding"
-import {VersionField} from "./VersionField"
 import {WindowField} from "./WindowField"
 
 // ---------------------------------------------------------------------------
@@ -80,10 +85,10 @@ export function ScheduleForm({
     const [advancedOpen, setAdvancedOpen] = useState(false)
     // Settings picks the agent; the playground and edit mode resolve it (see `resolved`).
     const [agentWorkflowId, setAgentWorkflowId] = useState<string | null>(null)
-    const [binding, setBinding] = useState<ScheduleBinding | null>(null)
+    const [binding, setBinding] = useState<TriggerBinding | null>(null)
 
     const storedReferences = schedule?.data?.references
-    const resolved = useScheduleBinding({
+    const resolved = useTriggerBinding({
         storedReferences: isEdit ? storedReferences : state?.defaultReferences,
         playgroundEntityId,
         agentWorkflowId,
@@ -222,7 +227,7 @@ export function ScheduleForm({
             start_time: startTime,
             end_time: endTime,
             inputs_fields: parsedInputs.value,
-            references: buildScheduleReferences(activeBinding, storedReferences),
+            references: buildTriggerReferences(activeBinding, storedReferences),
         }
 
         try {
@@ -427,45 +432,4 @@ export function ScheduleForm({
             />
         </div>
     )
-}
-
-// ---------------------------------------------------------------------------
-// Bits
-// ---------------------------------------------------------------------------
-
-function Labelled({label, children}: {label: string; children: ReactNode}) {
-    return (
-        <div className="flex flex-col gap-2">
-            <span className="text-xs font-medium text-[var(--ag-colorTextDescription)]">
-                {label}
-            </span>
-            {children}
-        </div>
-    )
-}
-
-/** Stable identity for the dirty check — a binding is its mode plus whichever id it pins. */
-function bindingKey(binding: ScheduleBinding): string {
-    return `${binding.mode}:${binding.workflowId ?? ""}:${binding.variantId ?? ""}:${
-        binding.revisionId ?? ""
-    }`
-}
-
-/**
- * Assemble `data.references`. "Latest" binds the variant so the backend resolves the newest
- * revision on each tick; pinning binds the revision itself. Falling back to the stored family
- * keeps a binding the picker can't represent (slug-only, artifact-only) intact on save.
- */
-function buildScheduleReferences(
-    binding: ScheduleBinding,
-    stored?: TriggerReferences,
-): TriggerReferences {
-    const references: Record<string, {id: string}> = {}
-    if (binding.workflowId) references.application = {id: binding.workflowId}
-    if (binding.mode === "pinned" && binding.revisionId) {
-        references.application_revision = {id: binding.revisionId}
-    } else if (binding.variantId) {
-        references.application_variant = {id: binding.variantId}
-    }
-    return Object.keys(references).length ? references : (stored ?? undefined)
 }
