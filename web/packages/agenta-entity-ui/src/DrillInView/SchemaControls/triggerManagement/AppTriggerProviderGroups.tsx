@@ -10,8 +10,6 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {useSetAtom} from "jotai"
 
-import {ProviderLogo} from "../sectionGroups"
-
 import {SubscriptionChildRow} from "./SubscriptionChildRow"
 
 // "SLACK_MESSAGE_REACTION_ADDED" → "Message reaction added" (drop provider prefix, title-case).
@@ -121,7 +119,9 @@ export function AppTriggerProviderGroups({
                 <div key={group.connId} className="flex flex-col gap-2">
                     {group.showHeader ? (
                         <div className="flex items-center gap-1.5 px-0.5 pt-0.5 text-[12px] text-[var(--ag-colorTextTertiary)]">
-                            <ProviderLogo logo={group.logo} size={14} />
+                            {/* No logo: the header only appears when one app has several
+                                accounts, so it names the account — the app is already obvious
+                                from the rows beneath it. */}
                             <span className="truncate">{group.label}</span>
                         </div>
                     ) : null}

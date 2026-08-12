@@ -342,7 +342,9 @@ export function ScheduleForm({
                 </p>
             ) : null}
             <fieldset disabled={isDeleted} className="contents">
-                <div className="flex flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-6 py-5">
+                {/* ag-scroll-quiet: no resting scrollbar over the form, thumb on hover/focus,
+                    stable gutter so revealing it never reflows the fields. */}
+                <div className="ag-scroll-quiet flex flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-6 py-5">
                     <Labelled label="Name">
                         <Input
                             placeholder={namePlaceholder}
