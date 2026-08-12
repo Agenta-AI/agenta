@@ -599,14 +599,6 @@ export const appVariantCell = {
     chipBg: {light: "rgba(36, 36, 36, 0.08)", dark: "rgba(255, 255, 255, 0.12)"}, // mirrors fill.secondary
 } satisfies Record<string, Pair>
 
-/** Editor variable-token chips (painted via inline JS in TokenNode.ts). */
-export const editorChip = {
-    purple: {light: "#a855f7", dark: "#c084fc"},
-    redBg: {light: "#fef2f2", dark: "#2a1215"},
-    redStrong: {light: "#b91c1c", dark: "#ff7875"},
-    redSoft: {light: "#f87171", dark: "#a8353a"},
-} satisfies Record<string, Pair>
-
 /** TemplateStrip feature family: colors with no existing semantic role. */
 export const templateStrip = {
     inputBorder: {light: CONTROL_BORDER, dark: "#2e3136"}, // mirrors drawerDark.fieldBorder
@@ -916,7 +908,6 @@ export const palette = {
     drawerDark,
     status,
     appVariantCell,
-    editorChip,
     templateStrip,
     tintedSurface,
     shell,
