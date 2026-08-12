@@ -13,6 +13,10 @@ export interface PendingSessionOpen {
     /** Adopt this existing session. Omit to start a fresh one instead — which is what Home's
      * composer does when you pick an agent and describe a task. */
     sessionId?: string
+    /** Create the fresh session under THIS id (composers mint it up front so the message they send
+     * along can name its session — see `agentFirstRunSeedAtom.sessionId`). Ignored when
+     * `sessionId` adopts an existing session. */
+    newSessionId?: string
     title?: string
 }
 

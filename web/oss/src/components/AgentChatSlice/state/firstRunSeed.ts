@@ -8,6 +8,10 @@ import {atom} from "jotai"
  */
 export interface AgentFirstRunSeed {
     appId: string
+    /** The session this message belongs to, minted by the composer alongside
+     * `pendingSessionOpenAtom.newSessionId`. Without it the seed goes to whichever session is active
+     * and looks empty on arrival — the PREVIOUS one, if it mounts before the new one is created. */
+    sessionId?: string
     /** Known only when the agent was just created. Starting a conversation with an EXISTING agent
      * (Home's composer) has no revision in hand, and matches on the chat scope instead. */
     revisionId?: string

@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     commandSessionStream,
+    invalidateSessionListQueries,
     killSession,
     recordInteractionAnswerAtom,
     revalidateSessionMountsAtom,
@@ -176,6 +177,10 @@ export const useAgentChatSession = ({
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
             void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+            // The first turn is what creates the durable session row; every later one changes its
+            // title/preview/activity. Nothing else tells the session lists, so they discovered a
+            // brand-new session only on their next poll or window refocus.
+            invalidateSessionListQueries()
         },
         onError: (err) => {
             // A failed stream never dispatches the pending resume, so drop the marker: leaving it

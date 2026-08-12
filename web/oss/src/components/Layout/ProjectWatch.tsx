@@ -1,11 +1,10 @@
 import {useCallback, useMemo} from "react"
 
+import {invalidateSessionListQueries} from "@agenta/entities/session"
 import {queryClient} from "@agenta/shared/api"
-import {useAtomValue} from "jotai"
 
 import {invalidateAgentsWorkflowQueries} from "@/oss/components/pages/agents/store"
 import {useProjectWatch, type ProjectWatchHandlers} from "@/oss/hooks/useProjectWatch"
-import {projectIdAtom} from "@/oss/state/project"
 
 const workflowIdFromEvent = (event: MessageEvent<string>): string | null => {
     try {
@@ -18,16 +17,6 @@ const workflowIdFromEvent = (event: MessageEvent<string>): string | null => {
 }
 
 const ProjectWatch = () => {
-    const projectId = useAtomValue(projectIdAtom)
-
-    const invalidateSessions = useCallback(() => {
-        if (!projectId) return
-        void queryClient.invalidateQueries({
-            queryKey: ["session-list", projectId],
-            exact: false,
-        })
-    }, [projectId])
-
     const invalidateWorkflow = useCallback((event: MessageEvent<string>) => {
         void invalidateAgentsWorkflowQueries()
         const workflowId = workflowIdFromEvent(event)
@@ -39,21 +28,21 @@ const ProjectWatch = () => {
     }, [])
 
     const revalidateProjectLists = useCallback(() => {
-        invalidateSessions()
+        invalidateSessionListQueries()
         void invalidateAgentsWorkflowQueries()
         void queryClient.invalidateQueries({
             queryKey: ["workflows", "artifact"],
             exact: false,
         })
-    }, [invalidateSessions])
+    }, [])
 
     const handlers = useMemo(
         (): ProjectWatchHandlers => ({
             ready: revalidateProjectLists,
-            "session-changed": invalidateSessions,
+            "session-changed": invalidateSessionListQueries,
             "workflow-changed": invalidateWorkflow,
         }),
-        [invalidateSessions, invalidateWorkflow, revalidateProjectLists],
+        [invalidateWorkflow, revalidateProjectLists],
     )
 
     useProjectWatch({on: handlers})

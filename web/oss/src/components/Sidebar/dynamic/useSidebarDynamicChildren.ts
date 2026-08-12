@@ -95,6 +95,7 @@ export const resolveChildren = (
             icon: entity.getIcon?.(ref) ?? icon(),
             isDynamic: true,
             onClick: entity.getOnClick?.(ref),
+            wrapRow: entity.wrapRow ? (node) => entity.wrapRow!(ref, node) : undefined,
         })
     }
 

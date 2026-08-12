@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {dropArchivedAgentSessions} from "./sessionsSource"
+import {dropArchivedAgentSessions, withLocalSessions} from "./sessionsSource"
 import type {SessionSidebarRef} from "./sessionsSource"
 
 const ref = (over: Partial<SessionSidebarRef> & {id: string}): SessionSidebarRef => ({
@@ -9,6 +9,7 @@ const ref = (over: Partial<SessionSidebarRef> & {id: string}): SessionSidebarRef
     appId: null,
     pinned: false,
     alive: false,
+    running: false,
     agentName: null,
     ...over,
 })
@@ -58,5 +59,63 @@ describe("dropArchivedAgentSessions", () => {
         ]
 
         expect(dropArchivedAgentSessions(refs, ARCHIVED).map((r) => r.id)).toEqual(["live"])
+    })
+})
+
+/**
+ * A session's row can only come from the local tab store until its FIRST turn lands: the server row
+ * carries no `references` before then, so `sessionOpenTarget` rejects it and the server-backed list
+ * drops it. What goes in that local set decides which sessions the sidebar can show at all.
+ */
+describe("withLocalSessions", () => {
+    it("adds a session the server list has never heard of", () => {
+        const merged = withLocalSessions([ref({id: "served"})], [ref({id: "fresh"})])
+
+        expect(merged.map((r) => r.id)).toEqual(["fresh", "served"])
+    })
+
+    // The server row carries the title, preview and liveness the local one cannot know.
+    it("keeps the server row when both describe the same session", () => {
+        const merged = withLocalSessions(
+            [ref({id: "shared", name: "Real title", alive: true})],
+            [ref({id: "shared", name: null})],
+        )
+
+        expect(merged).toHaveLength(1)
+        expect(merged[0].name).toBe("Real title")
+        expect(merged[0].alive).toBe(true)
+    })
+
+    // The regression: keying this on the ACTIVE session alone meant switching tabs mid-first-turn
+    // dropped the running session's row, taking its spinner with it.
+    it("keeps a running session alongside the one now active", () => {
+        const merged = withLocalSessions(
+            [ref({id: "served"})],
+            [ref({id: "now-active"}), ref({id: "still-running"})],
+        )
+
+        expect(merged.map((r) => r.id)).toEqual(["now-active", "still-running", "served"])
+    })
+
+    it("leads the unpinned rows without displacing pins", () => {
+        const merged = withLocalSessions(
+            [ref({id: "pin-a", pinned: true}), ref({id: "pin-b", pinned: true}), ref({id: "old"})],
+            [ref({id: "fresh"})],
+        )
+
+        expect(merged.map((r) => r.id)).toEqual(["pin-a", "pin-b", "fresh", "old"])
+    })
+
+    it("appends when every row is pinned", () => {
+        const merged = withLocalSessions([ref({id: "pin", pinned: true})], [ref({id: "fresh"})])
+
+        expect(merged.map((r) => r.id)).toEqual(["pin", "fresh"])
+    })
+
+    // Off a playground nothing is exempted, so the empty-session filter keeps its full reach.
+    it("changes nothing when there are no local sessions", () => {
+        const refs = [ref({id: "a"}), ref({id: "b"})]
+
+        expect(withLocalSessions(refs, []).map((r) => r.id)).toEqual(["a", "b"])
     })
 })

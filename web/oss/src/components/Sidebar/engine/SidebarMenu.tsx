@@ -249,13 +249,16 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         </span>
                     )
 
-                    const labelNode = item.dataTour ? (
+                    const tourNode = item.dataTour ? (
                         <span className="w-full" data-tour={item.dataTour}>
                             {node}
                         </span>
                     ) : (
                         node
                     )
+                    // Per-row chrome (kebab / right-click menu). A collapsed rail has no room for
+                    // it, and its own Tooltip wrapper below owns the row instead.
+                    const labelNode = item.wrapRow && !collapsed ? item.wrapRow(tourNode) : tourNode
 
                     const menuItem = {
                         icon: item.icon,

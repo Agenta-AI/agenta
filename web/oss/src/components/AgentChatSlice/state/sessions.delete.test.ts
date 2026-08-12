@@ -23,19 +23,23 @@ interface DeleteSessionRemoteArgs {
 }
 
 const deleteSessionRemote = vi.fn(async (_args: DeleteSessionRemoteArgs) => true)
+const archiveSessionRemote = vi.fn(async (_args: DeleteSessionRemoteArgs) => true)
+const unarchiveSessionRemote = vi.fn(async (_args: DeleteSessionRemoteArgs) => true)
 
 vi.mock("@agenta/entities/session", () => ({
     deleteSessionRemote: (args: DeleteSessionRemoteArgs) => deleteSessionRemote(args),
-    archiveSessionRemote: vi.fn(async () => true),
-    unarchiveSessionRemote: vi.fn(async () => true),
-    setSessionHeader: vi.fn(),
+    archiveSessionRemote: (args: DeleteSessionRemoteArgs) => archiveSessionRemote(args),
+    unarchiveSessionRemote: (args: DeleteSessionRemoteArgs) => unarchiveSessionRemote(args),
+    setSessionHeader: vi.fn(async () => true),
 }))
 
 const {
     adoptSessionAtomFamily,
+    archiveSessionAtomFamily,
     deleteSessionAtomFamily,
     reconcileServerSessionsAtomFamily,
     sessionHistoryAtomFamily,
+    unarchiveSessionAtomFamily,
 } = await import("./sessions")
 
 /** A young session as the rail holds it before any reconcile: no `serverKnown`. */
@@ -51,6 +55,8 @@ const historyIds = (store: ReturnType<typeof createStore>, scope: string) =>
 
 beforeEach(() => {
     deleteSessionRemote.mockClear()
+    archiveSessionRemote.mockClear()
+    unarchiveSessionRemote.mockClear()
 })
 
 describe("deleteSessionAtomFamily", () => {
@@ -125,5 +131,54 @@ describe("deleteSessionAtomFamily", () => {
         ])
 
         expect(historyIds(store, scope)).toEqual(["from-another-device"])
+    })
+})
+
+/**
+ * Archive had the same `serverKnown` hole delete closed: archiving a session inside the window
+ * between its first turn and the next reconcile skipped the server entirely, and the reconcile
+ * then flipped the local flag back — the session reappeared in every list.
+ */
+describe("archiveSessionAtomFamily", () => {
+    it("archives remotely even before the session is server-known", async () => {
+        const scope = "archive-young"
+        const store = newStoreWithSession(scope, "young-a")
+
+        await store.set(archiveSessionAtomFamily(scope), "young-a")
+
+        expect(archiveSessionRemote).toHaveBeenCalledWith({
+            sessionId: "young-a",
+            projectId: "project-1",
+        })
+    })
+
+    // The caller revalidates its lists as soon as this resolves, so the write must be awaitable.
+    it("resolves only once the server write settles", async () => {
+        const scope = "archive-await"
+        const store = newStoreWithSession(scope, "young-b")
+        let landed = false
+        archiveSessionRemote.mockImplementationOnce(async () => {
+            await new Promise((r) => setTimeout(r, 10))
+            landed = true
+            return true
+        })
+
+        await store.set(archiveSessionAtomFamily(scope), "young-b")
+
+        expect(landed).toBe(true)
+    })
+
+    it("unarchives remotely on the same terms", async () => {
+        const scope = "archive-undo"
+        const store = newStoreWithSession(scope, "young-c")
+
+        await store.set(archiveSessionAtomFamily(scope), "young-c")
+        await store.set(unarchiveSessionAtomFamily(scope), "young-c")
+
+        expect(unarchiveSessionRemote).toHaveBeenCalledWith({
+            sessionId: "young-c",
+            projectId: "project-1",
+        })
+        expect(historyIds(store, scope)).toEqual(["young-c"])
     })
 })
