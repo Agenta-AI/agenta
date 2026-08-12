@@ -45,6 +45,7 @@ import {normalizeJson} from "../shared/normalizeJson"
 import {
     bindingKey,
     buildTriggerReferences,
+    useBoundAgentShape,
     useTriggerBinding,
     type TriggerBinding,
 } from "../shared/useTriggerBinding"
@@ -452,10 +453,21 @@ export function SubscriptionForm({
         ""
     // Only agent workflows get the token composer; non-agent bound workflows keep the
     // raw-JSON mapping editor (committed behavior).
-    const isAgent = useAtomValue(workflowMolecule.selectors.isAgent(schemaSourceId))
+    // The molecule only resolves where an app is open (the playground); from settings it never
+    // does, so fall back to the bound revision's own flags.
+    const boundShape = useBoundAgentShape(activeBinding)
+    // Raw JSON is for workflows we KNOW aren't agents; an unbound drawer shows the composer
+    // rather than greeting the user with a JSON blob.
+    const isAgent =
+        useAtomValue(workflowMolecule.selectors.isAgent(schemaSourceId)) ||
+        boundShape.isAgent ||
+        !boundShape.resolved
     const isChatInput =
-        useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat"
-    const agentInputSchema = useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId))
+        useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat" ||
+        boundShape.isChat
+    const agentInputSchema =
+        useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId)) ??
+        boundShape.inputSchema
     const primaryInputKey = useMemo(() => {
         if (isChatInput) return "messages"
         const ports = extractInputPortsFromSchema(agentInputSchema)
@@ -492,7 +504,9 @@ export function SubscriptionForm({
         return (
             <SourceBrowsePage
                 connections={connections}
-                defaultIntegrationKey={state?.integrationKey}
+                // Re-opening an already-chosen trigger lands on that app's event list, not
+                // back at the app grid — the user is changing the event, not the app.
+                defaultIntegrationKey={selectedConnection?.integration_key ?? state?.integrationKey}
                 onPick={(cid, ek) => {
                     setConnectionId(cid)
                     setEventKey(ek)
@@ -540,9 +554,27 @@ export function SubscriptionForm({
                             eventKey={eventKey}
                             eventName={eventDetail?.name ?? undefined}
                             onBrowse={() => setBrowsing(true)}
+                            onClear={() => {
+                                setConnectionId(undefined)
+                                setEventKey("")
+                                // The filters belong to the event's own schema.
+                                configForm.resetFields()
+                            }}
                             isEdit={isEdit}
                         />
                     </Labelled>
+
+                    {/* Not Advanced: many events (GitHub's owner/repo) can't fire without these,
+                        so they belong in the main flow right under the event they filter. */}
+                    {sourceChosen && triggerConfigSchema ? (
+                        <Labelled label="Event filters">
+                            <EventFiltersField
+                                triggerConfigSchema={triggerConfigSchema}
+                                configForm={configForm}
+                                configFormRef={configFormRef}
+                            />
+                        </Labelled>
+                    ) : null}
 
                     <Labelled label="What the agent gets">
                         <MappingSection
@@ -557,6 +589,7 @@ export function SubscriptionForm({
                             recentEvents={recentSamples}
                             isAgent={isAgent}
                             isEdit={isEdit}
+                            hasSource={sourceChosen}
                             isChat={isChatInput}
                             primaryKey={primaryInputKey}
                             disabled={isDeleted}
@@ -596,13 +629,6 @@ export function SubscriptionForm({
                                         binding={activeBinding}
                                         onChange={setBinding}
                                         disabled={isMutating}
-                                    />
-                                </Labelled>
-                                <Labelled label="Event filters">
-                                    <EventFiltersField
-                                        triggerConfigSchema={triggerConfigSchema}
-                                        configForm={configForm}
-                                        configFormRef={configFormRef}
                                     />
                                 </Labelled>
                             </div>

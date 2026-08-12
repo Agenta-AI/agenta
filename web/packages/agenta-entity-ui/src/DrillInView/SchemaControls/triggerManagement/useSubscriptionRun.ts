@@ -1,39 +1,32 @@
-/** The subscription row's "Run in playground" flask + its event-source picker wiring. */
+/** Run-in-playground wiring for a subscription row: recent samples, live capture, replay. */
 import {useCallback, useState} from "react"
 
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
-import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {Flask} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {
     loadRecentSamples,
     waitForNewDelivery,
 } from "../../../gatewayTrigger/drawers/shared/deliveries"
-import {
-    EventSourcePicker,
-    type SampledEvent,
-} from "../../../gatewayTrigger/drawers/shared/EventSourcePicker"
+import type {SampledEvent} from "../../../gatewayTrigger/drawers/shared/EventSourcePicker"
 
 /**
- * The subscription row's "Run in playground" flask — opens the EventSourcePicker (wait for a
- * new event / pick a recent delivery) so the user runs a SPECIFIC real event, instead of
- * silently replaying whatever delivery happened to be latest.
+ * Sources a real event for a subscription and replays it in the playground — the data half of
+ * the run affordance, shared by the row's "Run in playground" menu action. The event picker
+ * (wait for a new event / pick a recent delivery) stays a presentational concern of the caller.
  */
-export function SubscriptionRunPopover({
+export function useSubscriptionRun({
     subscriptionId,
     label,
     eventKey,
     playgroundEntityId,
-    disabled,
 }: {
     subscriptionId: string
     label: string
     eventKey?: string
     playgroundEntityId: string | null
-    disabled?: boolean
 }) {
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
     const [recent, setRecent] = useState<SampledEvent[]>([])
@@ -86,36 +79,5 @@ export function SubscriptionRunPopover({
         [playgroundEntityId, setPendingRun, label, eventKey],
     )
 
-    return (
-        // Tooltip + popover trigger compose by NESTING both `asChild` triggers on the same
-        // button — a Radix Tooltip wrapped AROUND the popover trigger would swallow it
-        // (PopoverTrigger's Slot would clone the Tooltip, not the button).
-        <TooltipProvider>
-            <Tooltip>
-                <EventSourcePicker
-                    placement="bottomRight"
-                    autoWaitOnOpen
-                    onOpenChange={(open) => open && refresh()}
-                    trigger={
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Run in playground"
-                                disabled={disabled}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <Flask size={16} />
-                            </Button>
-                        </TooltipTrigger>
-                    }
-                    recentEvents={recent}
-                    onPick={run}
-                    onWaitForEvent={waitForEvent}
-                    waitHint="trigger it from the app now"
-                />
-                <TooltipContent>Run in playground</TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
-    )
+    return {recent, refresh, waitForEvent, run}
 }

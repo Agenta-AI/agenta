@@ -36,6 +36,7 @@ export function MappingSection({
     recentEvents = [],
     isAgent,
     isEdit,
+    hasSource,
     isChat,
     primaryKey,
     disabled,
@@ -53,6 +54,8 @@ export function MappingSection({
     recentEvents?: SampledEvent[]
     isAgent: boolean
     isEdit: boolean
+    /** No app/event chosen yet — there are no event fields to offer. */
+    hasSource: boolean
     isChat: boolean
     primaryKey: string
     /** The surrounding fieldset covers native controls (buttons); the raw-JSON `Editor` and the
@@ -65,11 +68,10 @@ export function MappingSection({
     // `{messages, event}` pair) compiles away the moment the user types.
     const richerThanComposer =
         !!value.trim() && parseMessageTemplate(value, isChat, primaryKey) === ""
-    // Open in Advanced (raw JSON) only for a SAVED mapping the composer can't reproduce —
-    // otherwise the first composer edit would silently collapse it. A create is still on the
-    // default, which is also unrepresentable, and greeting a new trigger with a JSON blob is
-    // worse than the warning below.
-    const [raw, setRaw] = useState(() => isEdit && richerThanComposer)
+    // Always open on the composer — raw JSON is an escape hatch the user asks for, never the
+    // first thing they see. A saved mapping the composer can't reproduce gets the warning below
+    // instead, so nothing is replaced silently.
+    const [raw, setRaw] = useState(false)
     // The field list is a lookup, not part of writing the message — collapsed until wanted.
     const [fieldsOpen, setFieldsOpen] = useState(false)
     const insertApi = useRef<{insert: (path: string) => void} | null>(null)
@@ -79,7 +81,20 @@ export function MappingSection({
     // edit-mode prefill loads) — detected by comparing against our own compilation.
     const [template, setTemplate] = useState(() => parseMessageTemplate(value, isChat, primaryKey))
 
+    // The bound agent's shape resolves asynchronously, so it can change under a message the
+    // user already typed (chat agents take `messages`, completion agents a named input).
+    const shapeRef = useRef({isChat, primaryKey})
+
     useEffect(() => {
+        const shapeChanged =
+            shapeRef.current.isChat !== isChat || shapeRef.current.primaryKey !== primaryKey
+        shapeRef.current = {isChat, primaryKey}
+        // On a shape change `value` was written under the OLD shape, so re-reading it would
+        // parse as unrepresentable and wipe the composer. Recompile the text instead.
+        if (shapeChanged && template) {
+            onChange(JSON.stringify(compileMessageTemplate(template, isChat, primaryKey), null, 2))
+            return
+        }
         const compiled = JSON.stringify(compileMessageTemplate(template, isChat, primaryKey))
         let current = value
         try {
@@ -88,7 +103,7 @@ export function MappingSection({
             /* keep raw */
         }
         if (compiled !== current) setTemplate(parseMessageTemplate(value, isChat, primaryKey))
-    }, [value, isChat, primaryKey])
+    }, [value, isChat, primaryKey, template, onChange])
 
     // Surface raw-JSON parse errors (the composer always emits valid JSON). Single owner:
     // the non-agent path renders InputsMappingField, which reports a richer message.
@@ -150,7 +165,7 @@ export function MappingSection({
                         trigger={
                             <button
                                 type="button"
-                                className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorPrimary)] hover:opacity-80"
+                                className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
                             >
                                 <Lightning size={12} weight="fill" /> Test event
                             </button>
@@ -176,18 +191,29 @@ export function MappingSection({
 
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
-                {isChat
-                    ? "Write the message your agent receives."
-                    : "Build the agent's input from the event."}
-            </span>
-
-            {richerThanComposer && !raw ? (
-                <span className="text-xs leading-snug text-[var(--ag-colorWarningText)]">
-                    This trigger sends a richer set of inputs than one message — typing here
-                    replaces them.
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
+                    {isChat
+                        ? "Write the message your agent receives."
+                        : "Build the agent's input from the event."}
                 </span>
-            ) : null}
+                <EventSourcePicker
+                    placement="bottomRight"
+                    trigger={
+                        <button
+                            type="button"
+                            className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                        >
+                            <Lightning size={12} weight="fill" /> Test event
+                        </button>
+                    }
+                    recentEvents={recentEvents}
+                    onPick={onSample}
+                    onWaitForEvent={onWaitForEvent}
+                    waitHint="trigger it from the app now"
+                    captureMode
+                />
+            </div>
 
             {raw ? (
                 <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorder)]">
@@ -214,6 +240,14 @@ export function MappingSection({
                         }
                         disabled={disabled}
                     />
+                    {/* Only for a SAVED mapping: on create the richer value is our own default,
+                        and there is nothing of the user's to lose. */}
+                    {isEdit && richerThanComposer ? (
+                        <span className="text-xs leading-snug text-[var(--ag-colorWarningText)]">
+                            This trigger sends a richer set of inputs than one message — typing here
+                            replaces them.
+                        </span>
+                    ) : null}
                     {deliveryPreview && (
                         <div className="rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] px-2.5 py-1.5">
                             <div className="mb-0.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
@@ -227,45 +261,42 @@ export function MappingSection({
 
                     <div className="flex flex-col">
                         <div className="flex items-center justify-between gap-2">
+                            {/* Event fields only exist once an app + event are chosen; the empty
+                                slot keeps the JSON escape on the right either way. */}
+                            {hasSource ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setFieldsOpen((v) => !v)}
+                                    aria-expanded={fieldsOpen}
+                                    // px-0/font-[inherit]: preflight is off, so a bare button
+                                    // keeps the UA's inline padding and Arial.
+                                    className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-0 py-1 font-[inherit] text-xs font-medium text-[var(--ag-colorTextDescription)] hover:text-[var(--ag-colorText)]"
+                                >
+                                    <CaretDown
+                                        size={12}
+                                        className={`transition-transform ${
+                                            fieldsOpen ? "" : "-rotate-90"
+                                        }`}
+                                    />
+                                    Event fields
+                                    {fields.length ? (
+                                        <span className="text-[var(--ag-colorTextTertiary)]">
+                                            {fields.length}
+                                        </span>
+                                    ) : null}
+                                </button>
+                            ) : (
+                                <span />
+                            )}
                             <button
                                 type="button"
-                                onClick={() => setFieldsOpen((v) => !v)}
-                                aria-expanded={fieldsOpen}
-                                // px-0/font-[inherit]: preflight is off, so a bare button keeps
-                                // the UA's inline padding and Arial.
-                                className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-0 py-1 font-[inherit] text-xs font-medium text-[var(--ag-colorTextDescription)] hover:text-[var(--ag-colorText)]"
+                                onClick={() => setRaw(true)}
+                                className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
                             >
-                                <CaretDown
-                                    size={12}
-                                    className={`transition-transform ${
-                                        fieldsOpen ? "" : "-rotate-90"
-                                    }`}
-                                />
-                                Event fields
-                                {fields.length ? (
-                                    <span className="text-[var(--ag-colorTextTertiary)]">
-                                        {fields.length}
-                                    </span>
-                                ) : null}
+                                View as JSON
                             </button>
-                            <EventSourcePicker
-                                placement="bottomRight"
-                                trigger={
-                                    <button
-                                        type="button"
-                                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorPrimary)] hover:opacity-80"
-                                    >
-                                        <Lightning size={12} weight="fill" /> Test event
-                                    </button>
-                                }
-                                recentEvents={recentEvents}
-                                onPick={onSample}
-                                onWaitForEvent={onWaitForEvent}
-                                waitHint="trigger it from the app now"
-                                captureMode
-                            />
                         </div>
-                        <HeightCollapse open={fieldsOpen}>
+                        <HeightCollapse open={fieldsOpen && hasSource}>
                             <EventFieldList
                                 fields={fields}
                                 onPick={(f) =>
@@ -279,13 +310,15 @@ export function MappingSection({
                 </>
             )}
 
-            <button
-                type="button"
-                onClick={() => setRaw((r) => !r)}
-                className="cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
-            >
-                {raw ? "← Back to composer" : "Advanced · raw JSON"}
-            </button>
+            {raw ? (
+                <button
+                    type="button"
+                    onClick={() => setRaw(false)}
+                    className="cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                >
+                    ← Back to composer
+                </button>
+            ) : null}
 
             {error && <span className="text-xs text-[var(--ag-colorErrorText)]">{error}</span>}
         </div>

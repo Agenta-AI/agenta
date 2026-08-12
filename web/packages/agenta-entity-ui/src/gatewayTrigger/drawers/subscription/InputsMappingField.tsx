@@ -1,7 +1,6 @@
-/** The non-agent mapping editor: raw `inputs_fields` JSON with per-leaf selector previews. */
+/** The non-agent mapping editor: raw `inputs_fields` JSON with click-to-insert event fields. */
 import {useEffect, useMemo} from "react"
 
-import {previewValue, resolveSelectorPreview} from "@agenta/entities/gatewayTrigger"
 import {Editor} from "@agenta/ui/editor"
 import {Field} from "@agenta/ui/ui"
 
@@ -9,65 +8,26 @@ import {EventFieldList, useEventFields, type EventField} from "./EventFieldList"
 import {buildPreviewContext} from "./helpers"
 
 // ---------------------------------------------------------------------------
-// Non-agent mapping: raw-JSON editor with live selector validation + path hints
-// (restored committed behavior). Each leaf string is a selector resolved at delivery
-// (`$...` JSONPath, `/...` JSON Pointer, else literal); we preview each against the sample.
+// Non-agent mapping: a raw-JSON editor over `inputs_fields`. Each leaf string is a selector
+// resolved at delivery (`$...` JSONPath, `/...` JSON Pointer, else a literal); the event-field
+// list below writes those selectors so they don't have to be retyped.
 // ---------------------------------------------------------------------------
 
-interface MappingLeaf {
-    key: string
-    isSelector: boolean
-    resolved?: string
-}
-
-function analyzeMapping(
-    text: string,
-    context: Record<string, unknown> | null,
-): {leaves: MappingLeaf[]; parseError: string | null} {
+/** Validation only — the mapping is JSON, and anything else is a parse error to surface. */
+function mappingParseError(text: string): string | null {
     const trimmed = text.trim()
-    if (!trimmed) return {leaves: [], parseError: null}
+    if (!trimmed) return null
     let parsed: unknown
     try {
         parsed = JSON.parse(trimmed)
     } catch (e) {
-        return {leaves: [], parseError: e instanceof Error ? e.message : "Invalid JSON"}
+        return e instanceof Error ? e.message : "Invalid JSON"
     }
-    if (typeof parsed === "string") {
-        const isSelector = parsed.startsWith("$") || parsed.startsWith("/")
-        const resolved = isSelector && context ? resolveSelectorPreview(parsed, context) : undefined
-        return {
-            leaves: [
-                {
-                    key: "(whole context)",
-                    isSelector,
-                    resolved: resolved === undefined ? undefined : previewValue(resolved),
-                },
-            ],
-            parseError: null,
-        }
-    }
+    if (typeof parsed === "string") return null
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        return {leaves: [], parseError: "Mapping must be a JSON object or a selector string"}
+        return "Mapping must be a JSON object or a selector string"
     }
-    const leaves: MappingLeaf[] = []
-    for (const [key, rawValue] of Object.entries(parsed as Record<string, unknown>)) {
-        if (typeof rawValue !== "string") {
-            leaves.push({key, isSelector: false})
-            continue
-        }
-        const isSelector = rawValue.startsWith("$") || rawValue.startsWith("/")
-        if (!isSelector) {
-            leaves.push({key, isSelector: false})
-            continue
-        }
-        const resolved = context ? resolveSelectorPreview(rawValue, context) : undefined
-        leaves.push({
-            key,
-            isSelector: true,
-            resolved: resolved === undefined ? undefined : previewValue(resolved),
-        })
-    }
-    return {leaves, parseError: null}
+    return null
 }
 
 export function InputsMappingField({
@@ -86,7 +46,7 @@ export function InputsMappingField({
     disabled?: boolean
 }) {
     const context = useMemo(() => buildPreviewContext(eventPayload), [eventPayload])
-    const {leaves, parseError} = useMemo(() => analyzeMapping(value, context), [value, context])
+    const parseError = useMemo(() => mappingParseError(value), [value])
     useEffect(() => {
         onErrorChange(parseError)
     }, [parseError, onErrorChange])
@@ -119,40 +79,12 @@ export function InputsMappingField({
                         disabled={disabled}
                     />
                 </div>
-                <div className="mt-2 flex flex-col gap-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
-                        Event fields
-                    </span>
-                    <EventFieldList fields={fields} onPick={addField} disabled={disabled} />
-                </div>
-                {!parseError && leaves.length > 0 && (
-                    <div className="mt-1.5 flex flex-col gap-0.5">
-                        {leaves.map((leaf, i) => (
-                            <div
-                                key={`${leaf.key}-${i}`}
-                                className="flex items-center gap-1.5 text-xs leading-snug"
-                            >
-                                <code className="text-[var(--ag-colorTextSecondary)]">
-                                    {leaf.key}
-                                </code>
-                                <span className="text-[var(--ag-colorTextTertiary)]">→</span>
-                                {leaf.isSelector ? (
-                                    leaf.resolved === undefined ? (
-                                        <span className="text-xs text-[var(--ag-colorWarningText)]">
-                                            no sample value
-                                        </span>
-                                    ) : (
-                                        <code className="max-w-[280px] truncate text-[var(--ag-colorSuccess)]">
-                                            {leaf.resolved}
-                                        </code>
-                                    )
-                                ) : (
-                                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
-                                        literal
-                                    </span>
-                                )}
-                            </div>
-                        ))}
+                {fields.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-1">
+                        <span className="text-xs font-medium text-[var(--ag-colorTextDescription)]">
+                            Event fields
+                        </span>
+                        <EventFieldList fields={fields} onPick={addField} disabled={disabled} />
                     </div>
                 )}
             </div>

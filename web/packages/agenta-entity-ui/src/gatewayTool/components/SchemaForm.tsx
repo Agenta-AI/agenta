@@ -539,10 +539,9 @@ function cleanFormValues(values: Record<string, unknown>): Record<string, unknow
 function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
         <span className="inline-flex items-center gap-1 leading-tight">
-            <span>
-                {field.label}
-                {field.required && <span className="text-red-500 ml-1">*</span>}
-            </span>
+            {/* No required marker: a form of mostly-required provider fields reads as noise,
+                and the validation message on submit is the honest signal. */}
+            <span>{field.label}</span>
             {field.description && (
                 <TooltipProvider delayDuration={200}>
                     <Tooltip>
@@ -550,12 +549,14 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
                             <button
                                 type="button"
                                 aria-label={`About ${field.label}`}
-                                className="flex size-[14px] shrink-0 cursor-help items-center justify-center rounded-full border border-solid border-[var(--ag-colorBorder)] bg-transparent text-[10px] font-normal leading-none text-colorTextDescription hover:border-[var(--ag-colorTextSecondary)] hover:text-colorTextSecondary"
+                                className="flex size-[14px] shrink-0 cursor-help items-center justify-center rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent text-[10px] font-normal leading-none text-colorTextDescription hover:border-[var(--ag-colorTextTertiary)] hover:text-colorTextSecondary"
                             >
                                 ?
                             </button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[320px]">
+                        {/* Right, not top: the label sits directly under the previous field's
+                            input, and a top tooltip covered it. */}
+                        <TooltipContent side="right" className="max-w-[320px]">
                             <span className="mb-0.5 block font-medium">{field.label}</span>
                             <span className="block font-normal leading-snug">
                                 {field.description}

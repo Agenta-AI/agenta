@@ -8,7 +8,11 @@
  */
 import {useMemo} from "react"
 
-import {workflowMolecule, workflowVariantsListQueryStateAtomFamily} from "@agenta/entities/workflow"
+import {
+    workflowMolecule,
+    workflowRevisionsListQueryStateAtomFamily,
+    workflowVariantsListQueryStateAtomFamily,
+} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
 import type {TriggerReferences} from "./RunVersionField"
@@ -133,4 +137,43 @@ export function useTriggerBinding({
             revisionId: null,
         }
     }, [stored, pinnedRevision, playgroundEntityId, playgroundRevision, agentWorkflowId, variants])
+}
+
+/** The revision row a binding points at: the pinned one, else the variant's newest. */
+interface BoundRevision {
+    id?: string
+    version?: number | null
+    flags?: {is_agent?: boolean; is_chat?: boolean} | null
+    data?: {schemas?: {inputs?: unknown} | null} | null
+}
+
+/**
+ * Shape of the bound agent's inputs, read off the revision entity rather than
+ * `workflowMolecule`. The molecule is scoped to an open app, so on the settings page its
+ * selectors never resolve and every trigger read as a non-agent completion workflow.
+ */
+export function useBoundAgentShape(binding: TriggerBinding): {
+    /** False while nothing is bound yet — the shape is unknown, not "not an agent". */
+    resolved: boolean
+    isAgent: boolean
+    isChat: boolean
+    inputSchema: unknown
+} {
+    const revisions = useAtomValue(
+        workflowRevisionsListQueryStateAtomFamily(binding.variantId ?? ""),
+    )
+
+    return useMemo(() => {
+        const rows = (revisions.data as BoundRevision[]).filter((r) => r.version !== 0)
+        const bound =
+            binding.mode === "pinned" && binding.revisionId
+                ? rows.find((r) => r.id === binding.revisionId)
+                : [...rows].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))[0]
+        return {
+            resolved: Boolean(bound),
+            isAgent: Boolean(bound?.flags?.is_agent),
+            isChat: Boolean(bound?.flags?.is_chat),
+            inputSchema: bound?.data?.schemas?.inputs ?? null,
+        }
+    }, [revisions.data, binding.mode, binding.revisionId])
 }

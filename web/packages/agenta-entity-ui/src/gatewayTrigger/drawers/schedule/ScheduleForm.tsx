@@ -32,6 +32,7 @@ import {normalizeJson} from "../shared/normalizeJson"
 import {
     bindingKey,
     buildTriggerReferences,
+    useBoundAgentShape,
     useTriggerBinding,
     type TriggerBinding,
 } from "../shared/useTriggerBinding"
@@ -178,9 +179,15 @@ export function ScheduleForm({
         activeBinding.variantId ??
         activeBinding.workflowId ??
         ""
+    // The molecule only resolves where an app is open (the playground); from settings it never
+    // does, so fall back to the bound revision's own flags.
+    const boundShape = useBoundAgentShape(activeBinding)
     const isChatInput =
-        useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat"
-    const agentInputSchema = useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId))
+        useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat" ||
+        boundShape.isChat
+    const agentInputSchema =
+        useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId)) ??
+        boundShape.inputSchema
     const primaryInputKey = useMemo(() => {
         if (isChatInput) return "messages"
         const ports = extractInputPortsFromSchema(agentInputSchema)

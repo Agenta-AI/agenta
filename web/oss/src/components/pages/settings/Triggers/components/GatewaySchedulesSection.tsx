@@ -10,33 +10,29 @@ import {
     useTriggerSchedules,
     type TriggerSchedule,
 } from "@agenta/entities/gatewayTrigger"
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {ActiveToggle, TriggerScheduleDrawer} from "@agenta/entity-ui/gatewayTrigger"
+import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {TriggerScheduleDrawer} from "@agenta/entity-ui/gatewayTrigger"
+import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
-import {ArrowClockwise, ListChecks, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {
+    ArrowClockwise,
+    ListChecks,
+    Pause,
+    PencilSimpleLine,
+    Play,
+    Plus,
+    Trash,
+} from "@phosphor-icons/react"
 import {Button, message, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-
-// Resolve the bound workflow's display name from its artifact; fall back to the id.
-function BoundWorkflowCell({wfId}: {wfId: string | null}) {
-    const name = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.artifactName(wfId ?? ""), [wfId]),
-    )
-    if (!wfId) return <Typography.Text type="secondary">-</Typography.Text>
-    return (
-        <Typography.Text className="text-xs" ellipsis={{tooltip: wfId}}>
-            {name?.trim() || wfId}
-        </Typography.Text>
-    )
-}
 
 export default function GatewaySchedulesSection() {
     const {schedules, isLoading, refetch} = useTriggerSchedules()
@@ -44,6 +40,18 @@ export default function GatewaySchedulesSection() {
     const openDrawer = useSetAtom(triggerScheduleDrawerAtom)
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
     const [reloading, setReloading] = useState(false)
+
+    // Agent names come from the applications list, not `workflowMolecule.artifactName`: the
+    // molecule is scoped to an open app, so on this page its artifact query never resolves.
+    const workflows = useAtomValue(appWorkflowsListQueryStateAtom)
+    const agentNameById = useMemo(() => {
+        const byId = new Map<string, string>()
+        workflows.data.forEach((w) => {
+            const id = w.id as string | undefined
+            if (id) byId.set(id, w.name?.trim() || w.slug?.trim() || "")
+        })
+        return byId
+    }, [workflows.data])
 
     const reloadAll = useCallback(async () => {
         setReloading(true)
@@ -96,6 +104,12 @@ export default function GatewaySchedulesSection() {
         [schedules],
     )
 
+    // A window is optional and rarely set — the column only earns its width once a row uses it.
+    const hasWindow = useMemo(
+        () => rows.some((record) => record.data?.start_time || record.data?.end_time),
+        [rows],
+    )
+
     const columns = useMemo(
         () =>
             createStandardColumns<ScheduleRow>([
@@ -105,9 +119,13 @@ export default function GatewaySchedulesSection() {
                     title: "Name",
                     width: 180,
                     fixed: "left",
-                    render: (_value, record) => (
-                        <Typography.Text>{record.name || record.id || "-"}</Typography.Text>
-                    ),
+                    render: (_value, record) => {
+                        const label = record.name || record.id || "-"
+                        // Fixed-width column: truncate rather than wrap, full name on hover.
+                        return (
+                            <Typography.Text ellipsis={{tooltip: label}}>{label}</Typography.Text>
+                        )
+                    },
                 },
                 {
                     type: "text",
@@ -126,52 +144,58 @@ export default function GatewaySchedulesSection() {
                 },
                 {
                     type: "text",
-                    key: "window",
-                    title: "Window (UTC)",
-                    width: 200,
-                    render: (_value, record) => {
-                        const {start_time: start, end_time: end} = record.data ?? {}
-                        if (!start && !end)
-                            return <Typography.Text type="secondary">-</Typography.Text>
-                        const fmt = (v?: string | null) =>
-                            v ? formatDay({date: v, outputFormat: "YYYY-MM-DD HH:mm"}) : "∞"
-                        return (
-                            <span className="truncate text-xs">
-                                {fmt(start)} → {fmt(end)}
-                            </span>
-                        )
-                    },
-                },
-                {
-                    type: "text",
                     key: "workflow",
-                    title: "Bound workflow",
+                    title: "Connected agent",
                     width: 180,
                     render: (_value, record) => {
+                        const wfId = triggerBoundAgentId(record.data?.references)
+                        const name = wfId ? agentNameById.get(wfId) : undefined
+                        // A raw id says nothing to a reader, so an unresolved name shows "-".
+                        if (!name) return <Typography.Text type="secondary">-</Typography.Text>
                         return (
-                            <BoundWorkflowCell
-                                wfId={triggerBoundAgentId(record.data?.references)}
-                            />
+                            <Typography.Text className="text-xs" ellipsis={{tooltip: name}}>
+                                {name}
+                            </Typography.Text>
                         )
                     },
                 },
+                ...(hasWindow
+                    ? [
+                          {
+                              type: "text",
+                              key: "window",
+                              title: "Window (UTC)",
+                              width: 200,
+                              render: (_value, record) => {
+                                  const {start_time: start, end_time: end} = record.data ?? {}
+                                  if (!start && !end)
+                                      return <Typography.Text type="secondary">-</Typography.Text>
+                                  const fmt = (v?: string | null) =>
+                                      v
+                                          ? formatDay({date: v, outputFormat: "YYYY-MM-DD HH:mm"})
+                                          : "∞"
+                                  return (
+                                      <span className="truncate text-xs">
+                                          {fmt(start)} → {fmt(end)}
+                                      </span>
+                                  )
+                              },
+                          } satisfies StandardColumnDef<ScheduleRow>,
+                      ]
+                    : []),
                 {
                     type: "text",
                     key: "status",
                     title: "Status",
                     width: 130,
-                    render: (_value, record) => (
-                        <div onClick={(event) => event.stopPropagation()}>
-                            <ActiveToggle
-                                active={isEntityActive(record)}
-                                onToggle={handleToggle(record)}
-                                disabled={!record.id}
-                                activatedMessage="Schedule resumed"
-                                pausedMessage="Schedule paused"
-                                errorMessage="Failed to update schedule"
-                            />
-                        </div>
-                    ),
+                    // Reads as a state, like the Connections table; pausing lives in the
+                    // row menu so the column stays scannable.
+                    render: (_value, record) =>
+                        isEntityActive(record) ? (
+                            <StatusIndicator tone="success" label="Active" />
+                        ) : (
+                            <StatusIndicator tone="default" label="Paused" />
+                        ),
                 },
                 {
                     type: "text",
@@ -206,6 +230,20 @@ export default function GatewaySchedulesSection() {
                             icon: <PencilSimpleLine size={16} />,
                             onClick: (record: ScheduleRow) => handleEdit(record),
                         },
+                        {
+                            key: "pause",
+                            label: "Pause",
+                            icon: <Pause size={16} />,
+                            hidden: (record: ScheduleRow) => !isEntityActive(record),
+                            onClick: (record: ScheduleRow) => handleToggle(record)(false),
+                        },
+                        {
+                            key: "resume",
+                            label: "Resume",
+                            icon: <Play size={16} />,
+                            hidden: (record: ScheduleRow) => isEntityActive(record),
+                            onClick: (record: ScheduleRow) => handleToggle(record)(true),
+                        },
                         {type: "divider"},
                         {
                             key: "delete",
@@ -217,7 +255,7 @@ export default function GatewaySchedulesSection() {
                     ],
                 } satisfies StandardColumnDef<ScheduleRow>,
             ]),
-        [handleDelete, handleEdit, handleToggle, openDeliveries],
+        [agentNameById, handleDelete, handleEdit, handleToggle, hasWindow, openDeliveries],
     )
 
     const {tableScope, pagination} = useStaticTable<ScheduleRow>(

@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {
     isEntityActive,
     isEntityValid,
+    triggerBoundAgentId,
     triggerDeliveriesDrawerAtom,
     triggerSubscriptionDrawerAtom,
     useTriggerConnectionsQuery,
@@ -10,7 +11,8 @@ import {
     useTriggerSubscriptions,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
-import {ActiveToggle, TriggerSubscriptionDrawer} from "@agenta/entity-ui/gatewayTrigger"
+import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {TriggerSubscriptionDrawer} from "@agenta/entity-ui/gatewayTrigger"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {
     createStandardColumns,
@@ -22,13 +24,15 @@ import {
     ArrowClockwise,
     ArrowsClockwise,
     ListChecks,
+    Pause,
     PencilSimpleLine,
+    Play,
     Plus,
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
 import {Button, message, Tag, Tooltip, Typography} from "antd"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
@@ -40,6 +44,18 @@ export default function GatewaySubscriptionsSection() {
     const openDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
     const [reloading, setReloading] = useState(false)
+
+    // Agent names come from the applications list, not `workflowMolecule.artifactName`: the
+    // molecule is scoped to an open app, so on this page its artifact query never resolves.
+    const workflows = useAtomValue(appWorkflowsListQueryStateAtom)
+    const agentNameById = useMemo(() => {
+        const byId = new Map<string, string>()
+        workflows.data.forEach((w) => {
+            const id = w.id as string | undefined
+            if (id) byId.set(id, w.name?.trim() || w.slug?.trim() || "")
+        })
+        return byId
+    }, [workflows.data])
 
     const reloadAll = useCallback(async () => {
         setReloading(true)
@@ -139,9 +155,13 @@ export default function GatewaySubscriptionsSection() {
                     title: "Name",
                     width: 200,
                     fixed: "left",
-                    render: (_value, record) => (
-                        <Typography.Text>{record.name || record.id || "-"}</Typography.Text>
-                    ),
+                    render: (_value, record) => {
+                        const label = record.name || record.id || "-"
+                        // Fixed-width column: truncate rather than wrap, full name on hover.
+                        return (
+                            <Typography.Text ellipsis={{tooltip: label}}>{label}</Typography.Text>
+                        )
+                    },
                 },
                 {
                     type: "text",
@@ -152,39 +172,57 @@ export default function GatewaySubscriptionsSection() {
                 },
                 {
                     type: "text",
+                    key: "workflow",
+                    title: "Connected agent",
+                    width: 180,
+                    render: (_value, record) => {
+                        const wfId = triggerBoundAgentId(record.data?.references)
+                        const name = wfId ? agentNameById.get(wfId) : undefined
+                        // A raw id says nothing to a reader, so an unresolved name shows "-".
+                        if (!name) return <Typography.Text type="secondary">-</Typography.Text>
+                        return (
+                            <Typography.Text className="text-xs" ellipsis={{tooltip: name}}>
+                                {name}
+                            </Typography.Text>
+                        )
+                    },
+                },
+                {
+                    type: "text",
                     key: "event",
                     title: "Event",
                     width: 220,
-                    render: (_value, record) => (
-                        <Tag
-                            bordered={false}
-                            color="default"
-                            className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                        >
-                            {record.data?.event_key ?? "-"}
-                        </Tag>
-                    ),
+                    render: (_value, record) => {
+                        const key = record.data?.event_key
+                        if (!key) return <Typography.Text type="secondary">-</Typography.Text>
+                        // Event keys are long enough to overflow the column; keep them one line.
+                        return (
+                            <Tooltip title={key}>
+                                <Tag
+                                    bordered={false}
+                                    color="default"
+                                    className="inline-block max-w-full truncate bg-[var(--ag-c-0517290F)] px-2 py-[1px] align-middle"
+                                >
+                                    {key}
+                                </Tag>
+                            </Tooltip>
+                        )
+                    },
                 },
                 {
-                    // The toggle shows the state and changes it, so it lives in Status.
                     type: "text",
                     key: "status",
                     title: "Status",
-                    width: 140,
+                    width: 130,
+                    // Reads as a state, like the Connections table; pausing lives in the
+                    // row menu so the column stays scannable.
                     render: (_value, record) =>
                         !isEntityValid(record) ? (
                             <StatusIndicator tone="error" label="Invalid" />
+                        ) : isEntityActive(record) ? (
+                            <StatusIndicator tone="success" label="Active" />
                         ) : (
-                            <div onClick={(event) => event.stopPropagation()}>
-                                <ActiveToggle
-                                    active={isEntityActive(record)}
-                                    onToggle={handleToggle(record)}
-                                    disabled={!record.id}
-                                    activatedMessage="Subscription resumed"
-                                    pausedMessage="Subscription paused"
-                                    errorMessage="Failed to update subscription"
-                                />
-                            </div>
+                            <StatusIndicator tone="default" label="Paused" />
                         ),
                 },
                 {
@@ -221,6 +259,20 @@ export default function GatewaySubscriptionsSection() {
                             onClick: (record: SubscriptionRow) => handleEdit(record),
                         },
                         {
+                            key: "pause",
+                            label: "Pause",
+                            icon: <Pause size={16} />,
+                            hidden: (record: SubscriptionRow) => !isEntityActive(record),
+                            onClick: (record: SubscriptionRow) => handleToggle(record)(false),
+                        },
+                        {
+                            key: "resume",
+                            label: "Resume",
+                            icon: <Play size={16} />,
+                            hidden: (record: SubscriptionRow) => isEntityActive(record),
+                            onClick: (record: SubscriptionRow) => handleToggle(record)(true),
+                        },
+                        {
                             key: "refresh",
                             label: "Refresh",
                             icon: <ArrowsClockwise size={16} />,
@@ -244,6 +296,7 @@ export default function GatewaySubscriptionsSection() {
                 } satisfies StandardColumnDef<SubscriptionRow>,
             ]),
         [
+            agentNameById,
             connectionLabel,
             handleDelete,
             handleEdit,

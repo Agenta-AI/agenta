@@ -7,7 +7,7 @@ import {
     type TriggerConnection,
 } from "@agenta/entities/gatewayTrigger"
 import {cn, selectTriggerVariants} from "@agenta/ui/ui"
-import {ChevronDown} from "lucide-react"
+import {ChevronDown, X} from "lucide-react"
 
 import {AppLogo} from "../../../drawers/shared/CatalogAppCard"
 import SchemaForm, {type SchemaFormHandle} from "../../../gatewayTool/components/SchemaForm"
@@ -26,6 +26,7 @@ export function SourceField({
     eventKey,
     eventName,
     onBrowse,
+    onClear,
     isEdit,
 }: {
     connections: TriggerConnection[]
@@ -33,6 +34,7 @@ export function SourceField({
     eventKey: string
     eventName?: string
     onBrowse: () => void
+    onClear: () => void
     isEdit: boolean
 }) {
     const {integrations} = useTriggerCatalogIntegrations()
@@ -46,19 +48,29 @@ export function SourceField({
     const logo = selected ? byKey.get(selected.integration_key)?.logo : undefined
     const via = connectionName(selected)
 
+    // A div, not a button: the clear affordance is itself a button and cannot nest inside one.
+    // Same trigger styling as the Combobox, which uses this variant on a div for the same reason.
     return (
-        <button
-            type="button"
-            onClick={onBrowse}
-            // The source is part of the trigger's identity — changing it on a live
-            // subscription would rebind the provider hook, so edit mode is read-only.
-            disabled={isEdit}
-            title={isEdit ? undefined : "Change trigger"}
+        <div
             // Derive the height from padding + line-height like Input does, so this lines up
             // with the Name field. SelectTrigger's own `h-control` is 2px shorter.
-            className={cn(selectTriggerVariants(), "h-auto py-input-y")}
+            className={cn(
+                selectTriggerVariants(),
+                "h-auto py-input-y",
+                isEdit && "cursor-not-allowed bg-disabled-bg text-disabled",
+            )}
         >
-            <span className="flex min-w-0 items-center gap-2">
+            <button
+                type="button"
+                onClick={onBrowse}
+                // The source is part of the trigger's identity — changing it on a live
+                // subscription would rebind the provider hook, so edit mode is read-only.
+                disabled={isEdit}
+                title={isEdit ? undefined : "Change trigger"}
+                // text-field-md: preflight is off, so a bare button keeps the UA's 13.33px
+                // Arial — which shortens the row by 4px against the Name input.
+                className="flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-field-md text-inherit enabled:cursor-pointer disabled:cursor-not-allowed"
+            >
                 {eventKey ? (
                     <>
                         <AppLogo logo={logo} size={16} />
@@ -74,15 +86,28 @@ export function SourceField({
                         Choose a connected app and event
                     </span>
                 )}
-            </span>
-            {isEdit ? null : <ChevronDown className="size-3 shrink-0 text-placeholder" />}
-        </button>
+            </button>
+            {isEdit ? null : eventKey ? (
+                <button
+                    type="button"
+                    onClick={onClear}
+                    aria-label="Clear trigger"
+                    title="Clear trigger"
+                    className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-placeholder hover:text-[var(--ag-colorText)]"
+                >
+                    <X className="size-3" />
+                </button>
+            ) : (
+                <ChevronDown className="size-3 shrink-0 text-placeholder" />
+            )}
+        </div>
     )
 }
 
 // ---------------------------------------------------------------------------
 // EventFiltersField — the event's own `trigger_config` schema (e.g. which repo, which label).
-// Optional per event, so it lives under Advanced.
+// Often required for the event to fire at all, so the form renders it inline under the
+// trigger; the caller owns whether the section shows (an event without a schema has none).
 // ---------------------------------------------------------------------------
 
 export function EventFiltersField({
@@ -95,12 +120,6 @@ export function EventFiltersField({
     configForm: React.ComponentProps<typeof SchemaForm>["form"]
     configFormRef: React.RefObject<SchemaFormHandle | null>
 }) {
-    if (!triggerConfigSchema) {
-        return (
-            <span className="text-xs text-[var(--ag-colorTextDescription)]">
-                No filters for this event.
-            </span>
-        )
-    }
+    if (!triggerConfigSchema) return null
     return <SchemaForm ref={configFormRef} form={configForm} schema={triggerConfigSchema} flat />
 }
