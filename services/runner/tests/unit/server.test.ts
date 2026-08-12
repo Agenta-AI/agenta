@@ -77,6 +77,17 @@ describe("createAgentServer", () => {
           (body.engines as unknown[]).includes("sandbox-agent"),
       );
       assert.ok(Array.isArray(body.harnesses));
+      // Pinned as a literal set, NOT derived from `HARNESS_KINDS`: asserting the payload
+      // against its own source would hold for any list, which is how `codex` stayed missing
+      // while Codex runs worked. The expected members mirror the SDK's `HarnessKind` enum,
+      // pinned on the Python side by `test_identity_value_is_the_bare_harness_string`.
+      // Sorted because the advertisement's order carries no meaning.
+      assert.deepEqual([...(body.harnesses as string[])].sort(), [
+        "claude",
+        "codex",
+        "pi_agenta",
+        "pi_core",
+      ]);
     } finally {
       await s.close();
     }

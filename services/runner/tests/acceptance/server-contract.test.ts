@@ -81,6 +81,13 @@ describe("GET /health contract", () => {
         (body.engines as string[]).includes("sandbox-agent"),
         "engines must include 'sandbox-agent'",
       );
+      // Every harness the runner can drive must be advertised: a client reading this payload
+      // decides what is available. Mirrors the SDK's `HarnessKind` enum.
+      assert.deepEqual(
+        [...(body.harnesses as string[])].sort(),
+        ["claude", "codex", "pi_agenta", "pi_core"],
+        "harnesses must advertise every supported harness",
+      );
     } finally {
       await s.close();
     }

@@ -572,9 +572,10 @@ export interface ModelConnection {
 
 export interface AgentRunRequest {
   /**
-   * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
-   * ACP agent "pi" (pi_agenta is Pi with Agenta's forced skills/prompt/policy); "claude" drives
-   * the ACP agent "claude". Selected by the request; there is no engine selector.
+   * Harness id: "pi_core" | "pi_agenta" | "claude" | "codex". `pi_core` and `pi_agenta` both
+   * drive the ACP agent "pi" (pi_agenta is Pi with Agenta's forced skills/prompt/policy);
+   * "claude" and "codex" each drive the ACP agent of the same name. Selected by the request;
+   * there is no engine selector.
    */
   harness?: string;
   /** Sandbox: "local" | "daytona". */

@@ -12,7 +12,18 @@ import pkg from "../package.json";
 export const PROTOCOL_VERSION = 1;
 export const RUNNER_VERSION: string = pkg.version;
 export const ENGINES = ["sandbox-agent"] as const;
-export const HARNESS_KINDS = ["pi_core", "claude", "pi_agenta"] as const;
+/**
+ * Harness ids this runner drives, advertised on `/health`. Mirrors the SDK's `HarnessKind`
+ * enum (`sdks/python/agenta/sdk/agents/dtos.py`), which is the source of truth; extend both
+ * together when a harness is added. Nothing is gated on this list, so a stale entry does not
+ * block a run — it only under-reports what the runner supports.
+ */
+export const HARNESS_KINDS = [
+  "pi_core",
+  "claude",
+  "pi_agenta",
+  "codex",
+] as const;
 
 export interface RunnerInfo {
   status: "ok";
