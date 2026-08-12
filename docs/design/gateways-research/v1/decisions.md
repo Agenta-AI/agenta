@@ -318,6 +318,40 @@ It is legacy. It is not moved, not reinterpreted, and not fixed as part of this 
 
 It is removed only once the gateway is the sole mechanism the whole system uses.
 
+## D26. A hosted code relay, for the one deployment shape that needs it
+
+Three situations, and only the third needs anything built.
+
+| Deployment | What happens |
+|---|---|
+| Cloud | The callback lands on it directly. No relay. |
+| Self-hosted with a public HTTPS URL | The same. Configuration, not mechanism. |
+| Firewalled | The callback lands on an Agenta-hosted relay, which holds the authorization code while the deployment fetches it outbound. |
+
+**The relay mixes the two patterns already in the tree and adds nothing novel.** Its
+demultiplexing is the payment provider's: one registered redirect URL shared by many
+deployments, sorted by a routing value — here the signed state parameter the connections domain
+already mints, which already carries the project and the user. Its direction is the trigger
+bridge's: the deployment reaches out rather than being reached. What it does *not* borrow is that
+bridge's transport, because it works only through the provider's own subscribe call, and a
+browser redirect is a navigation rather than an event — it cannot travel down an outbound socket.
+The development tunnel stays what it is: development only.
+
+**Why holding the code is safe, and this is the load-bearing part.** With proof key exchange, an
+authorization code is worthless without the verifier, and the verifier never leaves the
+deployment. The deployment redeems the code itself, outbound, straight to the authorization
+server. **The relay therefore never sees a token and could not redeem the code it holds.** It
+holds a single-use, short-lived value that is useless to it. That is what makes a hosted
+component acceptable in a self-hosted product.
+
+**One thing it also solves for free.** The same public host serves the client metadata document
+that modern registration requires, once, for every firewalled deployment — which the deprecated
+dynamic-registration fallback would otherwise force.
+
+**Why not the alternative.** Documenting that OAuth-protected servers need a reachable deployment
+was the other option. It makes the product's headline tool integration unavailable to exactly the
+customers most likely to self-host, and it converts an engineering problem into a support one.
+
 ## D25. A governance ceiling rejects; it never silently clamps
 
 When a call exceeds a ceiling the platform set, the gateway denies it and says so. It does not
@@ -354,6 +388,5 @@ whole evaluator path (D15) rather than answered.
 
 What remains:
 
-- The order the concerns arrive in, under D12.
-- What each gateway does in its first increment, marked in `scope-checklist.md`.
-- How an OAuth redirect reaches a firewalled deployment. Belongs to the OAuth checkpoint.
+- Which wave each capability lands in, marked in `scope-checklist.md`. This subsumes the older
+  question about the order the six concerns arrive in.

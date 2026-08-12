@@ -1,11 +1,21 @@
 # Scope checklist
 
-Everything each gateway could do, listed so each item can be marked in or out, and ordered.
-**Both gateways are being built.** This decides what is in the first increment of each, not
-which gateway happens.
+Everything each gateway could do, with the wave it lands in. **Both gateways are being built.**
+This decides *when* each capability arrives, not which gateway happens.
 
-The `?` column is for marking: `1` = first increment, `2` = second, `-` = out for now.
-Nothing here is decided.
+**The mark is a wave, never "in or out".** In-and-out was the wrong axis: almost nothing is
+genuinely out, so "out" ended up meaning three different things — not now, not ever, and not
+decided — and the column stopped carrying information.
+
+| Mark | Meaning |
+|---|---|
+| `1` | Wave 1 — both gateways working end to end, on the fakes and our own servers |
+| `2` | Wave 2 — every caller converted |
+| `3` | Wave 3 — OAuth end to end |
+| `—` | Out of this work; a separate effort owns it |
+
+Anything that is not gateway work at all is **not listed**. A row that will never be marked is
+noise on a decision surface.
 
 ---
 
@@ -42,42 +52,57 @@ derivable from the provider name and no slug is needed. Only custom endpoints be
 
 ---
 
-## Shared choices
+## Shared
 
-| ? | Item | Suggestion |
+| Wave | Item | Why there |
 |---|---|---|
-| | Permission check on the target | **In** — otherwise any authenticated user reaches any registered target |
-| | Entitlement check | **In** — settled, not a suggestion; permission and entitlement checks are both in for both gateways, and only credit checks are postponed (`plan.md`) |
-| | Audit record | **In**, emitted into the existing events domain rather than a new table |
-| | Usage recorded | **In** — cannot be backfilled |
-| | Usage charged | **Out** — the ledger is a separate effort |
-| | `secret_origin` stamp | **In** — one field, unreconstructable later; `local` is ours, `vault` is the user's |
-| | Endpoint configuration | **In** for custom endpoints only — timeouts, ceilings and extra headers, per endpoint |
+| 1 | Permission check on the target | Otherwise any authenticated user reaches any registered target. Without it wave 1 is an open proxy |
+| 1 | Entitlement check | Settled, not a suggestion: permission and entitlement checks are both in for both gateways; only credit checks are postponed |
+| 2 | Audit record | One event per call into the existing events domain. Second-order to making the call work at all |
+| 2 | Usage recorded | **What** to record has to be defined first — which counters, at which grain, keyed how. That definition is the work, and it is not wave 1's |
+| 2 | `secret_origin` stamp | One field marking whose key paid. It rides the usage record, so it moves with it |
+| 2 | Endpoint configuration | Timeouts, ceilings and extra headers per custom endpoint. Wave 1 makes calls work; tuning them is second-order |
+| — | Usage charged | The credits ledger is a separate effort and a caller of the gateway, not part of it |
+
+**On deferring usage recording.** It cannot be backfilled, which is the standing argument for
+doing it early — and it still loses to not knowing what to record. Recording the wrong counters
+in wave 1 produces data nobody can use and a schema to migrate. Wave 2 is early enough for a
+platform that has not launched charging.
 
 ---
 
-## LLM gateway choices
+## LLM gateway
 
-| ? | Item | Suggestion |
+| Wave | Item | Why there |
 |---|---|---|
-| | Model allowlist | **In** — custom providers already declare their models by slug; standard providers expose their whole catalogue |
-| | Retry policy | **Out** — the caller already retries |
-| | Body byte-for-byte | **In** — a constraint, not a feature; prompt caching then works for free |
-| | Fallbacks and aliasing | **Out** — makes the gateway a product surface with behaviour the caller cannot predict |
-| | Embeddings route | **Out** — deferred with the evaluator path |
+| 1 | Model allowlist | Custom providers already declare their models by slug; standard providers expose their whole catalogue |
+| 1 | Body byte-for-byte | A constraint, not a feature — and prompt caching then works for free |
 
 ---
 
-## MCP gateway choices
+## MCP gateway
 
-| ? | Item | Suggestion |
+| Wave | Item | Why there |
 |---|---|---|
-| | Tool allowlist | **In** — the wire already carries it; enforcing it here is what makes it a boundary |
-| | OAuth client | **In**, and the single biggest item — the natural split point if one is needed |
-| | Consent flow | **In** if OAuth is in; it is required by it |
-| | Step-up scopes | **Out** for now — detect and fail visibly; add the interaction later |
-| | List caching | **Out** — an optimisation, and correctness first |
-| | stdio servers | **Out** — remote only; spawning processes is a large operational surface |
+| 1 | Tool allowlist | The runner wire already carries it; enforcing it at the boundary is what makes the boundary real |
+| 3 | OAuth client | The single biggest item, and the reason wave 3 exists |
+| 3 | Consent flow | Required by OAuth; ships with it |
+| 3 | Step-up scopes | Asking for more permission mid-run. Same wave as the client that raises it |
+| — | List caching | An optimisation. Correctness first, and nothing is slow yet |
+| — | stdio servers | Remote only. Spawning processes is a large operational surface for no current caller |
+
+---
+
+## Not gateway work at all
+
+Removed from the list above rather than marked out, because a row that will never be marked
+clutters a decision surface.
+
+| Item | Where it belongs |
+|---|---|
+| Retry policy | Never discussed and not planned. Callers already retry |
+| Fallbacks and model aliasing | Never discussed and not planned. It would make the gateway decide what the caller asked for |
+| Embeddings route | Belongs to converting the remaining services and callers, alongside the evaluator path — the same bucket as every other service, not a gateway capability |
 
 ---
 

@@ -44,7 +44,8 @@ Three, and the middle one is the big one.
 ### Checkpoint A — both gateways serve traffic against fakes
 
 The LLM gateway and the MCP gateway both accept a call, authorise it, resolve and inject a
-secret, reach a fake upstream, and return. Policy, audit and usage recording all fire.
+secret, reach a fake upstream, and return. Policy fires. Nothing is recorded and nothing is
+configurable yet — this checkpoint proves the call path, and only that.
 
 **Why here.** It is the first point where anything runs end to end, and it needs no third-party
 dependency, no OAuth and no converted caller. Everything it proves is proved against our own
@@ -52,13 +53,15 @@ fakes, which is what makes it a clean acceptance-test surface.
 
 **Acceptance tests:** a request with no token is refused; a request for an endpoint the caller
 may not use is refused; a permitted request reaches the fake with the caller's token replaced by
-the upstream secret; a streamed response arrives byte for byte; an audit event is written; usage
-is recorded.
+the upstream secret; a streamed response arrives byte for byte; a tool call outside the allowlist
+is refused.
 
-### Checkpoint B — the real callers go through the gateways
+### Checkpoint B — the real callers go through the gateways, and calls are recorded
 
 Agent v0, the runner and the harnesses reach models and MCP servers only through the gateways.
-This is "everything except OAuth works."
+This is "everything except OAuth works." It also picks up what wave 1 deliberately left out:
+one audit event per call, real usage written against the principal with the secret origin, and
+per-endpoint configuration.
 
 **Acceptance tests:** a real agent run completes with no provider secret anywhere in the
 sandbox; the run's model calls and tool calls appear as audit events with the right principal;
@@ -103,21 +106,22 @@ flowchart LR
     S --> WP1["WP1<br/>domain + storage"]
     S --> WP2["WP2<br/>secret resolution"]
     S --> WP3["WP3<br/>policy core"]
-    S --> WP4["WP4<br/>audit events"]
     WP5["WP5<br/>test doubles<br/>(no deps)"]
-    WP1 & WP2 & WP3 & WP4 --> M1{{"M1<br/>foundation"}}
+    WP1 & WP2 & WP3 --> M1{{"M1<br/>foundation"}}
     M1 --> WP6["WP6<br/>LLM ingress"]
     M1 --> WP7["WP7<br/>LLM routing"]
     M1 --> WP8["WP8<br/>MCP ingress"]
     M1 --> WP9["WP9<br/>MCP registry"]
     M1 --> WP10["WP10<br/>endpoint CRUD"]
-    M1 --> WP11["WP11<br/>usage recording"]
-    WP6 & WP7 & WP8 & WP9 & WP10 & WP11 & WP5 --> CA(["Checkpoint A<br/>DEPLOY"])
+    WP6 & WP7 & WP8 & WP9 & WP10 & WP5 --> CA(["Checkpoint A<br/>DEPLOY"])
     CA --> WP12["WP12<br/>SDK resolution"]
+    CA --> WP4["WP4<br/>audit events"]
+    CA --> WP11["WP11<br/>usage recording"]
+    CA --> WP21["WP21<br/>endpoint config"]
     WP12 --> WP13["WP13<br/>runner + harnesses"]
     WP12 --> WP14["WP14<br/>agent v0"]
     WP12 --> WP15["WP15<br/>MCP on the wire"]
-    WP13 & WP14 & WP15 --> CB(["Checkpoint B<br/>DEPLOY"])
+    WP13 & WP14 & WP15 & WP4 & WP11 & WP21 --> CB(["Checkpoint B<br/>DEPLOY"])
     CB --> WP16["WP16<br/>secret kinds"]
     WP16 --> WP17["WP17<br/>OAuth client"]
     WP17 --> WP18["WP18<br/>consent flow"]
@@ -126,9 +130,13 @@ flowchart LR
     WP19 & WP20 --> CC(["Checkpoint C<br/>DEPLOY"])
 ```
 
-The two fan-outs in wave 1 are the widest points: four packages, then six. Wave 2 is a chain
-behind one package. Wave 3 is mostly serial because OAuth's pieces genuinely depend on each
-other.
+The two fan-outs in wave 1 are the widest points: three packages, then five. Wave 2 carries a
+chain behind one package plus three independent ones. Wave 3 is mostly serial because OAuth's
+pieces genuinely depend on each other.
+
+**Wave 1 is deliberately the thinnest thing that works.** Recording, configuration and tuning all
+moved to wave 2, because a gateway that records beautifully and does not relay a call is worth
+nothing, and because what to record has to be decided before it is written.
 
 ---
 
@@ -199,11 +207,6 @@ target, and the entitlement check. No credit check.
 *Depends on:* seed. *Blocks:* WP6, WP8.
 *Done when:* a caller without permission on an endpoint is refused before any upstream call.
 
-**WP4 — Audit events.** Emission into the existing events domain (D22), with the principal, the
-target, the decision and the outcome.
-*Depends on:* seed. *Blocks:* nothing; every package is incomplete without it.
-*Done when:* one event per call, queryable through the existing surface.
-
 **WP5 — Test doubles.** A fake LLM endpoint and a fake MCP server, both controllable from tests:
 forced errors, forced slowness, forced scope challenges later.
 *Depends on:* nothing. **Start immediately.** *Blocks:* every acceptance test.
@@ -235,14 +238,9 @@ us, per-server tool allowlists.
 needs no row.
 
 **WP10 — Endpoint CRUD API.** Routers and models for creating and configuring custom endpoints on
-both gateways. Includes per-endpoint configuration — timeouts, ceilings, extra headers (D21).
-*Depends on:* M1, WP1. *Done when:* a custom endpoint can be created, configured and deleted,
-and a standard one cannot be edited.
-
-**WP11 — Usage recording.** Model tokens and tool calls recorded against the principal, with the
-secret origin. Recording only; no charging.
-*Depends on:* M1. *Done when:* real usage is written for every call even though nothing is
-billed.
+both gateways. Creation and deletion only — per-endpoint configuration is WP21, in wave 2.
+*Depends on:* M1, WP1. *Done when:* a custom endpoint can be created and deleted, and a standard
+one cannot be edited.
 
 **Merge M2 → Checkpoint A.** Deploy. Acceptance tests above.
 
@@ -262,6 +260,25 @@ the redaction set shrinks.
 
 **WP14 — Agent v0.** The remaining caller.
 *Depends on:* WP12.
+
+**WP4 — Audit events.** Emission into the existing events domain (D22), with the principal, the
+target, the decision and the outcome. Moved out of wave 1: wave 1 makes the call work, and a
+record of a call that does not happen is worth nothing.
+*Depends on:* Checkpoint A. *Blocks:* nothing.
+*Done when:* one event per call, queryable through the existing surface.
+
+**WP11 — Usage recording.** Model tokens and tool calls recorded against the principal, with the
+secret origin. Recording only; no charging. Moved out of wave 1 because **what** to record —
+which counters, at which grain, keyed how — has to be settled first, and writing the wrong
+counters early produces unusable data and a migration.
+*Depends on:* Checkpoint A. *Done when:* real usage is written for every call even though nothing
+is billed.
+
+**WP21 — Endpoint configuration.** Timeouts, ceilings and extra headers per custom endpoint
+(D21), with a ceiling breach rejecting rather than clamping (D25). Second-order to relaying a
+call at all.
+*Depends on:* Checkpoint A. *Done when:* a custom endpoint's ceiling refuses an over-limit call
+with the ceiling, the value asked for and the value allowed.
 
 **WP15 — MCP servers on the wire.** The runner's MCP server configs point at gateway URLs with a
 gateway token rather than upstream secrets.
@@ -288,9 +305,15 @@ secrets service; connect callbacks pointed at the dashboard rather than a local 
 missing-connection path.
 *Depends on:* WP17, WP18.
 
-**WP20 — Callback reachability.** A development path that works, and a documented posture for a
-firewalled deployment (OD6).
+**WP20 — Callback reachability.** The hosted code relay (D26): a public callback host that
+receives the redirect, demultiplexes on the signed state the connections domain already mints,
+holds the authorization code briefly, and serves it outbound to the deployment that started the
+flow. It also serves the client metadata document once for every firewalled deployment. Cloud and
+publicly-reachable self-hosted deployments bypass it entirely; the development tunnel covers
+local work.
 *Depends on:* WP17. **Needed for Checkpoint C to be testable at all.**
+*Done when:* a deployment with no inbound route completes a full authorization, and the relay is
+observed to hold no token at any point.
 
 **Merge M4 → Checkpoint C.** Deploy. Acceptance tests above.
 

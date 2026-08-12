@@ -30,22 +30,20 @@ in `secrets.md` and the lookup already takes an owner (D10), so nothing is forec
 
 Per-endpoint tokens arrive with this, not before.
 
-### OD6. How an OAuth redirect reaches a firewalled deployment
+### OD6. How an OAuth redirect reaches a firewalled deployment — RECOMMENDED, see D26
 
-An OAuth flow needs a redirect the user's browser can reach, and the modern registration
-mechanism needs a public HTTPS URL serving client metadata. A firewalled deployment has neither.
+An OAuth flow needs a redirect the user's browser can reach, and the modern client-registration
+mechanism needs a public HTTPS URL serving a client metadata document. A firewalled deployment
+has neither.
 
-**The three existing relay patterns do not solve it**, and `scope-checklist.md` records why: two
-are server-to-server event delivery, one of those working only because the provider's own SDK
-offers a subscribe call, and a browser redirect cannot travel down an outbound socket. Only
-ngrok produces a reachable URL, and it is development-only by design.
+**Recommendation: three deployment situations, two of them needing nothing, and one hosted code
+relay for the third.** Settled as D26; the mechanism and the reason the relay is safe are there.
 
-**The real options:** a hosted relay that receives the redirect and holds the code while the
-deployment polls outward for it, which keeps the deployment outbound-only but reintroduces a
-cloud dependency; or documenting that OAuth-protected servers need a reachable deployment while
-static-credential servers work everywhere.
+Still to establish at implementation time, none of it blocking: the relay's retention window,
+whether one relay host serves every customer or one per region, and how a deployment that never
+polls is garbage-collected.
 
-Belongs to the OAuth checkpoint, not the first one.
+Belongs to the OAuth wave, not the first one.
 
 ### OD12. Should a clamped parameter be silent — CLOSED
 
