@@ -31,7 +31,7 @@ nobody proposes it again.
 | --- | --- | --- |
 | Stripe | the vendor CLI: `listen --forward-to http://api:8000/billing/stripe/events/` | no |
 | Composio | `dispatcher_composio.py` subscribes over Composio's **own** WebSocket and forwards to the local ingress, HMAC-signed with the real secret so the true signature path runs | no |
-| ngrok | a real tunnel — pointed at `seaweedfs:8333`, for remote sandbox mounts | yes, wrong target |
+| ngrok | a real tunnel — pointed at `seaweedfs:8333`, for remote sandbox mounts | yes, but only for the store |
 
 The Composio dispatcher describes itself as the `stripe listen` equivalent. Both
 depend on the provider offering a subscribe call. **An arbitrary platform offers
@@ -50,8 +50,8 @@ public URLs.
 - **`/api/` is routed and stripped**, and the api service sets `SCRIPT_NAME=/api`.
 - **No `seaweedfs`, no `ngrok`, no Composio dispatcher.** The store is real S3.
 
-So the tunnel is a development stand-in for a domain, not a permanent fixture of the
-store.
+So the tunnel is a development stand-in for a domain. Production needs none: the store
+is already public and the platform is already on a domain.
 
 ## The API already composes its own public URLs correctly
 
@@ -102,6 +102,6 @@ Correct only while exactly one tunnel exists and it happens to be the store's. A
 second and the runner may hand a sandbox the platform's HTTP API as an object store —
 a failure far from its cause.
 
-**A second consumer is already designed.** The remote-tools-delivery specs propose
-reusing this same agent to publish an MCP server URL into a sandbox. So the collision
-is scheduled, not hypothetical.
+**This stops being hypothetical the moment a second tunnel exists**, which is what this
+work adds. A third is already designed: the remote-tools-delivery specs propose reusing
+this same infrastructure to publish an MCP server URL into a sandbox.

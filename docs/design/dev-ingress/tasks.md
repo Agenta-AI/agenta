@@ -7,45 +7,47 @@ see `specs.md` for why.
 
 ## Code — done
 
-- [x] `ngrok http traefik:80` in `hosting/docker-compose/oss/docker-compose.dev.yml`
-      and the EE twin, with `NGROK_DOMAIN` optional and `depends_on` moved from
-      `seaweedfs` to `traefik`.
+- [x] New `ngrok-api` service in `hosting/docker-compose/oss/docker-compose.dev.yml`
+      and the EE twin, forwarding to `traefik:80`, on the `with-tunnel` profile, gated
+      on `NGROK_AUTHTOKEN`, with `NGROK_API_DOMAIN` optional.
+- [x] **The existing `ngrok` service is byte-for-byte unchanged from `main`.** Verified
+      with `git diff origin/main` — the store tunnel keeps its target, its comments and
+      its `depends_on`.
 - [x] `discoverTunnelEndpoint` takes `storeEndpoint` and matches a tunnel by its
       upstream host and port; returns null when none matches rather than another
       tunnel's URL.
 - [x] Both call sites in `environment.ts` pass the store endpoint they already hold.
 - [x] Three tests: the two-tunnel case picks the store's; no matching tunnel returns
       null; the upstream matches however the agent spells it.
-- [x] `NGROK_AUTHTOKEN` / `NGROK_DOMAIN` documented in both dev env examples, with the
-      store consequence stated.
+- [x] `NGROK_API_DOMAIN` documented in both dev env examples, beside the existing
+      `NGROK_AUTHTOKEN` text, which is left as it was.
+- [x] `docker compose config` validates for both editions with both tunnels defined.
 - [x] `pnpm run typecheck` clean; `pnpm test` 2117 passed. The 19 failures in
       `commit-authorization`, `sandbox-agent-acp-interactions` and `workspace-import`
       are pre-existing — confirmed by running the suite on the base commit with this
       work stashed.
-- [x] `docker compose config` validates for both editions.
 
 ## Deploy and verify — not mine to run
 
-The operator deploys this branch from `main` and checks the following. Each item is
-here because it can fail quietly.
+Each item is here because it can fail quietly.
 
-- [ ] Set `NGROK_AUTHTOKEN`, and `NGROK_DOMAIN` if a reserved domain exists.
+- [ ] Set `NGROK_AUTHTOKEN`, and `NGROK_API_DOMAIN` if a reserved domain exists.
 - [ ] Bring the stack up with the tunnel profile on (it is on by default).
-- [ ] **The tunnel points at the ingress.** `curl https://<tunnel>/api/health` answers
-      from the API. If it answers HTML, it reached `web` and the prefix is wrong.
-- [ ] **The agent API lists one tunnel whose upstream is traefik.** `curl
-      http://localhost:4040/api/tunnels` from inside the network, or read the ngrok
-      log line. The upstream is what the selector now matches on.
-- [ ] **With no token set, nothing is published and the container does not loop.** It
-      should exit 0 once and stay exited.
+- [ ] **Both tunnels come up.** Two agent sessions are needed. If the plan allows only
+      one, the second will fail to start — that is the case to watch for, and the
+      fallback is a single agent with two named endpoints.
+- [ ] **The ingress tunnel reaches the API.** `curl https://<ngrok-api-url>/api/health`
+      answers from the API. If it answers HTML, it reached `web` and the path is wrong.
+- [ ] **The store tunnel still reaches the store**, and the runner still finds it:
+      `curl http://ngrok:4040/api/tunnels` from inside the network lists one tunnel
+      whose upstream is `seaweedfs:8333`.
+- [ ] **A Daytona run with the bundled store still mounts its durable folder.** This is
+      the regression that matters most: it is what the first draft of this change broke.
+      Expect no `mount SKIPPED` warning.
 - [ ] **A local-sandbox agent run still works.** Local sandboxes never tunnelled, so
-      this is the regression check that the compose edit broke nothing else.
-- [ ] **A Daytona run with the bundled store refuses the mount out loud.** Expect the
-      `WARN durable cwd mount SKIPPED` line naming the cause, and the run continuing
-      on throwaway storage. Silence here is the failure, not the refusal.
-- [ ] **A Daytona run with a public store endpoint mounts normally.** Set
-      `AGENTA_STORE_ENDPOINT_URL` to a public store first. This is the path production
-      uses and the one that must keep working.
+      this proves the compose edit broke nothing else.
+- [ ] **With no token set, neither service publishes anything and neither loops.** Each
+      should exit 0 once and stay exited.
 
 ## Then
 
@@ -57,9 +59,9 @@ here because it can fail quietly.
 
 ## Watch for
 
-- **Do not add a second tunnel to this agent without checking the selector.** It is
-  precise now, and that is the only reason a second endpoint is safe. The
-  remote-tools-delivery design wants one.
+- **Do not repoint or remove the store tunnel.** The first draft of this change did,
+  and it silently cost Daytona sandboxes their durable folder. The two tunnels are
+  independent on purpose.
 - **Do not route the store on a subpath.** S3 signatures cover the path, so a stripped
   prefix invalidates every request. The store gets a host, never a prefix.
 - **Do not write a routing rule against a literal bucket name.**
