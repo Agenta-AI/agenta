@@ -96,6 +96,12 @@ export function ScheduleForm({
         playgroundEntityId,
         agentWorkflowId,
     })
+    // Baseline excludes the agent the user picked, or a rebind would move both sides of the
+    // dirty check together and leave Save disabled.
+    const baselineBinding = useTriggerBinding({
+        storedReferences: isEdit ? storedReferences : state?.defaultReferences,
+        playgroundEntityId,
+    })
     const activeBinding = binding ?? resolved
 
     // The bound agent's display name — the drawer title and the Name placeholder both use it.
@@ -139,7 +145,7 @@ export function ScheduleForm({
                 startTime: schedule.data?.start_time ?? null,
                 endTime: schedule.data?.end_time ?? null,
                 enabled: isEntityActive(schedule),
-                binding: bindingKey(resolved),
+                binding: bindingKey(baselineBinding),
                 inputs: normalizeJson(JSON.stringify(schedule.data?.inputs_fields ?? {})),
             })
         }
@@ -149,10 +155,10 @@ export function ScheduleForm({
             startTime: null,
             endTime: null,
             enabled: true,
-            binding: bindingKey(resolved),
+            binding: bindingKey(baselineBinding),
             inputs: normalizeJson("{}"),
         })
-    }, [isEdit, schedule, resolved])
+    }, [isEdit, schedule, baselineBinding])
 
     const isDirty = useMemo(
         () =>

@@ -76,7 +76,12 @@ export default function GatewaySchedulesSection() {
     const handleToggle = useCallback(
         (record: TriggerSchedule) => async (next: boolean) => {
             if (!record.id) return
-            await setActive(record.id, next)
+            try {
+                await setActive(record.id, next)
+                message.success(next ? "Schedule resumed" : "Schedule paused")
+            } catch {
+                message.error(next ? "Failed to resume schedule" : "Failed to pause schedule")
+            }
         },
         [setActive],
     )
@@ -218,14 +223,14 @@ export default function GatewaySchedulesSection() {
                         label: "Pause",
                         icon: <Pause size={16} />,
                         hidden: (record: ScheduleRow) => !isEntityActive(record),
-                        onClick: (record: ScheduleRow) => handleToggle(record)(false),
+                        onClick: (record: ScheduleRow) => void handleToggle(record)(false),
                     },
                     {
                         key: "resume",
                         label: "Resume",
                         icon: <Play size={16} />,
                         hidden: (record: ScheduleRow) => isEntityActive(record),
-                        onClick: (record: ScheduleRow) => handleToggle(record)(true),
+                        onClick: (record: ScheduleRow) => void handleToggle(record)(true),
                     },
                     {type: "divider"},
                     {

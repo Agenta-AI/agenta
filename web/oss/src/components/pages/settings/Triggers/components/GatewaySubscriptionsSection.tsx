@@ -114,7 +114,14 @@ export default function GatewaySubscriptionsSection() {
     const handleToggle = useCallback(
         (record: TriggerSubscription) => async (next: boolean) => {
             if (!record.id) return
-            await setActive(record.id, next)
+            try {
+                await setActive(record.id, next)
+                message.success(next ? "Subscription resumed" : "Subscription paused")
+            } catch {
+                message.error(
+                    next ? "Failed to resume subscription" : "Failed to pause subscription",
+                )
+            }
         },
         [setActive],
     )
@@ -192,7 +199,7 @@ export default function GatewaySubscriptionsSection() {
                                 <Tag
                                     bordered={false}
                                     color="default"
-                                    className="inline-block max-w-full truncate bg-[var(--ag-c-0517290F)] px-2 py-[1px] align-middle"
+                                    className="inline-block max-w-full truncate bg-[var(--ag-colorFillSecondary)] px-2 py-[1px] align-middle"
                                 >
                                     {key}
                                 </Tag>
@@ -254,14 +261,14 @@ export default function GatewaySubscriptionsSection() {
                             label: "Pause",
                             icon: <Pause size={16} />,
                             hidden: (record: SubscriptionRow) => !isEntityActive(record),
-                            onClick: (record: SubscriptionRow) => handleToggle(record)(false),
+                            onClick: (record: SubscriptionRow) => void handleToggle(record)(false),
                         },
                         {
                             key: "resume",
                             label: "Resume",
                             icon: <Play size={16} />,
                             hidden: (record: SubscriptionRow) => isEntityActive(record),
-                            onClick: (record: SubscriptionRow) => handleToggle(record)(true),
+                            onClick: (record: SubscriptionRow) => void handleToggle(record)(true),
                         },
                         {
                             key: "refresh",

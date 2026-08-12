@@ -1,5 +1,5 @@
 /** One schedule row in the Triggers section: cadence subtitle + a version-drift tag. */
-import {useMemo, type ReactNode} from "react"
+import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     describeCron,
@@ -17,12 +17,13 @@ function formatCountdown(cron?: string): string | null {
     if (!cron) return null
     const [next] = nextCronRuns(cron, 1)
     if (!next) return null
-    const mins = Math.round((next.getTime() - Date.now()) / 60000)
+    const mins = Math.floor((next.getTime() - Date.now()) / 60000)
     if (mins <= 0) return null
     if (mins < 60) return `next in ${mins}m`
-    const hours = Math.round(mins / 60)
+    // Floor, not round: 90 minutes is "next in 1h", never "2h" — the value must not overstate.
+    const hours = Math.floor(mins / 60)
     if (hours < 24) return `next in ${hours}h`
-    return `next in ${Math.round(hours / 24)}d`
+    return `next in ${Math.floor(hours / 24)}d`
 }
 
 export function ScheduleTriggerRow({
@@ -44,7 +45,15 @@ export function ScheduleTriggerRow({
     // Subtitle answers "when does this run?" — the cadence plus the next fire. Both parse the
     // cron, so memoize on it; the countdown bucket needn't track unrelated re-renders.
     const cadence = useMemo(() => (cron ? describeCron(cron) : "No schedule set"), [cron])
-    const next = useMemo(() => formatCountdown(cron), [cron])
+    // The section stays mounted for long sessions, so a mount-time countdown goes stale and can
+    // claim a run is upcoming after it already fired. One coarse tick per minute keeps it honest.
+    const [tick, setTick] = useState(0)
+    useEffect(() => {
+        if (!cron) return undefined
+        const id = setInterval(() => setTick((t) => t + 1), 60_000)
+        return () => clearInterval(id)
+    }, [cron])
+    const next = useMemo(() => formatCountdown(cron), [cron, tick])
     const driftTag = useDriftTag(record.data?.references, entityId)
 
     return (

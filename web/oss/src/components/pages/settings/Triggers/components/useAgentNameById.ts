@@ -14,7 +14,9 @@ export function useAgentNameById(): Map<string, string> {
         const byId = new Map<string, string>()
         workflows.data.forEach((w) => {
             const id = w.id as string | undefined
-            if (id) byId.set(id, w.name?.trim() || w.slug?.trim() || "")
+            // Omit rather than store "": `?? "Unknown"` at a call site won't replace an empty string.
+            const name = w.name?.trim() || w.slug?.trim()
+            if (id && name) byId.set(id, name)
         })
         return byId
     }, [workflows.data])

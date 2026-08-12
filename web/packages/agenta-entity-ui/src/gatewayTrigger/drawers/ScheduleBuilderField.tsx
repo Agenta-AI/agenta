@@ -67,7 +67,11 @@ function fmtTime(t: CronTimeOfDay): string {
 function parseTime(v: string): CronTimeOfDay | null {
     const m = /^(\d{2}):(\d{2})$/.exec(v)
     if (!m) return null
-    return {hour: Number(m[1]), minute: Number(m[2])}
+    const hour = Number(m[1])
+    const minute = Number(m[2])
+    // "99:99" matches the shape but is not a time; a bad cron field would reach the backend.
+    if (hour > 23 || minute > 59) return null
+    return {hour, minute}
 }
 
 function sortTimes(times: CronTimeOfDay[]): CronTimeOfDay[] {
@@ -356,8 +360,10 @@ function TimesField({
         <div className="flex flex-col gap-1.5">
             <FieldLabel>Time (UTC)</FieldLabel>
             <div className="flex flex-wrap items-center gap-1.5">
+                {/* Keyed by index, not by the time: a value key remounts the picker on every
+                    accepted edit, which drops focus mid-typing. */}
                 {sorted.map((t, i) => (
-                    <span key={fmtTime(t)} className="flex items-center">
+                    <span key={i} className="flex items-center">
                         <TimePicker
                             step={300}
                             value={fmtTime(t)}

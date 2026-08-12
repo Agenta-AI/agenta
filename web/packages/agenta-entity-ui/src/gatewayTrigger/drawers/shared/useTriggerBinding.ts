@@ -130,10 +130,13 @@ export function useTriggerBinding({
     playgroundEntityId?: string
     agentWorkflowId?: string | null
 }): TriggerBinding {
-    const stored = useMemo(
-        () => (storedReferences ? parseStoredBinding(storedReferences) : null),
-        [storedReferences],
-    )
+    // `{}` is truthy but names nothing; treating it as stored would strand the create paths
+    // on an all-null binding the version picker can't resolve.
+    const stored = useMemo(() => {
+        if (!storedReferences || Object.keys(storedReferences).length === 0) return null
+        const parsed = parseStoredBinding(storedReferences)
+        return parsed.workflowId || parsed.variantId || parsed.revisionId ? parsed : null
+    }, [storedReferences])
 
     // A pinned reference carries the revision id; its variant lives on the revision entity.
     const pinnedRevision = useAtomValue(
@@ -145,14 +148,33 @@ export function useTriggerBinding({
         workflowMolecule.selectors.data(playgroundEntityId ?? ""),
     ) as {workflow_variant_id?: string | null; workflow_id?: string | null} | null
 
+    // The user picked a different agent than the stored one: the stored variant/revision belong
+    // to the old agent, so the binding starts over on the new one.
+    const rebound =
+        !!agentWorkflowId && !!stored?.workflowId && agentWorkflowId !== stored.workflowId
+
+    // Must follow the rebind, or the single-variant fallback below would pick the OLD agent's
+    // variant and bind the new agent to a foreign one.
     const variants = useAtomValue(
         workflowVariantsListQueryStateAtomFamily(
-            stored?.workflowId ?? agentWorkflowId ?? playgroundRevision?.workflow_id ?? "",
+            rebound
+                ? agentWorkflowId
+                : (stored?.workflowId ?? agentWorkflowId ?? playgroundRevision?.workflow_id ?? ""),
         ),
     )
 
     return useMemo(() => {
         if (stored) {
+            if (rebound) {
+                const only = variants.data.length === 1 ? variants.data[0] : null
+                return {
+                    mode: "latest",
+                    workflowId: agentWorkflowId,
+                    variantId: only?.id ?? null,
+                    revisionId: null,
+                    family: stored.family,
+                }
+            }
             return {
                 ...stored,
                 // A variant-only binding names no artifact, and without one the version list has
@@ -184,7 +206,15 @@ export function useTriggerBinding({
             revisionId: null,
             family: "application",
         }
-    }, [stored, pinnedRevision, playgroundEntityId, playgroundRevision, agentWorkflowId, variants])
+    }, [
+        stored,
+        rebound,
+        pinnedRevision,
+        playgroundEntityId,
+        playgroundRevision,
+        agentWorkflowId,
+        variants,
+    ])
 }
 
 /** The revision row a binding points at: the pinned one, else the variant's newest. */

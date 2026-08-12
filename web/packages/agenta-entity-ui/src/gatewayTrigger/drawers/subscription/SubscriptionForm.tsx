@@ -127,6 +127,12 @@ export function SubscriptionForm({
         playgroundEntityId,
         agentWorkflowId,
     })
+    // Baseline excludes the agent the user picked, or a rebind would move both sides of the
+    // dirty check together and leave Save disabled.
+    const baselineBinding = useTriggerBinding({
+        storedReferences: isEdit ? storedReferences : state?.defaultReferences,
+        playgroundEntityId,
+    })
     const activeBinding = binding ?? resolved
     const versionChosen = !!activeBinding.workflowId || !!activeBinding.variantId
 
@@ -206,7 +212,7 @@ export function SubscriptionForm({
                 connectionId: subscription.connection_id ?? null,
                 eventKey: subscription.data?.event_key ?? "",
                 enabled: isEntityActive(subscription),
-                binding: bindingKey(resolved),
+                binding: bindingKey(baselineBinding),
                 inputs: subscription.data?.inputs_fields
                     ? JSON.stringify(subscription.data.inputs_fields)
                     : normalizeJson(DEFAULT_INPUTS_MAPPING),
@@ -217,10 +223,10 @@ export function SubscriptionForm({
             connectionId: state?.connectionId ?? null,
             eventKey: state?.eventKey ?? "",
             enabled: true,
-            binding: bindingKey(resolved),
+            binding: bindingKey(baselineBinding),
             inputs: normalizeJson(DEFAULT_INPUTS_MAPPING),
         })
-    }, [isEdit, subscription, state?.connectionId, state?.eventKey, resolved])
+    }, [isEdit, subscription, state?.connectionId, state?.eventKey, baselineBinding])
 
     const isDirty = useMemo(
         () =>
