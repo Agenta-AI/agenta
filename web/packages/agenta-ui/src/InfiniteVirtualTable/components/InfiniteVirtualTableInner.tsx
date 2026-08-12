@@ -796,6 +796,9 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                                         : undefined
                                 }
                                 enableColumnResizing={resizableEnabled}
+                                // antd's table stretches columns to fill the container; without
+                                // this the tanstack engine would leave the surplus unused.
+                                autoLayout
                                 {...(virtualSelection ?? {})}
                                 {...(expandable
                                     ? {
