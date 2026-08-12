@@ -1,5 +1,6 @@
 import type {CSSProperties, Key, ReactNode, UIEvent} from "react"
 import {
+    Fragment,
     isValidElement,
     useCallback,
     useEffect,
@@ -433,15 +434,21 @@ export const VirtualTable = <RecordType extends object>({
                                                 ...props.style,
                                             }}
                                         >
-                                            {header.isPlaceholder
-                                                ? null
-                                                : flexRender(
-                                                      header.column.columnDef.header,
-                                                      header.getContext(),
-                                                  )}
+                                            {/* flexRender returns an UNKEYED element, and these
+                                                siblings form a child array React validates, so
+                                                the wrapper carries the key. */}
+                                            {header.isPlaceholder ? null : (
+                                                <Fragment key="content">
+                                                    {flexRender(
+                                                        header.column.columnDef.header,
+                                                        header.getContext(),
+                                                    )}
+                                                </Fragment>
+                                            )}
                                             {enableColumnResizing &&
                                             header.column.getCanResize() ? (
                                                 <span
+                                                    key="resize"
                                                     role="separator"
                                                     aria-orientation="vertical"
                                                     aria-label={`Resize ${header.column.id}`}
