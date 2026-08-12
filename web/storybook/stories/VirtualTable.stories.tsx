@@ -1,7 +1,12 @@
 import type {Key} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {VirtualTable, useVirtualTableRowSelection, type ColumnDefs} from "@agenta/ui/table"
+import {
+    InfiniteVirtualTable,
+    VirtualTable,
+    useVirtualTableRowSelection,
+    type ColumnDefs,
+} from "@agenta/ui/table"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Table as AntTable} from "antd"
 
@@ -652,3 +657,35 @@ const AntdComparisonDemo = () => {
 }
 
 export const AntdComparison: Story = {render: () => <AntdComparisonDemo />}
+
+/**
+ * The wrapper swap: the SAME `InfiniteVirtualTable` API, rendered by each engine.
+ *
+ * `engine="tanstack"` puts VirtualTable behind the public component, so the ~80 existing call
+ * sites move over one at a time by flipping one prop rather than being rewritten. Both tables
+ * below get identical props; differences here are regressions.
+ */
+const EngineSwapDemo = () => {
+    const rows = useMemo(() => makeRows(12), [])
+    const common = {
+        columns: baseColumns,
+        dataSource: rows,
+        rowKey: "key" as const,
+        bodyHeight: 300,
+    }
+    return (
+        <div className="flex flex-col gap-4">
+            <Note>
+                Top: engine=&quot;antd&quot; (shipping). Bottom: engine=&quot;tanstack&quot;.
+            </Note>
+            <div data-engine="antd" className="h-[340px]">
+                <InfiniteVirtualTable<Row> {...common} engine="antd" />
+            </div>
+            <div data-engine="tanstack" className="h-[340px]">
+                <InfiniteVirtualTable<Row> {...common} engine="tanstack" />
+            </div>
+        </div>
+    )
+}
+
+export const EngineSwap: Story = {render: () => <EngineSwapDemo />}

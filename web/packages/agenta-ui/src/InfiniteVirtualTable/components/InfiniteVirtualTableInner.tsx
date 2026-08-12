@@ -39,6 +39,7 @@ import {shouldIgnoreRowClick} from "../hooks/useTableManager"
 import useTableRowSelection from "../hooks/useTableRowSelection"
 import {useTypeChipColumns} from "../hooks/useTypeChipColumns"
 import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
+import useVirtualTableRowSelection from "../hooks/useVirtualTableRowSelection"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
 import {ANTD_SELECTOR, AVT, stampTableDom} from "../tableDom"
 import type {InfiniteVirtualTableProps} from "../types"
@@ -48,6 +49,8 @@ import {
     mergeHandlers,
     shallowEqual,
 } from "../utils/columnUtils"
+
+import {VirtualTable} from "./VirtualTable"
 
 const scopeUsageCounts = new Map<string, number>()
 
@@ -65,6 +68,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     scrollThreshold = 300,
     containerClassName,
     tableClassName,
+    engine = "antd",
     tableProps,
     rowSelection,
     resizableColumns,
@@ -352,6 +356,24 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         [finalColumns, getTotalWidth],
     )
     const computedScrollX = computedTotalWidth + selectionColumnWidth
+
+    // Row heights are measured after mount, so this is only the virtualizer's first guess.
+    const ENGINE_ROW_HEIGHT = 48
+
+    // antd accepts a string key or a function; VirtualTable takes a function.
+    const resolveRowKey = useCallback(
+        (record: RecordType, index: number) =>
+            typeof rowKey === "function"
+                ? rowKey(record, index)
+                : ((record as Record<string, Key>)[rowKey as string] ?? index),
+        [rowKey],
+    )
+
+    const virtualSelection = useVirtualTableRowSelection<RecordType>({
+        rowSelection,
+        dataSource,
+        rowKey: resolveRowKey,
+    })
 
     const resolvedTableProps = useMemo<TableProps<RecordType>>(
         () => tableProps ?? ({} as TableProps<RecordType>),
@@ -675,6 +697,12 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     })
 
     // Build expandable prop for Ant Design Table
+    // antd tracks expansion as a key list; TanStack as a record.
+    const virtualExpandedState = useMemo(() => {
+        const keys = expandableConfig.expandedRowKeys ?? []
+        return Object.fromEntries(keys.map((key: Key) => [String(key), true]))
+    }, [expandableConfig.expandedRowKeys])
+
     const tableExpandable = useMemo(() => {
         if (!expandable) return undefined
         return {
@@ -749,24 +777,54 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                             containerClassName,
                         )}
                     >
-                        <Table<RecordType>
-                            ref={tableComponentRef}
-                            className={tableClassName}
-                            columns={toAntdColumns(finalColumns)}
-                            dataSource={dataSource}
-                            rowKey={rowKey}
-                            pagination={false}
-                            onScroll={handleScroll}
-                            rowSelection={tableRowSelection}
-                            expandable={tableExpandable}
-                            {...tablePropsWithShortcuts}
-                            rowClassName={rowClassName}
-                            scroll={{
-                                x: scrollConfig.x,
-                                y: scrollConfig.y,
-                            }}
-                            virtual
-                        />
+                        {engine === "tanstack" ? (
+                            <VirtualTable<RecordType>
+                                className={tableClassName}
+                                columns={finalColumns}
+                                dataSource={dataSource}
+                                rowKey={resolveRowKey}
+                                rowHeight={ENGINE_ROW_HEIGHT}
+                                height={
+                                    typeof scrollConfig.y === "number" ? scrollConfig.y : undefined
+                                }
+                                loadMore={loadMore}
+                                scrollThreshold={scrollThreshold}
+                                rowClassName={
+                                    // antd's RowClassName takes (record, index, indent).
+                                    typeof rowClassName === "function"
+                                        ? (record, index) => rowClassName(record, index, 0)
+                                        : undefined
+                                }
+                                enableColumnResizing={resizableEnabled}
+                                {...(virtualSelection ?? {})}
+                                {...(expandable
+                                    ? {
+                                          expanded: virtualExpandedState,
+                                          renderExpandedRow: (record) =>
+                                              expandableConfig.expandedRowRender?.(record),
+                                      }
+                                    : {})}
+                            />
+                        ) : (
+                            <Table<RecordType>
+                                ref={tableComponentRef}
+                                className={tableClassName}
+                                columns={toAntdColumns(finalColumns)}
+                                dataSource={dataSource}
+                                rowKey={rowKey}
+                                pagination={false}
+                                onScroll={handleScroll}
+                                rowSelection={tableRowSelection}
+                                expandable={tableExpandable}
+                                {...tablePropsWithShortcuts}
+                                rowClassName={rowClassName}
+                                scroll={{
+                                    x: scrollConfig.x,
+                                    y: scrollConfig.y,
+                                }}
+                                virtual
+                            />
+                        )}
                     </div>
                 </ColumnVisibilityFlagProvider>
             </ColumnVisibilityProvider>
