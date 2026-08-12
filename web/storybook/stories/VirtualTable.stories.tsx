@@ -792,3 +792,37 @@ const KitchenSinkDemo = () => {
 }
 
 export const KitchenSink: Story = {render: () => <KitchenSinkDemo />}
+
+/**
+ * `typeChips` on both engines. It rewrites each column's `title` to carry a type chip, and
+ * that rewrite happens on the shared columns before either engine renders, so both should
+ * show the same chips. This story is the check on that reasoning.
+ */
+const TypeChipsDemo = () => {
+    const rows = useMemo(() => makeRows(10), [])
+    const getRowValue = useCallback(
+        (record: Row, columnKey: string) =>
+            (record as unknown as Record<string, unknown>)[columnKey],
+        [],
+    )
+    const common = {
+        columns: baseColumns,
+        dataSource: rows,
+        rowKey: "key" as const,
+        bodyHeight: 240,
+        typeChips: {getRowValue},
+    }
+    return (
+        <div className="flex flex-col gap-4">
+            <Note>Both engines should render the same type chips in their headers.</Note>
+            <div data-engine="antd" className="h-[280px]">
+                <InfiniteVirtualTable<Row> {...common} engine="antd" />
+            </div>
+            <div data-engine="tanstack" className="h-[280px]">
+                <InfiniteVirtualTable<Row> {...common} engine="tanstack" />
+            </div>
+        </div>
+    )
+}
+
+export const TypeChips: Story = {render: () => <TypeChipsDemo />}
