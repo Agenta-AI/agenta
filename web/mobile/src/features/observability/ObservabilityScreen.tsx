@@ -1,7 +1,8 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useObservability, useSessions} from "@agenta/observability"
 import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
+import {useIsNarrowScreen} from "@agenta/ui/hooks"
 import {Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -13,6 +14,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 
 import {SessionsList} from "./SessionsList"
 import {TracesList} from "./TracesList"
+import {TracesTable} from "./TracesTable"
 
 type ObservabilityTab = "traces" | "sessions"
 
@@ -41,6 +43,19 @@ export const ObservabilityScreen = ({
     // No scope binding: the seam's own defaults are project-wide with no workflow, which is
     // exactly this screen. Binding would only re-state them.
 
+    const isNarrow = useIsNarrowScreen()
+    const bodyRef = useRef<HTMLDivElement | null>(null)
+    const [bodyHeight, setBodyHeight] = useState(0)
+
+    // The windowed table needs a real viewport height, not a flex-derived one.
+    useEffect(() => {
+        const node = bodyRef.current
+        if (!node || typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(([entry]) => setBodyHeight(entry.contentRect.height))
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [])
+
     const {fetchTraces} = useObservability()
     const {refetchSessions} = useSessions()
 
@@ -55,6 +70,7 @@ export const ObservabilityScreen = ({
             <PageTitle title="Observability" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
+                    fill
                     header={
                         <div className="flex flex-col gap-3 px-4 py-3 lg:px-6">
                             <div className="flex items-center gap-2">
@@ -84,10 +100,23 @@ export const ObservabilityScreen = ({
                         </div>
                     }
                 >
-                    {/* Full content width, left-aligned: the desktop app runs its table edge to
-                        edge, and centring the column here would read as a different page. */}
-                    <div className="w-full pb-6">
-                        {tab === "traces" ? <TracesList /> : <SessionsList />}
+                    {/* The desktop app shows a table, so at lg+ so does this. Below lg the same
+                        rows stack, which is the only presentation that fits a phone. */}
+                    <div
+                        ref={bodyRef}
+                        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+                    >
+                        {tab === "sessions" ? (
+                            <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+                                <SessionsList />
+                            </div>
+                        ) : isNarrow || !bodyHeight ? (
+                            <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+                                <TracesList />
+                            </div>
+                        ) : (
+                            <TracesTable height={bodyHeight} />
+                        )}
                     </div>
                 </ScreenScaffold>
             </AppShell>

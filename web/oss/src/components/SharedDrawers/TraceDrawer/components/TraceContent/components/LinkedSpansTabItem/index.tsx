@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {getObservabilityColumns} from "@agenta/observability-ui"
 import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {InfiniteVirtualTable} from "@agenta/ui/table"
 import type {InfiniteTableRowBase} from "@agenta/ui/table"
@@ -7,7 +8,6 @@ import type {ColumnDefs} from "@agenta/ui/table"
 import {Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 import {
     LinkedSpanRow,
     linkedSpansAtom,

@@ -17,6 +17,7 @@ export const AVT = {
     row: "avt-row",
     cell: "avt-cell",
     headerCell: "avt-head-cell",
+    selectionCol: "avt-selection-col",
 } as const
 
 export type AvtClass = (typeof AVT)[keyof typeof AVT]

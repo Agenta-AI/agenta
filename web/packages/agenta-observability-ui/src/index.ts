@@ -131,3 +131,8 @@ export {
 // ============================================================================
 export {TraceRow, type TraceRowProps, type TraceRowMetrics} from "./trace/TraceRow"
 export {ObservabilityList, type ObservabilityListProps} from "./list/ObservabilityList"
+export {
+    getObservabilityColumns,
+    getDefaultHiddenObservabilityColumnKeys,
+    type TraceRow as ObservabilityTraceRow,
+} from "./columns/getObservabilityColumns"

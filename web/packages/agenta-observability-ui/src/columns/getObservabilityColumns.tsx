@@ -7,21 +7,20 @@ import {
     getTraceInputs,
     getTraceOutputs,
 } from "@agenta/observability"
-import {CostCell} from "@agenta/observability-ui"
-import {DurationCell} from "@agenta/observability-ui"
-import {NodeNameCell} from "@agenta/observability-ui"
-import {SpanIdChip} from "@agenta/observability-ui"
-import {StatusRenderer} from "@agenta/observability-ui"
-import {TimestampCell} from "@agenta/observability-ui"
-import {UsageCell} from "@agenta/observability-ui"
+import type {TraceSpanNode} from "@agenta/observability"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ColumnVisibilityMenuTrigger, type ColumnDefs, type ExtendedColumn} from "@agenta/ui/table"
 
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-
-import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"
+import {CostCell} from "../cells/CostCell"
+import {DurationCell} from "../cells/DurationCell"
+import EvaluatorMetricsCell from "../cells/EvaluatorMetricsCell"
+import {NodeNameCell} from "../cells/NodeNameCell"
+import {SpanIdChip} from "../cells/SpanIdChip"
+import {StatusRenderer} from "../cells/StatusRenderer"
+import {TimestampCell} from "../cells/TimestampCell"
+import {UsageCell} from "../cells/UsageCell"
 
 interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]
