@@ -12,6 +12,7 @@ import {useVirtualizer} from "@tanstack/react-virtual"
 
 import {cn} from "../../utils/styles"
 import type {ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
+import useInfiniteScroll from "../hooks/useInfiniteScroll"
 import {AVT} from "../tableDom"
 import {sourceOf, toTanstackColumns} from "../tanstackColumns"
 
@@ -40,6 +41,10 @@ export interface VirtualTableProps<RecordType extends object> {
     /** Body viewport height. Without it the body fills its flex parent instead. */
     height?: number
     overscan?: number
+    /** Called when the body scrolls within `scrollThreshold` of the bottom. */
+    loadMore?: () => void
+    /** Distance from the bottom, in px, that triggers `loadMore`. */
+    scrollThreshold?: number
     onScroll?: (event: UIEvent<HTMLDivElement>) => void
     rowClassName?: (record: RecordType, index: number) => string
     onRow?: (
@@ -84,6 +89,8 @@ export const VirtualTable = <RecordType extends object>({
     rowHeight,
     height,
     overscan = 8,
+    loadMore,
+    scrollThreshold = 300,
     onScroll,
     rowClassName,
     onRow,
@@ -174,15 +181,23 @@ export const VirtualTable = <RecordType extends object>({
         [stickyOffsets],
     )
 
+    // RAF-throttled bottom detection; a no-op loadMore keeps the hook order stable.
+    const noopLoadMore = useCallback(() => undefined, [])
+    const handleInfiniteScroll = useInfiniteScroll({
+        loadMore: loadMore ?? noopLoadMore,
+        scrollThreshold,
+    })
+
     // The header is a separate table, so it has to track the body's horizontal scroll.
     const handleScroll = useCallback(
         (event: UIEvent<HTMLDivElement>) => {
             if (headerScrollRef.current) {
                 headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft
             }
+            if (loadMore) handleInfiniteScroll(event)
             onScroll?.(event)
         },
-        [onScroll],
+        [onScroll, loadMore, handleInfiniteScroll],
     )
 
     const colGroup = (

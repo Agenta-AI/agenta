@@ -28,7 +28,7 @@ export const TracesTable = ({height}: {height: number}) => {
             columns={columns}
             dataSource={traces as ObservabilityTraceRow[]}
             rowKey={(row, index) => row.key ?? row.span_id ?? index}
-            rowHeight={128}
+            rowHeight={ROW_HEIGHT}
             height={height}
             emptyText={<ObservabilityEmpty />}
             onScroll={(event) => {

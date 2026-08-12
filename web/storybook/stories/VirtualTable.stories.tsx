@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useMemo, useRef, useState} from "react"
 
 import {VirtualTable, type ColumnDefs} from "@agenta/ui/table"
 import type {Meta, StoryObj} from "@storybook/nextjs"
@@ -42,8 +42,8 @@ interface Row {
     note: string
 }
 
-const makeRows = (count: number): Row[] =>
-    Array.from({length: count}, (_, i) => ({
+const makeRows = (count: number, offset = 0): Row[] =>
+    Array.from({length: count}, (_, index) => index + offset).map((i) => ({
         key: `row-${i}`,
         id: `span-${String(i).padStart(5, "0")}`,
         name: i % 7 === 0 ? `a much longer span name that should truncate — ${i}` : `span ${i}`,
@@ -110,6 +110,51 @@ const WindowingDemo = () => {
 }
 
 export const Windowing: Story = {render: () => <WindowingDemo />}
+
+/**
+ * Infinite loading. `loadMore` fires when the body scrolls within `scrollThreshold` px of the
+ * bottom, RAF-throttled so it costs nothing during a fast flick. This is what the observability
+ * traces list runs on: a page arrives, rows append, the next page loads as you keep scrolling.
+ */
+const InfiniteLoadingDemo = () => {
+    const PAGE = 25
+    const [rows, setRows] = useState(() => makeRows(PAGE))
+    const [pages, setPages] = useState(1)
+    const loading = useRef(false)
+
+    const loadMore = () => {
+        if (loading.current || rows.length >= 200) return
+        loading.current = true
+        // A real fetch is async; the timeout stands in for it and proves we don't re-enter.
+        setTimeout(() => {
+            setRows((prev) => [...prev, ...makeRows(PAGE, prev.length)])
+            setPages((p) => p + 1)
+            loading.current = false
+        }, 300)
+    }
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Note>
+                Scroll to the bottom: pages append until 200 rows. Loaded {rows.length} rows over{" "}
+                {pages} page{pages === 1 ? "" : "s"}.
+            </Note>
+            <Frame>
+                <VirtualTable<Row>
+                    columns={baseColumns}
+                    dataSource={rows}
+                    rowKey={(row) => row.key}
+                    rowHeight={48}
+                    height={420}
+                    loadMore={loadMore}
+                    scrollThreshold={300}
+                />
+            </Frame>
+        </div>
+    )
+}
+
+export const InfiniteLoading: Story = {render: () => <InfiniteLoadingDemo />}
 
 /** Left- and right-pinned columns must stay put and not overlap while scrolling sideways. */
 const stickyColumns: ColumnDefs<Row> = [
