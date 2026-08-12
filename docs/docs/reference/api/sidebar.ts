@@ -2676,6 +2676,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/watch-project",
+          label: "Watch Project",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "reference/api/create-interaction",
           label: "Create Interaction",
           className: "api-method post",
