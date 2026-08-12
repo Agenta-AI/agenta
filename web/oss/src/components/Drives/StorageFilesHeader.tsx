@@ -2,21 +2,20 @@
  * StorageFilesHeader — the right-side content of the config panel's "Files" header bar.
  *
  * Mirrors the sibling Triggers header's count, and doubles as the "browse all" entry: clicking it
- * opens the chat's docked Files pane at the tree root (the body's rows open the same pane
- * preselected on a file). Slotted into the entity-ui `AgentOperationsSections` header by the app
- * layer, which owns the chat session state that package can't reach.
+ * opens the overlay Files DRAWER (the body's rows open the docked pane on one file instead).
+ * Slotted into the entity-ui `AgentOperationsSections` header by the app layer, which owns the
+ * chat session state that package can't reach.
  */
 import {CircleNotch, FolderOpen} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
+import {useSetAtom} from "jotai"
 
-import {useConfigDrive} from "./configDrive"
+import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "./configDrive"
 import {DriveWarningBadge, FOCUS_RING} from "./DriveFileRow"
-import {useSessionFilesPane} from "./SessionFilesPane"
 
 export default function StorageFilesHeader({revisionId}: {revisionId?: string | null}) {
-    const {drive, sessionId} = useConfigDrive(revisionId)
-    // A toggle, not just an opener: clicking "N files" tucks the pane away again if it is open.
-    const {open: paneOpen, toggle: togglePane} = useSessionFilesPane(sessionId)
+    const {drive} = useConfigDrive(revisionId)
+    const setDrawerOpen = useSetAtom(configFilesDrawerOpenAtomFamily(revisionId ?? ""))
 
     if (drive.isLoading) {
         return <Skeleton.Button active size="small" style={{width: 44, height: 14}} />
@@ -39,10 +38,9 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
             return (
                 <button
                     type="button"
-                    aria-expanded={paneOpen}
                     onClick={(e) => {
                         e.currentTarget.blur()
-                        togglePane()
+                        setDrawerOpen(true)
                     }}
                     className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
                 >
@@ -59,12 +57,11 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
     return (
         <button
             type="button"
-            aria-expanded={paneOpen}
             // Blur on open so the drawer's ESC-close doesn't restore a (keyboard-modality) focus ring
             // to this trigger. Genuine Tab focus still shows the ring via FOCUS_RING.
             onClick={(e) => {
                 e.currentTarget.blur()
-                togglePane()
+                setDrawerOpen(true)
             }}
             className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
         >

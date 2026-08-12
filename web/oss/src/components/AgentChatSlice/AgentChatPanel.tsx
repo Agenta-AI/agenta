@@ -152,6 +152,22 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // DriveSessionProvider needs it here because it sits OUTSIDE the per-tab conversations.
     const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
 
+    // Config pane and Files pane are mutually exclusive: opening one collapses the other, so the
+    // transcript always keeps room. Transition-edge effects (prev refs), not state syncs — each
+    // watches only the flip that should evict the other, so they can't ping-pong.
+    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const prevFilesOpenRef = useRef(filesPane.open)
+    useEffect(() => {
+        if (filesPane.open && !prevFilesOpenRef.current) setConfigPanelCollapsed(true)
+        prevFilesOpenRef.current = filesPane.open
+    }, [filesPane.open, setConfigPanelCollapsed])
+    const closeFilesPane = filesPane.close
+    const prevConfigCollapsedRef = useRef(configPanelCollapsed)
+    useEffect(() => {
+        if (!configPanelCollapsed && prevConfigCollapsedRef.current) closeFilesPane()
+        prevConfigCollapsedRef.current = configPanelCollapsed
+    }, [configPanelCollapsed, closeFilesPane])
+
     // A trigger test asks for a fresh session: create + activate one, then clear the flag so the
     // new session's conversation consumes the turn (the per-session consumer skips flagged runs).
     const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))

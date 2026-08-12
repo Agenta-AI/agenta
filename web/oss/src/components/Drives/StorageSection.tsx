@@ -8,19 +8,23 @@
  * agent's durable folder is a subfolder of this working folder, so it needs no separate drive
  * here. Lives in the app layer because it reads the chat slice's session state.
  */
+import {useMemo} from "react"
+
 import {CircleNotch} from "@phosphor-icons/react"
 import {Typography} from "antd"
-import {useSetAtom} from "jotai"
+import {useAtom, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
 
-import {useConfigDrive} from "./configDrive"
+import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "./configDrive"
+import {type DriveId} from "./DriveExplorer"
 import {DriveFileRow, DriveRetryButton, SKELETON_ROW_COUNT} from "./DriveFileRow"
 import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
 import {listArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {humanSize, relativeTime} from "./driveTree"
+import {FilesDrawer} from "./FilesDrawer"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {filesDrawerStagedAtomFamily} from "./SessionFilesDrawer"
@@ -77,15 +81,16 @@ const RecentFileRow = ({
 
 export default function StorageSection({revisionId}: {revisionId?: string | null}) {
     const {drive, sessionId} = useConfigDrive(revisionId)
-    // Openers land in the chat's DOCKED Files pane (the same state every chat opener drives):
-    // rows preselect the clicked file, the header opens the root.
+    // A row opens the chat's DOCKED pane on that file with the tree collapsed; the header's icon
+    // opens the browse-all DRAWER instead (see StorageFilesHeader).
     const {openPane: openPaneRoot} = useSessionFilesPane(sessionId)
     const setQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
     const setPaneStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
+    const [drawerOpen, setDrawerOpen] = useAtom(configFilesDrawerOpenAtomFamily(revisionId ?? ""))
     const openPane = (initialPath: string | null) => {
         // No resolved session id → the per-session quick-look atom is not the one the docked
         // pane reads, so open at the root instead of writing into an orphaned bucket.
-        if (initialPath && sessionId) setQuickLook({path: initialPath})
+        if (initialPath && sessionId) setQuickLook({path: initialPath, hideTree: true})
         else openPaneRoot()
     }
     // Drop-to-stage: a file drag over the Files peek opens the pane with the files staged, so the
@@ -97,6 +102,15 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
     )
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)
+    // Raw ids for the drawer header's overflow menu (the drive id + the session it belongs to).
+    const driveIds = useMemo(
+        () =>
+            [
+                drive.mount?.id ? {key: "mount", label: "Drive ID", value: drive.mount.id} : null,
+                sessionId ? {key: "owner", label: "Session ID", value: sessionId} : null,
+            ].filter(Boolean) as DriveId[],
+        [drive.mount?.id, sessionId],
+    )
 
     const now = useRecentChangeClock(drive.lastTouchedAt)
     // Render the drive's canonical recents verbatim (no local filtering) so the config Files list and
@@ -233,6 +247,15 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                     )}
                 </motion.div>
             </AnimatePresence>
+
+            {/* Browse-all overlay drawer — the Files header's icon opens it (rows use the pane). */}
+            <FilesDrawer
+                open={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
+                drive={drive}
+                driveIds={driveIds}
+                scope="session"
+            />
         </div>
     )
 }

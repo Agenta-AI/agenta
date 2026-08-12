@@ -491,7 +491,12 @@ const PlaygroundMainView = ({
                                 "playground-generation",
                                 {
                                     "ag-scroll-quiet grow w-full h-full overflow-y-auto overflow-x-hidden":
-                                        !isComparisonView,
+                                        !isComparisonView && !isAgentConfig,
+                                    // Agent chat scrolls itself: overflow-hidden here avoids the
+                                    // reserved scrollbar gutter (a dead strip right of the Files
+                                    // pane divider that the chat could never fill).
+                                    "grow w-full h-full overflow-hidden":
+                                        !isComparisonView && isAgentConfig,
                                     "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
                                     // Chat = the recessed canvas the message/composer surfaces sit on.

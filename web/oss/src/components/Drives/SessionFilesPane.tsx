@@ -101,6 +101,8 @@ export function SessionFilesPane({sessionId}: {sessionId: string}) {
                 onClose={close}
                 closeVariant="collapse"
                 mirrored
+                // A quick look flagged hideTree (a config file row) opens on the file alone.
+                initialShowTree={!quickLook?.hideTree}
                 driveIds={driveIds}
                 stagedFiles={staged}
                 onStagedChange={setStaged}

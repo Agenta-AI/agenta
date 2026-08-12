@@ -130,8 +130,10 @@ const RightPanelSplit = ({
     const panelMin = open && !preFrame ? `${min}px` : 0
 
     return (
+        // playground-splitter classes: this divider renders EXACTLY like the config pane's (2px
+        // hairline + centered grip) instead of antd's default bar, so all vertical seams match.
         <Splitter
-            className={`h-full min-h-0 w-full flex-1 ${FILL_PANE_CLASS} ${BAR_INSET_CLASS} ${animate ? DRIVEN_SLIDE_CLASS : ""}`}
+            className={`h-full min-h-0 w-full flex-1 playground-splitter playground-splitter-agent ${FILL_PANE_CLASS} ${BAR_INSET_CLASS} ${animate ? DRIVEN_SLIDE_CLASS : ""}`}
             onResizeStart={() => setDragging(true)}
             onResize={(sizes) => {
                 if (open) setLive(clampWidth(sizes[1], sizes[0] + sizes[1], min, max))

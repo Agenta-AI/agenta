@@ -68,6 +68,7 @@ export function DriveExplorer({
     stagedFiles,
     onStagedChange,
     mirrored = false,
+    initialShowTree = true,
     closeVariant = "close",
 }: {
     drive: SessionDriveData
@@ -91,6 +92,8 @@ export function DriveExplorer({
     onStagedChange?: (files: DroppedFile[]) => void
     /** Mirror the two-pane body: tree docked RIGHT, content LEFT (the in-chat Files pane). */
     mirrored?: boolean
+    /** Open with the tree collapsed — a single-file quick look; the toolbar toggle reveals it. */
+    initialShowTree?: boolean
     /** How `onClose` reads in the header: an "×" (overlay drawer) or a "»" collapse (docked pane). */
     closeVariant?: "close" | "collapse"
 }) {
@@ -124,6 +127,7 @@ export function DriveExplorer({
         searchActive,
         mirrored,
         initialWidth: mirrored ? TREE_WIDTH_COMPACT : undefined,
+        initialShow: initialShowTree,
     })
     const {showTree, toggleTree, treeVisible, treeShift} = pane
     const {archiveMounts, downloadingAll, handleDownloadAll} = useDriveDownloadAll({
