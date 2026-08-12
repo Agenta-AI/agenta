@@ -170,14 +170,15 @@ export const AgentCard = ({
         <div
             role="button"
             tabIndex={0}
-            onClick={onOpenPlayground}
+            // Agents page opens the overview; the home rail keeps opening the playground.
+            onClick={isGrid ? onOpenOverview : onOpenPlayground}
             onKeyDown={(event) => {
-                // Only the card itself: the menu trigger is a child, and its Enter/Space must
-                // not also open the playground.
+                // Only the card itself: the menu trigger is a child with its own Enter/Space.
                 if (event.target !== event.currentTarget) return
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault()
-                    onOpenPlayground()
+                    if (isGrid) onOpenOverview()
+                    else onOpenPlayground()
                 }
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${
