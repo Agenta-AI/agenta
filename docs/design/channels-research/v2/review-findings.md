@@ -716,33 +716,45 @@
 - Notes: the wave that proves Slack end to end is the place this gets settled;
   filed now so it is not discovered as a mystery 401 instead.
 
-### F64. The manifest's request URL is composed from the caller's request, so it is wrong behind a tunnel
+### F64. The manifest's request URL is only as public as the host the operator happened to browse
+
+> **Corrected after reading the deployment repository.** This was first filed as
+> *"composed from the request, therefore wrong behind a proxy"*, at `P1`. That is
+> **false**, and the correction matters because the wrong version would have sent
+> someone to replace working code. The app is created with `root_path="/api"`
+> unconditionally, and Starlette's `base_url` includes `root_path`. So
+> `request.base_url` already yields `<scheme>://<host>/api/`, which is exactly the
+> public shape production serves: one `TRAEFIK_DOMAIN`, `/api/` routed to the API.
+> The composition is right. What is thin is the assumption underneath it.
 
 - ID: `F64`
 - Origin: `wave-6 design`
-- Severity: `P1`
+- Severity: `P3`
 - Confidence: `high`
 - Status: `open`
-- Category: `Correctness`
-- Summary: `fetch_channel_connection_setup` builds the URL it puts in the Slack
-  manifest as `f"{request.base_url}/channels/{channel}/events/"` — from the HTTP
-  request that asked for the document. But the reader and the caller are different
-  parties: an operator opens the page on `localhost` while Slack must call a public
-  address. So the manifest tells Slack to deliver events to a host Slack cannot
-  reach, and the failure arrives as no event ever appearing.
-- Evidence: `router.py` composes `request_url` from `str(request.base_url)`.
-  `env.api_url` already exists and already defaults to `http://localhost/api`, and
-  no code reads it. Every dev deployment sits behind a reverse proxy, and the Slack
-  flow additionally needs a tunnel.
-- Files: `api/oss/src/apis/fastapi/channels/router.py`,
-  `api/oss/src/utils/env.py`
-- Suggested Fix: compose the request URL from configuration, not from the request.
-  `env.api_url` is the existing setting and needs only to be read. WP26 owns it, and
-  it is a prerequisite for its own dev loop rather than a nicety — nobody can test
-  the manifest flow until the manifest carries a reachable URL.
-- Notes: this is the same shape as the tunnel hazard beside it. A value that is
-  correct in one caller's frame of reference is wrong in another's, and neither
-  reports the mismatch.
+- Category: `Robustness`
+- Summary: the request URL is correct **whenever the operator reaches the setup page
+  on the same public host the platform will be called back on** — which is always
+  true in production and easy to break in development. An operator who opens the
+  page on `localhost` while the tunnel serves a different host gets a manifest
+  carrying `http://localhost/api/channels/slack/events/`. Slack accepts it, never
+  reaches it, and nothing reports the mismatch.
+- Evidence: `entrypoints/routers.py` sets `root_path="/api"`;
+  `starlette/requests.py` `base_url` builds its path from `app_root_path`. The
+  production compose routes `Host(TRAEFIK_DOMAIN) && PathPrefix(/api/)` and sets
+  `SCRIPT_NAME=/api`, so host and prefix agree with what the code composes.
+  `env.api_url` exists as configuration and no code reads it.
+- Files: `api/oss/src/apis/fastapi/channels/router.py`
+- Suggested Fix: prefer a configured public URL when one is set and fall back to the
+  request, so a deployment can state its own public identity rather than inferring
+  it from whoever asked. Say plainly on the page which URL was used, because the
+  operator is the only party who can see that it is wrong. Do **not** replace the
+  request-derived value outright — it is what makes production correct with no
+  configuration at all.
+- Notes: the useful lesson is not about this field. Two separate proposals in this
+  wave were argued from what a value looked like rather than from what the
+  deployment does, and both were wrong. The deployment repository is the authority
+  on public URLs, and it is not in this tree.
 
 ### F63. A bridge created through the write path has no `delivery_url`, so every reply fails
 
