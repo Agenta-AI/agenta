@@ -6,6 +6,7 @@ import {
     VirtualTable,
     useVirtualTableRowSelection,
     type ColumnDefs,
+    type VirtualTableHandle,
 } from "@agenta/ui/table"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Table as AntTable} from "antd"
@@ -695,3 +696,43 @@ const EngineSwapDemo = () => {
 }
 
 export const EngineSwap: Story = {render: () => <EngineSwapDemo />}
+
+/**
+ * The imperative handle. `tableRef.current.scrollTo({index, align})` is the whole surface
+ * InfiniteVirtualTable exposes, mapped onto the virtualizer. antd's align vocabulary
+ * (top/bottom/auto) differs from the virtualizer's (start/end/auto), so it is translated.
+ */
+const ScrollToDemo = () => {
+    const rows = useMemo(() => makeRows(500), [])
+    const ref = useRef<VirtualTableHandle | null>(null)
+    return (
+        <div className="flex flex-col gap-2">
+            <Note>Jump to a row by index; the row should land at the top of the viewport.</Note>
+            <div className="flex gap-2">
+                {[0, 100, 250, 499].map((index) => (
+                    <button
+                        key={index}
+                        type="button"
+                        data-jump={index}
+                        className="border border-solid border-colorBorder bg-colorBgContainer px-2 py-1 text-xs"
+                        onClick={() => ref.current?.scrollTo({index, align: "top"})}
+                    >
+                        Go to {index}
+                    </button>
+                ))}
+            </div>
+            <Frame>
+                <VirtualTable<Row>
+                    tableRef={ref}
+                    columns={baseColumns}
+                    dataSource={rows}
+                    rowKey={(row) => row.key}
+                    rowHeight={48}
+                    height={420}
+                />
+            </Frame>
+        </div>
+    )
+}
+
+export const ScrollTo: Story = {render: () => <ScrollToDemo />}

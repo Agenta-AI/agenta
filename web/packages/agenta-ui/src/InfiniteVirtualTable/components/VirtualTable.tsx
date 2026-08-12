@@ -1,5 +1,13 @@
 import type {CSSProperties, Key, ReactNode, UIEvent} from "react"
-import {isValidElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {
+    isValidElement,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import type {
     ColumnSizingState,
@@ -36,6 +44,10 @@ import {sourceOf, toTanstackColumns} from "../tanstackColumns"
  *   own hooks query, so resize, visibility and scroll keep working unchanged.
  */
 
+export interface VirtualTableHandle {
+    scrollTo: (config: {index: number; align?: "top" | "bottom" | "auto"}) => void
+}
+
 export interface VirtualTableProps<RecordType extends object> {
     columns: ColumnDefs<RecordType>
     dataSource: RecordType[]
@@ -51,10 +63,15 @@ export interface VirtualTableProps<RecordType extends object> {
     scrollThreshold?: number
     onScroll?: (event: UIEvent<HTMLDivElement>) => void
     rowClassName?: (record: RecordType, index: number) => string
+    /**
+     * Props spread onto the row's `<tr>`. Deliberately wide: the keyboard-shortcut hook
+     * returns `onMouseEnter` and a `data-ivt-row-key` its document listeners search by, so
+     * narrowing this to onClick/className would silently disable shortcuts.
+     */
     onRow?: (
         record: RecordType,
         index: number,
-    ) => {onClick?: (event: React.MouseEvent<HTMLTableRowElement>) => void; className?: string}
+    ) => React.HTMLAttributes<HTMLTableRowElement> & Record<string, unknown>
     emptyText?: ReactNode
     className?: string
     /** Controlled column visibility, keyed by column id. */
@@ -66,6 +83,10 @@ export interface VirtualTableProps<RecordType extends object> {
     /** Controlled row selection, keyed by row id. */
     rowSelection?: RowSelectionState
     onRowSelectionChange?: OnChangeFn<RowSelectionState>
+    /**
+     * Imperative handle for programmatic scrolling, matching InfiniteVirtualTable's `tableRef`.
+     */
+    tableRef?: React.RefObject<VirtualTableHandle | null>
     /**
      * Renders a full-width panel under an expanded row. Passing it turns on the expand column.
      * Async children (fetch, loading, error) stay the caller's job; the table owns open/closed.
@@ -164,6 +185,7 @@ export const VirtualTable = <RecordType extends object>({
     onColumnSizingChange,
     rowSelection,
     onRowSelectionChange,
+    tableRef,
     renderExpandedRow,
     expanded,
     onExpandedChange,
@@ -238,6 +260,18 @@ export const VirtualTable = <RecordType extends object>({
         estimateSize: () => rowHeight,
         overscan,
     })
+
+    // antd's align vocabulary differs from the virtualizer's.
+    const VIRTUAL_ALIGN = {top: "start", bottom: "end", auto: "auto"} as const
+
+    useImperativeHandle(
+        tableRef,
+        () => ({
+            scrollTo: ({index, align = "auto"}) =>
+                virtualizer.scrollToIndex(index, {align: VIRTUAL_ALIGN[align]}),
+        }),
+        [virtualizer],
+    )
 
     const virtualRows = virtualizer.getVirtualItems()
     const expandWidth = renderExpandedRow ? expandColumnWidth : 0
@@ -458,6 +492,9 @@ export const VirtualTable = <RecordType extends object>({
                                     >
                                         <tr
                                             {...rowProps}
+                                            // antd stamps this and our own hooks query by it
+                                            // (keyboard shortcuts find rows via [data-row-key]).
+                                            data-row-key={row.id}
                                             className={cn(
                                                 AVT.row,
                                                 "border-0 border-b border-solid border-colorBorderSecondary hover:bg-colorFillTertiary",

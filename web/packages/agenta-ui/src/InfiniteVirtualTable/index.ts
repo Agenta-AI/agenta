@@ -218,7 +218,11 @@ export type {
 
 export {defaultHeaderVariant, detectColumnTypes} from "./utils/detectColumnTypes"
 export type {ColumnTypeInfo, ColumnTypePrimitive, ColumnRenderHint} from "./utils/detectColumnTypes"
-export {VirtualTable, type VirtualTableProps} from "./components/VirtualTable"
+export {
+    VirtualTable,
+    type VirtualTableProps,
+    type VirtualTableHandle,
+} from "./components/VirtualTable"
 export {
     distributeColumnWidths,
     type DistributableColumn,

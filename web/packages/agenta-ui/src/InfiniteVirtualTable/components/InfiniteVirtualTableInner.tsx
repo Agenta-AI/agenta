@@ -375,25 +375,20 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         rowKey: resolveRowKey,
     })
 
-    // The tanstack engine does not implement every prop yet. Warn loudly rather than let a
-    // consumer flip `engine` and silently lose a feature; each name here is a TODO.
+    // The tanstack engine honours most of tableProps through the wrapper (onRow via
+    // mergedOnRow, rowClassName directly) and makes some of it moot (its header is always
+    // sticky, its layout always fixed). Warn only about keys that genuinely do nothing,
+    // so the message stays worth reading.
     useEffect(() => {
         if (engine !== "tanstack" || process.env.NODE_ENV === "production") return
-        const unsupported = [
-            keyboardShortcuts && "keyboardShortcuts",
-            tableRef && "tableRef",
-            // onRow flows through via mergedOnRow; the rest of tableProps is antd-only.
-            tableProps && Object.keys(tableProps).some((k) => k !== "onRow")
-                ? "tableProps (except onRow)"
-                : null,
-        ].filter(Boolean)
-        if (unsupported.length > 0) {
+        const HONOURED = ["onRow", "rowClassName", "sticky", "tableLayout", "scroll", "virtual"]
+        const dropped = Object.keys(tableProps ?? {}).filter((key) => !HONOURED.includes(key))
+        if (dropped.length > 0) {
             console.warn(
-                `[InfiniteVirtualTable] engine="tanstack" ignores: ${unsupported.join(", ")}. ` +
-                    `Keep engine="antd" for this table until they are implemented.`,
+                `[InfiniteVirtualTable] engine="tanstack" ignores tableProps: ${dropped.join(", ")}.`,
             )
         }
-    }, [engine, keyboardShortcuts, tableRef, tableProps])
+    }, [engine, tableProps])
 
     const resolvedTableProps = useMemo<TableProps<RecordType>>(
         () => tableProps ?? ({} as TableProps<RecordType>),
@@ -816,12 +811,10 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                                         : undefined
                                 }
                                 enableColumnResizing={resizableEnabled}
+                                tableRef={tableRef}
                                 // Row clicks (and the interactive-click guard) are composed the
                                 // same way for both engines; without this, rows are inert here.
-                                onRow={(record, index) => {
-                                    const {onClick, className} = mergedOnRow(record, index) ?? {}
-                                    return {onClick, className}
-                                }}
+                                onRow={(record, index) => mergedOnRow(record, index) ?? {}}
                                 // antd's table stretches columns to fill the container; without
                                 // this the tanstack engine would leave the surplus unused.
                                 autoLayout
