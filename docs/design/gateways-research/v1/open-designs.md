@@ -8,6 +8,64 @@ engineering one.
 
 ---
 
+## Wave 1 rulings — surfaced by writing the package specs
+
+Writing the nine specs against `entities.md` found ten places the design is **silent** rather than
+wrong. None is a contradiction. Four change a signature the seed freezes and therefore must be
+settled before the seed is written; the rest can be settled during wave 1.
+
+### Must be settled before the seed
+
+**R1. `apis/fastapi/gateways/exceptions.py` has no owner.** Both proxies and the CRUD routers need
+`handle_gateway_exceptions()`, so no single package can own the file. **Resolved by assignment:**
+it moves into the seed, like the DTOs, because shared infrastructure with three consumers is
+exactly what the seed is for. The ownership table now says so.
+
+**R2. `LlmGatewayService`'s frozen constructor takes no vault dependency**, yet `list_endpoints`
+must decide which generated endpoints exist, which under D20 means "those a key exists for". Either
+the constructor gains the dependency or the method's contract changes. A signature the seed freezes,
+so it cannot be deferred.
+
+**R3. `GET /v1/models` has no backing service method.** The route's behaviour is described; the call
+it makes is not. Two packages need it.
+
+**R4. `GatewayPolicyService.record()` sits on the checkpoint A hot path, but its real body is a
+wave 2 package's file.** Every wave 1 relay calls it. It has to be a safe non-raising no-op rather
+than the not-implemented default the rest of the seed uses, and that exception to the seed's own
+rule should be explicit rather than inferred.
+
+### Can be settled during wave 1
+
+**R5. The gateway's entitlement key does not exist.** No flag or counter in the entitlements types
+fits, and the nearest candidate is the legacy credits counter that D24 says must not be reused.
+`architecture.md` already marks the exact call open. The call *shape* is specified; the key is a
+placeholder.
+
+**R6. `PolicyDecision.reason` has no fixed vocabulary** beyond "stable and terse". Three packages
+will otherwise each invent their own strings, and the audit attributes and the boundary's error map
+both key off it.
+
+**R7. No SSRF guard is assigned for the gateway's own outbound relay** to a user-supplied custom
+MCP server URL. The runner already guards exactly this risk before handing a URL to a harness, and
+the gateway now becomes the thing making that outbound call. Both the registration path and the
+relay path need it, and neither package's scope currently names it. **This is the one item on this
+list that is a security gap rather than an unstated detail.**
+
+**R8. The Composio-backed MCP adapter has no owning package in wave 1** — and on inspection it
+should not, because checkpoint A's reachable targets are our own servers and the fakes (D23). It
+belongs to whichever wave first makes a brokered server reachable. Worth stating so its absence
+reads as intent rather than omission.
+
+**R9. `litellm` is not a direct dependency of the API**, only transitive through the SDK package.
+If routing runs in the API process, that service declares it (`raw/model-call-sites.md` notes the
+same thing).
+
+**R10. Two small resolution behaviours are undefined:** the tie-break when two secrets of the same
+kind match one provider, and whether resolution validates that a grant reference's endpoint is
+actually OAuth-protected.
+
+---
+
 ## Open
 
 ### OD10. What is in the first increment of each gateway
