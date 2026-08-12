@@ -53,15 +53,14 @@ fakes, which is what makes it a clean acceptance-test surface.
 
 **Acceptance tests:** a request with no token is refused; a request for an endpoint the caller
 may not use is refused; a permitted request reaches the fake with the caller's token replaced by
-the upstream secret; a streamed response arrives byte for byte; a tool call outside the allowlist
-is refused.
+the upstream secret; a streamed response arrives byte for byte on **both** gateways, tool names,
+schemas and errors included; a tool call outside the allowlist is refused.
 
-### Checkpoint B — the real callers go through the gateways, and calls are recorded
+### Checkpoint B — the real callers go through the gateways
 
 Agent v0, the runner and the harnesses reach models and MCP servers only through the gateways.
-This is "everything except OAuth works." It also picks up what wave 1 deliberately left out:
-one audit event per call, real usage written against the principal with the secret origin, and
-per-endpoint configuration.
+This is "everything except OAuth works." It also picks up the one thing wave 1 left out: an audit
+event per call.
 
 **Acceptance tests:** a real agent run completes with no provider secret anywhere in the
 sandbox; the run's model calls and tool calls appear as audit events with the right principal;
@@ -116,12 +115,10 @@ flowchart LR
     WP6 & WP7 & WP8 & WP9 & WP10 & WP5 --> CA(["Checkpoint A<br/>DEPLOY"])
     CA --> WP12["WP12<br/>SDK resolution"]
     CA --> WP4["WP4<br/>audit events"]
-    CA --> WP11["WP11<br/>usage recording"]
-    CA --> WP21["WP21<br/>endpoint config"]
     WP12 --> WP13["WP13<br/>runner + harnesses"]
     WP12 --> WP14["WP14<br/>agent v0"]
     WP12 --> WP15["WP15<br/>MCP on the wire"]
-    WP13 & WP14 & WP15 & WP4 & WP11 & WP21 --> CB(["Checkpoint B<br/>DEPLOY"])
+    WP13 & WP14 & WP15 & WP4 --> CB(["Checkpoint B<br/>DEPLOY"])
     CB --> WP16["WP16<br/>secret kinds"]
     WP16 --> WP17["WP17<br/>OAuth client"]
     WP17 --> WP18["WP18<br/>consent flow"]
@@ -134,9 +131,13 @@ The two fan-outs in wave 1 are the widest points: three packages, then five. Wav
 chain behind one package plus three independent ones. Wave 3 is mostly serial because OAuth's
 pieces genuinely depend on each other.
 
-**Wave 1 is deliberately the thinnest thing that works.** Recording, configuration and tuning all
-moved to wave 2, because a gateway that records beautifully and does not relay a call is worth
-nothing, and because what to record has to be decided before it is written.
+**Wave 1 is deliberately the thinnest thing that works**, and recording, configuration and tuning
+sit outside the three waves entirely.
+
+**A checkpoint is a deploy, not a release.** No user traffic passes before checkpoint C, so
+nothing observable happens that could have been recorded and was not. That removes the only real
+argument for building the meter early, and leaves the cost of guessing what to meter — which the
+pricing model answers, not the gateway.
 
 ---
 
@@ -267,19 +268,6 @@ record of a call that does not happen is worth nothing.
 *Depends on:* Checkpoint A. *Blocks:* nothing.
 *Done when:* one event per call, queryable through the existing surface.
 
-**WP11 — Usage recording.** Model tokens and tool calls recorded against the principal, with the
-secret origin. Recording only; no charging. Moved out of wave 1 because **what** to record —
-which counters, at which grain, keyed how — has to be settled first, and writing the wrong
-counters early produces unusable data and a migration.
-*Depends on:* Checkpoint A. *Done when:* real usage is written for every call even though nothing
-is billed.
-
-**WP21 — Endpoint configuration.** Timeouts, ceilings and extra headers per custom endpoint
-(D21), with a ceiling breach rejecting rather than clamping (D25). Second-order to relaying a
-call at all.
-*Depends on:* Checkpoint A. *Done when:* a custom endpoint's ceiling refuses an over-limit call
-with the ceiling, the value asked for and the value allowed.
-
 **WP15 — MCP servers on the wire.** The runner's MCP server configs point at gateway URLs with a
 gateway token rather than upstream secrets.
 *Depends on:* WP12.
@@ -308,14 +296,32 @@ missing-connection path.
 **WP20 — Callback reachability.** The hosted code relay (D26): a public callback host that
 receives the redirect, demultiplexes on the signed state the connections domain already mints,
 holds the authorization code briefly, and serves it outbound to the deployment that started the
-flow. It also serves the client metadata document once for every firewalled deployment. Cloud and
-publicly-reachable self-hosted deployments bypass it entirely; the development tunnel covers
-local work.
+flow (D26). Most deployments never touch it: a deployment on a private address whose user's
+browser is on the same network redirects directly, and registers itself outbound rather than
+serving a public identity document. The relay is for the case where the browser is elsewhere too.
 *Depends on:* WP17. **Needed for Checkpoint C to be testable at all.**
-*Done when:* a deployment with no inbound route completes a full authorization, and the relay is
-observed to hold no token at any point.
+*Done when:* a deployment with no public address completes a full authorization from a browser
+outside its network, and the relay is observed to hold no token at any point.
 
 **Merge M4 → Checkpoint C.** Deploy. Acceptance tests above.
+
+---
+
+## After checkpoint C
+
+Real gateway work, deliberately not scheduled into the three waves. Nothing above depends on it,
+and none of it can be lost by waiting, because **no checkpoint before C is a release**.
+
+**WP11 — Usage recording, and WP22 — usage charged.** Model tokens and tool calls recorded
+against the principal with the secret origin, and the ledger that prices them. **They ship
+together.** Recording early is normally right because usage cannot be backfilled; that does not
+apply while no real traffic passes. What remains is the cost of guessing which counters, at which
+grain, keyed how — and only the pricing model answers that. A meter built before the price
+produces data nobody uses and a schema to migrate.
+
+**WP21 — Endpoint configuration.** Timeouts, ceilings and extra headers per custom endpoint
+(D21), with a ceiling breach rejecting rather than clamping (D25). Tuning a call path is
+second-order to having one, and it blocks nothing.
 
 ---
 

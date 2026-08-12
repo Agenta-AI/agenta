@@ -318,39 +318,60 @@ It is legacy. It is not moved, not reinterpreted, and not fixed as part of this 
 
 It is removed only once the gateway is the sole mechanism the whole system uses.
 
-## D26. A hosted code relay, for the one deployment shape that needs it
+## D26. No public IP is two problems, and only one of them is the redirect
 
-Three situations, and only the third needs anything built.
+The constraint is **not a firewall**. It is that a deployment on a private address —
+`localhost`, a home network, a corporate LAN — has no address anything on the internet can name.
+Splitting that into who actually needs to reach the deployment collapses most of the problem.
 
-| Deployment | What happens |
-|---|---|
-| Cloud | The callback lands on it directly. No relay. |
-| Self-hosted with a public HTTPS URL | The same. Configuration, not mechanism. |
-| Firewalled | The callback lands on an Agenta-hosted relay, which holds the authorization code while the deployment fetches it outbound. |
+**Two parties want to address it, and they are not the same party.**
 
-**The relay mixes the two patterns already in the tree and adds nothing novel.** Its
-demultiplexing is the payment provider's: one registered redirect URL shared by many
-deployments, sorted by a routing value — here the signed state parameter the connections domain
-already mints, which already carries the project and the user. Its direction is the trigger
-bridge's: the deployment reaches out rather than being reached. What it does *not* borrow is that
-bridge's transport, because it works only through the provider's own subscribe call, and a
-browser redirect is a navigation rather than an event — it cannot travel down an outbound socket.
-The development tunnel stays what it is: development only.
+*The user's browser*, for the redirect. The browser usually sits on **the same network as the
+deployment** — the developer running it locally, the employee on the company LAN or VPN. A
+private address is perfectly reachable from there. **This is the case that looks broken and is
+not.**
 
-**Why holding the code is safe, and this is the load-bearing part.** With proof key exchange, an
-authorization code is worthless without the verifier, and the verifier never leaves the
-deployment. The deployment redeems the code itself, outbound, straight to the authorization
-server. **The relay therefore never sees a token and could not redeem the code it holds.** It
-holds a single-use, short-lived value that is useless to it. That is what makes a hosted
-component acceptable in a self-hosted product.
+*The authorization server*, to fetch the client identity document that modern registration uses.
+That fetch comes from the public internet, and no amount of same-network luck helps. **This is
+the case that is actually broken.**
 
-**One thing it also solves for free.** The same public host serves the client metadata document
-that modern registration requires, once, for every firewalled deployment — which the deprecated
-dynamic-registration fallback would otherwise force.
+### Three situations
 
-**Why not the alternative.** Documenting that OAuth-protected servers need a reachable deployment
-was the other option. It makes the product's headline tool integration unavailable to exactly the
-customers most likely to self-host, and it converts an engineering problem into a support one.
+| The deployment | The redirect | The client identity |
+|---|---|---|
+| Has a public hostname | Direct | Its own document. Nothing hosted. |
+| Private address, browser on the same network | **Direct — no relay** | Register outbound at first use, or use a hosted document |
+| Private address, browser elsewhere | Hosted code relay | Hosted document |
+
+**Registering outbound is what makes the middle row need nothing.** The older registration
+mechanism is a plain outbound call: the deployment posts its own metadata to the authorization
+server and receives an identifier. It is deprecated in favour of the document-fetch approach, and
+it is exactly the right fallback here, because it is the one path that inverts the direction. A
+deployment with no public address should prefer it rather than treat it as a downgrade.
+
+### The relay, for the last row only
+
+One public callback host receives the redirect, demultiplexes on the signed state the connections
+domain already mints — which already carries the project and the user — holds the authorization
+code briefly, and serves it outbound to the deployment that started the flow.
+
+**It mixes the two patterns already in the tree and adds nothing novel.** Demultiplexing on a
+routing value behind one shared registered URL is the payment provider's pattern. Having the
+deployment reach out rather than be reached is the trigger bridge's. What it does *not* borrow is
+that bridge's transport, which works only through the provider's own subscribe call — a browser
+redirect is a navigation, not an event, and cannot travel down an outbound socket. The
+development tunnel stays what it is: development only.
+
+**Why holding the code is safe, and this is the load-bearing part.** With proof key exchange the
+code is worthless without the verifier, and the verifier never leaves the deployment, which
+redeems the code itself, outbound. **The relay never sees a token and could not redeem what it
+holds.** That is what makes a hosted component acceptable in a self-hosted product.
+
+### What this rules out
+
+Documenting that OAuth-protected servers simply need a publicly addressable deployment. It would
+be wrong as well as unhelpful: most deployments without a public address can complete the flow
+untouched, and saying otherwise would send people building tunnels they do not need.
 
 ## D25. A governance ceiling rejects; it never silently clamps
 

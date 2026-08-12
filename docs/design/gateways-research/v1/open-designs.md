@@ -30,18 +30,24 @@ in `secrets.md` and the lookup already takes an owner (D10), so nothing is forec
 
 Per-endpoint tokens arrive with this, not before.
 
-### OD6. How an OAuth redirect reaches a firewalled deployment — RECOMMENDED, see D26
+### OD6. OAuth on a deployment with no public IP — RECOMMENDED, see D26
 
-An OAuth flow needs a redirect the user's browser can reach, and the modern client-registration
-mechanism needs a public HTTPS URL serving a client metadata document. A firewalled deployment
-has neither.
+**The framing was wrong and that mattered.** This was written up as a firewall problem. It is
+not: the constraint is having no address the public internet can name — `localhost`, a home
+network, a corporate LAN.
 
-**Recommendation: three deployment situations, two of them needing nothing, and one hosted code
-relay for the third.** Settled as D26; the mechanism and the reason the relay is safe are there.
+Splitting it by *who* needs to reach the deployment collapses most of it. The **browser** needs
+the redirect, and the browser is usually on the same network as the deployment, so a private
+address works. The **authorization server** needs to fetch a client identity document, and that
+fetch comes from the internet — which is the part that genuinely breaks, and it is solved by
+registering outbound instead, using the older mechanism that inverts the direction.
 
-Still to establish at implementation time, none of it blocking: the relay's retention window,
-whether one relay host serves every customer or one per region, and how a deployment that never
-polls is garbage-collected.
+Only a deployment whose *browser* is also elsewhere needs the hosted code relay. D26 carries the
+three situations, the relay's mechanism, and why holding the code is safe.
+
+To establish at implementation time, none of it blocking: which authorization servers accept a
+private-address redirect target; whether the older outbound registration is still accepted by the
+servers we care about; the relay's retention window; and how an abandoned flow is collected.
 
 Belongs to the OAuth wave, not the first one.
 

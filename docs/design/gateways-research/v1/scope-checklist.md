@@ -12,7 +12,13 @@ decided — and the column stopped carrying information.
 | `1` | Wave 1 — both gateways working end to end, on the fakes and our own servers |
 | `2` | Wave 2 — every caller converted |
 | `3` | Wave 3 — OAuth end to end |
+| `later` | Real gateway work, after checkpoint C |
 | `—` | Out of this work; a separate effort owns it |
+
+**A checkpoint is a deploy, not a release.** Nothing between here and checkpoint C carries user
+traffic, so nothing observable happens that could have been recorded and was not. That kills the
+usual argument for building recording early — "it cannot be backfilled" is only true once there
+is something real to miss.
 
 Anything that is not gateway work at all is **not listed**. A row that will never be marked is
 noise on a decision surface.
@@ -58,16 +64,19 @@ derivable from the provider name and no slug is needed. Only custom endpoints be
 |---|---|---|
 | 1 | Permission check on the target | Otherwise any authenticated user reaches any registered target. Without it wave 1 is an open proxy |
 | 1 | Entitlement check | Settled, not a suggestion: permission and entitlement checks are both in for both gateways; only credit checks are postponed |
-| 2 | Audit record | One event per call into the existing events domain. Second-order to making the call work at all |
-| 2 | Usage recorded | **What** to record has to be defined first — which counters, at which grain, keyed how. That definition is the work, and it is not wave 1's |
-| 2 | `secret_origin` stamp | One field marking whose key paid. It rides the usage record, so it moves with it |
-| 2 | Endpoint configuration | Timeouts, ceilings and extra headers per custom endpoint. Wave 1 makes calls work; tuning them is second-order |
-| — | Usage charged | The credits ledger is a separate effort and a caller of the gateway, not part of it |
+| 1 | Body byte-for-byte, **both gateways** | Not an LLM property. Transparency *is* the MCP gateway — same tool names, same schemas, same errors — and on the model side it is what keeps prompt caching working. One constraint, stated once |
+| 2 | Audit record | One event per call into the existing events domain |
+| later | Usage recorded | Ships with charging, below |
+| later | `secret_origin` stamp | One field marking whose key paid. It rides the usage record, so it moves with it |
+| later | Endpoint configuration | Timeouts, ceilings and extra headers per custom endpoint. Making calls work comes first; tuning them is second-order and blocks nothing |
+| later | Usage charged | The credits ledger. Recording and charging ship together |
 
-**On deferring usage recording.** It cannot be backfilled, which is the standing argument for
-doing it early — and it still loses to not knowing what to record. Recording the wrong counters
-in wave 1 produces data nobody can use and a schema to migrate. Wave 2 is early enough for a
-platform that has not launched charging.
+**Why recording waits for charging.** Recording early is normally right because usage cannot be
+backfilled. That argument does not apply here: no checkpoint before C is a release, so no real
+traffic passes and there is nothing to miss. What remains is the cost of guessing — **which
+counters, at which grain, keyed how** — and the only thing that answers it is knowing what will
+be billed. Building the meter before the price produces data nobody can use and a schema to
+migrate.
 
 ---
 
@@ -76,7 +85,6 @@ platform that has not launched charging.
 | Wave | Item | Why there |
 |---|---|---|
 | 1 | Model allowlist | Custom providers already declare their models by slug; standard providers expose their whole catalogue |
-| 1 | Body byte-for-byte | A constraint, not a feature — and prompt caching then works for free |
 
 ---
 
@@ -135,16 +143,21 @@ subscribe call. An arbitrary authorization server offers nothing equivalent.
 
 More fundamentally, **an OAuth redirect is a browser navigation, not an event delivery.** The
 user's browser has to land on a URL. A browser redirect cannot travel down a socket the
-deployment opened outward. Something the browser can reach has to exist.
+deployment opened outward.
 
-The Stripe pattern is server-to-server routing, and has the same problem.
+The payment-provider pattern is server-to-server routing, and has the same problem.
 
-So the honest position: **ngrok is the only one of the three that produces a URL a browser can
-reach, and it is development-only by design.** For a firewalled production deployment the real
-options are a hosted relay that receives the redirect and holds the code while the deployment
-polls outward for it — which works, but reintroduces a cloud dependency — or documenting that
-OAuth-protected servers need a reachable deployment while static-credential servers work
-everywhere.
+### What the question actually is
+
+It is **not a firewall question.** It is that a deployment on a private address has no name
+anything on the internet can use. Splitting that by *who* needs to reach it settles most of it:
+the user's browser usually sits on the same network and reaches a private address fine, while the
+authorization server's fetch of a client identity document comes from the internet and does not.
+The second is answered by registering outbound instead, and only a deployment whose browser is
+also elsewhere needs a hosted relay. D26 carries it.
+
+What survives from the three patterns above is their *shape*: shared-URL demultiplexing on a
+routing value, and an outbound fetch instead of an inbound push. Their transports do not survive.
 
 ## Deferred, with the reason
 
