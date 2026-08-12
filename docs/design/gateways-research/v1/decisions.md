@@ -273,12 +273,17 @@ one and multiply endpoints by the size of a provider's catalogue.
 Everything needed to reach a standard provider is deterministic. The provider-to-models
 catalogue already lives in the SDK as a static map — eleven providers, each with its model list,
 with costs derived from the routing library. So a standard endpoint's route is derivable rather
-than persisted: a stable prefix, the standard marker, and the provider's own name. No slug,
+than persisted: a stable prefix, the `builtin` namespace, and the provider's own name. No slug,
 because the provider name is the identifier.
 
+**The URL spells that namespace `builtin`, not `standard`** (D27). The secrets domain's word for a
+non-custom provider is *standard*; the path segment is `builtin` on both planes; the mapping
+between them lives in one place. A public path segment does not owe its spelling to an internal
+enum.
+
 **The CRUD surface therefore stores only custom endpoints.** A standard endpoint exists when a
-key exists for it. The same split applies to MCP: built-in servers are ours to define, custom
-ones are rows.
+key exists for it. The same split applies to the tool plane: `agenta` and `builtin` servers are
+ours to define or broker, and only `custom` ones are rows.
 
 ## D21. Configuration is per endpoint, and only custom endpoints are configurable
 
@@ -317,6 +322,151 @@ A credits counter is incremented today when a caller checks access to platform-o
 It is legacy. It is not moved, not reinterpreted, and not fixed as part of this work.
 
 It is removed only once the gateway is the sole mechanism the whole system uses.
+
+## D27. Three namespaces on both planes — `agenta`, `builtin`, `custom` — and the namespace picks the backend
+
+**Spelled without a hyphen.** The namespace is a path segment in every gateway URL, so it stays
+one lowercase word: `builtin`, never `built-in`.
+
+**The same three words on both planes**, and all three are reserved from the start even where one
+has no members yet. Taking a keyword costs nothing now; discovering later that something else took
+it costs a migration of live URLs.
+
+| Namespace | LLM plane | MCP plane |
+|---|---|---|
+| `agenta` | **Reserved, empty today.** Where an Agenta-owned or fine-tuned model would live | The Agenta tools. The fakes are its first members (D23) |
+| `builtin` | The generated standard-provider set (D20) | Third-party servers shipped ready to click, backed by the Composio catalog the integrations domain already consumes |
+| `custom` | A stored endpoint row: a customer's own deployment or reseller | A stored endpoint row: a server the user brought by URL |
+
+**`builtin` aliases the standard-provider path internally, and that is fine.** The secrets domain
+calls a non-custom provider *standard*, and the URL says `builtin`. The gateway maps one to the
+other in one place. **A public path segment does not owe its spelling to an internal enum** — the
+alternative was two vocabularies for one idea, split across the two planes, purely to avoid a
+two-line mapping.
+
+**The runner's loopback channel is not in this picture.** It is a loopback — a per-run transport
+that hands first-party tools to a harness — and it stays exactly that. The exclusion in `notes.md`
+holds. The Agenta tools are the Agenta tools; how a particular run happens to receive them is a
+separate concern and always was.
+
+### The namespace selects the backend
+
+That is what makes it worth being in the path rather than in a column.
+
+| Hit | The gateway calls |
+|---|---|
+| `agenta` | The Agenta tools |
+| `builtin` | Composio, reusing the connection the integrations domain already brokered |
+| `custom` | The upstream the endpoint row names, with the credential we resolved for it |
+
+### The route grammar
+
+```text
+/gateways/mcps/agenta/{slug}                                  agenta/tools
+/gateways/mcps/builtin/{provider}/{integration}/{connection}  builtin/composio/notion/my-notion
+/gateways/mcps/custom/{slug}                                  custom/acme-notion
+
+/gateways/llms/agenta/{slug}                                  reserved, empty today
+/gateways/llms/builtin/{provider}                             builtin/openai
+/gateways/llms/custom/{slug}                                  custom/acme-azure
+```
+
+**The words are the ones the codebase already uses.** `provider`, `integration` and `connection`
+are `provider_key`, `integration_key` and the connection's slug — the three columns of the
+existing connection table's unique key, `(project_id, provider_key, integration_key, slug)`,
+minus the project, which comes from the token. Naming them anything else would invent a second
+vocabulary for one set of values.
+
+**Identifiers are slugs or keys, never display names.** An `agenta` identifier is a slug we own
+and **may be nested**, so its route segment is a path rather than a single component. A `custom`
+identifier is one slug, unique within the project.
+
+**The model plane's version segment is not part of this grammar.** `/v1` belongs to the upstream
+protocol's own path — an OpenAI-compatible client appends `/v1/chat/completions` to whatever base
+it is handed, which is why the existing endpoint map in the SDK stores
+`https://api.openai.com/v1` for OpenAI and a bare host for Anthropic. We hand out a base ending
+`/v1` for the same reason. **The tool plane has no equivalent**, because the whole MCP protocol is
+a POST to the endpoint URL itself with no path structure after it, and the protocol revision is
+negotiated in a header rather than a path.
+
+So there is no `/v1` on a tool endpoint. Versioning *our own* surface is a separate question, it
+applies to the whole API rather than to one plane, and no route in this codebase carries a
+version segment today. `contract.md` keeps it open.
+
+**The broker is named in the path, and that is deliberate.** An earlier draft hid it behind a
+stable name so a provider swap would not change URLs. That is the wrong instinct twice over. The
+provider is part of a connection's identity rather than an implementation detail — the existing
+connection table already keys on `(project, provider_key, integration_key, slug)` — and two
+connections to the same vendor through different brokers carry different credentials, different
+consent and different tokens. A URL that survived a backend swap would keep resolving while the
+user's tokens did not migrate, which hides a real breakage instead of showing it. Naming the
+broker also lets a brokered server and a direct one to the same vendor coexist.
+
+The in-tree precedent agrees: the tool call reference is
+`tools.{provider}.{integration}.{action}.{connection}`, and the catalog routes are
+`/catalog/providers/{provider_key}/integrations/{integration_key}`.
+
+**The extra segment on the tool plane is real structure, not an inconsistency.** On the model
+plane the provider *is* the server, so nothing follows it. A broker is not a server; it fronts
+many, so the one being addressed has to be named. That is D19 applied honestly to a broker.
+
+**The rule an interim draft added does not survive, and it is worth saying why.** That draft kept
+the broker's integration key in a field we mapped through, so their rename would be a mapping
+change rather than a broken URL. The final grammar puts their key in the path instead, and the two
+cannot both hold.
+
+The path wins for the same reason the broker is named there at all: if a broker renames an
+integration, that is a real change to what a stored URL points at, and a URL that quietly kept
+resolving would hide it. Vendor integration keys are stable in practice, and the cost of the rare
+rename is a visible break rather than a silent one.
+
+### Why `builtin` is Composio-backed
+
+A dashboard user clicks *Notion*. They do not type Notion's URL. So something must already hold
+the display name, the icon, the description and the URL — and that something is a catalog we
+would otherwise curate by hand, forever, per server.
+
+**We already consume one.** The catalog contract in the existing integrations domain carries the
+key, name, description, categories, **logo**, url and auth schemes for the whole Composio
+integration set, and Composio hosts MCP endpoints with the credential lifecycle on their side.
+The connection state machine and the connect affordance are in the tree and already drive the
+tool domain. Nothing new is curated and nothing new is maintained.
+
+**What is deliberately not stored, and this is what keeps the catalog small.** Not the OAuth
+endpoints, and not even the scope list. Given the server's URL, both are fetched at configuration
+time with no credential at all: an unauthenticated call returns a challenge naming the
+protected-resource metadata, that names the authorization server, and the authorization server
+publishes its endpoints together with the scopes it supports. So the dashboard renders real scope
+checkboxes from a live call rather than from a stored field, which is what connect-time scope
+selection requires (D17).
+
+**The catalog is therefore five fields:** name, icon, description or category, and URL.
+
+### `builtin` reuses the brokered connection; `custom` runs our own flow
+
+The two are different mechanisms, not two configurations of one.
+
+**`builtin`** rides what already exists. The integrations domain brokers the authorization,
+stores the connection row, and holds the credential upstream; the MCP endpoint references that
+row and the gateway relays to Composio's endpoint. There is no OAuth client of ours in the path,
+no grant row, and no new secret. What still needs designing is the reference itself — which row,
+keyed how, and what happens to the endpoint when the connection is revoked.
+
+**`custom`** is the full journey and the only reason our OAuth client exists. The user supplies a
+URL; the gateway discovers the authorization server from the server itself; our client runs the
+authorization with proof key exchange; the tokens land in the vault as an `oauth_grant` secret
+(D14) with the grant row pointing at it; and a later call resolves that secret and resumes. This
+is the path that exercises everything the OAuth wave builds.
+
+### The cost of this, stated plainly
+
+With `builtin` meaning only Composio, our own OAuth client is exercised only by `custom` servers,
+and "everything transits our gateway" becomes "everything transits our gateway, which transits
+theirs." We own the policy, the audit and the identity; we do not own the vendor relationship.
+
+That is a reasonable place to start and a poor place to stay. Whether a small set of **direct**
+built-in servers exists from the beginning is open — `open-designs.md` OD13 carries it, along with
+the maintenance pattern this repo already uses for a comparable catalog.
 
 ## D26. The OAuth redirect needs nothing built
 

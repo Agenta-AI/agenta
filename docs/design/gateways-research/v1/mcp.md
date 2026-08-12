@@ -115,8 +115,17 @@ transparent proxy per server, not a wrapper. Same names, same schemas, same erro
 responses.
 
 The identifier is an id or a slug carrying a namespace, never a display name. A bare name
-identifies nothing once there are Composio-backed servers, Agenta-internal ones, built-ins and
-user-defined custom ones, some per-user and some project-wide.
+identifies nothing once servers arrive from more than one place.
+
+**Three namespaces, settled in D27:** `agenta` for servers we implement and run, whose first
+members are the fakes; `builtin` for third-party servers shipped ready to click, backed by the
+Composio catalog the integrations domain already consumes; `custom` for a server the user brings
+by URL. Written without a hyphen, because the namespace is a path segment.
+
+**What a catalog entry holds is five fields** — name, icon, description or category, and URL. Not
+the OAuth endpoints and not the scope list: given the URL, both are fetched at configuration time
+with no credential, through the challenge and metadata chain above. That is what lets the dashboard
+render real scope checkboxes for connect-time selection instead of storing a guess.
 
 This also removes the list-composition problem: each list response comes from exactly one
 server, so caching is per server and a dead secret on one server cannot affect another's list.

@@ -23,6 +23,36 @@ rather than a gap.
 
 **Blocks the work-package list**, which cannot be sequenced without it.
 
+### OD13. Does a set of direct built-in MCP servers exist from the start
+
+`builtin` means Composio-backed (D27), so a user clicks an icon and never types a URL, and nothing
+new is curated. The open part is whether a **small set of servers we reach directly** ships
+alongside it, or waits.
+
+**Why it might not wait.** With `builtin` meaning only Composio, our own OAuth client is exercised
+by nothing except a server a user pastes in by hand, which is the least-travelled path and the one
+least likely to be exercised before a customer hits it. Shipping a handful of direct servers is how
+that code gets used on purpose rather than by accident. It is also the difference between owning
+the vendor relationship and reselling one.
+
+**Why it might.** It is the only part of the built-in story that carries ongoing maintenance.
+
+**The maintenance is smaller than it looks, and the pattern is already in the repo.** Only five
+fields per server are stored — name, icon, description or category, and URL — because the OAuth
+endpoints and the supported scopes are fetched from the server itself at configuration time
+(D27). The URLs can be generated from the official public registry, which publishes name, URL and
+description. Icons need not be curated either: an openly licensed brand-icon set covers a few
+thousand vendors as plain files with no API call, though its coverage of the vendors we want is
+unverified.
+
+The refresh mechanism exists already, for the model catalogue: a large generated data file next to
+small hand-curated ones, plus a skill carrying the generator script. An MCP server catalogue is
+the same shape at a fraction of the size — realistically twenty to forty entries, the servers
+people actually ask for, not a connector marketplace.
+
+**Recommendation:** ship a small direct set, for the reason above rather than for coverage. Its
+size is a product call.
+
 ### OD2. Is a user's own secret the norm or the exception — parked
 
 User-owned secrets are not implemented, so this waits until they are. The mechanism is designed

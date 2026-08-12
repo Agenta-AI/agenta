@@ -58,6 +58,9 @@ Alongside the design, not part of its argument:
   implementing anything that looks like an OAuth client or a secret store.
 - **`open-designs.md`** — design questions still open, ordered by what depends on them.
 - **`open-reviews.md`** — what to verify against the code when the ports are implemented.
+- **`cleanups.md`** — everything that becomes possible only **once the gateways run**, and
+  therefore cannot be scheduled in front of them. The full cost of "everything transits a
+  gateway", stated once. Read it before proposing any of its items as a prerequisite.
 - **`raw/`** — the research this design grew out of: the codebase surveys, the protocol
   findings, and the original framing. Read when you want to know why a document says what it
   says.
