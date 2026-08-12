@@ -57,7 +57,7 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
             }}
             className={cn(
                 "flex flex-col items-center justify-center gap-2 rounded border border-dashed px-4 py-5 text-center transition-colors",
-                "border-[var(--ag-c-D6DEE6,#d6dee6)]",
+                "border-[var(--ag-zinc-3)]",
                 over && "border-[var(--ag-c-586673)] bg-[var(--ag-c-F5F7FA)]",
                 disabled && "opacity-60",
             )}

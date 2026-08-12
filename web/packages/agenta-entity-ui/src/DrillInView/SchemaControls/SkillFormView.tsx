@@ -66,10 +66,7 @@ function ToggleRow({
                             {/* No aria-label: a generic span prohibits it (axe
                                 `aria-prohibited-attr`); Radix wires aria-describedby instead. */}
                             <span className="flex shrink-0 items-center">
-                                <Info
-                                    size={13}
-                                    className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]"
-                                />
+                                <Info size={13} className="shrink-0 text-[var(--ag-zinc-5)]" />
                             </span>
                         </TooltipTrigger>
                         <TooltipContent>{description}</TooltipContent>
@@ -115,7 +112,7 @@ function FileRow({
                     : "hover:bg-[var(--ant-color-fill-tertiary)]",
             )}
         >
-            <FileIcon size={13} className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
+            <FileIcon size={13} className="shrink-0 text-[var(--ag-zinc-5)]" />
             <span
                 role="button"
                 tabIndex={0}
@@ -137,7 +134,7 @@ function FileRow({
                         e.stopPropagation()
                         onRemove()
                     }}
-                    className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-colorError group-hover/file:opacity-100"
+                    className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover/file:opacity-100"
                 >
                     <Trash size={13} />
                 </button>

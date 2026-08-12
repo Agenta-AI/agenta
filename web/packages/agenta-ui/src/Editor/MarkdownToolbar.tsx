@@ -84,7 +84,7 @@ const btnClass = (disabled: boolean, isActive: boolean) =>
     [
         BTN_BASE,
         disabled
-            ? "cursor-not-allowed text-[var(--ag-c-97A4B0,#97a4b0)] opacity-50"
+            ? "cursor-not-allowed text-[var(--ag-zinc-5)] opacity-50"
             : "cursor-pointer text-[var(--ag-c-586673)] hover:bg-[var(--ag-c-EAEFF5)]",
         isActive ? "bg-[var(--ag-c-EAEFF5)] !text-[var(--ag-c-1677FF)]" : "",
     ].join(" ")
@@ -125,7 +125,7 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
                     )
                 })}
             </div>
-            <span className="text-center text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+            <span className="text-center text-xs text-[var(--ag-zinc-5)]">
                 {hover.rows > 0 ? `${hover.rows} × ${hover.cols}` : "Insert table"}
             </span>
         </div>

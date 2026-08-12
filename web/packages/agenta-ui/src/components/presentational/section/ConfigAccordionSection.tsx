@@ -437,24 +437,21 @@ export function ConfigAccordionSection({
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Lock
-                                            size={14}
-                                            className="text-[var(--ag-c-97A4B0,#97a4b0)]"
-                                        />
+                                        <Lock size={14} className="text-[var(--ag-zinc-5)]" />
                                     </TooltipTrigger>
                                     <TooltipContent>{lockedReason}</TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
                         ) : (
-                            <Lock size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                            <Lock size={14} className="text-[var(--ag-zinc-5)]" />
                         )
                     ) : opensDrawer ? (
-                        <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                        <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
                     ) : collapsible ? (
                         isOpen ? (
-                            <CaretDown size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                            <CaretDown size={14} className="text-[var(--ag-zinc-5)]" />
                         ) : (
-                            <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                            <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
                         )
                     ) : null}
                 </div>
