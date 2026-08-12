@@ -289,6 +289,69 @@ const ResizableDemo = () => {
 
 export const Resizable: Story = {render: () => <ResizableDemo />}
 
+/**
+ * Auto-layout: the container's width shared across columns.
+ *
+ * TanStack has no notion of filling available space, so this is the one piece of the old
+ * `useSmartResizableColumns` that was ported rather than deleted. Its rules are pinned by
+ * unit tests; this story is where you can see them.
+ *
+ * The invariant: the total is never LESS than the container. When space runs short the table
+ * overflows and scrolls sideways instead of squeezing columns below their declared width.
+ */
+const autoLayoutColumns: ColumnDefs<Row> = [
+    {key: "id", title: "ID (fixed 120)", dataIndex: "id", width: 120, fixed: "left"},
+    {key: "name", title: "Name (weight 300)", dataIndex: "name", width: 300, ellipsis: true},
+    {key: "kind", title: "Span type (weight 100)", dataIndex: "kind", width: 100},
+    // maxWidth is not on ColumnDef; auto-layout reads it off the column as the old hook did.
+    {
+        key: "cost",
+        title: "Cost (capped 140)",
+        dataIndex: "cost",
+        width: 100,
+        maxWidth: 140,
+    } as never,
+]
+
+const AutoLayoutDemo = () => {
+    const [width, setWidth] = useState(900)
+    const rows = useMemo(() => makeRows(15), [])
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Note>
+                Container {width}px. ID is pinned at 120 and Cost capped at 140; Name and Span type
+                share what is left, 300:100. Drag the slider below 560 and the columns stop
+                shrinking — the table scrolls instead.
+            </Note>
+            <input
+                type="range"
+                min={320}
+                max={1200}
+                value={width}
+                onChange={(event) => setWidth(Number(event.target.value))}
+                className="w-full"
+                aria-label="Container width"
+            />
+            <div
+                style={{width}}
+                className="h-[420px] border border-solid border-colorBorderSecondary"
+            >
+                <VirtualTable<Row>
+                    columns={autoLayoutColumns}
+                    dataSource={rows}
+                    rowKey={(row) => row.key}
+                    rowHeight={48}
+                    height={420}
+                    autoLayout
+                />
+            </div>
+        </div>
+    )
+}
+
+export const AutoLayout: Story = {render: () => <AutoLayoutDemo />}
+
 /** Left- and right-pinned columns must stay put and not overlap while scrolling sideways. */
 const stickyColumns: ColumnDefs<Row> = [
     {...baseColumns[0], fixed: "left"},

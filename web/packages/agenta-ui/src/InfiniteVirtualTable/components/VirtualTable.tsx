@@ -1,5 +1,5 @@
 import type {CSSProperties, Key, ReactNode, UIEvent} from "react"
-import {isValidElement, useCallback, useMemo, useRef} from "react"
+import {isValidElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {
     ColumnSizingState,
@@ -11,7 +11,9 @@ import {flexRender, useTable} from "@tanstack/react-table"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
 import {cn} from "../../utils/styles"
-import type {ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
+import type {ColumnDef, ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
+import {isColumnGroupDef} from "../columnDef"
+import {distributeColumnWidths, type DistributableColumn} from "../distributeColumnWidths"
 import useInfiniteScroll from "../hooks/useInfiniteScroll"
 import {AVT} from "../tableDom"
 import {TABLE_FEATURES, type VirtualTableFeatures} from "../tableFeatures"
@@ -63,6 +65,11 @@ export interface VirtualTableProps<RecordType extends object> {
     /** Controlled row selection, keyed by row id. */
     rowSelection?: RowSelectionState
     onRowSelectionChange?: OnChangeFn<RowSelectionState>
+    /**
+     * Shares the container width across columns instead of using declared widths as-is.
+     * With it on, `columnSizing` carries the user's drags and the rest is filled in.
+     */
+    autoLayout?: boolean
     /** Draws a drag handle on every resizable header cell. */
     enableColumnResizing?: boolean
     /** "onChange" resizes live while dragging; "onEnd" commits once on release. */
@@ -87,6 +94,44 @@ const unpackRender = (
     return {children: result as ReactNode}
 }
 
+/** Defaults carried over from the hook this replaces; changing them moves every layout. */
+const AUTO_LAYOUT_DEFAULT_WIDTH = 200
+const AUTO_LAYOUT_DEFAULT_MIN_WIDTH = 150
+
+const toDistributable = <RecordType,>(columns: ColumnDefs<RecordType>): DistributableColumn[] => {
+    const leaves: ColumnDef<RecordType>[] = []
+    const visit = (entries: ColumnDefs<RecordType>) => {
+        entries.forEach((entry) => {
+            if (isColumnGroupDef(entry)) visit(entry.children)
+            else leaves.push(entry as ColumnDef<RecordType>)
+        })
+    }
+    visit(columns)
+
+    return leaves.map((column) => {
+        const width =
+            typeof column.width === "number"
+                ? column.width
+                : typeof column.minWidth === "number"
+                  ? column.minWidth
+                  : AUTO_LAYOUT_DEFAULT_WIDTH
+        // maxWidth is not on ColumnDef; callers pass it through, as they did before.
+        const declaredMax = (column as {maxWidth?: number}).maxWidth
+        return {
+            key: String(column.key ?? column.dataIndex ?? ""),
+            width,
+            // A column narrower than the default floor keeps its own smaller floor, else the
+            // floor would exceed the width it asked for and it could never be dragged down.
+            minWidth:
+                typeof column.minWidth === "number"
+                    ? column.minWidth
+                    : Math.min(AUTO_LAYOUT_DEFAULT_MIN_WIDTH, width),
+            maxWidth: typeof declaredMax === "number" && declaredMax > 0 ? declaredMax : undefined,
+            isFixed: Boolean(column.fixed),
+        }
+    })
+}
+
 export const VirtualTable = <RecordType extends object>({
     columns,
     dataSource,
@@ -107,6 +152,7 @@ export const VirtualTable = <RecordType extends object>({
     onColumnSizingChange,
     rowSelection,
     onRowSelectionChange,
+    autoLayout = false,
     enableColumnResizing = false,
     columnResizeMode = "onChange",
     leadingColumnWidth = 0,
@@ -115,8 +161,34 @@ export const VirtualTable = <RecordType extends object>({
 }: VirtualTableProps<RecordType>) => {
     const bodyRef = useRef<HTMLDivElement | null>(null)
     const headerScrollRef = useRef<HTMLDivElement | null>(null)
+    const containerRef = useRef<HTMLDivElement | null>(null)
+    const [containerWidth, setContainerWidth] = useState(0)
+
+    // Auto-layout needs the live container width, so it has to be measured rather than passed.
+    useEffect(() => {
+        if (!autoLayout) return
+        const node = containerRef.current
+        if (!node) return
+        const observer = new ResizeObserver(([entry]) => {
+            setContainerWidth(entry.contentRect.width)
+        })
+        observer.observe(node)
+        setContainerWidth(node.getBoundingClientRect().width)
+        return () => observer.disconnect()
+    }, [autoLayout])
 
     const tanstackColumns = useMemo(() => toTanstackColumns(columns), [columns])
+
+    // The user's drags are the input to the distribution, not the final widths.
+    const effectiveSizing = useMemo(() => {
+        if (!autoLayout || containerWidth === 0) return columnSizing
+        return distributeColumnWidths({
+            columns: toDistributable(columns),
+            containerWidth,
+            userWidths: columnSizing,
+            leadingColumnWidth,
+        })
+    }, [autoLayout, containerWidth, columns, columnSizing, leadingColumnWidth])
 
     const table = useTable<VirtualTableFeatures, RecordType>({
         features: TABLE_FEATURES,
@@ -127,7 +199,7 @@ export const VirtualTable = <RecordType extends object>({
         enableColumnResizing,
         state: {
             ...(columnVisibility ? {columnVisibility} : {}),
-            ...(columnSizing ? {columnSizing} : {}),
+            ...(effectiveSizing ? {columnSizing: effectiveSizing} : {}),
             ...(rowSelection ? {rowSelection} : {}),
         },
         onColumnVisibilityChange,
@@ -226,7 +298,10 @@ export const VirtualTable = <RecordType extends object>({
     const headerGroups = table.getHeaderGroups()
 
     return (
-        <div className={cn(AVT.container, "flex min-h-0 flex-col overflow-hidden", className)}>
+        <div
+            ref={containerRef}
+            className={cn(AVT.container, "flex min-h-0 flex-col overflow-hidden", className)}
+        >
             <div ref={headerScrollRef} className="overflow-hidden">
                 <table className="w-full table-fixed border-collapse" style={{width: totalWidth}}>
                     {colGroup}

@@ -13,7 +13,8 @@
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
         "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
-        "test": "pnpm run types:check && pnpm run lint"
+        "test": "pnpm run types:check && pnpm run lint && pnpm run test:unit",
+        "test:unit": "vitest run"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -145,6 +146,7 @@
         "@types/react-resizable": "^3.0.7",
         "ajv": "^8.18.0",
         "lodash": "^4.17.23",
-        "typescript": "^5.9.3"
+        "typescript": "^5.9.3",
+        "vitest": "^4.1.4"
     }
 }
