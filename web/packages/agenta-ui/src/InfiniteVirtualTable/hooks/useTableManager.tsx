@@ -17,6 +17,7 @@ import type {
     TableDeleteConfig,
     TableExportConfig,
 } from "../features/InfiniteVirtualTableFeatureShell"
+import {ANTD_SELECTOR} from "../tableDom"
 import type {
     InfiniteTableRowBase,
     InfiniteVirtualTableProps,
@@ -31,7 +32,7 @@ const dummySearchAtom = atom("")
 const INTERACTIVE_SELECTOR =
     "button, a, input, textarea, select, [role='button'], [role='menuitem'], [role='checkbox'], " +
     ".ant-btn, .ant-checkbox, .ant-checkbox-input, .ant-checkbox-inner, .ant-checkbox-wrapper, " +
-    ".ant-select, .ant-dropdown-trigger, .ant-table-selection-column, .ag-table-actions-cell"
+    ANTD_SELECTOR.interactiveCell
 
 /**
  * Returns true when the click originated from an interactive element (button, link,

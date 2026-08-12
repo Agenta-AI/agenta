@@ -1,6 +1,7 @@
 import {useLayoutEffect, useRef} from "react"
 
 import type {ColumnDefs} from "../columnDef"
+import {ANTD_SELECTOR} from "../tableDom"
 
 interface ColumnDomRefs {
     cols: HTMLTableColElement[]
@@ -24,9 +25,7 @@ const useColumnDomRefs = <RecordType>(
         }
 
         const headerCells = Array.from(
-            container.querySelectorAll<HTMLTableCellElement>(
-                ".ant-table-thead th[data-column-key]",
-            ),
+            container.querySelectorAll<HTMLTableCellElement>(ANTD_SELECTOR.headerCellWithKey),
         ).filter((cell) => Number(cell.getAttribute("colspan") ?? "1") === 1)
 
         if (!headerCells.length) {

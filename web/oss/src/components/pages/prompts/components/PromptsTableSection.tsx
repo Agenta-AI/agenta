@@ -190,7 +190,7 @@ export const PromptsTableSection = ({
 
     return (
         <InfiniteVirtualTableFeatureShell<PromptsTableRow>
-            className="grow min-h-0 [&_.ant-table-cell]:!align-middle [&_.ant-table-container]:!border-b"
+            className="grow min-h-0 [&_.avt-cell]:!align-middle [&_.avt-container]:!border-b"
             tableScope={tableScope}
             columns={columns}
             rowKey={(record) => record.key}
