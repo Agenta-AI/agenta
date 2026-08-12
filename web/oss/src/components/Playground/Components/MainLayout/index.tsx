@@ -387,6 +387,13 @@ const PlaygroundMainView = ({
                             The notice lives OUTSIDE the scroller, so it sits at the pane's bottom
                             edge regardless of content height or scroll position. */}
                         <div
+                            // Collapsed, the pane is zero-width but its inputs stay in the tab
+                            // order — antd's hidden-splitter class only changes padding/overflow —
+                            // so Tab could walk focus into controls nobody can see. `inert` takes
+                            // the whole subtree out of focus and a11y; `configCollapsed` covers
+                            // both triggers (Build/Chat maximize and the persisted manual collapse).
+                            inert={configCollapsed}
+                            aria-hidden={configCollapsed || undefined}
                             className={clsx("group relative flex h-full min-h-0 w-full flex-col", {
                                 // Config = the raised authoring surface (covers the notice too).
                                 "ag-panel-raised": isAgentConfig,

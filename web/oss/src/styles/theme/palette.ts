@@ -346,61 +346,61 @@ export const alphaFill = {
     "fff-78": {light: "rgba(255, 255, 255, 0.78)", dark: "rgba(20, 20, 20, 0.82)"},
 } satisfies Record<string, Pair>
 
+const TAG_SLOT = {
+    blue: {bg: {light: "#e5f1f9", dark: "rgba(140, 207, 255, 0.14)"}, text: {light: "#113955", dark: "#8ccfff"}}, // prettier-ignore
+    neutral: {bg: {light: "#ebeaea", dark: "rgba(188, 188, 188, 0.14)"}, text: {light: INK_HOVER, dark: "#bcbcbc"}}, // prettier-ignore
+    amber: {bg: {light: "#fbf3d9", dark: "rgba(235, 201, 106, 0.14)"}, text: {light: "#8a6400", dark: "#ebc96a"}}, // prettier-ignore
+    olive: {bg: {light: "#f8f8dd", dark: "rgba(209, 209, 81, 0.14)"}, text: {light: OLIVE, dark: "#d1d151"}}, // prettier-ignore
+    red: {bg: {light: "#f9e5e5", dark: "rgba(255, 142, 140, 0.14)"}, text: {light: "#5e0908", dark: "#ff8e8c"}}, // prettier-ignore
+    // The sixth slot. The categorical set lists five light tag pairs but six dark accents,
+    // so the green accent (#8fbf7a) needs a light counterpart: the spec's own success well
+    // and success text, not a new colour. The one AA deviation in this block — the spec's
+    // success text on its own success well measures 4.45:1, just under the 4.5:1 floor for
+    // tag labels, so the TEXT steps one notch darker (4.45 → 4.82). The well is untouched,
+    // and semantic.success / status.successText keep #2e7d3a for status use.
+    green: {bg: {light: "#eaf2e3", dark: "rgba(143, 191, 122, 0.14)"}, text: {light: "#2c7737", dark: "#8fbf7a"}}, // prettier-ignore
+} satisfies Record<string, {bg: Pair; text: Pair}>
+
 // ============================================================================
 // FEATURE FAMILIES — already role-shaped in theme-variables.css; moved verbatim.
 // ============================================================================
 
-/** Reference-tag tones. */
+/** One TAG_SLOT rendered as a tag triplet. The system has no separate border hue, so the border
+ * takes the fill: these read as flat brand fills, like every other tag drawn from the set. */
+const tagTone = (slot: (typeof TAG_SLOT)[keyof typeof TAG_SLOT]) => ({
+    text: slot.text,
+    bg: slot.bg,
+    border: slot.bg,
+})
+
+/**
+ * Reference-tag tones — on the categorical set, one slot each.
+ *
+ * All six appear side by side in a reference list, so all six slots are used and no two tones
+ * collide. The assignment keeps each tone's nearest existing hue (app was blue, variant green,
+ * query orange→amber, evaluator magenta→red); testset and environment take the two slots with no
+ * near match (neutral, olive) rather than doubling up on a used one.
+ */
 export const referenceTag = {
-    app: {
-        text: {light: "#175cd3", dark: "var(--ant-blue-7)"},
-        bg: {light: "#eff8ff", dark: "var(--ant-blue-1)"},
-        border: {light: "#b2ddff", dark: "var(--ant-blue-3)"},
-    },
-    variant: {
-        text: {light: "#027a48", dark: "var(--ant-green-7)"},
-        bg: {light: "#ecfdf3", dark: "var(--ant-green-1)"},
-        border: {light: "#abefc6", dark: "var(--ant-green-3)"},
-    },
-    testset: {
-        text: {light: "#5925dc", dark: "var(--ant-purple-7)"},
-        bg: {light: "#f4ebff", dark: "var(--ant-purple-1)"},
-        border: {light: "#d6bbfb", dark: "var(--ant-purple-3)"},
-    },
-    query: {
-        text: {light: "#b93815", dark: "var(--ant-volcano-7)"},
-        bg: {light: "#fef6ee", dark: "var(--ant-volcano-1)"},
-        border: {light: "#f9dbaf", dark: "var(--ant-volcano-3)"},
-    },
-    evaluator: {
-        text: {light: "#c01048", dark: "var(--ant-magenta-7)"},
-        bg: {light: "#fff1f3", dark: "var(--ant-magenta-1)"},
-        border: {light: "#fcceee", dark: "var(--ant-magenta-3)"},
-    },
-    environment: {
-        text: {light: "#0f766e", dark: "var(--ant-cyan-7)"},
-        bg: {light: "#ecfdf3", dark: "var(--ant-cyan-1)"},
-        border: {light: "#99f6e4", dark: "var(--ant-cyan-3)"},
-    },
+    app: tagTone(TAG_SLOT.blue),
+    variant: tagTone(TAG_SLOT.green),
+    testset: tagTone(TAG_SLOT.neutral),
+    query: tagTone(TAG_SLOT.amber),
+    evaluator: tagTone(TAG_SLOT.red),
+    environment: tagTone(TAG_SLOT.olive),
 }
 
-/** Deployment-environment tag tones. */
+/**
+ * Deployment-environment tag tones — on the categorical set.
+ *
+ * Semantics drive the assignment, not the old hues: production is the live one (green), staging is
+ * the "look before you ship" one (amber), development is unremarkable (neutral). The three stay
+ * mutually distinguishable, which is the only hard requirement for an environment badge.
+ */
 export const environmentTag = {
-    production: {
-        text: {light: "#237804", dark: "var(--ant-green-7)"},
-        bg: {light: "#d9f7be", dark: "var(--ant-green-1)"},
-        border: {light: "#d9f7be", dark: "var(--ant-green-3)"},
-    },
-    staging: {
-        text: {light: "#fa541c", dark: "var(--ant-volcano-7)"},
-        bg: {light: "#fff2e8", dark: "var(--ant-volcano-1)"},
-        border: {light: "#fff2e8", dark: "var(--ant-volcano-3)"},
-    },
-    development: {
-        text: {light: "#722ed1", dark: "var(--ant-purple-7)"},
-        bg: {light: "#f9f0ff", dark: "var(--ant-purple-1)"},
-        border: {light: "#f9f0ff", dark: "var(--ant-purple-3)"},
-    },
+    production: tagTone(TAG_SLOT.green),
+    staging: tagTone(TAG_SLOT.amber),
+    development: tagTone(TAG_SLOT.neutral),
 }
 
 /** Run-comparison row tints (keep in sync with RUN_COMPARISON_PALETTE). */
@@ -614,20 +614,6 @@ export const draftTag = {
 // agent / chat / completion / custom / evaluator, which take five different slots, and
 // agent / chat / completion match the workflowType family above exactly, so the light
 // badge and the dark `.ag-type-*` override agree.
-const TAG_SLOT = {
-    blue: {bg: {light: "#e5f1f9", dark: "rgba(140, 207, 255, 0.14)"}, text: {light: "#113955", dark: "#8ccfff"}}, // prettier-ignore
-    neutral: {bg: {light: "#ebeaea", dark: "rgba(188, 188, 188, 0.14)"}, text: {light: INK_HOVER, dark: "#bcbcbc"}}, // prettier-ignore
-    amber: {bg: {light: "#fbf3d9", dark: "rgba(235, 201, 106, 0.14)"}, text: {light: "#8a6400", dark: "#ebc96a"}}, // prettier-ignore
-    olive: {bg: {light: "#f8f8dd", dark: "rgba(209, 209, 81, 0.14)"}, text: {light: OLIVE, dark: "#d1d151"}}, // prettier-ignore
-    red: {bg: {light: "#f9e5e5", dark: "rgba(255, 142, 140, 0.14)"}, text: {light: "#5e0908", dark: "#ff8e8c"}}, // prettier-ignore
-    // The sixth slot. The categorical set lists five light tag pairs but six dark accents,
-    // so the green accent (#8fbf7a) needs a light counterpart: the spec's own success well
-    // and success text, not a new colour. The one AA deviation in this block — the spec's
-    // success text on its own success well measures 4.45:1, just under the 4.5:1 floor for
-    // tag labels, so the TEXT steps one notch darker (4.45 → 4.82). The well is untouched,
-    // and semantic.success / status.successText keep #2e7d3a for status use.
-    green: {bg: {light: "#eaf2e3", dark: "rgba(143, 191, 122, 0.14)"}, text: {light: "#2c7737", dark: "#8fbf7a"}}, // prettier-ignore
-} satisfies Record<string, {bg: Pair; text: Pair}>
 
 export const presetTag = {
     blueBg: TAG_SLOT.neutral.bg, //     chat
