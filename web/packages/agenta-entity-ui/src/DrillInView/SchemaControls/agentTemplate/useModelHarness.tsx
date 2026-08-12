@@ -627,6 +627,8 @@ export function useModelHarness({
         ? {
               mode: connection.mode,
               onModeChange: (m: ConnectionMode) => writeModel({mode: m}),
+              // Drives the self-managed card's runner check (which harness's login to ask about).
+              harness: harnessValue,
               selectedProviderFamily,
               selectedConnectionSlug: connection.slug ?? null,
               modeOptions,

@@ -65,6 +65,21 @@ export {
     type ModelRatings,
 } from "./state/inspectMeta"
 
+// Live runner subscription status for the selected harness (self-managed credentials card).
+export {
+    subscriptionStatusKey,
+    subscriptionStatusQueryAtomFamily,
+    resolveSubscriptionStatus,
+    type SubscriptionStatusDisplay,
+    type SubscriptionStatusTone,
+} from "./state/subscriptionStatus"
+
+export {
+    type SubscriptionStatusResponse,
+    type SubscriptionRunnerState,
+    type SubscriptionHarnessState,
+} from "./api/subscriptionStatus"
+
 export {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,

@@ -28,6 +28,18 @@ export {
 } from "./inspectMeta"
 
 // ============================================================================
+// RUNNER SUBSCRIPTION STATUS (live per-harness login state)
+// ============================================================================
+
+export {
+    subscriptionStatusKey,
+    subscriptionStatusQueryAtomFamily,
+    resolveSubscriptionStatus,
+    type SubscriptionStatusDisplay,
+    type SubscriptionStatusTone,
+} from "./subscriptionStatus"
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 
