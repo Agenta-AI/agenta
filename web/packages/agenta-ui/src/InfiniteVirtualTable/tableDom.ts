@@ -18,6 +18,8 @@ export const AVT = {
     cell: "avt-cell",
     headerCell: "avt-head-cell",
     resizeHandle: "avt-resize-handle",
+    expandedRow: "avt-expanded-row",
+    expandCell: "avt-expand-cell",
     selectionCol: "avt-selection-col",
 } as const
 

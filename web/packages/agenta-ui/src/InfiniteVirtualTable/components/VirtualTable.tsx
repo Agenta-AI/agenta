@@ -6,6 +6,7 @@ import type {
     OnChangeFn,
     RowSelectionState,
     ColumnVisibilityState,
+    ExpandedState,
 } from "@tanstack/react-table"
 import {flexRender, useTable} from "@tanstack/react-table"
 import {useVirtualizer} from "@tanstack/react-virtual"
@@ -65,6 +66,17 @@ export interface VirtualTableProps<RecordType extends object> {
     /** Controlled row selection, keyed by row id. */
     rowSelection?: RowSelectionState
     onRowSelectionChange?: OnChangeFn<RowSelectionState>
+    /**
+     * Renders a full-width panel under an expanded row. Passing it turns on the expand column.
+     * Async children (fetch, loading, error) stay the caller's job; the table owns open/closed.
+     */
+    renderExpandedRow?: (record: RecordType, index: number) => ReactNode
+    /** Controlled expanded state, keyed by row id. */
+    expanded?: ExpandedState
+    onExpandedChange?: OnChangeFn<ExpandedState>
+    /** Rows this returns false for get no chevron. */
+    getRowCanExpand?: (record: RecordType) => boolean
+    expandColumnWidth?: number
     /**
      * Shares the container width across columns instead of using declared widths as-is.
      * With it on, `columnSizing` carries the user's drags and the rest is filled in.
@@ -152,6 +164,11 @@ export const VirtualTable = <RecordType extends object>({
     onColumnSizingChange,
     rowSelection,
     onRowSelectionChange,
+    renderExpandedRow,
+    expanded,
+    onExpandedChange,
+    getRowCanExpand,
+    expandColumnWidth = 48,
     autoLayout = false,
     enableColumnResizing = false,
     columnResizeMode = "onChange",
@@ -201,11 +218,15 @@ export const VirtualTable = <RecordType extends object>({
             ...(columnVisibility ? {columnVisibility} : {}),
             ...(effectiveSizing ? {columnSizing: effectiveSizing} : {}),
             ...(rowSelection ? {rowSelection} : {}),
+            ...(expanded !== undefined ? {expanded} : {}),
         },
         onColumnVisibilityChange,
         onColumnSizingChange,
         onRowSelectionChange,
         enableRowSelection: Boolean(onRowSelectionChange),
+        onExpandedChange,
+        enableExpanding: Boolean(renderExpandedRow),
+        getRowCanExpand: (row) => (getRowCanExpand ? getRowCanExpand(row.original) : true),
     })
 
     const rows = table.getRowModel().rows
@@ -219,9 +240,10 @@ export const VirtualTable = <RecordType extends object>({
     })
 
     const virtualRows = virtualizer.getVirtualItems()
+    const expandWidth = renderExpandedRow ? expandColumnWidth : 0
     const totalWidth = leafColumns.reduce(
         (sum, column) => sum + column.getSize(),
-        leadingColumnWidth,
+        leadingColumnWidth + expandWidth,
     )
 
     /** Pinned columns stack: each one starts where the previous pinned column ended. */
@@ -229,7 +251,7 @@ export const VirtualTable = <RecordType extends object>({
         const left = new Map<string, number>()
         const right = new Map<string, number>()
 
-        let runningLeft = leadingColumnWidth
+        let runningLeft = leadingColumnWidth + expandWidth
         leafColumns.forEach((column) => {
             const fixed = sourceOf<RecordType>(column.columnDef.meta)?.fixed
             if (fixed === "left" || fixed === true) {
@@ -248,7 +270,7 @@ export const VirtualTable = <RecordType extends object>({
         }
 
         return {left, right}
-    }, [leafColumns, leadingColumnWidth])
+    }, [leafColumns, leadingColumnWidth, expandWidth])
 
     const stickyStyle = useCallback(
         (columnId: string): CSSProperties | undefined => {
@@ -289,6 +311,7 @@ export const VirtualTable = <RecordType extends object>({
                     style={{width: leadingColumnWidth}}
                 />
             ) : null}
+            {expandWidth ? <col key="expand" style={{width: expandWidth}} /> : null}
             {leafColumns.map((column) => (
                 <col key={column.id} style={{width: column.getSize()}} />
             ))}
@@ -320,6 +343,21 @@ export const VirtualTable = <RecordType extends object>({
                                     >
                                         {renderLeadingHeader?.()}
                                     </th>
+                                ) : null}
+                                {expandWidth && groupIndex === 0 ? (
+                                    <th
+                                        key="expand"
+                                        rowSpan={headerGroups.length}
+                                        className={cn(
+                                            AVT.headerCell,
+                                            "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-2 py-2",
+                                        )}
+                                        style={{
+                                            position: "sticky",
+                                            left: leadingColumnWidth,
+                                            zIndex: 3,
+                                        }}
+                                    />
                                 ) : null}
                                 {headerGroup.headers.map((header) => {
                                     const source = sourceOf<RecordType>(
@@ -405,17 +443,21 @@ export const VirtualTable = <RecordType extends object>({
                             }}
                         >
                             {colGroup}
-                            <tbody>
-                                {virtualRows.map((virtualRow) => {
-                                    const row = rows[virtualRow.index]
-                                    const record = row.original
-                                    const rowProps = onRow?.(record, virtualRow.index) ?? {}
-                                    return (
+                            {virtualRows.map((virtualRow) => {
+                                const row = rows[virtualRow.index]
+                                const record = row.original
+                                const rowProps = onRow?.(record, virtualRow.index) ?? {}
+                                const expanded = Boolean(renderExpandedRow) && row.getIsExpanded()
+                                return (
+                                    // One tbody per virtual item: the expanded panel is a second
+                                    // <tr>, and the virtualizer must measure BOTH, not just the row.
+                                    <tbody
+                                        key={row.id}
+                                        data-index={virtualRow.index}
+                                        ref={virtualizer.measureElement}
+                                    >
                                         <tr
                                             {...rowProps}
-                                            key={row.id}
-                                            data-index={virtualRow.index}
-                                            ref={virtualizer.measureElement}
                                             className={cn(
                                                 AVT.row,
                                                 "border-0 border-b border-solid border-colorBorderSecondary hover:bg-colorFillTertiary",
@@ -433,6 +475,49 @@ export const VirtualTable = <RecordType extends object>({
                                                     style={{position: "sticky", left: 0, zIndex: 1}}
                                                 >
                                                     {renderLeadingCell?.(record, virtualRow.index)}
+                                                </td>
+                                            ) : null}
+                                            {expandWidth ? (
+                                                <td
+                                                    key="expand"
+                                                    className={cn(
+                                                        AVT.cell,
+                                                        AVT.expandCell,
+                                                        "box-border bg-colorBgContainer px-2 align-middle",
+                                                    )}
+                                                    style={{
+                                                        position: "sticky",
+                                                        left: leadingColumnWidth,
+                                                        zIndex: 1,
+                                                    }}
+                                                >
+                                                    {row.getCanExpand() ? (
+                                                        <button
+                                                            type="button"
+                                                            aria-label={
+                                                                expanded
+                                                                    ? "Collapse row"
+                                                                    : "Expand row"
+                                                            }
+                                                            aria-expanded={expanded}
+                                                            data-expand-toggle={row.id}
+                                                            className="flex size-6 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextSecondary"
+                                                            onClick={(event) => {
+                                                                // The row itself may navigate; expanding must not.
+                                                                event.stopPropagation()
+                                                                row.toggleExpanded()
+                                                            }}
+                                                        >
+                                                            <span
+                                                                className={cn(
+                                                                    "transition-transform",
+                                                                    expanded && "rotate-90",
+                                                                )}
+                                                            >
+                                                                ›
+                                                            </span>
+                                                        </button>
+                                                    ) : null}
                                                 </td>
                                             ) : null}
                                             {row.getVisibleCells().map((cell) => {
@@ -474,9 +559,23 @@ export const VirtualTable = <RecordType extends object>({
                                                 )
                                             })}
                                         </tr>
-                                    )
-                                })}
-                            </tbody>
+                                        {expanded ? (
+                                            <tr className={AVT.expandedRow}>
+                                                <td
+                                                    colSpan={
+                                                        leafColumns.length +
+                                                        (leadingColumnWidth ? 1 : 0) +
+                                                        (renderExpandedRow ? 1 : 0)
+                                                    }
+                                                    className="box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer p-0"
+                                                >
+                                                    {renderExpandedRow?.(record, virtualRow.index)}
+                                                </td>
+                                            </tr>
+                                        ) : null}
+                                    </tbody>
+                                )
+                            })}
                         </table>
                     </div>
                 )}

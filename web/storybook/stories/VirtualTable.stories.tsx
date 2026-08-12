@@ -1,5 +1,5 @@
 import type {Key} from "react"
-import {useCallback, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {VirtualTable, useVirtualTableRowSelection, type ColumnDefs} from "@agenta/ui/table"
 import type {Meta, StoryObj} from "@storybook/nextjs"
@@ -351,6 +351,82 @@ const AutoLayoutDemo = () => {
 }
 
 export const AutoLayout: Story = {render: () => <AutoLayoutDemo />}
+
+/**
+ * Expandable rows, with async children.
+ *
+ * TanStack owns which rows are open; fetching the children stays the caller's job, which is
+ * what the existing `ExpandableRowConfig` does. Each virtual item is its own `<tbody>` so the
+ * virtualizer measures the row AND its panel — measure only the row and every position below
+ * an open row is wrong by the panel's height.
+ */
+const ExpandableDemo = () => {
+    const rows = useMemo(() => makeRows(30), [])
+    const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+    const [children, setChildren] = useState<Record<string, string[]>>({})
+
+    // Stands in for a real fetch, so the panel has a loading state to show.
+    useEffect(() => {
+        Object.keys(expanded)
+            .filter((key) => expanded[key] && !children[key])
+            .forEach((key) => {
+                const timer = setTimeout(() => {
+                    setChildren((prev) => ({
+                        ...prev,
+                        [key]: [`${key} child A`, `${key} child B`, `${key} child C`],
+                    }))
+                }, 400)
+                return () => clearTimeout(timer)
+            })
+    }, [expanded, children])
+
+    const openCount = Object.values(expanded).filter(Boolean).length
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Note>
+                {openCount} row{openCount === 1 ? "" : "s"} open. Every 4th row cannot expand.
+                Panels load after 400ms; rows below must stay correctly positioned throughout.
+            </Note>
+            <Frame>
+                <VirtualTable<Row>
+                    columns={baseColumns}
+                    dataSource={rows}
+                    rowKey={(row) => row.key}
+                    rowHeight={48}
+                    height={420}
+                    expanded={expanded}
+                    onExpandedChange={(updater) =>
+                        setExpanded((prev) =>
+                            typeof updater === "function"
+                                ? (updater(prev) as Record<string, boolean>)
+                                : (updater as Record<string, boolean>),
+                        )
+                    }
+                    getRowCanExpand={(row) => Number(row.key.split("-")[1]) % 4 !== 0}
+                    renderExpandedRow={(row) => (
+                        <div
+                            className="bg-colorFillQuaternary px-4 py-3 text-xs"
+                            data-panel={row.key}
+                        >
+                            {children[row.key] ? (
+                                <ul className="m-0 flex flex-col gap-1 pl-4">
+                                    {children[row.key].map((child) => (
+                                        <li key={child}>{child}</li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <span className="text-colorTextSecondary">Loading children…</span>
+                            )}
+                        </div>
+                    )}
+                />
+            </Frame>
+        </div>
+    )
+}
+
+export const Expandable: Story = {render: () => <ExpandableDemo />}
 
 /** Left- and right-pinned columns must stay put and not overlap while scrolling sideways. */
 const stickyColumns: ColumnDefs<Row> = [

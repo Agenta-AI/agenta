@@ -2,6 +2,7 @@ import {
     columnResizingFeature,
     columnSizingFeature,
     columnVisibilityFeature,
+    rowExpandingFeature,
     rowSelectionFeature,
 } from "@tanstack/react-table"
 
@@ -18,6 +19,7 @@ export const TABLE_FEATURES = {
     columnResizingFeature,
     columnSizingFeature,
     columnVisibilityFeature,
+    rowExpandingFeature,
     rowSelectionFeature,
 } as const
 
