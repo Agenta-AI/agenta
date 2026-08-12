@@ -380,7 +380,7 @@ export function ConfigAccordionSection({
                     <span className="relative flex min-w-0">
                         <span
                             className={cn(
-                                "min-w-0 truncate font-medium",
+                                "shrink-0 truncate font-medium",
                                 size === "compact" ? "text-xs" : "text-sm",
                             )}
                         >
@@ -412,7 +412,7 @@ export function ConfigAccordionSection({
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                     {summary && (!summaryCollapsedOnly || !isOpen) ? (
                         // antd `Text type="secondary"` is colorTextDescription, not colorTextSecondary.
                         <span className="max-w-[220px] truncate text-right text-xs text-colorTextDescription">
