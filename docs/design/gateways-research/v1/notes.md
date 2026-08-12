@@ -148,7 +148,7 @@ credential, and it answers with a small HTML page that closes the popup.
 
 **A signed inbound webhook.** The triggers ingress verifies an HMAC over an identifier, a
 timestamp and the body, with a freshness window and a replay check, then enqueues and returns
-immediately. An inbound OAuth callback to a deployment with no public address is the same shape.
+immediately.
 
 The MCP OAuth work therefore inherits the state signer, the unauthenticated-callback pattern and
 the popup-closing response. What it does not inherit is reachability, which is why that stays
