@@ -5,6 +5,9 @@ from litellm import cost_calculator
 
 supported_llm_models = {
     "anthropic": [
+        "anthropic/claude-fable-5",
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-opus-4-8",
         "anthropic/claude-opus-4-7",
         "anthropic/claude-opus-4-6",
         "anthropic/claude-sonnet-4-6",
@@ -153,6 +156,7 @@ supported_llm_models = {
         # Nvidia via OpenRouter
         "openrouter/nvidia/nemotron-3-super-120b-a12b",
         # OpenAI via OpenRouter
+        "openrouter/openai/gpt-5.6-luna",
         "openrouter/openai/gpt-5.5",
         "openrouter/openai/gpt-5.4",
         # Qwen via OpenRouter
@@ -161,9 +165,11 @@ supported_llm_models = {
         "openrouter/tencent/hy3-preview",
         # Xiaomi via OpenRouter
         "openrouter/xiaomi/mimo-v2.5-pro",
+        "openrouter/xiaomi/mimo-v2.5",
         # xAI via OpenRouter
         "openrouter/x-ai/grok-4.3",
         # Z.ai via OpenRouter
+        "openrouter/z-ai/glm-5.2",
         "openrouter/z-ai/glm-5",
     ],
     # NOTE: provider kind must match Secrets API enums ("perplexityai").
@@ -184,14 +190,18 @@ supported_llm_models = {
         "together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
         "together_ai/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "together_ai/meta-llama/Llama-3.2-3B-Instruct-Turbo",
+        "together_ai/moonshotai/Kimi-K2.7-Code",
         "together_ai/moonshotai/Kimi-K2-Instruct",
         "together_ai/mistralai/Mistral-Small-24B-Instruct-2501",
         "together_ai/mistralai/Mistral-7B-Instruct-v0.1",
         "together_ai/mistralai/Mixtral-8x7B-Instruct-v0.1",
         "together_ai/Qwen/Qwen2.5-7B-Instruct-Turbo",
         "together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo",
+        "together_ai/zai-org/GLM-5.2",
     ],
     "minimax": [
+        "minimax/MiniMax-M3",
+        "minimax/MiniMax-M2.7-highspeed",
         "minimax/MiniMax-M2.5",
         "minimax/MiniMax-M2.5-lightning",
         "minimax/MiniMax-M2.1",

@@ -955,6 +955,15 @@ async def auto_ai_critique_v0(
             got=model,
         )
 
+    connection = parameters.get("connection") or None
+
+    if connection is not None and not isinstance(connection, str):
+        raise InvalidConfigurationParameterV0Error(
+            path="connection",
+            expected="str",
+            got=connection,
+        )
+
     response_type = parameters.get("response_type") or (
         "json_schema" if template_version == "4" else "text"
     )
@@ -989,7 +998,9 @@ async def auto_ai_critique_v0(
 
     await SecretsManager.ensure_secrets_in_workflow()
 
-    provider_settings = SecretsManager.get_provider_settings_from_workflow(model)
+    provider_settings = SecretsManager.get_provider_settings_from_workflow(
+        model, connection=connection
+    )
 
     if not provider_settings:
         raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
@@ -2053,7 +2064,8 @@ async def _run_prompt_llm_config_with_retry(
     for attempt in range(attempts):
         try:
             provider_settings = SecretsManager.get_provider_settings_from_workflow(
-                llm_config.model
+                llm_config.model,
+                connection=llm_config.connection,
             )
 
             if not provider_settings:
@@ -3568,24 +3580,29 @@ async def _call_llm_with_fallback(
 
     secrets, _, _ = await SecretsManager.retrieve_secrets()
     if secrets and isinstance(secrets, list):
+        # First record per family wins, matching `SecretsManager._settings_by_family`. Letting
+        # the last one overwrite would run this path on a different key than every other
+        # resolution path picks once a project holds two connections for one provider.
+        key_attrs = {
+            "openai": "openai_key",
+            "anthropic": "anthropic_key",
+            "openrouter": "openrouter_key",
+            "cohere": "cohere_key",
+            "azure": "azure_key",
+            "groq": "groq_key",
+        }
+        bound: set = set()
         for secret in secrets:
             if secret.get("kind") != "provider_key":
                 continue
             data = secret.get("data", {})
             kind = data.get("kind")
             key = data.get("provider", {}).get("key")
-            if kind == "openai" and key:
-                litellm.openai_key = key
-            elif kind == "anthropic" and key:
-                litellm.anthropic_key = key
-            elif kind == "openrouter" and key:
-                litellm.openrouter_key = key
-            elif kind == "cohere" and key:
-                litellm.cohere_key = key
-            elif kind == "azure" and key:
-                litellm.azure_key = key
-            elif kind == "groq" and key:
-                litellm.groq_key = key
+            attr = key_attrs.get(kind)
+            if not attr or not key or kind in bound:
+                continue
+            setattr(litellm, attr, key)
+            bound.add(kind)
 
     last_error = None
     for llm_config in llms:

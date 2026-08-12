@@ -59,6 +59,23 @@ def _all_models():
 _LITELLM_LAGGING_PROVIDERS = {"openrouter"}
 
 
+def _agent_catalog_ids() -> set:
+    """Every model id the agent-side catalog (Pi's vendored list) knows.
+
+    A second, independently-sourced registry. An id present there but absent from litellm's
+    pinned `model_cost` is a snapshot lag, not a typo — which is the distinction this test
+    exists to make.
+    """
+    try:
+        from agenta.sdk.agents.model_catalog import pi_model_catalog
+    except Exception:  # pragma: no cover - agent extras not installed
+        return set()
+    return {entry.id for entry in pi_model_catalog().models}
+
+
+_AGENT_CATALOG_IDS: set = _agent_catalog_ids()
+
+
 @pytest.mark.skipif(not LITELLM_AVAILABLE, reason="litellm not installed")
 @pytest.mark.parametrize("model,provider", list(_all_models()))
 def test_model_exists_in_litellm(model: str, provider: str) -> None:
@@ -72,6 +89,13 @@ def test_model_exists_in_litellm(model: str, provider: str) -> None:
         )
         pytest.xfail(
             f"'{model}' not yet in this litellm build's model_cost (OpenRouter lag)"
+        )
+    if not found and model in _AGENT_CATALOG_IDS:
+        # Corroborated by the agent catalog, so the id is real and this litellm build simply
+        # has not indexed it yet. Cost data will be missing until the pin moves.
+        pytest.xfail(
+            f"'{model}' not yet in this litellm build's model_cost "
+            f"(present in the agent catalog, so this is snapshot lag)"
         )
     assert found, (
         f"Model '{model}' (provider: '{provider}') was not found in "

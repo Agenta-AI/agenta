@@ -362,7 +362,11 @@ async def get_secrets(
         display_exception("Vault: Vault Secrets Exception")
 
     local_standard = {}
-    vault_standard = {}
+    # A project may hold several connections per provider family, so vault provider_key records
+    # are kept as a list. Keying them by family (as the locals still are) would drop every
+    # connection but the last, making a named second OpenAI key unreachable.
+    vault_standard = []
+    vault_standard_kinds = set()
     vault_custom = []
 
     if local_secrets:
@@ -372,13 +376,20 @@ async def get_secrets(
     if vault_secrets:
         for secret in vault_secrets:
             if secret["kind"] == "provider_key":  # type: ignore
-                vault_standard[secret["data"]["kind"]] = secret  # type: ignore
+                vault_standard.append(secret)
+                vault_standard_kinds.add(secret["data"]["kind"])  # type: ignore
             elif secret["kind"] == "custom_provider":  # type: ignore
                 vault_custom.append(secret)
 
-    combined_standard = {**local_standard, **vault_standard}
-    combined_vault = list(vault_standard.values()) + vault_custom
-    secrets = list(combined_standard.values()) + vault_custom
+    # A stored key still shadows the env-var local for the same family.
+    surviving_locals = [
+        secret
+        for kind, secret in local_standard.items()
+        if kind not in vault_standard_kinds
+    ]
+    combined_standard = surviving_locals + vault_standard
+    combined_vault = vault_standard + vault_custom
+    secrets = combined_standard + vault_custom
 
     secrets_cache = pack_secrets_cache_payload(
         secrets=secrets,

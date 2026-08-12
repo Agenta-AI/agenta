@@ -1,5 +1,6 @@
 import {memo} from "react"
 
+import {connectionSlugFromOption} from "@agenta/entities/secret"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -13,6 +14,14 @@ import {ConfigSelect} from "./configPopoverControls"
 export interface ModelConfigEditorProps {
     value: Record<string, unknown>
     onChange: (key: string, next: unknown) => void
+    /**
+     * Writes the model AND its connection slug in one update. Picking a model from a connection
+     * group is one choice, so the two keys have to land together — two single-key `onChange`
+     * calls would both build on the same stale config and the second would drop the first.
+     * Absent falls back to `onChange("model", …)`, which leaves the slug unset (legacy
+     * provider-family resolution).
+     */
+    onModelChange?: (changes: Record<string, unknown>) => void
     llmConfigProps: Record<string, unknown>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     modelOptions: any[]
@@ -24,6 +33,7 @@ export interface ModelConfigEditorProps {
 export const ModelConfigEditor = memo(function ModelConfigEditor({
     value,
     onChange,
+    onModelChange,
     llmConfigProps,
     modelOptions,
     footerContent,
@@ -85,7 +95,18 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
                 showGroup
                 options={modelOptions}
                 value={(value.model as string | undefined) ?? undefined}
-                onChange={(nextModel) => onChange("model", nextModel)}
+                onChange={(nextModel, option) => {
+                    if (!onModelChange) {
+                        onChange("model", nextModel)
+                        return
+                    }
+                    // A pick from a static catalog group carries no slug, which clears the field
+                    // back to provider-family resolution.
+                    onModelChange({
+                        model: nextModel,
+                        connection: connectionSlugFromOption(option?.metadata),
+                    })
+                }}
                 size="small"
                 footerContent={footerContent}
                 disabled={disabled}

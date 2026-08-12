@@ -10,6 +10,7 @@
 
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {withoutAmbiguousCatalogGroups} from "@agenta/entities/secret"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {getOptionsFromSchema} from "@agenta/shared/utils"
 import type {DrillInUIComponents} from "@agenta/ui/drill-in"
@@ -98,6 +99,7 @@ export function useModelConfigurePopover({
         const modelSchema = getModelSchema(promptSchema as EntitySchemaProperty | null)
         const optionsResult = getOptionsFromSchema(modelSchema)
         const modelOptions = optionsResult?.options ?? []
+        const modelCatalog = optionsResult?.grouped
 
         const llmConfigValue = getLLMConfigValue(promptValue)
         const currentModel = llmConfigValue?.model as string | undefined
@@ -110,6 +112,7 @@ export function useModelConfigurePopover({
         return {
             modelSchema,
             modelOptions,
+            modelCatalog,
             currentModel,
             promptValue,
             promptSchemaProps,
@@ -124,25 +127,29 @@ export function useModelConfigurePopover({
     // - Legacy nested: parameters.prompt.llm_config.{key}
     // - Legacy flat: parameters.prompt.{key}
     // - Canonical: parameters.llms[0].{key}
-    const updatePromptLLMConfigKey = useCallback(
-        (key: string, newValue: unknown) => {
+    const updatePromptLLMConfigKeys = useCallback(
+        (changes: Record<string, unknown>) => {
             if (disabled || !activeData) return
+
+            const applyChanges = (base: Record<string, unknown> | undefined) =>
+                Object.entries(changes).reduce(
+                    (acc, [key, value]) => updateConfigKey(acc, key, value),
+                    {...(base ?? {})},
+                )
 
             // Canonical: llms array at root level
             if (Array.isArray(parameters.llms)) {
                 const currentLlms = parameters.llms as Record<string, unknown>[]
-                const updatedFirst = updateConfigKey(currentLlms[0], key, newValue)
                 dispatchUpdate(revisionId, {
                     ...parameters,
-                    llms: [updatedFirst, ...currentLlms.slice(1)],
+                    llms: [applyChanges(currentLlms[0]), ...currentLlms.slice(1)],
                 })
                 return
             }
 
             // Canonical/root-level prompt without an llms array.
             if (promptModelInfo?.isRootLevel) {
-                const nextParameters = updateConfigKey(parameters, key, newValue)
-                dispatchUpdate(revisionId, nextParameters)
+                dispatchUpdate(revisionId, applyChanges(parameters))
                 return
             }
 
@@ -155,14 +162,12 @@ export function useModelConfigurePopover({
                 const llmConfigKey = currentPrompt.llm_config ? "llm_config" : "llmConfig"
                 updatedPrompt = {
                     ...currentPrompt,
-                    [llmConfigKey]: updateConfigKey(
+                    [llmConfigKey]: applyChanges(
                         currentPrompt[llmConfigKey] as Record<string, unknown> | undefined,
-                        key,
-                        newValue,
                     ),
                 }
             } else {
-                updatedPrompt = updateConfigKey(currentPrompt, key, newValue)
+                updatedPrompt = applyChanges(currentPrompt)
             }
 
             dispatchUpdate(revisionId, {
@@ -171,6 +176,11 @@ export function useModelConfigurePopover({
             })
         },
         [disabled, activeData, parameters, revisionId, dispatchUpdate, promptModelInfo],
+    )
+
+    const updatePromptLLMConfigKey = useCallback(
+        (key: string, newValue: unknown) => updatePromptLLMConfigKeys({[key]: newValue}),
+        [updatePromptLLMConfigKeys],
     )
 
     const updatePromptRootFields = useCallback(
@@ -301,12 +311,33 @@ export function useModelConfigurePopover({
         }))
     }, [promptModelInfo])
 
-    const fallbackModelOptions = useMemo(
-        () => [
-            ...(llmProviderConfig?.extraOptionGroups ?? []),
-            ...(promptModelInfo?.modelOptions ?? []),
+    // One group per stored provider connection, ahead of the static catalog groups. Each option
+    // carries its connection slug, which the model pick persists next to the model.
+    const connectionGroups = useMemo(
+        () =>
+            llmProviderConfig?.connectionGroupsFor?.(promptModelInfo?.modelCatalog) ??
+            llmProviderConfig?.extraOptionGroups ??
+            [],
+        [
+            llmProviderConfig?.connectionGroupsFor,
+            llmProviderConfig?.extraOptionGroups,
+            promptModelInfo?.modelCatalog,
         ],
-        [llmProviderConfig?.extraOptionGroups, promptModelInfo?.modelOptions],
+    )
+
+    // The static catalog group for a family two connections both offer models for is dropped:
+    // its options carry no slug, so a pick there would bind to whichever of the user's keys the
+    // resolver reaches first. The connection groups above cover those models with the slug.
+    const modelOptions = useMemo(
+        () => [
+            ...connectionGroups,
+            ...withoutAmbiguousCatalogGroups({
+                staticGroups: promptModelInfo?.modelOptions ?? [],
+                connectionGroups,
+                catalog: promptModelInfo?.modelCatalog,
+            }),
+        ],
+        [connectionGroups, promptModelInfo?.modelOptions, promptModelInfo?.modelCatalog],
     )
 
     const handleRetryConfigFieldChange = useCallback(
@@ -367,18 +398,25 @@ export function useModelConfigurePopover({
         [fallbackConfigs],
     )
 
-    const handleFallbackDetailChange = useCallback((key: string, nextValue: unknown) => {
+    const handleFallbackDetailChanges = useCallback((changes: Record<string, unknown>) => {
         setFallbackDetail((current) => {
             if (!current) return current
             const nextDraft = {...current.draft}
-            if (nextValue === null || nextValue === undefined) {
-                delete nextDraft[key]
-            } else {
-                nextDraft[key] = nextValue
+            for (const [key, nextValue] of Object.entries(changes)) {
+                if (nextValue === null || nextValue === undefined) {
+                    delete nextDraft[key]
+                } else {
+                    nextDraft[key] = nextValue
+                }
             }
             return {...current, draft: nextDraft}
         })
     }, [])
+
+    const handleFallbackDetailChange = useCallback(
+        (key: string, nextValue: unknown) => handleFallbackDetailChanges({[key]: nextValue}),
+        [handleFallbackDetailChanges],
+    )
 
     const handleCommitFallbackDetail = useCallback(() => {
         if (!fallbackDetail) return
@@ -531,6 +569,14 @@ export function useModelConfigurePopover({
         [updatePromptLLMConfigKey],
     )
 
+    // Model and connection are one choice, so they must land in one dispatch — two sequential
+    // single-key writes would both build on the same stale `parameters` and the second would
+    // drop the first.
+    const handlePrimaryModelChange = useCallback(
+        (changes: Record<string, unknown>) => updatePromptLLMConfigKeys(changes),
+        [updatePromptLLMConfigKeys],
+    )
+
     const handleFallbackPolicyChange = useCallback(
         (nextValue: string | null) => updatePromptRootField("fallback_policy", nextValue),
         [updatePromptRootField],
@@ -585,8 +631,9 @@ export function useModelConfigurePopover({
                         <ModelConfigEditor
                             value={fallbackDetail.draft}
                             onChange={handleFallbackDetailChange}
+                            onModelChange={handleFallbackDetailChanges}
                             llmConfigProps={promptModelInfo?.llmConfigProps ?? {}}
-                            modelOptions={fallbackModelOptions}
+                            modelOptions={modelOptions}
                             footerContent={llmProviderConfig?.footerContent}
                             disabled={disabled}
                             excludeKeys={PROMPT_EXTENSION_KEYS}
@@ -626,11 +673,9 @@ export function useModelConfigurePopover({
                                         >
                                     }
                                     onChange={handlePrimaryModelConfigChange}
+                                    onModelChange={handlePrimaryModelChange}
                                     llmConfigProps={promptModelInfo.llmConfigProps}
-                                    modelOptions={[
-                                        ...(llmProviderConfig?.extraOptionGroups ?? []),
-                                        ...promptModelInfo.modelOptions,
-                                    ]}
+                                    modelOptions={modelOptions}
                                     footerContent={llmProviderConfig?.footerContent}
                                     disabled={disabled}
                                     excludeKeys={PROMPT_EXTENSION_KEYS}
@@ -719,7 +764,7 @@ export function useModelConfigurePopover({
             fallbackConfigKeys,
             fallbackConfigs,
             fallbackDetail,
-            fallbackModelOptions,
+            modelOptions,
             fallbackPolicyOptions,
             handleActiveConfigureReset,
             handleAddFallbackModel,
@@ -727,7 +772,9 @@ export function useModelConfigurePopover({
             handleConfigureTabChange,
             handleEditFallbackModel,
             handleFallbackDetailChange,
+            handleFallbackDetailChanges,
             handleFallbackPolicyChange,
+            handlePrimaryModelChange,
             handlePrimaryModelConfigChange,
             handleRemoveFallbackModel,
             handleRetryConfigFieldChange,

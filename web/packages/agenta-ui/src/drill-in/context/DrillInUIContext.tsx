@@ -296,6 +296,14 @@ export interface DrillInUIComponents {
      * - footerContent: "Add provider" button + drawer rendered in the dropdown footer
      */
     llmProviderConfig?: {
+        /**
+         * One option group per stored provider connection, each option stamped with the
+         * connection slug in `metadata.connectionSlug`. Takes the caller's static model catalog
+         * (provider family -> model ids, i.e. the schema's `choices`) because a standard
+         * connection that saved no model list of its own offers its provider's catalog models.
+         * Prefer this over `extraOptionGroups` wherever a schema catalog is in hand.
+         */
+        connectionGroupsFor?: (catalog?: Record<string, string[]>) => LLMProviderGroup[]
         /** Extra option groups from vault/custom secrets */
         extraOptionGroups?: LLMProviderGroup[]
         /** Footer content (e.g. "Add provider" button) rendered below the dropdown */

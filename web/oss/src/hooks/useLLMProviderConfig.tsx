@@ -1,13 +1,13 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {useVaultSecret} from "@agenta/entities/secret"
+import {buildConnectionModelGroups, providerConnectionsAtom} from "@agenta/entities/secret"
 import {Anthropic, Gemini, Mistral, OpenAi} from "@agenta/ui"
 import type {ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
+import {useAtomValue} from "jotai"
 
 import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
-import {capitalize} from "@/oss/lib/helpers/utils"
 
 const icons = [OpenAi, Gemini, Anthropic, Mistral]
 
@@ -15,27 +15,32 @@ const icons = [OpenAi, Gemini, Anthropic, Mistral]
  * Prepares LLM provider config data for injection into DrillInUIContext.
  *
  * Returns:
- * - extraOptionGroups: vault/custom secret models as ProviderGroup[]
+ * - connectionGroupsFor: stored connections as ProviderGroup[], given the caller's static catalog
+ * - extraOptionGroups: the same groups with no catalog (so only connections that saved a model
+ *   list of their own) — the fallback for callers that have no schema catalog to hand. Callers
+ *   that cannot persist a slug filter it through `withoutSlugBoundGroups`.
  * - footerContent: "Add custom provider" button rendered in select popups
  * - overlay: ConfigureProviderDrawer mounted outside popup lifecycle
  */
 export function useLLMProviderConfig() {
-    const {customRowSecrets} = useVaultSecret()
+    const connections = useAtomValue(providerConnectionsAtom)
     const [isConfigProviderOpen, setIsConfigProviderOpen] = useState(false)
     const [initialProviderKind, setInitialProviderKind] = useState<string | null>(null)
 
-    const extraOptionGroups = useMemo<ProviderGroup[]>(() => {
-        return customRowSecrets
-            .map((secret) => ({
-                label: capitalize(secret.name as string),
-                options: (secret.modelKeys ?? []).map((modelKey: string) => ({
-                    label: modelKey,
-                    value: modelKey,
-                    key: modelKey,
-                })),
-            }))
-            .filter((group) => group.options.length > 0)
-    }, [customRowSecrets])
+    // The picker offers one group per stored connection, with the connection slug in each
+    // option's metadata so a pick can persist which credential it runs on. A standard
+    // connection with no saved model list needs the caller's static catalog (the schema's
+    // `choices`) to know what to offer, hence the callback rather than a plain array.
+    const connectionGroupsFor = useCallback(
+        (catalog?: Record<string, string[]>): ProviderGroup[] =>
+            buildConnectionModelGroups({connections, catalog}) as ProviderGroup[],
+        [connections],
+    )
+
+    const extraOptionGroups = useMemo<ProviderGroup[]>(
+        () => connectionGroupsFor(),
+        [connectionGroupsFor],
+    )
 
     // Opens the drawer for a NEW provider with `kind` pre-selected. Exposed via DrillInUIContext
     // (llmProviderConfig) so the package-level Provider credentials rail's "Add Azure/Bedrock/
@@ -90,11 +95,12 @@ export function useLLMProviderConfig() {
 
     const llmProviderConfig = useMemo(
         () => ({
+            connectionGroupsFor,
             extraOptionGroups,
             footerContent,
             openConfigureProvider,
         }),
-        [extraOptionGroups, footerContent, openConfigureProvider],
+        [connectionGroupsFor, extraOptionGroups, footerContent, openConfigureProvider],
     )
 
     return useMemo(
