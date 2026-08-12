@@ -48,6 +48,15 @@ export type {
     VaultMigrationStatus,
     ProviderFieldAttributes,
     ProviderFieldConfig,
+    ConnectionDraft,
+    CredentialStatus,
+    CredentialValues,
+    DoneState,
+    HarnessCapabilityMap,
+    HarnessModelCapabilities,
+    ModelOption,
+    ProviderCatalogEntry,
+    ProviderConnection,
 } from "./core"
 
 export {
@@ -64,7 +73,32 @@ export {
     transformSecret,
     CUSTOM_PROVIDER_KIND_FAMILIES,
     PROVIDER_AUTH_REQUIREMENTS,
+    fieldNoteForKind,
     PROVIDER_FIELDS,
+    PROVIDER_CATALOG,
+    activeModelsSummary,
+    bareModelId,
+    buildConnectionPayload,
+    buildModelOptions,
+    modelDisplayOrder,
+    carriedCredentialKeys,
+    catalogEntryForKind,
+    connectionPolicyForSave,
+    credentialFieldsForKind,
+    credentialSummary,
+    credentialValuesFor,
+    defaultNamePreview,
+    deploymentForProviderKind,
+    doneState,
+    harnessSupportsProviderKind,
+    hasRequiredCredential,
+    maskSecret,
+    nextConnectionName,
+    providerModelCatalog,
+    providerTitleForKind,
+    secretKindForProviderKind,
+    toProviderConnections,
+    toProviderCredentials,
 } from "./core"
 
 // ============================================================================
@@ -72,6 +106,14 @@ export {
 // ============================================================================
 
 export {fetchVaultSecret, createVaultSecret, updateVaultSecret, deleteVaultSecret} from "./api"
+export {
+    CREDENTIAL_STATUSES,
+    DISCOVERY_STATUSES,
+    probeProvider,
+    type DiscoveryStatus,
+    type ProbeProviderCredentials,
+    type ProbeProviderResponse,
+} from "./api"
 
 // ============================================================================
 // STATE - Atoms + Hook
@@ -92,5 +134,21 @@ export {
     deleteSecretAtom,
     migrateVaultKeysAtom,
     providerKeySetupDoneAtom,
+    providerConnectionsAtom,
+    probeProviderMutationAtom,
+    saveProviderConnectionAtom,
     useVaultSecret,
 } from "./state"
+
+// ============================================================================
+// PROMPT MODEL PICKER - connection groups for the prompt / judge model catalog
+// ============================================================================
+
+export type {BuildConnectionModelGroupsArgs, PromptModelGroup, PromptModelOption} from "./core"
+export {
+    buildConnectionModelGroups,
+    connectionSlugFor,
+    connectionSlugFromOption,
+    withoutAmbiguousCatalogGroups,
+    withoutSlugBoundGroups,
+} from "./core"

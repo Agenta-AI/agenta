@@ -1,0 +1,659 @@
+import {beforeEach, describe, expect, it, vi} from "vitest"
+
+import {
+    buildConnectionPayload,
+    buildModelOptions,
+    connectionPolicyForSave,
+    credentialSummary,
+    credentialValuesFor,
+    defaultNamePreview,
+    doneState,
+    harnessSupportsProviderKind,
+    hasRequiredCredential,
+    modelDisplayOrder,
+    nextConnectionName,
+    providerModelCatalog,
+    toProviderConnections,
+    type HarnessCapabilityMap,
+    type ProviderConnection,
+} from "../../src/secret/core/connections"
+import {activeModelsSummary} from "../../src/secret/core/connectionSummary"
+import {
+    PROVIDER_CATALOG,
+    credentialFieldsForKind,
+    secretKindForProviderKind,
+} from "../../src/secret/core/providerCatalog"
+import {SecretKind, VAULT_PERSIST_REDACTED} from "../../src/secret/core/types"
+
+const axiosPost = vi.fn()
+
+vi.mock("@agenta/shared/api", () => ({
+    axios: {post: (...args: unknown[]) => axiosPost(...args)},
+    getAgentaApiUrl: () => "https://agenta.test/api",
+}))
+
+// Imported after the mock so the module picks it up.
+const {probeProvider} = await import("../../src/secret/api/probe")
+
+const connection = (overrides: Partial<ProviderConnection> = {}): ProviderConnection => ({
+    id: "conn-1",
+    name: "OpenAI",
+    kind: "openai",
+    title: "OpenAI",
+    secretKind: SecretKind.ProviderKey,
+    source: {},
+    ...overrides,
+})
+
+describe("provider catalog", () => {
+    it("offers every provider once: 12 standard keys plus the 4 credential-set kinds", () => {
+        const kinds = PROVIDER_CATALOG.map((entry) => entry.kind)
+
+        expect(kinds).toContain("openai")
+        expect(kinds).toHaveLength(16)
+        expect(new Set(kinds).size).toBe(kinds.length)
+    })
+
+    it("drops Aleph Alpha and ends on the OpenAI-compatible endpoint", () => {
+        const kinds = PROVIDER_CATALOG.map((entry) => entry.kind)
+
+        expect(kinds).not.toContain("alephalpha")
+        expect(kinds.at(-1)).toBe("custom")
+        expect(kinds).toEqual(expect.arrayContaining(["bedrock", "azure", "vertex_ai"]))
+    })
+
+    it("keeps SageMaker out of the catalog while still reading a saved record as a credential set", () => {
+        expect(PROVIDER_CATALOG.map((entry) => entry.kind)).not.toContain("sagemaker")
+
+        expect(secretKindForProviderKind("sagemaker")).toBe(SecretKind.CustomProvider)
+        expect(credentialFieldsForKind("sagemaker").map((field) => field.key)).toEqual([
+            "region",
+            "accessKeyId",
+            "accessKey",
+        ])
+        expect(
+            toProviderConnections([
+                {id: "s1", type: SecretKind.CustomProvider, provider: "sagemaker", name: "SM"},
+            ])[0].title,
+        ).toBe("AWS SageMaker")
+    })
+
+    it("gives a standard provider one required API key and a cloud kind its own field set", () => {
+        expect(credentialFieldsForKind("openai").map((field) => field.key)).toEqual(["apiKey"])
+        expect(credentialFieldsForKind("openai")[0].required).toBe(true)
+
+        expect(credentialFieldsForKind("bedrock").map((field) => field.key)).toEqual([
+            "region",
+            "bearerToken",
+            "accessKeyId",
+            "accessKey",
+        ])
+        expect(credentialFieldsForKind("vertex_ai").map((field) => field.key)).toContain(
+            "vertexCredentials",
+        )
+    })
+
+    it("hints the base URL in each provider's own terms", () => {
+        const baseUrlNote = (kind: string) =>
+            credentialFieldsForKind(kind).find((field) => field.key === "apiBaseUrl")?.note
+
+        // The `/v1` example is an OpenAI-compatible endpoint's, and nobody else's.
+        expect(baseUrlNote("custom")).toContain("https://api.openai.com/v1")
+        expect(baseUrlNote("azure")).toContain("openai.azure.com")
+        expect(baseUrlNote("azure")).not.toContain("/v1")
+        // Vertex is addressed by project and location, so an example here would only mislead.
+        expect(baseUrlNote("vertex_ai")).toBeUndefined()
+    })
+})
+
+describe("hasRequiredCredential", () => {
+    it("needs the one key a standard provider takes", () => {
+        expect(hasRequiredCredential("openai", {})).toBe(false)
+        expect(hasRequiredCredential("openai", {apiKey: "sk-one"})).toBe(true)
+        expect(hasRequiredCredential("openai", {apiKey: "   "})).toBe(false)
+    })
+
+    it("needs Azure's key, endpoint, and version together", () => {
+        expect(hasRequiredCredential("azure", {apiKey: "k", apiBaseUrl: "https://x"})).toBe(false)
+        expect(
+            hasRequiredCredential("azure", {
+                apiKey: "k",
+                apiBaseUrl: "https://x",
+                version: "2024-02-01",
+            }),
+        ).toBe(true)
+    })
+
+    it("accepts either of Bedrock's two auth sets and neither half alone", () => {
+        expect(hasRequiredCredential("bedrock", {region: "us-east-1"})).toBe(false)
+        expect(hasRequiredCredential("bedrock", {accessKeyId: "AKIA"})).toBe(false)
+        expect(hasRequiredCredential("bedrock", {bearerToken: "token"})).toBe(true)
+        expect(hasRequiredCredential("bedrock", {accessKeyId: "AKIA", accessKey: "secret"})).toBe(
+            true,
+        )
+    })
+
+    it("treats Vertex's service-account JSON as the credential", () => {
+        expect(hasRequiredCredential("vertex_ai", {vertexProject: "acme"})).toBe(false)
+        expect(hasRequiredCredential("vertex_ai", {vertexCredentials: "{}"})).toBe(true)
+    })
+})
+
+describe("nextConnectionName", () => {
+    it("takes the plain title first, then numbers upward", () => {
+        expect(nextConnectionName("OpenAI", [])).toBe("OpenAI")
+        expect(nextConnectionName("OpenAI", ["OpenAI"])).toBe("OpenAI 2")
+        expect(nextConnectionName("OpenAI", ["OpenAI", "OpenAI 2"])).toBe("OpenAI 3")
+    })
+
+    it("fills the first gap rather than counting connections", () => {
+        expect(nextConnectionName("OpenAI", ["OpenAI", "OpenAI 3"])).toBe("OpenAI 2")
+    })
+
+    it("previews against every connection in the project, not just this provider's", () => {
+        const existing = [connection({name: "OpenAI"}), connection({id: "c2", name: "Anthropic"})]
+
+        expect(defaultNamePreview("openai", existing)).toBe("OpenAI 2")
+        expect(defaultNamePreview("groq", existing)).toBe("Groq")
+    })
+})
+
+describe("toProviderConnections", () => {
+    it("names a legacy record after its provider and keeps a named one", () => {
+        const rows = toProviderConnections([
+            {id: "a", type: SecretKind.ProviderKey, title: "openai", key: "sk-abcdef"},
+            {
+                id: "b",
+                type: SecretKind.ProviderKey,
+                title: "openai",
+                displayName: "OpenAI 2",
+                key: "sk-second",
+            },
+        ])
+
+        expect(rows.map((row) => row.name)).toEqual(["OpenAI", "OpenAI 2"])
+        expect(rows.every((row) => row.kind === "openai")).toBe(true)
+    })
+
+    it("ignores named secrets, which are not connections", () => {
+        const rows = toProviderConnections([
+            {id: "a", type: "custom_secret", name: "MY_TOKEN"},
+            {id: "b", type: SecretKind.CustomProvider, provider: "azure", name: "Azure prod"},
+        ])
+
+        expect(rows).toHaveLength(1)
+        expect(rows[0].title).toBe("Azure OpenAI")
+    })
+})
+
+describe("credentialValuesFor", () => {
+    it("seeds a standard card from the stored key", () => {
+        expect(credentialValuesFor(connection({source: {key: "sk-stored"}}))).toEqual({
+            apiKey: "sk-stored",
+        })
+    })
+
+    it("reads the persister's redaction sentinel as nothing typed yet", () => {
+        expect(
+            credentialValuesFor(connection({source: {key: VAULT_PERSIST_REDACTED}})).apiKey,
+        ).toBe("")
+        expect(
+            hasRequiredCredential(
+                "openai",
+                credentialValuesFor(connection({source: {key: VAULT_PERSIST_REDACTED}})),
+            ),
+        ).toBe(false)
+    })
+
+    it("carries a stored AWS session token even though no field renders it", () => {
+        const values = credentialValuesFor(
+            connection({
+                kind: "bedrock",
+                secretKind: SecretKind.CustomProvider,
+                source: {region: "us-east-1", accessKeyId: "AKIA", sessionToken: "sts-token"},
+            }),
+        )
+
+        expect(values.sessionToken).toBe("sts-token")
+    })
+})
+
+describe("credentialSummary", () => {
+    it("masks a key and falls back to the endpoint host when there is none", () => {
+        expect(credentialSummary(connection({source: {key: "sk-000000000000xyz"}}))).toBe("sk-…xyz")
+        expect(
+            credentialSummary(
+                connection({source: {apiBaseUrl: "https://models.internal.test/v1"}}),
+            ),
+        ).toBe("models.internal.test")
+    })
+})
+
+describe("providerModelCatalog", () => {
+    const capabilities: HarnessCapabilityMap = {
+        pi_core: {
+            providers: ["openai", "anthropic"],
+            models: {openai: ["openai/gpt-5.6-luna", "openai/gpt-5.5"], anthropic: []},
+            default_models: {openai: ["openai/gpt-5.6-luna"]},
+        },
+        codex: {
+            providers: ["openai"],
+            models: {openai: ["gpt-5.6-luna", "gpt-5.2"]},
+            default_models: {},
+        },
+        claude: {providers: ["anthropic"], models: {anthropic: ["sonnet"]}, default_models: {}},
+    }
+
+    it("collapses the harness spellings of one model onto its bare id", () => {
+        const {models} = providerModelCatalog(capabilities, "openai")
+
+        expect(models).toEqual(["gpt-5.6-luna", "gpt-5.5", "gpt-5.2"])
+    })
+
+    it("marks Agenta's defaults in the same spelling as the list", () => {
+        expect(providerModelCatalog(capabilities, "openai").defaults).toEqual(["gpt-5.6-luna"])
+    })
+
+    it("only unions the harnesses that reach the family", () => {
+        expect(providerModelCatalog(capabilities, "anthropic").models).toEqual(["sonnet"])
+        expect(providerModelCatalog(capabilities, "groq").models).toEqual([])
+    })
+})
+
+describe("buildModelOptions", () => {
+    it("keeps a saved model the fetch no longer offers, checked and flagged unavailable", () => {
+        const options = buildModelOptions({
+            available: ["gpt-5.6-luna", "gpt-5.5"],
+            checked: ["gpt-5.6-luna", "gpt-4o-retired"],
+            defaults: ["gpt-5.6-luna"],
+            discovered: true,
+        })
+
+        expect(options.find((option) => option.id === "gpt-4o-retired")).toEqual({
+            id: "gpt-4o-retired",
+            checked: true,
+            isDefault: false,
+            unavailable: true,
+        })
+        expect(options.find((option) => option.id === "gpt-5.6-luna")?.isDefault).toBe(true)
+        expect(options.find((option) => option.id === "gpt-5.5")?.checked).toBe(false)
+    })
+
+    it("never calls a model unavailable when the list is Agenta's shipped catalog", () => {
+        const options = buildModelOptions({
+            available: ["gpt-5.5"],
+            checked: ["gpt-4o-retired"],
+            discovered: false,
+        })
+
+        expect(options.every((option) => !option.unavailable)).toBe(true)
+    })
+
+    it("treats a hand-entered id as available, because the user asserted it", () => {
+        const options = buildModelOptions({
+            available: ["gpt-5.5"],
+            checked: ["my-fine-tune"],
+            manual: ["my-fine-tune"],
+            discovered: true,
+        })
+
+        expect(options.find((option) => option.id === "my-fine-tune")).toMatchObject({
+            checked: true,
+            unavailable: false,
+        })
+    })
+})
+
+describe("model list order", () => {
+    // A fetch returns dozens of models with the interesting ones scattered through it.
+    const available = ["gpt-4.1", "gpt-5.5", "o3", "gpt-5.4", "gpt-3.5"]
+
+    it("leads with the saved selection and Agenta's defaults, then keeps provider order", () => {
+        const order = modelDisplayOrder({available, prioritized: ["gpt-5.4", "gpt-5.5"]})
+
+        expect(order).toEqual(["gpt-5.5", "gpt-5.4", "gpt-4.1", "o3", "gpt-3.5"])
+        expect(
+            buildModelOptions({
+                available,
+                checked: ["gpt-5.4", "gpt-5.5"],
+                discovered: true,
+                order,
+            }).map((option) => option.id),
+        ).toEqual(order)
+    })
+
+    it("does not reorder when a model is ticked or unticked", () => {
+        // The order is computed once per fetch, so it cannot move a row out from under the cursor.
+        const order = modelDisplayOrder({available, prioritized: ["gpt-5.5"]})
+        const ids = (checked: string[]) =>
+            buildModelOptions({available, checked, discovered: true, order}).map(
+                (option) => option.id,
+            )
+
+        expect(ids(["gpt-5.5"])).toEqual(ids(["gpt-5.5", "gpt-3.5"]))
+        expect(ids(["gpt-5.5"])).toEqual(ids([]))
+    })
+
+    it("keeps an id the order never saw (a model added since the fetch) at the end", () => {
+        const order = modelDisplayOrder({available, prioritized: ["gpt-5.5"]})
+
+        expect(
+            buildModelOptions({
+                available,
+                checked: ["my-fine-tune"],
+                manual: ["my-fine-tune"],
+                discovered: true,
+                order,
+            })
+                .map((option) => option.id)
+                .at(-1),
+        ).toBe("my-fine-tune")
+    })
+
+    it("carries a saved model the fetch dropped, without disturbing the rest", () => {
+        const order = modelDisplayOrder({
+            available,
+            prioritized: ["gpt-4o-retired", "gpt-5.5"],
+        })
+
+        expect(order.slice(0, 2)).toEqual(["gpt-5.5", "gpt-4o-retired"])
+    })
+})
+
+describe("harnessSupportsProviderKind", () => {
+    const capabilities: HarnessCapabilityMap = {
+        pi_core: {providers: ["openai"], deployments: ["direct", "custom"]},
+        claude: {providers: ["anthropic"], deployments: ["direct", "bedrock"]},
+    }
+
+    it("matches a standard key against the harness's provider families", () => {
+        expect(harnessSupportsProviderKind(capabilities, "pi_core", "openai")).toBe(true)
+        expect(harnessSupportsProviderKind(capabilities, "claude", "openai")).toBe(false)
+    })
+
+    it("matches a credential-set kind against the deployment surfaces instead", () => {
+        expect(harnessSupportsProviderKind(capabilities, "pi_core", "custom")).toBe(true)
+        expect(harnessSupportsProviderKind(capabilities, "claude", "bedrock")).toBe(true)
+        expect(harnessSupportsProviderKind(capabilities, "pi_core", "bedrock")).toBe(false)
+    })
+})
+
+describe("doneState", () => {
+    it("blocks until a credential is there at all", () => {
+        expect(doneState({credentialFilled: false, status: null}).enabled).toBe(false)
+    })
+
+    it("blocks a credential the provider rejected", () => {
+        expect(doneState({credentialFilled: true, status: "invalid"}).enabled).toBe(false)
+    })
+
+    it("saves a tested credential with nothing to explain", () => {
+        expect(doneState({credentialFilled: true, status: "valid"})).toEqual({
+            enabled: true,
+            note: "",
+        })
+    })
+
+    it("saves an untestable credential and says so", () => {
+        const state = doneState({credentialFilled: true, status: "unknown"})
+
+        expect(state.enabled).toBe(true)
+        expect(state.note).toMatch(/untested/)
+    })
+
+    it("asks a newly typed credential to be tested first", () => {
+        const state = doneState({credentialFilled: true, status: null})
+
+        expect(state.enabled).toBe(false)
+        expect(state.note).toMatch(/Test this credential/)
+    })
+
+    it("lets a saved connection be reopened and re-saved without a fresh test", () => {
+        expect(
+            doneState({credentialFilled: true, status: null, storedCredentialUnchanged: true}),
+        ).toEqual({enabled: true, note: ""})
+    })
+
+    it("says nothing about testing when the test itself never reached the provider", () => {
+        const state = doneState({credentialFilled: true, status: null, transportFailed: true})
+
+        expect(state.enabled).toBe(false)
+        expect(state.note).toBe("")
+    })
+})
+
+describe("connectionPolicyForSave", () => {
+    const policy = (overrides: Partial<Parameters<typeof connectionPolicyForSave>[0]> = {}) =>
+        connectionPolicyForSave({
+            checkedModels: null,
+            modelIds: ["gpt-5.5"],
+            harnesses: null,
+            defaultHarness: "pi_core",
+            ...overrides,
+        })
+
+    it("omits models the user never touched, so reopening does not pin today's defaults", () => {
+        expect(policy()).not.toHaveProperty("models")
+    })
+
+    it("sends the chosen list once the user touches it, including an emptied one", () => {
+        expect(policy({checkedModels: ["gpt-5.5"]}).models).toEqual(["gpt-5.5"])
+        expect(policy({checkedModels: [], modelIds: []}).models).toEqual([])
+    })
+
+    it("omits harnesses when no harness declares this deployment", () => {
+        expect(policy({defaultHarness: null})).not.toHaveProperty("harnesses")
+    })
+
+    it("sends the default harness when one can reach the provider", () => {
+        expect(policy().harnesses).toEqual(["pi_core"])
+    })
+
+    it("sends an explicit empty set only when the user cleared choices that existed", () => {
+        expect(policy({harnesses: []}).harnesses).toEqual([])
+        expect(policy({harnesses: ["claude"]}).harnesses).toEqual(["claude"])
+    })
+})
+
+describe("activeModelsSummary", () => {
+    const capabilities: HarnessCapabilityMap = {
+        pi_core: {providers: ["openai"], models: {openai: ["gpt-5.5", "gpt-5.2", "gpt-4o"]}},
+    }
+
+    it("says Defaults when the connection saved no list", () => {
+        expect(activeModelsSummary(connection(), capabilities)).toBe("Defaults")
+    })
+
+    it("counts a saved list against what the provider family offers", () => {
+        expect(activeModelsSummary(connection({models: ["gpt-5.5"]}), capabilities)).toBe(
+            "1 of 3 active",
+        )
+    })
+
+    it("counts an empty saved list rather than reading it as defaults", () => {
+        expect(activeModelsSummary(connection({models: []}), capabilities)).toBe("0 of 3 active")
+    })
+})
+
+describe("buildConnectionPayload", () => {
+    it("sends a provider_key header-less when the name is empty, so the API names it", () => {
+        const payload = buildConnectionPayload(
+            {
+                kind: "openai",
+                name: "",
+                credential: {apiKey: "sk-one"},
+                models: ["gpt-5.5"],
+                harnesses: ["pi_core"],
+            },
+            "OpenAI 2",
+        )
+
+        expect(payload.header).toEqual({})
+        expect(payload.secret.kind).toBe(SecretKind.ProviderKey)
+        expect(payload.secret.data).toMatchObject({
+            kind: "openai",
+            provider: {key: "sk-one"},
+            models: [{slug: "gpt-5.5"}],
+            harnesses: ["pi_core"],
+        })
+    })
+
+    it("sends an emptied list as an explicit none", () => {
+        const payload = buildConnectionPayload(
+            {kind: "openai", name: "", credential: {apiKey: "sk"}, models: [], harnesses: []},
+            "OpenAI",
+        )
+
+        expect((payload.secret.data as {models: unknown}).models).toEqual([])
+        expect((payload.secret.data as {harnesses: unknown}).harnesses).toEqual([])
+    })
+
+    it("leaves out a policy the draft does not carry, so the record keeps following defaults", () => {
+        const payload = buildConnectionPayload(
+            {kind: "openai", name: "", credential: {apiKey: "sk"}},
+            "OpenAI",
+        )
+
+        expect(payload.secret.data).not.toHaveProperty("models")
+        expect(payload.secret.data).not.toHaveProperty("harnesses")
+    })
+
+    it("round-trips Bedrock's session token, which no field renders", () => {
+        const payload = buildConnectionPayload(
+            {
+                kind: "bedrock",
+                name: "Bedrock prod",
+                credential: {
+                    region: "us-east-1",
+                    accessKeyId: "AKIA",
+                    accessKey: "secret",
+                    sessionToken: "sts-token",
+                },
+                models: ["claude-sonnet"],
+            },
+            "AWS Bedrock",
+        )
+
+        expect(payload.secret.data).toMatchObject({
+            kind: "bedrock",
+            provider: {
+                extras: {
+                    aws_region_name: "us-east-1",
+                    aws_access_key_id: "AKIA",
+                    aws_secret_access_key: "secret",
+                    aws_session_token: "sts-token",
+                },
+            },
+            models: [{slug: "claude-sonnet"}],
+        })
+    })
+
+    it("carries Vertex's project, location, and service-account JSON into extras", () => {
+        const payload = buildConnectionPayload(
+            {
+                kind: "vertex_ai",
+                name: "",
+                credential: {
+                    apiBaseUrl: "https://us-central1-aiplatform.googleapis.com",
+                    vertexProject: "acme-prod",
+                    vertexLocation: "us-central1",
+                    vertexCredentials: '{"type":"service_account"}',
+                },
+                models: [],
+            },
+            "Google Vertex AI",
+        )
+
+        expect(payload.header).toEqual({name: "Google Vertex AI"})
+        expect(payload.secret.data).toMatchObject({
+            kind: "vertex_ai",
+            provider: {
+                url: "https://us-central1-aiplatform.googleapis.com",
+                extras: {
+                    vertex_ai_project: "acme-prod",
+                    vertex_ai_location: "us-central1",
+                    vertex_ai_credentials: '{"type":"service_account"}',
+                },
+            },
+        })
+    })
+
+    it("names a custom_provider from the preview, because it is addressed by name", () => {
+        const payload = buildConnectionPayload(
+            {
+                kind: "azure",
+                name: "",
+                credential: {
+                    apiKey: "azure-key",
+                    apiBaseUrl: "https://acme.openai.azure.com",
+                    version: "2024-02-01",
+                },
+                models: ["gpt-4o"],
+                harnesses: [],
+            },
+            "Azure OpenAI 2",
+        )
+
+        expect(payload.header).toEqual({name: "Azure OpenAI 2"})
+        expect(payload.secret.data).toMatchObject({
+            kind: "azure",
+            provider: {
+                url: "https://acme.openai.azure.com",
+                version: "2024-02-01",
+                extras: {api_key: "azure-key"},
+            },
+        })
+    })
+})
+
+describe("probeProvider", () => {
+    beforeEach(() => {
+        axiosPost.mockReset()
+    })
+
+    it("posts the credential and returns the two statuses", async () => {
+        axiosPost.mockResolvedValueOnce({
+            data: {
+                credential: {status: "valid", message: "OpenAI accepted this key."},
+                discovery: {status: "fetched", models: ["gpt-5.5"]},
+                fetched_at: "2026-08-12T10:00:00Z",
+            },
+        })
+
+        const result = await probeProvider({
+            projectId: "proj-1",
+            kind: "openai",
+            provider: {key: "sk-one"},
+        })
+
+        expect(axiosPost).toHaveBeenCalledWith(
+            "https://agenta.test/api/providers/probe",
+            {kind: "openai", provider: {key: "sk-one"}},
+            {params: {project_id: "proj-1"}},
+        )
+        expect(result?.credential.status).toBe("valid")
+        expect(result?.discovery.models).toEqual(["gpt-5.5"])
+    })
+
+    it("defaults a fetched-but-model-less discovery to an empty list", async () => {
+        axiosPost.mockResolvedValueOnce({
+            data: {
+                credential: {status: "unknown", message: "not tested"},
+                discovery: {status: "unsupported"},
+                fetched_at: "2026-08-12T10:00:00Z",
+            },
+        })
+
+        const result = await probeProvider({projectId: "p", kind: "minimax", provider: {key: "k"}})
+
+        expect(result?.discovery.models).toEqual([])
+    })
+
+    it("returns null rather than a half-read answer when the payload does not fit", async () => {
+        axiosPost.mockResolvedValueOnce({data: {credential: {status: "maybe"}}})
+
+        const result = await probeProvider({projectId: "p", kind: "openai", provider: {key: "k"}})
+
+        expect(result).toBeNull()
+    })
+})

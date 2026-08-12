@@ -15,4 +15,10 @@ export {
     providerKeySetupDoneAtom,
 } from "./atoms"
 
+export {
+    providerConnectionsAtom,
+    probeProviderMutationAtom,
+    saveProviderConnectionAtom,
+} from "./connections"
+
 export {useVaultSecret} from "./useVaultSecret"

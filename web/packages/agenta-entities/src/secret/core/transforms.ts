@@ -84,6 +84,10 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 key: data.provider.key,
                 name: envName,
                 id: secret.id ?? undefined,
+                slug: secret.slug ?? undefined,
+                // Several connections can share a provider family, so the record's own name is
+                // what tells them apart. Absent on records created before named connections.
+                displayName: secret.header?.name ?? undefined,
                 type: secret.kind,
                 // Absent stays absent: no saved list means "use the defaults", which an empty
                 // array would misreport as "this connection offers no models".
@@ -97,7 +101,9 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
 
             acc.push({
                 name: secret.header.name ?? "",
+                displayName: secret.header.name ?? undefined,
                 id: secret.id ?? undefined,
+                slug: secret.slug ?? undefined,
                 type: secret.kind,
                 provider: data.kind,
                 apiKey: extras.api_key || "",
