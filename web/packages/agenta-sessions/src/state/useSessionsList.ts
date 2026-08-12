@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {type SessionExpansion, type SessionStream} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -17,7 +17,13 @@ import {
     sessionStatusFilterAtom,
 } from "./filters"
 import {isSessionPinnedAtom, pinnedSessionIdsAtom, toggleSessionPinAtom} from "./pins"
-import {selectedSessionListPolicy, type SessionListRequestPolicy} from "./sessionListPolicy"
+import {
+    awaitingHiddenRows,
+    selectedSessionListPolicy,
+    shouldLoadMoreForHiddenRows,
+    startedSessions,
+    type SessionListRequestPolicy,
+} from "./sessionListPolicy"
 import {
     pendingBySessionId,
     rowsFromPages,
@@ -127,7 +133,12 @@ export const useSessionsList = ({
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
     // Memoized: `rowsFromPages` mints a new array per call, and an unstable array here would
     // re-derive every row VM (and re-render every memoized row) on every render.
-    const listRows = useMemo(() => rowsFromPages(listQuery.data?.pages), [listQuery.data?.pages])
+    // A chat that was opened but never used is not a session anyone is looking for — see
+    // `isStartedSession`. Pins are exempt: pinning is an explicit request, like the origin filter.
+    const listRows = useMemo(
+        () => startedSessions(rowsFromPages(listQuery.data?.pages)),
+        [listQuery.data?.pages],
+    )
     const pinnedRowsAll = useMemo(
         () => rowsFromPages(pinnedQuery.data?.pages),
         [pinnedQuery.data?.pages],
@@ -165,6 +176,21 @@ export const useSessionsList = ({
         return result
     }, [pinnedIds, knownById, listRows, pinnedSet, pendingBySession, showTriggered])
 
+    // A whole page can be unstarted rows (they are the newest); pull the next one instead of
+    // showing "No sessions yet" over a list that has plenty one page down.
+    const {hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage} = listQuery
+    const topUpArgs = {
+        visibleRows: listRows.length,
+        hasNextPage: Boolean(hasNextPage),
+        isError: isFetchNextPageError,
+    }
+    // Held across the in-flight request too, or the list would flash empty mid-top-up.
+    const awaitingTopUp = awaitingHiddenRows(topUpArgs)
+    const shouldTopUp = shouldLoadMoreForHiddenRows({...topUpArgs, isFetchingNextPage})
+    useEffect(() => {
+        if (shouldTopUp) void fetchNextPage()
+    }, [shouldTopUp, fetchNextPage])
+
     const refetchList = listQuery.refetch
     const refetchPinned = pinnedQuery.refetch
     const refetch = useCallback(() => {
@@ -174,11 +200,13 @@ export const useSessionsList = ({
 
     return {
         groups,
-        isEmpty: groups.every((group) => group.rows.length === 0),
+        // Not "empty" while a top-up is on its way — that would flash the empty state over a
+        // list whose first page happened to be all unstarted rows.
+        isEmpty: !awaitingTopUp && groups.every((group) => group.rows.length === 0),
         paging: {
-            hasNext: Boolean(listQuery.hasNextPage),
-            isLoadingNext: listQuery.isFetchingNextPage,
-            loadNext: () => void listQuery.fetchNextPage(),
+            hasNext: Boolean(hasNextPage),
+            isLoadingNext: isFetchingNextPage,
+            loadNext: () => void fetchNextPage(),
         },
         isPending: listQuery.isPending || (pinnedIds.length > 0 && pinnedQuery.isPending),
         isError: listQuery.isError || pinnedQuery.isError,
