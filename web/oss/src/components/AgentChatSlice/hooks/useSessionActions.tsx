@@ -3,6 +3,7 @@ import {useCallback, useMemo} from "react"
 import {
     archiveSessionRemote,
     deleteSessionRemote,
+    invalidateSessionListQueries,
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
@@ -53,7 +54,9 @@ export const useSessionActions = () => {
 
     const revalidate = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ["sessions-page"]})
-        void queryClient.invalidateQueries({queryKey: ["session-list"]})
+        // Token match — the sidebar nests the same list options behind `["sidebar", ...]`, which a
+        // `["session-list"]` prefix never reaches, so its rows outlived an archive/delete.
+        invalidateSessionListQueries()
     }, [queryClient])
 
     /** Is this session in the owning agent's local tab cache? Decides who makes the server call. */
@@ -90,7 +93,7 @@ export const useSessionActions = () => {
                     const title = next.trim()
                     if (!title) return
                     if (isCached(target) && target.appId) {
-                        store.set(renameSessionAtomFamily(target.appId), {
+                        await store.set(renameSessionAtomFamily(target.appId), {
                             id: target.sessionId,
                             title,
                         })
@@ -118,7 +121,9 @@ export const useSessionActions = () => {
                 const local = target.archived
                     ? unarchiveSessionAtomFamily
                     : archiveSessionAtomFamily
-                store.set(local(target.appId), target.sessionId)
+                // Awaited: the atom's own server write is fire-and-forget, so revalidating straight
+                // after it refetched the row in its PRE-archive state and the lists kept showing it.
+                await store.set(local(target.appId), target.sessionId)
             } else {
                 const call = target.archived ? unarchiveSessionRemote : archiveSessionRemote
                 const ok = await call({sessionId: target.sessionId, projectId})
@@ -143,7 +148,8 @@ export const useSessionActions = () => {
                 okButtonProps: {danger: true},
                 onOk: async () => {
                     if (isCached(target) && target.appId) {
-                        store.set(deleteSessionAtomFamily(target.appId), target.sessionId)
+                        // Await for the same reason as archive above — the lists refetch next.
+                        await store.set(deleteSessionAtomFamily(target.appId), target.sessionId)
                     } else {
                         const ok = await deleteSessionRemote({
                             sessionId: target.sessionId,

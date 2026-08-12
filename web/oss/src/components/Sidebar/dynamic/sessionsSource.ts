@@ -5,6 +5,13 @@ import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
+import {sessionDotStatusAtomFamily} from "@/oss/components/AgentChatSlice/state/liveness"
+import {
+    activeSessionIdAtomFamily,
+    defaultScopeKeyAtom,
+    sessionsListAtomFamily,
+} from "@/oss/components/AgentChatSlice/state/sessions"
+import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -17,6 +24,8 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     appId: string | null
     pinned: boolean
     alive: boolean
+    /** A turn is in flight — the row spins. Resolved for rendered rows only (see below). */
+    running: boolean
     /** Owning agent's display name, for the row's hover tooltip. Null until the artifact resolves. */
     agentName: string | null
 }
@@ -70,12 +79,66 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
     return {
         id: row.session_id,
         sessionId: row.session_id,
-        name: row.name?.trim() || "Untitled session",
+        // Raw, so the row menu's rename prefills the real name instead of the label's fallback.
+        name: row.name?.trim() || null,
         appId: target.appId,
         pinned: pinned.has(row.session_id),
         alive: Boolean(row.flags?.is_alive),
+        running: false,
         agentName: null,
     }
+}
+
+/**
+ * The conversation open in the playground right now, as a sidebar row — or null off a playground.
+ *
+ * A new session is created CLIENT-side (`addSessionAtomFamily` writes localStorage); the server
+ * first hears about it when its first turn runs. So the server-backed list below cannot show a
+ * just-created session at all, and even once the row exists the empty-session filter hides it until
+ * it has a turn. Reading the local tab store closes both gaps for the one session that is
+ * definitely not abandoned: the one you are looking at. Every other empty session stays hidden.
+ *
+ * Scope is the routed app id, so the row disappears when you navigate away from that playground —
+ * an abandoned blank chat never lingers here. Surfaces that override the chat scope through React
+ * context (the revision drawer, onboarding) are not reflected; the sidebar cannot read context.
+ */
+const activePlaygroundSessionRefAtom = atom<SessionSidebarRef | null>((get) => {
+    const scope = get(defaultScopeKeyAtom)
+    // The scope key doubles as the app id for the row's link, so it must be a real one.
+    if (!isValidUUID(scope)) return null
+    const sessions = get(sessionsListAtomFamily(scope))
+    const rawActiveId = get(activeSessionIdAtomFamily(scope))
+    // Same fallback the panel applies to a stale active id (its tab was closed).
+    const active = sessions.find((session) => session.id === rawActiveId) ?? sessions[0] ?? null
+    if (!active) return null
+    return {
+        id: active.id,
+        sessionId: active.id,
+        name: active.title?.trim() || null,
+        appId: scope,
+        pinned: get(pinnedSessionIdsAtom).includes(active.id),
+        alive: false,
+        running: false,
+        agentName: null,
+    }
+})
+
+/**
+ * Adds the actively-open session to the list, unless the server already returned it — the server
+ * row wins there, it carries the title, preview and liveness this local one cannot know.
+ *
+ * Lands at the head of the unpinned rows: it is the most recently touched session by definition,
+ * and pins keep the top the way they do everywhere else.
+ */
+export const withActiveLocalSession = (
+    refs: readonly SessionSidebarRef[],
+    active: SessionSidebarRef | null,
+): SessionSidebarRef[] => {
+    if (!active) return [...refs]
+    if (refs.some((ref) => ref.sessionId === active.sessionId)) return [...refs]
+    const firstUnpinned = refs.findIndex((ref) => !ref.pinned)
+    const at = firstUnpinned === -1 ? refs.length : firstUnpinned
+    return [...refs.slice(0, at), active, ...refs.slice(at)]
 }
 
 /**
@@ -157,19 +220,28 @@ const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     // Archived agents' sessions go before anything downstream counts rows: the name resolution
     // below and the group's visible cap both work off this list, so filtering here keeps archived
     // rows from eating slots the backfill should have given to live ones.
-    const refs = dropArchivedAgentSessions(
-        [
-            ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
-            ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
-        ],
-        get(archivedAgentIdsQueryAtom).data ?? null,
+    const refs = withActiveLocalSession(
+        dropArchivedAgentSessions(
+            [
+                ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
+                ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
+            ],
+            get(archivedAgentIdsQueryAtom).data ?? null,
+        ),
+        get(activePlaygroundSessionRefAtom),
     )
-    // Names are resolved for the RENDERED rows only. Each one subscribes to that agent's artifact
-    // query, and the request window behind this list is several times what the group ever shows —
-    // resolving all of it would fetch artifacts for rows nobody sees. The full list still goes out
-    // so the "Show all" overflow count stays honest.
+    // Names and run state are resolved for the RENDERED rows only. Each name subscribes to that
+    // agent's artifact query, and the request window behind this list is several times what the
+    // group ever shows — resolving all of it would fetch artifacts for rows nobody sees. The full
+    // list still goes out so the "Show all" overflow count stays honest.
     return refs.map((ref, index) =>
-        index < SIDEBAR_SESSION_VISIBLE_LIMIT ? {...ref, agentName: agentNameOf(ref.appId)} : ref,
+        index < SIDEBAR_SESSION_VISIBLE_LIMIT
+            ? {
+                  ...ref,
+                  agentName: agentNameOf(ref.appId),
+                  running: get(sessionDotStatusAtomFamily(ref.sessionId)) === "running",
+              }
+            : ref,
     )
 })
 

@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {dropArchivedAgentSessions} from "./sessionsSource"
+import {dropArchivedAgentSessions, withActiveLocalSession} from "./sessionsSource"
 import type {SessionSidebarRef} from "./sessionsSource"
 
 const ref = (over: Partial<SessionSidebarRef> & {id: string}): SessionSidebarRef => ({
@@ -9,6 +9,7 @@ const ref = (over: Partial<SessionSidebarRef> & {id: string}): SessionSidebarRef
     appId: null,
     pinned: false,
     alive: false,
+    running: false,
     agentName: null,
     ...over,
 })
@@ -58,5 +59,53 @@ describe("dropArchivedAgentSessions", () => {
         ]
 
         expect(dropArchivedAgentSessions(refs, ARCHIVED).map((r) => r.id)).toEqual(["live"])
+    })
+})
+
+describe("withActiveLocalSession", () => {
+    // The bug this exists for: a just-created session is client-side only until its first turn
+    // runs, so the server-backed list cannot contain it and the sidebar showed nothing.
+    it("adds the open session when the server list has never heard of it", () => {
+        const merged = withActiveLocalSession(
+            [ref({id: "served"})],
+            ref({id: "fresh", appId: "agent-1"}),
+        )
+
+        expect(merged.map((r) => r.id)).toEqual(["fresh", "served"])
+    })
+
+    // The server row carries the title, preview and liveness the local one cannot know.
+    it("keeps the server row when both describe the same session", () => {
+        const merged = withActiveLocalSession(
+            [ref({id: "shared", name: "Real title", alive: true})],
+            ref({id: "shared", name: null}),
+        )
+
+        expect(merged).toHaveLength(1)
+        expect(merged[0].name).toBe("Real title")
+        expect(merged[0].alive).toBe(true)
+    })
+
+    it("leads the unpinned rows without displacing pins", () => {
+        const merged = withActiveLocalSession(
+            [ref({id: "pin-a", pinned: true}), ref({id: "pin-b", pinned: true}), ref({id: "old"})],
+            ref({id: "fresh"}),
+        )
+
+        expect(merged.map((r) => r.id)).toEqual(["pin-a", "pin-b", "fresh", "old"])
+    })
+
+    it("appends when every row is pinned", () => {
+        const merged = withActiveLocalSession([ref({id: "pin", pinned: true})], ref({id: "fresh"}))
+
+        expect(merged.map((r) => r.id)).toEqual(["pin", "fresh"])
+    })
+
+    // Off a playground there is no open session — the empty-session filter must keep its full
+    // reach, so nothing is exempted.
+    it("changes nothing when no session is open", () => {
+        const refs = [ref({id: "a"}), ref({id: "b"})]
+
+        expect(withActiveLocalSession(refs, null).map((r) => r.id)).toEqual(["a", "b"])
     })
 })

@@ -253,10 +253,13 @@ export const openSessionIdsAtomFamily = atomFamily((key: string) =>
     atom((get) => new Set(currentOpenIds(get, key))),
 )
 
-/** Create a session and make it the active open tab. Returns the new id. */
+/** Create a session and make it the active open tab. Returns the new id. An explicit `id` lets a
+ * caller that already addressed something to this session — a composer's seeded message — name it
+ * before the session exists. Callers wired straight to a click handler pass an event, not options,
+ * so the id is read defensively. */
 export const addSessionAtomFamily = atomFamily((key: string) =>
-    atom(null, (get, set) => {
-        const id = generateId()
+    atom(null, (get, set, options?: {id?: string}) => {
+        const id = options?.id || generateId()
         // Brand-new, never-run session: no backend records yet, so skip its empty-cache hydration.
         markSessionFresh(id)
         // Read open ids BEFORE mutating history, else the fallback would re-count the new id.
@@ -397,8 +400,12 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
         // `.catch` rather than `void`: `callFern` RETHROWS aborts/timeouts, so a bare `void` on a
         // fire-and-forget call is an unhandled rejection. Nothing to do on failure — the tombstone
         // above carries the retry.
+        // Returned, not just fired: callers that must not revalidate a list before the server has
+        // the change (see `useSessionActions`) await it.
         const projectId = get(projectIdAtom)
-        if (projectId) deleteSessionRemote({sessionId: id, projectId}).catch(() => {})
+        return projectId
+            ? deleteSessionRemote({sessionId: id, projectId}).catch(() => {})
+            : undefined
     }),
 )
 
@@ -424,9 +431,11 @@ export const archiveSessionAtomFamily = atomFamily((key: string) =>
             set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
         }
 
-        // Server-known sessions archive remotely; a purely-local session just carries the local flag.
+        // Ungated and returned for the same reasons as the delete path above (#5543).
         const projectId = get(projectIdAtom)
-        if (projectId && target.serverKnown) void archiveSessionRemote({sessionId: id, projectId})
+        return projectId
+            ? archiveSessionRemote({sessionId: id, projectId}).catch(() => {})
+            : undefined
     }),
 )
 
@@ -443,8 +452,11 @@ export const unarchiveSessionAtomFamily = atomFamily((key: string) =>
             [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, archived: false} : s)),
         })
 
+        // Ungated for the same reason as archive above.
         const projectId = get(projectIdAtom)
-        if (projectId && target.serverKnown) void unarchiveSessionRemote({sessionId: id, projectId})
+        return projectId
+            ? unarchiveSessionRemote({sessionId: id, projectId}).catch(() => {})
+            : undefined
     }),
 )
 
@@ -660,8 +672,11 @@ export const renameSessionAtomFamily = atomFamily((key: string) =>
         // Persist the title to the durable stream header so it syncs across devices and survives a
         // localStorage wipe. Best-effort/optimistic — the local update above already shows it. Send
         // the trimmed string (empty clears the server name too, since the header merge is partial).
+        // Returned so a caller that revalidates a list next can await the header write first.
         const projectId = get(projectIdAtom)
-        if (projectId) void setSessionHeader({sessionId: id, projectId, name: title.trim()})
+        return projectId
+            ? setSessionHeader({sessionId: id, projectId, name: title.trim()}).catch(() => {})
+            : undefined
     }),
 )
 

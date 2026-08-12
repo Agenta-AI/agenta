@@ -1,4 +1,4 @@
-import type {ReactElement} from "react"
+import type {ReactElement, ReactNode} from "react"
 
 import type {ListQueryState} from "@agenta/entities/shared"
 import type {Atom} from "jotai"
@@ -59,6 +59,9 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     /** Extra work on click, alongside following `childPath` — e.g. handing the target to the
      * surface being navigated to. Runs in the default jotai store, not a hook. */
     getOnClick?: (ref: TRef) => () => void
+    /** Wraps the rendered row so an entity can add per-row chrome (a kebab menu, a right-click
+     * menu). Returns an ELEMENT, so the wrapper component — not this closure — owns the hooks. */
+    wrapRow?: (ref: TRef, node: ReactNode) => ReactElement
 }
 
 /**
@@ -80,4 +83,5 @@ export interface SidebarEntity {
     getIcon?: (ref: SidebarEntityRef) => ReactElement
     getTooltip?: (ref: SidebarEntityRef) => string | undefined
     getOnClick?: (ref: SidebarEntityRef) => () => void
+    wrapRow?: (ref: SidebarEntityRef, node: ReactNode) => ReactElement
 }

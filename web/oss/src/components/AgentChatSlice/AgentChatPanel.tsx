@@ -144,9 +144,9 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         if (pendingOpenForScope.sessionId) {
             adoptSession({id: pendingOpenForScope.sessionId, title: pendingOpenForScope.title})
         } else {
-            // No id means "start a fresh conversation here" — Home's composer. A new empty session
-            // is also what lets a seeded first message find an empty conversation to send into.
-            addSession()
+            // No id means "start a fresh conversation here" — Home's composer. It may name the
+            // session up front, so the message it sent along lands in this one and no other.
+            addSession({id: pendingOpenForScope.newSessionId})
         }
         setPendingOpen(null)
     }, [pendingOpenForScope, adoptSession, addSession, setPendingOpen])

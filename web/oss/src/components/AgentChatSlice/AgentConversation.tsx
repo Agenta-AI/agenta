@@ -277,6 +277,7 @@ const AgentConversation = ({
         // Files picked on Home / the overview, where there was no session to upload against.
         onSeedFiles: attachments.addFiles,
         attachmentsSettled,
+        isHydrating,
     })
     const consumedRunNonceRef = useRef<number | null>(null)
 
