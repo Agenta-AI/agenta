@@ -47,11 +47,13 @@ const AgentsGrid = ({
                 />
             ))}
 
-            {/* Dashed, so it reads as a slot to fill rather than an agent that exists. */}
+            {/* Dashed, so it reads as a slot to fill rather than an agent that exists. It carries
+            the same warm tint as the real cards in light so the grid reads as one surface; dark
+            keeps it transparent, which is what it renders today. */}
             <button
                 type="button"
                 onClick={onCreate}
-                className="box-border flex h-full min-h-[148px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-transparent p-5 text-center transition-colors hover:border-colorPrimary"
+                className="box-border flex h-full min-h-[148px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-[var(--ag-surface-paper)] p-5 text-center transition-colors hover:border-colorPrimary dark:bg-transparent"
             >
                 <PlusIcon size={18} className="text-colorTextTertiary" />
                 <span className="text-sm text-colorText">New agent</span>

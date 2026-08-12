@@ -182,7 +182,9 @@ export const AgentCard = ({
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${
                 isGrid
-                    ? "relative h-full gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 hover:border-colorBorder"
+                    ? // Warm tinted card in light (the treatment the rails and template cards
+                      // carry); dark restores the elevated surface it renders today.
+                      "relative h-full gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-[var(--ag-surface-paper)] p-5 pt-8 hover:border-colorBorder dark:bg-colorBgElevated"
                     : // No frame in the rail: the section around it is already a card, and a card
                       // inside a card is the look we just spent the day removing.
                       "gap-2 rounded-lg p-3 hover:bg-colorFillQuaternary"
