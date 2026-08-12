@@ -13,6 +13,7 @@ import {type SessionDotStatus, sessionDotStatusAtomFamily} from "../state/livene
 import {useChatScopeKey} from "../state/scope"
 import {type AgentChatSession, sessionFirstUserTextAtomFamily} from "../state/sessions"
 
+import {SESSION_RUN_GLYPH_PX, SessionRunSpinner} from "./SessionRunSpinner"
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 
 /** Slight left/right edge fade so tabs dissolve into the strip edges instead of a hard cut when
@@ -40,9 +41,10 @@ const STATUS_META: Record<
     idle: {dot: "bg-colorTextQuaternary", pulse: false, attention: false, title: "Idle"},
 }
 
-/** A session's run-state dot. Subscribes to just that session's effective-status atom (local run
- * state, or backend liveness when idle here) so a streaming conversation repaints only its own dot,
- * never the whole bar. */
+/** A session's run-state indicator: the shared spinner while a turn is in flight (the same glyph
+ * the sidebar's session rows use), a semantic dot for every other state. Subscribes to just that
+ * session's effective-status atom (local run state, or backend liveness when idle here) so a
+ * streaming conversation repaints only its own indicator, never the whole bar. */
 export const SessionStatusDot = ({
     sessionId,
     active = false,
@@ -57,26 +59,42 @@ export const SessionStatusDot = ({
     // colour even on the active tab, so its signal survives on the session you're looking at.
     const dotClassName = clsx(meta.dot, active && status === "idle" && "dark:bg-white")
     return (
+        // The box is the spinner's size in EVERY state, so a run starting or ending swaps the glyph
+        // without shifting the label beside it.
         <span
-            className={clsx(
-                "relative flex h-1.5 w-1.5 shrink-0",
-                // A halo ring makes an attention dot read as a badge even at 6px, so it stands out
-                // across a row of running/idle tabs without enlarging the dot itself.
-                meta.attention && "rounded-full ring-2 ring-offset-0",
-                status === "awaiting" && "ring-colorWarningBorder",
-                status === "error" && "ring-colorErrorBorder",
-            )}
+            className="relative flex shrink-0 items-center justify-center"
+            style={{width: SESSION_RUN_GLYPH_PX, height: SESSION_RUN_GLYPH_PX}}
             title={meta.title}
         >
-            {meta.pulse && (
+            {status === "running" ? (
+                <SessionRunSpinner />
+            ) : (
                 <span
                     className={clsx(
-                        "absolute inline-flex h-full w-full rounded-full opacity-60 motion-safe:animate-ping",
-                        dotClassName,
+                        "relative flex h-1.5 w-1.5",
+                        // A halo ring makes an attention dot read as a badge even at 6px, so it
+                        // stands out across a row of tabs without enlarging the dot itself.
+                        meta.attention && "rounded-full ring-2 ring-offset-0",
+                        status === "awaiting" && "ring-colorWarningBorder",
+                        status === "error" && "ring-colorErrorBorder",
                     )}
-                />
+                >
+                    {meta.pulse && (
+                        <span
+                            className={clsx(
+                                "absolute inline-flex h-full w-full rounded-full opacity-60 motion-safe:animate-ping",
+                                dotClassName,
+                            )}
+                        />
+                    )}
+                    <span
+                        className={clsx(
+                            "relative inline-flex h-1.5 w-1.5 rounded-full",
+                            dotClassName,
+                        )}
+                    />
+                </span>
             )}
-            <span className={clsx("relative inline-flex h-1.5 w-1.5 rounded-full", dotClassName)} />
         </span>
     )
 }

@@ -7,10 +7,11 @@ import {
     // nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
-import {ChatsCircleIcon, CircleIcon, CircleNotchIcon, PushPinIcon} from "@phosphor-icons/react"
+import {ChatsCircleIcon, CircleIcon, PushPinIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
+import {SessionRunSpinner} from "@/oss/components/AgentChatSlice/components/SessionRunSpinner"
 import {pendingSessionOpenAtom} from "@/oss/components/AgentChatSlice/state/pendingSessionOpen"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../scopes/constants"
@@ -99,10 +100,11 @@ const ENTITIES: SidebarEntity[] = [
             })
         },
         // A turn in flight outranks the pin: "this one is working right now" is the state you scan
-        // the list for, and the pin is still readable from the row's position at the top.
+        // the list for, and the pin is still readable from the row's position at the top. Same
+        // glyph and motion the playground's session chips use — one animation for one meaning.
         getIcon: (session) =>
             session.running
-                ? createElement(CircleNotchIcon, {size: 12, className: "animate-spin"})
+                ? createElement(SessionRunSpinner)
                 : session.pinned
                   ? createElement(PushPinIcon, {size: 14, weight: "fill"})
                   : createElement(CircleIcon, {

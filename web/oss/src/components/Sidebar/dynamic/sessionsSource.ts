@@ -10,6 +10,7 @@ import {
     activeSessionIdAtomFamily,
     defaultScopeKeyAtom,
     sessionsListAtomFamily,
+    sessionStatusAtomFamily,
 } from "@/oss/components/AgentChatSlice/state/sessions"
 import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
@@ -90,55 +91,68 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 }
 
 /**
- * The conversation open in the playground right now, as a sidebar row — or null off a playground.
+ * Playground sessions the server-backed list cannot show yet, as sidebar rows.
  *
- * A new session is created CLIENT-side (`addSessionAtomFamily` writes localStorage); the server
- * first hears about it when its first turn runs. So the server-backed list below cannot show a
- * just-created session at all, and even once the row exists the empty-session filter hides it until
- * it has a turn. Reading the local tab store closes both gaps for the one session that is
- * definitely not abandoned: the one you are looking at. Every other empty session stays hidden.
+ * A session is created CLIENT-side (`addSessionAtomFamily` writes localStorage); the server first
+ * hears about it when its first turn runs, and even then its row carries no `references` until that
+ * turn lands — so `sessionOpenTarget` rejects it and the list below drops it. Until the first turn
+ * completes, the local tab store is the ONLY place a session exists for the sidebar.
  *
- * Scope is the routed app id, so the row disappears when you navigate away from that playground —
- * an abandoned blank chat never lingers here. Surfaces that override the chat scope through React
- * context (the revision drawer, onboarding) are not reflected; the sidebar cannot read context.
+ * Two sessions qualify, and both are demonstrably not abandoned:
+ *  - the one you are looking at;
+ *  - any that is RUNNING or awaiting your input. Keying this on "active" alone was the bug behind
+ *    Mahmoud's repro: switching tabs mid-first-turn dropped the running session's row (and with it
+ *    the spinner) until its turn finished and the server list could carry it.
+ *
+ * Scope is the routed app id, so rows disappear when you leave that playground — an abandoned blank
+ * chat never lingers. Surfaces that override the chat scope through React context (the revision
+ * drawer, onboarding) are not reflected; the sidebar cannot read context.
  */
-const activePlaygroundSessionRefAtom = atom<SessionSidebarRef | null>((get) => {
+const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     const scope = get(defaultScopeKeyAtom)
     // The scope key doubles as the app id for the row's link, so it must be a real one.
-    if (!isValidUUID(scope)) return null
+    if (!isValidUUID(scope)) return []
     const sessions = get(sessionsListAtomFamily(scope))
     const rawActiveId = get(activeSessionIdAtomFamily(scope))
     // Same fallback the panel applies to a stale active id (its tab was closed).
     const active = sessions.find((session) => session.id === rawActiveId) ?? sessions[0] ?? null
-    if (!active) return null
-    return {
-        id: active.id,
-        sessionId: active.id,
-        name: active.title?.trim() || null,
-        appId: scope,
-        pinned: get(pinnedSessionIdsAtom).includes(active.id),
-        alive: false,
-        running: false,
-        agentName: null,
+    const pinned = get(pinnedSessionIdsAtom)
+    // `error` is settled, not live — an errored empty session is as abandoned as an untouched one.
+    const isLive = (id: string) => {
+        const status = get(sessionStatusAtomFamily(id))
+        return status === "running" || status === "awaiting"
     }
+    return sessions
+        .filter((session) => session.id === active?.id || isLive(session.id))
+        .map((session) => ({
+            id: session.id,
+            sessionId: session.id,
+            name: session.title?.trim() || null,
+            appId: scope,
+            pinned: pinned.includes(session.id),
+            alive: false,
+            running: false,
+            agentName: null,
+        }))
 })
 
 /**
- * Adds the actively-open session to the list, unless the server already returned it — the server
- * row wins there, it carries the title, preview and liveness this local one cannot know.
+ * Adds the local playground rows to the list, skipping any the server already returned — the server
+ * row wins there, it carries the title, preview and liveness the local one cannot know.
  *
- * Lands at the head of the unpinned rows: it is the most recently touched session by definition,
- * and pins keep the top the way they do everywhere else.
+ * They land at the head of the unpinned rows: they are the most recently touched sessions by
+ * definition, and pins keep the top the way they do everywhere else.
  */
-export const withActiveLocalSession = (
+export const withLocalSessions = (
     refs: readonly SessionSidebarRef[],
-    active: SessionSidebarRef | null,
+    locals: readonly SessionSidebarRef[],
 ): SessionSidebarRef[] => {
-    if (!active) return [...refs]
-    if (refs.some((ref) => ref.sessionId === active.sessionId)) return [...refs]
+    const known = new Set(refs.map((ref) => ref.sessionId))
+    const missing = locals.filter((local) => !known.has(local.sessionId))
+    if (!missing.length) return [...refs]
     const firstUnpinned = refs.findIndex((ref) => !ref.pinned)
     const at = firstUnpinned === -1 ? refs.length : firstUnpinned
-    return [...refs.slice(0, at), active, ...refs.slice(at)]
+    return [...refs.slice(0, at), ...missing, ...refs.slice(at)]
 }
 
 /**
@@ -220,7 +234,7 @@ const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     // Archived agents' sessions go before anything downstream counts rows: the name resolution
     // below and the group's visible cap both work off this list, so filtering here keeps archived
     // rows from eating slots the backfill should have given to live ones.
-    const refs = withActiveLocalSession(
+    const refs = withLocalSessions(
         dropArchivedAgentSessions(
             [
                 ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
@@ -228,7 +242,7 @@ const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
             ],
             get(archivedAgentIdsQueryAtom).data ?? null,
         ),
-        get(activePlaygroundSessionRefAtom),
+        get(localPlaygroundSessionRefsAtom),
     )
     // Names and run state are resolved for the RENDERED rows only. Each name subscribes to that
     // agent's artifact query, and the request window behind this list is several times what the
