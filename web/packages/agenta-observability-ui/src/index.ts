@@ -125,3 +125,9 @@ export {
     type AnnotationFeedbackValue,
     type AnnotationEvaluatorOption,
 } from "./filters/AnnotationFilterRow"
+
+// ============================================================================
+// Trace row — the compact span presentation both surfaces render
+// ============================================================================
+export {TraceRow, type TraceRowProps, type TraceRowMetrics} from "./trace/TraceRow"
+export {ObservabilityList, type ObservabilityListProps} from "./list/ObservabilityList"

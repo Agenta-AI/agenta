@@ -1,6 +1,6 @@
 import type {SpanCategory} from "@agenta/entities/trace"
 
-import type {TraceSpanNode} from "@/oss/services/tracing/types"
+import type {TraceSpanNode} from "../core/traceSpan"
 
 /**
  * Span tree visibility modes.

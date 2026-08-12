@@ -18,7 +18,8 @@
         ".": "./src/index.ts",
         "./state": "./src/state/index.ts",
         "./filters": "./src/filters/index.ts",
-        "./etl": "./src/etl/adaptiveTracePageFetcher.ts"
+        "./etl": "./src/etl/adaptiveTracePageFetcher.ts",
+        "./trace": "./src/trace/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

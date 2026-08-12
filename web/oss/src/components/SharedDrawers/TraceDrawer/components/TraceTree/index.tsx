@@ -1,109 +1,23 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {
-    formattedSpanCostAtomFamily,
-    formattedSpanLatencyAtomFamily,
-    formattedSpanTokensAtomFamily,
-} from "@agenta/observability"
-import {AvatarTreeContent} from "@agenta/observability-ui"
-import {
-    Coins,
-    Info,
-    MagnifyingGlass,
-    PlusCircle,
-    SlidersHorizontal,
-    Timer,
-} from "@phosphor-icons/react"
-import {Button, Divider, Input, Popover, Space, Tooltip, Typography} from "antd"
+import {filterKeySpans, filterTree} from "@agenta/observability"
+import {TraceRow} from "@agenta/observability-ui"
+import {Info, MagnifyingGlass, SlidersHorizontal} from "@phosphor-icons/react"
+import {Button, Divider, Input, Popover, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
 import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
-import {filterTree} from "@/oss/components/pages/observability/assets/utils"
 import type {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import useTraceDrawer from "../../hooks/useTraceDrawer"
 import TraceTreeSettings from "../TraceTreeSettings"
 import {TraceTreeSettingsState} from "../TraceTreeSettings/types"
 
-import {filterKeySpans} from "./assets/spanVisibility"
 import {TraceTreeProps} from "./assets/types"
 
 const treeHeaderClass =
     "[&_.ant-typography]:text-sm [&_.ant-typography]:leading-[1.5714285714285714] [&_.ant-typography]:font-medium"
-const treeTitleClass = "text-xs leading-[1.6666666666666667]"
-const treeContentContainerClass = "text-colorTextSecondary"
-const treeContentClass = "flex items-center font-mono gap-0.5"
-
-export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: any}) => {
-    const {span_name, span_id, status_code} = value || {}
-
-    const formattedTokens = useAtomValue(formattedSpanTokensAtomFamily(value))
-    const formattedCost = useAtomValue(formattedSpanCostAtomFamily(value))
-    const formattedLatency = useAtomValue(formattedSpanLatencyAtomFamily(value))
-
-    return (
-        <div className="flex flex-col gap-0.5 truncate" key={span_id}>
-            <Space size={4}>
-                <AvatarTreeContent value={value} />
-                <Tooltip title={span_name} mouseEnterDelay={0.25}>
-                    <Typography.Text
-                        className={
-                            status_code === "STATUS_CODE_ERROR"
-                                ? `${treeTitleClass} text-[var(--ag-c-D61010)] font-[500]`
-                                : treeTitleClass
-                        }
-                    >
-                        {span_name}
-                    </Typography.Text>
-                </Tooltip>
-            </Space>
-
-            <Space className={treeContentContainerClass}>
-                {settings.latency && (
-                    <Tooltip
-                        title={`Latency: ${formattedLatency}`}
-                        mouseEnterDelay={0.25}
-                        placement="bottom"
-                    >
-                        <div className={treeContentClass}>
-                            <Timer />
-                            {formattedLatency}
-                        </div>
-                    </Tooltip>
-                )}
-
-                {settings.cost && formattedCost && (
-                    <Tooltip
-                        title={`Cost: ${formattedCost}`}
-                        mouseEnterDelay={0.25}
-                        placement="bottom"
-                    >
-                        <div className={treeContentClass}>
-                            <Coins />
-                            {formattedCost}
-                        </div>
-                    </Tooltip>
-                )}
-
-                {settings.tokens && !!formattedTokens && (
-                    <Tooltip
-                        title={`Tokens: ${formattedTokens}`}
-                        mouseEnterDelay={0.25}
-                        placement="bottom"
-                    >
-                        <div className={treeContentClass}>
-                            <PlusCircle />
-                            {formattedTokens}
-                        </div>
-                    </Tooltip>
-                )}
-            </Space>
-        </div>
-    )
-}
-
 const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: TraceTreeProps) => {
     const [searchValue, setSearchValue] = useState("")
 
@@ -164,7 +78,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
     }, [searchedTree, traceTreeSettings.visibility])
 
     const renderTraceLabel = useCallback(
-        (node: TraceSpanNode) => <TreeContent value={node} settings={traceTreeSettings} />,
+        (node: TraceSpanNode) => <TraceRow span={node} metrics={traceTreeSettings} />,
         [traceTreeSettings],
     )
 
