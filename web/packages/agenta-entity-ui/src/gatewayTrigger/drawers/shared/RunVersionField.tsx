@@ -176,14 +176,12 @@ export function RunVersionField({
     revisionPlaceholder,
     onRevisionSelect,
     revisionHint = "Runs one exact variant + revision.",
-    hideEnvironment = false,
     envOptions,
     envLoading,
     environmentSlug,
     onEnvironmentChange,
     envNotFound,
     envHint = "Follows the revision deployed to an environment.",
-    showRevisionHint = true,
     railWidth = "w-[116px]",
 }: {
     bindMode: RunVersionBindMode
@@ -192,27 +190,20 @@ export function RunVersionField({
     revisionPlaceholder?: string
     onRevisionSelect: (selection: WorkflowRevisionSelectionResult) => void
     revisionHint?: string
-    /** TEMPORARY: drop the Deployed option, leaving a Pinned-only rail. Set by the trigger
-     *  drawers; the tool "Reference by" control still offers both. */
-    hideEnvironment?: boolean
     envOptions?: {value: string; label: string}[]
     envLoading?: boolean
     environmentSlug?: string | null
     onEnvironmentChange?: (slug: string) => void
     envNotFound?: React.ReactNode
     envHint?: string
-    /** Drop the explanatory line above the picker (a flat field slot names itself). */
-    showRevisionHint?: boolean
     /** Left-rail width (Tailwind class). Override to align with a sibling section's rail. */
     railWidth?: string
 }) {
     const revisionPicker = (
         <>
-            {showRevisionHint ? (
-                <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
-                    {revisionHint}
-                </span>
-            ) : null}
+            <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
+                {revisionHint}
+            </span>
             <EntityPicker<WorkflowRevisionSelectionResult>
                 variant="popover-cascader"
                 adapter={revisionAdapter}
@@ -222,12 +213,6 @@ export function RunVersionField({
             />
         </>
     )
-
-    // With Deployed hidden the rail has exactly one item ("Pinned"), which conveys nothing and
-    // costs a whole column — render the picker on its own instead.
-    if (hideEnvironment) {
-        return <div className="flex flex-col gap-1.5">{revisionPicker}</div>
-    }
 
     return (
         <SectionRail

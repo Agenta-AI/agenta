@@ -43,9 +43,7 @@ export function EventSourcePicker({
     onWaitForEvent,
     onOpenChange,
     placement = "bottomRight",
-    waitLabel = "Wait for a new event",
     waitHint,
-    autoWaitOnOpen,
     captureMode,
     defaultOpen,
     container,
@@ -59,10 +57,7 @@ export function EventSourcePicker({
     /** Fired when the popover opens/closes — use to lazy-load `recentEvents` on open. */
     onOpenChange?: (open: boolean) => void
     placement?: "bottomRight" | "topRight" | "bottomLeft" | "topLeft"
-    waitLabel?: string
     waitHint?: string
-    /** Start the live capture immediately when the popover opens (single-click test). */
-    autoWaitOnOpen?: boolean
     /** Data-capture wait (picks apply data, not actions): survives popover close, and a resolved event keeps the popover open. */
     captureMode?: boolean
     /** Start open (forced-open parity stories / initial-open UX). */
@@ -104,7 +99,6 @@ export function EventSourcePicker({
         onOpenChange?.(next)
         if (next) {
             settledRef.current = false
-            if (autoWaitOnOpen && onWaitForEvent) void wait()
         } else if (!captureMode) {
             // A wait resolving after the popover closed must not fire onPick — unless it's
             // a data capture (that flow sends users away from the popover).
@@ -128,7 +122,7 @@ export function EventSourcePicker({
                     )}
                     <span className="min-w-0 flex-1">
                         <span className="block text-xs text-[var(--ag-colorText)]">
-                            {waiting ? "Waiting for an event…" : waitLabel}
+                            {waiting ? "Waiting for an event…" : "Wait for a new event"}
                         </span>
                         {waitHint && !waiting && (
                             <span className="block text-xs text-[var(--ag-colorTextTertiary)]">

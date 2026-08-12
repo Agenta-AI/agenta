@@ -10,7 +10,6 @@ import {
     useTriggerSchedules,
     type TriggerSchedule,
 } from "@agenta/entities/gatewayTrigger"
-import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {TriggerScheduleDrawer} from "@agenta/entity-ui/gatewayTrigger"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {
@@ -29,10 +28,12 @@ import {
     Trash,
 } from "@phosphor-icons/react"
 import {Button, message, Tooltip, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+
+import {useAgentNameById} from "./useAgentNameById"
 
 export default function GatewaySchedulesSection() {
     const {schedules, isLoading, refetch} = useTriggerSchedules()
@@ -41,17 +42,7 @@ export default function GatewaySchedulesSection() {
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
     const [reloading, setReloading] = useState(false)
 
-    // Agent names come from the applications list, not `workflowMolecule.artifactName`: the
-    // molecule is scoped to an open app, so on this page its artifact query never resolves.
-    const workflows = useAtomValue(appWorkflowsListQueryStateAtom)
-    const agentNameById = useMemo(() => {
-        const byId = new Map<string, string>()
-        workflows.data.forEach((w) => {
-            const id = w.id as string | undefined
-            if (id) byId.set(id, w.name?.trim() || w.slug?.trim() || "")
-        })
-        return byId
-    }, [workflows.data])
+    const agentNameById = useAgentNameById()
 
     const reloadAll = useCallback(async () => {
         setReloading(true)
@@ -110,153 +101,144 @@ export default function GatewaySchedulesSection() {
         [rows],
     )
 
-    const columns = useMemo(
-        () =>
-            createStandardColumns<ScheduleRow>([
-                {
-                    type: "text",
-                    key: "name",
-                    title: "Name",
-                    width: 180,
-                    fixed: "left",
-                    render: (_value, record) => {
-                        const label = record.name || record.id || "-"
-                        // Fixed-width column: truncate rather than wrap, full name on hover.
-                        return (
-                            <Typography.Text ellipsis={{tooltip: label}}>{label}</Typography.Text>
-                        )
+    const columns = useMemo(() => {
+        // Optional column: present only when a row actually uses a window (see hasWindow).
+        const windowColumn: StandardColumnDef<ScheduleRow> = {
+            type: "text",
+            key: "window",
+            title: "Window (UTC)",
+            width: 200,
+            render: (_value, record) => {
+                const {start_time: start, end_time: end} = record.data ?? {}
+                if (!start && !end) return <Typography.Text type="secondary">-</Typography.Text>
+                const fmt = (v?: string | null) =>
+                    v ? formatDay({date: v, outputFormat: "YYYY-MM-DD HH:mm"}) : "∞"
+                return (
+                    <span className="truncate text-xs">
+                        {fmt(start)} → {fmt(end)}
+                    </span>
+                )
+            },
+        }
+        return createStandardColumns<ScheduleRow>([
+            {
+                type: "text",
+                key: "name",
+                title: "Name",
+                width: 180,
+                fixed: "left",
+                render: (_value, record) => {
+                    const label = record.name || record.id || "-"
+                    // Fixed-width column: truncate rather than wrap, full name on hover.
+                    return <Typography.Text ellipsis={{tooltip: label}}>{label}</Typography.Text>
+                },
+            },
+            {
+                type: "text",
+                key: "schedule",
+                title: "Schedule",
+                width: 200,
+                render: (_value, record) => {
+                    const cron = record.data?.schedule
+                    if (!cron) return <Typography.Text type="secondary">-</Typography.Text>
+                    return (
+                        <Tooltip title={cron}>
+                            <span className="truncate">{describeCron(cron)}</span>
+                        </Tooltip>
+                    )
+                },
+            },
+            {
+                type: "text",
+                key: "workflow",
+                title: "Connected agent",
+                width: 180,
+                render: (_value, record) => {
+                    const wfId = triggerBoundAgentId(record.data?.references)
+                    const name = wfId ? agentNameById.get(wfId) : undefined
+                    // A raw id says nothing to a reader, so an unresolved name shows "-".
+                    if (!name) return <Typography.Text type="secondary">-</Typography.Text>
+                    return (
+                        <Typography.Text className="text-xs" ellipsis={{tooltip: name}}>
+                            {name}
+                        </Typography.Text>
+                    )
+                },
+            },
+            ...(hasWindow ? [windowColumn] : []),
+            {
+                type: "text",
+                key: "status",
+                title: "Status",
+                width: 130,
+                // Reads as a state, like the Connections table; pausing lives in the
+                // row menu so the column stays scannable.
+                render: (_value, record) =>
+                    isEntityActive(record) ? (
+                        <StatusIndicator tone="success" label="Active" />
+                    ) : (
+                        <StatusIndicator tone="default" label="Paused" />
+                    ),
+            },
+            {
+                type: "text",
+                key: "created_at",
+                title: "Created",
+                width: 160,
+                render: (_value, record) =>
+                    record.created_at
+                        ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
+                        : "-",
+            },
+            {
+                type: "actions",
+                showCopyId: false,
+                items: [
+                    {
+                        key: "deliveries",
+                        label: "View runs",
+                        icon: <ListChecks size={16} />,
+                        onClick: (record: ScheduleRow) => {
+                            if (record.id)
+                                openDeliveries({
+                                    mode: "owner-history",
+                                    owner: {kind: "schedule", id: record.id},
+                                    name: record.name ?? undefined,
+                                })
+                        },
                     },
-                },
-                {
-                    type: "text",
-                    key: "schedule",
-                    title: "Schedule",
-                    width: 200,
-                    render: (_value, record) => {
-                        const cron = record.data?.schedule
-                        if (!cron) return <Typography.Text type="secondary">-</Typography.Text>
-                        return (
-                            <Tooltip title={cron}>
-                                <span className="truncate">{describeCron(cron)}</span>
-                            </Tooltip>
-                        )
+                    {
+                        key: "edit",
+                        label: "Edit",
+                        icon: <PencilSimpleLine size={16} />,
+                        onClick: (record: ScheduleRow) => handleEdit(record),
                     },
-                },
-                {
-                    type: "text",
-                    key: "workflow",
-                    title: "Connected agent",
-                    width: 180,
-                    render: (_value, record) => {
-                        const wfId = triggerBoundAgentId(record.data?.references)
-                        const name = wfId ? agentNameById.get(wfId) : undefined
-                        // A raw id says nothing to a reader, so an unresolved name shows "-".
-                        if (!name) return <Typography.Text type="secondary">-</Typography.Text>
-                        return (
-                            <Typography.Text className="text-xs" ellipsis={{tooltip: name}}>
-                                {name}
-                            </Typography.Text>
-                        )
+                    {
+                        key: "pause",
+                        label: "Pause",
+                        icon: <Pause size={16} />,
+                        hidden: (record: ScheduleRow) => !isEntityActive(record),
+                        onClick: (record: ScheduleRow) => handleToggle(record)(false),
                     },
-                },
-                ...(hasWindow
-                    ? [
-                          {
-                              type: "text",
-                              key: "window",
-                              title: "Window (UTC)",
-                              width: 200,
-                              render: (_value, record) => {
-                                  const {start_time: start, end_time: end} = record.data ?? {}
-                                  if (!start && !end)
-                                      return <Typography.Text type="secondary">-</Typography.Text>
-                                  const fmt = (v?: string | null) =>
-                                      v
-                                          ? formatDay({date: v, outputFormat: "YYYY-MM-DD HH:mm"})
-                                          : "∞"
-                                  return (
-                                      <span className="truncate text-xs">
-                                          {fmt(start)} → {fmt(end)}
-                                      </span>
-                                  )
-                              },
-                          } satisfies StandardColumnDef<ScheduleRow>,
-                      ]
-                    : []),
-                {
-                    type: "text",
-                    key: "status",
-                    title: "Status",
-                    width: 130,
-                    // Reads as a state, like the Connections table; pausing lives in the
-                    // row menu so the column stays scannable.
-                    render: (_value, record) =>
-                        isEntityActive(record) ? (
-                            <StatusIndicator tone="success" label="Active" />
-                        ) : (
-                            <StatusIndicator tone="default" label="Paused" />
-                        ),
-                },
-                {
-                    type: "text",
-                    key: "created_at",
-                    title: "Created",
-                    width: 160,
-                    render: (_value, record) =>
-                        record.created_at
-                            ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
-                            : "-",
-                },
-                {
-                    type: "actions",
-                    showCopyId: false,
-                    items: [
-                        {
-                            key: "deliveries",
-                            label: "View runs",
-                            icon: <ListChecks size={16} />,
-                            onClick: (record: ScheduleRow) => {
-                                if (record.id)
-                                    openDeliveries({
-                                        mode: "owner-history",
-                                        owner: {kind: "schedule", id: record.id},
-                                        name: record.name ?? undefined,
-                                    })
-                            },
-                        },
-                        {
-                            key: "edit",
-                            label: "Edit",
-                            icon: <PencilSimpleLine size={16} />,
-                            onClick: (record: ScheduleRow) => handleEdit(record),
-                        },
-                        {
-                            key: "pause",
-                            label: "Pause",
-                            icon: <Pause size={16} />,
-                            hidden: (record: ScheduleRow) => !isEntityActive(record),
-                            onClick: (record: ScheduleRow) => handleToggle(record)(false),
-                        },
-                        {
-                            key: "resume",
-                            label: "Resume",
-                            icon: <Play size={16} />,
-                            hidden: (record: ScheduleRow) => isEntityActive(record),
-                            onClick: (record: ScheduleRow) => handleToggle(record)(true),
-                        },
-                        {type: "divider"},
-                        {
-                            key: "delete",
-                            label: "Delete",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            onClick: (record: ScheduleRow) => handleDelete(record),
-                        },
-                    ],
-                } satisfies StandardColumnDef<ScheduleRow>,
-            ]),
-        [agentNameById, handleDelete, handleEdit, handleToggle, hasWindow, openDeliveries],
-    )
+                    {
+                        key: "resume",
+                        label: "Resume",
+                        icon: <Play size={16} />,
+                        hidden: (record: ScheduleRow) => isEntityActive(record),
+                        onClick: (record: ScheduleRow) => handleToggle(record)(true),
+                    },
+                    {type: "divider"},
+                    {
+                        key: "delete",
+                        label: "Delete",
+                        icon: <Trash size={16} />,
+                        danger: true,
+                        onClick: (record: ScheduleRow) => handleDelete(record),
+                    },
+                ],
+            } satisfies StandardColumnDef<ScheduleRow>,
+        ])
+    }, [agentNameById, handleDelete, handleEdit, handleToggle, hasWindow, openDeliveries])
 
     const {tableScope, pagination} = useStaticTable<ScheduleRow>(
         "settings-trigger-schedules",

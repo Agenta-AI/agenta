@@ -12,6 +12,7 @@ import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/
 import {CaretDown, Info, Lightning} from "@phosphor-icons/react"
 
 import {EventSourcePicker, type SampledEvent} from "../shared/EventSourcePicker"
+import {useShapeChange} from "../shared/useShapeChange"
 
 import {EventFieldList, useEventFields} from "./EventFieldList"
 import {buildPreviewContext} from "./helpers"
@@ -81,17 +82,16 @@ export function MappingSection({
     // edit-mode prefill loads) — detected by comparing against our own compilation.
     const [template, setTemplate] = useState(() => parseMessageTemplate(value, isChat, primaryKey))
 
-    // The bound agent's shape resolves asynchronously, so it can change under a message the
-    // user already typed (chat agents take `messages`, completion agents a named input).
-    const shapeRef = useRef({isChat, primaryKey})
+    const takeShapeChange = useShapeChange({isChat, primaryKey})
 
+    // Terminates: `onChange` is the parent's `useState` setter (stable), the migration branch
+    // returns early, and the pass it triggers re-enters with no pending change and
+    // `compiled === current` — so no further `setState`.
     useEffect(() => {
-        const shapeChanged =
-            shapeRef.current.isChat !== isChat || shapeRef.current.primaryKey !== primaryKey
-        shapeRef.current = {isChat, primaryKey}
         // On a shape change `value` was written under the OLD shape, so re-reading it would
-        // parse as unrepresentable and wipe the composer. Recompile the text instead.
-        if (shapeChanged && template) {
+        // parse as unrepresentable and wipe the composer. Recompile the text instead — the
+        // composer owns it, so there is nothing to recover from the JSON.
+        if (takeShapeChange() && template) {
             onChange(JSON.stringify(compileMessageTemplate(template, isChat, primaryKey), null, 2))
             return
         }
@@ -103,7 +103,7 @@ export function MappingSection({
             /* keep raw */
         }
         if (compiled !== current) setTemplate(parseMessageTemplate(value, isChat, primaryKey))
-    }, [value, isChat, primaryKey, template, onChange])
+    }, [value, isChat, primaryKey, template, onChange, takeShapeChange])
 
     // Surface raw-JSON parse errors (the composer always emits valid JSON). Single owner:
     // the non-agent path renders InputsMappingField, which reports a richer message.

@@ -11,7 +11,6 @@ import {
     useTriggerSubscriptions,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
-import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {TriggerSubscriptionDrawer} from "@agenta/entity-ui/gatewayTrigger"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {
@@ -32,10 +31,12 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import {Button, message, Tag, Tooltip, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+
+import {useAgentNameById} from "./useAgentNameById"
 
 export default function GatewaySubscriptionsSection() {
     const {subscriptions, isLoading, refetch} = useTriggerSubscriptions()
@@ -45,17 +46,7 @@ export default function GatewaySubscriptionsSection() {
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
     const [reloading, setReloading] = useState(false)
 
-    // Agent names come from the applications list, not `workflowMolecule.artifactName`: the
-    // molecule is scoped to an open app, so on this page its artifact query never resolves.
-    const workflows = useAtomValue(appWorkflowsListQueryStateAtom)
-    const agentNameById = useMemo(() => {
-        const byId = new Map<string, string>()
-        workflows.data.forEach((w) => {
-            const id = w.id as string | undefined
-            if (id) byId.set(id, w.name?.trim() || w.slug?.trim() || "")
-        })
-        return byId
-    }, [workflows.data])
+    const agentNameById = useAgentNameById()
 
     const reloadAll = useCallback(async () => {
         setReloading(true)

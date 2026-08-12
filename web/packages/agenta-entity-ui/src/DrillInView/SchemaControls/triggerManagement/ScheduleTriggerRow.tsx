@@ -1,5 +1,5 @@
 /** One schedule row in the Triggers section: cadence subtitle + a version-drift tag. */
-import {type ReactNode} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import {
     describeCron,
@@ -13,7 +13,7 @@ import {TriggerRow} from "./TriggerRow"
 import {useDriftTag} from "./useDriftTag"
 
 /** "next in 14h" — the coarse time until the next UTC fire, or null if none upcoming. */
-function formatNextRun(cron?: string): string | null {
+function formatCountdown(cron?: string): string | null {
     if (!cron) return null
     const [next] = nextCronRuns(cron, 1)
     if (!next) return null
@@ -41,9 +41,10 @@ export function ScheduleTriggerRow({
 }) {
     const cron = record.data?.schedule
     const named = !!record.name?.trim()
-    // Subtitle answers "when does this run?" — the cadence plus the next fire.
-    const cadence = cron ? describeCron(cron) : "No schedule set"
-    const next = formatNextRun(cron)
+    // Subtitle answers "when does this run?" — the cadence plus the next fire. Both parse the
+    // cron, so memoize on it; the countdown bucket needn't track unrelated re-renders.
+    const cadence = useMemo(() => (cron ? describeCron(cron) : "No schedule set"), [cron])
+    const next = useMemo(() => formatCountdown(cron), [cron])
     const driftTag = useDriftTag(record.data?.references, entityId)
 
     return (

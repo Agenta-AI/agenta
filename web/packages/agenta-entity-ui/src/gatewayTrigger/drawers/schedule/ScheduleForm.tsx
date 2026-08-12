@@ -5,6 +5,7 @@ import {
     getScheduleMessage,
     parseInputsFields,
     isEntityActive,
+    remapMessageShape,
     suggestScheduleName,
     triggerApiErrorMessage,
     triggerScheduleDrawerAtom,
@@ -29,6 +30,7 @@ import {Labelled} from "../../../drawers/shared/Labelled"
 import {ScheduleBuilderField} from "../ScheduleBuilderField"
 import {AgentField} from "../shared/AgentField"
 import {normalizeJson} from "../shared/normalizeJson"
+import {useShapeChange} from "../shared/useShapeChange"
 import {
     bindingKey,
     buildTriggerReferences,
@@ -197,6 +199,20 @@ export function ScheduleForm({
         () => getScheduleMessage(inputsText, isChatInput, primaryInputKey),
         [inputsText, isChatInput, primaryInputKey],
     )
+
+    // The agent resolves after the drawer opens, so a message typed first was written under the
+    // placeholder shape. Move it rather than letting the composer read "" and save the old shape.
+    const takeShapeChange = useShapeChange({isChat: isChatInput, primaryKey: primaryInputKey})
+    useEffect(() => {
+        const previous = takeShapeChange()
+        if (!previous) return
+        setInputsText((current) =>
+            remapMessageShape(current, previous, {
+                isChat: isChatInput,
+                primaryKey: primaryInputKey,
+            }),
+        )
+    }, [takeShapeChange, isChatInput, primaryInputKey])
 
     // Shown as the placeholder and saved verbatim when the field is left empty, so a schedule
     // is never nameless — "Mon 09:00 — Bug report".

@@ -1,14 +1,11 @@
 /** Version-drift tag shared by schedule + subscription rows. */
 import {useMemo} from "react"
 
-import {
-    workflowMolecule,
-    workflowRevisionsListQueryStateAtomFamily,
-} from "@agenta/entities/workflow"
-import {useAtomValue} from "jotai"
-
 import type {TriggerReferences} from "../../../gatewayTrigger/drawers/shared/RunVersionField"
-import {parseStoredBinding} from "../../../gatewayTrigger/drawers/shared/useTriggerBinding"
+import {
+    parseStoredBinding,
+    useBoundRevision,
+} from "../../../gatewayTrigger/drawers/shared/useTriggerBinding"
 
 /**
  * The drift tag, shown only when a trigger targets a revision other than the open one:
@@ -17,16 +14,9 @@ import {parseStoredBinding} from "../../../gatewayTrigger/drawers/shared/useTrig
  */
 export function useDriftTag(references: TriggerReferences, entityId: string | null): string | null {
     const binding = useMemo(() => parseStoredBinding(references), [references])
-
-    // Pinned: the bound revision names its own version.
-    const pinnedRevision = useAtomValue(
-        workflowMolecule.selectors.data(binding.revisionId ?? ""),
-    ) as {version?: number | null} | null
-
-    // Latest: the bound variant's newest revision is what actually runs.
-    const revisions = useAtomValue(
-        workflowRevisionsListQueryStateAtomFamily(binding.variantId ?? ""),
-    )
+    // The same resolution the drawer's version label uses — read separately, these two
+    // disagreed about pinned revisions and could name different versions for one trigger.
+    const bound = useBoundRevision(binding)
 
     return useMemo(() => {
         // No open revision to compare against — can't tell whether it drifted.
@@ -34,15 +24,10 @@ export function useDriftTag(references: TriggerReferences, entityId: string | nu
 
         if (binding.mode === "pinned") {
             if (!binding.revisionId || binding.revisionId === entityId) return null
-            const version = pinnedRevision?.version
-            return version != null ? `Runs on v${version}` : "Runs on pinned version"
+            return bound?.version != null ? `Runs on v${bound.version}` : "Runs on pinned version"
         }
 
-        const rows = (revisions.data as {id?: string; version?: number | null}[]).filter(
-            (r) => r.version !== 0,
-        )
-        const latest = [...rows].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))[0]
-        if (!latest?.id || latest.id === entityId) return null
+        if (!bound?.id || bound.id === entityId) return null
         return "Runs on latest version"
-    }, [binding, entityId, pinnedRevision, revisions.data])
+    }, [binding, entityId, bound])
 }

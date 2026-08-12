@@ -18,7 +18,7 @@ import {
 } from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
-import type {TriggerBinding} from "./useTriggerBinding"
+import {useBoundRevision, type TriggerBinding} from "./useTriggerBinding"
 
 // ---------------------------------------------------------------------------
 // VersionField — replaces the workflow→variant→revision cascader in the trigger drawers.
@@ -134,7 +134,9 @@ export function VersionField({
     const variants = useAtomValue(workflowVariantsListQueryStateAtomFamily(workflowId ?? ""))
 
     const boundVariantId = binding.variantId ?? variants.data[0]?.id ?? ""
-    const boundRevisions = useAtomValue(workflowRevisionsListQueryStateAtomFamily(boundVariantId))
+    // Same resolution the composer and the drift tag use — an app with one variant binds it
+    // implicitly, so the effective variant is passed rather than the binding's own.
+    const bound = useBoundRevision({...binding, variantId: boundVariantId})
 
     const value =
         binding.mode === "pinned" && binding.revisionId
@@ -147,17 +149,14 @@ export function VersionField({
     // Rendered as SelectValue children so the compact one-line label stays independent of the
     // two-line rows in the list.
     const {label, hint} = useMemo(() => {
-        const rows = (boundRevisions.data as RevisionRow[]).filter((r) => r.version !== 0)
         if (binding.mode === "pinned") {
-            const pinned = rows.find((r) => r.id === binding.revisionId)
             return {
-                label: versionTag(pinned?.version),
-                hint: pinned?.message?.trim() ? `— ${pinned.message.trim()}` : "",
+                label: versionTag(bound?.version),
+                hint: bound?.message?.trim() ? `— ${bound.message.trim()}` : "",
             }
         }
-        const newest = [...rows].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))[0]
-        return {label: "Latest", hint: newest ? `— ${versionTag(newest.version)} right now` : ""}
-    }, [binding, boundRevisions.data])
+        return {label: "Latest", hint: bound ? `— ${versionTag(bound.version)} right now` : ""}
+    }, [binding.mode, bound])
 
     return (
         <Select

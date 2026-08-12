@@ -4,19 +4,6 @@
  */
 import type {TriggerConnection} from "@agenta/entities/gatewayTrigger"
 
-// Seed id for a create-mode default-bind — narrower than `extractBoundWorkflowId`, which
-// also accepts artifact-level ids that must not be written back under a variant key.
-export function extractBoundRevId(
-    refs: Record<string, {id?: string | null} | null | undefined> | null | undefined,
-): string | null {
-    return (
-        refs?.application_revision?.id ??
-        refs?.application_variant?.id ??
-        refs?.workflow_revision?.id ??
-        null
-    )
-}
-
 export function connectionName(conn: TriggerConnection | undefined): string {
     return conn?.name || conn?.slug || conn?.integration_key || ""
 }

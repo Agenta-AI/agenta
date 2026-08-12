@@ -90,6 +90,7 @@ export {
     getScheduleMessagePreview,
     messageContentText,
     parseInputsFields,
+    remapMessageShape,
     setScheduleMessage,
 } from "./core/messageInputs"
 export {

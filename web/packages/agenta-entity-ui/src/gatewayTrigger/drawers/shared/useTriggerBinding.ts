@@ -140,11 +140,42 @@ export function useTriggerBinding({
 }
 
 /** The revision row a binding points at: the pinned one, else the variant's newest. */
-interface BoundRevision {
+export interface BoundRevision {
     id?: string
     version?: number | null
+    message?: string | null
     flags?: {is_agent?: boolean; is_chat?: boolean} | null
     data?: {schemas?: {inputs?: unknown} | null} | null
+}
+
+/**
+ * The revision a binding ACTUALLY runs — the one rule, in one place.
+ *
+ * Three surfaces need this (the composer's agent shape, the version label, the drift tag) and
+ * each had its own copy; the pinned branches had already drifted apart, so the drift tag could
+ * name a different version than the label beside it.
+ *
+ * Both lookups are needed. The variant's revision list is the normal source, but a STORED pinned
+ * reference names the revision without its variant (`parseStoredBinding`), leaving the list empty
+ * — so the revision entity is the fallback rather than an alternative.
+ */
+export function useBoundRevision(binding: TriggerBinding): BoundRevision | null {
+    const revisions = useAtomValue(
+        workflowRevisionsListQueryStateAtomFamily(binding.variantId ?? ""),
+    )
+    const isPinned = binding.mode === "pinned" && !!binding.revisionId
+    const pinnedEntity = useAtomValue(
+        workflowMolecule.selectors.data(isPinned ? (binding.revisionId ?? "") : ""),
+    ) as BoundRevision | null
+
+    return useMemo(() => {
+        // version 0 is the empty initial revision — never what a trigger runs.
+        const rows = (revisions.data as BoundRevision[]).filter((r) => r.version !== 0)
+        if (isPinned) {
+            return rows.find((r) => r.id === binding.revisionId) ?? pinnedEntity ?? null
+        }
+        return [...rows].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))[0] ?? null
+    }, [revisions.data, isPinned, binding.revisionId, pinnedEntity])
 }
 
 /**
@@ -159,21 +190,15 @@ export function useBoundAgentShape(binding: TriggerBinding): {
     isChat: boolean
     inputSchema: unknown
 } {
-    const revisions = useAtomValue(
-        workflowRevisionsListQueryStateAtomFamily(binding.variantId ?? ""),
-    )
+    const bound = useBoundRevision(binding)
 
-    return useMemo(() => {
-        const rows = (revisions.data as BoundRevision[]).filter((r) => r.version !== 0)
-        const bound =
-            binding.mode === "pinned" && binding.revisionId
-                ? rows.find((r) => r.id === binding.revisionId)
-                : [...rows].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))[0]
-        return {
+    return useMemo(
+        () => ({
             resolved: Boolean(bound),
             isAgent: Boolean(bound?.flags?.is_agent),
             isChat: Boolean(bound?.flags?.is_chat),
             inputSchema: bound?.data?.schemas?.inputs ?? null,
-        }
-    }, [revisions.data, binding.mode, binding.revisionId])
+        }),
+        [bound],
+    )
 }
