@@ -10,6 +10,9 @@
 - Founder-confirmed naming rule: the first unnamed standard connection uses the provider display
   name. Later unnamed connections append `2`, `3`, and so on.
 - No product code changed.
+- Provider research now separates free credential testing from model discovery.
+- A draft default-active list exists for the eight provider families the Pi harness currently
+  accepts from the Agenta vault.
 
 ## Current recommendation
 
@@ -19,12 +22,15 @@ release.
 
 ## Open decisions
 
-1. Meaning of an absent model list versus an explicitly empty model list.
-2. Default selection when several connections exist for one provider.
-3. Whether the first API change stores only active models or also cached discovery results.
+1. Founder approval of the draft default-active model identifiers.
+2. Default connection selection when several connections exist for one provider.
+3. Whether a later change should cache discovery results. The current recommendation keeps the
+   first response temporary and stores only active models.
 4. Whether connection-level harness choices belong in the vault payload or in a non-secret settings
    resource. The current proposal keeps them beside models because both configure the connection.
 5. Provider discovery route shape and ownership.
+6. A confirmed free credential-test endpoint for MiniMax, Aleph Alpha, and current Anyscale-based
+   connections, if one exists.
 
 ## Planning constraint
 

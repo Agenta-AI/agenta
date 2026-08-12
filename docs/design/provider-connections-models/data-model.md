@@ -25,9 +25,9 @@ Do not add a third secret kind in the first change. Do not convert existing reco
 }
 ```
 
-`models` missing means use Agenta's default models for this provider. `models` present means use the
-saved list. An empty list must have one explicit meaning before implementation. The options are
-"show no models" or "use defaults". Missing and empty must not accidentally mean the same thing.
+`models` missing means use Agenta's default-active models for this provider and harness. `models`
+present means use the saved list. An empty list means show no models from this connection. This
+keeps an explicit user choice distinct from a record that predates model selection.
 
 `harnesses` missing means use Agenta's technical compatibility. `harnesses` present means apply the
 saved subset. The effective harnesses are always the intersection of the saved list and Agenta's
@@ -100,5 +100,7 @@ User chooses active models
 Connection stores active models
 ```
 
-The first API change can store and return model lists without implementing provider discovery. A
-later settings change can add discovery for supported providers and manual entry for the rest.
+The first API change can store and return active model lists without implementing provider
+discovery. A later settings change can add discovery for supported providers and manual entry for
+the rest. Discovery results must not overwrite the saved list. See `provider-discovery.md` for the
+fallback and default rules.

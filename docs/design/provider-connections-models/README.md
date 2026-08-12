@@ -17,6 +17,8 @@ connections in one menu without storing them as the same object.
 
 1. [context.md](context.md) explains the user experience, goal, and scope.
 2. [research.md](research.md) explains the current data and code constraints.
-3. [data-model.md](data-model.md) defines the compatibility-first connection shape.
-4. [plan.md](plan.md) splits the work into dependent pull requests.
-5. [status.md](status.md) records open decisions and progress.
+3. [provider-discovery.md](provider-discovery.md) separates credential testing, model refresh, and
+   default-active models.
+4. [data-model.md](data-model.md) defines the compatibility-first connection shape.
+5. [plan.md](plan.md) splits the work into dependent pull requests.
+6. [status.md](status.md) records open decisions and progress.
