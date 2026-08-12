@@ -1,0 +1,49 @@
+---
+title: "Slash Commands"
+slug: slash-commands
+date: 2026-08-12
+tags: [v0.112.0]
+description: "Control the model and reference agent capabilities without leaving the conversation."
+---
+
+<Summary>
+
+:::note Video placeholder (15–20 seconds)
+Type `/` in the composer. Open `/model` and select a model, then reopen the menu and insert a skill or tool reference. End by sending the message and briefly show the changed configuration section.
+:::
+
+You can now type `/` in an agent conversation to change how the next message runs. Switch the model or runtime, update the permission policy, or reference one of the agent's skills and tools without leaving the composer.
+
+Model and permission changes update the draft configuration immediately. Skill and tool commands insert a reference into your message, so you can tell the agent which capability you want it to use.
+
+</Summary>
+
+{/* truncate */}
+
+:::note Video placeholder (15–20 seconds)
+Type `/` in the composer. Open `/model` and select a model, then reopen the menu and insert a skill or tool reference. End by sending the message and briefly show the changed configuration section.
+:::
+
+## Control the next message
+
+Changing an agent during a conversation previously meant leaving the chat and finding the relevant setting in the configuration panel. Slash commands bring the most common controls into the composer.
+
+Type `/` at the start of a block or after a space to open the command menu. Continue typing to filter the available commands.
+
+## Change the model
+
+Use `/model` to select another configured model. The change updates the draft configuration, and the next message uses the selected model without a separate commit.
+
+## Change the runtime
+
+Use `/harness` to change the runtime that connects the model to the agent. If the current model cannot run with the selected runtime, Agenta warns you and selects a compatible model when you apply the change.
+
+## Change permissions
+
+Use `/permissions` to choose how the agent handles actions that require approval. Existing permission rules remain in place when you change the policy.
+
+## Reference skills and tools
+
+The same menu lists the skills and tools configured on the agent. Selecting one inserts its name into your message as plain text. This gives the agent a clear hint about the capability you want it to use while keeping the final choice in the conversation.
+
+Connected app tools use readable names such as `gmail.send_email`, instead of their internal identifiers.
