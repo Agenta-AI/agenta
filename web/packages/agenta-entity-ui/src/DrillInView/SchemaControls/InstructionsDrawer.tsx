@@ -4,15 +4,13 @@
  * The right-hand editor drawer for a single instructions markdown file (e.g. AGENTS.md), opened
  * from a file row in the Instructions section. A header `Edit | Preview` toggle switches between the
  * editing view (the shared `MarkdownEditor` with a formatting toolbar) and a read-only rendered
- * Preview that can Expand to fill the drawer. A right rail carries suggested-action scaffolds and a
- * version-history placeholder.
+ * Preview that can Expand to fill the drawer. A right rail carries suggested-action scaffolds.
  *
  * Like the tools/skills drawer, editing happens on a draft the host owns: the drawer reports changes
  * via `onChange`, commits via `onSave`, and discards via `onCancel` / the close button, so an
  * in-progress edit never touches the config until the user confirms.
  *
- * Built on the shared `EnhancedDrawer`. Version history is a stubbed skeleton for now — wiring the
- * revision-diff data is a separate increment.
+ * Built on the shared `EnhancedDrawer`.
  */
 import {useCallback, useState} from "react"
 
@@ -223,28 +221,6 @@ export function InstructionsDrawer({
                                     >
                                         + {s.label}
                                     </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div>
-                            <div className="mb-2 flex items-center gap-1.5">
-                                <span className="text-xs uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                    Version history
-                                </span>
-                                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[12px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                    soon
-                                </span>
-                            </div>
-                            <div className="flex flex-col gap-2.5 opacity-50">
-                                {[42, 32, 38].map((w, i) => (
-                                    <div key={i} className="flex items-center gap-2">
-                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
-                                        <span
-                                            className="h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]"
-                                            style={{width: `${w}%`}}
-                                        />
-                                    </div>
                                 ))}
                             </div>
                         </div>

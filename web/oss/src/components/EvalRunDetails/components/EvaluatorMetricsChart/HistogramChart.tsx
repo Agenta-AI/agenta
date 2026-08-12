@@ -12,6 +12,8 @@ import {
     ReferenceLine,
 } from "recharts"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
+
 type ChartDatum = Record<string, string | number | boolean | undefined>
 
 interface HistogramChartProps {
@@ -62,6 +64,7 @@ const HistogramChart = ({
     reserveLegendSpace = false,
     barProps,
 }: HistogramChartProps) => {
+    const series0 = useChartSeries()[0]
     const chartBarSize = !barSize ? undefined : barSize
     const yAxisWidth = typeof yAxisProps?.width === "number" ? yAxisProps.width : 48
     const activeSeries =
@@ -71,7 +74,7 @@ const HistogramChart = ({
                   {
                       key: yKey,
                       name: tooltipLabel ?? "Value",
-                      color: "#3B82F6",
+                      color: series0,
                       barProps,
                   },
               ]
@@ -164,7 +167,7 @@ const HistogramChart = ({
                         key={seriesItem.key}
                         dataKey={seriesItem.key}
                         name={seriesItem.name}
-                        fill={seriesItem.color ?? "#3B82F6"}
+                        fill={seriesItem.color ?? series0}
                         radius={[8, 8, 0, 0]}
                         barSize={chartBarSize}
                         maxBarSize={100}

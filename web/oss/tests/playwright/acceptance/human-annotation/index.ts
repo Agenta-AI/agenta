@@ -49,12 +49,13 @@ const expectScenarioRowToHaveStatus = async ({
     const row = getScenarioRowByInput(page, inputText)
 
     await expect(row).toBeVisible({timeout})
+    // Match on the dot's status, not its colour class — the palette moves, the status doesn't.
     if (status === "success") {
-        await expect(row.locator(".bg-emerald-500").first()).toBeVisible({timeout})
+        await expect(row.locator('[data-status-dot="success"]').first()).toBeVisible({timeout})
     } else {
-        // Unrun scenarios render with a neutral dot (.bg-neutral-400), not amber (.bg-amber-400).
-        // Asserting that the success dot is absent is more robust than checking for a specific intermediate colour.
-        await expect(row.locator(".bg-emerald-500")).not.toBeVisible({timeout})
+        // Unrun scenarios render a neutral dot, not an amber one. Asserting that the success dot
+        // is absent is more robust than checking for a specific intermediate state.
+        await expect(row.locator('[data-status-dot="success"]')).not.toBeVisible({timeout})
     }
 }
 

@@ -9,9 +9,11 @@ import {CopyButton} from "@agenta/ui/components/presentational"
 import {CaretRight} from "@phosphor-icons/react"
 import {Tag} from "antd"
 
+import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+
 import {resolveToolDisplay} from "../../assets/toolDisplay"
 
-import {EVENT_META, relOffset, toolDuration, type TimelineEvent} from "./timeline"
+import {EVENT_META, eventTone, relOffset, toolDuration, type TimelineEvent} from "./timeline"
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
     Boolean(v && typeof v === "object" && !Array.isArray(v))
@@ -50,6 +52,9 @@ export function EventRow({
     defaultExpanded?: boolean
 }) {
     const [open, setOpen] = useState(defaultExpanded)
+    const {appTheme} = useAppTheme()
+    const isDark = appTheme === ThemeMode.Dark
+    const tone = (type: TimelineEvent["type"]) => eventTone(EVENT_META[type].dot, isDark)
     const meta = EVENT_META[event.type]
     const isError = event.type === "error" || (event.type === "tool_result" && hasError(event))
     const isInteraction = event.type === "interaction_request"
@@ -58,16 +63,12 @@ export function EventRow({
     // grey). `record_source` rides on `event.source`.
     const isUser = event.type === "message" && event.source === "user"
     const USER_TONE = "var(--ag-colorText)"
-    const dotColor = isError ? EVENT_META.error.dot : isUser ? USER_TONE : meta.dot
+    const dotColor = isError ? tone("error") : isUser ? USER_TONE : tone(event.type)
     const chipText = isUser ? "you" : meta.chip
     const json = JSON.stringify(event.payload ?? {}, null, 2)
     // Errors/interactions read as typed events IN PLACE (spec §4.1) — a left accent bar, not a
     // detached banner.
-    const accent = isError
-        ? EVENT_META.error.dot
-        : isInteraction
-          ? EVENT_META.interaction_request.dot
-          : null
+    const accent = isError ? tone("error") : isInteraction ? tone("interaction_request") : null
 
     return (
         <div

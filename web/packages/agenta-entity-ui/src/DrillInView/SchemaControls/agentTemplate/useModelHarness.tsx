@@ -521,33 +521,6 @@ export function useModelHarness({
         </RailField>
     ) : null
 
-    // Shared version-history placeholder for the section drawers (real revision diffs are deferred).
-    const versionHistorySkeleton = (
-        <div>
-            <div className="mb-2 flex items-center gap-1.5">
-                <span className="text-xs uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                    Version history
-                </span>
-                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[12px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                    soon
-                </span>
-            </div>
-            <div className="flex flex-col gap-2.5 opacity-50">
-                {["w-[42%]", "w-[32%]", "w-[38%]"].map((widthClass, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
-                        <span
-                            className={cn(
-                                "h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]",
-                                widthClass,
-                            )}
-                        />
-                    </div>
-                ))}
-            </div>
-        </div>
-    )
-
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card (below).
     // GAP (tracked): harness_capabilities covers model/provider/mode/hosting only — NOT tools/skills/
     // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
@@ -779,16 +752,11 @@ export function useModelHarness({
         </>
     )
 
-    // The two-panel layout (controls + version-history aside) is DRAWER chrome. Under a focus filter
-    // this same body renders INLINE in the config panel (the "what changed" view), where the version
-    // history and its fixed-width aside don't belong — drop to a single column of the narrowed controls.
+    // Single column: the controls own the drawer's full width.
     const modelHarnessDrawerBody =
         capabilities && !focus.active ? (
-            <div className="flex h-full min-h-0 gap-6">
-                <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-                    {modelHarnessControls}
-                </div>
-                <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
+            <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto">
+                {modelHarnessControls}
             </div>
         ) : (
             <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
@@ -985,18 +953,9 @@ export function useModelHarness({
 
     // The stacked sections carry their own dividers; drop the trailing one on whichever section
     // renders last (they're conditional, so target the last child rather than a fixed section).
-    // Same as Model & harness: the version-history aside is drawer chrome; under a focus filter this
-    // body renders inline in the panel, so drop to a single column of the narrowed controls.
-    const advancedDrawerBody = focus.active ? (
+    const advancedDrawerBody = (
         <div className="flex h-full flex-col overflow-y-auto [&>*:last-child]:!border-b-0">
             {advancedControls}
-        </div>
-    ) : (
-        <div className="flex h-full min-h-0 gap-6">
-            <div className="flex min-w-0 flex-1 flex-col overflow-y-auto pr-1 [&>*:last-child]:!border-b-0">
-                {advancedControls}
-            </div>
-            <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
         </div>
     )
 

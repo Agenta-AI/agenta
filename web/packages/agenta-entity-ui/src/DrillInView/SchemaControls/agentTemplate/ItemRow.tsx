@@ -110,6 +110,8 @@ export function ItemRow({
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
                 "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors",
+                // Item cards read as white sheets sitting ON the expanded section's band.
+                !locked && "bg-[var(--ag-surface-section-content)]",
                 interactive &&
                     !status &&
                     "cursor-pointer hover:border-[var(--ag-c-97A4B0,#97a4b0)]",

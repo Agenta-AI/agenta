@@ -14,13 +14,25 @@ import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../compo
 
 import type {BasicStats, FrequencyEntry} from "./metricUtils"
 
-const SEGMENT_COLORS = ["#10b981", "#94a3b8", "#d1d5db", "#e5e7eb"]
-const LABEL_COLORS = ["#0f766e", "#475467", "#475467", "#475467"]
+// Categorical set (recolor spec), assigned in fixed order and cycling. `light-dark()` resolves
+// off the root's color-scheme, which the app keeps in sync with the theme.
+const SEGMENT_COLORS = [
+    "light-dark(#D97757, #D1D151)",
+    "light-dark(#54B5FA, #8CCFFF)",
+    "light-dark(#9D9D9D, #787878)",
+    "light-dark(#E5E5E3, #333333)",
+]
+const LABEL_COLORS = [
+    "light-dark(#5E0908, #D1D151)",
+    "light-dark(#113955, #8CCFFF)",
+    "light-dark(#616161, #BCBCBC)",
+    "light-dark(#616161, #BCBCBC)",
+]
 
-const TRUE_SEGMENT_COLOR = "#389e0d"
-const TRUE_LABEL_COLOR = "#389e0d"
-const FALSE_SEGMENT_COLOR = "#bdc7d1"
-const FALSE_LABEL_COLOR = "#586673"
+const TRUE_SEGMENT_COLOR = "light-dark(#2E7D3A, #8FBF7A)"
+const TRUE_LABEL_COLOR = TRUE_SEGMENT_COLOR
+const FALSE_SEGMENT_COLOR = "light-dark(#E5E5E3, #333333)"
+const FALSE_LABEL_COLOR = "light-dark(#616161, #BCBCBC)"
 
 const normalizeBoolLabel = (label: unknown) => label?.toString().toLowerCase()
 

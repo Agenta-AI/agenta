@@ -11,8 +11,8 @@ import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/Pl
 import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"
 import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
-import SessionHistoryMenu from "./components/SessionHistoryMenu"
-import {chatPanelMaximizedAtom} from "./state/panelLayout"
+import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
+import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "./state/panelLayout"
 import {pendingSessionOpenAtom} from "./state/pendingSessionOpen"
 import {useReconcileServerSessions} from "./state/projectSessions"
 import {useChatScopeKey} from "./state/scope"
@@ -80,6 +80,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // enrich titles, drop remotely-deleted) — the scope key is the agent's appId (artifact id).
     useReconcileServerSessions(scope)
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    const configPanelCollapsed = useAtomValue(configPanelCollapsedAtom)
     // The rail pane is `size={0}` + `inert` until maximized, so mounting it on boot renders the
     // whole session list (rows, dots, hover actions) into a zero-width panel. Latch it on first
     // open and keep it mounted after, so toggling back and forth doesn't remount or lose scroll.
@@ -258,14 +259,16 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                         onClose={closeSession}
                                         onRename={handleRename}
                                         showSessions={!chatMaximized}
+                                        leftExtra={
+                                            !chatMaximized && configPanelCollapsed ? (
+                                                <ShowConfigPanelButton />
+                                            ) : undefined
+                                        }
                                         extra={
                                             chatMaximized ? undefined : (
-                                                <>
-                                                    <InspectSessionButton
-                                                        sessionId={activeId ?? null}
-                                                    />
-                                                    <SessionHistoryMenu />
-                                                </>
+                                                <InspectSessionButton
+                                                    sessionId={activeId ?? null}
+                                                />
                                             )
                                         }
                                     />

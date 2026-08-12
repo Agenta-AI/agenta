@@ -81,7 +81,8 @@ export function CollapsibleProviderGroup({
     children: ReactNode
 }) {
     return (
-        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
+        // White sheet on the expanded section's band; the header keeps its own fill on top.
+        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)]">
             {/* Header stays clickable but is not the role=button node — it holds the + button
                 (nested-interactive). The role lives on the name span below. */}
             <div

@@ -12,6 +12,8 @@ import {
 } from "recharts"
 import type {TooltipContentProps} from "recharts"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
+
 type ChartDatum = Record<string, string | number | boolean | undefined>
 
 interface BarChartProps {
@@ -53,6 +55,7 @@ const BarChart = ({
     getCellProps,
     barProps,
 }: BarChartProps) => {
+    const series0 = useChartSeries()[0]
     const chartBarSize = !barSize ? undefined : barSize
     const yAxisWidth = typeof yAxisProps?.width === "number" ? yAxisProps.width : 58
     const {
@@ -174,7 +177,7 @@ const BarChart = ({
                                                 ? (rawRow[colorKey] as string)
                                                 : undefined) ||
                                             entry?.color ||
-                                            "#3B82F6"
+                                            series0
                                         const entryLabel = (() => {
                                             const rawLabel = rawRow?.[xKey]
                                             if (
@@ -235,7 +238,7 @@ const BarChart = ({
                 <Bar
                     dataKey={yKey}
                     name={tooltipLabel ?? "Value"}
-                    fill="#3B82F6"
+                    fill={series0}
                     radius={[8, 8, 0, 0]}
                     barSize={chartBarSize}
                     maxBarSize={100}

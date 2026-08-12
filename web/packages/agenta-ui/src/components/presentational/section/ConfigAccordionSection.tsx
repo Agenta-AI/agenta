@@ -71,7 +71,7 @@ export function sectionIndicatorColor(tone: SectionIndicatorTone): string {
         : tone === "incomplete"
           ? "var(--ag-colorWarning)"
           : tone === "agent"
-            ? "var(--ag-c-13C2C2, #13c2c2)"
+            ? "light-dark(#113955, #8CCFFF)"
             : "var(--ag-colorInfo)"
 }
 
