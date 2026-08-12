@@ -238,8 +238,12 @@ const PlaygroundMainView = ({
     // shrinks it. (A larger max just teased a few px of "expansion" — antd counts px sizes against
     // the full container INCLUDING the 12px gutter bar, whose overflow flex-shrink taxes both
     // panels, so the panel never even reached the old 450.)
+    // Agent bounds are PIXELS on both ends: with a percentage min, a wide (4K) window computes
+    // min (20% ≈ 700px+) ABOVE the fixed max — the panel mounts at the min, the first drag snaps
+    // it to the max, and the divider is then pinned between inverted constraints.
     const configDefaultSize = isAgentConfig ? 440 : "50%"
-    const configMaxSize = isAgentConfig ? 440 : "70%"
+    const configMinSize = isAgentConfig ? 340 : "20%"
+    const configMaxSize = isAgentConfig ? 640 : "70%"
     // Let the runs panel auto-fill in agent mode. A px config default + a "50%" runs default
     // don't sum to 100%, so antd scales BOTH up to fill the container — pushing config past its
     // px max on mount, which then snaps down on the first drag. An undefined runs default fills
@@ -375,7 +379,7 @@ const PlaygroundMainView = ({
                     <SplitterPanel
                         defaultSize={configDefaultSize}
                         size={configCollapsed ? 0 : undefined}
-                        min="20%"
+                        min={configMinSize}
                         max={configMaxSize}
                         // antd panels default to overflow:auto; the section inside owns scrolling, and
                         // a transient overflow leaves Chrome's thin panel scrollbar stuck full-height.
