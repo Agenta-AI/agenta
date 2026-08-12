@@ -21,10 +21,6 @@ import {
     InputNumber,
     Textarea,
     TimePicker,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
 } from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
 // DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
@@ -35,6 +31,7 @@ import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/r
 import {Form} from "antd"
 import type {FormInstance} from "antd"
 
+import {HelpTip} from "../../drawers/shared/HelpTip"
 import {ScheduleBuilderField} from "../../gatewayTrigger/drawers/ScheduleBuilderField"
 
 import {
@@ -542,29 +539,7 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
             {/* No required marker: a form of mostly-required provider fields reads as noise,
                 and the validation message on submit is the honest signal. */}
             <span>{field.label}</span>
-            {field.description && (
-                <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label={`About ${field.label}`}
-                                className="flex size-[14px] shrink-0 cursor-help items-center justify-center rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent text-[10px] font-normal leading-none text-colorTextDescription hover:border-[var(--ag-colorTextTertiary)] hover:text-colorTextSecondary"
-                            >
-                                ?
-                            </button>
-                        </TooltipTrigger>
-                        {/* Right, not top: the label sits directly under the previous field's
-                            input, and a top tooltip covered it. */}
-                        <TooltipContent side="right" className="max-w-[320px]">
-                            <span className="mb-0.5 block font-medium">{field.label}</span>
-                            <span className="block font-normal leading-snug">
-                                {field.description}
-                            </span>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-            )}
+            {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
         </span>
     )
 }

@@ -155,7 +155,13 @@ export function SubscriptionChildRow({
                         <EventSourcePicker
                             defaultOpen
                             placement="bottomRight"
-                            trigger={<span aria-hidden className="block h-0 w-0" />}
+                            // Focusable and named, not an aria-hidden span: Radix restores focus
+                            // by calling .focus() on the trigger, which a hidden span can't take.
+                            trigger={
+                                <button type="button" className="sr-only" aria-label="Event source">
+                                    Event source
+                                </button>
+                            }
                             recentEvents={recent}
                             onPick={(event) => {
                                 run(event)

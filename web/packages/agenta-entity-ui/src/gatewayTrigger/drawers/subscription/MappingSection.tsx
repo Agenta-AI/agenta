@@ -8,9 +8,9 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {HeightCollapse} from "@agenta/ui/components"
 import {Editor} from "@agenta/ui/editor"
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {CaretDown, Info} from "@phosphor-icons/react"
+import {CaretDown} from "@phosphor-icons/react"
 
+import {HelpTip} from "../../../drawers/shared/HelpTip"
 import {EventSourcePicker, type SampledEvent} from "../shared/EventSourcePicker"
 import {useShapeChange} from "../shared/useShapeChange"
 
@@ -138,34 +138,23 @@ export function MappingSection({
                 <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5 text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                         Map the event into the workflow inputs (JSON).
-                        <TooltipProvider delayDuration={200}>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    {/* The selector syntax is read once — an icon, not two
-                                        permanent lines of legend under the editor. */}
-                                    <button
-                                        type="button"
-                                        aria-label="Selector syntax"
-                                        className="flex cursor-help items-center border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorTextSecondary)]"
-                                    >
-                                        <Info size={13} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-[280px]">
-                                    String values are selectors against the event payload:
-                                    {" $.path "}
-                                    (JSONPath), {"/path "}
-                                    (JSON Pointer), or a literal.
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        {/* The selector syntax is read once — a marker, not two permanent
+                            lines of legend under the editor. */}
+                        <HelpTip label="Selector syntax">
+                            String values are selectors against the event payload:
+                            {" $.path "}
+                            (JSONPath), {"/path "}
+                            (JSON Pointer), or a literal.
+                        </HelpTip>
                     </span>
                     <EventSourcePicker
                         placement="bottomRight"
                         trigger={
                             <button
                                 type="button"
-                                className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                                disabled={!hasSource}
+                                title={hasSource ? undefined : "Choose a trigger first"}
+                                className="flex items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] enabled:cursor-pointer enabled:hover:text-[var(--ag-colorText)] disabled:cursor-not-allowed disabled:text-[var(--ag-colorTextQuaternary)]"
                             >
                                 Test event
                             </button>
@@ -202,7 +191,9 @@ export function MappingSection({
                     trigger={
                         <button
                             type="button"
-                            className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                            disabled={!hasSource}
+                            title={hasSource ? undefined : "Choose a trigger first"}
+                            className="flex items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-colorTextSecondary)] enabled:cursor-pointer enabled:hover:text-[var(--ag-colorText)] disabled:cursor-not-allowed disabled:text-[var(--ag-colorTextQuaternary)]"
                         >
                             Test event
                         </button>

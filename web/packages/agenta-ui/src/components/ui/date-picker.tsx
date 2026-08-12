@@ -79,8 +79,12 @@ function DatePicker({
                     autoFocus
                     selected={valid?.toDate()}
                     defaultMonth={valid?.toDate()}
+                    // required: react-day-picker deselects the active day on re-click in single
+                    // mode, which would silently clear a DateTimePicker's combined value.
+                    required
                     onSelect={(next) => {
-                        onChange?.(next ? dayjs(next) : undefined)
+                        if (!next) return
+                        onChange?.(dayjs(next))
                         setOpen(false)
                     }}
                 />

@@ -167,30 +167,20 @@ export function EventSourcePicker({
                                 </span>
                             )}
                         </span>
-                        {waiting && (
-                            // A wait runs for minutes; without this the only way out is closing
-                            // the menu, which in capture mode doesn't stop it either.
-                            <span
-                                role="button"
-                                tabIndex={0}
-                                aria-label="Stop waiting"
-                                title="Stop waiting"
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    cancelWait()
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key !== "Enter" && e.key !== " ") return
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    cancelWait()
-                                }}
-                                className="mt-0.5 flex shrink-0 cursor-pointer items-center text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
-                            >
-                                <X size={12} />
-                            </span>
-                        )}
+                    </DropdownMenuItem>
+                )}
+
+                {/* Its own item, not a nested button: Radix owns roving focus inside a menu and
+                    intercepts Tab, so anything tabbable within an item is unreachable. */}
+                {waiting && (
+                    <DropdownMenuItem
+                        onSelect={(e) => {
+                            e.preventDefault()
+                            cancelWait()
+                        }}
+                    >
+                        <X size={12} className="text-[var(--ag-colorTextTertiary)]" />
+                        <span className="text-xs">Stop waiting</span>
                     </DropdownMenuItem>
                 )}
 

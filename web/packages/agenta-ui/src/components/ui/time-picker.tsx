@@ -147,7 +147,9 @@ function TimePicker({
                     type="button"
                     variant="outline"
                     disabled={disabled}
-                    aria-label={ariaLabelledby ? undefined : (ariaLabel ?? placeholder)}
+                    // No placeholder fallback: aria-label outranks an associated <label>, so
+                    // "--:--" would replace a Form.Item's real label.
+                    aria-label={ariaLabelledby ? undefined : ariaLabel}
                     aria-labelledby={ariaLabelledby}
                     className={cn("justify-between font-normal", className)}
                 >

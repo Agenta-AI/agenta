@@ -50,6 +50,9 @@ function DateTimePicker({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: DateTimePickerProps) {
+    const uid = React.useId()
+    const dateNameId = `${uid}-date`
+    const timeNameId = `${uid}-time`
     const current = value && dayjs(value).isValid() ? dayjs(value) : undefined
     // A half edited before anything is set anchors to the start of today, so the other half has
     // a defined value rather than inheriting the current wall-clock.
@@ -57,6 +60,15 @@ function DateTimePicker({
 
     return (
         <div className={cn("flex items-center gap-2", className)}>
+            {/* Both halves would otherwise announce one identical name, so a screen-reader user
+                can't tell which has focus. aria-labelledby concatenates, so each half appends
+                its own word to the caller's label. */}
+            <span id={dateNameId} className="sr-only">
+                date
+            </span>
+            <span id={timeNameId} className="sr-only">
+                time
+            </span>
             <DatePicker
                 value={current}
                 onChange={(next) =>
@@ -69,8 +81,8 @@ function DateTimePicker({
                 placeholder={placeholder}
                 disabled={disabled}
                 format={dateFormat}
-                aria-label={ariaLabel}
-                aria-labelledby={ariaLabelledby}
+                aria-label={ariaLabel ? `${ariaLabel} date` : undefined}
+                aria-labelledby={ariaLabelledby ? `${ariaLabelledby} ${dateNameId}` : undefined}
                 className="min-w-0 flex-1"
             />
             <TimePicker
@@ -82,8 +94,8 @@ function DateTimePicker({
                 }}
                 step={step}
                 disabled={disabled}
-                aria-label={ariaLabel}
-                aria-labelledby={ariaLabelledby}
+                aria-label={ariaLabel ? `${ariaLabel} time` : undefined}
+                aria-labelledby={ariaLabelledby ? `${ariaLabelledby} ${timeNameId}` : undefined}
                 className="w-[104px] shrink-0"
             />
         </div>
