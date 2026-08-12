@@ -716,6 +716,34 @@
 - Notes: the wave that proves Slack end to end is the place this gets settled;
   filed now so it is not discovered as a mystery 401 instead.
 
+### F64. The manifest's request URL is composed from the caller's request, so it is wrong behind a tunnel
+
+- ID: `F64`
+- Origin: `wave-6 design`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `fetch_channel_connection_setup` builds the URL it puts in the Slack
+  manifest as `f"{request.base_url}/channels/{channel}/events/"` — from the HTTP
+  request that asked for the document. But the reader and the caller are different
+  parties: an operator opens the page on `localhost` while Slack must call a public
+  address. So the manifest tells Slack to deliver events to a host Slack cannot
+  reach, and the failure arrives as no event ever appearing.
+- Evidence: `router.py` composes `request_url` from `str(request.base_url)`.
+  `env.api_url` already exists and already defaults to `http://localhost/api`, and
+  no code reads it. Every dev deployment sits behind a reverse proxy, and the Slack
+  flow additionally needs a tunnel.
+- Files: `api/oss/src/apis/fastapi/channels/router.py`,
+  `api/oss/src/utils/env.py`
+- Suggested Fix: compose the request URL from configuration, not from the request.
+  `env.api_url` is the existing setting and needs only to be read. WP26 owns it, and
+  it is a prerequisite for its own dev loop rather than a nicety — nobody can test
+  the manifest flow until the manifest carries a reachable URL.
+- Notes: this is the same shape as the tunnel hazard beside it. A value that is
+  correct in one caller's frame of reference is wrong in another's, and neither
+  reports the mismatch.
+
 ### F63. A bridge created through the write path has no `delivery_url`, so every reply fails
 
 - ID: `F63`
