@@ -3,7 +3,7 @@ import {type RefObject, Suspense, lazy, useCallback, useEffect, useRef} from "re
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
+import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {ArrowRight, Code, Paperclip} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Tooltip} from "antd"
@@ -93,7 +93,8 @@ const AgentComposerDock = ({
         removeQueued: (id: string) => void
         clearQueue: () => void
     }
-    modelKey: React.ComponentProps<typeof ConnectModelBanner>
+    // The dock supplies `entityId` (it already has it) and `suppressed`; the parent passes status.
+    modelKey: Omit<React.ComponentProps<typeof ConnectModelBanner>, "entityId" | "suppressed">
     modelBlocked: boolean
     contextMaxTokens: number | null
     showContextBudget: boolean
@@ -273,7 +274,11 @@ const AgentComposerDock = ({
                     onboarding SUPPRESSES it — the provider-key check is deferred until the agent is
                     committed (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
                 <div className={CHAT_COLUMN}>
-                    <ConnectModelBanner {...modelKey} suppressed={chromeHidden} />
+                    <ConnectModelBanner
+                        {...modelKey}
+                        entityId={entityId}
+                        suppressed={chromeHidden}
+                    />
                 </div>
                 {/* Sits with the other docked strips so a session running in another browser reads
                     as busy instead of frozen (#5530). */}
@@ -369,6 +374,8 @@ const AgentComposerDock = ({
                         hideTrigger
                         showGroup
                         showSearch
+                        searchPlaceholder="Search models"
+                        sectionTooltip={<HarnessTooltip />}
                         options={slash.modelGroups}
                         value={slash.currentModel}
                         // The option carries a vault pick's connection slug + kind; `applyModel`

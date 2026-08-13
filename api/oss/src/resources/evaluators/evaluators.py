@@ -1,3 +1,16 @@
+"""Built-in evaluator templates — LEGACY, kept for the seeded/migrated evaluator catalog.
+
+The `model` field of the LLM-judge templates below carries a hardcoded `options` list. It is
+deliberately NOT the prompt-side catalog (`supported_llm_models` in the SDK) and it is NOT
+connection-aware: a judge seeded from these templates resolves its credential through the
+provider family, the pre-connections behavior. Judges created and edited through the evaluator
+playground read their model catalog from the SDK schema instead, where named connections and
+saved model lists apply.
+
+Do not extend these lists to track current models; that would fork a second, drifting catalog.
+See docs/design/provider-connections-models/plan.md, pull request 4.
+"""
+
 from copy import deepcopy
 
 

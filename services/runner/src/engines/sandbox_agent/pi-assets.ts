@@ -24,10 +24,12 @@ import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
 import {
+  describePiModelsJsonPlan,
   isPiModelConfigApplicable,
+  isPiModelRegistrationPlan,
   PI_MODELS_JSON_FILENAME,
   serializePiModelsJson,
-  type PiModelConfigPlan,
+  type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
 import type {
   RunPlan,
@@ -290,14 +292,14 @@ export const PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE =
   "republish the runner image.";
 
 /**
- * Thrown (via the engine's named-message pattern) when a managed OpenAI-compatible custom run has
- * a model-config plan but its `models.json` could not be materialized. Fail closed: the custom
- * provider would not be registered, so the run must stop rather than fall back to a default
- * provider (design Decision 6). Single line so `conciseError` surfaces it verbatim.
+ * Thrown (via the engine's named-message pattern) when a run has a `models.json` plan but the file
+ * could not be materialized. Fail closed: the selected model would not be registered, so the run
+ * must stop rather than fall back to a default provider (design Decision 6). Single line so
+ * `conciseError` surfaces it verbatim.
  */
 export const PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE =
-  "The agent could not write its model configuration (models.json), so the OpenAI-compatible " +
-  "custom provider could not be registered. The run was stopped rather than fall back to a " +
+  "The agent could not write its model configuration (models.json), so the selected model could " +
+  "not be registered. The run was stopped rather than fall back to a " +
   "default provider. Ask your deployment operator to make the runner's Pi agent directory writable.";
 
 /**
@@ -320,7 +322,7 @@ export const PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE =
  */
 export function writePiModelsConfigLocal(
   agentDir: string,
-  plan: PiModelConfigPlan,
+  plan: PiModelsJsonPlan,
 ): void {
   const document = serializePiModelsJson(plan);
   const target = join(agentDir, PI_MODELS_JSON_FILENAME);
@@ -590,11 +592,16 @@ export interface PrepareLocalPiAssetsInput {
   };
   env: Record<string, string>;
   /**
-   * A managed OpenAI-compatible custom run's Pi provider config. When set, the isolated per-run
-   * agent dir receives a `models.json` for this provider and does NOT get the operator's personal
-   * `auth.json`; the run authenticates from the vault key referenced by `$OPENAI_API_KEY`.
+   * The run's Pi `models.json` plan, when it has one. The isolated per-run agent dir receives the
+   * file.
+   *
+   * A CUSTOM-PROVIDER plan additionally suppresses seeding the operator's personal `auth.json`:
+   * that run authenticates purely from the vault key referenced by `$OPENAI_API_KEY`, and a copied
+   * login could let Pi fall back to the operator's own provider. A REGISTRATION plan is the
+   * opposite case — it merges a model into a provider Pi already has, which authenticates exactly
+   * like that provider's catalog models do, so credential seeding is left untouched.
    */
-  piModelConfig?: PiModelConfigPlan;
+  piModelConfig?: PiModelsJsonPlan;
   log?: Log;
 }
 
@@ -654,10 +661,22 @@ export function prepareLocalPiAssets({
     };
 
   // buildRunPlan already rejected a local runtime_provided run with no configured
-  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount. A model-config plan
-  // never reaches here (it requires credentialMode "env"), so there is no models.json to write.
+  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount.
   if (plan.credentials.credentialMode === "runtime_provided") {
     const agentDir = plan.workspace.sourcePiAgentDir;
+    // A custom-provider plan cannot reach here (it requires credentialMode "env"). A model
+    // REGISTRATION plan can, and it is deliberately dropped: this dir is the operator's own Pi
+    // login, shared by every subscription run and rewritten by Pi's own OAuth refresh, so a
+    // per-run models.json would outlive the run that wanted it and change which models every
+    // later session sees. Pi reads models.json only from its agent dir — there is no
+    // session-scoped model config to write instead — so a subscription run keeps Pi's built-in
+    // registry, and a hand-entered model id fails loudly at model selection as it does today.
+    if (piModelConfig) {
+      log(
+        `pi models.json skipped on the operator's mounted agent dir (subscription run): ` +
+          describePiModelsJsonPlan(piModelConfig),
+      );
+    }
     const extensionInstalled = installPiExtensionLocal(agentDir, log);
     if (plan.prompt.hasSystemPrompt) {
       writeSystemPromptLocal(
@@ -673,13 +692,17 @@ export function prepareLocalPiAssets({
   }
 
   // Managed / none: always route through a throwaway per-run dir the runtime user owns, so the
-  // extension install never depends on the configured PI_CODING_AGENT_DIR being writable. A
-  // managed OpenAI-compatible custom run (a model-config plan is present) additionally gets a
-  // models.json and does NOT receive the operator's personal auth.json.
+  // extension install never depends on the configured PI_CODING_AGENT_DIR being writable, and any
+  // models.json is scoped to this run alone. A managed OpenAI-compatible custom run (a
+  // custom-provider plan) additionally does NOT receive the operator's personal auth.json.
   const { dir: runAgentDir, extensionInstalled } = prepareLocalAgentDir(
     plan.workspace.sourcePiAgentDir,
     log,
-    { seedCredentials: !piModelConfig },
+    {
+      seedCredentials: !(
+        piModelConfig && !isPiModelRegistrationPlan(piModelConfig)
+      ),
+    },
   );
   if (plan.prompt.hasSystemPrompt) {
     writeSystemPromptLocal(
@@ -693,10 +716,7 @@ export function prepareLocalPiAssets({
   if (piModelConfig) {
     try {
       writePiModelsConfigLocal(runAgentDir, piModelConfig);
-      log(
-        `pi models.json written provider=${piModelConfig.providerId} ` +
-          `api=${piModelConfig.api} model=${piModelConfig.models.map((m) => m.id).join(",")}`,
-      );
+      log(`pi models.json written ${describePiModelsJsonPlan(piModelConfig)}`);
     } catch (err) {
       // Terminal: the caller stops the run rather than fall back to a default provider.
       modelConfigWritten = false;

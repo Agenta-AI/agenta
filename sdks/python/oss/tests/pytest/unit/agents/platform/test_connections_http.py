@@ -166,6 +166,82 @@ async def test_default_connection_ambiguous(fake_http, connection):
         )
 
 
+async def test_default_connection_picks_the_one_declaring_the_model(
+    fake_http, connection
+):
+    # A project may hold two keys for one provider, and a new app's config is slug-less. When
+    # exactly one of those connections saved the requested model, that is the connection the
+    # picker offered it from — resolve it instead of failing ambiguous.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("openai-a", "openai", "sk-a", slug="a", models=["gpt-4o"]),
+            _provider_key("openai-b", "openai", "sk-b", slug="b", models=["gpt-5.5"]),
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model(slug=None), context=_context()
+    )
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-b"}
+
+
+async def test_an_explicit_model_declaration_beats_a_connection_with_no_list(
+    fake_http, connection
+):
+    # A connection that saved no list only implies the model (it means "use Agenta's defaults");
+    # one that saved it claims it outright. The explicit claim wins the tie.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("openai-a", "openai", "sk-a", slug="a"),
+            _provider_key("openai-b", "openai", "sk-b", slug="b", models=["gpt-5.5"]),
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model(slug=None), context=_context()
+    )
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-b"}
+
+
+async def test_two_connections_declaring_the_same_model_stay_ambiguous(
+    fake_http, connection
+):
+    # Narrowing only resolves what is unambiguous; two connections claiming the same model still
+    # fail loud rather than picking one by iteration order.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("openai-a", "openai", "sk-a", slug="a", models=["gpt-5.5"]),
+            _provider_key("openai-b", "openai", "sk-b", slug="b", models=["gpt-5.5"]),
+        ],
+    )
+    with pytest.raises(AmbiguousConnectionError):
+        await VaultConnectionResolver(connection).resolve(
+            model=_model(slug=None), context=_context()
+        )
+
+
+async def test_ambiguous_default_is_a_client_error_naming_the_candidates(
+    fake_http, connection
+):
+    # The invoke remap reads `status_code` off the exception; without one this surfaced as a 500
+    # server fault. It is a config problem, and "name one in the config" is only actionable when
+    # the message says which names exist.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("openai-a", "openai", "sk-a", slug="openai-a"),
+            _provider_key("openai-b", "openai", "sk-b", slug="openai-b"),
+        ],
+    )
+    with pytest.raises(AmbiguousConnectionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model(slug=None), context=_context()
+        )
+    assert exc.value.status_code == 422
+    assert "openai-a" in str(exc.value) and "openai-b" in str(exc.value)
+
+
 async def test_bare_model_without_provider_fails_loud(fake_http, connection):
     # F-017: a bare model id (no `provider/` prefix) that matches no vault candidate by model
     # id AND is absent from the supported-models catalog has no provider to look a credential

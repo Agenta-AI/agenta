@@ -48,6 +48,17 @@ export type {
     VaultMigrationStatus,
     ProviderFieldAttributes,
     ProviderFieldConfig,
+    ConnectionDraft,
+    CredentialStatus,
+    CredentialValues,
+    DoneState,
+    HarnessCapabilityMap,
+    HarnessModelCapabilities,
+    ModelOption,
+    ProviderCatalogEntry,
+    ProviderConnection,
+    SubscriptionHarnessStatus,
+    SubscriptionPair,
 } from "./core"
 
 export {
@@ -64,7 +75,46 @@ export {
     transformSecret,
     CUSTOM_PROVIDER_KIND_FAMILIES,
     PROVIDER_AUTH_REQUIREMENTS,
+    fieldNoteForKind,
     PROVIDER_FIELDS,
+    PROVIDER_CATALOG,
+    activeModelsCount,
+    activeModelsSummary,
+    connectedRowSubtitle,
+    connectionModelCount,
+    subscriptionPairModels,
+    subscriptionPairsFrom,
+    subscriptionPlanName,
+    bareModelId,
+    credentialStatusLine,
+    harnessSummary,
+    manualModelPlaceholderForKind,
+    MODEL_LIST_RENDER_CAP,
+    modelListView,
+    relativeFetchTime,
+    secretNoteForKind,
+    buildConnectionPayload,
+    buildModelOptions,
+    modelDisplayOrder,
+    carriedCredentialKeys,
+    catalogEntryForKind,
+    connectionPolicyForSave,
+    credentialFieldsForKind,
+    credentialSummary,
+    credentialValuesFor,
+    defaultModelsFor,
+    defaultNamePreview,
+    deploymentForProviderKind,
+    doneState,
+    harnessSupportsProviderKind,
+    hasRequiredCredential,
+    maskSecret,
+    nextConnectionName,
+    providerModelCatalog,
+    providerTitleForKind,
+    secretKindForProviderKind,
+    toProviderConnections,
+    toProviderCredentials,
 } from "./core"
 
 // ============================================================================
@@ -72,6 +122,14 @@ export {
 // ============================================================================
 
 export {fetchVaultSecret, createVaultSecret, updateVaultSecret, deleteVaultSecret} from "./api"
+export {
+    CREDENTIAL_STATUSES,
+    DISCOVERY_STATUSES,
+    probeProvider,
+    type DiscoveryStatus,
+    type ProbeProviderCredentials,
+    type ProbeProviderResponse,
+} from "./api"
 
 // ============================================================================
 // STATE - Atoms + Hook
@@ -92,5 +150,32 @@ export {
     deleteSecretAtom,
     migrateVaultKeysAtom,
     providerKeySetupDoneAtom,
+    providerConnectionsAtom,
+    probeProviderMutationAtom,
+    saveProviderConnectionAtom,
+    subscriptionPairModelsAtom,
     useVaultSecret,
 } from "./state"
+
+// ============================================================================
+// PROMPT MODEL PICKER - connection groups for the prompt / judge model catalog
+// ============================================================================
+
+export type {BuildConnectionModelGroupsArgs, PromptModelGroup, PromptModelOption} from "./core"
+export {
+    CURRENT_SELECTION_GROUP_CAPTION,
+    CURRENT_SELECTION_GROUP_KEY,
+    CURRENT_SELECTION_GROUP_LABEL,
+    CURRENT_SELECTION_OPTION_CAPTION,
+    LITELLM_MODEL_PREFIXES,
+    buildConnectionModelGroups,
+    connectionSlugFor,
+    connectionSlugFromOption,
+    curatedModelName,
+    fromLitellmModelId,
+    selectedOptionKey,
+    selectedOptionLabel,
+    toLitellmModelId,
+    withCurrentSelectionGroup,
+    withoutSlugBoundGroups,
+} from "./core"

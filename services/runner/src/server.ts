@@ -4,9 +4,10 @@
  * Same contract as the CLI, exposed over HTTP so the wrapper can run as its own
  * container (a sidecar) that the Python service calls in-network:
  *
- *   GET  /health -> runner identity ({ status, runner, protocol, engines, harnesses })
- *   POST /stream -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
- *   POST /kill   -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
+ *   GET  /health              -> runner identity ({ status, runner, protocol, engines, harnesses })
+ *   GET  /subscription-status -> one login state per harness (no paths, no credentials)
+ *   POST /stream              -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
+ *   POST /kill                -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
  *
  * Uses Node's built-in http server (no framework dependency).
  *
@@ -59,6 +60,7 @@ import {
 } from "./engines/sandbox_agent/session-identity.ts";
 import { SessionPool } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
+import { subscriptionStatusResponse } from "./subscription-status.ts";
 import {
   assertRunnerToken,
   loadRunnerConfig,
@@ -651,6 +653,15 @@ export function createRequestListener(
     try {
       if (req.method === "GET" && req.url === "/health") {
         return send(res, 200, runnerInfo());
+      }
+
+      // Deployment state, not project data — but it is still operator state, so it sits behind the
+      // same token gate as /kill and /stream. /health stays the only unauthenticated route.
+      if (req.method === "GET" && req.url === "/subscription-status") {
+        if (!isAuthorized(req)) {
+          return send(res, 401, { ok: false, error: "Unauthorized" });
+        }
+        return send(res, 200, await subscriptionStatusResponse());
       }
 
       if (req.method === "POST" && req.url === "/kill") {

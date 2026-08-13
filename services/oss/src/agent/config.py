@@ -65,6 +65,16 @@ def runner_url() -> Optional[str]:
     return value.strip() if value and value.strip() else None
 
 
+def runner_token() -> Optional[str]:
+    """Shared token for the deployed agent runner (the runner refuses to boot without it).
+
+    The same value must be set on both sides; read per call so a runtime env change takes
+    effect without a re-import.
+    """
+    value = os.getenv("AGENTA_RUNNER_TOKEN")
+    return value.strip() if value and value.strip() else None
+
+
 _SANDBOX_LOCAL_WARNED = False
 
 
