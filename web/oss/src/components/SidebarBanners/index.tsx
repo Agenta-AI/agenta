@@ -24,9 +24,10 @@ const SidebarBanners = () => {
         }
     }
 
-    // px-2 matches the nav items' 8px inline margin so the card shares their edges.
+    // box-border is explicit because preflight is off; the app only gets border-box from
+    // antd's `.ant-layout *` reset, which does not reach portalled trees.
     return (
-        <div className="w-full shrink-0 px-[19px]">
+        <div className="box-border w-full shrink-0 px-[19px]">
             <SidebarBanner
                 banner={topBanner}
                 onDismiss={topBanner.dismissible ? handleDismiss : undefined}
