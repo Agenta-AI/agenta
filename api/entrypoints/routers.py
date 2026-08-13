@@ -162,12 +162,17 @@ from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 
-# GATEWAYS: core/gateways/ (entities.md). DAOs, services and routers land with
-# their owning work packages (WP1 dbs; WP6/WP7 llms; WP8/WP9 mcps).
-# from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
-# from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
-# from oss.src.core.gateways.policy.resolution import CredentialResolver
-# from oss.src.core.gateways.policy.service import GatewayPolicyService
+# GATEWAYS: core/gateways/ (entities.md). The planes' services and routers land with
+# their owning work packages (WP6/WP7 llms; WP8/WP9 mcps; WP10 CRUD).
+from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
+from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
+from oss.src.core.gateways.policy.resolution import CredentialResolver
+from oss.src.core.gateways.policy.service import GatewayPolicyService
+
+# The fake adapters (WP5) are registered into the plane registries, which WP7 and WP9
+# own and which do not exist yet — so their imports land with those, not here.
+# from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
+# from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
 # from oss.src.core.gateways.llms.service import LlmGatewayService
 # from oss.src.core.gateways.mcps.service import McpGatewayService
 # from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter   # WP10
@@ -1069,8 +1074,18 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
-# GATEWAYS: policy/service construction and router/proxy objects are wired by
-# WP2/WP3 (policy) and WP6-WP9 (llms/mcps) — see entities.md §9 "Wiring".
+# GATEWAYS: storage and the policy core (entities.md §9 "Wiring"). The plane services,
+# their registries and the routers/proxies land with WP6-WP10.
+llm_endpoints_dao = LlmEndpointsDAO(engine=_transactions_engine)
+mcp_endpoints_dao = McpEndpointsDAO(engine=_transactions_engine)
+mcp_grants_dao = McpGrantsDAO(engine=_transactions_engine)
+
+credential_resolver = CredentialResolver(
+    vault_service=vault_service,
+    mcp_grants_dao=mcp_grants_dao,
+)
+
+gateway_policy_service = GatewayPolicyService(resolver=credential_resolver)
 
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
