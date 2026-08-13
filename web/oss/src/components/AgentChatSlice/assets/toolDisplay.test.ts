@@ -218,6 +218,30 @@ describe("resolveToolDisplay for Codex calls whose name is not a name", () => {
         expect(display.raw).toBe(CODEX_SHELL)
     })
 
+    // Every path in a session sits under the sandbox root, so it is identical on every row and
+    // crowds the sentence out of the line.
+    it("strips the sandbox root from the shown command", () => {
+        expect(
+            resolveToolDisplay("x", {
+                command: "find /tmp/agenta-sandbox-agent-wzkOSy/agents/skills -name '*.md'",
+            }).detail,
+        ).toBe("find agents/skills -name '*.md'")
+
+        expect(
+            resolveToolDisplay("x", {
+                command:
+                    "sed -n '1,20p' /tmp/agenta/mounts/019fe1f4-c599-7c82/019feff6-4b8f/.codex/SKILL.md",
+            }).detail,
+        ).toBe("sed -n '1,20p' .codex/SKILL.md")
+    })
+
+    it("keeps a real directory that merely sits near the root", () => {
+        // "workspace" carries no digit, so it is a name rather than a generated id.
+        expect(
+            resolveToolDisplay("x", {command: "ls /tmp/agenta-sandbox-a1/workspace/src"}).detail,
+        ).toBe("ls workspace/src")
+    })
+
     it("strips the login-shell wrapper Codex adds around the real command", () => {
         const display = resolveToolDisplay("whatever", {
             command: `/bin/bash -lc "sed -n '1,200p' SKILL.md"`,
