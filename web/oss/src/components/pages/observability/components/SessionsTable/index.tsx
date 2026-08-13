@@ -130,6 +130,7 @@ const SessionsTable: React.FC = () => {
                     <EmptySessions showOnboarding={showOnboarding} />
                 ) : (
                     <InfiniteVirtualTableFeatureShell<SessionRow>
+                        engine="tanstack"
                         store={store}
                         tableScope={tableScope}
                         columns={columns}

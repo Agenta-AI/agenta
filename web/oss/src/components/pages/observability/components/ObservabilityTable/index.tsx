@@ -288,6 +288,7 @@ const ObservabilityTable = () => {
                 <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
                 <InfiniteVirtualTableFeatureShell<TraceRow>
+                    engine="tanstack"
                     tableScope={tableScope}
                     columns={columns}
                     rowKey={(record) => record.span_id || record.key || ""}

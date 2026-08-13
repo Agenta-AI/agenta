@@ -231,6 +231,8 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * />
      * ```
      */
+    /** Which table engine renders the rows; forwarded to InfiniteVirtualTable. */
+    engine?: "antd" | "tanstack"
     rowHeightConfig?: RowHeightFeatureConfig
     /**
      * Pagination display mode:
@@ -334,6 +336,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         tableRef,
         typeChips,
         store,
+        engine,
         rowHeightConfig,
         paginationMode = "infinite",
         paginatedPageSize: paginatedPageSizeProp,
@@ -745,6 +748,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             >
                 {beforeTable}
                 <InfiniteVirtualTable<Row>
+                    engine={engine}
                     useIsolatedStore={!store}
                     store={store}
                     columns={columns}
