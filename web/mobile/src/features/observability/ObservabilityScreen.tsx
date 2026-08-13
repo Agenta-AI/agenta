@@ -13,6 +13,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {SessionsList} from "./SessionsList"
+import {SessionsTable} from "./SessionsTable"
 import {TracesList} from "./TracesList"
 import {TracesTable} from "./TracesTable"
 
@@ -107,9 +108,15 @@ export const ObservabilityScreen = ({
                         className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
                     >
                         {tab === "sessions" ? (
-                            <div className="min-h-0 flex-1 overflow-y-auto pb-6">
-                                <SessionsList />
-                            </div>
+                            // Same responsive split as traces: cards on a phone, the real
+                            // table on anything wide enough to show one.
+                            isNarrow || !bodyHeight ? (
+                                <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+                                    <SessionsList />
+                                </div>
+                            ) : (
+                                <SessionsTable height={bodyHeight} />
+                            )
                         ) : isNarrow || !bodyHeight ? (
                             <div className="min-h-0 flex-1 overflow-y-auto pb-6">
                                 <TracesList />
