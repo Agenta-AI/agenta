@@ -632,7 +632,7 @@ services:
             retries: 30
             start_period: 5s
 
-    ngrok-fs:
+    ngrok-mounts:
         # === ACTIVATION =========================================== #
         # Only for REMOTE sandboxes (Daytona/E2B): geesefs runs inside the cloud sandbox and
         # cannot reach `seaweedfs:8333` on the compose network, so this tunnels the store to a
@@ -653,7 +653,7 @@ services:
         command:
             - |
               if [ -z "$${NGROK_AUTHTOKEN}" ]; then
-                echo "ngrok-fs: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
+                echo "ngrok-mounts: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
                 exit 0
               fi
               printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
@@ -674,7 +674,7 @@ services:
             seaweedfs:
                 condition: service_healthy
 
-    ngrok-api:
+    ngrok-ingress:
         # === ACTIVATION =========================================== #
         # A SECOND tunnel, beside the store's, publishing THIS deployment's ingress on a public
         # HTTPS address. It exists for the cases where something outside has to reach us: a
@@ -688,11 +688,11 @@ services:
         # A browser redirect needs none of this: the user is already looking at this deployment,
         # so the address that got them there is one their browser reaches.
         #
-        # Separate from the `ngrok-fs` service on purpose. That one publishes the object store and
-        # the runner finds it at `ngrok-fs:4040`; keeping them apart means neither can be handed the
+        # Separate from the `ngrok-mounts` service on purpose. That one publishes the object store and
+        # the runner finds it at `ngrok-mounts:4040`; keeping them apart means neither can be handed the
         # other's URL. Costs two agent sessions -- if the plan allows only one, run a single agent
         # with two named endpoints instead: the runner matches a tunnel by the upstream it
-        # forwards to, so that arrangement is safe too. Design: docs/design/dev-ingress/
+        # forwards to, so that arrangement is safe too.
         profiles:
             - with-tunnel
         # === IMAGE ================================================ #
@@ -700,25 +700,25 @@ services:
         # === EXECUTION ============================================ #
         # Same shape as the store tunnel: without a token ngrok would exit non-zero and, under
         # `restart: on-failure`, loop; exit 0 instead so an unconfigured deploy stays quiet.
-        # NGROK_API_DOMAIN pins a reserved domain, which is what keeps an address we hand to a
+        # NGROK_INGRESS_DOMAIN pins a reserved domain, which is what keeps an address we hand to a
         # provider valid across restarts -- a rotating one invalidates every registration.
         entrypoint: ["/bin/sh", "-c"]
         command:
             - |
               if [ -z "$${NGROK_AUTHTOKEN}" ]; then
-                echo "ngrok-api: NGROK_AUTHTOKEN unset; no tunnel (ingress not published)."
+                echo "ngrok-ingress: NGROK_AUTHTOKEN unset; no tunnel (ingress not published)."
                 exit 0
               fi
               DOMAIN_ARG=""
-              if [ -n "$${NGROK_API_DOMAIN}" ]; then
-                DOMAIN_ARG="--domain=$${NGROK_API_DOMAIN}"
+              if [ -n "$${NGROK_INGRESS_DOMAIN}" ]; then
+                DOMAIN_ARG="--domain=$${NGROK_INGRESS_DOMAIN}"
               fi
               printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
               exec /bin/ngrok http traefik:80 $${DOMAIN_ARG} --log stdout --config /tmp/ngrok.yml
         # === CONFIGURATION ======================================== #
         environment:
             NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
-            NGROK_API_DOMAIN: ${NGROK_API_DOMAIN:-}
+            NGROK_INGRESS_DOMAIN: ${NGROK_INGRESS_DOMAIN:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-network

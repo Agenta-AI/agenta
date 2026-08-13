@@ -2,7 +2,7 @@
 
 **Add** a second development tunnel that publishes this deployment's ingress, beside the
 one that publishes the object store. Each service is named for what it publishes:
-`ngrok-fs` and `ngrok-api`. The store tunnel keeps its behaviour; only its name moves.
+`ngrok-mounts` and `ngrok-ingress`. The store tunnel keeps its behaviour; only its name moves.
 
 Research: [research.md](research.md). Tasks: [tasks.md](tasks.md).
 
@@ -32,26 +32,31 @@ URL into a sandbox.
 
 ### 1. Two tunnels, named for what they publish
 
-`ngrok` becomes **`ngrok-fs`** — it publishes the object store, and its name should say
-so. A new **`ngrok-api`** service publishes the ingress, forwarding to `traefik:80`.
+`ngrok` becomes **`ngrok-mounts`** — it publishes the object store, and its name should say
+so. A new **`ngrok-ingress`** service publishes the ingress, forwarding to `traefik:80`.
 Same `with-tunnel` profile, same token gate, same quiet exit-0 when no token is set.
-`NGROK_API_DOMAIN` pins a reserved domain.
+`NGROK_INGRESS_DOMAIN` pins a reserved domain.
 
 **The store tunnel keeps its behaviour exactly.** Same target, same token gate, same
 comments — only the service name changes, and with it the one place that addresses it.
 Daytona sandboxes with the bundled store keep their durable working folder.
 
-**The rename has one consequence.** The runner asks a tunnel agent what it publishes, on
-that agent's own admin API — which is what `AGENTA_MOUNTS_TUNNEL_API` names, the tunnel
-agent's API rather than a tunnel to ours. Nothing sets it, so the runner uses its
-compiled-in default, which was `http://ngrok:4040` and is now `http://ngrok-fs:4040`. The
-environment variable stays an override. An operator with a stack already up also has an
-orphaned `ngrok` container, which `--remove-orphans` clears.
+**The rename has one consequence.** The runner learns the store's public address at run
+time, by asking the tunnel daemon over its local admin port. That address is the compose
+service name, so it moves with the rename: `http://ngrok:4040` becomes
+`http://ngrok-mounts:4040`. An operator with a stack already up also has an orphaned
+`ngrok` container, which `--remove-orphans` clears.
 
-**No variable names the ingress tunnel, and none should.** Nothing in the code discovers
-that address: the store tunnel is discovered by the runner, the ingress tunnel is read off
-the agent's dashboard once and registered with a provider by hand. `NGROK_API_DOMAIN` pins
-the domain so that registration survives a restart, and that is its whole job.
+**`AGENTA_MOUNTS_TUNNEL_API` is removed rather than renamed.** It overrode that same
+address and was never set — not in either edition's compose, not in either env example, not
+in a deployment. Tests inject through the `deps` seam instead, and the service name already
+resolves, so it was configuration with no consumer. The seam stays; re-adding an override is
+one line beside the default if a daemon ever runs outside compose.
+
+**Only one variable, and it is for a person.** `NGROK_INGRESS_DOMAIN` pins a reserved
+domain. Nothing in the code reads the ingress tunnel's address — it is read off the daemon's
+dashboard once and registered with a provider by hand — so the variable's whole job is to
+keep that registration valid across a restart.
 
 **Every inbound route arrives on its normal path.** `/api/` is already routed in
 development, in the self-host compose files, and in production, so no integration needs

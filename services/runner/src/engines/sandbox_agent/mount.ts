@@ -523,7 +523,7 @@ function upstreamAuthority(value: string): string | null {
 /**
  * Resolve the public tunnel URL for the in-network store endpoint. A remote sandbox cannot
  * reach `seaweedfs:8333` on the compose network, so geesefs there must hit a public URL; the
- * `ngrok-fs` service (compose profile `with-tunnel`) tunnels it, and its agent API lists the
+ * `ngrok-mounts` service (compose profile `with-tunnel`) tunnels it, and its agent API lists the
  * active tunnels. Returns null when no tunnel forwards to the store. The remote mount is then
  * skipped rather than failing the run, but the skip is NOT silent: the caller warns the operator
  * with the cause named, and tells the model the durable folder is unreachable this turn, because
@@ -539,10 +539,7 @@ export async function discoverTunnelEndpoint(
 ): Promise<string | null> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
-  const api =
-    deps.ngrokApi ??
-    process.env.AGENTA_MOUNTS_TUNNEL_API ??
-    "http://ngrok-fs:4040";
+  const api = deps.ngrokApi ?? "http://ngrok-mounts:4040";
   try {
     const res = await doFetch(`${api}/api/tunnels`);
     if (!res.ok) {
