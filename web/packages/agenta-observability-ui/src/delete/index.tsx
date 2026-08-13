@@ -3,6 +3,7 @@ import {useState} from "react"
 import {deletePreviewTrace} from "@agenta/entities/trace"
 import {useObservability} from "@agenta/observability"
 import {projectIdAtom} from "@agenta/shared/state"
+import {message} from "@agenta/ui/app-message"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -48,17 +49,27 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
     }
 
     const handleDelete = async () => {
+        // Deleting against an empty project id silently targets nothing; fail loudly instead.
+        if (!projectIdValue) {
+            message.error("Cannot delete: no project is selected.")
+            return
+        }
+
         try {
             setIsLoading(true)
-            const projectId = projectIdValue
-            await Promise.all(traceIds.map((id) => deletePreviewTrace(id, projectId ?? "")))
+            await Promise.all(traceIds.map((id) => deletePreviewTrace(id, projectIdValue)))
             await fetchTraces()
 
             const isCurrentTraceDeleted = traceIds.includes(currentTraceId || "")
 
             if (isCurrentTraceDeleted && traceIds.length === 1) {
+                // findIndex returns -1 when the trace is not in the current page; without
+                // this guard that becomes traces[0], sending the user to an unrelated trace.
                 const deletedIndex = traces.findIndex((t) => t.trace_id === traceIds[0])
-                const nextTrace = traces[deletedIndex + 1] || traces[deletedIndex - 1]
+                const nextTrace =
+                    deletedIndex === -1
+                        ? undefined
+                        : (traces[deletedIndex + 1] ?? traces[deletedIndex - 1])
 
                 if (nextTrace) {
                     const url = new URL(window.location.href)
@@ -81,7 +92,11 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
             // Close modal
             handleClose()
         } catch (error) {
+            // A failed delete used to leave the dialog open with no explanation.
             console.error(error)
+            message.error(
+                traceIds.length > 1 ? "Failed to delete traces." : "Failed to delete the trace.",
+            )
         } finally {
             setIsLoading(false)
         }

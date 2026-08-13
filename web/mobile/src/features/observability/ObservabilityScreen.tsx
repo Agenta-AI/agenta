@@ -73,6 +73,9 @@ export const ObservabilityScreen = ({
     // exactly this screen. Binding would only re-state them.
 
     const isNarrow = useIsNarrowScreen()
+    // Selection lives in the table; the narrow card list has none. Anything that acts on a
+    // selection is only meaningful when the table is what is on screen.
+    const showsTable = !isNarrow
     const bodyRef = useRef<HTMLDivElement | null>(null)
 
     const {fetchTraces} = useObservability()
@@ -123,9 +126,9 @@ export const ObservabilityScreen = ({
                             filtersSlot={tab === "traces" ? <TracesFilters /> : undefined}
                             onExport={tab === "traces" ? onExport : undefined}
                             isExporting={isExporting}
-                            onDelete={tab === "traces" ? onDelete : undefined}
+                            onDelete={tab === "traces" && showsTable ? onDelete : undefined}
                             actionsSlot={
-                                tab === "traces" ? (
+                                tab === "traces" && showsTable ? (
                                     <AddActionsDropdown
                                         queueAction={{
                                             itemType: "traces",
@@ -149,14 +152,14 @@ export const ObservabilityScreen = ({
                             through — gating on a measured one just showed cards until it
                             resolved, chrome and all. */}
                             {tab === "sessions" ? (
-                                isNarrow ? (
+                                !showsTable ? (
                                     <div className="min-h-0 flex-1 overflow-y-auto pb-6">
                                         <SessionsList />
                                     </div>
                                 ) : (
                                     <SessionsTable />
                                 )
-                            ) : isNarrow ? (
+                            ) : !showsTable ? (
                                 <div className="min-h-0 flex-1 overflow-y-auto pb-6">
                                     <TracesList />
                                 </div>
