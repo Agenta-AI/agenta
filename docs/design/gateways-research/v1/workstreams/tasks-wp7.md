@@ -291,14 +291,23 @@ comment block already documented for `FakeLlmAdapter`.
 
 ## Phase 8 — Acceptance (post-M2, once WP1/WP5/WP6 are merged)
 
-- [ ] Deploy the local stack with WP1/WP2/WP3/WP5/WP6/WP7 all merged.
+- [ ] Deploy the local stack with WP1/WP2/WP3/WP5/WP6/WP7 all merged. **Not done here** — this
+      worktree has no compose deployment and only WP1/WP2/WP3/WP5 are merged onto this branch
+      (no WP6); per the top-level brief's rule 5, integration/acceptance needing a deployment are
+      written, not run, by this package.
 - [ ] Seed a custom endpoint with a narrow `model_slugs` list; confirm a request for a model
       outside it is refused `model_not_allowed` with no upstream call made (verifiable against
-      WP5's fake — the fake sees no inbound request at all).
-- [ ] Confirm every `DIRECT` provider in `supported_llm_models` maps to the documented adapter key
-      via `select_upstream` (a scripted check, not a real call — CI has no provider keys).
-- [ ] Ruff format + check; fix.
-- [ ] Commit: "wp7: acceptance verification".
+      WP5's fake — the fake sees no inbound request at all). **Not run** — needs the deployment
+      above. The `curl` procedure in `specs-wp7.md`'s "Done test" section is the script to run
+      once WP6 is merged and the stack is up; nothing further to add here.
+- [x] Confirm every `DIRECT` provider in `supported_llm_models` maps to the documented adapter key
+      via `select_upstream` (a scripted check, not a real call — CI has no provider keys). **Run,
+      passing**: `test_every_catalogued_direct_provider_maps_to_the_documented_adapter_key` in
+      `test_gateways_llm_registry.py` — needs nothing running, so it landed as a real unit test
+      rather than a manual script. Checks a subset, not equality: `mistralai` is in the
+      classification table but not in `supported_llm_models` (see the test's own docstring).
+- [x] Ruff format + check; fix.
+- [x] Commit: "wp7: acceptance verification".
 
 ## Definition of done
 

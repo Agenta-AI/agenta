@@ -1,9 +1,10 @@
-"""Unit tests for `registry.py` (specs-wp7.md, tasks-wp7.md Phase 2). Nothing running."""
+"""Unit tests for `registry.py` (specs-wp7.md, tasks-wp7.md Phases 2 and 8). Nothing running."""
 
 import ast
 from pathlib import Path
 
 import pytest
+from agenta.sdk.utils.assets import supported_llm_models
 
 from oss.src.core.gateways.llms.dtos import LlmDeploymentKind
 from oss.src.core.gateways.llms.interfaces import LlmRelayResult, LlmUpstreamInterface
@@ -34,6 +35,9 @@ _DIRECT_TRANSLATED_PROVIDERS = [
     "perplexityai",
     "minimax",
 ]
+
+_DIRECT_PASSTHROUGH_PROVIDERS_SET = set(_DIRECT_PASSTHROUGH_PROVIDERS)
+_DIRECT_TRANSLATED_PROVIDERS_SET = set(_DIRECT_TRANSLATED_PROVIDERS)
 
 
 @pytest.mark.parametrize("deployment", _TRANSLATED_DEPLOYMENTS)
@@ -99,3 +103,32 @@ def test_registry_get_and_keys_roundtrip():
     registry = LlmUpstreamRegistry(adapters={"passthrough": adapter})
     assert registry.get("passthrough") is adapter
     assert registry.keys() == ["passthrough"]
+
+
+# --- Phase 8 acceptance: the scripted, no-provider-keys-needed check --------- #
+
+
+def test_every_catalogued_direct_provider_maps_to_the_documented_adapter_key():
+    """`tasks-wp7.md` Phase 8: 'confirm every DIRECT provider in supported_llm_models
+    maps to the documented adapter key via select_upstream (a scripted check, not a
+    real call — CI has no provider keys).' Runs here, with nothing deployed, because it
+    needs no compose stack — only the two sets this module already declares.
+
+    A subset check, not equality: `_DIRECT_PASSTHROUGH_PROVIDERS` also names `mistralai`,
+    which is in the classification table but has no `supported_llm_models` entry (only
+    `mistral` does) — a `BUILTIN` target can never resolve to it (`catalog.py` returns
+    `None`), so it is reachable only via a `CUSTOM` row naming that `provider_key`, which
+    always resolves to `"passthrough"` regardless of this table (registry.py's own CUSTOM
+    branch). Nothing here needs it to appear in the catalogue."""
+    documented = _DIRECT_PASSTHROUGH_PROVIDERS_SET | _DIRECT_TRANSLATED_PROVIDERS_SET
+    assert set(supported_llm_models.keys()) <= documented, (
+        "supported_llm_models has a provider absent from registry.py's classification table"
+    )
+
+    for provider_key in supported_llm_models:
+        expected = (
+            "passthrough"
+            if provider_key in _DIRECT_PASSTHROUGH_PROVIDERS_SET
+            else "translated"
+        )
+        assert select_upstream(provider_key, LlmDeploymentKind.DIRECT) == expected
