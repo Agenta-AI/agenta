@@ -247,7 +247,6 @@ const ObservabilityTable = () => {
     )
 
     const showTableLoading = isLoading && traces.length === 0
-    const isEmptyState = traces.length === 0 && !isLoading && !isRateLimited
     const showOnboarding = isNewUser && !hasReceivedTraces
 
     // Build pagination object expected by InfiniteVirtualTableFeatureShell
@@ -284,9 +283,9 @@ const ObservabilityTable = () => {
 
             {isRateLimited ? (
                 <EmptyObservability rateLimited rateLimitMessage={rateLimitMessage} />
-            ) : isEmptyState ? (
-                <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
+                // The empty state renders INSIDE the table rather than replacing it, so the
+                // header and its controls stay put instead of vanishing with the rows.
                 <InfiniteVirtualTableFeatureShell<TraceRow>
                     engine="tanstack"
                     tableScope={tableScope}
@@ -304,6 +303,9 @@ const ObservabilityTable = () => {
                         ...rowSelection,
                     }}
                     tableProps={{
+                        locale: {
+                            emptyText: <EmptyObservability showOnboarding={showOnboarding} />,
+                        },
                         bordered: true,
                         loading: showTableLoading,
                         sticky: true,

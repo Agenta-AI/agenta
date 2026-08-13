@@ -110,4 +110,31 @@ describe("VirtualTable render warnings", () => {
         )
         expect(container.textContent).toContain("no traces")
     })
+
+    it("gives the header its own chrome, distinct from body cells", () => {
+        const {container} = render(<VirtualTable<Row> {...base} dataSource={rows(3)} />)
+        const head = container.querySelector(".avt-head-cell")?.className ?? ""
+        const cell = container.querySelector(".avt-row td")?.className ?? ""
+        // The header must not paint the same background as the body, or there is no chrome.
+        expect(head).toContain("bg-colorFillQuaternary")
+        expect(cell).not.toContain("bg-colorFillQuaternary")
+    })
+
+    it("gives resize handles a grabbable hit area", () => {
+        const {container} = render(
+            <VirtualTable<Row> {...base} dataSource={rows(3)} enableColumnResizing />,
+        )
+        const handles = container.querySelectorAll(".avt-resize-handle")
+        expect(handles.length).toBe(2)
+        // w-1 (4px) was unusable in the app; the hit area must be wider than that.
+        expect(handles[0].className).toContain("w-2")
+    })
+
+    it("keeps the header when there are no rows, so the empty state sits inside it", () => {
+        const {container} = render(
+            <VirtualTable<Row> {...base} dataSource={[]} emptyText="no traces" />,
+        )
+        expect(container.querySelectorAll(".avt-head-cell").length).toBe(2)
+        expect(container.textContent).toContain("no traces")
+    })
 })

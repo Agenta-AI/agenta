@@ -112,8 +112,6 @@ const SessionsTable: React.FC = () => {
         [data, fetchMoreSessions, hasMoreSessions, isFetchingMore, sessionCount, resetSessionPages],
     )
 
-    const isEmptyState = sessionIds.length === 0 && !isLoading
-
     return (
         // Page store == default store (GlobalStateProvider), so this matches the prior fallback.
         <SessionStoreProvider value={store}>
@@ -126,9 +124,8 @@ const SessionsTable: React.FC = () => {
                     refreshTrigger={refreshTrigger}
                 />
 
-                {isEmptyState ? (
-                    <EmptySessions showOnboarding={showOnboarding} />
-                ) : (
+                {/* Empty state renders inside the table so the header survives it. */}
+                {
                     <InfiniteVirtualTableFeatureShell<SessionRow>
                         engine="tanstack"
                         store={store}
@@ -141,6 +138,9 @@ const SessionsTable: React.FC = () => {
                         useSettingsDropdown={false}
                         className="flex-1 min-h-0 [&_.avt-row_.avt-cell]:align-top"
                         tableProps={{
+                            locale: {
+                                emptyText: <EmptySessions showOnboarding={showOnboarding} />,
+                            },
                             bordered: true,
                             loading: isLoading && sessionIds.length === 0,
                             onRow: (record) => ({
@@ -149,7 +149,7 @@ const SessionsTable: React.FC = () => {
                             }),
                         }}
                     />
-                )}
+                }
                 <SessionDrawer />
             </div>
         </SessionStoreProvider>

@@ -425,7 +425,7 @@ export const VirtualTable = <RecordType extends object>({
                                         rowSpan={headerGroups.length}
                                         className={cn(
                                             AVT.headerCell,
-                                            "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-2 py-2 text-left",
+                                            "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 py-2 text-left",
                                         )}
                                         style={{position: "sticky", left: 0, zIndex: 3}}
                                     >
@@ -438,7 +438,7 @@ export const VirtualTable = <RecordType extends object>({
                                         rowSpan={headerGroups.length}
                                         className={cn(
                                             AVT.headerCell,
-                                            "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-2 py-2",
+                                            "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 py-2",
                                         )}
                                         style={{
                                             position: "sticky",
@@ -463,7 +463,7 @@ export const VirtualTable = <RecordType extends object>({
                                             data-column-key={header.column.id}
                                             className={cn(
                                                 AVT.headerCell,
-                                                "relative box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer text-left text-field-md font-medium text-colorText",
+                                                "relative box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorFillQuaternary text-left text-field-md font-medium text-colorText",
                                                 CELL_PADDING[size],
                                                 bordered && "border-r",
                                                 source?.ellipsis && "truncate",
@@ -497,10 +497,14 @@ export const VirtualTable = <RecordType extends object>({
                                                     data-resize-handle={header.column.id}
                                                     className={cn(
                                                         AVT.resizeHandle,
-                                                        "absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none select-none",
-                                                        "hover:bg-colorPrimary",
+                                                        // 4px was effectively ungrabbable. 8px of
+                                                        // hit area inside the cell, with a 1px
+                                                        // indicator drawn on the edge itself.
+                                                        "absolute right-0 top-0 z-[1] h-full w-2 cursor-col-resize touch-none select-none",
+                                                        "after:absolute after:inset-y-0 after:right-0 after:w-px after:content-['']",
+                                                        "hover:after:bg-colorPrimary",
                                                         header.column.getIsResizing() &&
-                                                            "bg-colorPrimary",
+                                                            "after:bg-colorPrimary",
                                                     )}
                                                     onMouseDown={header.getResizeHandler()}
                                                     onTouchStart={header.getResizeHandler()}
