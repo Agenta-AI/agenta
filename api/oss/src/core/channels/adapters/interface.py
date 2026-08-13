@@ -60,6 +60,13 @@ class ChannelAdapterInterface(ABC):
 
         return {}
 
+    def hosted_setup_available(self) -> bool:
+        """True when this deployment offers a one-click, Agenta-owned
+        install for this channel. Defaults to false: a channel with no
+        hosted app never shows the install option."""
+
+        return False
+
     # --- ingress ---
 
     @abstractmethod
@@ -109,6 +116,25 @@ class ChannelAdapterInterface(ABC):
         `connection` is available for adapters that need one of its own
         fields to parse correctly (Slack's bot user id, for bot-echo
         filtering); ignored where nothing in the parse depends on it."""
+
+    async def detect_deactivation(self, *, body: bytes) -> bool:
+        """True when this inbound payload is the platform telling us an
+        installation stopped, not a message to route (Slack's
+        `app_uninstalled` / `tokens_revoked`). Defaults to false: a channel
+        with no such signal is never deactivated from the inside."""
+
+        return False
+
+    async def revoke_installation(
+        self, *, connection: ChannelConnection
+    ) -> Optional[str]:
+        """Best-effort revoke on the platform's side when we own the app,
+        called on removal from ours. Returns the notice to show the operator
+        in place of the generic one, or None to leave the generic wording —
+        the branch on "do we own this app" stays inside the adapter that
+        knows it; the caller never learns the word "hosted"."""
+
+        return None
 
     # --- egress ---
 

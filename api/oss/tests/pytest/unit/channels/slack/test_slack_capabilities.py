@@ -42,6 +42,7 @@ EXPECTED = {
             "Copy the Signing Secret and the App ID from Settings -> Basic Information.",
         ],
         "document": None,
+        "hosted_available": False,
         "fields": [
             {
                 "name": "bot_token",

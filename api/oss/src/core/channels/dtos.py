@@ -226,6 +226,9 @@ class ChannelSetup(BaseModel):
     instructions: List[str] = Field(default_factory=list)
     document: Optional[ChannelSetupDoc] = None
     fields: List[ChannelSetupField] = Field(default_factory=list)
+    # true when the deployment has configured a hosted app for this channel --
+    # the one-click install button is offered only when this is true
+    hosted_available: bool = False
 
 
 class ChannelCapabilities(BaseModel):
@@ -253,6 +256,9 @@ class ChannelConnectionFlags(BaseModel):
     # set once verification (a real call against the platform) succeeds;
     # an unverified connection is configured but not yet routable
     is_verified: bool = False
+    # the app is ours (OAuth install), not the customer's (pasted credentials);
+    # decides which secret the adapter verifies signatures against
+    is_hosted: bool = False
 
 
 class ChannelAgentFlags(BaseModel):

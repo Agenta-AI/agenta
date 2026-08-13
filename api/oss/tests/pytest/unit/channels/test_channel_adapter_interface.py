@@ -105,7 +105,16 @@ def test_every_method_parameter_after_self_is_keyword_only():
     ]
     # build_setup_document, verify_connection: the two methods that default
     # to nothing instead of forcing every adapter to implement them.
-    assert set(concrete_methods) == {"build_setup_document", "verify_connection"}
+    # hosted_setup_available, detect_deactivation, revoke_installation: the
+    # hosted-app hooks -- a channel with no hosted app answers all three
+    # with "no", never fails to implement them.
+    assert set(concrete_methods) == {
+        "build_setup_document",
+        "verify_connection",
+        "hosted_setup_available",
+        "detect_deactivation",
+        "revoke_installation",
+    }
     assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__) + len(
         concrete_methods
     )
