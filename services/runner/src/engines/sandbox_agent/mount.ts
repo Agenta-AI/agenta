@@ -555,10 +555,16 @@ export async function discoverTunnelEndpoint(
     };
     const tunnels = body.tunnels ?? [];
 
-    const wanted = deps.storeEndpoint
-      ? upstreamAuthority(deps.storeEndpoint)
-      : null;
-    if (wanted) {
+    if (deps.storeEndpoint) {
+      const wanted = upstreamAuthority(deps.storeEndpoint);
+      // An endpoint we cannot parse is a hard failure, never a licence to guess.
+      if (!wanted) {
+        log(
+          `tunnel discovery: cannot parse store endpoint; ` +
+            `not using another tunnel's URL`,
+        );
+        return null;
+      }
       // One `ngrok http` can be listed twice, http and https over the same upstream.
       const matches = tunnels.filter(
         (t) =>

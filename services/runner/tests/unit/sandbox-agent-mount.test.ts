@@ -533,6 +533,26 @@ describe("discoverTunnelEndpoint (remote)", () => {
     assert.equal(url, "https://store.example");
   });
 
+  it("returns null when the store endpoint itself cannot be parsed", async () => {
+    // Falling through to "first https tunnel wins" here would hand back the ingress
+    // tunnel, which is the failure this matching exists to prevent.
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "   ",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://ingress.example",
+              config: { addr: "http://traefik:80" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, null);
+  });
+
   it("prefers the https listing when the store's upstream is listed twice", async () => {
     // One `ngrok http` can appear as both an http and an https entry over the same
     // upstream. geesefs would then reach the store unencrypted over the internet.
