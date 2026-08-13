@@ -6,21 +6,23 @@ never read each other. Nothing here has been implemented.
 ## Reading order
 
 1. **[seams.md](seams.md)** — where the four efforts meet, what each already settled, and
-   the questions that are nobody's yet. Read this first; it is the only document written
-   for this branch and it says what the rest are for.
-2. **[report.md](report.md)** — the decision document. One design, one plan, twelve
+   the questions that are nobody's yet. Read this first; it says what the rest are for.
+2. **[mechanics.md](mechanics.md)** — the working draft: three stores rather than one,
+   the naming, every kind of value in and out enumerated, the two money conversions, what a
+   subscription actually does to a wallet, and the extension numbers nobody has defined.
+3. **[report.md](report.md)** — the decision document. One design, one plan, twelve
    decisions that are a product owner's rather than an engineer's. Sections 1 and 9 alone
    are ten minutes.
-3. **[addendum-sandbox-metering.md](addendum-sandbox-metering.md)** — the same design
+4. **[addendum-sandbox-metering.md](addendum-sandbox-metering.md)** — the same design
    compared, table by table, against the sandbox-metering track, with a recommendation for
    how the two fit.
-4. **[proposal-a.md](proposal-a.md)** and **[proposal-b.md](proposal-b.md)** — the two
+5. **[proposal-a.md](proposal-a.md)** and **[proposal-b.md](proposal-b.md)** — the two
    complete designs the report compares. Written independently, then compared; their
    agreement is itself evidence, and `report.md` §6.1 lists where.
-5. **[research/](research/)** — eight reports: the provider and caching, sixteen comparable
+6. **[research/](research/)** — eight reports: the provider and caching, sixteen comparable
    credit products and what their users complain about, a ledger shortlist, four deep
    studies of individual projects, and gateway architecture.
-6. **[prior-work/](prior-work/)** — the earlier efforts, verbatim.
+7. **[prior-work/](prior-work/)** — the earlier efforts, verbatim.
 
 ## Where each document came from
 
