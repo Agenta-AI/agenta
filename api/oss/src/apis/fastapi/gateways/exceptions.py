@@ -13,6 +13,7 @@ from functools import wraps
 
 from fastapi import HTTPException, status
 
+from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.llms.types import (
     LlmEndpointNotFoundError,
     LlmModelNotAllowedError,
@@ -60,6 +61,12 @@ def handle_gateway_exceptions():
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
                 ) from e
+            except GatewayEndpointInactiveError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=e.message,
+                ) from e
+
             except (PolicyDeniedError, EntitlementDeniedError) as e:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,

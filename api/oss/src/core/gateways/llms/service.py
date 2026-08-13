@@ -2,6 +2,7 @@
 the relay path's policy/allowlist/ceiling/secret/adapter-selection pipeline.
 """
 
+import asyncio
 import json
 from dataclasses import dataclass
 from typing import AsyncIterator, Dict, List, Optional
@@ -32,6 +33,7 @@ from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry, select_upst
 from oss.src.core.gateways.llms.types import (
     LlmEndpointNotFoundError,
     LlmModelNotAllowedError,
+    LlmUpstreamError,
 )
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
@@ -47,6 +49,7 @@ from oss.src.core.gateways.policy.dtos import (
 from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.policy.types import CeilingExceededError, PolicyDeniedError
+from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
 
@@ -65,6 +68,7 @@ class _ResolvedLlmTarget:
     config: LlmEndpointConfig
     endpoint_id: Optional[UUID] = None
     secret_id: Optional[UUID] = None
+    is_active: bool = True
 
     def target_path(self) -> str:
         return f"{self.namespace.value}/{self.name}"
@@ -120,8 +124,15 @@ def _requested_max_output_tokens(body: bytes) -> Optional[int]:
         payload = json.loads(body) if body else {}
     except (json.JSONDecodeError, TypeError):
         return None
-    value = payload.get("max_output_tokens") if isinstance(payload, dict) else None
-    return value if isinstance(value, int) else None
+    if not isinstance(payload, dict):
+        return None
+    # Chat Completions names the request field `max_tokens`, `max_completion_tokens` on
+    # reasoning models; `max_output_tokens` is the config key and the Responses API's.
+    for key in ("max_tokens", "max_completion_tokens", "max_output_tokens"):
+        value = payload.get(key)
+        if isinstance(value, int):
+            return value
+    return None
 
 
 class LlmGatewayService:
@@ -231,6 +242,7 @@ class LlmGatewayService:
         target = await self._resolve_target(
             project_id=scope.project_id, namespace=namespace, name=name
         )
+        self._check_active(target=target)
 
         decision = await self.policy.authorize(
             scope=scope,
@@ -238,6 +250,12 @@ class LlmGatewayService:
             target=target.as_policy_target(),
         )
         if not decision.allowed:
+            await self.policy.record(
+                scope=scope,
+                target=target.as_policy_target(),
+                decision=decision,
+                outcome=GatewayOutcome(status_code=403),
+            )
             raise PolicyDeniedError(
                 permission=Permission.USE_LLM_ENDPOINTS, target=target.target_path()
             )
@@ -257,6 +275,7 @@ class LlmGatewayService:
         target = await self._resolve_target(
             project_id=scope.project_id, namespace=namespace, name=name
         )
+        self._check_active(target=target)
         context = _parse_call_context(body)
 
         # Allowlist and ceiling before secret (§8): a refused model must not cost a
@@ -296,34 +315,39 @@ class LlmGatewayService:
         adapter = self.upstream_registry.get(
             select_upstream(target.provider_key, target.deployment)
         )
-        result = await adapter.relay_chat_completion(
-            route=target.route(context),
-            secret=secret,
-            #
-            context=context,
-            body=body,
-            headers=headers,
-        )
-
-        if context.stream:
-            # The body has not been drained yet — WP6's proxy drains it afterward. Usage
-            # must be recorded once that drain finishes, not now, or every streaming call
-            # records before the upstream has said anything (§8).
-            result.body = self._drain_and_record(
-                body=result.body,
-                scope=scope,
-                target=policy_target,
-                decision=decision,
-                result=result,
-                secret=secret,
+        # Enforced here, not per adapter: `timeout_seconds` is a property of the
+        # endpoint, and an adapter that forgets it would otherwise have no ceiling at
+        # all. Streaming bounds time-to-first-byte — the proxy drains the body after
+        # this returns, and a long legitimate stream is not a timeout.
+        try:
+            result = await asyncio.wait_for(
+                adapter.relay_chat_completion(
+                    route=target.route(context),
+                    secret=secret,
+                    #
+                    context=context,
+                    body=body,
+                    headers=headers,
+                ),
+                timeout=target.config.timeout_seconds,
             )
-            return result
+        except asyncio.TimeoutError as e:
+            raise LlmUpstreamError(
+                provider_key=target.provider_key,
+                status_code=None,
+                detail="upstream timed out",
+            ) from e
 
-        await self.policy.record(
+        # Both paths record after the drain, never before: every adapter fills
+        # `result.usage` while its body generator runs, and the proxy is what advances
+        # it — reading usage here would record None on every call (§8).
+        result.body = self._drain_and_record(
+            body=result.body,
             scope=scope,
             target=policy_target,
             decision=decision,
-            outcome=self._outcome_from(result=result, secret=secret),
+            result=result,
+            secret=secret,
         )
         return result
 
@@ -362,10 +386,16 @@ class LlmGatewayService:
                 config=row.data.config,
                 endpoint_id=row.id,
                 secret_id=row.secret_id,
+                is_active=row.flags.is_active,
             )
 
         # AGENTA: reserved, empty on the LLM plane (D27, §2.3) — nothing resolves here yet.
         raise LlmEndpointNotFoundError(namespace=namespace, name=name)
+
+    @staticmethod
+    def _check_active(*, target: _ResolvedLlmTarget) -> None:
+        if not target.is_active:
+            raise GatewayEndpointInactiveError(target=target.target_path())
 
     def _check_allowlist(
         self, *, target: _ResolvedLlmTarget, context: LlmCallContext

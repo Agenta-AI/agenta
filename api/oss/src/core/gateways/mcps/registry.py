@@ -2,10 +2,9 @@
 
 Shape copied verbatim from `ConnectionsGatewayRegistry`
 (`core/gateway/connections/registry.py`) per specs-wp9.md: the fourth structurally
-identical registry in this codebase. `core/gateways/mcps/interfaces.py` (seed-owned,
-frozen) declares a same-named class as a stub raising `NotImplementedError` on every
-method; that declaration is not imported or reused here, and nothing in this package
-constructs it. This module is the one real implementation the composition root wires up.
+identical registry in this codebase. `core/gateways/mcps/interfaces.py` declares only the DAO
+interfaces and the south port — entities.md §7.1 shows the registry in the same code
+fence, which is presentation, not placement (R13). This module is where it lives.
 """
 
 from typing import Dict

@@ -137,10 +137,12 @@ could, once someone connects* … maps to the needs-auth / needs-input interacti
 is the same interaction status `McpAuthRequiredError` already takes. `SecretInvalidError`
 follows D18 identically. Confirm before checkpoint A; a different status is a one-file change.
 
-Note this is the CRUD boundary's mapping. Both proxies translate into their own surface's error
-shape (§9), where WP6's spec already maps a missing secret to a 404 `secret_missing` in the
-OpenAI body — the two are different wire contracts, not a contradiction, but they should be read
-together once both exist.
+**SETTLED at 409, on all three surfaces.** The CRUD decorator and the MCP proxy already agreed;
+the LLM proxy was the outlier at 404, and its justifying comment claimed the decorator gave 404
+too, which it never did. A caller branching on status was told "not found" — permanent — for a
+state that resolves the moment someone connects a key, and got a different answer from each
+plane for one failure. The two surfaces still carry different error *bodies*, which is the real
+distinction; the status is now the same.
 
 **R10. Two small resolution behaviours are undefined:** the tie-break when two secrets of the same
 kind match one provider, and whether resolution validates that a grant reference's endpoint is

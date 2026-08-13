@@ -282,7 +282,7 @@ _DENIAL_CASES = [
             missing=SecretOwnerKind.PROJECT,
             target="t",
         ),
-        404,
+        409,
         "secret_missing",
     ),
     (

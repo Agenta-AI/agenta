@@ -34,6 +34,11 @@ _LOCAL_USE_ENV = {
 }
 
 
+def direct_endpoint(provider: str) -> Optional[str]:
+    """The registered direct base URL for a provider, or None when it has none."""
+    return _DIRECT_ENDPOINTS.get(provider.lower())
+
+
 def effective_endpoint(
     *,
     provider: str,

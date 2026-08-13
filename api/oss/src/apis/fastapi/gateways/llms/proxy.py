@@ -19,8 +19,11 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from oss.src.apis.fastapi.gateways.llms.utils import parse_llm_call_context
+from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.llms.types import (
+    LlmAdapterNotFoundError,
     LlmEndpointNotFoundError,
     LlmModelNotAllowedError,
     LlmUpstreamError,
@@ -42,18 +45,9 @@ if TYPE_CHECKING:
 # The caller's own secret to US — never forwarded to the upstream (§9's pseudocode).
 _STRIPPED_INBOUND_HEADERS = {"authorization"}
 
-# Framing/transport headers ASGI (Starlette/uvicorn) computes for our own response;
-# forwarding the upstream's copies verbatim would conflict with what it writes, or, for
-# content-encoding, describe bytes httpx already decoded on our behalf.
-_STRIPPED_RESPONSE_HEADERS = {
-    "content-length",
-    "content-encoding",
-    "transfer-encoding",
-    "connection",
-    "keep-alive",
-}
-
 _DOMAIN_EXCEPTIONS = (
+    GatewayEndpointInactiveError,
+    LlmAdapterNotFoundError,
     PolicyDeniedError,
     EntitlementDeniedError,
     LlmModelNotAllowedError,
@@ -82,8 +76,8 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
     "type", "code"}}`, `code` carrying the stable cause. Mirrors the mapping
     `handle_gateway_exceptions()` (seed, apis/fastapi/gateways/exceptions.py)
     applies for the management CRUD, but that decorator collapses distinct
-    causes sharing one HTTP status (e.g. LlmEndpointNotFoundError and
-    SecretNotFoundError both 404) into a bare `detail` string — this
+    causes sharing one HTTP status (e.g. PolicyDeniedError and
+    LlmModelNotAllowedError both 403) into a bare `detail` string — this
     surface needs the `code` to stay distinguishable per exception type, so it
     is not reused here (see this package's own report for the full reasoning).
     """
@@ -93,6 +87,13 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             message=exc.message,
             error_type="permission_error",
             code="policy_denied",
+        )
+    if isinstance(exc, GatewayEndpointInactiveError):
+        return _openai_error(
+            status_code=403,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code="endpoint_inactive",
         )
     if isinstance(exc, LlmModelNotAllowedError):
         return _openai_error(
@@ -113,10 +114,17 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
         )
     if isinstance(exc, SecretNotFoundError):
         return _openai_error(
-            status_code=404,
+            status_code=409,
             message=exc.message,
             error_type="invalid_request_error",
             code="secret_missing",
+        )
+    if isinstance(exc, LlmAdapterNotFoundError):
+        return _openai_error(
+            status_code=502,
+            message=exc.message,
+            error_type="api_error",
+            code="adapter_not_found",
         )
     if isinstance(exc, LlmEndpointNotFoundError):
         return _openai_error(
@@ -134,12 +142,6 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
         error_type="api_error",
         code="upstream_error",
     )
-
-
-def _response_headers(headers: Dict[str, str]) -> Dict[str, str]:
-    return {
-        k: v for k, v in headers.items() if k.lower() not in _STRIPPED_RESPONSE_HEADERS
-    }
 
 
 class LlmGatewayProxy:
@@ -225,7 +227,7 @@ class LlmGatewayProxy:
                 return StreamingResponse(
                     result.body,
                     status_code=result.status_code,
-                    headers=_response_headers(result.headers),
+                    headers=response_headers(result.headers),
                     media_type="text/event-stream",
                 )
 
@@ -236,7 +238,7 @@ class LlmGatewayProxy:
         return Response(
             content=chunk,
             status_code=result.status_code,
-            headers=_response_headers(result.headers),
+            headers=response_headers(result.headers),
         )
 
     # --- models ---------------------------------------------------------------- #

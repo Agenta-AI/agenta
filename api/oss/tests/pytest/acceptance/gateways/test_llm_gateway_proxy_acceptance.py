@@ -40,8 +40,12 @@ def _create_custom_endpoint(authed_api, *, model_slugs, timeout_seconds=None):
             "/gateways/llms/endpoints/",
             json={
                 "endpoint": {
+                    # NOT "mock": select_upstream sends that key to the in-process
+                    # MockLlmAdapter, which would never dial base_url. "openai" +
+                    # custom routes to the passthrough adapter, so these cross a real
+                    # socket to the mock-llm-gateway container.
                     "slug": slug,
-                    "provider_key": "mock",
+                    "provider_key": "openai",
                     "deployment": "custom",
                     "secret_id": None,  # GatewayAuthScheme.NONE — the mock needs no secret (D23)
                     "data": {

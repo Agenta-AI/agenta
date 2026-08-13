@@ -40,6 +40,7 @@ from oss.src.core.gateways.mcps.interfaces import (
     McpRelayResult,
 )
 from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
+from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     McpEndpointNotFoundError,
     McpToolNotAllowedError,
@@ -54,7 +55,7 @@ from oss.src.core.gateways.policy.dtos import (
 )
 from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.service import GatewayPolicyService
-from oss.src.core.gateways.policy.types import PolicyDeniedError
+from oss.src.core.gateways.policy.types import PolicyDeniedError, SecretInvalidError
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
@@ -202,9 +203,12 @@ class McpGatewayService:
         project_id = scope.project_id
         custom = await self.mcp_endpoints_dao.query_endpoints(project_id=project_id)
 
+        # is_active=None, like _resolve_target: D18 keeps a revoked connection's tools
+        # listed, in NEEDS_AUTH, rather than making the endpoint disappear.
         connections = await self.connections_service.query_connections(
             project_id=project_id,
             provider_key="composio",
+            is_active=None,
         )
         builtin = [self._builtin_endpoint(connection) for connection in connections]
 
@@ -373,6 +377,8 @@ class McpGatewayService:
             integration=integration,
         )
 
+        self._check_active(target)
+
         # 2. Allowlist before secret — a refused tool must not cost a vault read.
         self._check_allowlist(target, context)
 
@@ -499,6 +505,18 @@ class McpGatewayService:
             raise McpEndpointNotFoundError(namespace=namespace, name=name)
         return _ResolvedTarget(namespace=namespace, name=name, endpoint=endpoint)
 
+    @staticmethod
+    def _check_active(target: _ResolvedTarget) -> None:
+        if not target.endpoint.flags.is_active:
+            raise GatewayEndpointInactiveError(
+                target=_target_path(
+                    namespace=target.namespace,
+                    provider=target.provider,
+                    integration=target.integration,
+                    name=target.name,
+                )
+            )
+
     def _check_allowlist(
         self, target: _ResolvedTarget, context: McpCallContext
     ) -> None:
@@ -527,7 +545,18 @@ class McpGatewayService:
         if target.namespace == GatewayEndpointNamespace.BUILTIN:
             # builtin's secret lives at the broker and never enters our vault
             # (§4.4) — never routed through the resolver.
-            return McpBrokeredAuth(connection=target.connection)
+            connection = target.connection
+            if connection is None or not (connection.is_active and connection.is_valid):
+                # §1: secret death refuses the call, it never hides the configuration.
+                raise SecretInvalidError(
+                    target=_target_path(
+                        namespace=target.namespace,
+                        provider=target.provider,
+                        integration=target.integration,
+                        name=target.name,
+                    )
+                )
+            return McpBrokeredAuth(connection=connection)
 
         endpoint = target.endpoint
         if endpoint.auth_mode == GatewayAuthScheme.NONE:

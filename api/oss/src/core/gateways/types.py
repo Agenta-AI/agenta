@@ -11,3 +11,13 @@ class GatewaysError(Exception):
     def __init__(self, message: str = "Gateways error"):
         self.message = message
         super().__init__(self.message)
+
+
+class GatewayEndpointInactiveError(GatewaysError):
+    """The operator's switch is off (§2.6). One type for both planes: the flag, the
+    refusal and the reason are identical, only the endpoint named differs."""
+
+    def __init__(self, *, target: str):
+        self.target = target
+        self.flag = "is_active"
+        super().__init__(f"Endpoint is deactivated: {target}")

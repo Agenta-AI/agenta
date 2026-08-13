@@ -68,6 +68,9 @@ def _route_kwargs(route: LlmResolvedRoute) -> Dict[str, Any]:
         kwargs["aws_region_name"] = route.region
     if route.deployment == LlmDeploymentKind.VERTEX and route.region:
         kwargs["vertex_location"] = route.region
+    extra_headers = {**(route.headers or {}), **(route.config.extra_headers or {})}
+    if extra_headers:
+        kwargs["extra_headers"] = extra_headers
     return kwargs
 
 

@@ -39,15 +39,27 @@ class GatewayPolicyService:
         permission: Permission,
         target: GatewayTarget,
     ) -> PolicyDecision:
-        # Fail-closed by construction: no try/except here, so an exception from
-        # check_action_access propagates rather than being swallowed into
-        # allowed=True (entities.md §8: "raises nothing" describes this
-        # method's own return contract, not a mandate to catch its dependency).
-        allowed = await check_action_access(
-            user_uid=str(scope.user_id),
-            project_id=str(scope.project_id),
-            permission=permission,
-        )
+        # Fails closed, and returns rather than raising (entities.md §8): an RBAC
+        # dependency blip is a denial the caller can audit, not a 500 that skips
+        # record() and loses the event.
+        try:
+            allowed = await check_action_access(
+                user_uid=str(scope.user_id),
+                project_id=str(scope.project_id),
+                permission=permission,
+            )
+        except Exception:  # noqa: BLE001 - any failure denies; never opens
+            log.error(
+                "[gateways] authorization check failed; denying",
+                permission=permission.value,
+                project_id=str(scope.project_id),
+                exc_info=True,
+            )
+            return PolicyDecision(
+                allowed=False,
+                permission=permission,
+                reason="permission_check_failed",
+            )
         if not allowed:
             return PolicyDecision(
                 allowed=False,

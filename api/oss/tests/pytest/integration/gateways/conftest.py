@@ -12,10 +12,11 @@ from oss.tests.pytest.utils.postgres import use_reachable_core_uri
 
 @pytest.fixture(autouse=True)
 def _skip_when_postgres_unreachable(request):
-    if (
-        request.node.get_closest_marker("integration")
-        and use_reachable_core_uri() is None
-    ):
+    # Keyed on the fixture, not the directory: the mock-upstream module lives here too
+    # and needs the two mock services, never Postgres.
+    if "seeded_project" not in request.fixturenames:
+        return
+    if use_reachable_core_uri() is None:
         pytest.skip("Postgres not reachable — skipping gateways DAO integration tests")
 
 

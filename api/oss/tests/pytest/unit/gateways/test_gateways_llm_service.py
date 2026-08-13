@@ -458,6 +458,12 @@ async def test_successful_non_streaming_call_records_after_relay():
     assert result is adapter_result
     assert len(adapter.calls) == 1
     assert resolver.resolve_calls[0][2] == SecretMode.PROJECT_ONLY
+
+    # Adapters fill usage while the body generator runs, so recording waits for the
+    # drain here exactly as it does for a stream.
+    assert policy.record_calls == []
+    assert [chunk async for chunk in result.body] == [b'{"ok": true}']
+
     assert len(policy.record_calls) == 1
     outcome = policy.record_calls[0][3]
     assert outcome.status_code == 200

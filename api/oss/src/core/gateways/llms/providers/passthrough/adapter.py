@@ -65,6 +65,9 @@ def _outbound_headers(
     if route.headers:
         outbound.update(route.headers)
 
+    if route.config.extra_headers:
+        outbound.update(route.config.extra_headers)
+
     if secret is not None:
         secret = secret.secret
         key: Optional[str] = None
@@ -83,6 +86,25 @@ def _outbound_headers(
             outbound["Authorization"] = f"Bearer {key}"
 
     return outbound
+
+
+# Enough to hold the last SSE frames; the usage frame is the final data frame the
+# OpenAI stream sends before [DONE].
+_USAGE_TAIL_BYTES = 8192
+
+
+def _usage_from_stream_tail(tail: bytes) -> Optional[GatewayUsage]:
+    for line in reversed(tail.split(b"\n")):
+        line = line.strip()
+        if not line.startswith(b"data:"):
+            continue
+        payload = line[len(b"data:") :].strip()
+        if payload == b"[DONE]":
+            continue
+        usage = _usage_from_body(payload)
+        if usage is not None:
+            return usage
+    return None
 
 
 def _usage_from_body(content: bytes) -> Optional[GatewayUsage]:
@@ -166,7 +188,7 @@ class PassthroughLlmAdapter(LlmUpstreamInterface):
             body=_empty_body(),
         )
         result.body = (
-            self._stream_body(response=response)
+            self._stream_body(response=response, result=result)
             if context.stream
             else self._single_chunk_body(response=response, result=result)
         )
@@ -184,13 +206,19 @@ class PassthroughLlmAdapter(LlmUpstreamInterface):
             await response.aclose()
 
     @staticmethod
-    async def _stream_body(*, response: httpx.Response) -> AsyncIterator[bytes]:
+    async def _stream_body(
+        *, response: httpx.Response, result: LlmRelayResult
+    ) -> AsyncIterator[bytes]:
         # SSE chunk boundaries pass through as httpx yields them — never
-        # recombined or re-chunked (specs-wp6.md).
+        # recombined or re-chunked (specs-wp6.md). Chunks are only inspected for the
+        # trailing usage frame; what is yielded is always the original bytes.
+        tail = b""
         try:
             async for chunk in response.aiter_bytes():
+                tail = (tail + chunk)[-_USAGE_TAIL_BYTES:]
                 yield chunk
         finally:
+            result.usage = _usage_from_stream_tail(tail) or result.usage
             await response.aclose()
 
 

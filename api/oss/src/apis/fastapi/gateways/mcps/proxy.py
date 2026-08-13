@@ -31,7 +31,9 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from fastapi import APIRouter, Request, Response, status
 
 from oss.src.apis.fastapi.gateways.mcps.utils import parse_mcp_call_context
+from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     McpAuthRequiredError,
     McpEndpointNotFoundError,
@@ -63,6 +65,7 @@ _JSONRPC_SERVER_ERROR = -32000
 # exactly this tuple; anything else is a bug, not a gateway refusal, and is left to
 # `intercept_exceptions()`'s generic path.
 _MAPPED_EXCEPTIONS = (
+    GatewayEndpointInactiveError,
     ValueError,
     McpEndpointNotFoundError,
     PolicyDeniedError,
@@ -180,6 +183,13 @@ def _map_gateway_exception(e: BaseException) -> Response:
             cause="scope_insufficient",
             data={"target": e.target, "scopes": e.scopes},
         )
+    if isinstance(e, GatewayEndpointInactiveError):
+        return _protocol_error(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=_JSONRPC_SERVER_ERROR,
+            message=e.message,
+            cause="endpoint_inactive",
+        )
     if isinstance(e, SecretNotFoundError):
         return _protocol_error(
             status_code=status.HTTP_409_CONFLICT,
@@ -279,7 +289,7 @@ class McpGatewayProxy:
         return Response(
             content=result.body,
             status_code=result.status_code,
-            headers=result.headers,
+            headers=response_headers(result.headers),
         )
 
     @intercept_exceptions()

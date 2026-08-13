@@ -77,9 +77,9 @@ async def test_authorize_denies_when_check_action_access_false(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_authorize_propagates_when_check_action_access_raises(monkeypatch):
-    """Fail-closed by construction: no try/except swallows this into
-    allowed=True — the exception is left to propagate uncaught."""
+async def test_authorize_denies_when_check_action_access_raises(monkeypatch):
+    """Fails closed AND returns: a decision the caller can record, never a 500 that
+    skips the audit event (entities.md §8's "raises nothing")."""
 
     async def _raise(**_kwargs):
         raise RuntimeError("boom")
@@ -88,10 +88,12 @@ async def test_authorize_propagates_when_check_action_access_raises(monkeypatch)
         "oss.src.core.gateways.policy.service.check_action_access", _raise
     )
 
-    with pytest.raises(RuntimeError, match="boom"):
-        await _service().authorize(
-            scope=_scope(), permission=Permission.USE_LLM_ENDPOINTS, target=_target()
-        )
+    decision = await _service().authorize(
+        scope=_scope(), permission=Permission.USE_LLM_ENDPOINTS, target=_target()
+    )
+
+    assert decision.allowed is False
+    assert decision.reason == "permission_check_failed"
 
 
 @pytest.mark.asyncio

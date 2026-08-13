@@ -8,6 +8,7 @@ project is answered by the resolver's `available_provider_keys` (R2), not by thi
 
 from typing import List, Optional
 
+from agenta.sdk.agents.connections.endpoints import direct_endpoint
 from agenta.sdk.utils.assets import supported_llm_models
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
@@ -15,7 +16,9 @@ from oss.src.core.gateways.llms.dtos import (
     LlmDeploymentKind,
     LlmEndpoint,
     LlmEndpointData,
+    LlmEndpointRoute,
 )
+from oss.src.core.gateways.llms.registry import select_upstream
 from oss.src.core.shared.dtos import Header
 
 
@@ -34,8 +37,19 @@ def standard_llm_endpoint(*, provider_key: str) -> Optional[LlmEndpoint]:
         provider_key=provider_key,
         deployment=LlmDeploymentKind.DIRECT,
         namespace=GatewayEndpointNamespace.BUILTIN,
-        data=LlmEndpointData(model_slugs=list(model_slugs)),
+        data=LlmEndpointData(
+            route=_route(provider_key),
+            model_slugs=list(model_slugs),
+        ),
     )
+
+
+def _route(provider_key: str) -> LlmEndpointRoute:
+    """The passthrough adapter dials `base_url` and refuses without one; the translated
+    adapter takes the provider's own default from litellm, so it is left unset there."""
+    if select_upstream(provider_key, LlmDeploymentKind.DIRECT) != "passthrough":
+        return LlmEndpointRoute()
+    return LlmEndpointRoute(base_url=direct_endpoint(provider_key))
 
 
 def standard_llm_endpoints() -> List[LlmEndpoint]:
