@@ -5,4 +5,5 @@ import type * as AgentaApi from "../index.js";
 export interface ChannelConnectionResponse {
     count?: number | undefined;
     connection?: (AgentaApi.ChannelConnection | null) | undefined;
+    setup?: (AgentaApi.ChannelSetup | null) | undefined;
 }
