@@ -386,6 +386,10 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             "rowClassName",
             "size",
             "bordered",
+            "loading",
+            "style",
+            "className",
+            "locale",
             "sticky",
             "tableLayout",
             "scroll",
@@ -803,7 +807,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                     >
                         {engine === "tanstack" ? (
                             <VirtualTable<RecordType>
-                                className={tableClassName}
+                                className={cn(tableClassName, finalTableProps.className)}
                                 columns={finalColumns}
                                 dataSource={dataSource}
                                 rowKey={resolveRowKey}
@@ -818,6 +822,14 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                                     typeof rowClassName === "function"
                                         ? (record, index) => rowClassName(record, index, 0)
                                         : undefined
+                                }
+                                loading={Boolean(finalTableProps.loading)}
+                                style={finalTableProps.style}
+                                emptyText={
+                                    // antd allows a render function here; VirtualTable takes a node.
+                                    typeof finalTableProps.locale?.emptyText === "function"
+                                        ? finalTableProps.locale.emptyText()
+                                        : finalTableProps.locale?.emptyText
                                 }
                                 size={
                                     // antd's SizeType is wider than Table accepts. Pass only the
@@ -850,7 +862,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                         ) : (
                             <Table<RecordType>
                                 ref={tableComponentRef}
-                                className={tableClassName}
+                                className={cn(tableClassName, finalTableProps.className)}
                                 columns={toAntdColumns(finalColumns)}
                                 dataSource={dataSource}
                                 rowKey={rowKey}

@@ -20,6 +20,7 @@ import type {
 import {flexRender, useTable} from "@tanstack/react-table"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
+import {Spinner} from "../../components/ui/spinner"
 import {cn} from "../../utils/styles"
 import type {ColumnDef, ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
 import {isColumnGroupDef} from "../columnDef"
@@ -84,6 +85,10 @@ export interface VirtualTableProps<RecordType extends object> {
     /** Controlled row selection, keyed by row id. */
     rowSelection?: RowSelectionState
     onRowSelectionChange?: OnChangeFn<RowSelectionState>
+    /** Dims the body and shows a spinner, matching antd's `loading`. */
+    loading?: boolean
+    /** Inline styles for the table container, matching antd's `style`. */
+    style?: CSSProperties
     /** Cell density, matching antd's Table sizes. */
     size?: "small" | "middle" | "large"
     /** Draws cell borders, matching antd's `bordered`. */
@@ -204,6 +209,8 @@ export const VirtualTable = <RecordType extends object>({
     onColumnSizingChange,
     rowSelection,
     onRowSelectionChange,
+    loading = false,
+    style,
     size = "small",
     bordered = false,
     tableRef,
@@ -391,8 +398,21 @@ export const VirtualTable = <RecordType extends object>({
     return (
         <div
             ref={containerRef}
-            className={cn(AVT.container, "flex min-h-0 flex-col overflow-hidden", className)}
+            className={cn(
+                AVT.container,
+                "relative flex min-h-0 flex-col overflow-hidden",
+                className,
+            )}
+            style={style}
         >
+            {loading ? (
+                <div
+                    data-table-loading
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-colorBgContainer/60"
+                >
+                    <Spinner />
+                </div>
+            ) : null}
             <div ref={headerScrollRef} className="overflow-hidden">
                 <table className="w-full table-fixed border-collapse" style={{width: totalWidth}}>
                     {colGroup}

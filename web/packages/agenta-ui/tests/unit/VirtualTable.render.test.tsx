@@ -90,4 +90,24 @@ describe("VirtualTable render warnings", () => {
         spy.mockRestore()
         expect(seen.filter((message) => message.includes("unique"))).toEqual([])
     })
+
+    it("shows a loading overlay and passes style through", () => {
+        const {container, rerender} = render(
+            <VirtualTable<Row> {...base} dataSource={rows(3)} loading style={{cursor: "pointer"}} />,
+        )
+        expect(container.querySelectorAll("[data-table-loading]")).toHaveLength(1)
+        expect(container.querySelector(".avt-container")?.getAttribute("style")).toContain(
+            "cursor: pointer",
+        )
+
+        rerender(<VirtualTable<Row> {...base} dataSource={rows(3)} />)
+        expect(container.querySelectorAll("[data-table-loading]")).toHaveLength(0)
+    })
+
+    it("renders emptyText when there are no rows", () => {
+        const {container} = render(
+            <VirtualTable<Row> {...base} dataSource={[]} emptyText="no traces" />,
+        )
+        expect(container.textContent).toContain("no traces")
+    })
 })

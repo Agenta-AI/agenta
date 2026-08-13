@@ -871,3 +871,26 @@ const DensityDemo = () => {
 }
 
 export const Density: Story = {render: () => <DensityDemo />}
+
+/**
+ * `loading` and `style`, both passed through `tableProps` by real call sites. The
+ * observability table uses `loading` on every refetch, so flipping engines without it
+ * would have silently removed the spinner.
+ */
+export const Loading: Story = {
+    render: () => (
+        <div className="flex flex-col gap-4">
+            <Note>Left: loading. Right: idle. Both engines share the prop path.</Note>
+            <div data-engine="tanstack" className="h-[240px]">
+                <InfiniteVirtualTable<Row>
+                    engine="tanstack"
+                    columns={baseColumns.slice(0, 3)}
+                    dataSource={makeRows(6)}
+                    rowKey="key"
+                    bodyHeight={200}
+                    tableProps={{loading: true, style: {cursor: "pointer"}}}
+                />
+            </div>
+        </div>
+    ),
+}
