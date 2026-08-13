@@ -1,4 +1,5 @@
 import re
+import secrets as token_secrets
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -12,6 +13,7 @@ from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelConnectionCreate,
+    ChannelConnectionCreated,
     ChannelConnectionEdit,
     ChannelConnectionFlags,
     ChannelConnectionQuery,
@@ -116,6 +118,20 @@ class ChannelsService:
         adapter = self.adapter_registry.get(connection.channel)
         capabilities = await adapter.fetch_capabilities(connection=None)
 
+        # Only we can issue a bridge credential -- no platform does. When the
+        # caller supplied none, mint one here rather than leaving the
+        # connection unusable; a caller-supplied secret (rotation continuity,
+        # tests) is left exactly as given, and nothing is minted for it.
+        one_time_secret: Optional[str] = None
+        if connection.channel == "bridge" and not (connection.credentials or {}).get(
+            "signing_secret"
+        ):
+            one_time_secret = token_secrets.token_urlsafe(32)
+            connection.credentials = {
+                **(connection.credentials or {}),
+                "signing_secret": one_time_secret,
+            }
+
         discovered = await adapter.verify_connection(
             connection=connection,
             credentials=connection.credentials or {},
@@ -153,7 +169,7 @@ class ChannelsService:
         connection.credentials = None
 
         try:
-            return await self.channels_dao.create_connection(
+            created = await self.channels_dao.create_connection(
                 project_id=project_id,
                 user_id=user_id,
                 #
@@ -163,6 +179,15 @@ class ChannelsService:
             raise _connection_conflict(
                 channel=connection.channel, slug=connection.slug, error=e
             ) from e
+
+        if one_time_secret is None:
+            return created
+
+        # this is the only moment the plaintext exists outside the vault --
+        # never re-read from `data` or the vault to build this
+        return ChannelConnectionCreated(
+            **created.model_dump(), one_time_secret=one_time_secret
+        )
 
     async def install_connection(
         self,

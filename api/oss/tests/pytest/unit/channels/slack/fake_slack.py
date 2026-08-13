@@ -29,8 +29,14 @@ class FakeSlackWorkspace:
         bot_token: str = "xoxb-fake",
         channels: Optional[List[Dict[str, Any]]] = None,
         ts_seed: float = 1000.0,
+        team_id: str = "T-fake",
+        bot_user_id: str = "UBOT1",
+        api_app_id: str = "A-fake",
     ) -> None:
         self.bot_token = bot_token
+        self.team_id = team_id
+        self.bot_user_id = bot_user_id
+        self.api_app_id = api_app_id
         self.channels: Dict[str, Dict[str, Any]] = {
             entry["id"]: dict(entry) for entry in (channels or [])
         }
@@ -188,6 +194,15 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
 
     # --- endpoints --- #
 
+    def _auth_test(self, payload: Dict[str, Any]) -> httpx.Response:
+        return _ok_response(
+            {
+                "team_id": self.workspace.team_id,
+                "user_id": self.workspace.bot_user_id,
+                "api_app_id": self.workspace.api_app_id,
+            }
+        )
+
     def _chat_post_message(self, payload: Dict[str, Any]) -> httpx.Response:
         channel = payload.get("channel")
         if not channel:
@@ -259,6 +274,7 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         return _ok_response({"messages": messages})
 
     _ROUTES = {
+        "auth.test": _auth_test,
         "chat.postMessage": _chat_post_message,
         "chat.update": _chat_update,
         "conversations.list": _conversations_list,

@@ -25,6 +25,7 @@ from oss.src.core.channels.dtos import (
     ChannelInboundEvent,
     ChannelKeyGrain,
     ChannelRequestContext,
+    ChannelSetupDoc,
     ChannelSpaceCandidate,
 )
 from oss.src.core.channels.types import ChannelSignatureInvalid
@@ -99,6 +100,25 @@ class BridgeAdapter(ChannelAdapterInterface):
         merged = dict(raw)
         merged.setdefault("channel", "bridge")
         return normalise_capabilities(merged)
+
+    # --- setup --- #
+
+    async def build_setup_document(
+        self, *, request_url: str
+    ) -> Optional[ChannelSetupDoc]:
+        """The GET path only -- reachable any number of times, so it must be
+        structurally incapable of leaking the secret, not merely trusted not
+        to. Never reads `connection.data`, even though a hydrated connection
+        carries the secret there: this method is never handed a connection at
+        all, unlike `fetch_capabilities`."""
+
+        content = (
+            f"Inbound URL: {request_url}\n\n"
+            "The signing secret for this connection was shown once, at "
+            "creation, and is not shown again here. If it was lost, rotate "
+            "the connection's credentials to mint a new one."
+        )
+        return ChannelSetupDoc(format="text", content=content)
 
     # --- ingress --- #
 
@@ -222,6 +242,25 @@ class BridgeAdapter(ChannelAdapterInterface):
         response.raise_for_status()
 
         return read_delivery_response(response.json())
+
+
+def build_bridge_create_document(*, request_url: str, secret: str) -> ChannelSetupDoc:
+    """The one-time document the create route attaches to its own response --
+    the only place this plaintext is ever returned. Not a
+    `ChannelAdapterInterface` method: widening the shared interface to accept
+    a secret would hand every other adapter a parameter that means "leak
+    this". Called from the create path only, never from
+    `build_setup_document` (the GET path) or from anywhere that re-reads a
+    stored secret."""
+
+    content = (
+        f"AGENTA_BRIDGE_URL={request_url}\nAGENTA_BRIDGE_SIGNING_SECRET={secret}\n"
+    )
+    return ChannelSetupDoc(
+        format="text",
+        content=content,
+        filename="agenta-bridge.env",
+    )
 
 
 def _parse_json(body: bytes) -> Dict[str, Any]:

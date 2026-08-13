@@ -49,12 +49,14 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelThreadsResponse,
     ChannelsCatalogResponse,
 )
+from oss.src.core.channels.adapters.bridge.adapter import build_bridge_create_document
 from oss.src.core.channels.adapters.slack import oauth as slack_oauth
 from oss.src.core.channels.dtos import (
     ChannelConnectionCreate,
     ChannelConnectionFlags,
     ChannelInboxEventQuery,
     ChannelOutboxEventQuery,
+    ChannelSetup,
     ChannelThreadQuery,
 )
 from oss.src.core.channels.types import (
@@ -707,8 +709,23 @@ class ChannelsRouter:
             # the platform's own verification error, surfaced as it gave it
             raise HTTPException(status_code=400, detail=str(e)) from e
 
+        setup = None
+        one_time_secret = getattr(connection, "one_time_secret", None)
+        if connection is not None and one_time_secret is not None:
+            # bridge-only today: the one adapter that mints its own
+            # credential. Not dispatched through the adapter registry --
+            # this builder is deliberately not part of the shared interface.
+            request_url = (
+                f"{str(request.base_url).rstrip('/')}"
+                f"/channels/{connection.channel}/events/"
+            )
+            document = build_bridge_create_document(
+                request_url=request_url, secret=one_time_secret
+            )
+            setup = ChannelSetup(document=document)
+
         return ChannelConnectionResponse(
-            count=1 if connection else 0, connection=connection
+            count=1 if connection else 0, connection=connection, setup=setup
         )
 
     @intercept_exceptions()
