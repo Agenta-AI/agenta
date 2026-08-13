@@ -49,7 +49,11 @@ import {
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
 } from "./state/sessions"
-import {focusComposerRequestAtom, renameSessionRequestAtom} from "./state/uiRequests"
+import {
+    focusComposerRequestAtom,
+    renameSessionRequestAtom,
+    sessionSearchRequestAtom,
+} from "./state/uiRequests"
 
 // The frame itself is a thin, synchronous shell (Splitter + Tabs + region slots) so the real
 // structure paints in the first frame. Only the heavy leaves are lazy: the conversation body
@@ -120,6 +124,9 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // enrich titles, drop remotely-deleted) — the scope key is the agent's appId (artifact id).
     useReconcileServerSessions(scope)
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const requestSessionSearch = useSetAtom(sessionSearchRequestAtom)
     const configPanelCollapsed = useAtomValue(configPanelCollapsedAtom)
     // The rail pane is `size={0}` + `inert` until maximized, so mounting it on boot renders the
     // whole session list (rows, dots, hover actions) into a zero-width panel. Latch it on first
@@ -207,6 +214,24 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
             },
             [sessions, scope, setArchived],
         ),
+        onNewSession: useCallback(() => {
+            if (!addLocked) addSession()
+        }, [addLocked, addSession]),
+        onCloseSession: closeSession,
+        // Toggles: the list opens with the caret already in the search box, and the same key puts
+        // it away.
+        onSearch: useCallback(() => {
+            if (chatMaximized) {
+                setChatMaximized(false)
+                return
+            }
+            setChatMaximized(true)
+            requestSessionSearch(Date.now())
+        }, [chatMaximized, setChatMaximized, requestSessionSearch]),
+        onToggleConfigPanel: useCallback(
+            () => setConfigPanelCollapsed((collapsed) => !collapsed),
+            [setConfigPanelCollapsed],
+        ),
     })
 
     // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
@@ -223,7 +248,6 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // (prev refs), not state syncs — each watches only the flip that should evict the other, so
     // they can't ping-pong.
     const canPanesCoexist = useCanPanesCoexist()
-    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
     const prevFilesOpenRef = useRef(filesPane.open)
     useEffect(() => {
         if (filesPane.open && !prevFilesOpenRef.current && !canPanesCoexist)

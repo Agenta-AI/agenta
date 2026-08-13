@@ -46,6 +46,7 @@ import {useComposerDraft} from "./hooks/useComposerDraft"
 import {useFirstRunSeed} from "./hooks/useFirstRunSeed"
 import {useOnboardingChat} from "./hooks/useOnboardingChat"
 import {useScrollIntent} from "./hooks/useScrollIntent"
+import {isAltChord, isOverlayOpen} from "./hooks/useSessionShortcuts"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
@@ -391,6 +392,29 @@ const AgentConversation = ({
         submit({text: pendingRun.text})
         setPendingRun(null)
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
+
+    // Run-level shortcuts. They live here, not in the panel's session hook, because only this
+    // conversation knows whether a run is in flight and what it is waiting on. Bubble phase, so an
+    // open picker or dialog that stops propagation still gets Escape first.
+    useEffect(() => {
+        if (activeSessionId !== sessionId) return
+        const onKey = (e: KeyboardEvent) => {
+            if (isOverlayOpen()) return
+            if (e.key === "Escape" && busyRef.current) {
+                e.preventDefault()
+                handleStop()
+                return
+            }
+            // Approve answers ONE gate, never the dock's "Approve all": a mis-press should not
+            // grant a tool the user never read.
+            if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
+                e.preventDefault()
+                addToolApprovalResponse({id: pendingApprovals[0].approvalId, approved: true})
+            }
+        }
+        document.addEventListener("keydown", onKey)
+        return () => document.removeEventListener("keydown", onKey)
+    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, addToolApprovalResponse])
 
     // A keyboard switch (Alt+1…9 / Alt+Z / Alt+X) lands the caret here. antd mounts a never-visited
     // pane only on activation, so this effect runs on that mount and a first-visit switch focuses

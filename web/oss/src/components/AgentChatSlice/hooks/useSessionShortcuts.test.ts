@@ -29,7 +29,15 @@ let host: HTMLDivElement | null = null
 
 /** Mount a probe that does nothing but run the hook. */
 const setup = (overrides: Partial<UseSessionShortcutsParams> = {}) => {
-    const handlers = {onJump: vi.fn(), onRename: vi.fn(), onArchive: vi.fn()}
+    const handlers = {
+        onJump: vi.fn(),
+        onRename: vi.fn(),
+        onArchive: vi.fn(),
+        onNewSession: vi.fn(),
+        onCloseSession: vi.fn(),
+        onSearch: vi.fn(),
+        onToggleConfigPanel: vi.fn(),
+    }
     const Probe = () => {
         useSessionShortcuts({sessions, activeId: "s2", ...handlers, ...overrides})
         return null
@@ -111,6 +119,24 @@ describe("useSessionShortcuts", () => {
         press("KeyX")
         press("KeyZ")
         expect(onJump).not.toHaveBeenCalled()
+    })
+
+    it("opens, closes, searches and toggles the config panel", () => {
+        const {onNewSession, onCloseSession, onSearch, onToggleConfigPanel} = setup()
+        press("KeyC")
+        press("KeyW")
+        press("KeyF")
+        press("KeyB")
+        expect(onNewSession).toHaveBeenCalled()
+        expect(onCloseSession).toHaveBeenCalledWith("s2")
+        expect(onSearch).toHaveBeenCalled()
+        expect(onToggleConfigPanel).toHaveBeenCalled()
+    })
+
+    it("refuses to close the last remaining session", () => {
+        const {onCloseSession} = setup({sessions: [{id: "solo"}], activeId: "solo"})
+        press("KeyW")
+        expect(onCloseSession).not.toHaveBeenCalled()
     })
 
     it("renames and archives the active session", () => {

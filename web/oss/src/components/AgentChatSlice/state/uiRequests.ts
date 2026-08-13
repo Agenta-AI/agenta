@@ -30,3 +30,6 @@ export const focusComposerRequestAtom = atom<SessionUiRequest | null>(null)
 
 /** Open the inline rename editor on this session's tab chip / rail row. */
 export const renameSessionRequestAtom = atom<SessionUiRequest | null>(null)
+
+/** Put the caret in the rail's session-search box. Carries a nonce only: the rail is per-panel. */
+export const sessionSearchRequestAtom = atom<number | null>(null)

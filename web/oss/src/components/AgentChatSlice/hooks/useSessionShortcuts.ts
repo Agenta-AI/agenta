@@ -11,11 +11,20 @@ export interface UseSessionShortcutsParams {
     onJump: (id: string) => void
     onRename: (id: string) => void
     onArchive: (id: string) => void
+    onNewSession: () => void
+    onCloseSession: (id: string) => void
+    onSearch: () => void
+    onToggleConfigPanel: () => void
 }
+
+/** A bare Alt chord: no AltGr (Ctrl+Alt), no Cmd or Shift, not a repeat or an IME keystroke.
+ * Exported because the run-level shortcuts live with the conversation that owns the run. */
+export const isAltChord = (e: KeyboardEvent): boolean =>
+    e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.repeat && !e.isComposing
 
 /** True while an antd confirm/modal or a Radix dialog owns the screen. No global open-dialog state
  * exists to ask, and these dialogs come from `modal.confirm`, so the DOM is the only witness. */
-const isOverlayOpen = (): boolean =>
+export const isOverlayOpen = (): boolean =>
     Boolean(
         document.querySelector(
             '.ant-modal-wrap:not([style*="display: none"]), [role="dialog"][data-state="open"]',
@@ -42,8 +51,9 @@ const steppedSession = <T extends {id: string}>(
 
 /**
  * Session shortcuts for the agent playground: `Alt+1…9` jumps to the Nth open session, `Alt+Z` and
- * `Alt+X` step to the previous/next one (wrapping), `Alt+R` renames the active one, `Alt+A`
- * archives it.
+ * `Alt+X` step to the previous/next one (wrapping), `Alt+C` opens a new session, `Alt+W` closes the
+ * active one, `Alt+R` renames it, `Alt+A` archives it, `Alt+F` searches, `Alt+B` toggles the config
+ * panel. Stop and approve live with the conversation that owns the run, not here.
  *
  * Alt alone, because ⌘/Ctrl+digit is browser tab switching on every OS, and one binding for all
  * platforms (the label differs, the keys don't). Matched on `event.code`: macOS Option+1 reports
@@ -58,21 +68,29 @@ export function useSessionShortcuts({
     onJump,
     onRename,
     onArchive,
+    onNewSession,
+    onCloseSession,
+    onSearch,
+    onToggleConfigPanel,
 }: UseSessionShortcutsParams) {
     useEffect(() => {
         if (!enabled) return
 
         const listener = (e: KeyboardEvent) => {
-            if (e.repeat || e.isComposing) return
-            if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+            if (!isAltChord(e)) return
             if (isOverlayOpen()) return
+
+            /** Every branch below acts, so claiming the key up front keeps this readable. */
+            const claim = () => {
+                e.preventDefault()
+                e.stopPropagation()
+            }
 
             const digit = /^Digit([1-9])$/.exec(e.code)
             if (digit) {
                 const target = sessions[Number(digit[1]) - 1]
                 if (!target) return
-                e.preventDefault()
-                e.stopPropagation()
+                claim()
                 onJump(target.id)
                 return
             }
@@ -81,23 +99,56 @@ export function useSessionShortcuts({
             if (step) {
                 const target = steppedSession(sessions, activeId, step)
                 if (!target) return
-                e.preventDefault()
-                e.stopPropagation()
+                claim()
                 onJump(target.id)
                 return
             }
 
-            if (e.code !== "KeyR" && e.code !== "KeyA") return
+            if (e.code === "KeyC") {
+                claim()
+                onNewSession()
+                return
+            }
+            if (e.code === "KeyF") {
+                claim()
+                onSearch()
+                return
+            }
+            if (e.code === "KeyB") {
+                claim()
+                onToggleConfigPanel()
+                return
+            }
+
+            // The rest act on the active session. Closing the last one would leave the panel to
+            // re-seed an empty tab, so it needs a sibling to fall back to.
             if (!activeId) return
-            e.preventDefault()
-            e.stopPropagation()
-            if (e.code === "KeyR") onRename(activeId)
-            else onArchive(activeId)
+            if (e.code === "KeyR") {
+                claim()
+                onRename(activeId)
+            } else if (e.code === "KeyA") {
+                claim()
+                onArchive(activeId)
+            } else if (e.code === "KeyW" && sessions.length > 1) {
+                claim()
+                onCloseSession(activeId)
+            }
         }
 
         document.addEventListener("keydown", listener, true)
         return () => {
             document.removeEventListener("keydown", listener, true)
         }
-    }, [sessions, activeId, enabled, onJump, onRename, onArchive])
+    }, [
+        sessions,
+        activeId,
+        enabled,
+        onJump,
+        onRename,
+        onArchive,
+        onNewSession,
+        onCloseSession,
+        onSearch,
+        onToggleConfigPanel,
+    ])
 }

@@ -1,4 +1,4 @@
-import {memo, useCallback, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {
     Archive,
@@ -9,7 +9,7 @@ import {
     Plus,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Empty, Input, Tooltip} from "antd"
+import {Button, Empty, Input, Tooltip, type InputRef} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
@@ -34,6 +34,7 @@ import {
     timeAgo,
     unarchiveSessionAtomFamily,
 } from "../state/sessions"
+import {sessionSearchRequestAtom} from "../state/uiRequests"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 import {SessionStatusDot} from "./SessionTagBar"
@@ -266,6 +267,13 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     const unarchiveSession = useSetAtom(unarchiveSessionAtomFamily(scope))
 
     const [query, setQuery] = useState("")
+    // Alt+F focuses the box. The rail is per-panel, so the nonce alone identifies the request.
+    const searchRef = useRef<InputRef>(null)
+    const searchRequest = useAtomValue(sessionSearchRequestAtom)
+    useEffect(() => {
+        if (searchRequest === null) return
+        searchRef.current?.focus({cursor: "all"})
+    }, [searchRequest])
     const [showArchived, setShowArchived] = useState(false)
     const q = query.trim().toLowerCase()
     // `openSession`/`deleteSession`/`archiveSession`/`unarchiveSession` are already stable id-taking
@@ -329,6 +337,7 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                 <div className="shrink-0 px-2 pt-2">
                     <Input
                         allowClear
+                        ref={searchRef}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search sessions"
