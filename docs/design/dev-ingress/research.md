@@ -35,6 +35,9 @@ nobody proposes it again.
 
 The tunnel service is addressed by its compose name: the runner's compiled-in default is
 `http://<service>:4040` and nothing overrides it, so the service name is load-bearing.
+That port is the tunnel **agent's** own admin API, which lists what it publishes — the
+runner queries it to learn the store's public address. Only the store is discovered this
+way; nothing in the code ever asks for an ingress address.
 
 The Composio dispatcher describes itself as the `stripe listen` equivalent. Both
 depend on the provider offering a subscribe call. **An arbitrary platform offers

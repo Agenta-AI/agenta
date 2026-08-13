@@ -16,7 +16,7 @@ see `specs.md` for why.
 - [x] The runner's compiled-in agent address follows the rename:
       `http://ngrok:4040` becomes `http://ngrok-fs:4040`. Nothing sets
       `AGENTA_MOUNTS_TUNNEL_API`, so that default is what is live; the variable stays
-      an override.
+      an override. It names the tunnel **agent's** admin API, not a tunnel to ours.
 - [x] `discoverTunnelEndpoint` takes `storeEndpoint` and matches a tunnel by its
       upstream host and port; returns null when none matches rather than another
       tunnel's URL.

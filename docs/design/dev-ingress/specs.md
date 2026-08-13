@@ -41,11 +41,17 @@ Same `with-tunnel` profile, same token gate, same quiet exit-0 when no token is 
 comments — only the service name changes, and with it the one place that addresses it.
 Daytona sandboxes with the bundled store keep their durable working folder.
 
-**The rename has one consequence.** Nothing sets `AGENTA_MOUNTS_TUNNEL_API`, so the
-runner reaches the agent through its compiled-in default, which was `http://ngrok:4040`
-and is now `http://ngrok-fs:4040`. The environment variable stays an override. An
-operator with a stack already up also has an orphaned `ngrok` container, which
-`--remove-orphans` clears.
+**The rename has one consequence.** The runner asks a tunnel agent what it publishes, on
+that agent's own admin API — which is what `AGENTA_MOUNTS_TUNNEL_API` names, the tunnel
+agent's API rather than a tunnel to ours. Nothing sets it, so the runner uses its
+compiled-in default, which was `http://ngrok:4040` and is now `http://ngrok-fs:4040`. The
+environment variable stays an override. An operator with a stack already up also has an
+orphaned `ngrok` container, which `--remove-orphans` clears.
+
+**No variable names the ingress tunnel, and none should.** Nothing in the code discovers
+that address: the store tunnel is discovered by the runner, the ingress tunnel is read off
+the agent's dashboard once and registered with a provider by hand. `NGROK_API_DOMAIN` pins
+the domain so that registration survives a restart, and that is its whole job.
 
 **Every inbound route arrives on its normal path.** `/api/` is already routed in
 development, in the self-host compose files, and in production, so no integration needs
