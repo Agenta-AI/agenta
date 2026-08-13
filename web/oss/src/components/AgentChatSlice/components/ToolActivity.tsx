@@ -248,7 +248,8 @@ const ToolRow = ({
     const header = (
         <>
             <StatusIcon part={part} />
-            <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
+            {/* The sentence never yields: the detail and status beside it absorb the squeeze. */}
+            <Text className="!text-xs !font-medium max-w-full shrink-0 truncate" title={name}>
                 {shownName}
             </Text>
             {display.detail ? (

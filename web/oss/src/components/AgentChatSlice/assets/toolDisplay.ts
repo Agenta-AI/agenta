@@ -346,9 +346,23 @@ const parseShape = (
     }
 }
 
-/** A shell command as the agent ran it, minus the login-shell wrapper Codex adds. */
+/** The sandbox root every path in a session sits under. Machine-generated and identical on every
+ * row, so it is pure noise; id-looking segments (8+ chars with a digit) go with it. */
+const SANDBOX_ROOT = /\/tmp\/agenta[\w-]*\/(?:mounts\/)?(?:(?=[\w-]*\d)[\w-]{8,}\/)*/g
+
+/** Drop the `/bin/bash -lc "…"` wrapper Codex adds, and only then its quotes: an unwrapped
+ * command may legitimately end in one (`-name '*.md'`). */
+const unwrapShell = (command: string): string => {
+    const body = command.replace(/^\/bin\/[a-z]*sh\s+-\w+\s+/, "")
+    if (body === command) return body
+    const quote = body[0]
+    if (quote !== '"' && quote !== "'") return body
+    return body.slice(1, body.endsWith(quote) ? -1 : undefined)
+}
+
+/** A shell command as the agent ran it, minus the login-shell wrapper and the sandbox root. */
 const shortCommand = (command: string): string =>
-    clamp(command.replace(/^\/bin\/[a-z]*sh\s+-\w+\s+/, "").replace(/^["']|["']$/g, ""), 48)
+    clamp(unwrapShell(command).replace(SANDBOX_ROOT, ""), 48)
 
 const basename = (path: string): string => path.split("/").filter(Boolean).pop() ?? path
 
