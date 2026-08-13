@@ -3,4 +3,5 @@
 export interface ChannelConnectionFlags {
     is_active?: boolean | undefined;
     is_verified?: boolean | undefined;
+    is_hosted?: boolean | undefined;
 }

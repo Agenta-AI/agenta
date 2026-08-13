@@ -394,6 +394,151 @@ export class ChannelsClient {
     }
 
     /**
+     * One click, from Settings -> Channels: mint the install state and
+     * send the browser straight to Slack's authorize URL. A deployment
+     * with no hosted-app credentials refuses here, not with a 500 -- that
+     * is the normal shape of a self-hosted deployment, not an error.
+     *
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.channels.installSlackConnection()
+     */
+    public installSlackConnection(requestOptions?: ChannelsClient.RequestOptions): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__installSlackConnection(requestOptions));
+    }
+
+    private async __installSlackConnection(
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<unknown>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "channels/catalog/channels/slack/install/",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/channels/catalog/channels/slack/install/",
+        );
+    }
+
+    /**
+     * Slack redirects the browser here, in or out of the session that
+     * started the install -- the signed state is the whole of the
+     * authorisation on this route, so this is public (see
+     * `_PUBLIC_ENDPOINTS`), never `self._check`. State decodes first:
+     * unknown, expired or tampered refuses before any exchange is
+     * attempted.
+     *
+     * @param {AgentaApi.SlackInstallCallbackRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.slackInstallCallback()
+     */
+    public slackInstallCallback(
+        request: AgentaApi.SlackInstallCallbackRequest = {},
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__slackInstallCallback(request, requestOptions));
+    }
+
+    private async __slackInstallCallback(
+        request: AgentaApi.SlackInstallCallbackRequest = {},
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<unknown>> {
+        const { code, state, error } = request;
+        const _queryParams: Record<string, unknown> = {
+            code,
+            state,
+            error,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "channels/catalog/channels/slack/callback/",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/channels/catalog/channels/slack/callback/",
+        );
+    }
+
+    /**
      * @param {AgentaApi.ChannelConnectionRequest} request
      * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
      *

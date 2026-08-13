@@ -6,4 +6,5 @@ export interface ChannelSetup {
     instructions?: string[] | undefined;
     document?: (AgentaApi.ChannelSetupDoc | null) | undefined;
     fields?: AgentaApi.ChannelSetupField[] | undefined;
+    hosted_available?: boolean | undefined;
 }
