@@ -24,6 +24,7 @@ export {default as ProviderCatalogList, type ProviderCatalogListProps} from "./P
 export {providerIconFor} from "./providerIcon"
 export {
     default as ProviderConnectionCard,
+    type ProviderCardSaveState,
     type ProviderConnectionCardProps,
 } from "./ProviderConnectionCard"
 export {default as ActiveModelsSection, type ActiveModelsSectionProps} from "./ActiveModelsSection"
@@ -32,3 +33,9 @@ export {
     type HarnessChoice,
     type HarnessesSectionProps,
 } from "./HarnessesSection"
+export {
+    default as SubscriptionPairCard,
+    type SubscriptionPairCardProps,
+    type SubscriptionPairCardSaveState,
+} from "./SubscriptionPairCard"
+export {default as ScrollScrim, type ScrollScrimProps} from "./ScrollScrim"

@@ -36,6 +36,19 @@ export {
     getEnvNameMap,
 } from "./transforms"
 
+export {
+    activeModelsCount,
+    credentialStatusLine,
+    harnessSummary,
+    manualModelPlaceholderForKind,
+    MODEL_LIST_RENDER_CAP,
+    modelListView,
+    relativeFetchTime,
+    secretNoteForKind,
+} from "./cardCopy"
+
+export {LITELLM_MODEL_PREFIXES, fromLitellmModelId, toLitellmModelId} from "./litellmModelId"
+
 export type {ProviderCatalogEntry, CredentialValues} from "./providerCatalog"
 export {
     PROVIDER_CATALOG,
@@ -65,6 +78,7 @@ export {
     connectionPolicyForSave,
     credentialSummary,
     credentialValuesFor,
+    defaultModelsFor,
     defaultNamePreview,
     doneState,
     harnessSupportsProviderKind,
@@ -75,7 +89,14 @@ export {
     toProviderConnections,
 } from "./connections"
 
-export {activeModelsSummary} from "./connectionSummary"
+export {activeModelsSummary, connectedRowSubtitle, connectionModelCount} from "./connectionSummary"
+
+export type {SubscriptionHarnessStatus, SubscriptionPair} from "./subscriptionPairs"
+export {
+    subscriptionPairModels,
+    subscriptionPairsFrom,
+    subscriptionPlanName,
+} from "./subscriptionPairs"
 
 export type {ProviderFieldAttributes, ProviderFieldConfig} from "./providerFields"
 export {
@@ -91,9 +112,16 @@ export type {
     PromptModelOption,
 } from "./promptModelGroups"
 export {
+    CURRENT_SELECTION_GROUP_CAPTION,
+    CURRENT_SELECTION_GROUP_KEY,
+    CURRENT_SELECTION_GROUP_LABEL,
+    CURRENT_SELECTION_OPTION_CAPTION,
     buildConnectionModelGroups,
     connectionSlugFor,
     connectionSlugFromOption,
-    withoutAmbiguousCatalogGroups,
+    curatedModelName,
+    selectedOptionKey,
+    selectedOptionLabel,
+    withCurrentSelectionGroup,
     withoutSlugBoundGroups,
 } from "./promptModelGroups"

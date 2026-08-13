@@ -6,6 +6,7 @@ import {
     connectionPolicyForSave,
     credentialSummary,
     credentialValuesFor,
+    defaultModelsFor,
     defaultNamePreview,
     doneState,
     harnessSupportsProviderKind,
@@ -17,7 +18,8 @@ import {
     type HarnessCapabilityMap,
     type ProviderConnection,
 } from "../../src/secret/core/connections"
-import {activeModelsSummary} from "../../src/secret/core/connectionSummary"
+import {activeModelsSummary, connectionModelCount} from "../../src/secret/core/connectionSummary"
+import {buildConnectionModelGroups} from "../../src/secret/core/promptModelGroups"
 import {
     PROVIDER_CATALOG,
     credentialFieldsForKind,
@@ -97,12 +99,41 @@ describe("provider catalog", () => {
         const baseUrlNote = (kind: string) =>
             credentialFieldsForKind(kind).find((field) => field.key === "apiBaseUrl")?.note
 
-        // The `/v1` example is an OpenAI-compatible endpoint's, and nobody else's.
-        expect(baseUrlNote("custom")).toContain("https://api.openai.com/v1")
+        // The `/v1` example is an OpenAI-compatible endpoint's, and nobody else's — one example,
+        // not a second one repeating the first inside a full URL.
+        expect(baseUrlNote("custom")).toBe("Include the version path, e.g. /v1.")
         expect(baseUrlNote("azure")).toContain("openai.azure.com")
         expect(baseUrlNote("azure")).not.toContain("/v1")
         // Vertex is addressed by project and location, so an example here would only mislead.
         expect(baseUrlNote("vertex_ai")).toBeUndefined()
+    })
+
+    it("leads the endpoint card with the URL that is the endpoint's identity", () => {
+        expect(credentialFieldsForKind("custom").map((field) => field.key)).toEqual([
+            "apiBaseUrl",
+            "apiKey",
+        ])
+    })
+
+    it("says the endpoint's key is conditional, because an open endpoint needs none", () => {
+        const apiKey = credentialFieldsForKind("custom").find((field) => field.key === "apiKey")
+
+        expect(apiKey?.label).toBe("API key — if the endpoint requires one")
+        expect(credentialFieldsForKind("openai")[0].label).toBe("API key")
+    })
+
+    it("drops the per-field encryption disclaimer the card states once", () => {
+        const notes = [
+            ...credentialFieldsForKind("openai"),
+            ...credentialFieldsForKind("bedrock"),
+            ...credentialFieldsForKind("vertex_ai"),
+        ].map((field) => field.note)
+
+        expect(notes).not.toContain("This secret will be encrypted in transit and at rest.")
+        // Bedrock's either/or hint is not a disclaimer and survives.
+        expect(
+            credentialFieldsForKind("bedrock").find((field) => field.key === "bearerToken")?.note,
+        ).toContain("access key ID")
     })
 })
 
@@ -220,7 +251,9 @@ describe("credentialValuesFor", () => {
 
 describe("credentialSummary", () => {
     it("masks a key and falls back to the endpoint host when there is none", () => {
-        expect(credentialSummary(connection({source: {key: "sk-000000000000xyz"}}))).toBe("sk-…xyz")
+        expect(credentialSummary(connection({source: {key: "sk-000000000000xyz"}}))).toBe(
+            "sk-••••xyz",
+        )
         expect(
             credentialSummary(
                 connection({source: {apiBaseUrl: "https://models.internal.test/v1"}}),
@@ -334,7 +367,57 @@ describe("model list order", () => {
         expect(ids(["gpt-5.5"])).toEqual(ids([]))
     })
 
-    it("keeps an id the order never saw (a model added since the fetch) at the end", () => {
+    it("leads with a hand-added model, above the saved selection", () => {
+        // It arrives checked and the user typed it a moment ago. Sorting it below every unticked
+        // catalog row (which is where it used to land) read as the add having failed.
+        const order = modelDisplayOrder({
+            available,
+            prioritized: ["gpt-5.5"],
+            manual: ["my-fine-tune"],
+        })
+
+        expect(order[0]).toBe("my-fine-tune")
+        expect(order).toEqual(["my-fine-tune", "gpt-5.5", "gpt-4.1", "o3", "gpt-5.4", "gpt-3.5"])
+        expect(
+            buildModelOptions({
+                available,
+                checked: ["gpt-5.5", "my-fine-tune"],
+                manual: ["my-fine-tune"],
+                discovered: true,
+                order,
+            }).map((option) => option.id),
+        ).toEqual(order)
+    })
+
+    it("keeps a hand-added id that the provider also offers in the leading block", () => {
+        const order = modelDisplayOrder({available, prioritized: ["gpt-5.5"], manual: ["o3"]})
+
+        expect(order.slice(0, 2)).toEqual(["o3", "gpt-5.5"])
+    })
+
+    it("still reorders nothing when a model is ticked, even with a hand-added one present", () => {
+        // Adding is the only thing that may move a row; ticking never is.
+        const order = modelDisplayOrder({
+            available,
+            prioritized: ["gpt-5.5"],
+            manual: ["my-fine-tune"],
+        })
+        const ids = (checked: string[]) =>
+            buildModelOptions({
+                available,
+                checked,
+                manual: ["my-fine-tune"],
+                discovered: true,
+                order,
+            }).map((option) => option.id)
+
+        expect(ids(["my-fine-tune"])).toEqual(ids(["my-fine-tune", "gpt-3.5"]))
+        expect(ids(["my-fine-tune"])).toEqual(ids([]))
+    })
+
+    it("keeps an id the order never saw at the end", () => {
+        // A model added after the order was computed: no rank, so it falls to the end until the
+        // next recompute (which the card does as soon as the manual list changes).
         const order = modelDisplayOrder({available, prioritized: ["gpt-5.5"]})
 
         expect(
@@ -472,6 +555,46 @@ describe("activeModelsSummary", () => {
 
     it("counts an empty saved list rather than reading it as defaults", () => {
         expect(activeModelsSummary(connection({models: []}), capabilities)).toBe("0 of 3 active")
+    })
+})
+
+describe("one effective model set across all three surfaces", () => {
+    // The founder's bug: for a connection with no saved list, the table said "Defaults", the
+    // drawer counted 3, and the completion picker offered the family's full 40-model catalog.
+    // All three now read `defaultModelsFor`, so they cannot answer differently.
+    const capabilities: HarnessCapabilityMap = {
+        pi_core: {
+            providers: ["openai"],
+            models: {openai: ["gpt-5.6-sol", "gpt-5.6-luna", "gpt-4o-mini", "gpt-4o"]},
+            default_models: {openai: ["gpt-5.6-sol", "gpt-5.6-luna"]},
+        },
+    }
+    const noSavedList = connection()
+
+    it("agrees on the defaults: table, drawer count, and picker rows", () => {
+        expect(defaultModelsFor(noSavedList, capabilities)).toEqual(["gpt-5.6-sol", "gpt-5.6-luna"])
+        expect(activeModelsSummary(noSavedList, capabilities)).toBe("Defaults")
+        expect(connectionModelCount(noSavedList, capabilities)).toBe(2)
+        expect(
+            buildConnectionModelGroups({
+                connections: [noSavedList],
+                // A big static catalog that must NOT win over the defaults.
+                catalog: {openai: Array.from({length: 40}, (_, i) => `schema-${i}`)},
+                capabilities,
+            })[0].options.map((option) => option.value),
+        ).toEqual(["gpt-5.6-sol", "gpt-5.6-luna"])
+    })
+
+    it("agrees on a saved list too, defaults notwithstanding", () => {
+        const saved = connection({models: ["gpt-4o"]})
+
+        expect(connectionModelCount(saved, capabilities)).toBe(1)
+        expect(activeModelsSummary(saved, capabilities)).toBe("1 of 4 active")
+        expect(
+            buildConnectionModelGroups({connections: [saved], capabilities})[0].options.map(
+                (option) => option.value,
+            ),
+        ).toEqual(["gpt-4o"])
     })
 })
 

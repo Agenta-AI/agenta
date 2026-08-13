@@ -21,4 +21,6 @@ export {
     saveProviderConnectionAtom,
 } from "./connections"
 
+export {subscriptionPairModelsAtom, type SubscriptionPairKey} from "./subscriptionModels"
+
 export {useVaultSecret} from "./useVaultSecret"

@@ -57,6 +57,8 @@ export type {
     ModelOption,
     ProviderCatalogEntry,
     ProviderConnection,
+    SubscriptionHarnessStatus,
+    SubscriptionPair,
 } from "./core"
 
 export {
@@ -76,8 +78,21 @@ export {
     fieldNoteForKind,
     PROVIDER_FIELDS,
     PROVIDER_CATALOG,
+    activeModelsCount,
     activeModelsSummary,
+    connectedRowSubtitle,
+    connectionModelCount,
+    subscriptionPairModels,
+    subscriptionPairsFrom,
+    subscriptionPlanName,
     bareModelId,
+    credentialStatusLine,
+    harnessSummary,
+    manualModelPlaceholderForKind,
+    MODEL_LIST_RENDER_CAP,
+    modelListView,
+    relativeFetchTime,
+    secretNoteForKind,
     buildConnectionPayload,
     buildModelOptions,
     modelDisplayOrder,
@@ -87,6 +102,7 @@ export {
     credentialFieldsForKind,
     credentialSummary,
     credentialValuesFor,
+    defaultModelsFor,
     defaultNamePreview,
     deploymentForProviderKind,
     doneState,
@@ -137,6 +153,7 @@ export {
     providerConnectionsAtom,
     probeProviderMutationAtom,
     saveProviderConnectionAtom,
+    subscriptionPairModelsAtom,
     useVaultSecret,
 } from "./state"
 
@@ -146,9 +163,19 @@ export {
 
 export type {BuildConnectionModelGroupsArgs, PromptModelGroup, PromptModelOption} from "./core"
 export {
+    CURRENT_SELECTION_GROUP_CAPTION,
+    CURRENT_SELECTION_GROUP_KEY,
+    CURRENT_SELECTION_GROUP_LABEL,
+    CURRENT_SELECTION_OPTION_CAPTION,
+    LITELLM_MODEL_PREFIXES,
     buildConnectionModelGroups,
     connectionSlugFor,
     connectionSlugFromOption,
-    withoutAmbiguousCatalogGroups,
+    curatedModelName,
+    fromLitellmModelId,
+    selectedOptionKey,
+    selectedOptionLabel,
+    toLitellmModelId,
+    withCurrentSelectionGroup,
     withoutSlugBoundGroups,
 } from "./core"

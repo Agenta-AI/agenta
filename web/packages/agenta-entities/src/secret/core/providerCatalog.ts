@@ -25,6 +25,16 @@ export interface ProviderCatalogEntry {
     title: string
     /** Which vault record shape this provider stores as. */
     secretKind: SecretKind
+    /** Second line, only where the name alone does not say what the row is. */
+    subtitle?: string
+}
+
+/**
+ * Catalog subtitles. Every other row is a company whose name IS the explanation; an
+ * OpenAI-compatible endpoint is an address the user supplies, so it needs one line saying so.
+ */
+const CATALOG_SUBTITLES: Record<string, string> = {
+    custom: "Self-hosted or proxied models that speak the OpenAI API",
 }
 
 /**
@@ -69,6 +79,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
         kind,
         title: PROVIDER_LABELS[kind] ?? kind,
         secretKind: SecretKind.CustomProvider,
+        ...(CATALOG_SUBTITLES[kind] ? {subtitle: CATALOG_SUBTITLES[kind]} : {}),
     })),
 ]
 
@@ -110,6 +121,29 @@ const REQUIRED_FIELDS_BY_KIND: Record<string, string[]> = {
 }
 
 /**
+ * Field order overrides, where a kind's identity is not the field `PROVIDER_FIELDS` happens to
+ * declare first. An OpenAI-compatible endpoint IS its base URL — the key is the conditional part.
+ */
+const FIELD_ORDER_BY_KIND: Record<string, string[]> = {
+    custom: ["apiBaseUrl", "apiKey"],
+}
+
+/**
+ * Per-kind label overrides. Only where a shared label would state something untrue of the kind:
+ * an OpenAI-compatible endpoint may legitimately need no key at all.
+ */
+const FIELD_LABELS_BY_KIND: Record<string, Record<string, string>> = {
+    custom: {apiKey: "API key — if the endpoint requires one"},
+}
+
+/**
+ * The encryption disclaimer `PROVIDER_FIELDS` repeats on every secret field. The card states it
+ * once, beside the credential's status, so a card that renders three secret fields does not
+ * repeat it three times. The legacy custom-provider form still reads it from `PROVIDER_FIELDS`.
+ */
+const ENCRYPTION_NOTE = "This secret will be encrypted in transit and at rest."
+
+/**
  * The credential fields a kind's card renders, in order.
  *
  * Standard providers take one API key. The credential-set kinds reuse `PROVIDER_FIELDS` — the
@@ -121,22 +155,38 @@ const REQUIRED_FIELDS_BY_KIND: Record<string, string[]> = {
  * `toProviderCredentials` / `buildConnectionPayload` rather than at each call site.
  */
 export const credentialFieldsForKind = (kind: string): ProviderFieldConfig[] => {
+    const labels = FIELD_LABELS_BY_KIND[kind] ?? {}
+    const dress = (field: ProviderFieldConfig, required: boolean): ProviderFieldConfig => {
+        const note = fieldNoteForKind(field, kind)
+        return {
+            ...field,
+            ...(labels[field.key] ? {label: labels[field.key]} : {}),
+            // A field whose hint only holds for some kinds resolves it here, so every renderer
+            // reads one `note`.
+            note: note === ENCRYPTION_NOTE ? undefined : note,
+            ...(required ? {required: true} : {}),
+        }
+    }
+
     if (secretKindForProviderKind(kind) === SecretKind.ProviderKey) {
         const apiKey = PROVIDER_FIELDS.find((field) => field.key === "apiKey")
-        return apiKey ? [{...apiKey, required: true}] : []
+        return apiKey ? [dress(apiKey, true)] : []
     }
 
     const required = new Set(REQUIRED_FIELDS_BY_KIND[kind] ?? [])
+    const order = FIELD_ORDER_BY_KIND[kind]
 
-    return PROVIDER_FIELDS.filter(
+    const fields = PROVIDER_FIELDS.filter(
         (field) => field.key !== "name" && !!field.model?.includes(kind),
-    ).map((field) => ({
-        ...field,
-        // A field whose hint only holds for some kinds resolves it here, so every renderer reads
-        // one `note`.
-        note: fieldNoteForKind(field, kind),
-        ...(required.has(field.key) ? {required: true} : {}),
-    }))
+    ).map((field) => dress(field, required.has(field.key)))
+
+    if (!order) return fields
+
+    const rank = (field: ProviderFieldConfig) => {
+        const index = order.indexOf(field.key)
+        return index === -1 ? order.length : index
+    }
+    return [...fields].sort((a, b) => rank(a) - rank(b))
 }
 
 /**

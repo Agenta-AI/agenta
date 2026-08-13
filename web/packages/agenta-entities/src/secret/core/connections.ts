@@ -148,11 +148,11 @@ export const hasRequiredCredential = (kind: string, values: CredentialValues): b
     return fields.some((field) => filled(field.key))
 }
 
-/** A key rendered as `sk-…9Qa`: enough to tell two keys apart, never enough to use one. */
+/** A key rendered as `sk-••••9Qa`: enough to tell two keys apart, never enough to use one. */
 export const maskSecret = (value: string): string =>
     value.length <= 8
         ? "•".repeat(Math.max(value.length, 4))
-        : `${value.slice(0, 3)}…${value.slice(-3)}`
+        : `${value.slice(0, 3)}••••${value.slice(-3)}`
 
 /**
  * The Credential column: the masked key when the connection has one, otherwise the field that
@@ -215,12 +215,22 @@ export interface ModelOption {
     unavailable: boolean
 }
 
+/** Structural view of one curated catalog record — only the identity and the display names. */
+export interface HarnessModelCatalogEntry {
+    id: string
+    provider: string
+    label?: string | null
+    name?: string | null
+}
+
 /** Structural view of the harness catalog — only the fields the model list and harness rules read. */
 export interface HarnessModelCapabilities {
     providers?: string[]
     deployments?: string[]
     models?: Record<string, string[]>
     default_models?: Record<string, string[]>
+    /** Curated per-model records; a picker reads `label`/`name` for the model's display name. */
+    model_catalog?: HarnessModelCatalogEntry[]
 }
 
 export type HarnessCapabilityMap = Record<string, HarnessModelCapabilities>
@@ -273,12 +283,40 @@ export const providerModelCatalog = (
 }
 
 /**
- * The order the card lists models in: the ones that matter first (the saved selection and Agenta's
- * defaults), then the rest in the order the provider returned them.
+ * The models a connection offers when it saved no list of its own — the ONE fallback rule.
  *
- * Computed from fetch-stable inputs only — never from the LIVE checked set. Sorting by what is
- * currently ticked would move a row out from under the cursor on every click, so the order is
- * fixed for as long as a fetch's result is.
+ * Every surface that answers "what does this connection offer" goes through here: the table's
+ * "Defaults", the drawer's "N models", and the prompt picker's rows. They used to spell it
+ * separately and drift — the picker once offered a family's full 40-model catalog while the table
+ * called the same record "Defaults" and the drawer counted 3.
+ *
+ * A connection with no saved list offers the provider's DEFAULT models. Anything beyond them is
+ * something the user activates in Settings.
+ */
+export const defaultModelsFor = (
+    connection: ProviderConnection,
+    capabilities: HarnessCapabilityMap | null | undefined,
+): string[] => {
+    // The RECORD's kind, not the family's: a credential-set connection saved under a plain family
+    // serves its own endpoint's keys, not Agenta's catalog for that family.
+    if (connection.secretKind !== SecretKind.ProviderKey) {
+        return (connection.source.modelKeys ?? []).filter(Boolean)
+    }
+
+    const {models, defaults} = providerModelCatalog(capabilities, connection.kind)
+    return defaults.length ? defaults : models
+}
+
+/**
+ * The order the card lists models in: hand-added ids first, then the saved selection and Agenta's
+ * defaults, then the rest in the order the provider returned them.
+ *
+ * A hand-added model leads because it arrives CHECKED and the user typed it a moment ago — landing
+ * it below every unticked catalog row (where it sorted before) read as the add having failed.
+ *
+ * Otherwise computed from fetch-stable inputs only — never from the LIVE checked set. Sorting by
+ * what is currently ticked would move a row out from under the cursor on every click, so ticking
+ * and unticking still reorder nothing; only adding does.
  */
 export const modelDisplayOrder = ({
     available,
@@ -291,8 +329,13 @@ export const modelDisplayOrder = ({
     manual?: string[]
 }): string[] => {
     const ids = [...new Set([...available, ...prioritized, ...manual])]
+    const added = new Set(manual)
     const first = new Set(prioritized)
-    return [...ids.filter((id) => first.has(id)), ...ids.filter((id) => !first.has(id))]
+    return [
+        ...ids.filter((id) => added.has(id)),
+        ...ids.filter((id) => !added.has(id) && first.has(id)),
+        ...ids.filter((id) => !added.has(id) && !first.has(id)),
+    ]
 }
 
 /**

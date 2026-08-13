@@ -68,7 +68,7 @@ export const PROVIDER_FIELDS: ProviderFieldConfig[] = [
         // No shared note: the OpenAI-style `/v1` example is true of an OpenAI-compatible endpoint
         // and misleading under Azure (a resource endpoint) or Vertex (project + location).
         notesByKind: {
-            custom: "Include version (e.g. /v1) in the base URL (e.g. https://api.openai.com/v1)",
+            custom: "Include the version path, e.g. /v1.",
             azure: "Your resource endpoint, e.g. https://YOUR-RESOURCE.openai.azure.com",
         },
         model: ["azure", "vertex_ai", "custom"],

@@ -1,12 +1,18 @@
 /**
  * The provider connection card — one pushed level inside the provider drawer, and the only place
  * a connection is configured. No modal, no toast: everything the user needs to know is on the
- * card, including why Done is disabled.
+ * card, including why the footer's Done is disabled.
  *
  * Its five parts follow experience.md exactly: credential (schema-driven by provider kind) with
  * one Test action, an optional name, the active-model list, the collapsed harness policy, and a
- * Cancel/Done footer. Nothing is written until Done — Test spends the credential on one read and
- * keeps nothing.
+ * Cancel/Done footer. The footer itself is the drawer's — the card publishes its save wiring
+ * through `onSaveStateChange`. Nothing is written until Done — Test spends the credential on one
+ * read and keeps nothing.
+ *
+ * Layout: the credential, the name, and the harness policy are fixed height; Active models is the
+ * one flexible region and scrolls inside itself, so every extra viewport pixel goes to the list
+ * rather than to a gap above the footer. On a viewport too short for the fixed sections, the list
+ * floors at three rows and the DRAWER BODY takes over the scrolling, header and footer still put.
  *
  * Design: docs/design/provider-connections-models/experience.md ("Provider connection card").
  */
@@ -16,17 +22,20 @@ import {
     buildModelOptions,
     connectionPolicyForSave,
     credentialFieldsForKind,
+    credentialStatusLine,
     credentialValuesFor,
     defaultNamePreview,
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    manualModelPlaceholderForKind,
     modelDisplayOrder,
     probeProviderMutationAtom,
     providerModelCatalog,
     providerTitleForKind,
     saveProviderConnectionAtom,
     secretKindForProviderKind,
+    secretNoteForKind,
     SecretKind,
     toProviderCredentials,
     type CredentialValues,
@@ -35,7 +44,7 @@ import {
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
-import {Button, Divider, InputAffix, LoadingButton, PasswordInput, Textarea} from "@agenta/ui/ui"
+import {InputAffix, LoadingButton, PasswordInput, Textarea} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -50,6 +59,35 @@ const DEFAULT_HARNESS = "pi_core"
 /** The capability map is global; the key only records which surface asked for it. */
 const HARNESS_CATALOG_KEY = "agenta:settings:ai-providers"
 
+/** Where a harness comes from, shown beside its name. Only Pi is a place today. */
+const HARNESS_DOMAINS: Record<string, string> = {pi_core: "pi.dev"}
+
+/**
+ * The card's 13px row scale, reached through the affix wrapper: `InputAffix` sizes its inner
+ * `<input>` from its own size variant, so a class on the wrapper never lands on the text.
+ */
+const FIELD_TYPE_SCALE = "[&_input]:!text-xs"
+
+/**
+ * A name field beside a secret field and a primary button reads as a login form, so Bitwarden and
+ * friends offer to save or update a login over the drawer. Every field opts out explicitly.
+ */
+const PASSWORD_MANAGER_OPT_OUT = {
+    "data-1p-ignore": true,
+    "data-lpignore": "true",
+    "data-bwignore": "true",
+    "data-form-type": "other",
+} as const
+
+/** What the drawer's footer needs from the card to render Cancel/Done for it. */
+export interface ProviderCardSaveState {
+    canSave: boolean
+    saving: boolean
+    /** The last save failure, for the footer to state where the button was pressed. */
+    error: string | null
+    submit: () => void
+}
+
 export interface ProviderConnectionCardProps {
     /** The vault provider kind this card configures. */
     kind: string
@@ -57,17 +95,21 @@ export interface ProviderConnectionCardProps {
     connection?: ProviderConnection | null
     /** Every connection in the project — the default-name preview reads them. */
     connections: ProviderConnection[]
-    onCancel: () => void
     /** Called after a successful save, so the host can refetch and close. */
     onSaved: () => void
+    /**
+     * Publishes the save wiring so the drawer can draw the footer outside the scrolling card.
+     * Cancel is the drawer's own — it is the step that opened the card that gets undone.
+     */
+    onSaveStateChange?: (state: ProviderCardSaveState) => void
 }
 
 const ProviderConnectionCard = ({
     kind,
     connection,
     connections,
-    onCancel,
     onSaved,
+    onSaveStateChange,
 }: ProviderConnectionCardProps) => {
     const projectId = useAtomValue(projectIdAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
@@ -76,6 +118,12 @@ const ProviderConnectionCard = ({
 
     const fields = useMemo(() => credentialFieldsForKind(kind), [kind])
     const title = providerTitleForKind(kind)
+    // Test sits beside the field that carries the key. A kind without one (Vertex's credentials
+    // JSON, Bedrock's either/or pair) has no single field to attach it to, so it stands alone.
+    const testedField = useMemo(
+        () => (fields.some((field) => field.key === "apiKey") ? "apiKey" : null),
+        [fields],
+    )
     const isStandard = secretKindForProviderKind(kind) === SecretKind.ProviderKey
 
     const storedCredential = useMemo<CredentialValues>(
@@ -179,6 +227,7 @@ const ProviderConnectionCard = ({
                 id,
                 label: harnessMetaFor(id).label,
                 supported: harnessSupportsProviderKind(capabilities, id, kind),
+                domain: HARNESS_DOMAINS[id],
             })),
         [capabilities, kind],
     )
@@ -200,7 +249,7 @@ const ProviderConnectionCard = ({
 
     // Available as soon as there is a credential to attach models to, not only after a successful
     // test: a manual model id must be enterable for every provider in every state, including the
-    // ones Agenta cannot test at all. Testing still gates Done, which is what protects the save.
+    // ones Agenta cannot test at all. Testing still gates Save, which is what protects the write.
     const showModels = credentialFilled || !!connection
 
     const done = doneState({
@@ -237,8 +286,8 @@ const ProviderConnectionCard = ({
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
-        // The last verdict belonged to the previous credential; keep showing it and Done would
-        // save an untested key under a stale "accepted".
+        // The last verdict belonged to the previous credential; keep showing it and Save would
+        // store an untested key under a stale "accepted".
         setProbe(null)
         setProbeFailure(null)
     }
@@ -279,87 +328,163 @@ const ProviderConnectionCard = ({
         }
     }
 
+    // The drawer draws the footer, so the card hands it a stable submit and the flags behind it.
+    // The ref keeps `submit` identical across renders: only a flag change re-renders the drawer.
+    const saveRef = useRef(onSave)
+    saveRef.current = onSave
+    const submit = useCallback(() => void saveRef.current(), [])
+
+    useEffect(() => {
+        onSaveStateChange?.({canSave: done.enabled, saving, error: saveError, submit})
+    }, [onSaveStateChange, done.enabled, saving, saveError, submit])
+
     const credentialMessage = probeFailure ?? probe?.credential.message ?? null
     const credentialFailed = credentialStatus === "invalid" || !!probeFailure
 
+    // The provider's own verdict plus what the same call fetched. Required-ness is carried by
+    // Done's disabled state, so no field wears an asterisk.
+    const statusLine = credentialMessage
+        ? credentialStatusLine(
+              credentialMessage,
+              discovered ? (probe?.discovery.models.length ?? 0) : null,
+          )
+        : null
+
+    const testButton = (
+        <LoadingButton
+            variant="outline"
+            className="shrink-0"
+            loading={probeMutation.isPending}
+            disabled={!credentialFilled || !projectId}
+            onClick={() => void runProbe()}
+        >
+            {credentialFailed ? "Retry" : "Test"}
+        </LoadingButton>
+    )
+
     return (
-        <div className="flex flex-col gap-6">
-            <section className="flex flex-col gap-3">
+        <div className="flex min-h-full flex-1 flex-col gap-4 text-xs">
+            <section className="flex shrink-0 flex-col gap-3">
                 {fields.map((field) => {
                     const value = credential[field.key] ?? ""
-                    const label = `${field.label}${field.required ? " *" : ""}`
+                    const block =
+                        field.attributes?.kind === "json" || field.attributes?.kind === "textarea"
+                            ? field.attributes
+                            : null
+                    const secret =
+                        field.attributes?.kind === "text" && field.attributes.type === "password"
+                    // Test belongs beside the credential it spends. A JSON credential is a block,
+                    // not a line, so it gets the button underneath instead.
+                    const inlineTest = field.key === testedField && !block
 
                     return (
                         <div key={field.key} className="flex flex-col gap-1">
-                            <span className="font-medium text-colorText">{label}</span>
-                            {field.attributes?.kind === "json" ||
-                            field.attributes?.kind === "textarea" ? (
-                                <Textarea
-                                    placeholder={field.placeholder}
-                                    rows={field.attributes.rows ?? 8}
-                                    className="font-mono"
-                                    spellCheck={false}
-                                    value={value}
-                                    onChange={(event) => setField(field.key, event.target.value)}
-                                />
-                            ) : field.attributes?.type === "password" ? (
-                                <PasswordInput
-                                    placeholder={field.placeholder}
-                                    value={value}
-                                    onValueChange={(next) => setField(field.key, next)}
-                                />
-                            ) : (
-                                <InputAffix
-                                    placeholder={field.placeholder}
-                                    value={value}
-                                    onValueChange={(next) => setField(field.key, next)}
-                                />
-                            )}
+                            <span className="font-medium text-colorText">{field.label}</span>
+                            <div className="flex items-start gap-2">
+                                <div className="min-w-0 flex-1">
+                                    {block ? (
+                                        <Textarea
+                                            placeholder={field.placeholder}
+                                            rows={block.rows ?? 8}
+                                            className="font-mono !text-xs"
+                                            spellCheck={false}
+                                            autoComplete="off"
+                                            {...PASSWORD_MANAGER_OPT_OUT}
+                                            value={value}
+                                            onChange={(event) =>
+                                                setField(field.key, event.target.value)
+                                            }
+                                        />
+                                    ) : secret ? (
+                                        <PasswordInput
+                                            placeholder={field.placeholder}
+                                            className={FIELD_TYPE_SCALE}
+                                            autoComplete="new-password"
+                                            {...PASSWORD_MANAGER_OPT_OUT}
+                                            value={value}
+                                            onValueChange={(next) => setField(field.key, next)}
+                                        />
+                                    ) : (
+                                        <InputAffix
+                                            placeholder={field.placeholder}
+                                            className={FIELD_TYPE_SCALE}
+                                            autoComplete="off"
+                                            {...PASSWORD_MANAGER_OPT_OUT}
+                                            value={value}
+                                            onValueChange={(next) => setField(field.key, next)}
+                                        />
+                                    )}
+                                </div>
+                                {inlineTest ? testButton : null}
+                            </div>
                             {field.note ? (
-                                <span className="text-colorTextSecondary">{field.note}</span>
+                                <span className="text-[11px] text-colorTextTertiary">
+                                    {field.note}
+                                </span>
                             ) : null}
                         </div>
                     )
                 })}
 
-                <div className="flex items-center gap-3">
-                    <LoadingButton
-                        variant="outline"
-                        loading={probeMutation.isPending}
-                        disabled={!credentialFilled || !projectId}
-                        onClick={() => void runProbe()}
-                    >
-                        {credentialFailed ? "Retry" : "Test"}
-                    </LoadingButton>
-                    <span className="text-colorTextSecondary">
-                        Nothing is saved until Done. Encrypted at rest.
+                {testedField === null ? <div>{testButton}</div> : null}
+
+                {/* The credential's verdict left, the one encryption disclaimer right. */}
+                <div className="flex items-start justify-between gap-3">
+                    {statusLine ? (
+                        <span
+                            className={
+                                credentialFailed
+                                    ? "flex min-w-0 items-start gap-1 text-colorError"
+                                    : "flex min-w-0 items-start gap-1.5 text-colorSuccess"
+                            }
+                        >
+                            {credentialFailed ? (
+                                <WarningCircle size={14} className="mt-0.5 shrink-0" />
+                            ) : (
+                                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
+                            )}
+                            <span>
+                                {statusLine}
+                                {credentialFailed ? " Nothing has been saved." : null}
+                            </span>
+                        </span>
+                    ) : (
+                        <span />
+                    )}
+                    <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                        Encrypted at rest
                     </span>
                 </div>
 
-                {credentialMessage ? (
-                    <span
-                        className={
-                            credentialFailed
-                                ? "flex items-center gap-1 text-colorError"
-                                : "text-colorTextSecondary"
-                        }
-                    >
-                        {credentialFailed ? <WarningCircle size={16} /> : null}
-                        {credentialMessage}
-                        {credentialFailed ? " Nothing has been saved." : null}
-                    </span>
+                <span className="text-[11px] text-colorTextTertiary">
+                    {secretNoteForKind(kind, title)}
+                </span>
+
+                {/* Why the footer's Done is disabled (or what saving now would mean), stated where
+                    the credential that decides it is. */}
+                {done.note ? (
+                    <span className="text-[11px] text-colorTextTertiary">{done.note}</span>
                 ) : null}
             </section>
 
-            <div className="flex flex-col gap-1">
-                <span className="font-medium text-colorText">Name (optional)</span>
-                <InputAffix placeholder={namePreview} value={name} onValueChange={setName} />
+            <div className="flex shrink-0 flex-col gap-1">
+                <span className="font-medium text-colorText">
+                    Name <span className="font-normal text-colorTextTertiary">— optional</span>
+                </span>
+                <InputAffix
+                    placeholder={namePreview}
+                    className={FIELD_TYPE_SCALE}
+                    autoComplete="off"
+                    {...PASSWORD_MANAGER_OPT_OUT}
+                    value={name}
+                    onValueChange={setName}
+                />
             </div>
 
             {showModels ? (
                 <ActiveModelsSection
                     options={modelOptions}
-                    followingDefaults={!checkedModels}
+                    manualPlaceholder={manualModelPlaceholderForKind(kind)}
                     onToggle={toggleModel}
                     onSelectAll={() => setCheckedModels(modelOptions.map((option) => option.id))}
                     onClear={() => setCheckedModels([])}
@@ -375,6 +500,8 @@ const ProviderConnectionCard = ({
                 />
             ) : null}
 
+            <div className="shrink-0 border-0 border-t border-solid border-colorSplit" />
+
             <HarnessesSection
                 choices={harnessChoices}
                 selected={effectiveHarnesses}
@@ -387,31 +514,6 @@ const ProviderConnectionCard = ({
                     )
                 }
             />
-
-            {/* Sticky so Done stays reachable while a long model list scrolls above it. */}
-            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-col gap-2 bg-colorBgContainer px-6 pb-6 pt-2">
-                <Divider className="m-0" />
-                {done.note ? <span className="text-colorTextSecondary">{done.note}</span> : null}
-                {saveError ? (
-                    <span className="flex items-center gap-1 text-colorError">
-                        <WarningCircle size={16} />
-                        {saveError}
-                    </span>
-                ) : null}
-                <div className="flex items-center justify-end gap-2">
-                    <Button variant="outline" onClick={onCancel}>
-                        Cancel
-                    </Button>
-                    <LoadingButton
-                        variant="default"
-                        loading={saving}
-                        disabled={!done.enabled}
-                        onClick={() => void onSave()}
-                    >
-                        Done
-                    </LoadingButton>
-                </div>
-            </div>
         </div>
     )
 }
