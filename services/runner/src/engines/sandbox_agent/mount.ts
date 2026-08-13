@@ -559,20 +559,22 @@ export async function discoverTunnelEndpoint(
       ? upstreamAuthority(deps.storeEndpoint)
       : null;
     if (wanted) {
-      const match = tunnels.find(
+      // One `ngrok http` can be listed twice, http and https over the same upstream.
+      const matches = tunnels.filter(
         (t) =>
           !!t.public_url &&
           !!t.config?.addr &&
           upstreamAuthority(t.config.addr) === wanted,
       );
-      if (!match) {
+      if (matches.length === 0) {
         log(
           `tunnel discovery: no tunnel forwards to ${wanted} ` +
             `(${tunnels.length} tunnel(s) up); not using another tunnel's URL`,
         );
         return null;
       }
-      return match.public_url ?? null;
+      const preferred = matches.find((t) => t.proto === "https") ?? matches[0];
+      return preferred.public_url ?? null;
     }
 
     // No store endpoint to match against: prefer https, then any public_url.
