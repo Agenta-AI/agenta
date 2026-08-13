@@ -111,6 +111,9 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             kind: "gateway",
             label: "Add label",
             source: "Gmail",
+            sourceKey: "gmail",
+            activity: {running: "Adding a label", done: "Added a label"},
+            detail: undefined,
             summary: undefined,
         })
     })
@@ -122,6 +125,9 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             kind: "mcp",
             label: "Search issues",
             source: "Linear · MCP",
+            sourceKey: "linear",
+            activity: {running: "Searching issues", done: "Searched issues"},
+            detail: undefined,
             summary: undefined,
         })
     })
@@ -133,8 +139,28 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             kind: "platform",
             label: "Search",
             source: undefined,
+            sourceKey: undefined,
+            activity: {running: "Searching", done: "Searched"},
+            detail: undefined,
             summary: undefined,
         })
+    })
+
+    it("recognises Codex's shell and file calls, which arrive with no usable name", () => {
+        const shell = resolveToolDisplay("rg --files .", {command: "rg --files ."})
+        expect(shell.kind).toBe("shell")
+        expect(shell.activity).toEqual({running: "Running a command", done: "Ran a command"})
+        expect(shell.detail).toBe("rg --files .")
+
+        const read = resolveToolDisplay("Read file '/repo/SKILL.md'", null)
+        expect(read.kind).toBe("file")
+        expect(read.activity.done).toBe("Read a file")
+        expect(read.detail).toBe("SKILL.md")
+    })
+
+    it("leaves an action alone when its leading word is not a verb we know", () => {
+        const display = resolveToolDisplay("tools__composio__slack__FOO_BAR__c2")
+        expect(display.activity).toEqual({running: "Foo bar", done: "Foo bar"})
     })
 
     it("merges a registered override with the parsed fallback, piece by piece", () => {

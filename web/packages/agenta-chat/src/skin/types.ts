@@ -79,8 +79,14 @@ export interface ApprovalBodyEntry {
     approveLabel?: string
 }
 
-/** Best-effort tool family, inferred from the wire-name shape only — mirrors OSS `ToolKind`. */
-export type ToolKind = "gateway" | "mcp" | "platform"
+/** Best-effort tool family, inferred from the wire name and arguments — mirrors OSS `ToolKind`. */
+export type ToolKind = "gateway" | "mcp" | "platform" | "shell" | "file"
+
+/** A row's sentence in both tenses — mirrors OSS `ToolActivity`. */
+export interface ToolActivity {
+    running: string
+    done: string
+}
 
 /**
  * One toolDisplay registry entry — mirrors the *registration-time* shape OSS actually stores in its
@@ -97,19 +103,27 @@ export interface ToolDisplayEntry {
     /** Where the tool comes from ("Gmail", "Linear · MCP"); overrides the parsed default. */
     source?: string
     kind?: ToolKind
+    /** Plain-English sentence for the activity row; overrides the parsed default. */
+    activity?: ToolActivity
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
     summary?: (input: unknown, output: unknown) => string | null
 }
 
 /**
  * A resolved toolDisplay — the full shape `resolveToolDisplay` returns, mirroring OSS's public
- * `ToolDisplay` interface (`raw`/`kind`/`label` always present; `source`/`summary` still optional).
+ * `ToolDisplay` interface (`raw`/`kind`/`label`/`activity` always present; the rest optional).
  */
 export interface ResolvedToolDisplay {
     label: string
     source?: string
+    /** The integration slug ("github"). A skin resolves it against the tool catalog for the real
+     * app name; the wire name only supports title case, which gets "Github" wrong. */
+    sourceKey?: string
     raw: string
     kind: ToolKind
+    activity: ToolActivity
+    /** Short technical detail for the row's secondary slot (a command, a filename). */
+    detail?: string
     summary?: (input: unknown, output: unknown) => string | null
 }
 
