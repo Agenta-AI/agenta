@@ -29,13 +29,13 @@ must decide which generated endpoints exist, which under D20 means "those a key 
 @abstractmethod
 async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
     """Provider keys with a resolvable project-owned secret. Names only, never a
-    value — an existence test that must not read a credential (D20)."""
+    value — an existence test that must not read a secret (D20)."""
 ```
 
-Handing the service a `VaultService` would give it two credential seams and defeat the port. The
-question "does a key exist for this provider" is a credential-layer question, and the resolver is
-the credential layer. The alternative — calling `resolve()` eleven times and catching
-`CredentialNotFoundError` — is control flow by exception and eleven vault reads per list.
+Handing the service a `VaultService` would give it two secret seams and defeat the port. The
+question "does a key exist for this provider" is a secret-layer question, and the resolver is
+the secret layer. The alternative — calling `resolve()` eleven times and catching
+`SecretNotFoundError` — is control flow by exception and eleven vault reads per list.
 
 Three packages gain a line: **WP2** implements it in `resolution.py`, **WP5** implements it in the
 mock resolver from its dict, **WP7** calls it from `list_endpoints`.
@@ -113,7 +113,7 @@ composition passes concrete services and that the interface rule bites at the DA
 seams, not between services. §8 now lists it.
 
 This is the same class of gap as R2, and the two were settled differently on purpose. R2's
-question was *does a credential exist*, which is the credential layer's own question, so it became
+question was *does a secret exist*, which is the secret layer's own question, so it became
 a method on the port rather than a second dependency. R12's is *what does the integrations domain
 say about this connection*, which no port of ours can answer. The blast radius is one line in the
 composition root: the proxies and routers receive the service, they do not construct it.
@@ -128,17 +128,17 @@ leaving the real ones in `registry.py`. Deferred to M2 rather than fixed mid-fli
 packages that own `registry.py` were still writing when it was found.
 
 **R11. §9's exception-mapping table is narrower than §5's exception set** — surfaced by writing
-the seed. The table names six categories; `CredentialNotFoundError`, `CredentialInvalidError` and
+the seed. The table names six categories; `SecretNotFoundError`, `SecretInvalidError` and
 `McpScopeInsufficientError` are not among them, and a fall-through would answer a project with no
 provider key with a 500, on checkpoint A's hot path.
 
 **Mapped to 409 in the seed, on §5's own words** rather than on invention: "the second says *you
 could, once someone connects* … maps to the needs-auth / needs-input interaction path (D17)", which
-is the same interaction status `McpAuthRequiredError` already takes. `CredentialInvalidError`
+is the same interaction status `McpAuthRequiredError` already takes. `SecretInvalidError`
 follows D18 identically. Confirm before checkpoint A; a different status is a one-file change.
 
 Note this is the CRUD boundary's mapping. Both proxies translate into their own surface's error
-shape (§9), where WP6's spec already maps a missing credential to a 404 `credential_missing` in the
+shape (§9), where WP6's spec already maps a missing secret to a 404 `secret_missing` in the
 OpenAI body — the two are different wire contracts, not a contradiction, but they should be read
 together once both exist.
 
@@ -269,8 +269,8 @@ is settled even where the envelope is not.
   already do not fail.
 - **Dead secrets** — tools stay listed and the call fails (D18). Hiding tools was rejected.
 - **New secret kinds** — `oauth_provider` and `oauth_grant`, two kinds rather than sub-kinds of
-  one (D14). No static MCP kind in this scope, and no kind at all for the inbound credential.
-- **The inbound credential** — minted, ephemeral, never stored, using the signer that already
+  one (D14). No static MCP kind in this scope, and no kind at all for the inbound secret.
+- **The inbound secret** — minted, ephemeral, never stored, using the signer that already
   exists (D13).
 - **Embeddings in the model registry** — deferred with the whole evaluator path, which is out of
   the current scope (D15).

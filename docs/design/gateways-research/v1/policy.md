@@ -59,7 +59,7 @@ endpoints never was.
 ## Compliance — open
 
 *To establish:* one audit record shape covering both planes. It must carry the principal, the
-credential owner, the payer, the upstream target, the decision and its reason, and the
+secret owner, the payer, the upstream target, the decision and its reason, and the
 outcome. The owner and payer are the two fields that cannot be reconstructed later.
 
 Open: whether audit rides the existing tracing pipeline or is a separate durable record. They

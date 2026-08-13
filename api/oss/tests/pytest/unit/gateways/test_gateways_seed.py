@@ -33,9 +33,9 @@ from oss.src.core.gateways.types import GatewaysError
 
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
-    CredentialMode,
-    CredentialOwner,
-    CredentialOwnerKind,
+    SecretMode,
+    SecretOwner,
+    SecretOwnerKind,
     GatewayOutcome,
     GatewayPlane,
     GatewayTarget,
@@ -43,17 +43,17 @@ from oss.src.core.gateways.policy.dtos import (
     GrantRef,
     PolicyDecision,
     ProviderKeyRef,
-    ResolvedCredential,
+    ResolvedSecret,
     SecretOrigin,
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
-    CredentialInvalidError,
-    CredentialNotFoundError,
+    SecretInvalidError,
+    SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
 )
-from oss.src.core.gateways.policy.interfaces import CredentialResolverInterface
+from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 
 from oss.src.core.gateways.llms.dtos import (
     LlmCallContext,
@@ -156,8 +156,8 @@ def _standard_secret() -> SecretResponseDTO:
 
 def test_policy_dtos():
     assert GatewayPlane.LLM.value == "llm"
-    assert CredentialMode.USER_OPTIONAL.value == "user_optional"
-    owner = CredentialOwner(kind=CredentialOwnerKind.PROJECT)
+    assert SecretMode.USER_OPTIONAL.value == "user_optional"
+    owner = SecretOwner(kind=SecretOwnerKind.PROJECT)
     assert owner.user_id is None
     assert SecretOrigin.VAULT.value == "vault"
 
@@ -165,12 +165,12 @@ def test_policy_dtos():
     assert BoundSecretRef(secret_id=uuid4()).secret_id is not None
     assert GrantRef(endpoint_id=uuid4()).endpoint_id is not None
 
-    credential = ResolvedCredential(
+    secret = ResolvedSecret(
         secret=_standard_secret(),
         owner=owner,
         origin=SecretOrigin.LOCAL,
     )
-    assert credential.origin == SecretOrigin.LOCAL
+    assert secret.origin == SecretOrigin.LOCAL
 
     target = GatewayTarget(
         plane=GatewayPlane.LLM,
@@ -195,14 +195,14 @@ def test_policy_exceptions():
     entitlement = EntitlementDeniedError(key="llm_calls", target="builtin/openai")
     assert entitlement.key == "llm_calls"
 
-    not_found = CredentialNotFoundError(
-        mode=CredentialMode.PROJECT_ONLY,
-        missing=CredentialOwnerKind.PROJECT,
+    not_found = SecretNotFoundError(
+        mode=SecretMode.PROJECT_ONLY,
+        missing=SecretOwnerKind.PROJECT,
         target="builtin/openai",
     )
-    assert not_found.missing == CredentialOwnerKind.PROJECT
+    assert not_found.missing == SecretOwnerKind.PROJECT
 
-    invalid = CredentialInvalidError(target="custom/acme", detail="refresh failed")
+    invalid = SecretInvalidError(target="custom/acme", detail="refresh failed")
     assert invalid.detail == "refresh failed"
 
     ceiling = CeilingExceededError(
@@ -211,12 +211,12 @@ def test_policy_exceptions():
     assert ceiling.requested == 8192
 
 
-def test_credential_resolver_interface_is_abstract_with_two_methods():
-    assert CredentialResolverInterface.__abstractmethods__ == frozenset(
+def test_secret_resolver_interface_is_abstract_with_two_methods():
+    assert SecretsResolverInterface.__abstractmethods__ == frozenset(
         {"resolve", "available_provider_keys"}
     )
     with pytest.raises(TypeError):
-        CredentialResolverInterface()
+        SecretsResolverInterface()
 
 
 # --- LLM plane ------------------------------------------------------------- #
@@ -366,13 +366,13 @@ def test_mcp_dtos():
     assert resolved_route.url == "https://mcp.acme.com"
 
     direct_auth = McpDirectAuth(
-        credential=ResolvedCredential(
+        secret=ResolvedSecret(
             secret=_standard_secret(),
-            owner=CredentialOwner(kind=CredentialOwnerKind.PROJECT),
+            owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
             origin=SecretOrigin.VAULT,
         )
     )
-    assert direct_auth.credential is not None
+    assert direct_auth.secret is not None
 
     connection = Connection(
         id=uuid4(),
@@ -489,7 +489,7 @@ async def test_handle_gateway_exceptions_passes_through():
             ),
             400,
         ),
-        (CredentialInvalidError(target="t"), 409),
+        (SecretInvalidError(target="t"), 409),
         (McpScopeInsufficientError(target="t", scopes=["a"]), 409),
         (LlmUpstreamError(provider_key="openai", status_code=503), 502),
         (LlmUpstreamError(provider_key="openai", status_code=429), 424),

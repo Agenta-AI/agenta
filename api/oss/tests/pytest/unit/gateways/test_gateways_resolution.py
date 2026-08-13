@@ -1,4 +1,4 @@
-"""Unit tests for `CredentialResolver` (specs-wp2.md, tasks-wp2.md).
+"""Unit tests for `SecretsResolver` (specs-wp2.md, tasks-wp2.md).
 
 Every case below runs against a dict-backed mock `VaultService` and a dict-backed mock
 `McpGrantsDAOInterface` — no Postgres, no Redis, no encryption key. The mode-table cases
@@ -14,16 +14,16 @@ import pytest
 from oss.src.core.gateways.mcps.dtos import McpGrant, McpGrantFlags
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
-    CredentialMode,
-    CredentialOwnerKind,
+    SecretMode,
+    SecretOwnerKind,
     GrantRef,
     ProviderKeyRef,
     SecretOrigin,
 )
-from oss.src.core.gateways.policy.resolution import CredentialResolver
+from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.types import (
-    CredentialInvalidError,
-    CredentialNotFoundError,
+    SecretInvalidError,
+    SecretNotFoundError,
 )
 from oss.src.core.secrets.dtos import (
     CustomProviderDTO,
@@ -44,9 +44,9 @@ from oss.src.core.shared.dtos import Header
 from oss.src.utils.context import AuthScope
 
 ALL_MODES = [
-    CredentialMode.PROJECT_ONLY,
-    CredentialMode.USER_REQUIRED,
-    CredentialMode.USER_OPTIONAL,
+    SecretMode.PROJECT_ONLY,
+    SecretMode.USER_REQUIRED,
+    SecretMode.USER_OPTIONAL,
 ]
 
 
@@ -55,7 +55,7 @@ ALL_MODES = [
 
 class MockVaultService:
     """In-memory secret_id -> SecretResponseDTO map; implements only the two
-    VaultService methods CredentialResolver calls."""
+    VaultService methods SecretsResolver calls."""
 
     def __init__(self, secrets: Optional[List[SecretResponseDTO]] = None) -> None:
         self._by_id: Dict[UUID, SecretResponseDTO] = {s.id: s for s in secrets or []}
@@ -152,10 +152,10 @@ def _grant(
 
 def _resolver(
     *, secrets=None, grants=None
-) -> Tuple[CredentialResolver, MockVaultService, MockMcpGrantsDAO]:
+) -> Tuple[SecretsResolver, MockVaultService, MockMcpGrantsDAO]:
     vault = MockVaultService(secrets)
     dao = MockMcpGrantsDAO(grants)
-    resolver = CredentialResolver(vault_service=vault, mcp_grants_dao=dao)
+    resolver = SecretsResolver(vault_service=vault, mcp_grants_dao=dao)
     return resolver, vault, dao
 
 
@@ -179,11 +179,11 @@ async def test_bound_secret_resolves_when_present():
     resolved = await resolver.resolve(
         scope=scope,
         ref=BoundSecretRef(secret_id=secret.id),
-        mode=CredentialMode.PROJECT_ONLY,
+        mode=SecretMode.PROJECT_ONLY,
     )
 
     assert resolved.secret.id == secret.id
-    assert resolved.owner.kind == CredentialOwnerKind.PROJECT
+    assert resolved.owner.kind == SecretOwnerKind.PROJECT
     assert resolved.origin == SecretOrigin.VAULT
 
 
@@ -194,12 +194,12 @@ async def test_bound_secret_missing_raises_for_every_mode(mode):
     scope = _scope()
     missing_id = uuid4()
 
-    with pytest.raises(CredentialNotFoundError) as excinfo:
+    with pytest.raises(SecretNotFoundError) as excinfo:
         await resolver.resolve(
             scope=scope, ref=BoundSecretRef(secret_id=missing_id), mode=mode
         )
 
-    assert excinfo.value.missing == CredentialOwnerKind.PROJECT
+    assert excinfo.value.missing == SecretOwnerKind.PROJECT
     assert excinfo.value.mode == mode
     assert excinfo.value.target == f"secret:{missing_id}"
 
@@ -215,11 +215,11 @@ async def test_provider_key_match_resolves():
     resolved = await resolver.resolve(
         scope=_scope(),
         ref=ProviderKeyRef(provider_key="openai"),
-        mode=CredentialMode.PROJECT_ONLY,
+        mode=SecretMode.PROJECT_ONLY,
     )
 
     assert resolved.secret.id == secret.id
-    assert resolved.owner.kind == CredentialOwnerKind.PROJECT
+    assert resolved.owner.kind == SecretOwnerKind.PROJECT
     assert resolved.origin == SecretOrigin.VAULT
 
 
@@ -231,7 +231,7 @@ async def test_provider_key_falls_back_to_custom_provider_when_no_provider_key_m
     resolved = await resolver.resolve(
         scope=_scope(),
         ref=ProviderKeyRef(provider_key="azure"),
-        mode=CredentialMode.PROJECT_ONLY,
+        mode=SecretMode.PROJECT_ONLY,
     )
 
     assert resolved.secret.id == custom.id
@@ -247,7 +247,7 @@ async def test_provider_key_prefers_provider_key_kind_over_custom_provider():
     resolved = await resolver.resolve(
         scope=_scope(),
         ref=ProviderKeyRef(provider_key="openai"),
-        mode=CredentialMode.PROJECT_ONLY,
+        mode=SecretMode.PROJECT_ONLY,
     )
 
     assert resolved.secret.id == standard.id
@@ -259,12 +259,12 @@ async def test_provider_key_prefers_provider_key_kind_over_custom_provider():
 async def test_provider_key_no_match_raises_for_every_mode(mode):
     resolver, _vault, _dao = _resolver()
 
-    with pytest.raises(CredentialNotFoundError) as excinfo:
+    with pytest.raises(SecretNotFoundError) as excinfo:
         await resolver.resolve(
             scope=_scope(), ref=ProviderKeyRef(provider_key="openai"), mode=mode
         )
 
-    assert excinfo.value.missing == CredentialOwnerKind.PROJECT
+    assert excinfo.value.missing == SecretOwnerKind.PROJECT
     assert excinfo.value.target == "provider:openai"
 
 
@@ -308,10 +308,10 @@ async def test_grant_project_only_resolves_project_grant():
     resolved = await resolver.resolve(
         scope=_scope(),
         ref=GrantRef(endpoint_id=endpoint_id),
-        mode=CredentialMode.PROJECT_ONLY,
+        mode=SecretMode.PROJECT_ONLY,
     )
 
-    assert resolved.owner.kind == CredentialOwnerKind.PROJECT
+    assert resolved.owner.kind == SecretOwnerKind.PROJECT
     assert resolved.owner.user_id is None
 
 
@@ -323,14 +323,14 @@ async def test_grant_project_only_does_not_fall_through_to_user_grant():
     user_grant = _grant(endpoint_id=endpoint_id, user_id=scope.user_id)
     resolver, _vault, _dao = _resolver(grants=[user_grant])
 
-    with pytest.raises(CredentialNotFoundError) as excinfo:
+    with pytest.raises(SecretNotFoundError) as excinfo:
         await resolver.resolve(
             scope=scope,
             ref=GrantRef(endpoint_id=endpoint_id),
-            mode=CredentialMode.PROJECT_ONLY,
+            mode=SecretMode.PROJECT_ONLY,
         )
 
-    assert excinfo.value.missing == CredentialOwnerKind.PROJECT
+    assert excinfo.value.missing == SecretOwnerKind.PROJECT
 
 
 @pytest.mark.asyncio
@@ -341,15 +341,15 @@ async def test_grant_user_required_does_not_fall_back_to_project_grant():
     project_grant = _grant(endpoint_id=endpoint_id, user_id=None)
     resolver, _vault, _dao = _resolver(grants=[project_grant])
 
-    with pytest.raises(CredentialNotFoundError) as excinfo:
+    with pytest.raises(SecretNotFoundError) as excinfo:
         await resolver.resolve(
             scope=scope,
             ref=GrantRef(endpoint_id=endpoint_id),
-            mode=CredentialMode.USER_REQUIRED,
+            mode=SecretMode.USER_REQUIRED,
         )
 
-    assert excinfo.value.missing == CredentialOwnerKind.USER
-    assert excinfo.value.mode == CredentialMode.USER_REQUIRED
+    assert excinfo.value.missing == SecretOwnerKind.USER
+    assert excinfo.value.mode == SecretMode.USER_REQUIRED
 
 
 @pytest.mark.asyncio
@@ -364,10 +364,10 @@ async def test_grant_user_required_resolves_user_grant():
     resolved = await resolver.resolve(
         scope=scope,
         ref=GrantRef(endpoint_id=endpoint_id),
-        mode=CredentialMode.USER_REQUIRED,
+        mode=SecretMode.USER_REQUIRED,
     )
 
-    assert resolved.owner.kind == CredentialOwnerKind.USER
+    assert resolved.owner.kind == SecretOwnerKind.USER
     assert resolved.owner.user_id == scope.user_id
 
 
@@ -386,10 +386,10 @@ async def test_grant_user_optional_prefers_user_grant_over_project_grant():
     resolved = await resolver.resolve(
         scope=scope,
         ref=GrantRef(endpoint_id=endpoint_id),
-        mode=CredentialMode.USER_OPTIONAL,
+        mode=SecretMode.USER_OPTIONAL,
     )
 
-    assert resolved.owner.kind == CredentialOwnerKind.USER
+    assert resolved.owner.kind == SecretOwnerKind.USER
     assert resolved.secret.id == user_secret.id
 
 
@@ -405,10 +405,10 @@ async def test_grant_user_optional_falls_back_to_project_grant():
     resolved = await resolver.resolve(
         scope=scope,
         ref=GrantRef(endpoint_id=endpoint_id),
-        mode=CredentialMode.USER_OPTIONAL,
+        mode=SecretMode.USER_OPTIONAL,
     )
 
-    assert resolved.owner.kind == CredentialOwnerKind.PROJECT
+    assert resolved.owner.kind == SecretOwnerKind.PROJECT
     assert resolved.owner.user_id is None
 
 
@@ -418,14 +418,14 @@ async def test_grant_user_optional_neither_exists_names_user_as_missing():
     scope = _scope()
     resolver, _vault, _dao = _resolver()
 
-    with pytest.raises(CredentialNotFoundError) as excinfo:
+    with pytest.raises(SecretNotFoundError) as excinfo:
         await resolver.resolve(
             scope=scope,
             ref=GrantRef(endpoint_id=endpoint_id),
-            mode=CredentialMode.USER_OPTIONAL,
+            mode=SecretMode.USER_OPTIONAL,
         )
 
-    assert excinfo.value.missing == CredentialOwnerKind.USER
+    assert excinfo.value.missing == SecretOwnerKind.USER
 
 
 @pytest.mark.asyncio
@@ -441,7 +441,7 @@ async def test_grant_invalid_raises_before_touching_the_vault(mode):
     )
     resolver, vault, _dao = _resolver(grants=[invalid_grant, project_invalid_grant])
 
-    with pytest.raises(CredentialInvalidError) as excinfo:
+    with pytest.raises(SecretInvalidError) as excinfo:
         await resolver.resolve(
             scope=scope, ref=GrantRef(endpoint_id=endpoint_id), mode=mode
         )
@@ -451,16 +451,16 @@ async def test_grant_invalid_raises_before_touching_the_vault(mode):
 
 
 @pytest.mark.asyncio
-async def test_grant_valid_with_dangling_secret_raises_credential_invalid():
+async def test_grant_valid_with_dangling_secret_raises_secret_invalid():
     endpoint_id = uuid4()
     grant = _grant(endpoint_id=endpoint_id, user_id=None)
     resolver, _vault, _dao = _resolver(grants=[grant])  # secret_id resolves to nothing
 
-    with pytest.raises(CredentialInvalidError) as excinfo:
+    with pytest.raises(SecretInvalidError) as excinfo:
         await resolver.resolve(
             scope=_scope(),
             ref=GrantRef(endpoint_id=endpoint_id),
-            mode=CredentialMode.PROJECT_ONLY,
+            mode=SecretMode.PROJECT_ONLY,
         )
 
     assert excinfo.value.target == f"endpoint:{endpoint_id}"
@@ -472,17 +472,17 @@ async def test_grant_not_found_target_is_stable_and_reproducible():
     endpoint_id = uuid4()
     resolver, _vault, _dao = _resolver()
 
-    with pytest.raises(CredentialNotFoundError) as first:
+    with pytest.raises(SecretNotFoundError) as first:
         await resolver.resolve(
             scope=_scope(),
             ref=GrantRef(endpoint_id=endpoint_id),
-            mode=CredentialMode.PROJECT_ONLY,
+            mode=SecretMode.PROJECT_ONLY,
         )
-    with pytest.raises(CredentialNotFoundError) as second:
+    with pytest.raises(SecretNotFoundError) as second:
         await resolver.resolve(
             scope=_scope(),
             ref=GrantRef(endpoint_id=endpoint_id),
-            mode=CredentialMode.PROJECT_ONLY,
+            mode=SecretMode.PROJECT_ONLY,
         )
 
     assert first.value.target == second.value.target == f"endpoint:{endpoint_id}"

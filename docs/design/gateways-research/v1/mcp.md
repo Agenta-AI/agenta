@@ -81,7 +81,7 @@ credentials.
 ### Statelessness and OAuth are orthogonal
 
 An easy conflation worth stating: going stateless removed **protocol session** state. OAuth is
-**credential lifecycle** state — expiry, refresh, step-up scopes, per-owner-per-server tokens.
+**secret lifecycle** state — expiry, refresh, step-up scopes, per-owner-per-server tokens.
 This revision removes the first and leaves the second fully specified.
 
 The gain from statelessness is a cheaper gateway, not less authorization work.
@@ -124,7 +124,7 @@ by URL. Written without a hyphen, because the namespace is a path segment.
 
 **What a catalog entry holds is five fields** — name, icon, description or category, and URL. Not
 the OAuth endpoints and not the scope list: given the URL, both are fetched at configuration time
-with no credential, through the challenge and metadata chain above. That is what lets the dashboard
+with no secret, through the challenge and metadata chain above. That is what lets the dashboard
 render real scope checkboxes for connect-time selection instead of storing a guess.
 
 This also removes the list-composition problem: each list response comes from exactly one
@@ -140,5 +140,5 @@ already exists for a tool needing a connection that does not exist yet.
 
 - **stdio servers.** The spec directs them to take credentials from the environment. Whether
   we support them at all through a gateway, and where they would run, is unsettled.
-- **Static-credential third-party servers.** Out of the current scope (D15), and they will need
+- **Static-secret third-party servers.** Out of the current scope (D15), and they will need
   a secret kind when they arrive (`secrets.md`).

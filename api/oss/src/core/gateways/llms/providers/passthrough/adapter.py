@@ -17,7 +17,7 @@ import httpx
 from oss.src.core.gateways.llms.dtos import LlmCallContext, LlmResolvedRoute
 from oss.src.core.gateways.llms.interfaces import LlmRelayResult, LlmUpstreamInterface
 from oss.src.core.gateways.llms.types import LlmUpstreamError
-from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedCredential
+from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 from oss.src.core.secrets.enums import SecretKind
 
 # No document pins a default (specs-wp6.md: "Missing from the design, needs a ruling").
@@ -58,15 +58,15 @@ def _outbound_headers(
     *,
     headers: Dict[str, str],
     route: LlmResolvedRoute,
-    credential: Optional[ResolvedCredential],
+    secret: Optional[ResolvedSecret],
 ) -> Dict[str, str]:
     outbound = {k: v for k, v in headers.items() if k.lower() not in _STRIPPED_HEADERS}
 
     if route.headers:
         outbound.update(route.headers)
 
-    if credential is not None:
-        secret = credential.secret
+    if secret is not None:
+        secret = secret.secret
         key: Optional[str] = None
 
         # Dispatch on kind (`secrets.md`, mirrored from the SDK's own settings
@@ -116,7 +116,7 @@ class PassthroughLlmAdapter(LlmUpstreamInterface):
         self,
         *,
         route: LlmResolvedRoute,
-        credential: Optional[ResolvedCredential],
+        secret: Optional[ResolvedSecret],
         #
         context: LlmCallContext,
         body: bytes,
@@ -124,7 +124,7 @@ class PassthroughLlmAdapter(LlmUpstreamInterface):
     ) -> LlmRelayResult:
         url = _build_url(route)
         outbound_headers = _outbound_headers(
-            headers=headers, route=route, credential=credential
+            headers=headers, route=route, secret=secret
         )
         timeout = (
             route.config.timeout_seconds

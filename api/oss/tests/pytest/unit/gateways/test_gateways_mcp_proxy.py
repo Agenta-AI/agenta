@@ -32,11 +32,11 @@ from oss.src.core.gateways.mcps.types import (
     McpToolNotAllowedError,
     McpUpstreamError,
 )
-from oss.src.core.gateways.policy.dtos import CredentialMode, CredentialOwnerKind
+from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
-    CredentialInvalidError,
-    CredentialNotFoundError,
+    SecretInvalidError,
+    SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
 )
@@ -211,16 +211,16 @@ def _scope_insufficient():
     return McpScopeInsufficientError(target="custom/acme-notion", scopes=["write"])
 
 
-def _credential_missing():
-    return CredentialNotFoundError(
-        mode=CredentialMode.PROJECT_ONLY,
-        missing=CredentialOwnerKind.PROJECT,
+def _secret_missing():
+    return SecretNotFoundError(
+        mode=SecretMode.PROJECT_ONLY,
+        missing=SecretOwnerKind.PROJECT,
         target="custom/acme-notion",
     )
 
 
-def _credential_invalid():
-    return CredentialInvalidError(target="custom/acme-notion")
+def _secret_invalid():
+    return SecretInvalidError(target="custom/acme-notion")
 
 
 def _upstream_error_below_500():
@@ -245,8 +245,8 @@ def _upstream_error_no_status():
         (_ceiling_exceeded, 400, "ceiling_exceeded"),
         (_auth_required, 409, "auth_required"),
         (_scope_insufficient, 409, "scope_insufficient"),
-        (_credential_missing, 409, "credential_missing"),
-        (_credential_invalid, 409, "credential_invalid"),
+        (_secret_missing, 409, "secret_missing"),
+        (_secret_invalid, 409, "secret_invalid"),
         (_upstream_error_below_500, 424, "upstream_error"),
         (_upstream_error_5xx, 502, "upstream_error"),
         (_upstream_error_no_status, 424, "upstream_error"),

@@ -129,7 +129,7 @@ class McpGrantsDAOInterface(ABC):
     ) -> Optional[McpGrant]:
         """The resolution read: THIS owner's grant on THIS endpoint.
         user_id=None selects the project-owned grant — it does not mean "any".
-        The fallback walk (user's, else project's, per CredentialMode) belongs
+        The fallback walk (user's, else project's, per SecretMode) belongs
         to the resolver, which calls this at most twice; putting the fallback
         in SQL would hide the mode logic where it cannot be unit-tested."""
         raise NotImplementedError
@@ -215,7 +215,7 @@ class McpUpstreamInterface(ABC):
         """Transparent per-server relay (D16): same method, same body, same
         response, with only the route and the authorization changed. `auth` is
         the discriminated union from §4.4 — McpDirectAuth for agenta and custom,
-        McpBrokeredAuth for builtin — so the two credential mechanisms cannot be
+        McpBrokeredAuth for builtin — so the two secret mechanisms cannot be
         conflated by an adapter (D27). Raises McpUpstreamError on transport
         failure; protocol-level errors from the server are NOT exceptions — they
         are the response body, relayed, because the server's own failure reason

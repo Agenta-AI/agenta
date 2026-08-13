@@ -46,13 +46,13 @@ from oss.src.core.gateways.mcps.types import (
     McpUpstreamError,
 )
 from oss.src.core.gateways.policy.dtos import (
-    CredentialMode,
+    SecretMode,
     GatewayOutcome,
     GatewayPlane,
     GatewayTarget,
     GrantRef,
 )
-from oss.src.core.gateways.policy.interfaces import CredentialResolverInterface
+from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.policy.types import PolicyDeniedError
 from oss.src.core.shared.dtos import Windowing
@@ -100,7 +100,7 @@ class McpGatewayService:
         mcp_endpoints_dao: McpEndpointsDAOInterface,
         mcp_grants_dao: McpGrantsDAOInterface,
         policy: GatewayPolicyService,
-        resolver: CredentialResolverInterface,
+        resolver: SecretsResolverInterface,
         upstream_registry: McpUpstreamRegistry,
         # Not in entities.md §8's abbreviated constructor pseudocode, but §8's own prose
         # ("connection state resolved through the existing connections service") and
@@ -373,7 +373,7 @@ class McpGatewayService:
             integration=integration,
         )
 
-        # 2. Allowlist before credential — a refused tool must not cost a vault read.
+        # 2. Allowlist before secret — a refused tool must not cost a vault read.
         self._check_allowlist(target, context)
 
         policy_target = GatewayTarget(
@@ -410,7 +410,7 @@ class McpGatewayService:
                 ),
             )
 
-        # 4. Resolve credential — the two-mechanism fork (D27, §4.4).
+        # 4. Resolve secret — the two-mechanism fork (D27, §4.4).
         auth = await self._resolve_auth(scope=scope, target=target)
 
         # 5. Dispatch. Usage is recorded even on failure.
@@ -525,21 +525,21 @@ class McpGatewayService:
         self, *, scope: AuthScope, target: _ResolvedTarget
     ) -> McpRelayAuth:
         if target.namespace == GatewayEndpointNamespace.BUILTIN:
-            # builtin's credential lives at the broker and never enters our vault
+            # builtin's secret lives at the broker and never enters our vault
             # (§4.4) — never routed through the resolver.
             return McpBrokeredAuth(connection=target.connection)
 
         endpoint = target.endpoint
         if endpoint.auth_mode == GatewayAuthScheme.NONE:
-            return McpDirectAuth(credential=None)
+            return McpDirectAuth(secret=None)
 
         if endpoint.auth_mode == GatewayAuthScheme.OAUTH:
-            credential = await self.resolver.resolve(
+            secret = await self.resolver.resolve(
                 scope=scope,
                 ref=GrantRef(endpoint_id=endpoint.id),
-                mode=CredentialMode.USER_OPTIONAL,  # §7.2's deliberate asymmetry
+                mode=SecretMode.USER_OPTIONAL,  # §7.2's deliberate asymmetry
             )
-            return McpDirectAuth(credential=credential)
+            return McpDirectAuth(secret=secret)
 
         # API_KEY: no static MCP secret kind exists yet (D14) — deferred with its kind.
         raise NotImplementedError("api_key scheme MCP endpoints are deferred (D14)")
@@ -563,15 +563,15 @@ class McpGatewayService:
     def _outcome_for(
         self, *, result: McpRelayResult, auth: McpRelayAuth
     ) -> GatewayOutcome:
-        if isinstance(auth, McpDirectAuth) and auth.credential is not None:
+        if isinstance(auth, McpDirectAuth) and auth.secret is not None:
             return GatewayOutcome(
                 status_code=result.status_code,
-                owner=auth.credential.owner,
-                origin=auth.credential.origin,
+                owner=auth.secret.owner,
+                origin=auth.secret.origin,
             )
-        # No credential resolved (NONE-scheme), or a McpBrokeredAuth connection —
+        # No secret resolved (NONE-scheme), or a McpBrokeredAuth connection —
         # neither came from our resolver/vault, so owner/origin stay unset (§2.7:
-        # "None when no credential was resolved").
+        # "None when no secret was resolved").
         return GatewayOutcome(status_code=result.status_code)
 
 

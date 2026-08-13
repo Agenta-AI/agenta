@@ -3,7 +3,7 @@
 No wire models: the caller's body relays byte for byte (§7.1). This router only parses
 just enough to route (`parse_llm_call_context`) and puts the answer back on the wire
 exactly as it arrived. Endpoint resolution, the allowlist, ceilings, policy authorization
-and credential resolution all live inside `LlmGatewayService.relay_chat_completion`
+and secret resolution all live inside `LlmGatewayService.relay_chat_completion`
 (WP7) — this file never decides whether a call is allowed, only how to shape the denial
 once WP7 says no.
 
@@ -27,7 +27,7 @@ from oss.src.core.gateways.llms.types import (
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
-    CredentialNotFoundError,
+    SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
 )
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     # making this module's import fail before WP7 lands (out of WP6's owned paths).
     from oss.src.core.gateways.llms.service import LlmGatewayService
 
-# The caller's own credential to US — never forwarded to the upstream (§9's pseudocode).
+# The caller's own secret to US — never forwarded to the upstream (§9's pseudocode).
 _STRIPPED_INBOUND_HEADERS = {"authorization"}
 
 # Framing/transport headers ASGI (Starlette/uvicorn) computes for our own response;
@@ -58,7 +58,7 @@ _DOMAIN_EXCEPTIONS = (
     EntitlementDeniedError,
     LlmModelNotAllowedError,
     CeilingExceededError,
-    CredentialNotFoundError,
+    SecretNotFoundError,
     LlmEndpointNotFoundError,
     LlmUpstreamError,
 )
@@ -83,7 +83,7 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
     `handle_gateway_exceptions()` (seed, apis/fastapi/gateways/exceptions.py)
     applies for the management CRUD, but that decorator collapses distinct
     causes sharing one HTTP status (e.g. LlmEndpointNotFoundError and
-    CredentialNotFoundError both 404) into a bare `detail` string — this
+    SecretNotFoundError both 404) into a bare `detail` string — this
     surface needs the `code` to stay distinguishable per exception type, so it
     is not reused here (see this package's own report for the full reasoning).
     """
@@ -111,12 +111,12 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             requested=exc.requested,
             allowed=exc.allowed,
         )
-    if isinstance(exc, CredentialNotFoundError):
+    if isinstance(exc, SecretNotFoundError):
         return _openai_error(
             status_code=404,
             message=exc.message,
             error_type="invalid_request_error",
-            code="credential_missing",
+            code="secret_missing",
         )
     if isinstance(exc, LlmEndpointNotFoundError):
         return _openai_error(

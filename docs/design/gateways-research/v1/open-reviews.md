@@ -28,7 +28,7 @@ To verify at implementation time:
 - Whether `client_metadata_url` (the Client ID Metadata Document path) works against the
   authorization servers we care about, and what the fallback to dynamic registration costs.
 
-### OR2. Credential lookup signature
+### OR2. Secret lookup signature
 
 The lookup must take the owner as a parameter from the start even while the only answer is
 the project (`secrets.md`). Review that no call site hardcodes the project, and that
@@ -72,16 +72,16 @@ Every connections DAO verb is keyed by project. Review each against OD2's outcom
 adding a user dimension, and check whether `create_connection`'s `user_id` parameter is
 authorship only, as it currently appears to be.
 
-### OR6. Wire credential arrays
+### OR6. Wire secret arrays
 
-If the gateway holds all upstream credentials, the runner wire's per-server credential
-arrays and the model credential array should collapse to a single gateway token. Review
-what still populates them, and whether the `local_use` credential category can be removed
+If the gateway holds all upstream credentials, the runner wire's per-server secret
+arrays and the model secret array should collapse to a single gateway token. Review
+what still populates them, and whether the `local_use` secret category can be removed
 outright once cloud-reseller signing moves to the gateway.
 
 ### OR7. Redaction deny-set
 
-The per-run deny-set is built from every credential value on the wire. Once those collapse
+The per-run deny-set is built from every secret value on the wire. Once those collapse
 to one short-lived token, review whether the deny-set construction still earns its
 complexity.
 
@@ -169,7 +169,7 @@ owns that change. Coordinate with the events domain rather than solving it insid
 
 ### OR10. Subscription-authenticated harnesses
 
-A harness that authenticates with its own login injects no credential today. Verify what it
+A harness that authenticates with its own login injects no secret today. Verify what it
 does when pointed at a gateway, and whether it must stay an exception to the transit rule.
 
 ### OR11. Existing policy checks on model calls

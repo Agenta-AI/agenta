@@ -33,7 +33,7 @@ agreed rather than assumed. Tracked as OR14 in `open-reviews.md`.
 
 **What.** One handler assigns provider keys to module-level attributes on the routing library
 before each call, rather than passing them per call. That is process-wide state; in a shared
-process it is a cross-tenant credential leak.
+process it is a cross-tenant secret leak.
 
 **Why not sooner.** The pattern exists *because* nothing hands that handler a resolved
 connection. Dependency injection through the gateway is what removes the reason for it.
@@ -45,7 +45,7 @@ OR13.
 ## 3. Route embeddings through the gateway
 
 **What.** Two similarity evaluators call the OpenAI client directly, twice each, and hand-roll
-their credential lookup by scanning the vault for a `provider_key` secret whose inner kind is
+their secret lookup by scanning the vault for a `provider_key` secret whose inner kind is
 `openai`. They bypass the provider-settings builder entirely and hardcode the provider.
 
 **Why not sooner.** They are evaluator paths, and the current scope is the gateways, agent v0, the
@@ -95,22 +95,22 @@ runner change inside the wave whose job is standing the gateways up would confus
 **Done.** The eligible slice is served by the gateway, the ineligible slice is still served by the
 runner, and the boundary between them is written down rather than folklore.
 
-## 6. Collapse the wire's credential arrays
+## 6. Collapse the wire's secret arrays
 
-**What.** The runner's request carries per-server credential arrays for MCP and a credential array
+**What.** The runner's request carries per-server secret arrays for MCP and a secret array
 for the model. If the gateway holds every upstream secret, those collapse to a single minted
 token.
 
-**Why not sooner.** They cannot collapse while anything still needs a real upstream credential
+**Why not sooner.** They cannot collapse while anything still needs a real upstream secret
 delivered to a sandbox.
 
-**Done.** Both arrays carry one gateway token, and the wire's `local_use` credential category is
+**Done.** Both arrays carry one gateway token, and the wire's `local_use` secret category is
 re-examined — it exists for cloud-reseller request signing that happens inside the sandbox, which
 moves behind the gateway. Tracked as OR6.
 
 ## 7. Simplify the redaction deny-set
 
-**What.** The runner builds a per-run deny-set from every credential value on the wire, so no
+**What.** The runner builds a per-run deny-set from every secret value on the wire, so no
 secret can reach a log.
 
 **Why not sooner.** The complexity is proportional to the number of distinct secrets on the wire.

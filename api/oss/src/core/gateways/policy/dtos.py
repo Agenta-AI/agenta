@@ -20,7 +20,7 @@ class GatewayPlane(str, Enum):
     MCP = "mcp"
 
 
-class CredentialMode(str, Enum):
+class SecretMode(str, Enum):
     """Declared per resolution site, not per call (`secrets.md`)."""
 
     USER_OPTIONAL = "user_optional"  # the user's if present, else the project's
@@ -28,16 +28,16 @@ class CredentialMode(str, Enum):
     PROJECT_ONLY = "project_only"  # always the project's; ignore user secrets
 
 
-class CredentialOwnerKind(str, Enum):
+class SecretOwnerKind(str, Enum):
     PROJECT = "project"
     USER = "user"
 
 
-class CredentialOwner(BaseModel):
+class SecretOwner(BaseModel):
     """Whose stored secret answered the lookup. Audit cannot reconstruct this
-    later, which is why it travels with the credential (`secrets.md`)."""
+    later, which is why it travels with the secret (`secrets.md`)."""
 
-    kind: CredentialOwnerKind
+    kind: SecretOwnerKind
     user_id: Optional[UUID] = None  # set exactly when kind is USER
 
 
@@ -73,16 +73,16 @@ class GrantRef(BaseModel):
     endpoint_id: UUID
 
 
-CredentialRef = Union[ProviderKeyRef, BoundSecretRef, GrantRef]
+SecretRef = Union[ProviderKeyRef, BoundSecretRef, GrantRef]
 
 
-class ResolvedCredential(BaseModel):
-    """The (credential, owner, payer) triple (`secrets.md`). Never serialized
+class ResolvedSecret(BaseModel):
+    """The (secret, owner, payer) triple (`secrets.md`). Never serialized
     outward: it exists between the resolver and an adapter, in process, and no
     wire model embeds it."""
 
     secret: SecretResponseDTO  # decrypted, from VaultService
-    owner: CredentialOwner
+    owner: SecretOwner
     origin: SecretOrigin
 
 
@@ -127,5 +127,5 @@ class GatewayOutcome(BaseModel):
     duration_ms: Optional[int] = None
     #
     usage: Optional[GatewayUsage] = None
-    owner: Optional[CredentialOwner] = None  # None when no credential was resolved
+    owner: Optional[SecretOwner] = None  # None when no secret was resolved
     origin: Optional[SecretOrigin] = None

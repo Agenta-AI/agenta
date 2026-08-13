@@ -15,7 +15,7 @@ The tree already fixes these words, and this document follows it:
 - **`secret_origin`** is `vault` when the secret is the customer's and `local` when it is the
   platform's.
 
-Other documents here still say "credential" for upstream provider material. That is the older
+Other documents here still say "secret" for upstream provider material. That is the older
 wording and it should move to this one. `raw/related-work.md` records why.
 
 `secret_origin` answers a different question from the owner axis below. The owner says *which
@@ -95,13 +95,13 @@ filter on an inner field instead of on the kind itself.
 
 ### What is deliberately absent
 
-**No kind for a static MCP credential.** Under the current scope (D15) the targets are Agenta's
+**No kind for a static MCP secret.** Under the current scope (D15) the targets are Agenta's
 own MCP gateway and OAuth-protected servers. A third-party server authenticating with a static
 token would need one; that is deferred, not designed away. Its shape is trivial when it arrives
 — the webhook kind is already just a key — and the header it travels in is routing, so that
 belongs on the server's registry row rather than in the vault.
 
-**No kind for the inbound gateway credential.** It is minted, ephemeral and never stored
+**No kind for the inbound gateway secret.** It is minted, ephemeral and never stored
 (D13). It is Agenta's own auth, not customer provider material, so it is not a secret at all.
 
 ### Coordination
@@ -113,16 +113,16 @@ directions; agree naming and shapes in one pass.
 ## Ownership
 
 **Designed, not scheduled.** Today every secret and every connection is project-scoped, so
-every credential is effectively shared.
+every secret is effectively shared.
 
 A secret is owned by exactly one of:
 
 - **project** — what exists today; everyone in the project uses it.
-- **user** — one member's own credential, keyed by **(project, user)** rather than user
+- **user** — one member's own secret, keyed by **(project, user)** rather than user
   alone, because the same person may legitimately use different credentials in different
   projects, and a deleted project should take its secrets with it.
 
-An account-wide credential — one identity across every project — would be a third owner keyed
+An account-wide secret — one identity across every project — would be a third owner keyed
 by (organization, user), not a variant of the second. Out of scope until something needs it.
 
 ### Why design it before building it
@@ -138,7 +138,7 @@ request.
 ## Resolution modes
 
 Resolution is not simply "user wins." Three modes, declared per entry, because the
-organization sometimes has a legitimate interest in which credential is used:
+organization sometimes has a legitimate interest in which secret is used:
 
 | Mode | Behaviour | For |
 |---|---|---|
@@ -158,7 +158,7 @@ tool and MCP credentials usually `user_optional` or `user_required`.**
 One function, called by both planes:
 
 ```text
-resolve(principal, key, mode) -> (credential, owner, payer)
+resolve(principal, key, mode) -> (secret, owner, payer)
 ```
 
 1. `project_only` → the project secret; fail if absent.
@@ -166,17 +166,17 @@ resolve(principal, key, mode) -> (credential, owner, payer)
 3. `user_optional` → the (project, user) secret if present, else the project secret; fail if
    neither.
 
-Failure is never silent and never a fallback to "no credential." It surfaces as the existing
-needs-input or needs-auth state, naming which owner is missing a credential, so the caller
+Failure is never silent and never a fallback to "no secret." It surfaces as the existing
+needs-input or needs-auth state, naming which owner is missing a secret, so the caller
 learns whether *they* must connect or whether an administrator must.
 
 ### Why the result is a triple
 
-Two values must travel with the credential, and both are easy to omit and hard to add later:
+Two values must travel with the secret, and both are easy to omit and hard to add later:
 
-- **owner** — audit must distinguish "acted with the project's credential" from "acted with
+- **owner** — audit must distinguish "acted with the project's secret" from "acted with
   their own," or a compliance review cannot reconstruct whose authority a call carried.
-- **payer** — a call running on a user's own credential bills that user's upstream account,
+- **payer** — a call running on a user's own secret bills that user's upstream account,
   not the organization's. A meter recording only the caller attributes spend to the wrong
   payer, and the data needed to correct it is not retained.
 
@@ -192,5 +192,5 @@ A default column value, not a data migration.
   ship.
 - Whether an administrator sets the mode per upstream, or whether it is a property of the
   upstream itself.
-- Whether a user-owned credential is visible to project administrators at all, and what that
+- Whether a user-owned secret is visible to project administrators at all, and what that
   implies for support and for deletion when a member leaves.

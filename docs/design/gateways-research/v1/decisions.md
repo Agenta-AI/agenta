@@ -19,12 +19,12 @@ gateway and the gateway's adapter calls the custom thing. **What is custom lives
 gateway; the route to it is invariant.**
 
 **Why absolute:** a governance boundary with an exception is not a boundary. If any path
-reaches a provider directly, no claim about policy, audit, spend or credential containment
+reaches a provider directly, no claim about policy, audit, spend or secret containment
 holds — "did every call get checked" becomes "every call except those." One bypass costs the
 whole property.
 
 **What it costs:** changes throughout, not in one place. Every call site that resolves a
-credential and calls a provider becomes one that calls the gateway. That is the real scope
+secret and calls a provider becomes one that calls the gateway. That is the real scope
 and should not be understated.
 
 ## D2. The principal already exists and is user-scoped
@@ -32,9 +32,9 @@ and should not be understated.
 Every authenticated call resolves an organization, workspace, project and user together, and
 is rejected if any is missing. API keys included — the key row carries its owning user.
 
-The gateways inherit this. **There is no principal to design.** Which credential the gateway
+The gateways inherit this. **There is no principal to design.** Which secret the gateway
 then uses on the caller's behalf is a separate binding, settled in `secrets.md`; caller
-identity and credential ownership are independent, and conflating them is what made this look
+identity and secret ownership are independent, and conflating them is what made this look
 harder than it is.
 
 ## D3. The gateways hold no secret material
@@ -46,14 +46,14 @@ it at use time. This is the pattern webhook subscriptions and SSO providers alre
 one place instead of gaining a second. It also removes what looked like the design's one new
 component — there is no token store, only new secret kinds (D14).
 
-This is about *secrets* — customer provider material. The credential that authenticates a
+This is about *secrets* — customer provider material. The secret that authenticates a
 caller into a gateway is a different thing and is not stored at all (D13).
 
 ## D4. Ports and adapters everywhere, including inside the SDK
 
 The SDK keeps every capability it has today, including injecting and fetching secrets. Those
 are not removed and calling code does not change shape. What changes is the implementation
-behind the port: the adapter that resolved a credential and called a provider now calls the
+behind the port: the adapter that resolved a secret and called a provider now calls the
 gateway.
 
 Nothing here is "in-process." A caller depends on a port; the adapter behind it talks to the
@@ -66,7 +66,7 @@ about them as one path produces conclusions wrong for both.
 
 ## D6. Transparent on the data path, never on the consent path
 
-The gateway absorbs credential selection, injection, refresh, retry, allowlists and audit. It
+The gateway absorbs secret selection, injection, refresh, retry, allowlists and audit. It
 cannot absorb consent, which needs a human at first use and again on a step-up scope
 challenge. No amount of internal configuration changes that.
 
@@ -97,7 +97,7 @@ metering are ours and no embedded gateway will model them the way we need.
 
 Owning the wrong half is the expensive mistake in either direction.
 
-## D10. Take the credential owner as a parameter now
+## D10. Take the secret owner as a parameter now
 
 User-level credentials are designed and not scheduled. The lookup must still take the owner
 from the outset and answer "the project" for now.
@@ -137,17 +137,17 @@ different destination.
 
 **Incrementally means the concerns arrive in an order, not that any is out of scope.** A
 concern may be unimplemented; none may be designed out. The test for each increment is whether
-it forecloses a later one — the credential lookup taking an owner from the outset (D10) is the
+it forecloses a later one — the secret lookup taking an owner from the outset (D10) is the
 pattern, and recording real usage from the first day even when charging a flat price is the
 same move on the billing side.
 
 **What this rules out:** a second request path for any concern. If billing needs something the
 gateway does not expose, the gateway grows it. Billing does not route around it.
 
-## D13. The inbound credential is minted, ephemeral, and never stored
+## D13. The inbound secret is minted, ephemeral, and never stored
 
-The credential that authenticates a caller **into** a gateway is not a new kind of thing and
-does not live in the vault. By the established vocabulary it is a *credential* — Agenta's own
+The secret that authenticates a caller **into** a gateway is not a new kind of thing and
+does not live in the vault. By the established vocabulary it is a *secret* — Agenta's own
 auth — not a *secret*, which is customer provider material.
 
 **It is minted per use and expires, and the mechanism already exists.** `sign_secret_token`
@@ -184,9 +184,9 @@ The cost of the simple version is a permission lookup per call rather than a sig
 That is what the rest of the API already does, and it keeps a revoked permission effective
 immediately rather than at the next mint.
 
-**The known failure mode.** Per-turn credential material must stay out of any session
+**The known failure mode.** Per-turn secret material must stay out of any session
 fingerprint that decides whether a warm session may be reused. The runner already excludes its
-tool-callback bearer from the credential epoch for this reason, and a regression that folded
+tool-callback bearer from the secret epoch for this reason, and a regression that folded
 per-turn material into that hash has already been fixed once. Gateway tokens are the same kind
 of material and inherit the same rule.
 
@@ -231,11 +231,11 @@ a slug, never a display name.
 
 Because the server is already distinguished by its URL, **tool names are not touched**. The
 gateway is a transparent proxy per server, not a wrapper: same tool names, same schemas, same
-errors, same list responses. It changes the route and the credential and nothing else the agent
+errors, same list responses. It changes the route and the secret and nothing else the agent
 can observe.
 
 A merged endpoint with namespaced tool names was rejected. It would rename what the model sees,
-tie the tool list to credential health, and fight the list caching the protocol now encourages.
+tie the tool list to secret health, and fight the list caching the protocol now encourages.
 
 ## D17. Step-up scopes are an interaction, not a failure
 
@@ -357,7 +357,7 @@ That is what makes it worth being in the path rather than in a column.
 |---|---|
 | `agenta` | The Agenta tools |
 | `builtin` | Composio, reusing the connection the integrations domain already brokered |
-| `custom` | The upstream the endpoint row names, with the credential we resolved for it |
+| `custom` | The upstream the endpoint row names, with the secret we resolved for it |
 
 ### The route grammar
 
@@ -428,13 +428,13 @@ would otherwise curate by hand, forever, per server.
 
 **We already consume one.** The catalog contract in the existing integrations domain carries the
 key, name, description, categories, **logo**, url and auth schemes for the whole Composio
-integration set, and Composio hosts MCP endpoints with the credential lifecycle on their side.
+integration set, and Composio hosts MCP endpoints with the secret lifecycle on their side.
 The connection state machine and the connect affordance are in the tree and already drive the
 tool domain. Nothing new is curated and nothing new is maintained.
 
 **What is deliberately not stored, and this is what keeps the catalog small.** Not the OAuth
 endpoints, and not even the scope list. Given the server's URL, both are fetched at configuration
-time with no credential at all: an unauthenticated call returns a challenge naming the
+time with no secret at all: an unauthenticated call returns a challenge naming the
 protected-resource metadata, that names the authorization server, and the authorization server
 publishes its endpoints together with the scopes it supports. So the dashboard renders real scope
 checkboxes from a live call rather than from a stored field, which is what connect-time scope
@@ -447,7 +447,7 @@ selection requires (D17).
 The two are different mechanisms, not two configurations of one.
 
 **`builtin`** rides what already exists. The integrations domain brokers the authorization,
-stores the connection row, and holds the credential upstream; the MCP endpoint references that
+stores the connection row, and holds the secret upstream; the MCP endpoint references that
 row and the gateway relays to Composio's endpoint. There is no OAuth client of ours in the path,
 no grant row, and no new secret. What still needs designing is the reference itself — which row,
 keyed how, and what happens to the endpoint when the connection is revoked.

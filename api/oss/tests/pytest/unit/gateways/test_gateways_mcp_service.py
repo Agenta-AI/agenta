@@ -2,7 +2,7 @@
 
 Every case runs against in-memory mocks — a dict-backed `McpEndpointsDAOInterface`, a
 dict-backed `McpGrantsDAOInterface`, a stub `ConnectionsService`, a call-logging
-`GatewayPolicyService`, and a call-logging `CredentialResolverInterface`. No Postgres, no
+`GatewayPolicyService`, and a call-logging `SecretsResolverInterface`. No Postgres, no
 HTTP, no real upstream. Organized by the commit sections in tasks-wp9.md:
 CRUD delegation, the three-namespace merge, connection-state derivation, the declared
 grants surface, and the relay six-step orchestration.
@@ -43,11 +43,11 @@ from oss.src.core.gateways.mcps.types import (
     McpUpstreamError,
 )
 from oss.src.core.gateways.policy.dtos import (
-    CredentialMode,
-    CredentialOwner,
-    CredentialOwnerKind,
+    SecretMode,
+    SecretOwner,
+    SecretOwnerKind,
     PolicyDecision,
-    ResolvedCredential,
+    ResolvedSecret,
     SecretOrigin,
 )
 from oss.src.core.gateways.policy.service import GatewayPolicyService
@@ -536,12 +536,12 @@ class MockUpstreamAdapter:
 
 
 class MockResolver:
-    """Logs every call; returns a canned credential or raises."""
+    """Logs every call; returns a canned secret or raises."""
 
-    def __init__(self, *, credential=None, raise_exc=None) -> None:
+    def __init__(self, *, secret=None, raise_exc=None) -> None:
         self.resolve_calls = 0
         self.last_mode = None
-        self._credential = credential
+        self._secret = secret
         self._raise = raise_exc
 
     async def resolve(self, *, scope, ref, mode):
@@ -549,7 +549,7 @@ class MockResolver:
         self.last_mode = mode
         if self._raise is not None:
             raise self._raise
-        return self._credential
+        return self._secret
 
     async def available_provider_keys(self, *, scope):
         return set()
@@ -577,8 +577,8 @@ class MockPolicyService:
         )
 
 
-def _resolved_credential(*, user_id: Optional[UUID] = None) -> ResolvedCredential:
-    return ResolvedCredential(
+def _resolved_secret(*, user_id: Optional[UUID] = None) -> ResolvedSecret:
+    return ResolvedSecret(
         secret=SecretResponseDTO(
             id=uuid4(),
             kind=SecretKind.CUSTOM_SECRET,
@@ -589,8 +589,8 @@ def _resolved_credential(*, user_id: Optional[UUID] = None) -> ResolvedCredentia
             ),
             header=Header(name="grant"),
         ),
-        owner=CredentialOwner(
-            kind=CredentialOwnerKind.USER if user_id else CredentialOwnerKind.PROJECT,
+        owner=SecretOwner(
+            kind=SecretOwnerKind.USER if user_id else SecretOwnerKind.PROJECT,
             user_id=user_id,
         ),
         origin=SecretOrigin.VAULT,
@@ -646,7 +646,7 @@ async def test_relay_agenta_none_scheme_dispatches_without_touching_resolver():
     assert adapter.relay_calls == 1
     assert resolver.resolve_calls == 0
     assert isinstance(adapter.last_auth, McpDirectAuth)
-    assert adapter.last_auth.credential is None
+    assert adapter.last_auth.secret is None
     assert len(policy.record_calls) == 1
     assert policy.record_calls[0]["outcome"].status_code == 200
 
@@ -802,8 +802,8 @@ async def test_relay_custom_oauth_resolves_via_resolver_with_user_optional_mode(
             data=McpEndpointData(url="https://example.com/mcp"),
         ),
     )
-    credential = _resolved_credential()
-    resolver = MockResolver(credential=credential)
+    secret = _resolved_secret()
+    resolver = MockResolver(secret=secret)
     adapter = MockUpstreamAdapter()
     service = _relay_service(
         mcp_endpoints_dao=dao, resolver=resolver, adapters={"http": adapter}
@@ -820,9 +820,9 @@ async def test_relay_custom_oauth_resolves_via_resolver_with_user_optional_mode(
 
     assert result.status_code == 200
     assert resolver.resolve_calls == 1
-    assert resolver.last_mode == CredentialMode.USER_OPTIONAL
+    assert resolver.last_mode == SecretMode.USER_OPTIONAL
     assert isinstance(adapter.last_auth, McpDirectAuth)
-    assert adapter.last_auth.credential is credential
+    assert adapter.last_auth.secret is secret
     assert endpoint.id is not None
 
 

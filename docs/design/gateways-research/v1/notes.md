@@ -17,18 +17,18 @@ project-scoped and therefore the platform could not attribute a call to a person
 
 That conflated two separate things. **Who is calling us** is answered on every request by an
 auth context carrying organization, workspace, project and user, rejected outright if any is
-missing. **Which stored credential we then use** is a different lookup. The first was never in
+missing. **Which stored secret we then use** is a different lookup. The first was never in
 question.
 
 The correction matters beyond the one point: it is why `secrets.md` treats attribution and
-credential ownership as independent, and why user-level credentials need no caller-side
+secret ownership as independent, and why user-level credentials need no caller-side
 change.
 
 ### Dual-mode adoption was wrong
 
 An early version offered "gateway and direct paths coexist, defaulting to direct." Rejected: a
 governance boundary with an exception is not a boundary, and one bypass costs every claim
-about policy, audit, spend and credential containment. See `decisions.md` D1.
+about policy, audit, spend and secret containment. See `decisions.md` D1.
 
 The related understatement — that adoption is "a resolver-side change" — was only ever true of
 the runner caller, whose wire already expresses a gateway route. Every other caller is a real
@@ -94,11 +94,11 @@ The resolution is that no static kind is needed *in the current scope*, because 
 Agenta's own gateway and OAuth-protected servers. It returns when a third-party server
 authenticating with a static token does.
 
-### The inbound credential was confused with the upstream secret
+### The inbound secret was confused with the upstream secret
 
-An early draft treated the credential authenticating a caller *into* the gateway as a thing
+An early draft treated the secret authenticating a caller *into* the gateway as a thing
 needing a vault kind. It is not a secret at all — by the vocabulary the tree already uses, it is
-a *credential*, Agenta's own auth. It is minted, ephemeral and never stored (D13).
+a *secret*, Agenta's own auth. It is minted, ephemeral and never stored (D13).
 
 The mechanism already existed on both ends and neither was found before proposing a new one: the
 access router already re-mints short-lived signed scope-carrying tokens rather than echoing an
@@ -144,7 +144,7 @@ Proposed here as work, then found in the tree.
 OAuth state carrying the project and the user, with a one-hour default validity, and decodes it
 on the way back. The callback route is the one endpoint in the whole gateway family with no
 permission check, because it authenticates on that signed state rather than on a tenant
-credential, and it answers with a small HTML page that closes the popup.
+secret, and it answers with a small HTML page that closes the popup.
 
 **A signed inbound webhook.** The triggers ingress verifies an HMAC over an identifier, a
 timestamp and the body, with a freshness window and a replay check, then enqueues and returns
@@ -188,15 +188,15 @@ though the trigger domain creates connections through the same service. A third 
 make that three. The comment in the code says the public contract was kept unchanged when the
 connection moved into its own domain, which explains it without justifying inheriting it.
 
-### The two-axis credential model came from a real gap
+### The two-axis secret model came from a real gap
 
-"API key versus OAuth" conflates authentication method with credential ownership. Personal
+"API key versus OAuth" conflates authentication method with secret ownership. Personal
 access tokens are static and per-user; some OAuth grants are organizational. The existing code
 has the first axis and not the second — correctly, since ownership does not yet vary.
 
 ### Statelessness and OAuth get conflated easily
 
-Going stateless removed protocol session state. OAuth is credential lifecycle state. The
+Going stateless removed protocol session state. OAuth is secret lifecycle state. The
 current protocol revision removes the first and leaves the second fully specified. The gain
 from statelessness is a cheaper gateway, not less authorization work.
 

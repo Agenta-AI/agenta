@@ -31,7 +31,7 @@ waits. It is small — declarations only — and it is the reason nothing waits 
       Run `ruff format` then `ruff check --fix` in `api/` before committing; pre-commit enforces
       both (root `AGENTS.md`).
 
-      **The one thing that must be right** is the credential resolution signature: it takes the
+      **The one thing that must be right** is the secret resolution signature: it takes the
       owner as a parameter even though the only answer today is the project (D10). Nine worktrees
       inherit it.
 
@@ -48,9 +48,9 @@ waits. It is small — declarations only — and it is the reason nothing waits 
         need `handle_gateway_exceptions()` and they are siblings in the dependency graph, so no
         one of them could own it.
       - **R2** — the resolver port gains `available_provider_keys(*, scope) -> Set[str]`;
-        `LlmGatewayService`'s constructor is **unchanged**. Existence of a credential is a
-        credential-layer question, and a vault dependency on the service would give it two
-        credential seams.
+        `LlmGatewayService`'s constructor is **unchanged**. Existence of a secret is a
+        secret-layer question, and a vault dependency on the service would give it two
+        secret seams.
       - **R3** — `GET /v1/models` is backed by `LlmGatewayService.list_models(*, scope,
         namespace, name) -> List[str]`, per endpoint, answering from the allowlist. No new DTO.
       - **R4** — `GatewayPolicyService.record()` ships as a no-op returning `None` that never

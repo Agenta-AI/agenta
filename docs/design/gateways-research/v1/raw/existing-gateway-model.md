@@ -1,6 +1,6 @@
 # The existing gateway model, and what it already settles
 
-The connections/catalog/tools/triggers domains already implement most of the credential
+The connections/catalog/tools/triggers domains already implement most of the secret
 model this research was deriving from first principles. This document records what is
 there, so the MCP gateway extends it rather than reinventing it.
 
@@ -93,14 +93,14 @@ Every DAO verb is keyed by `project_id`. `create_connection` also takes a `user_
 that records authorship rather than scoping the lookup — queries and gets are project-scoped
 only. Secrets are project-level for the same reason.
 
-So the ownership axis in `credential-model.md` describes a **future** extension, not a
+So the ownership axis in `secret-model.md` describes a **future** extension, not a
 current choice. Today every entry is effectively `shared`. User-level secrets are a wanted
 addition for user-specific model and MCP authentication, and the design should leave room
 for them without requiring them.
 
 What this means concretely:
 
-- The gateway's credential lookup must take the owner as a parameter from the start, even
+- The gateway's secret lookup must take the owner as a parameter from the start, even
   while the only answer is the project. Retrofitting a per-user dimension into a lookup that
   assumes project is the expensive version of this change.
 - `AuthScope` already carries `user_id` on every call, so the caller side needs nothing new
@@ -115,6 +115,6 @@ What this means concretely:
    serves both schemes, with no secret on the payload.
 3. **The one new component is a token store with refresh.** Everything else — states, ports,
    affordances, lifecycle verbs — exists.
-4. **Three duplicated auth-scheme enums** are a sign the domains want a shared credential
+4. **Three duplicated auth-scheme enums** are a sign the domains want a shared secret
    core, which is what a unified gateway would provide.
 5. **Take the owner as a parameter now**, answer "project" for the time being.

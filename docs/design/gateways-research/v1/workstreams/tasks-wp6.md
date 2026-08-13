@@ -2,7 +2,7 @@
 
 Ordered so each item is one reviewable commit. Depends on merge **M1** (WP1 + WP2 + WP3 landed on
 the base branch) — branch from M1, not from the seed commit directly, so `LlmGatewayService`'s
-constructor and `CredentialResolverInterface` are real rather than raising
+constructor and `SecretsResolverInterface` are real rather than raising
 `NotImplementedError`. Run `ruff format` then `ruff check --fix` (from the repo root) before every
 commit and fix all errors, per `api/AGENTS.md`.
 
@@ -26,11 +26,11 @@ commit and fix all errors, per `api/AGENTS.md`.
       signature.
 - [x] Build the outbound URL: `route.base_url` + `/chat/completions`, merging `route.headers`
       (non-secret routing headers) into the outbound header set.
-- [x] Dispatch credential injection on `credential.secret.kind`: `SecretKind.PROVIDER_KEY` →
-      `Authorization: Bearer {credential.secret.data.provider.key}`
+- [x] Dispatch secret injection on `secret.secret.kind`: `SecretKind.PROVIDER_KEY` →
+      `Authorization: Bearer {secret.secret.data.provider.key}`
       (`core/secrets/dtos.py::StandardProviderDTO`); `SecretKind.CUSTOM_PROVIDER` → the same header
-      from `credential.secret.data.provider.key`, with `provider.extras` merged into outbound
-      headers only (never the body) (`CustomProviderDTO`). `credential=None` sends no
+      from `secret.secret.data.provider.key`, with `provider.extras` merged into outbound
+      headers only (never the body) (`CustomProviderDTO`). `secret=None` sends no
       `Authorization` header. (The checklist named the dispatch `StandardProviderKind` /
       `CustomProviderKind` — those are the inner *provider-family* enums, e.g. `openai`; the
       outer dispatch that actually selects which `SecretDTO` union member is present is
@@ -58,7 +58,7 @@ commit and fix all errors, per `api/AGENTS.md`.
       "usage is populated ... once `body` is exhausted", which the streaming leg does not do.
 - [x] Ruff format + check; run and fix.
 - [x] Unit tests against `httpx.MockTransport` (no real socket): auth header injection for both
-      secret kinds and for `credential=None`; outbound URL construction; timeout raises
+      secret kinds and for `secret=None`; outbound URL construction; timeout raises
       `LlmUpstreamError`; a non-timeout 5xx raises `LlmUpstreamError` carrying that status code;
       the request body bytes reaching the transport are identical (`==`) to the input `body`. Also:
       inbound `Authorization` is not forwarded; a connection failure (not just a timeout) also
@@ -102,12 +102,12 @@ commit and fix all errors, per `api/AGENTS.md`.
       `core/gateways/policy/types.py` (seed-owned, real today): `PolicyDeniedError` /
       `EntitlementDeniedError` → 403 `policy_denied`; `LlmModelNotAllowedError` → 403
       `model_not_allowed`; `CeilingExceededError` → 400 `ceiling_exceeded` (body names the
-      ceiling, requested, allowed per D25); `CredentialNotFoundError` /
-      `LlmEndpointNotFoundError` → 404 `credential_missing` / `endpoint_not_found`;
+      ceiling, requested, allowed per D25); `SecretNotFoundError` /
+      `LlmEndpointNotFoundError` → 404 `secret_missing` / `endpoint_not_found`;
       `LlmUpstreamError` → 424, or 502 when `status_code >= 500`. Built as this file's own mapping
       function (`_map_domain_exception`), NOT via the seed's `handle_gateway_exceptions()` —
       that decorator collapses causes sharing one HTTP status into a bare `detail` string (e.g.
-      `LlmEndpointNotFoundError` and `CredentialNotFoundError` both land on 404), which cannot
+      `LlmEndpointNotFoundError` and `SecretNotFoundError` both land on 404), which cannot
       reproduce the two distinct `code` values this surface's contract requires. Judgment call;
       flagged in the package report. Also added: `ValueError` from `parse_llm_call_context`
       (missing/invalid model) → 400 `invalid_request` (the utils.py docstring's "surface's own
@@ -159,7 +159,7 @@ not a commit made in this worktree.
  # their owning work packages (WP6/WP7 llms; WP8/WP9 mcps; WP10 CRUD).
  from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
  from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
- from oss.src.core.gateways.policy.resolution import CredentialResolver
+ from oss.src.core.gateways.policy.resolution import SecretsResolver
  from oss.src.core.gateways.policy.service import GatewayPolicyService
 +from oss.src.core.gateways.llms.providers.passthrough.adapter import PassthroughLlmAdapter
 
@@ -176,12 +176,12 @@ not a commit made in this worktree.
  # from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter   # WP10
  # from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy     # WP8
 @@ -1085,6 +1087,14 @@
- gateway_policy_service = GatewayPolicyService(resolver=credential_resolver)
+ gateway_policy_service = GatewayPolicyService(resolver=secret_resolver)
 
 +# WP7's construction line (shown for context — not this package's edit):
 +# llm_gateway_service = LlmGatewayService(
 +#     endpoints_dao=llm_endpoints_dao,
-+#     resolver=credential_resolver,
++#     resolver=secret_resolver,
 +#     policy=gateway_policy_service,
 +#     upstream_registry=LlmUpstreamRegistry(adapters={"passthrough": PassthroughLlmAdapter(), ...}),
 +# )
@@ -237,8 +237,8 @@ needs the full M2 deployment WP7/WP10 complete):
       asserting the auth middleware's 401 (D13: rejected before any router runs); this suite has
       no direct handle on the mock's own request log, so it asserts the platform boundary instead,
       noted inline as the precision this test can actually offer.
-- [x] A model outside `model_slugs` is refused with `model_not_allowed` before any credential is
-      resolved — `test_model_outside_allowlist_is_refused_with_model_not_allowed`. (Credential-
+- [x] A model outside `model_slugs` is refused with `model_not_allowed` before any secret is
+      resolved — `test_model_outside_allowlist_is_refused_with_model_not_allowed`. (Secret-
       resolution-order is WP7's `relay_chat_completion` body, §8 — not independently observable
       from this HTTP-only suite; the test asserts the outcome the ordering guarantees.)
 - [x] Extra, beyond the checklist: `test_non_streaming_call_returns_the_mocks_completion_body`

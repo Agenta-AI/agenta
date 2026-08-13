@@ -23,13 +23,13 @@ class GatewayAuthScheme(str, Enum):
 class GatewayConnectionState(str, Enum):
     """Derived per caller at read time — never stored (§2.6)."""
 
-    READY = "ready"  # a usable credential exists for this owner
+    READY = "ready"  # a usable secret exists for this owner
     NEEDS_AUTH = "needs_auth"  # OAuth target with no grant for this owner; connect
     NEEDS_INPUT = "needs_input"  # a secret must be supplied before use
 
 
 class GatewayConnectAffordance(BaseModel):
-    """The call to make when a credential is missing — an interaction, not a
+    """The call to make when a secret is missing — an interaction, not a
     failure (D17). Same shape as the tools domain's ConnectAffordance."""
 
     endpoint: str
@@ -37,7 +37,7 @@ class GatewayConnectAffordance(BaseModel):
 
 
 class GatewayConnectionRequirement(BaseModel):
-    """One target's credential state, returned from discovery and from a refused
+    """One target's secret state, returned from discovery and from a refused
     call. `connect` is present exactly when the state is not READY."""
 
     target: str  # route path under the plane, e.g. "builtin/composio/notion/my-notion"

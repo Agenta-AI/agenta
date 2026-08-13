@@ -51,7 +51,7 @@ async def chat_completions(request: Request) -> Response:
 
     try:
         result = await _adapter.relay_chat_completion(
-            route=route, credential=None, context=context, body=body, headers={}
+            route=route, secret=None, context=context, body=body, headers={}
         )
     except LlmUpstreamError as exc:
         return JSONResponse(

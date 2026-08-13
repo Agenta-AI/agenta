@@ -78,7 +78,7 @@ class LlmRelayResult:
 class LlmUpstreamInterface(ABC):
     @abstractmethod
     async def relay_chat_completion(
-        self, *, route: LlmResolvedRoute, credential: Optional[ResolvedCredential],
+        self, *, route: LlmResolvedRoute, secret: Optional[ResolvedSecret],
         context: LlmCallContext, body: bytes, headers: Dict[str, str],
     ) -> LlmRelayResult: ...
 ```
@@ -132,14 +132,14 @@ class GatewayUsage(BaseModel):
 
 class MockLlmAdapter(LlmUpstreamInterface):
     async def relay_chat_completion(
-        self, *, route, credential, context, body, headers,
+        self, *, route, secret, context, body, headers,
     ) -> LlmRelayResult: ...
 ```
 
 No constructor arguments beyond what the interface needs — registered once, statically, in
 `api/entrypoints/routers.py` per the wiring snippet (§9): `"mock": MockLlmAdapter()`. It never
-opens a socket; `credential` may be `None` (targets with `GatewayAuthScheme.NONE` are the
-intended callers, per §2's "an endpoint with no credential is legitimate — the mock (D23)") and
+opens a socket; `secret` may be `None` (targets with `GatewayAuthScheme.NONE` are the
+intended callers, per §2's "an endpoint with no secret is legitimate — the mock (D23)") and
 the adapter does not require one either way.
 
 **Controllable behavior, keyed by `context.model`** (a field `LlmCallContext` already carries —
@@ -305,7 +305,7 @@ inside their own `LlmUpstreamRegistry(...)` / `McpUpstreamRegistry(...)` constru
   distinction is testable.
 - **No secret material anywhere in this package.** The mocks' whole point is an unauthenticated
   target (`GatewayAuthScheme.NONE` on the MCP side, `secret_id=None` on the LLM side per §2); if a
-  test ever needs the mocks to *require* a credential, that is a different fixture, not this one.
+  test ever needs the mocks to *require* a secret, that is a different fixture, not this one.
 
 ## Tests
 

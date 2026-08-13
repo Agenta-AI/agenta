@@ -1,6 +1,6 @@
 # WP2 — Secret resolution
 
-Delivers `CredentialResolver`, the one class both gateways call to turn a `CredentialRef`
+Delivers `SecretsResolver`, the one class both gateways call to turn a `SecretRef`
 into a `(secret, owner, payer)` triple. Pure logic wrapped around two existing services —
 `VaultService` and the grants DAO — so nothing here talks to Postgres directly. Owns
 `core/gateways/policy/resolution.py` only.
@@ -19,10 +19,10 @@ seed commit in `core/gateways/policy/interfaces.py`.
   `GatewayPolicyService` is WP3's; WP2's `resolve()` is called only *after* WP3 (or a
   caller mimicking it) has already decided the call is allowed. `resolve()` never checks
   a permission and never raises `PolicyDeniedError`.
-- **Not the brokered (`builtin`, MCP) path.** A Composio-backed MCP endpoint's credential
+- **Not the brokered (`builtin`, MCP) path.** A Composio-backed MCP endpoint's secret
   lives at the broker and never enters the vault — `McpBrokeredAuth` carries the
-  `gateway_connections` row directly, never `ResolvedCredential`. `resolve()` is never
-  called for that namespace; routing around it with a fourth `CredentialRef` arm was
+  `gateway_connections` row directly, never `ResolvedSecret`. `resolve()` is never
+  called for that namespace; routing around it with a fourth `SecretRef` arm was
   rejected in `entities.md` §7.2 and must not be reintroduced here.
 - **Not the OAuth client.** `resolve()`'s `GrantRef` arm reads an existing grant row and
   its vault secret; it never mints, refreshes, or exchanges a token. That is WP17.
@@ -34,8 +34,8 @@ seed commit in `core/gateways/policy/interfaces.py`.
 ## Files
 
 New:
-- `api/oss/src/core/gateways/policy/resolution.py` — `CredentialResolver`, implementing
-  `CredentialResolverInterface` (seed-owned, `core/gateways/policy/interfaces.py` —
+- `api/oss/src/core/gateways/policy/resolution.py` — `SecretsResolver`, implementing
+  `SecretsResolverInterface` (seed-owned, `core/gateways/policy/interfaces.py` —
   imported, never edited).
 
 Edited: none. WP2 adds one construction line to `api/entrypoints/routers.py` at the M1
@@ -46,7 +46,7 @@ merge (below); it does not commit that file.
 From `core/gateways/policy/interfaces.py` (`entities.md` §7.2):
 
 ```python
-class CredentialResolverInterface(ABC):
+class SecretsResolverInterface(ABC):
     """One lookup, called by both planes. Mockable (D23): the mock resolver
     answers from a dict and never touches the vault."""
 
@@ -56,17 +56,17 @@ class CredentialResolverInterface(ABC):
         *,
         scope: AuthScope,
         #
-        ref: CredentialRef,
-        mode: CredentialMode,
-    ) -> ResolvedCredential:
-        """Resolve one credential for one call.
+        ref: SecretRef,
+        mode: SecretMode,
+    ) -> ResolvedSecret:
+        """Resolve one secret for one call.
 
         The mode logic, in full (secrets.md):
-          PROJECT_ONLY  -> the project secret; CredentialNotFoundError(PROJECT) if absent.
-          USER_REQUIRED -> the (project, user) secret; CredentialNotFoundError(USER)
+          PROJECT_ONLY  -> the project secret; SecretNotFoundError(PROJECT) if absent.
+          USER_REQUIRED -> the (project, user) secret; SecretNotFoundError(USER)
                            if absent — NEVER falls back.
           USER_OPTIONAL -> the (project, user) secret if present, else the
-                           project's; CredentialNotFoundError(USER) naming the
+                           project's; SecretNotFoundError(USER) naming the
                            narrower owner if neither exists.
 
         Until user-owned secrets ship, the user arm of every mode finds nothing
@@ -79,10 +79,10 @@ class CredentialResolverInterface(ABC):
                             builder does today (models.md).
           BoundSecretRef -> VaultService.get_secret_by_id, scoped to the project.
           GrantRef       -> the grants DAO's owner-keyed fetch, then
-                            get_secret_by_id; CredentialInvalidError when the
+                            get_secret_by_id; SecretInvalidError when the
                             grant's is_valid is False (D18).
 
-        Raises, never returns None: no path silently yields "no credential",
+        Raises, never returns None: no path silently yields "no secret",
         and the exceptions carry which owner is missing so the boundary can
         build the connect affordance."""
         ...
@@ -90,17 +90,17 @@ class CredentialResolverInterface(ABC):
     @abstractmethod
     async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
         """Provider keys with a resolvable project-owned secret. Names only,
-        never a value — an existence test that must not read a credential."""
+        never a value — an existence test that must not read a secret."""
         ...
 ```
 
 **The second method is R2's ruling, added at kickoff.** D20 makes a generated `builtin`
 endpoint exist for a project exactly when a provider key exists for it, so
 `LlmGatewayService.list_endpoints` (WP7) needs to ask that question — and it has no vault
-dependency, by design. Handing the service a `VaultService` would give it two credential
+dependency, by design. Handing the service a `VaultService` would give it two secret
 seams and defeat the port; calling `resolve()` once per provider and catching
-`CredentialNotFoundError` is control flow by exception plus eleven vault reads per list.
-Existence of a credential is a credential-layer question, so it belongs on the credential
+`SecretNotFoundError` is control flow by exception plus eleven vault reads per list.
+Existence of a secret is a secret-layer question, so it belongs on the secret
 port.
 
 Implement it over the same scan `ProviderKeyRef` uses — the project's `provider_key` and
@@ -112,17 +112,17 @@ committed to needing one.
 ## DTOs used (reproduce verbatim, seed-owned — `core/gateways/policy/dtos.py`)
 
 ```python
-class CredentialMode(str, Enum):
+class SecretMode(str, Enum):
     USER_OPTIONAL = "user_optional"
     USER_REQUIRED = "user_required"
     PROJECT_ONLY = "project_only"
 
-class CredentialOwnerKind(str, Enum):
+class SecretOwnerKind(str, Enum):
     PROJECT = "project"
     USER = "user"
 
-class CredentialOwner(BaseModel):
-    kind: CredentialOwnerKind
+class SecretOwner(BaseModel):
+    kind: SecretOwnerKind
     user_id: Optional[UUID] = None    # set exactly when kind is USER
 
 class SecretOrigin(str, Enum):
@@ -138,11 +138,11 @@ class BoundSecretRef(BaseModel):
 class GrantRef(BaseModel):
     endpoint_id: UUID
 
-CredentialRef = Union[ProviderKeyRef, BoundSecretRef, GrantRef]
+SecretRef = Union[ProviderKeyRef, BoundSecretRef, GrantRef]
 
-class ResolvedCredential(BaseModel):
+class ResolvedSecret(BaseModel):
     secret: SecretResponseDTO         # decrypted, from VaultService
-    owner: CredentialOwner
+    owner: SecretOwner
     origin: SecretOrigin
 ```
 
@@ -155,16 +155,16 @@ return (that distinction belongs to the parallel bring-your-own-secrets work, `s
 ## Exceptions used (reproduce verbatim, seed-owned — `core/gateways/policy/types.py`)
 
 ```python
-class CredentialNotFoundError(GatewaysError):
-    def __init__(self, *, mode: CredentialMode, missing: CredentialOwnerKind, target: str): ...
+class SecretNotFoundError(GatewaysError):
+    def __init__(self, *, mode: SecretMode, missing: SecretOwnerKind, target: str): ...
 
-class CredentialInvalidError(GatewaysError):
+class SecretInvalidError(GatewaysError):
     def __init__(self, *, target: str, detail: Optional[str] = None): ...
 ```
 
 `target` is a caller-supplied string identifying what was being resolved for — WP2 does
 not have a `GatewayTarget` in `resolve()`'s signature, so it builds this string itself
-from the `CredentialRef` it was given (e.g. `f"provider:{ref.provider_key}"`,
+from the `SecretRef` it was given (e.g. `f"provider:{ref.provider_key}"`,
 `f"secret:{ref.secret_id}"`, `f"endpoint:{ref.endpoint_id}"`). This is not named anywhere
 in `entities.md` beyond "target" as a parameter name on the exception constructors — pick
 a stable, greppable format per ref arm and keep it consistent across all three.
@@ -183,12 +183,12 @@ secret = await self.vault_service.get_secret_by_id(
     ref.secret_id, project_id=scope.project_id,
 )
 if secret is None:
-    raise CredentialNotFoundError(
-        mode=mode, missing=CredentialOwnerKind.PROJECT, target=f"secret:{ref.secret_id}",
+    raise SecretNotFoundError(
+        mode=mode, missing=SecretOwnerKind.PROJECT, target=f"secret:{ref.secret_id}",
     )
-return ResolvedCredential(
+return ResolvedSecret(
     secret=secret,
-    owner=CredentialOwner(kind=CredentialOwnerKind.PROJECT),
+    owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
     origin=SecretOrigin.VAULT,
 )
 ```
@@ -203,7 +203,7 @@ house rule, because it predates it.
 (`core/secrets/context.py`)** — the underlying DAO raises `ValueError` without it
 (`get_data_encryption_key()`'s explicit check). `VaultService`'s own public methods
 already open this context internally (see `services.py::get_secret_by_id`), so
-`CredentialResolver` does **not** need to open it a second time around
+`SecretsResolver` does **not** need to open it a second time around
 `vault_service.get_secret_by_id(...)` — confirm this against `core/secrets/services.py`
 before assuming otherwise; wrapping twice is harmless (the context manager nests) but
 redundant, and *not* wrapping when calling `secrets_dao` directly (WP2 must not do this —
@@ -221,7 +221,7 @@ and `_custom_provider_candidate()` (a `custom_provider`-kind secret matches when
 `data.kind` — a `CustomProviderKind` — equals the target provider). WP2 replicates the
 *matching* rule these two functions encode, over `VaultService.list_secrets`, not the
 whole candidate-selection/priority machinery in that file (which also handles model
-allowlists, endpoints and env vars — out of scope for a credential lookup):
+allowlists, endpoints and env vars — out of scope for a secret lookup):
 
 ```python
 secrets = await self.vault_service.list_secrets(project_id=scope.project_id)
@@ -233,8 +233,8 @@ match = next(
      and s.data.kind == ref.provider_key), None,
 )
 if match is None:
-    raise CredentialNotFoundError(
-        mode=mode, missing=CredentialOwnerKind.PROJECT,
+    raise SecretNotFoundError(
+        mode=mode, missing=SecretOwnerKind.PROJECT,
         target=f"provider:{ref.provider_key}",
     )
 ```
@@ -254,7 +254,7 @@ precedent.
 grant = await self.mcp_grants_dao.fetch_grant(
     project_id=scope.project_id, endpoint_id=ref.endpoint_id, user_id=scope.user_id,
 )
-if grant is None and mode is not CredentialMode.PROJECT_ONLY:
+if grant is None and mode is not SecretMode.PROJECT_ONLY:
     # USER_OPTIONAL falls back; USER_REQUIRED does not attempt this branch at all
     ...
 if grant is None:
@@ -262,23 +262,23 @@ if grant is None:
         project_id=scope.project_id, endpoint_id=ref.endpoint_id, user_id=None,
     )
 if grant is None:
-    raise CredentialNotFoundError(mode=mode, missing=..., target=f"endpoint:{ref.endpoint_id}")
+    raise SecretNotFoundError(mode=mode, missing=..., target=f"endpoint:{ref.endpoint_id}")
 if not grant.flags.is_valid:
-    raise CredentialInvalidError(target=f"endpoint:{ref.endpoint_id}")
+    raise SecretInvalidError(target=f"endpoint:{ref.endpoint_id}")
 secret = await self.vault_service.get_secret_by_id(grant.secret_id, project_id=scope.project_id)
 if secret is None:
     # a dangling secret_id despite the FK — the constraint prevents this at
     # steady state, but a resolver must not trust an invariant it cannot see
-    raise CredentialInvalidError(target=f"endpoint:{ref.endpoint_id}", detail="secret missing")
-return ResolvedCredential(
-    secret=secret, owner=CredentialOwner(kind=..., user_id=...), origin=SecretOrigin.VAULT,
+    raise SecretInvalidError(target=f"endpoint:{ref.endpoint_id}", detail="secret missing")
+return ResolvedSecret(
+    secret=secret, owner=SecretOwner(kind=..., user_id=...), origin=SecretOrigin.VAULT,
 )
 ```
 
 The pseudocode above is illustrative of the branch order, not a literal transcription —
 write the full mode table (§ below) explicitly rather than the abbreviated `if` chain
-shown. `CredentialInvalidError` (grant exists but `is_valid` is `False`) is a different
-failure from `CredentialNotFoundError` (no grant row at all) — D18's distinction, and the
+shown. `SecretInvalidError` (grant exists but `is_valid` is `False`) is a different
+failure from `SecretNotFoundError` (no grant row at all) — D18's distinction, and the
 one the boundary needs to build the right connect affordance later. Do not collapse them
 into one exception.
 
@@ -289,9 +289,9 @@ For **every** ref arm, the same three-way branch on `mode` (`secrets.md`, `entit
 
 | `mode` | behavior | on failure |
 | --- | --- | --- |
-| `PROJECT_ONLY` | look up the project-owned credential only; never consult `scope.user_id` | `CredentialNotFoundError(mode=PROJECT_ONLY, missing=PROJECT, target=...)` |
-| `USER_REQUIRED` | look up `(project, scope.user_id)` only; **never** fall back to the project's | `CredentialNotFoundError(mode=USER_REQUIRED, missing=USER, target=...)` |
-| `USER_OPTIONAL` | look up `(project, scope.user_id)`; if absent, look up the project's | `CredentialNotFoundError(mode=USER_OPTIONAL, missing=USER, target=...)` — names the **narrower** owner even though the project lookup was also tried |
+| `PROJECT_ONLY` | look up the project-owned secret only; never consult `scope.user_id` | `SecretNotFoundError(mode=PROJECT_ONLY, missing=PROJECT, target=...)` |
+| `USER_REQUIRED` | look up `(project, scope.user_id)` only; **never** fall back to the project's | `SecretNotFoundError(mode=USER_REQUIRED, missing=USER, target=...)` |
+| `USER_OPTIONAL` | look up `(project, scope.user_id)`; if absent, look up the project's | `SecretNotFoundError(mode=USER_OPTIONAL, missing=USER, target=...)` — names the **narrower** owner even though the project lookup was also tried |
 
 For `BoundSecretRef` and `ProviderKeyRef` in this scope there is no `(project, user)`
 lookup to perform yet — no owner column exists on a bound-secret or provider-key lookup
@@ -300,7 +300,7 @@ currently degrade to the same project-only lookup **behaviorally**, but the bran
 still be written for all three modes explicitly (not collapsed into a single code path)
 so the day a user-owned vault row exists, only the per-arm lookup changes and the mode
 dispatch does not move. This is D10's entire point, applied at the one seam that will
-actually change: write the `if mode == CredentialMode.USER_REQUIRED: ...` branches now
+actually change: write the `if mode == SecretMode.USER_REQUIRED: ...` branches now
 even though today they read from a table with no user-owned rows.
 
 For `GrantRef`, the owner axis is real today (`McpGrantDBA.user_id` is nullable and
@@ -309,16 +309,16 @@ already produce different observable behavior in wave 1.
 
 ## Contracts this package must honour
 
-- **Never returns `None`.** Every failure path raises `CredentialNotFoundError` or
-  `CredentialInvalidError`; a bare `return None` or silently constructing a
-  `ResolvedCredential` with an empty secret is the exact failure `secrets.md` names as
-  disallowed ("failure is never silent and never a fallback to 'no credential'").
+- **Never returns `None`.** Every failure path raises `SecretNotFoundError` or
+  `SecretInvalidError`; a bare `return None` or silently constructing a
+  `ResolvedSecret` with an empty secret is the exact failure `secrets.md` names as
+  disallowed ("failure is never silent and never a fallback to 'no secret'").
 - **`USER_REQUIRED` never falls back**, on any ref arm. A implementation that tries the
   project secret "just in case" after a `USER_REQUIRED` miss is a silent privilege
   escalation risk (an agent could act as the organization when it should have failed) —
   this is the one rule in this package most worth a dedicated test per ref arm.
 - **The exceptions name which owner is missing**, not just that resolution failed —
-  `missing=CredentialOwnerKind.USER` vs `.PROJECT` is what lets the boundary (later
+  `missing=SecretOwnerKind.USER` vs `.PROJECT` is what lets the boundary (later
   packages) build `needs_auth` for "you must connect" versus an administrator-facing
   message for "the project has no key." Getting this backwards silently degrades the UX
   without failing any test that only checks "an exception was raised."
@@ -328,7 +328,7 @@ already produce different observable behavior in wave 1.
   not expected to; the namespace check is the caller's responsibility (WP9's service),
   not this package's.
 - **Constructor takes `vault_service` and `mcp_grants_dao` by keyword**, matching the
-  entrypoint wiring in `entities.md` §9: `CredentialResolver(vault_service=vault_service,
+  entrypoint wiring in `entities.md` §9: `SecretsResolver(vault_service=vault_service,
   mcp_grants_dao=mcp_grants_dao)`. This exact call is the only place this constructor's
   shape is written down in the design; treat it as authoritative.
 
@@ -341,25 +341,25 @@ below runs with a dict-backed mock `VaultService` and a dict-backed mock
 
 `api/oss/tests/pytest/unit/gateways/test_gateways_resolution.py`
 
-- `BoundSecretRef`, secret exists → `ResolvedCredential` with
+- `BoundSecretRef`, secret exists → `ResolvedSecret` with
   `owner.kind == PROJECT`, `origin == VAULT`.
-- `BoundSecretRef`, secret does not exist (any mode) → `CredentialNotFoundError` with
+- `BoundSecretRef`, secret does not exist (any mode) → `SecretNotFoundError` with
   `missing == PROJECT`.
 - `ProviderKeyRef`, a `provider_key`-kind secret matches → resolves it.
 - `ProviderKeyRef`, no `provider_key`-kind match but a `custom_provider`-kind match
   exists → resolves the `custom_provider` one (fallback order).
 - `ProviderKeyRef`, both kinds match the same provider → resolves the `provider_key`-kind
   one (priority order).
-- `ProviderKeyRef`, no match of either kind → `CredentialNotFoundError` with
+- `ProviderKeyRef`, no match of either kind → `SecretNotFoundError` with
   `missing == PROJECT`.
 - `GrantRef`, `mode=PROJECT_ONLY`, only a `user_id=None` grant exists → resolves it with
   `owner.kind == PROJECT`.
 - `GrantRef`, `mode=PROJECT_ONLY`, only a `user_id=<scope.user_id>` grant exists (no
-  project grant) → `CredentialNotFoundError` — **must not** fall through to the user's
+  project grant) → `SecretNotFoundError` — **must not** fall through to the user's
   grant; this is the test that catches a `PROJECT_ONLY` implementation that accidentally
   behaves like `USER_OPTIONAL`.
 - `GrantRef`, `mode=USER_REQUIRED`, only a project grant exists (no user grant) →
-  `CredentialNotFoundError` with `missing == USER` — **must not** fall back to the
+  `SecretNotFoundError` with `missing == USER` — **must not** fall back to the
   project's, the single most important assertion in this suite.
 - `GrantRef`, `mode=USER_REQUIRED`, a user grant exists → resolves it, `owner.kind ==
   USER`, `owner.user_id == scope.user_id`.
@@ -367,17 +367,17 @@ below runs with a dict-backed mock `VaultService` and a dict-backed mock
   resolves the **user's**, never the project's.
 - `GrantRef`, `mode=USER_OPTIONAL`, only a project grant exists → resolves it,
   `owner.kind == PROJECT`.
-- `GrantRef`, `mode=USER_OPTIONAL`, neither exists → `CredentialNotFoundError` with
+- `GrantRef`, `mode=USER_OPTIONAL`, neither exists → `SecretNotFoundError` with
   `missing == USER` (the narrower owner, per the mode table above — not `PROJECT`, even
   though the project lookup was also attempted).
-- `GrantRef`, a grant exists with `flags.is_valid == False` → `CredentialInvalidError`,
+- `GrantRef`, a grant exists with `flags.is_valid == False` → `SecretInvalidError`,
   regardless of mode, **before** any vault lookup is attempted (assert the mock
   `VaultService.get_secret_by_id` was never called in this case — the invalid-grant
   check must short-circuit).
 - `GrantRef`, a grant exists and is valid but its `secret_id` resolves to nothing in the
-  vault → `CredentialInvalidError` (the dangling-FK defensive case) — not
-  `CredentialNotFoundError`, since a grant genuinely exists.
-- Every `CredentialNotFoundError` raised across the cases above carries a `target` string
+  vault → `SecretInvalidError` (the dangling-FK defensive case) — not
+  `SecretNotFoundError`, since a grant genuinely exists.
+- Every `SecretNotFoundError` raised across the cases above carries a `target` string
   that is non-empty and reproducible from the input `ref` (assert the format is stable,
   not just present).
 
@@ -391,9 +391,9 @@ own test file.
 ## `api/entrypoints/routers.py` diff (apply at the M1 merge)
 
 ```python
-from oss.src.core.gateways.policy.resolution import CredentialResolver
+from oss.src.core.gateways.policy.resolution import SecretsResolver
 
-credential_resolver = CredentialResolver(
+secret_resolver = SecretsResolver(
     vault_service=vault_service, mcp_grants_dao=mcp_grants_dao,
 )
 ```
@@ -410,9 +410,9 @@ Exit condition, verbatim from `plan.md`: *"each resolution mode behaves as speci
 no path silently returns no secret."*
 
 WP2 is done when: every case in the Tests section above passes; grep over
-`resolution.py` confirms every `return` statement either returns a `ResolvedCredential`
+`resolution.py` confirms every `return` statement either returns a `ResolvedSecret`
 or is unreachable, and every early-exit path is a `raise`; and a `USER_REQUIRED` lookup
-with only a project-owned credential present raises rather than resolving, on both
+with only a project-owned secret present raises rather than resolving, on both
 `GrantRef` (has real behavior today) and by code-path inspection on the other two arms
 (behaviorally inert today, but present).
 

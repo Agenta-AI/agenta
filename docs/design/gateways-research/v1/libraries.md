@@ -16,7 +16,7 @@ side of the authorization spec:
 - token refresh, with expiry tracking and automatic refresh when a token is stale but
   refreshable;
 - `401` handling by running discovery and authorization, and **`403` handling for step-up
-  when more scopes are needed** — the case flagged as open in `raw/credential-model.md`;
+  when more scopes are needed** — the case flagged as open in `raw/secret-model.md`;
 - persistence behind a **`TokenStorage` protocol**, so the backend is ours.
 
 It implements the HTTP client library's auth interface, so it drops into a normal async
@@ -37,7 +37,7 @@ Two caveats to check at implementation time, tracked in `open-reviews.md`:
 
 ## Token storage — the secrets service, referenced by id
 
-There is no token store to build. The gateways hold **no credential material**: a domain row
+There is no token store to build. The gateways hold **no secret material**: a domain row
 carries a `secret_id`, the secrets service holds the encrypted value, and the consumer
 resolves it at use time. Webhook subscriptions and SSO providers already do exactly this.
 
@@ -52,7 +52,7 @@ What this needs instead is **new secret kinds**, covered in `secrets.md`.
 The routing and provider-adapter work for models is already handled by the multi-provider
 client library the SDK depends on, and the platform-specific part is one existing function
 that turns vault secrets into that library's call parameters, including the awkward
-cloud-reseller credential shapes.
+cloud-reseller secret shapes.
 
 Moving that function behind the gateway is the whole of it. Nothing new to adopt.
 
@@ -79,7 +79,7 @@ Moving that function behind the gateway is the whole of it. Nothing new to adopt
 | Model routing and provider adapters | existing multi-provider client library |
 | `TokenStorage` adapter over the secrets service | ours — thin |
 | New secret kinds | ours — an enum value, a DTO, a union arm, a validator branch |
-| Credential resolution and policy | ours — the real design work |
+| Secret resolution and policy | ours — the real design work |
 | Audit and metering | existing pipelines |
 
 Only the last three rows are ours, and only one of them is design rather than wiring.

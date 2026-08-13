@@ -1,6 +1,6 @@
 """Policy + resolution exceptions (entities.md §5).
 
-`PolicyDeniedError` and `CredentialNotFoundError` are different failures on purpose: the
+`PolicyDeniedError` and `SecretNotFoundError` are different failures on purpose: the
 first says you may not, the second says you could, once someone connects — the second maps
 to the needs-auth / needs-input interaction path (D17).
 """
@@ -8,7 +8,7 @@ to the needs-auth / needs-input interaction path (D17).
 from typing import Optional, Union
 
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.gateways.policy.dtos import CredentialMode, CredentialOwnerKind
+from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
 from oss.src.core.gateways.types import GatewaysError
 
 
@@ -33,30 +33,28 @@ class EntitlementDeniedError(GatewaysError):
         super().__init__(f"Entitlement {key} exceeded for {target}")
 
 
-class CredentialNotFoundError(GatewaysError):
-    """Resolution failed. Names WHICH owner is missing a credential, so the
+class SecretNotFoundError(GatewaysError):
+    """Resolution failed. Names WHICH owner is missing a secret, so the
     caller learns whether they must connect or an administrator must
     (`secrets.md`: failure is never silent and never a fallback to none)."""
 
-    def __init__(
-        self, *, mode: CredentialMode, missing: CredentialOwnerKind, target: str
-    ):
+    def __init__(self, *, mode: SecretMode, missing: SecretOwnerKind, target: str):
         self.mode = mode
         self.missing = missing
         self.target = target
         super().__init__(
-            f"No {missing.value} credential for {target} under mode {mode.value}"
+            f"No {missing.value} secret for {target} under mode {mode.value}"
         )
 
 
-class CredentialInvalidError(GatewaysError):
-    """A credential exists and cannot be used — revoked, or refresh failed.
+class SecretInvalidError(GatewaysError):
+    """A secret exists and cannot be used — revoked, or refresh failed.
     Surfaces as needs_auth with a connect affordance (D17, D18)."""
 
     def __init__(self, *, target: str, detail: Optional[str] = None):
         self.target = target
         self.detail = detail
-        super().__init__(f"Credential for {target} is invalid")
+        super().__init__(f"Secret for {target} is invalid")
 
 
 class CeilingExceededError(GatewaysError):

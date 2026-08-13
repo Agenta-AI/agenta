@@ -271,7 +271,7 @@ class McpGrantDBE(Base, McpGrantDBA):
 ```
 
 The FK ondelete behavior is not symmetric and must not be "fixed" to match: endpoints take
-`SET NULL` on `secret_id` (a dead credential must not silently delete configuration),
+`SET NULL` on `secret_id` (a dead secret must not silently delete configuration),
 grants take `CASCADE` (a grant row with no secret means nothing — `entities.md` §2.1).
 
 No unique constraint mentions `url` or `secret_id` anywhere. Two endpoints may point at

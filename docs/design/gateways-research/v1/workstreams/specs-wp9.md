@@ -1,7 +1,7 @@
 # WP9 — MCP registry and tool allowlist
 
 Delivers `McpGatewayService` and `McpUpstreamRegistry`: target resolution
-across the three namespaces, the per-server tool allowlist check, credential
+across the three namespaces, the per-server tool allowlist check, secret
 resolution dispatch (the two-mechanism fork), the builtin/agenta/custom
 merge for listing, and the relay orchestration WP8's proxy calls into. This
 is the domain half of the transport/domain cut
@@ -73,7 +73,7 @@ class McpGatewayService:
         mcp_endpoints_dao: McpEndpointsDAOInterface,
         mcp_grants_dao: McpGrantsDAOInterface,
         policy: GatewayPolicyService,
-        resolver: CredentialResolverInterface,
+        resolver: SecretsResolverInterface,
         upstream_registry: McpUpstreamRegistry,
     ) -> None: ...
 ```
@@ -183,36 +183,36 @@ correctly derives `NEEDS_AUTH` today (there being no grants at all is not a
 special case — `fetch_grant` simply returns `None`, and the derivation
 already handles that).
 
-### The two credential mechanisms — the fork is at the south port, not the entity (D27, §4.4)
+### The two secret mechanisms — the fork is at the south port, not the entity (D27, §4.4)
 
 Do not build a discriminated endpoint type (`McpBuiltinEndpoint` /
 `McpCustomEndpoint`) — `entities.md` explicitly rejects that split: "the
-endpoint's identity, config and listing shape are one — only the credential
+endpoint's identity, config and listing shape are one — only the secret
 path forks, and forking every DAO and service signature for a difference
-that appears at credential time would spread the fork everywhere it does
-not matter." The fork is expressed once, in `relay`'s credential-resolution
+that appears at secret time would spread the fork everywhere it does
+not matter." The fork is expressed once, in `relay`'s secret-resolution
 step, by constructing the right `McpRelayAuth` arm:
 
 ```python
 class McpDirectAuth(BaseModel):
-    """agenta + custom: the credential is ours to present — an oauth_grant
+    """agenta + custom: the secret is ours to present — an oauth_grant
     resolved from the vault (§7.2), or nothing for a NONE-scheme target."""
-    credential: Optional[ResolvedCredential] = None
+    secret: Optional[ResolvedSecret] = None
 
 class McpBrokeredAuth(BaseModel):
     """builtin: the integrations domain brokered the authorization and holds the
-    credential upstream; what we carry is its connection row."""
+    secret upstream; what we carry is its connection row."""
     connection: Connection
 
 McpRelayAuth = Union[McpDirectAuth, McpBrokeredAuth]
 ```
 
-For `agenta`/`custom` targets: resolve via `CredentialResolverInterface.resolve()`
-(WP2, already landed) with `mode=CredentialMode.USER_OPTIONAL` — "the
+For `agenta`/`custom` targets: resolve via `SecretsResolverInterface.resolve()`
+(WP2, already landed) with `mode=SecretMode.USER_OPTIONAL` — "the
 deliberate asymmetry from `secrets.md`: one billing identity for models,
 personal authority for tools" (§7.2). `NONE`-scheme targets skip resolution
-entirely (`credential=None`). For `builtin` targets: **never** call the
-resolver — "its credential lives at the broker and never enters our vault"
+entirely (`secret=None`). For `builtin` targets: **never** call the
+resolver — "its secret lives at the broker and never enters our vault"
 (§4.4). Instead fetch the connection row directly via `ConnectionsService`
 (the same instance `list_endpoints` already uses) and wrap it in
 `McpBrokeredAuth`. Routing `builtin` through the resolver with a fourth ref
@@ -232,10 +232,10 @@ exactly:
    Raise `McpEndpointNotFoundError` (constructed with `namespace`,
    `provider`, `integration`, `name` per its signature in §5) when nothing
    resolves.
-2. **Allowlist before credential.** `_check_allowlist(target, context)`:
+2. **Allowlist before secret.** `_check_allowlist(target, context)`:
    when `context` names a specific tool and the target's `tool_policy.mode`
    is `INCLUDE`, refuse anything outside `tool_policy.names` with
-   `McpToolNotAllowedError` — **before** any credential resolution or
+   `McpToolNotAllowedError` — **before** any secret resolution or
    upstream call (§8: "A refused model or tool must not cost a vault
    read").
 3. **Authorize.** `self.policy.authorize(scope=scope,
@@ -243,7 +243,7 @@ exactly:
    the decision via `self.policy.record(...)` **before** raising
    `PolicyDeniedError` — the audit ordering rule (§8: "The denial is
    recorded before the exception leaves").
-4. **Resolve credential**, per the two-mechanism fork above.
+4. **Resolve secret**, per the two-mechanism fork above.
 5. **Dispatch.** `self.upstream_registry.get(<adapter key for namespace>).relay(
    route=..., auth=..., context=..., body=..., headers=...)`. The
    namespace→adapter-key mapping (`agenta`→`"mock"` in wave 1 — the wiring
@@ -257,8 +257,8 @@ exactly:
    with the real outcome. When `context.method` is a list operation
    (`tools/list`), apply the tool policy to the **response body**: "an
    `INCLUDE` tool policy filters the list result — entries dropped whole,
-   never renamed — while credential death does not filter anything (D18).
-   Policy hides what may never be called; credential state never hides
+   never renamed — while secret death does not filter anything (D18).
+   Policy hides what may never be called; secret state never hides
    what policy allows" (§8, verbatim). This is the one place `relay`
    inspects and rewrites the upstream's JSON body rather than relaying it
    untouched — narrowly scoped to dropping whole tool entries by name, never
@@ -272,7 +272,7 @@ it is not a DTO in §4 and must not be added to `dtos.py`.
 
 - **D18 — a dead secret does not hide tools.** A `custom` OAuth endpoint
   with `is_valid=False` on its grant still lists its tools; only the call
-  fails. Do not let credential health leak into the list-filtering step —
+  fails. Do not let secret health leak into the list-filtering step —
   only `tool_policy` filters the list.
 - **D19/D20 — an endpoint is a server, not a tool; only custom endpoints are
   rows.** `list_endpoints` must never persist a generated `agenta`/`builtin`
@@ -394,7 +394,7 @@ sibling fragments from `specs-wp6.md`/`specs-wp7.md`/`specs-wp8.md`/`specs-wp10.
 +    mcp_endpoints_dao=mcp_endpoints_dao,
 +    mcp_grants_dao=mcp_grants_dao,
 +    policy=gateway_policy_service,
-+    resolver=credential_resolver,
++    resolver=secret_resolver,
 +    upstream_registry=McpUpstreamRegistry(adapters={
 +        "http": HttpMcpAdapter(),          # custom: McpDirectAuth (WP8)
 +        "composio": ComposioMcpAdapter(),  # builtin: McpBrokeredAuth (not wave 1)
@@ -404,7 +404,7 @@ sibling fragments from `specs-wp6.md`/`specs-wp7.md`/`specs-wp8.md`/`specs-wp10.
 ```
 
 `mcp_endpoints_dao`, `mcp_grants_dao`, `gateway_policy_service` and
-`credential_resolver` are constructed earlier in the file by WP1/WP2/WP3's
+`secret_resolver` are constructed earlier in the file by WP1/WP2/WP3's
 fragments (already landed at M1) — this fragment only adds the service and
 registry. As with WP8's fragment, the local variable names above are
 wiring convenience following the naming style `entities.md`'s own wiring

@@ -26,7 +26,7 @@ from oss.src.core.gateways.mcps.types import McpUpstreamError
 app = FastAPI(title="agenta-mock-mcp-gateway")
 _adapter = MockMcpAdapter()
 _route = McpResolvedRoute(url="http://mock-mcp-gateway:9092/")
-_auth = McpDirectAuth(credential=None)
+_auth = McpDirectAuth(secret=None)
 
 
 @app.get("/health")

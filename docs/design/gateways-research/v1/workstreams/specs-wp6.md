@@ -11,7 +11,7 @@ is allowed — it parses the caller's request, calls `LlmGatewayService.relay_ch
 it arrived.
 
 **Explicitly not built here, and who owns it instead:**
-- Endpoint resolution, the allowlist check, the ceiling check, policy authorization, credential
+- Endpoint resolution, the allowlist check, the ceiling check, policy authorization, secret
   resolution, and the choice of south-port adapter (`select_upstream`) — all inside
   `LlmGatewayService.relay_chat_completion`, owned by **WP7**.
 - The adapter that translates through the routing library for non-OpenAI-shaped upstreams
@@ -54,12 +54,12 @@ class LlmRelayResult:
 class LlmUpstreamInterface(ABC):
     @abstractmethod
     async def relay_chat_completion(
-        self, *, route: LlmResolvedRoute, credential: Optional[ResolvedCredential],
+        self, *, route: LlmResolvedRoute, secret: Optional[ResolvedSecret],
         context: LlmCallContext, body: bytes, headers: Dict[str, str],
     ) -> LlmRelayResult:
         """Relay one completion call. `body` is the caller's payload untouched;
         `headers` are the caller's headers already stripped of authorization.
-        `credential` is None only for targets whose auth scheme is NONE (the
+        `secret` is None only for targets whose auth scheme is NONE (the
         mocks). Raises LlmUpstreamError on upstream failure."""
 ```
 
@@ -68,7 +68,7 @@ class LlmUpstreamInterface(ABC):
 
 class PassthroughLlmAdapter(LlmUpstreamInterface):
     async def relay_chat_completion(
-        self, *, route, credential, context, body, headers,
+        self, *, route, secret, context, body, headers,
     ) -> LlmRelayResult: ...
 ```
 
@@ -96,9 +96,9 @@ class LlmResolvedRoute(BaseModel):
 `None` on every generated endpoint (§2.4: "generated endpoints take the code defaults") — this
 package supplies that default, since timeouts are WP6's stated scope in `plan.md`.
 
-### `ResolvedCredential` and its two relevant secret shapes
+### `ResolvedSecret` and its two relevant secret shapes
 
-`ResolvedCredential.secret: SecretResponseDTO`, kind-dispatched by the adapter (§4.2: "the
+`ResolvedSecret.secret: SecretResponseDTO`, kind-dispatched by the adapter (§4.2: "the
 adapter, not the resolver, knows which fields its upstream needs"). Real field shapes, read from
 `api/oss/src/core/secrets/dtos.py` (not paraphrased):
 
@@ -126,7 +126,7 @@ class CustomProviderDTO(BaseModel):
     model_keys: Optional[List[str]] = None
 ```
 
-`credential.secret.data` is one of these (a `SecretDTO` union member, §4.5). For a `provider_key`
+`secret.secret.data` is one of these (a `SecretDTO` union member, §4.5). For a `provider_key`
 secret (`StandardProviderDTO`), inject `Authorization: Bearer {provider.key}`. For a
 `custom_provider` secret (`CustomProviderDTO`), inject `provider.key` the same way and merge
 `provider.extras` into the outbound request's non-body configuration (headers only — never the
@@ -136,8 +136,8 @@ JSON body, which stays byte for byte). This mirrors the SDK's own dispatch in
 branch on `secret.get("kind") == "provider_key"` vs `"custom_provider"` identically — the same
 branch this adapter needs, moved behind the gateway.
 
-**`credential` is `None` for the mocks** (`GatewayAuthScheme`-equivalent NONE targets, §2 —
-"an endpoint with no credential is legitimate — the mock (D23)"): no `Authorization` header is
+**`secret` is `None` for the mocks** (`GatewayAuthScheme`-equivalent NONE targets, §2 —
+"an endpoint with no secret is legitimate — the mock (D23)"): no `Authorization` header is
 sent at all.
 
 ### `apis/fastapi/gateways/llms/utils.py`
@@ -238,7 +238,7 @@ takes only `llm_gateway_service`) — if this reading is wrong, it is a WP7 spec
 
 Denials wear the surface's own error shape (§9): `{"error": {"message", "type", "code"}}`, `code`
 carrying a stable cause — `policy_denied`, `model_not_allowed`, `ceiling_exceeded`,
-`credential_missing` are the four `entities.md` names explicitly. The mapping from domain
+`secret_missing` are the four `entities.md` names explicitly. The mapping from domain
 exception to HTTP status is `handle_gateway_exceptions()` (WP10, not yet built when WP6 starts
 per the wave-1 fan-out — both run against M1 in parallel). Until that merge, `proxy.py` catches
 the domain exceptions it can already type against (everything in `core/gateways/llms/types.py`
@@ -286,7 +286,7 @@ snippet) — WP6 contributes the import and the proxy mount only.
 - **Streaming preserves ordering and framing.** SSE chunk boundaries from the upstream are not
   recombined or re-chunked; `StreamingResponse` receives the adapter's `AsyncIterator[bytes]`
   directly.
-- **No credential ever appears in a log or an exception message.** `credential.secret` never
+- **No secret ever appears in a log or an exception message.** `secret.secret` never
   crosses into `LlmUpstreamError.detail` or any log line this package writes.
 
 ## Tests
@@ -296,9 +296,9 @@ Unit — nothing running:
   `ValueError` when `model` is absent; does not mutate or copy the input bytes object
   observably (assert the returned context, not a re-encoded body).
 - `PassthroughLlmAdapter.relay_chat_completion` against a stubbed `httpx` transport
-  (`httpx.MockTransport`, no real socket): a `StandardProviderDTO` credential produces a
-  `Authorization: Bearer {key}` header; a `CustomProviderDTO` credential produces the same header
-  from `provider.key`; `credential=None` sends no `Authorization` header at all.
+  (`httpx.MockTransport`, no real socket): a `StandardProviderDTO` secret produces a
+  `Authorization: Bearer {key}` header; a `CustomProviderDTO` secret produces the same header
+  from `provider.key`; `secret=None` sends no `Authorization` header at all.
 - The same stub, but the transport raises/times out: `relay_chat_completion` raises
   `LlmUpstreamError`, never lets the exception surface as something else.
 - The outbound URL is `route.base_url` + `/chat/completions` with `route.headers` merged in

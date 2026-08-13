@@ -11,13 +11,13 @@ route, typed credentials, and a policy — and both can already point at a gatew
 new field.
 
 **Tool side.** `McpServerConfig.connection` is `{ type: "http", url, headers?,
-credentials? }`, where every secret header is a typed `McpCredential` with
+credentials? }`, where every secret header is a typed `McpSecret` with
 `usage: "opaque_http"`. The protocol's own commentary states that a gateway MCP server is
 "the same shape too: it is an HTTP MCP server whose URL happens to be ours," and that
 OAuth, when it lands, changes only who mints the token — not the wire.
 
 **Model side.** `ModelConnection` carries `provider`, `deployment`, `endpoint.baseUrl`,
-`credentialMode`, and typed `credentials`. `deployment: "custom"` is documented as "an
+`secretMode`, and typed `credentials`. `deployment: "custom"` is documented as "an
 OpenAI-compatible third party such as OpenRouter **or a self-hosted gateway**," with the
 route in `endpoint.baseUrl`.
 
@@ -29,10 +29,10 @@ touching the golden fixtures that pin the contract on both sides.
 
 ## 2. What the gateway actually removes
 
-The current design has already pushed credential-hiding as far as the shape allows, and
+The current design has already pushed secret-hiding as far as the shape allows, and
 the residue is exactly what a gateway deletes.
 
-`ModelCredential.usage` has two values, and the split is about the **consumer**, not the
+`ModelSecret.usage` has two values, and the split is about the **consumer**, not the
 provider:
 
 - `opaque_http` — a bearer token only the provider's server reads, over HTTPS, at a known
@@ -51,7 +51,7 @@ credentials into an agent-controlled sandbox closes. That is a security outcome,
 refactor.
 
 The same logic applies to the per-run redaction deny-set, which today is built from every
-credential-bearing value across both consumers. Behind a gateway the run holds one
+secret-bearing value across both consumers. Behind a gateway the run holds one
 short-lived token, so the deny-set collapses to one entry with a lifetime measured in the
 length of a run.
 
@@ -65,13 +65,13 @@ holds five kinds: `provider_key`, `custom_provider`, `sso_provider`, `webhook_pr
 list of direct providers, and a `CustomProviderKind` list that additionally covers the
 cloud resellers and self-hosted deployments. **This enum pair is the closest thing to an
 existing model-routing table, and it is already the right axis** (`provider` = who issued
-the credential, `deployment` = how it is reached) — the same axis the wire uses.
+the secret, `deployment` = how it is reached) — the same axis the wire uses.
 
 **Gateway connections** (`api/oss/src/core/gateway/connections/`) holds third-party tool
 authorizations as a local row referencing a provider-side connection id; tokens themselves
 are not stored locally **(carried)**.
 
-The consequence: the model plane and the tool plane already have *different* credential
+The consequence: the model plane and the tool plane already have *different* secret
 stores with *different* scoping models. Unifying the policy plane means reconciling them,
 which is a real decision rather than a detail — see `decisions.md`.
 
@@ -108,7 +108,7 @@ These are separate callers that must be designed separately, not one path with v
   which resolves secrets via `sdks/python/agenta/sdk/managers/secrets.py` and calls the
   provider from the workflow process.
 
-They differ in who resolves the credential, where the call originates, and what the
+They differ in who resolves the secret, where the call originates, and what the
 failure modes are. Both go through the gateway, each behind its own port, and the SDK
 keeps the secret-fetch and secret-injection capabilities it has today — what changes is
 that the adapter behind those capabilities calls the gateway instead of a provider.
@@ -132,9 +132,9 @@ all key off it.
 
 This is distinct from — and should not be confused with — how a *third-party* connection is
 scoped upstream at the provider. Who is calling us is answered by `AuthScope`. Which stored
-credential the gateway then uses on the caller's behalf is a separate binding, and the two
+secret the gateway then uses on the caller's behalf is a separate binding, and the two
 were previously conflated. They are independent: the caller is always a user, regardless of
-whether the credential the gateway selects is shared across a project.
+whether the secret the gateway selects is shared across a project.
 
 ## 7. What already exists that the gateway should not rebuild
 
@@ -155,7 +155,7 @@ whether the credential the gateway selects is shared across a project.
 1. **For the runner caller specifically, adoption is cheap.** The wire already expresses a
    gateway route, so that caller changes on the resolver side only — the contract, the
    golden fixtures, and the harnesses are untouched. This is the exception, not the rule.
-2. **Every other caller is a real change.** Each place that resolves a credential and calls
+2. **Every other caller is a real change.** Each place that resolves a secret and calls
    a provider becomes a place that calls the gateway, behind its own port. The count of
    those call sites, not the wire, is the size of this work.
 3. **The model plane needs the port structure the tool plane already has.** The tool plane
@@ -163,7 +163,7 @@ whether the credential the gateway selects is shared across a project.
    is architecture work, and it is the larger half.
 4. **Identity is not a blocker.** `AuthScope` already gives both gateways a user-scoped
    principal on every call. Audit, policy, and metering can be shaped against it now.
-5. **The credential the gateway uses is a separate question from who is calling.** Keeping
+5. **The secret the gateway uses is a separate question from who is calling.** Keeping
    these apart is what makes per-user attribution cheap and per-user credentials optional.
 6. **The strongest concrete security outcome is narrow:** gateway-routed runs stop putting
    long-lived cloud credentials inside agent-controlled sandboxes, because signing moves to

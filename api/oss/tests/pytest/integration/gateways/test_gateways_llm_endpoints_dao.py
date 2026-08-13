@@ -221,7 +221,7 @@ async def test_query_endpoints_filters_by_provider_and_deployment(seeded_project
 
 
 async def test_deleting_secret_sets_endpoint_secret_id_null(seeded_project):
-    """D18/§2.1: a dead credential must not silently delete configuration."""
+    """D18/§2.1: a dead secret must not silently delete configuration."""
     dao = LlmEndpointsDAO(engine=get_transactions_engine())
     project_id = seeded_project["project_id"]
     user_id = seeded_project["user_id"]

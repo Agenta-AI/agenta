@@ -255,7 +255,7 @@ has (D4).
 *Depends on:* Checkpoint A. *Blocks:* WP13, WP14.
 
 **WP13 — Runner and harnesses.** The runner carries a gateway route rather than provider secrets.
-Per the existing wire this is a resolver-side change; verify the credential arrays collapse and
+Per the existing wire this is a resolver-side change; verify the secret arrays collapse and
 the redaction set shrinks.
 *Depends on:* WP12.
 
@@ -327,7 +327,7 @@ second-order to having one, and it blocks nothing.
 ## Not packages, because the gateways have to exist first
 
 `cleanups.md` is the register: eleven things that become possible only once the gateways run, from
-closing the vault's plaintext read surface to collapsing the runner wire's credential arrays to
+closing the vault's plaintext read surface to collapsing the runner wire's secret arrays to
 moving the eligible slice of the runner's tool loopback. None of them can be scheduled in front of
 the waves, and none of them is optional — together they are what D1 costs in full.
 

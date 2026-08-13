@@ -12,7 +12,7 @@ from oss.src.core.gateways.dtos import (
     GatewayEndpointConfig,
     GatewayEndpointNamespace,
 )
-from oss.src.core.gateways.policy.dtos import ResolvedCredential
+from oss.src.core.gateways.policy.dtos import ResolvedSecret
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
@@ -153,19 +153,19 @@ class McpResolvedRoute(BaseModel):
     config: McpEndpointConfig = Field(default_factory=McpEndpointConfig)
 
 
-# --- the two credential mechanisms, made legible (D27) ------------------------ #
+# --- the two secret mechanisms, made legible (D27) ------------------------ #
 
 
 class McpDirectAuth(BaseModel):
-    """agenta + custom: the credential is ours to present — an oauth_grant
+    """agenta + custom: the secret is ours to present — an oauth_grant
     resolved from the vault (§7.2), or nothing for a NONE-scheme target."""
 
-    credential: Optional[ResolvedCredential] = None
+    secret: Optional[ResolvedSecret] = None
 
 
 class McpBrokeredAuth(BaseModel):
     """builtin: the integrations domain brokered the authorization and holds the
-    credential upstream; what we carry is its connection row. `Connection` is
+    secret upstream; what we carry is its connection row. `Connection` is
     that domain's own DTO (core/gateway/connections/dtos.py), imported by
     reference (§1) — no copy, no subclass."""
 

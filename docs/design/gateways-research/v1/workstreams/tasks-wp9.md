@@ -2,7 +2,7 @@
 
 Ordered so each item is one reviewable commit. Depends on the seed commit
 and on merge M1 (WP1's `dbs/postgres/gateways/mcps/` DAO implementation and
-migration, WP2's `CredentialResolverInterface` implementation, WP3's
+migration, WP2's `SecretsResolverInterface` implementation, WP3's
 `GatewayPolicyService`) having landed.
 
 ## registry.py
@@ -112,9 +112,9 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
 - [x] Implement the authorize step (step 3): `self.policy.authorize(scope=,
       permission=Permission.USE_MCP_ENDPOINTS, target=)`; on denial, call
       `self.policy.record(...)` before raising `PolicyDeniedError`.
-- [x] Implement credential resolution (step 4): `agenta`/`custom` via
-      `self.resolver.resolve(scope=, ref=, mode=CredentialMode.USER_OPTIONAL)`
-      wrapped in `McpDirectAuth`, skipped (`credential=None`) for
+- [x] Implement secret resolution (step 4): `agenta`/`custom` via
+      `self.resolver.resolve(scope=, ref=, mode=SecretMode.USER_OPTIONAL)`
+      wrapped in `McpDirectAuth`, skipped (`secret=None`) for
       NONE-scheme targets; `builtin` via `ConnectionsService` directly,
       wrapped in `McpBrokeredAuth` — never through the resolver.
 - [x] Implement dispatch (step 5): a private namespace→adapter-key mapping
@@ -169,7 +169,7 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
       +    mcp_endpoints_dao=mcp_endpoints_dao,
       +    mcp_grants_dao=mcp_grants_dao,
       +    policy=gateway_policy_service,
-      +    resolver=credential_resolver,
+      +    resolver=secret_resolver,
       +    connections_service=connections_service,
       +    upstream_registry=McpUpstreamRegistry(adapters={
       +        # "http": HttpMcpAdapter(),          # custom: McpDirectAuth (WP8)

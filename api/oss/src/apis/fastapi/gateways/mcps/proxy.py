@@ -3,14 +3,14 @@
 Three thin routes, one per namespace (D27); they exist because the routes carry different
 path parameters, not because the behaviour differs. Each parses the caller's routing
 headers, reads the raw body, and delegates to `McpGatewayService.relay` (WP9), which owns
-target resolution, the allowlist check, credential resolution and the outbound guard. No
+target resolution, the allowlist check, secret resolution and the outbound guard. No
 wire models here — the data plane relays bytes (§6).
 
 **Error mapping is NOT `apis/fastapi/gateways/exceptions.py::handle_gateway_exceptions()`.**
 That decorator (seed, R1) raises a plain `HTTPException(status_code, detail=str)`, which is
 right for WP10's CRUD routers (they speak the house wire) and wrong here: it collapses every
 cause that shares a status into one indistinguishable message — `McpEndpointNotFoundError`
-and `CredentialNotFoundError` both become an opaque `HTTPException` a caller cannot tell
+and `SecretNotFoundError` both become an opaque `HTTPException` a caller cannot tell
 apart. §9 requires the opposite of a proxy: "the MCP proxy answers protocol-shaped errors at
 the transport status the relay produced, and gateway-authored refusals as the protocol's
 error result with the same stable causes in the error data." So this module keeps its own
@@ -41,8 +41,8 @@ from oss.src.core.gateways.mcps.types import (
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
-    CredentialInvalidError,
-    CredentialNotFoundError,
+    SecretInvalidError,
+    SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
 )
@@ -71,8 +71,8 @@ _MAPPED_EXCEPTIONS = (
     CeilingExceededError,
     McpAuthRequiredError,
     McpScopeInsufficientError,
-    CredentialNotFoundError,
-    CredentialInvalidError,
+    SecretNotFoundError,
+    SecretInvalidError,
     McpUpstreamError,
 )
 
@@ -180,19 +180,19 @@ def _map_gateway_exception(e: BaseException) -> Response:
             cause="scope_insufficient",
             data={"target": e.target, "scopes": e.scopes},
         )
-    if isinstance(e, CredentialNotFoundError):
+    if isinstance(e, SecretNotFoundError):
         return _protocol_error(
             status_code=status.HTTP_409_CONFLICT,
             code=_JSONRPC_SERVER_ERROR,
             message=e.message,
-            cause="credential_missing",
+            cause="secret_missing",
         )
-    if isinstance(e, CredentialInvalidError):
+    if isinstance(e, SecretInvalidError):
         return _protocol_error(
             status_code=status.HTTP_409_CONFLICT,
             code=_JSONRPC_SERVER_ERROR,
             message=e.message,
-            cause="credential_invalid",
+            cause="secret_invalid",
         )
     if isinstance(e, McpUpstreamError):
         upstream_status = e.status_code

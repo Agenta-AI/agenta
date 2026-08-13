@@ -24,9 +24,9 @@ WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
 - [x] Implement the `auth` branch: `isinstance(auth, McpBrokeredAuth)` — raises
       `TypeError` (this adapter is only ever reached via `custom`, by construction of
       WP9's registry routing, not by a namespace check inside this class). When
-      `auth.credential` is `None`, no authorization header is added. When present,
+      `auth.secret` is `None`, no authorization header is added. When present,
       `Authorization: {token_type} {access_token}` is built from the resolved grant —
-      read via `getattr` on `auth.credential.secret.data.grant`, NOT imported, because
+      read via `getattr` on `auth.secret.secret.data.grant`, NOT imported, because
       `OAuthGrantSettingsDTO` (entities.md §4.5) is WP16 seed / wave 3 and does not exist
       in this codebase yet; this needs no change once it lands.
 - [x] Map a transport failure (connection refused, timeout, DNS failure) to
@@ -72,13 +72,13 @@ WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
       `headers` also present; no collision case needs resolving since
       `entities.md` does not specify one — assert whichever ordering the
       implementation picks and note it in the test docstring.
-- [x] Unit test: `auth.credential is None` → no `Authorization` header sent.
-- [x] Unit test: `auth.credential` present (a mock `ResolvedCredential`
+- [x] Unit test: `auth.secret is None` → no `Authorization` header sent.
+- [x] Unit test: `auth.secret` present (a mock `ResolvedSecret`
       wrapping an `OAuthGrantSettingsDTO`) → `Authorization: Bearer <token>`
       (or the configured `token_type`) sent. Since `OAuthGrantSettingsDTO` doesn't exist
-      yet, the mock credential is a `types.SimpleNamespace` shaped like its future
+      yet, the mock secret is a `types.SimpleNamespace` shaped like its future
       `.secret.data.grant.{access_token,token_type}`, injected via
-      `McpDirectAuth.model_construct(credential=...)` to bypass pydantic validation.
+      `McpDirectAuth.model_construct(secret=...)` to bypass pydantic validation.
 - [x] Unit test: mock upstream refuses the connection → `McpUpstreamError`
       raised, carrying `target` and no false `status_code`.
 - [x] Unit test: mock upstream returns HTTP 200 with a JSON-RPC `error`
@@ -187,7 +187,7 @@ that file (WP5) or the M2 merge coordinator, not WP8.
       is right for WP10's CRUD routers, which speak the house wire, and wrong for a
       proxy: it raises a plain `HTTPException(status, detail=str)`, which collapses
       every cause sharing a status into one indistinguishable message —
-      `McpEndpointNotFoundError` and `CredentialNotFoundError` both become an opaque
+      `McpEndpointNotFoundError` and `SecretNotFoundError` both become an opaque
       `HTTPException` a caller cannot tell apart. §9 requires the opposite: *"the MCP
       proxy answers protocol-shaped errors at the transport status the relay produced,
       and gateway-authored refusals as the protocol's error result with the same
@@ -199,7 +199,7 @@ that file (WP5) or the M2 merge coordinator, not WP8.
       The HTTP status per cause is unchanged from `handle_gateway_exceptions()`'s
       table (404 not-found, 403 policy/entitlement/tool-denied, 400
       ceiling-exceeded/invalid-request, 409 auth-required/scope-insufficient/
-      credential-missing/invalid, 424-or-502 upstream). The missing-`Mcp-Method`
+      secret-missing/invalid, 424-or-502 upstream). The missing-`Mcp-Method`
       `ValueError` folds into the same mapping (`cause: "invalid_request"`) rather
       than being a bespoke `HTTPException(400)` special case — `handle_gateway_exceptions`
       is not imported into this file at all. `apis/fastapi/gateways/exceptions.py`
@@ -222,7 +222,7 @@ that file (WP5) or the M2 merge coordinator, not WP8.
 - [x] Unit test, revised for the correction above: a parametrized table of all eleven
       mapped causes (`endpoint_not_found`, `policy_denied`, `entitlement_denied`,
       `tool_not_allowed`, `ceiling_exceeded`, `auth_required`, `scope_insufficient`,
-      `credential_missing`, `credential_invalid`, `upstream_error` below/above 500 and
+      `secret_missing`, `secret_invalid`, `upstream_error` below/above 500 and
       with no upstream status at all) each asserts BOTH the HTTP status AND the
       `error.data.cause` string in the JSON-RPC error body — asserting the status
       alone would also have passed under the old `HTTPException` behaviour and proved

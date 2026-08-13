@@ -20,9 +20,9 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
                       connect affordance, endpoint config (§4)
   types.py            GatewaysError, the base exception
   policy/             the shared core both planes evaluate against (D7, D12)
-    dtos.py           principal-adjacent DTOs: decision, target, outcome, credential triple
+    dtos.py           principal-adjacent DTOs: decision, target, outcome, secret triple
     types.py          policy + resolution exceptions
-    interfaces.py     CredentialResolverInterface — the one lookup, owner-first (D10)
+    interfaces.py     SecretsResolverInterface — the one lookup, owner-first (D10)
     resolution.py     the resolve() implementation over VaultService (WP2)
     service.py        GatewayPolicyService: authorize, audit, usage (WP3, WP4)
     audit.py          EventType members + attribute builders for the events stream (D22)
@@ -168,7 +168,7 @@ incompatible conventions.
 With the domain boundary drawn, this answers itself. `gateway_connections` is one
 authorization of one integration — a provider-side account, a redirect flow, `is_valid`
 driven by provider callbacks. An endpoint is a **route plus policy** — a URL, an
-allowlist, a configuration — with a vault reference where a credential exists. Different
+allowlist, a configuration — with a vault reference where a secret exists. Different
 domain, different noun, different lifecycle; reuse would put our semantics on a table
 tools and triggers read, and would leave `provider_key`/`integration_key` meaningless on
 our rows. The connection an OAuth flow eventually produces on the MCP side is a
@@ -189,7 +189,7 @@ cannot serve — `is_valid` after a failed refresh (D18), the refresh attempt's 
 
 ### Why the LLM plane has no grants table
 
-The asymmetry is deliberate and follows from what each credential *is*. An OAuth token is
+The asymmetry is deliberate and follows from what each secret *is*. An OAuth token is
 **audience-bound**: minted for one server, by that server's authorization server, per
 owner — so the binding `(owner, endpoint) → secret` is a fact that must be stored, and
 `mcp_gateway_grants` stores it. A provider key is bound to nothing but its provider:
@@ -277,7 +277,7 @@ class LlmEndpointDBA(
     # bedrock, sagemaker, vertex_ai — aligned with CustomProviderKind and the
     # runner wire's `deployment` axis (services/runner/src/protocol.ts).
     secret_id = Column(UUID(as_uuid=True), nullable=True)
-    # nullable: an endpoint with no credential is legitimate — the mock (D23),
+    # nullable: an endpoint with no secret is legitimate — the mock (D23),
     # an unauthenticated self-hosted server. FK with SET NULL, §2.1.
     # data: { route: {...}, model_slugs: [...], config: {...}, extras: {...} } — §2.4
 
@@ -334,7 +334,7 @@ UUID with no constraint (`dbs/postgres/webhooks/dbas.py`); the SSO provider row 
 `nullable=False` plus `ForeignKeyConstraint(["secret_id"], ["secrets.id"],
 ondelete="CASCADE")` (`api/ee/src/dbs/postgres/organizations/dbes.py`). The webhook shape
 is the older and weaker one: a dangling `secret_id` there degrades to a `log.warning` at
-dispatch time, which is tolerable for a signing key and not for a gateway credential.
+dispatch time, which is tolerable for a signing key and not for a gateway secret.
 
 All three new tables take the constraint, with the delete behaviour chosen per table:
 
@@ -342,7 +342,7 @@ All three new tables take the constraint, with the delete behaviour chosen per t
   endpoint's configuration — the tool policy, the model allowlist, the timeouts survive,
   and calls fail visibly with the needs-auth / needs-input state until someone rebinds.
   This is D18's posture (a dead secret does not hide tools) applied to the row itself:
-  credential death never erases configuration. `CASCADE` here would let a vault cleanup
+  secret death never erases configuration. `CASCADE` here would let a vault cleanup
   quietly unregister servers.
 - **Grants: `ondelete="CASCADE"`.** The grant row is nothing but a pointer plus scope;
   when the `oauth_grant` secret is deleted — revocation, member removal — a surviving row
@@ -360,12 +360,12 @@ keeping it honest costs one constraint.
 
 ### 2.2 The owner dimension: in every signature now, in one table now, in storage later
 
-D10 is a signature rule: every credential lookup takes the owner from the outset, even
+D10 is a signature rule: every secret lookup takes the owner from the outset, even
 while the only answer is the project. What that means layer by layer, so nobody
 over-applies it:
 
-- **The resolver takes the owner always.** `CredentialResolverInterface.resolve()` takes
-  the full `AuthScope` and a `CredentialMode`, and the mode logic consults
+- **The resolver takes the owner always.** `SecretsResolverInterface.resolve()` takes
+  the full `AuthScope` and a `SecretMode`, and the mode logic consults
   `scope.user_id` (§7.2). This is the signature that is expensive to retrofit, and it is
   the one thing `plan.md` says the seed must get right.
 - **The grants DAO takes the owner as a key.** `fetch_grant(project_id=..., endpoint_id=...,
@@ -407,7 +407,7 @@ vocabulary for one set of values (D27).
 - **`agenta`** — the Agenta tools. On the MCP plane, **the mocks are its first members**
   (D23) — servers we implement and run. On the LLM plane: **reserved with no members
   today**, where an Agenta-owned or fine-tuned model would live. The names are defined in
-  code; the credential is nobody's — our own servers, reached with our own minted token
+  code; the secret is nobody's — our own servers, reached with our own minted token
   (D13). The runner's loopback channel is not in this picture: it is the runner's tool
   executor, not a transport, and the exclusion recorded in `notes.md` holds — the slice
   of it that could eventually address the gateway directly, and the boundary of that
@@ -418,7 +418,7 @@ vocabulary for one set of values (D27).
   (`core/gateways/llms/catalog.py`), and an endpoint exists when a provider key exists
   for it. On the MCP plane: third-party servers backed by the Composio catalog the
   integrations domain already consumes — the path spells the brokered connection's
-  identity (`builtin/composio/notion/my-notion`), and the credential lives at the broker
+  identity (`builtin/composio/notion/my-notion`), and the secret lives at the broker
   behind the existing connection state machine (D27). Spelled without a hyphen because
   the namespace is a path segment — the same reason the slug rules exist.
 - **`custom`** — stored endpoints, the only rows: a customer's own deployment or reseller
@@ -478,7 +478,7 @@ the URL grammar across the planes purely to avoid a two-line mapping (D27).
 than in a column: a hit on `agenta` calls the Agenta tools; a hit on `builtin` calls the
 generated set — the standard provider, or the broker, reusing the connection the
 integrations domain already brokered; a hit on `custom` calls the upstream the endpoint
-row names, with the credential we resolved for it (D27, §4.4). Every row is `custom` by
+row names, with the secret we resolved for it (D27, §4.4). Every row is `custom` by
 construction (D20 stores nothing else), so a namespace column would hold one value
 forever. The DTO carries a `namespace` field stamped by the service — `CUSTOM` for rows,
 the generated value otherwise — so one endpoint shape per plane serves all three
@@ -492,7 +492,7 @@ design cheap is how little that is: **five fields, and that is all — name, ico
 description or category, and URL** (D27).
 
 **Deliberately not stored: the OAuth endpoints, and not even the scope list.** Given the
-server's URL, both are fetched at configuration time with no credential at all: an
+server's URL, both are fetched at configuration time with no secret at all: an
 unauthenticated call returns a challenge naming the protected-resource metadata, that
 names the authorization server, and the authorization server's metadata publishes its
 endpoints together with the scopes it supports. So the dashboard renders real scope
@@ -571,19 +571,19 @@ touch of the row**, never a second row — which is also what keeps refresh chea
 on every refresh means the `oauth_grant` payload is updated in place (`secrets.md`), and
 the row's identity never moves.
 
-### 2.6 Flags and status: policy state versus credential state versus attempt outcome
+### 2.6 Flags and status: policy state versus secret state versus attempt outcome
 
 Three different facts, three different homes, following the house pattern:
 
 - **`flags.is_active`** — an operator's switch, on endpoints and grants. Server-set default
   `True`; a deactivated endpoint refuses calls at policy time with a reason that names the
   flag.
-- **`flags.is_valid`** — credential health, on grants only. Server-set, never
+- **`flags.is_valid`** — secret health, on grants only. Server-set, never
   client-writable (the connections service already enforces exactly this: "always
   server-set in flags"). A failed refresh flips it `False`; D18 then holds — the server's
   tools stay listed, the call fails, the existing escalation paths offer reconnection.
-  Endpoints have no `is_valid` because an endpoint does not authenticate; its credential's
-  health lives with the credential.
+  Endpoints have no `is_valid` because an endpoint does not authenticate; its secret's
+  health lives with the secret.
 - **`status` (`StatusDBA`)** — the outcome of the last attempt, the shared
   `{timestamp, type, code, message, stacktrace}` shape. On a grant: the refresh failure
   that explains *why* `is_valid` is false. On an endpoint: the last relay or probe failure,
@@ -605,7 +605,7 @@ so the principal travels in `attributes` — the pattern every existing publish 
 already follows.
 
 Usage rides the same event rather than a second write. The two facts that cannot be
-reconstructed later — the credential **owner** and the **payer** (`secret_origin`) — are
+reconstructed later — the secret **owner** and the **payer** (`secret_origin`) — are
 attributes of the call, exactly like the decision and the outcome; splitting them across
 an audit record and a usage record would mean two writes that can disagree about the one
 call they describe. The EE meters become a consumer of this stream when metering lands
@@ -735,20 +735,20 @@ class GatewayAuthScheme(str, Enum):
 
 class GatewayConnectionState(str, Enum):
     """Derived per caller at read time — never stored (§2.6)."""
-    READY = "ready"            # a usable credential exists for this owner
+    READY = "ready"            # a usable secret exists for this owner
     NEEDS_AUTH = "needs_auth"  # OAuth target with no grant for this owner; connect
     NEEDS_INPUT = "needs_input"  # a secret must be supplied before use
 
 
 class GatewayConnectAffordance(BaseModel):
-    """The call to make when a credential is missing — an interaction, not a
+    """The call to make when a secret is missing — an interaction, not a
     failure (D17). Same shape as the tools domain's ConnectAffordance."""
     endpoint: str
     body: Dict[str, Any] = Field(default_factory=dict)
 
 
 class GatewayConnectionRequirement(BaseModel):
-    """One target's credential state, returned from discovery and from a refused
+    """One target's secret state, returned from discovery and from a refused
     call. `connect` is present exactly when the state is not READY."""
     target: str                      # the route path under the plane, per §2.3 —
                                      # e.g. "builtin/composio/notion/my-notion"
@@ -794,22 +794,22 @@ class GatewayPlane(str, Enum):
     MCP = "mcp"
 
 
-class CredentialMode(str, Enum):
+class SecretMode(str, Enum):
     """Declared per resolution site, not per call (`secrets.md`)."""
     USER_OPTIONAL = "user_optional"   # the user's if present, else the project's
     USER_REQUIRED = "user_required"   # the user's, or fail — never fall back
     PROJECT_ONLY = "project_only"     # always the project's; ignore user secrets
 
 
-class CredentialOwnerKind(str, Enum):
+class SecretOwnerKind(str, Enum):
     PROJECT = "project"
     USER = "user"
 
 
-class CredentialOwner(BaseModel):
+class SecretOwner(BaseModel):
     """Whose stored secret answered the lookup. Audit cannot reconstruct this
-    later, which is why it travels with the credential (`secrets.md`)."""
-    kind: CredentialOwnerKind
+    later, which is why it travels with the secret (`secrets.md`)."""
+    kind: SecretOwnerKind
     user_id: Optional[UUID] = None    # set exactly when kind is USER
 
 
@@ -837,15 +837,15 @@ class GrantRef(BaseModel):
     """An OAuth-protected MCP endpoint: find this owner's grant (§2.5)."""
     endpoint_id: UUID
 
-CredentialRef = Union[ProviderKeyRef, BoundSecretRef, GrantRef]
+SecretRef = Union[ProviderKeyRef, BoundSecretRef, GrantRef]
 
 
-class ResolvedCredential(BaseModel):
-    """The (credential, owner, payer) triple (`secrets.md`). Never serialized
+class ResolvedSecret(BaseModel):
+    """The (secret, owner, payer) triple (`secrets.md`). Never serialized
     outward: it exists between the resolver and an adapter, in process, and no
     wire model embeds it."""
     secret: SecretResponseDTO         # decrypted, from VaultService
-    owner: CredentialOwner
+    owner: SecretOwner
     origin: SecretOrigin
 
 
@@ -888,11 +888,11 @@ class GatewayOutcome(BaseModel):
     duration_ms: Optional[int] = None
     #
     usage: Optional[GatewayUsage] = None
-    owner: Optional[CredentialOwner] = None   # None when no credential was resolved
+    owner: Optional[SecretOwner] = None   # None when no secret was resolved
     origin: Optional[SecretOrigin] = None
 ```
 
-**Why `ResolvedCredential` carries the whole `SecretResponseDTO`** rather than a plucked
+**Why `ResolvedSecret` carries the whole `SecretResponseDTO`** rather than a plucked
 string: the payload shape differs per kind — a provider key is one string, a custom
 provider is url + key + extras, an OAuth grant is a token pair — and the adapter, not the
 resolver, knows which fields its upstream needs. Plucking in the resolver would grow a
@@ -947,8 +947,8 @@ class LlmEndpointData(BaseModel):
 
 class LlmEndpointFlags(BaseModel):
     is_active: bool = True
-    # no is_valid: an endpoint does not authenticate; credential health lives
-    # with the credential (§2.6)
+    # no is_valid: an endpoint does not authenticate; secret health lives
+    # with the secret (§2.6)
 
 
 class LlmEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
@@ -1142,17 +1142,17 @@ class McpResolvedRoute(BaseModel):
     config: McpEndpointConfig = Field(default_factory=McpEndpointConfig)
 
 
-# --- the two credential mechanisms, made legible (D27) ----------------------- #
+# --- the two secret mechanisms, made legible (D27) ----------------------- #
 
 class McpDirectAuth(BaseModel):
-    """agenta + custom: the credential is ours to present — an oauth_grant
+    """agenta + custom: the secret is ours to present — an oauth_grant
     resolved from the vault (§7.2), or nothing for a NONE-scheme target."""
-    credential: Optional[ResolvedCredential] = None
+    secret: Optional[ResolvedSecret] = None
 
 
 class McpBrokeredAuth(BaseModel):
     """builtin: the integrations domain brokered the authorization and holds the
-    credential upstream; what we carry is its connection row. `Connection` is
+    secret upstream; what we carry is its connection row. `Connection` is
     that domain's own DTO (core/gateway/connections/dtos.py), imported by
     reference (§1) — no copy, no subclass."""
     connection: Connection
@@ -1168,20 +1168,20 @@ precedent it cites does not do this — `WebhookSubscription` carries `secret_id
 `core/webhooks/service.py`). The gateways follow the code, for a reason the stricter
 sentence ignores: edits are full PUTs sourced from the freshly fetched entity, and a field
 that is writable but never readable breaks that contract — every edit would silently
-unbind the credential. The id is a pointer; reading the material it points at still takes
+unbind the secret. The id is a pointer; reading the material it points at still takes
 `VIEW_SECRET` through the vault. The material itself never appears on any DTO in this
 document, in either direction.
 
-**`builtin` and `custom` are two credential mechanisms, and the shapes make that legible
+**`builtin` and `custom` are two secret mechanisms, and the shapes make that legible
 at the layer where it matters** (D27). At the *entity* layer the answer is a nullable
 reference, not a discriminated endpoint type: `connection_id` and `integration_key` are
 stamped by the service when it generates a `builtin` entry, and a split into
 `McpBuiltinEndpoint` / `McpCustomEndpoint` was rejected because the endpoint's identity,
-config and listing shape are one — only the credential path forks, and forking every DAO
-and service signature for a difference that appears at credential time would spread the
+config and listing shape are one — only the secret path forks, and forking every DAO
+and service signature for a difference that appears at secret time would spread the
 fork everywhere it does not matter. At the *south port*, where the fork is real behaviour,
 the shape **is** discriminated: `McpRelayAuth` above, one arm per mechanism, so an adapter
-cannot quietly treat a brokered connection as a vault credential or vice versa
+cannot quietly treat a brokered connection as a vault secret or vice versa
 (§7.1).
 
 **The reference itself, designed** (D27 asks for exactly this): *which row* — the
@@ -1192,8 +1192,8 @@ which the URL spells outright (§2.3): the project from the token plus the
 `connection_id`, `provider_key` and `integration_key` onto the generated entry so nothing
 downstream re-parses the path. *When the connection is revoked or invalid* — the endpoint
 stays listed and derives `NEEDS_AUTH` (§8), and a relay attempt refuses with
-`CredentialInvalidError` before any upstream call, carrying the connect affordance for
-the existing integrations flow: D18's posture, credential death never hides
+`SecretInvalidError` before any upstream call, carrying the connect affordance for
+the existing integrations flow: D18's posture, secret death never hides
 configuration.
 
 **The empty allowlist refuses.** `model_slugs: []` on a custom endpoint means no model may
@@ -1373,28 +1373,28 @@ class EntitlementDeniedError(GatewaysError):
         super().__init__(f"Entitlement {key} exceeded for {target}")
 
 
-class CredentialNotFoundError(GatewaysError):
-    """Resolution failed. Names WHICH owner is missing a credential, so the
+class SecretNotFoundError(GatewaysError):
+    """Resolution failed. Names WHICH owner is missing a secret, so the
     caller learns whether they must connect or an administrator must
     (`secrets.md`: failure is never silent and never a fallback to none)."""
 
-    def __init__(self, *, mode: CredentialMode, missing: CredentialOwnerKind, target: str):
+    def __init__(self, *, mode: SecretMode, missing: SecretOwnerKind, target: str):
         self.mode = mode
         self.missing = missing
         self.target = target
         super().__init__(
-            f"No {missing.value} credential for {target} under mode {mode.value}"
+            f"No {missing.value} secret for {target} under mode {mode.value}"
         )
 
 
-class CredentialInvalidError(GatewaysError):
-    """A credential exists and cannot be used — revoked, or refresh failed.
+class SecretInvalidError(GatewaysError):
+    """A secret exists and cannot be used — revoked, or refresh failed.
     Surfaces as needs_auth with a connect affordance (D17, D18)."""
 
     def __init__(self, *, target: str, detail: Optional[str] = None):
         self.target = target
         self.detail = detail
-        super().__init__(f"Credential for {target} is invalid")
+        super().__init__(f"Secret for {target} is invalid")
 
 
 class CeilingExceededError(GatewaysError):
@@ -1502,7 +1502,7 @@ class McpUpstreamError(GatewaysError):
         super().__init__(f"Upstream {target} failed ({status_code})")
 ```
 
-**`PolicyDeniedError` and `CredentialNotFoundError` are different failures on purpose.**
+**`PolicyDeniedError` and `SecretNotFoundError` are different failures on purpose.**
 The first says *you may not*; the second says *you could, once someone connects*. The
 second maps to the needs-auth / needs-input interaction path (D17) and carries enough to
 build the affordance; the first never does — offering a connect affordance to a caller who
@@ -1814,7 +1814,7 @@ class McpGrantsDAOInterface(ABC):
     ) -> Optional[McpGrant]:
         """The resolution read: THIS owner's grant on THIS endpoint.
         user_id=None selects the project-owned grant — it does not mean "any".
-        The fallback walk (user's, else project's, per CredentialMode) belongs
+        The fallback walk (user's, else project's, per SecretMode) belongs
         to the resolver, which calls this at most twice; putting the fallback
         in SQL would hide the mode logic where it cannot be unit-tested."""
         ...
@@ -1873,17 +1873,17 @@ class McpGrantsDAOInterface(ABC):
 | method | `None` means | caller does |
 | --- | --- | --- |
 | `fetch_endpoint_by_slug` | no such custom endpoint | the proxy answers not-found in the surface's own shape |
-| `fetch_grant` | this owner has not connected | the resolver applies the mode: fall back, or raise `CredentialNotFoundError` |
+| `fetch_grant` | this owner has not connected | the resolver applies the mode: fall back, or raise `SecretNotFoundError` |
 | `create_grant` | never — conflict returns the existing row | proceed with the row |
 | `edit_endpoint` / `update_grant` | the row does not exist | 404 at the boundary |
 
 ### 7.1 The south ports
 
 One port per plane, in the same `interfaces.py` files. This answers `contract.md`'s open
-question — **two interfaces sharing the credential types, not one interface with two
+question — **two interfaces sharing the secret types, not one interface with two
 shapes** — because the method shapes share nothing: a streaming byte relay on one side, a
 single JSON round trip on the other. A merged interface would be a union with no caller.
-What they share is exactly what is shared in fact: `ResolvedCredential` in,
+What they share is exactly what is shared in fact: `ResolvedSecret` in,
 plane-specific route and result types out.
 
 The result types are dataclasses, not Pydantic models, because a relay result carries an
@@ -1907,7 +1907,7 @@ class LlmRelayResult:
 
 
 class LlmUpstreamInterface(ABC):
-    """Turns a resolved route plus a resolved credential into an upstream call.
+    """Turns a resolved route plus a resolved secret into an upstream call.
     The core never imports an implementation; wiring happens at the entrypoint."""
 
     @abstractmethod
@@ -1915,7 +1915,7 @@ class LlmUpstreamInterface(ABC):
         self,
         *,
         route: LlmResolvedRoute,
-        credential: Optional[ResolvedCredential],
+        secret: Optional[ResolvedSecret],
         #
         context: LlmCallContext,
         body: bytes,
@@ -1923,7 +1923,7 @@ class LlmUpstreamInterface(ABC):
     ) -> LlmRelayResult:
         """Relay one completion call. `body` is the caller's payload untouched;
         `headers` are the caller's headers already stripped of authorization.
-        `credential` is None only for targets whose auth scheme is NONE (the
+        `secret` is None only for targets whose auth scheme is NONE (the
         mocks). Raises LlmUpstreamError on upstream failure."""
         ...
 
@@ -1960,7 +1960,7 @@ class McpUpstreamInterface(ABC):
         """Transparent per-server relay (D16): same method, same body, same
         response, with only the route and the authorization changed. `auth` is
         the discriminated union from §4.4 — McpDirectAuth for agenta and custom,
-        McpBrokeredAuth for builtin — so the two credential mechanisms cannot be
+        McpBrokeredAuth for builtin — so the two secret mechanisms cannot be
         conflated by an adapter (D27). Raises McpUpstreamError on transport
         failure; protocol-level errors from the server are NOT exceptions — they
         are the response body, relayed, because the server's own failure reason
@@ -2008,7 +2008,7 @@ class McpUpstreamRegistry:
     def keys(self) -> list[str]: ...
 ```
 
-### 7.2 The credential resolver port
+### 7.2 The secret resolver port
 
 The third port, in `core/gateways/policy/interfaces.py`, implemented by
 `policy/resolution.py` over `VaultService` and the grants DAO (WP2). This is the signature
@@ -2018,7 +2018,7 @@ the only answer is the project.
 ```python
 # core/gateways/policy/interfaces.py
 
-class CredentialResolverInterface(ABC):
+class SecretsResolverInterface(ABC):
     """One lookup, called by both planes (`secrets.md`). Mockable (D23): the
     mock resolver answers from a dict and never touches the vault."""
 
@@ -2028,17 +2028,17 @@ class CredentialResolverInterface(ABC):
         *,
         scope: AuthScope,
         #
-        ref: CredentialRef,
-        mode: CredentialMode,
-    ) -> ResolvedCredential:
-        """Resolve one credential for one call.
+        ref: SecretRef,
+        mode: SecretMode,
+    ) -> ResolvedSecret:
+        """Resolve one secret for one call.
 
         The mode logic, in full (`secrets.md`):
-          PROJECT_ONLY  -> the project secret; CredentialNotFoundError(PROJECT) if absent.
-          USER_REQUIRED -> the (project, user) secret; CredentialNotFoundError(USER)
+          PROJECT_ONLY  -> the project secret; SecretNotFoundError(PROJECT) if absent.
+          USER_REQUIRED -> the (project, user) secret; SecretNotFoundError(USER)
                            if absent — NEVER falls back.
           USER_OPTIONAL -> the (project, user) secret if present, else the
-                           project's; CredentialNotFoundError(USER) naming the
+                           project's; SecretNotFoundError(USER) naming the
                            narrower owner if neither exists.
 
         Until user-owned secrets ship, the user arm of every mode finds nothing
@@ -2051,10 +2051,10 @@ class CredentialResolverInterface(ABC):
                             builder does today (`models.md`).
           BoundSecretRef -> VaultService.get_secret_by_id, scoped to the project.
           GrantRef       -> the grants DAO's owner-keyed fetch (§7), then
-                            get_secret_by_id; CredentialInvalidError when the
+                            get_secret_by_id; SecretInvalidError when the
                             grant's is_valid is False (D18).
 
-        Raises, never returns None: no path silently yields "no credential"
+        Raises, never returns None: no path silently yields "no secret"
         (`secrets.md`), and the exceptions carry which owner is missing so the
         boundary can build the connect affordance (§5)."""
         ...
@@ -2062,7 +2062,7 @@ class CredentialResolverInterface(ABC):
     @abstractmethod
     async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
         """Provider keys with a resolvable project-owned secret. Names only,
-        never a value — an existence test that must not read a credential.
+        never a value — an existence test that must not read a secret.
 
         Same scan as the ProviderKeyRef arm (provider_key + custom_provider),
         returning the provider names found. Unlike resolve() it does NOT raise
@@ -2075,16 +2075,16 @@ class CredentialResolverInterface(ABC):
 **Why the existence question is on this port** (R2). D20 makes a generated `builtin` endpoint
 exist for a project exactly when a provider key exists for it, so `LlmGatewayService.list_endpoints`
 (§8) has to ask — and its constructor has no vault dependency, deliberately. Handing it a
-`VaultService` would give one service two credential seams and defeat the port; calling `resolve()`
-once per provider to catch `CredentialNotFoundError` is control flow by exception plus eleven vault
-reads per list. Existence of a credential is a credential-layer question, so it lives with the
-credential layer.
+`VaultService` would give one service two secret seams and defeat the port; calling `resolve()`
+once per provider to catch `SecretNotFoundError` is control flow by exception plus eleven vault
+reads per list. Existence of a secret is a secret-layer question, so it lives with the
+secret layer.
 
-**`builtin` deliberately never passes through this port.** Its credential lives at the
+**`builtin` deliberately never passes through this port.** Its secret lives at the
 broker and never enters our vault, so there is nothing here to resolve — the MCP service
 takes the brokered path instead, carrying the connection row in `McpBrokeredAuth` (§4.4).
 Routing that path through the resolver anyway, with a fourth ref arm, was rejected: it
-would force `ResolvedCredential` to sometimes hold no secret, which un-types every
+would force `ResolvedSecret` to sometimes hold no secret, which un-types every
 consumer to accommodate the one caller that has a different mechanism, not a different
 lookup (D27).
 
@@ -2130,7 +2130,7 @@ class VaultTokenStorage:
         #
         vault_service: VaultService,
         mcp_grants_dao: McpGrantsDAOInterface,
-        mode: CredentialMode = CredentialMode.USER_OPTIONAL,
+        mode: SecretMode = SecretMode.USER_OPTIONAL,
     ) -> None: ...
 ```
 
@@ -2155,7 +2155,7 @@ class GatewayPolicyService:
     def __init__(
         self,
         *,
-        resolver: CredentialResolverInterface,
+        resolver: SecretsResolverInterface,
     ) -> None: ...
 
 class LlmGatewayService:
@@ -2164,7 +2164,7 @@ class LlmGatewayService:
         *,
         llm_endpoints_dao: LlmEndpointsDAOInterface,
         policy: GatewayPolicyService,
-        resolver: CredentialResolverInterface,
+        resolver: SecretsResolverInterface,
         upstream_registry: LlmUpstreamRegistry,
     ) -> None: ...
 
@@ -2175,7 +2175,7 @@ class McpGatewayService:
         mcp_endpoints_dao: McpEndpointsDAOInterface,
         mcp_grants_dao: McpGrantsDAOInterface,
         policy: GatewayPolicyService,
-        resolver: CredentialResolverInterface,
+        resolver: SecretsResolverInterface,
         connections_service: ConnectionsService,
         upstream_registry: McpUpstreamRegistry,
     ) -> None: ...
@@ -2254,7 +2254,7 @@ class LlmGatewayService:
     # What backs GET /v1/models (§9, R3). Per endpoint, not global: resolve the
     # target as the relay does, authorize with USE_LLM_ENDPOINTS — it is a
     # data-plane read that reveals configuration — and return the allowlist: the
-    # static catalogue's slugs for builtin, model_slugs for custom. No credential
+    # static catalogue's slugs for builtin, model_slugs for custom. No secret
     # resolved, no upstream called, and no new DTO: the proxy shapes the OpenAI
     # list body inline, because the data plane has no wire models (§6).
 
@@ -2317,7 +2317,7 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
     context = parse_call_context(body)            # model + stream; MCP reads headers
     self._check_allowlist(target, context)        # LlmModelNotAllowedError /
                                                   # McpToolNotAllowedError — before
-                                                  # any credential is touched
+                                                  # any secret is touched
     self._check_ceilings(target, context)         # CeilingExceededError: reject,
                                                   # never clamp (D25)
 
@@ -2330,26 +2330,26 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
                                  outcome=GatewayOutcome(status_code=403))
         raise PolicyDeniedError(...)
 
-    credential = await self.resolver.resolve(
-        scope=scope, ref=target.credential_ref(), mode=CredentialMode.PROJECT_ONLY,
+    secret = await self.resolver.resolve(
+        scope=scope, ref=target.secret_ref(), mode=SecretMode.PROJECT_ONLY,
     )   # MCP: USER_OPTIONAL (§7.2); NONE-scheme targets skip this step; builtin
         # MCP targets take the brokered path instead — the connection row in
         # McpBrokeredAuth, never the resolver (§4.4, D27)
 
     result = await self.upstream_registry.get(
         select_upstream(target.provider_key, target.deployment)
-    ).relay_chat_completion(route=target.route(context), credential=credential,
+    ).relay_chat_completion(route=target.route(context), secret=secret,
                             context=context, body=body, headers=headers)
 
     await self.policy.record(scope=scope, target=..., decision=decision,
-                             outcome=outcome_from(result, credential))
+                             outcome=outcome_from(result, secret))
     return result
 ```
 
 Three orderings in that body are deliberate:
 
-- **Allowlist before credential.** A refused model or tool must not cost a vault read, and
-  the refusal reason must be the allowlist, not a coincidental credential gap.
+- **Allowlist before secret.** A refused model or tool must not cost a vault read, and
+  the refusal reason must be the allowlist, not a coincidental secret gap.
 - **The denial is recorded before the exception leaves.** An audit trail that only records
   successes answers "did every call get checked" with "every call that succeeded" — the
   exact failure D1 names.
@@ -2362,8 +2362,8 @@ Three orderings in that body are deliberate:
 **`list_tools`-shaped reads need no service verb.** Listing an MCP server's tools *is* a
 relay (`context.method` is the list method), transparently passed through with one
 asymmetry: an `INCLUDE` tool policy filters the list result — entries dropped whole, never
-renamed — while credential death does not filter anything (D18). Policy hides what may
-never be called; credential state never hides what policy allows. The per-caller list
+renamed — while secret death does not filter anything (D18). Policy hides what may
+never be called; secret state never hides what policy allows. The per-caller list
 question from `contract.md` (shared-intermediary caching vs per-caller allowlists) is
 thereby scoped: list results are cacheable per (endpoint, policy-hash), and caching is out
 of the first increment anyway (`scope-checklist.md`).
@@ -2653,7 +2653,7 @@ the next mint.
 **Denials wear the surface's own error shape.** The LLM proxy translates the mapped
 HTTP status into the OpenAI error body — `{"error": {"message", "type", "code"}}` — with
 `code` carrying the stable cause (`policy_denied`, `model_not_allowed`,
-`ceiling_exceeded`, `credential_missing`); the MCP proxy answers protocol-shaped errors at the transport
+`ceiling_exceeded`, `secret_missing`); the MCP proxy answers protocol-shaped errors at the transport
 status the relay produced, and gateway-authored refusals as the protocol's error result
 with the same stable causes in the error data. What it must never do is leak the house
 envelope onto either surface, or swallow the upstream's own error, which passes through
@@ -2675,14 +2675,14 @@ llm_endpoints_dao = LlmEndpointsDAO(engine=_transactions_engine)
 mcp_endpoints_dao = McpEndpointsDAO(engine=_transactions_engine)
 mcp_grants_dao = McpGrantsDAO(engine=_transactions_engine)
 
-credential_resolver = CredentialResolver(vault_service=vault_service,
+secret_resolver = SecretsResolver(vault_service=vault_service,
                                          mcp_grants_dao=mcp_grants_dao)
-gateway_policy_service = GatewayPolicyService(resolver=credential_resolver)
+gateway_policy_service = GatewayPolicyService(resolver=secret_resolver)
 
 llm_gateway_service = LlmGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=credential_resolver,
+    resolver=secret_resolver,
     upstream_registry=LlmUpstreamRegistry(adapters={
         "passthrough": PassthroughLlmAdapter(),
         "translated": TranslatedLlmAdapter(),
@@ -2694,7 +2694,7 @@ mcp_gateway_service = McpGatewayService(
     mcp_endpoints_dao=mcp_endpoints_dao,
     mcp_grants_dao=mcp_grants_dao,
     policy=gateway_policy_service,
-    resolver=credential_resolver,
+    resolver=secret_resolver,
     upstream_registry=McpUpstreamRegistry(adapters={
         "http": HttpMcpAdapter(),          # custom: McpDirectAuth
         "composio": ComposioMcpAdapter(),  # builtin: McpBrokeredAuth (D27)
@@ -2708,7 +2708,7 @@ mcp_gateway_service = McpGatewayService(
 ## 10. Retention
 
 The platform has no operational retention today; the channels design flagged it and
-inherited it. The gateways must not inherit it **for credential material**, and mostly do
+inherited it. The gateways must not inherit it **for secret material**, and mostly do
 not need to, because the lifetimes fall out of the shapes above:
 
 - **Tokens do not accumulate.** An `oauth_grant` secret is rewritten in place on every
@@ -2719,7 +2719,7 @@ not need to, because the lifetimes fall out of the shapes above:
   exists so this sweep has a predicate, and wiring it into the member-removal path is part
   of the ownership work `secrets.md` schedules; a **deleted project** takes everything
   with it through the `CASCADE` chain — grant rows, endpoint rows, and the vault secrets
-  themselves, whose table already cascades on project. The inbound credential retains
+  themselves, whose table already cascades on project. The inbound secret retains
   nothing by construction: minted, fifteen-minute expiry, never stored (D13).
 - **Audit and usage records outlive what they describe, and die with the project.** They
   ride the events domain (D22) and inherit its retention posture wholesale — including

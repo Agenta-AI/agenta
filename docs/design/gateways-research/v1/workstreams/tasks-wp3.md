@@ -34,7 +34,7 @@ Depends on nothing else — WP3 can start immediately alongside WP1 and WP2.
 
 ## `core/gateways/policy/service.py` — skeleton
 
-- [x] `GatewayPolicyService.__init__(self, *, resolver: CredentialResolverInterface) ->
+- [x] `GatewayPolicyService.__init__(self, *, resolver: SecretsResolverInterface) ->
       None`: store `self.resolver = resolver`. Nothing else in the constructor.
 
 ## `authorize()`
@@ -112,16 +112,16 @@ Depends on nothing else — WP3 can start immediately alongside WP1 and WP2.
 
 ## `api/entrypoints/routers.py` diff (hand off at merge, do not commit directly)
 
-- [x] Write the `GatewayPolicyService(resolver=credential_resolver)` construction line
+- [x] Write the `GatewayPolicyService(resolver=secret_resolver)` construction line
       from `specs-wp3.md` into this package's PR description for the M1 merge — ordered
-      after WP2's `credential_resolver` construction line. Recorded below for the merge to
+      after WP2's `secret_resolver` construction line. Recorded below for the merge to
       apply; this package does not touch `api/entrypoints/routers.py` itself.
 
 ```python
-# api/entrypoints/routers.py — add after WP2's credential_resolver construction line
+# api/entrypoints/routers.py — add after WP2's secret_resolver construction line
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 
-gateway_policy_service = GatewayPolicyService(resolver=credential_resolver)
+gateway_policy_service = GatewayPolicyService(resolver=secret_resolver)
 ```
 
 ## Definition of done

@@ -28,15 +28,15 @@ from oss.src.core.gateways.llms.types import (
     LlmModelNotAllowedError,
 )
 from oss.src.core.gateways.policy.dtos import (
-    CredentialMode,
-    CredentialOwner,
-    CredentialOwnerKind,
+    SecretMode,
+    SecretOwner,
+    SecretOwnerKind,
     GatewayUsage,
     PolicyDecision,
-    ResolvedCredential,
+    ResolvedSecret,
     SecretOrigin,
 )
-from oss.src.core.gateways.policy.interfaces import CredentialResolverInterface
+from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.types import CeilingExceededError, PolicyDeniedError
 from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
@@ -80,8 +80,8 @@ def _custom_row(
     )
 
 
-def _credential() -> ResolvedCredential:
-    return ResolvedCredential(
+def _secret() -> ResolvedSecret:
+    return ResolvedSecret(
         secret=SecretResponseDTO(
             kind=SecretKind.PROVIDER_KEY,
             data=StandardProviderDTO(
@@ -90,7 +90,7 @@ def _credential() -> ResolvedCredential:
             ),
             header=Header(name="openai"),
         ),
-        owner=CredentialOwner(kind=CredentialOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
         origin=SecretOrigin.VAULT,
     )
 
@@ -130,23 +130,21 @@ class _MockLlmEndpointsDAO(LlmEndpointsDAOInterface):
         return self.query_result
 
 
-class _MockResolver(CredentialResolverInterface):
+class _MockResolver(SecretsResolverInterface):
     def __init__(
         self,
         *,
         provider_keys: Optional[Set[str]] = None,
-        credential: Optional[ResolvedCredential] = None,
+        secret: Optional[ResolvedSecret] = None,
     ):
         self.provider_keys = provider_keys or set()
-        self.credential = credential
+        self.secret = secret
         self.resolve_calls: List[tuple] = []
 
     async def resolve(self, *, scope, ref, mode):
         self.resolve_calls.append((scope, ref, mode))
-        assert self.credential is not None, (
-            "resolve() called with no credential stubbed"
-        )
-        return self.credential
+        assert self.secret is not None, "resolve() called with no secret stubbed"
+        return self.secret
 
     async def available_provider_keys(self, *, scope) -> Set[str]:
         return self.provider_keys
@@ -175,11 +173,11 @@ class _MockAdapter(LlmUpstreamInterface):
         self.result = result
         self.calls: List[dict] = []
 
-    async def relay_chat_completion(self, *, route, credential, context, body, headers):
+    async def relay_chat_completion(self, *, route, secret, context, body, headers):
         self.calls.append(
             {
                 "route": route,
-                "credential": credential,
+                "secret": secret,
                 "context": context,
                 "body": body,
                 "headers": headers,
@@ -361,7 +359,7 @@ async def test_list_models_denied_decision_raises_before_reading_slugs():
 async def test_disallowed_model_raises_without_calling_resolver():
     dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["gpt-4o"])
-    resolver = _MockResolver(credential=_credential())
+    resolver = _MockResolver(secret=_secret())
 
     body = json.dumps({"model": "gpt-4o-mini", "messages": []}).encode()
 
@@ -382,7 +380,7 @@ async def test_policy_denial_records_once_before_raising():
     dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["gpt-4o"])
     policy = _MockPolicy(allowed=False)
-    resolver = _MockResolver(credential=_credential())
+    resolver = _MockResolver(secret=_secret())
 
     body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
 
@@ -407,7 +405,7 @@ async def test_ceiling_breach_names_all_three_values():
     dao.rows_by_slug["acme"] = _custom_row(
         slug="acme", model_slugs=["gpt-4o"], max_output_tokens=100
     )
-    resolver = _MockResolver(credential=_credential())
+    resolver = _MockResolver(secret=_secret())
 
     body = json.dumps(
         {"model": "gpt-4o", "messages": [], "max_output_tokens": 200}
@@ -433,8 +431,8 @@ async def test_successful_non_streaming_call_records_after_relay():
     dao = _MockLlmEndpointsDAO()
     row = _custom_row(slug="acme", model_slugs=["gpt-4o"], secret_id=uuid4())
     dao.rows_by_slug["acme"] = row
-    credential = _credential()
-    resolver = _MockResolver(credential=credential)
+    secret = _secret()
+    resolver = _MockResolver(secret=secret)
 
     adapter_result = LlmRelayResult(
         status_code=200,
@@ -459,12 +457,12 @@ async def test_successful_non_streaming_call_records_after_relay():
 
     assert result is adapter_result
     assert len(adapter.calls) == 1
-    assert resolver.resolve_calls[0][2] == CredentialMode.PROJECT_ONLY
+    assert resolver.resolve_calls[0][2] == SecretMode.PROJECT_ONLY
     assert len(policy.record_calls) == 1
     outcome = policy.record_calls[0][3]
     assert outcome.status_code == 200
     assert outcome.usage.input_tokens == 3
-    assert outcome.owner == credential.owner
+    assert outcome.owner == secret.owner
 
 
 @pytest.mark.asyncio
@@ -473,7 +471,7 @@ async def test_streaming_call_records_only_after_full_consumption():
     dao.rows_by_slug["acme"] = _custom_row(
         slug="acme", model_slugs=["gpt-4o"], secret_id=uuid4()
     )
-    resolver = _MockResolver(credential=_credential())
+    resolver = _MockResolver(secret=_secret())
     policy = _MockPolicy(allowed=True)
 
     async def _two_chunks() -> AsyncIterator[bytes]:

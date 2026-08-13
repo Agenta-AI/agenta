@@ -55,8 +55,8 @@ class LlmEndpointData(BaseModel):
 
 class LlmEndpointFlags(BaseModel):
     is_active: bool = True
-    # no is_valid: an endpoint does not authenticate; credential health lives
-    # with the credential (§2.6)
+    # no is_valid: an endpoint does not authenticate; secret health lives
+    # with the secret (§2.6)
 
 
 class LlmEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):

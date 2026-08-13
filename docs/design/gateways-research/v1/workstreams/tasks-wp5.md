@@ -8,7 +8,7 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
 
 - [x] `core/gateways/llms/providers/mock/__init__.py`.
 - [x] `core/gateways/llms/providers/mock/adapter.py`: `MockLlmAdapter(LlmUpstreamInterface)`,
-      no constructor arguments, implementing `relay_chat_completion(self, *, route, credential,
+      no constructor arguments, implementing `relay_chat_completion(self, *, route, secret,
       context, body, headers) -> LlmRelayResult` per `entities.md` §7.1 exactly.
 - [x] Implement the `mock/echo` default path: build an OpenAI-shaped chat-completion response
       echoing the last message in the parsed request body; non-streaming returns one `body`
@@ -169,7 +169,7 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
       # their owning work packages (WP1 dbs; WP6/WP7 llms; WP8/WP9 mcps).
       # from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
       # from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
-      # from oss.src.core.gateways.policy.resolution import CredentialResolver
+      # from oss.src.core.gateways.policy.resolution import SecretsResolver
       # from oss.src.core.gateways.policy.service import GatewayPolicyService
       # from oss.src.core.gateways.llms.service import LlmGatewayService
       # from oss.src.core.gateways.mcps.service import McpGatewayService

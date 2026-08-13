@@ -1,14 +1,14 @@
-# Credential model: what the gateway hides, and what it cannot
+# Secret model: what the gateway hides, and what it cannot
 
 The goal is a gateway that is as transparent as possible: the caller presents one
-credential — ours — and the gateway works out what the upstream needs and supplies it. This
+secret — ours — and the gateway works out what the upstream needs and supplies it. This
 document states how far that goal reaches and where it stops.
 
 ## The caller's side is uniform, always
 
 Whatever the upstream needs, the caller sends the same thing: a gateway URL, a token minted
 by us, and optionally non-secret headers. The caller never learns whether the server behind
-it uses a static key or OAuth, never holds an upstream credential, and never changes shape
+it uses a static key or OAuth, never holds an upstream secret, and never changes shape
 when an upstream server switches auth scheme.
 
 This holds for both planes. A model route and an MCP route differ in protocol, not in how
@@ -23,19 +23,19 @@ upstream secrets, because there are none to carry.
 "API key or OAuth" is the axis people reach for first, and on its own it is wrong. It
 conflates two independent properties:
 
-| | **Static credential** | **OAuth** |
+| | **Static secret** | **OAuth** |
 |---|---|---|
 | **Shared** (org/project owns it) | operator API key — a service the org calls as itself | rare, but real: a shared workspace grant |
 | **Per-user** (each user has their own) | personal access token — common, and often mistaken for "shared" | the standard case: acting as the user in their own account |
 
-A static credential is **not** automatically shared, and OAuth is **not** automatically
+A static secret is **not** automatically shared, and OAuth is **not** automatically
 per-user. Personal access tokens are static and per-user; some OAuth grants are
 organizational. If the model has one axis, per-user PATs end up either wrongly shared or
 wrongly forced through an OAuth path they do not need.
 
 So a registry entry carries both: **how** to authenticate (`static` | `oauth`) and **who
-owns** the resulting credential (`shared` | `per_user`). The gateway needs both to pick a
-credential: the first says what to do, the second says whose to look up, keyed against the
+owns** the resulting secret (`shared` | `per_user`). The gateway needs both to pick a
+secret: the first says what to do, the second says whose to look up, keyed against the
 `AuthScope` already present on every call.
 
 **Status of each axis.** The auth-scheme axis already exists in the codebase — see
@@ -44,7 +44,7 @@ connections and secrets are project-level today, which means every entry is effe
 `shared`. User-level credentials are a wanted later addition for user-specific model and MCP
 authentication.
 
-The design consequence is narrow but important: **the credential lookup should take the
+The design consequence is narrow but important: **the secret lookup should take the
 owner as a parameter from the start**, and answer "the project" for now. Retrofitting a
 per-user dimension into a lookup that assumes the project is the expensive version of that
 change. Nothing on the caller side needs to wait, since `AuthScope` already carries the user
@@ -52,9 +52,9 @@ on every call.
 
 ## What the gateway handles without anyone noticing
 
-Once a credential exists, everything is invisible to the caller:
+Once a secret exists, everything is invisible to the caller:
 
-- Selecting the right credential for this principal and this upstream.
+- Selecting the right secret for this principal and this upstream.
 - Injecting it in whatever form the upstream wants — header, bearer token, signed request.
 - Refreshing an expired OAuth access token and retrying.
 - Retrying transient upstream failures.
@@ -73,8 +73,8 @@ that. Transparency on the consent path is not achievable — only *relocatable*.
 
 There are exactly two moments this bites:
 
-1. **First use.** No credential exists for this owner and this server.
-2. **Step-up.** A credential exists, but the specific call needs a permission the owner
+1. **First use.** No secret exists for this owner and this server.
+2. **Step-up.** A secret exists, but the specific call needs a permission the owner
    never granted. The current MCP revision specifies this precisely: the server answers
    `403` with `insufficient_scope` and the scopes it needs, and the client is expected to
    re-authorize with the union of old and new scopes. So "already connected" does not
@@ -85,7 +85,7 @@ gateway absorbs.
 
 ### How often is "once"
 
-Consent is per **credential owner**, which the ownership axis already defines: once per
+Consent is per **secret owner**, which the ownership axis already defines: once per
 (user, upstream) for a `per_user` entry, once per (project, upstream) for a `shared` one.
 A `shared` entry means one person consents and the whole project inherits it; a `per_user`
 entry means every member consents for themselves, and an admin cannot do it on their
@@ -118,7 +118,7 @@ Two consequences to design for rather than decide:
   admin cannot pre-connect on their behalf. This is an onboarding step, and it should be
   visible as one.
 - Runs need a pre-flight check. If the gateway can tell before starting that a required
-  server has no live credential for this user, the run should fail immediately with the
+  server has no live secret for this user, the run should fail immediately with the
   list of servers to connect, rather than part-way through when the agent first reaches for
   a tool.
 
@@ -148,7 +148,7 @@ namespacing changes the tool names the model sees, which affects prompts and any
 per-tool permission rules. One endpoint per server avoids renaming entirely at the cost of
 more configuration.
 
-### Q3. Whose credential, when the entry says `per_user`?
+### Q3. Whose secret, when the entry says `per_user`?
 
 Settled in shape by the two axes above, but the product question remains: is per-user the
 default, with shared as the exception, or the reverse? This decides the migration story for
@@ -160,16 +160,16 @@ To complete an OAuth flow the gateway needs a publicly reachable redirect URI, a
 the modern registration mechanism it needs a public HTTPS URL serving its client metadata.
 A self-hosted deployment with no public address cannot do either.
 
-Static-credential servers are unaffected, which means the honest self-hosted story may be
+Static-secret servers are unaffected, which means the honest self-hosted story may be
 "static credentials work everywhere; OAuth needs a reachable deployment." That is a
 documentation and packaging decision as much as a design one.
 
-### Q5. What does the caller see when a credential is dead?
+### Q5. What does the caller see when a secret is dead?
 
 A revoked or unrefreshable token has to surface as something a human can act on, not a
-generic upstream error. Related: does a dead credential remove that server's tools from the
+generic upstream error. Related: does a dead secret remove that server's tools from the
 list, or leave them present and failing? Removing them is kinder to the model's context but
-makes the tool list vary by credential health.
+makes the tool list vary by secret health.
 
 ## Summary
 

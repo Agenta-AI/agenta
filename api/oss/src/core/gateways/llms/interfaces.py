@@ -20,7 +20,7 @@ from oss.src.core.gateways.llms.dtos import (
     LlmEndpointQuery,
     LlmResolvedRoute,
 )
-from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedCredential
+from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 from oss.src.core.shared.dtos import Windowing
 
 
@@ -122,7 +122,7 @@ class LlmRelayResult:
 
 
 class LlmUpstreamInterface(ABC):
-    """Turns a resolved route plus a resolved credential into an upstream call.
+    """Turns a resolved route plus a resolved secret into an upstream call.
     The core never imports an implementation; wiring happens at the entrypoint."""
 
     @abstractmethod
@@ -130,7 +130,7 @@ class LlmUpstreamInterface(ABC):
         self,
         *,
         route: LlmResolvedRoute,
-        credential: Optional[ResolvedCredential],
+        secret: Optional[ResolvedSecret],
         #
         context: LlmCallContext,
         body: bytes,
@@ -138,7 +138,7 @@ class LlmUpstreamInterface(ABC):
     ) -> LlmRelayResult:
         """Relay one completion call. `body` is the caller's payload untouched;
         `headers` are the caller's headers already stripped of authorization.
-        `credential` is None only for targets whose auth scheme is NONE (the
+        `secret` is None only for targets whose auth scheme is NONE (the
         mocks). Raises LlmUpstreamError on upstream failure."""
         raise NotImplementedError
 

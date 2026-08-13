@@ -60,7 +60,7 @@ was followed and the tension is flagged here rather than resolved silently.
 - [x] Model-string prefixing per `route.deployment`: `"azure/{model}"`, `"bedrock/{model}"`,
       `"sagemaker/{model}"`, `"vertex_ai/{model}"`; `DIRECT` non-OpenAI-shaped providers use
       `route.model` as-is (already prefixed by the catalogue).
-- [x] Credential kwargs: dispatch on `credential.secret.kind`
+- [x] Secret kwargs: dispatch on `secret.secret.kind`
       (`StandardProviderKind`/`CustomProviderKind`), mirroring
       `sdks/python/agenta/sdk/managers/secrets.py::get_provider_settings` STEP 4 exactly — merge
       `CustomProviderDTO.provider.extras` into the litellm kwargs dict; pull `api_version` from
@@ -75,7 +75,7 @@ was followed and the tension is flagged here rather than resolved silently.
       status_code=<if present>, detail=str(exc))`.
 - [x] Ruff format + check; run and fix.
 - [x] Unit tests, `litellm.acompletion` monkeypatched (no real network): `StandardProviderDTO`
-      credential passes `api_key`; `CustomProviderDTO` credential merges `extras`; `AZURE` prefix
+      secret passes `api_key`; `CustomProviderDTO` secret merges `extras`; `AZURE` prefix
       + `api_version` passed; `BEDROCK`/`VERTEX` pass `region`; a raised exception from the mock
       becomes `LlmUpstreamError`; usage/cost populated on a successful mocked response.
 - [x] Commit: "wp7: TranslatedLlmAdapter".
@@ -99,7 +99,7 @@ docstring's "the translated adapter reports the library's count" only holds with
 The only gap was that the shared `test_relay_chat_completion_returns_llm_relay_result` body calls
 `relay_chat_completion` unconditionally for every adapter in the list, and once
 `providers/translated/adapter.py` existed that meant a real `litellm.acompletion` call with
-`credential=None` unless mocked — added one `autouse` fixture that monkeypatches
+`secret=None` unless mocked — added one `autouse` fixture that monkeypatches
 `litellm.acompletion` at `translated.adapter`'s own import site (a no-op for every other adapter
 since none of them import litellm).
 
@@ -141,7 +141,7 @@ signature to add `scope`, which the checklist's own "exactly this, unchanged" li
       `_resolve_target` as the relay does, `policy.authorize` with
       `Permission.USE_LLM_ENDPOINTS`, then return the target's `model_slugs` — the static
       catalogue's for `builtin`, the row's for `custom`.
-- [x] Resolve no credential and call no upstream. It answers from the allowlist, so a harness
+- [x] Resolve no secret and call no upstream. It answers from the allowlist, so a harness
       that lists before calling sees exactly what policy will allow.
 - [x] Return `List[str]`; invent no response DTO — WP6's proxy shapes the OpenAI body inline
       because the data plane has no wire models (§6).
@@ -159,7 +159,7 @@ signature to add `scope`, which the checklist's own "exactly this, unchanged" li
 - [x] Implement the allowlist check (`_check_allowlist`): a `CUSTOM` target refuses a `model` not
       in `data.model_slugs` (including the empty-list-refuses-everything case, D20); a `BUILTIN`
       target refuses a `model` not in the catalogue's `model_slugs` for that provider. Raise
-      `LlmModelNotAllowedError` before any credential lookup.
+      `LlmModelNotAllowedError` before any secret lookup.
 - [x] Implement the ceiling check (`_check_ceilings`): compare the request's
       `max_output_tokens` (if present in the body) against `target.config.max_output_tokens`;
       raise `CeilingExceededError(ceiling="max_output_tokens", requested=..., allowed=...,
@@ -167,8 +167,8 @@ signature to add `scope`, which the checklist's own "exactly this, unchanged" li
 - [x] Wire `self.policy.authorize(scope=..., permission=Permission.USE_LLM_ENDPOINTS,
       target=...)`; on `not decision.allowed`, call `self.policy.record(...)` **then** raise
       `PolicyDeniedError` — denial recorded before the exception leaves.
-- [x] Wire `self.resolver.resolve(scope=..., ref=target.credential_ref(),
-      mode=CredentialMode.PROJECT_ONLY)`, skipped for `GatewayAuthScheme.NONE` targets (the
+- [x] Wire `self.resolver.resolve(scope=..., ref=target.secret_ref(),
+      mode=SecretMode.PROJECT_ONLY)`, skipped for `GatewayAuthScheme.NONE` targets (the
       mocks).
 - [x] Wire adapter selection: `self.upstream_registry.get(select_upstream(target.provider_key,
       target.deployment)).relay_chat_completion(...)`.
@@ -243,7 +243,7 @@ compose stack, since nothing in the documented classification table itself ever 
 @@
  from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
  from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
- from oss.src.core.gateways.policy.resolution import CredentialResolver
+ from oss.src.core.gateways.policy.resolution import SecretsResolver
  from oss.src.core.gateways.policy.service import GatewayPolicyService
 
 -# The mock adapters (WP5) are registered into the plane registries, which WP7 and WP9
@@ -262,12 +262,12 @@ compose stack, since nothing in the documented classification table itself ever 
  # from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter   # WP10
  # from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy     # WP8
 @@
- gateway_policy_service = GatewayPolicyService(resolver=credential_resolver)
+ gateway_policy_service = GatewayPolicyService(resolver=secret_resolver)
 
 +llm_gateway_service = LlmGatewayService(
 +    llm_endpoints_dao=llm_endpoints_dao,
 +    policy=gateway_policy_service,
-+    resolver=credential_resolver,
++    resolver=secret_resolver,
 +    upstream_registry=LlmUpstreamRegistry(
 +        adapters={
 +            "passthrough": PassthroughLlmAdapter(),  # WP6's import, added at that merge
@@ -317,4 +317,4 @@ list is refused."* Concretely: `catalog.py`, `registry.py`, `TranslatedLlmAdapte
 `LlmGatewayService.relay_chat_completion` all pass their unit and contract tests with nothing
 running; `select_upstream` classifies every provider/deployment pair in the design's known set;
 and, once WP1/WP5/WP6 are available, a request outside a custom endpoint's `model_slugs` is
-refused before any credential is resolved or any upstream call is attempted.
+refused before any secret is resolved or any upstream call is attempted.

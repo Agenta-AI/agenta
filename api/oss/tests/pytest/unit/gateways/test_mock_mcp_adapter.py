@@ -23,7 +23,7 @@ def _route() -> McpResolvedRoute:
 
 
 def _auth() -> McpDirectAuth:
-    return McpDirectAuth(credential=None)
+    return McpDirectAuth(secret=None)
 
 
 def _rpc(method: str, *, params=None, request_id=1) -> bytes:

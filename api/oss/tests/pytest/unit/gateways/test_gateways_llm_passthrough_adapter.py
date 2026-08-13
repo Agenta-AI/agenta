@@ -20,9 +20,9 @@ from oss.src.core.gateways.llms.providers.passthrough.adapter import (
 )
 from oss.src.core.gateways.llms.types import LlmUpstreamError
 from oss.src.core.gateways.policy.dtos import (
-    CredentialOwner,
-    CredentialOwnerKind,
-    ResolvedCredential,
+    SecretOwner,
+    SecretOwnerKind,
+    ResolvedSecret,
     SecretOrigin,
 )
 from oss.src.core.secrets.dtos import (
@@ -65,8 +65,8 @@ def _body() -> bytes:
     ).encode()
 
 
-def _standard_credential(key: str = "sk-standard") -> ResolvedCredential:
-    return ResolvedCredential(
+def _standard_secret(key: str = "sk-standard") -> ResolvedSecret:
+    return ResolvedSecret(
         secret=SecretResponseDTO(
             kind=SecretKind.PROVIDER_KEY,
             data=StandardProviderDTO(
@@ -75,14 +75,14 @@ def _standard_credential(key: str = "sk-standard") -> ResolvedCredential:
             ),
             header=Header(name="openai"),
         ),
-        owner=CredentialOwner(kind=CredentialOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
         origin=SecretOrigin.VAULT,
     )
 
 
-def _custom_credential(
+def _custom_secret(
     key: str = "sk-custom", extras: Optional[dict] = None
-) -> ResolvedCredential:
+) -> ResolvedSecret:
     # SecretResponseDTO's own before-validator calls `.get()` on `data` ahead of
     # SecretDTO's model-instance-to-dict coercion, so a raw dict here (rather
     # than a CustomProviderDTO instance) sidesteps that ordering entirely.
@@ -91,13 +91,13 @@ def _custom_credential(
         provider=CustomProviderSettingsDTO(key=key, extras=extras),
         models=[],
     ).model_dump()
-    return ResolvedCredential(
+    return ResolvedSecret(
         secret=SecretResponseDTO(
             kind=SecretKind.CUSTOM_PROVIDER,
             data=data,
             header=Header(name="my-custom"),
         ),
-        owner=CredentialOwner(kind=CredentialOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
         origin=SecretOrigin.VAULT,
     )
 
@@ -112,7 +112,7 @@ async def _drain(body):
 
 
 @pytest.mark.asyncio
-async def test_standard_provider_credential_injects_bearer_header():
+async def test_standard_provider_secret_injects_bearer_header():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -122,7 +122,7 @@ async def test_standard_provider_credential_injects_bearer_header():
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
         route=_route(),
-        credential=_standard_credential("sk-standard"),
+        secret=_standard_secret("sk-standard"),
         context=_context(),
         body=_body(),
         headers={},
@@ -132,7 +132,7 @@ async def test_standard_provider_credential_injects_bearer_header():
 
 
 @pytest.mark.asyncio
-async def test_custom_provider_credential_injects_bearer_and_merges_extras():
+async def test_custom_provider_secret_injects_bearer_and_merges_extras():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -142,7 +142,7 @@ async def test_custom_provider_credential_injects_bearer_and_merges_extras():
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
         route=_route(),
-        credential=_custom_credential("sk-custom", extras={"x-org-id": "org-1"}),
+        secret=_custom_secret("sk-custom", extras={"x-org-id": "org-1"}),
         context=_context(),
         body=_body(),
         headers={},
@@ -154,7 +154,7 @@ async def test_custom_provider_credential_injects_bearer_and_merges_extras():
 
 
 @pytest.mark.asyncio
-async def test_no_credential_sends_no_authorization_header():
+async def test_no_secret_sends_no_authorization_header():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -163,7 +163,7 @@ async def test_no_credential_sends_no_authorization_header():
 
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
-        route=_route(), credential=None, context=_context(), body=_body(), headers={}
+        route=_route(), secret=None, context=_context(), body=_body(), headers={}
     )
 
     assert "authorization" not in captured["request"].headers
@@ -180,7 +180,7 @@ async def test_inbound_authorization_header_is_not_forwarded():
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
         route=_route(),
-        credential=None,
+        secret=None,
         context=_context(),
         body=_body(),
         headers={"Authorization": "Secret caller-token"},
@@ -200,7 +200,7 @@ async def test_outbound_url_is_base_url_plus_chat_completions():
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
         route=_route(base_url="https://upstream.example/v1"),
-        credential=None,
+        secret=None,
         context=_context(),
         body=_body(),
         headers={},
@@ -221,7 +221,7 @@ async def test_route_headers_merged_into_outbound():
 
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
-        route=_route(), credential=None, context=_context(), body=_body(), headers={}
+        route=_route(), secret=None, context=_context(), body=_body(), headers={}
     )
 
     assert captured["request"].headers["x-route"] == "1"
@@ -238,7 +238,7 @@ async def test_request_body_bytes_reach_transport_unchanged():
     adapter = _adapter(handler)
     body = _body()
     await adapter.relay_chat_completion(
-        route=_route(), credential=None, context=_context(), body=body, headers={}
+        route=_route(), secret=None, context=_context(), body=body, headers={}
     )
 
     assert captured["content"] == body
@@ -254,7 +254,7 @@ async def test_timeout_raises_llm_upstream_error():
     with pytest.raises(LlmUpstreamError) as excinfo:
         await adapter.relay_chat_completion(
             route=_route(),
-            credential=None,
+            secret=None,
             context=_context(),
             body=_body(),
             headers={},
@@ -273,7 +273,7 @@ async def test_connection_failure_raises_llm_upstream_error_never_something_else
     with pytest.raises(LlmUpstreamError):
         await adapter.relay_chat_completion(
             route=_route(),
-            credential=None,
+            secret=None,
             context=_context(),
             body=_body(),
             headers={},
@@ -290,7 +290,7 @@ async def test_non_timeout_5xx_raises_llm_upstream_error_with_status_code():
     with pytest.raises(LlmUpstreamError) as excinfo:
         await adapter.relay_chat_completion(
             route=_route(),
-            credential=None,
+            secret=None,
             context=_context(),
             body=_body(),
             headers={},
@@ -306,7 +306,7 @@ async def test_4xx_response_passes_through_untouched():
 
     adapter = _adapter(handler)
     result = await adapter.relay_chat_completion(
-        route=_route(), credential=None, context=_context(), body=_body(), headers={}
+        route=_route(), secret=None, context=_context(), body=_body(), headers={}
     )
 
     assert result.status_code == 400
@@ -328,7 +328,7 @@ async def test_non_streaming_result_yields_single_chunk_and_usage():
     adapter = _adapter(handler)
     result = await adapter.relay_chat_completion(
         route=_route(),
-        credential=None,
+        secret=None,
         context=_context(stream=False),
         body=_body(),
         headers={},
@@ -353,7 +353,7 @@ async def test_streaming_result_passes_sse_chunks_through_unmodified():
     adapter = _adapter(handler)
     result = await adapter.relay_chat_completion(
         route=_route(),
-        credential=None,
+        secret=None,
         context=_context(stream=True),
         body=_body(),
         headers={},
@@ -371,7 +371,7 @@ async def test_missing_base_url_raises_llm_upstream_error():
     with pytest.raises(LlmUpstreamError):
         await adapter.relay_chat_completion(
             route=_route(base_url=None),
-            credential=None,
+            secret=None,
             context=_context(),
             body=_body(),
             headers={},
@@ -389,7 +389,7 @@ async def test_configured_timeout_overrides_default():
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
         route=_route(timeout_seconds=5.0),
-        credential=None,
+        secret=None,
         context=_context(),
         body=_body(),
         headers={},
@@ -409,7 +409,7 @@ async def test_default_timeout_used_when_route_leaves_it_unset():
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
         route=_route(timeout_seconds=None),
-        credential=None,
+        secret=None,
         context=_context(),
         body=_body(),
         headers={},

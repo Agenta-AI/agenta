@@ -166,7 +166,7 @@ from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 # management CRUD and the data plane are separate surfaces (§1).
 from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
-from oss.src.core.gateways.policy.resolution import CredentialResolver
+from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry
 from oss.src.core.gateways.llms.service import LlmGatewayService
@@ -1087,17 +1087,17 @@ llm_endpoints_dao = LlmEndpointsDAO(engine=_transactions_engine)
 mcp_endpoints_dao = McpEndpointsDAO(engine=_transactions_engine)
 mcp_grants_dao = McpGrantsDAO(engine=_transactions_engine)
 
-credential_resolver = CredentialResolver(
+secrets_resolver = SecretsResolver(
     vault_service=vault_service,
     mcp_grants_dao=mcp_grants_dao,
 )
 
-gateway_policy_service = GatewayPolicyService(resolver=credential_resolver)
+gateway_policy_service = GatewayPolicyService(resolver=secrets_resolver)
 
 llm_gateway_service = LlmGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=credential_resolver,
+    resolver=secrets_resolver,
     upstream_registry=LlmUpstreamRegistry(
         adapters={
             "passthrough": PassthroughLlmAdapter(),
@@ -1111,7 +1111,7 @@ mcp_gateway_service = McpGatewayService(
     mcp_endpoints_dao=mcp_endpoints_dao,
     mcp_grants_dao=mcp_grants_dao,
     policy=gateway_policy_service,
-    resolver=credential_resolver,
+    resolver=secrets_resolver,
     connections_service=connections_service,
     upstream_registry=McpUpstreamRegistry(
         adapters={

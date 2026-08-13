@@ -46,7 +46,7 @@ wants from those has to come from somewhere else.
   the same calculator to derive per-model costs. Pricing is the library's entire role outside the
   completion calls.
 - **The runner.** Its model module picks a model id and checks it against what the harness
-  accepts, failing loudly when the harness cannot set the requested model. The credential goes to
+  accepts, failing loudly when the harness cannot set the requested model. The secret goes to
   the harness and the harness makes the call.
 
 The blast radius is one SDK file plus the harness path.
@@ -60,7 +60,7 @@ Both sites also:
 
 - read the OpenAI key straight from the vault list, matching on the inner provider name;
 - hardcode the provider, with no abstraction to swap it;
-- **bypass the provider-settings builder entirely**, hand-rolling the credential lookup.
+- **bypass the provider-settings builder entirely**, hand-rolling the secret lookup.
 
 They are the least abstracted callers in the tree.
 
@@ -79,12 +79,12 @@ The library ships two separate things:
   load balancing, cost tracking and callbacks. This is the routing and dispatch we want, and as
   noted above we currently use only the completion call, not the router object.
 - **A proxy server** — a separate deployment adding virtual keys, an admin interface, per-team
-  credential routing and spend tracking.
+  secret routing and spend tracking.
 
 Calling the library in-process bypasses the proxy completely.
 
 That split is convenient rather than awkward. **The proxy is the part that competes with our
-policy plane** — its virtual keys occupy the same role as our gateway token, and its credential
+policy plane** — its virtual keys occupy the same role as our gateway token, and its secret
 routing the same role as our resolution modes. We want the routing, not the policy. This is
 decision D9: embed the commodity, own the policy.
 
@@ -106,7 +106,7 @@ The `llm_v0` handler does neither. It assigns keys to **module-level attributes 
 one per provider, before it calls.
 
 That is process-wide state. Today each workflow process serves one tenant, so it survives. In a
-shared gateway process it would be a cross-tenant credential leak: one caller's key stays set and
+shared gateway process it would be a cross-tenant secret leak: one caller's key stays set and
 serves the next caller.
 
 **This pattern must not move to the gateway** — but it is not a prerequisite either. It exists

@@ -57,11 +57,11 @@ That is the same security argument this design makes, reached independently.
 
 ## What the BYOS track changes here
 
-This one touches the credential model directly, and it is further along than this design.
+This one touches the secret model directly, and it is further along than this design.
 
 **Vocabulary, which this design got wrong.** The established rule: a customer's provider key
 is a **secret**. The word **credentials** is reserved for Agenta's own auth — API keys, secret
-tokens, access tokens. This design used "credential" for upstream provider material
+tokens, access tokens. This design used "secret" for upstream provider material
 throughout. The other usage is already in the tree, so this design should move.
 
 **`secret_origin: vault | local`** stamps whether a secret is the customer's or the platform's.

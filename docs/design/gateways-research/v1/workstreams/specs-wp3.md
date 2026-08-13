@@ -20,8 +20,8 @@ type.
   Credit checks arrive with metering and billing, after checkpoint C (`plan.md`, "After
   checkpoint C"). `authorize()` never touches the legacy credits counter (D24 — left
   alone) and never touches a spend ceiling.
-- **Not credential resolution.** `authorize()` never resolves a secret and never calls
-  `CredentialResolverInterface` — that is WP2, called separately by the plane service
+- **Not secret resolution.** `authorize()` never resolves a secret and never calls
+  `SecretsResolverInterface` — that is WP2, called separately by the plane service
   *after* `authorize()` returns `allowed=True` (`entities.md` §8's relay pseudocode).
 - **Not the real audit publish.** `GatewayPolicyService.record()` is declared here (it is
   part of the frozen `entities.md` §8 surface `authorize`/`record` pair, and the relay
@@ -66,7 +66,7 @@ class GatewayPolicyService:
     def __init__(
         self,
         *,
-        resolver: CredentialResolverInterface,
+        resolver: SecretsResolverInterface,
     ) -> None: ...
 
     # --- authorization (WP3) ------------------------------------------------ #
@@ -86,10 +86,10 @@ class GatewayPolicyService:
     # must not depend on the stream (the _safe_publish discipline).
 ```
 
-The constructor takes only `resolver` — WP3 does not need `CredentialResolverInterface`
+The constructor takes only `resolver` — WP3 does not need `SecretsResolverInterface`
 for `authorize()` or the wave-1 `record()` stub, but the seed-frozen constructor
 signature already includes it (`entities.md` §8), and `entities.md` §9's wiring line is
-`GatewayPolicyService(resolver=credential_resolver)`. Store it on `self`; a later package
+`GatewayPolicyService(resolver=secret_resolver)`. Store it on `self`; a later package
 (WP4, or a future policy concern) may need it. Do not drop the parameter to simplify the
 constructor — the signature is authoritative.
 
@@ -293,10 +293,10 @@ Checkpoint A's acceptance suite (`plan.md`), not to this package's own tests.
 ```python
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 
-gateway_policy_service = GatewayPolicyService(resolver=credential_resolver)
+gateway_policy_service = GatewayPolicyService(resolver=secret_resolver)
 ```
 
-(`entities.md` §9; depends on WP2's `credential_resolver` construction landing in the
+(`entities.md` §9; depends on WP2's `secret_resolver` construction landing in the
 same merge — order this line after WP2's.)
 
 ## Checkpoint

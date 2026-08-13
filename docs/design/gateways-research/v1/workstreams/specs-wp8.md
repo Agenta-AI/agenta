@@ -3,9 +3,9 @@
 Delivers the MCP gateway's data-plane HTTP surface: one router class,
 `McpGatewayProxy`, declaring the three namespaced relay routes over the
 route grammar D27 settles, plus the one south-port adapter that turns a
-resolved route and a resolved credential into a real Streamable HTTP call
+resolved route and a resolved secret into a real Streamable HTTP call
 against a `custom` server. Owns the transport and the byte-for-byte relay;
-does **not** own routing decisions, allowlist enforcement, credential
+does **not** own routing decisions, allowlist enforcement, secret
 resolution or the builtin/agenta merge — those are `McpGatewayService`
 (WP9). This is the cut `workstreams/README.md` names: "on each plane,
 transport and domain are different packages."
@@ -160,7 +160,7 @@ class McpUpstreamInterface(ABC):
         """Transparent per-server relay (D16): same method, same body, same
         response, with only the route and the authorization changed. `auth` is
         the discriminated union from §4.4 — McpDirectAuth for agenta and custom,
-        McpBrokeredAuth for builtin — so the two credential mechanisms cannot be
+        McpBrokeredAuth for builtin — so the two secret mechanisms cannot be
         conflated by an adapter (D27). Raises McpUpstreamError on transport
         failure; protocol-level errors from the server are NOT exceptions — they
         are the response body, relayed, because the server's own failure reason
@@ -183,13 +183,13 @@ input shape is unambiguous):
 
 ```python
 class McpDirectAuth(BaseModel):
-    """agenta + custom: the credential is ours to present — an oauth_grant
+    """agenta + custom: the secret is ours to present — an oauth_grant
     resolved from the vault (§7.2), or nothing for a NONE-scheme target."""
-    credential: Optional[ResolvedCredential] = None
+    secret: Optional[ResolvedSecret] = None
 
 class McpBrokeredAuth(BaseModel):
     """builtin: the integrations domain brokered the authorization and holds the
-    credential upstream; what we carry is its connection row."""
+    secret upstream; what we carry is its connection row."""
     connection: Connection
 
 McpRelayAuth = Union[McpDirectAuth, McpBrokeredAuth]
@@ -198,7 +198,7 @@ McpRelayAuth = Union[McpDirectAuth, McpBrokeredAuth]
 `HttpMcpAdapter(McpUpstreamInterface)` implements `relay()` against
 `McpDirectAuth` only — it is registered under the `"http"` key and is only
 ever reached via the `custom` namespace (§4.4: "builtin and custom are two
-credential mechanisms ... the fork is real behaviour ... at the south
+secret mechanisms ... the fork is real behaviour ... at the south
 port"). It never receives `McpBrokeredAuth`; that arm is `ComposioMcpAdapter`
 (a separate provider, out of this package's ownership per
 `workstreams/README.md`'s file table, and out of scope entirely — no work
@@ -209,14 +209,14 @@ Body: POST `body` verbatim to `route.url`, with `route.headers` (the
 endpoint's own non-secret configured headers, §2.4) merged under the
 caller's forwarded `headers` (already stripped of Agenta's own
 authorization, §7.1's LLM-side analog), plus one derived header when
-`auth.credential` is present. The exact translation from a `ResolvedCredential`
+`auth.secret` is present. The exact translation from a `ResolvedSecret`
 into a wire header depends on which secret kind backs it —
 `OAuthGrantSettingsDTO.access_token` / `.token_type` (`entities.md` §4.5) is
 the only populated shape reachable in this wave, and it maps to
 `Authorization: {token_type} {access_token}`. **In Checkpoint A this branch
 is unreachable in practice**: D23 restricts wave 1's reachable MCP targets
 to unauthenticated servers (`auth_mode = NONE`) and the mocks, and OAuth
-grants do not exist until WP16/WP17 (wave 3). Implement the credential
+grants do not exist until WP16/WP17 (wave 3). Implement the secret
 branch so the type-checks against `entities.md`'s frozen shapes, but do not
 build integration tests that depend on a real grant existing — there is
 nothing to grant yet.
@@ -253,8 +253,8 @@ which is a service-level concern, not this adapter's.
   (`StreamingResponse` over an `AsyncIterator[bytes]`), `McpRelayResult.body`
   is `bytes` — one JSON answer, no SSE leg (§7.1). Do not adapt LLM-plane
   streaming code into this adapter.
-- **The allowlist check happens before credential resolution, in the
-  service, not here** (§8: "Allowlist before credential. A refused model or
+- **The allowlist check happens before secret resolution, in the
+  service, not here** (§8: "Allowlist before secret. A refused model or
   tool must not cost a vault read"). WP8's adapter must not be the place
   that decides whether a tool is allowed — it relays whatever
   `McpGatewayService.relay` hands it after that decision already passed.
@@ -331,8 +331,8 @@ anything needing Postgres, Redis or the API is integration or acceptance.
   server (or an `httpx` mock transport) standing in for the upstream — no
   real network, no real MCP server. Assert: body passed through
   byte-for-byte; `route.headers` merged under caller headers; no
-  `Authorization` header added when `auth.credential is None`; the derived
-  `Authorization` header is correct when a credential is present; a
+  `Authorization` header added when `auth.secret is None`; the derived
+  `Authorization` header is correct when a secret is present; a
   connection failure raises `McpUpstreamError`; a non-2xx JSON-RPC error
   body from the mock upstream is returned as `McpRelayResult`, not raised.
 - `McpGatewayProxy` routing (which handler each path reaches, the 405s) —
@@ -375,7 +375,7 @@ POST /gateways/mcps/agenta/<mock-slug>   {"method":"tools/call","tool":"<not-in-
 ## Out of scope
 
 - Everything in `core/gateways/mcps/service.py` and `registry.py` — target
-  resolution, the allowlist check, credential resolution, the
+  resolution, the allowlist check, secret resolution, the
   three-namespace `list_endpoints` merge, tool-list filtering by policy —
   **WP9**.
 - `ComposioMcpAdapter` (the `builtin` south-port adapter) and anything

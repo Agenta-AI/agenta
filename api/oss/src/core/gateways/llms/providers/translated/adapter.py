@@ -19,7 +19,7 @@ from oss.src.core.gateways.llms.dtos import (
 )
 from oss.src.core.gateways.llms.interfaces import LlmRelayResult, LlmUpstreamInterface
 from oss.src.core.gateways.llms.types import LlmUpstreamError
-from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedCredential
+from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 from oss.src.core.secrets.dtos import CustomProviderDTO, StandardProviderDTO
 from oss.src.core.secrets.enums import SecretKind
 
@@ -40,19 +40,19 @@ def _prefixed_model(route: LlmResolvedRoute) -> str:
     return f"{prefix}/{route.model}" if prefix else route.model
 
 
-def _credential_kwargs(credential: Optional[ResolvedCredential]) -> Dict[str, Any]:
+def _secret_kwargs(secret: Optional[ResolvedSecret]) -> Dict[str, Any]:
     """Mirrors `SecretsManager.get_provider_settings` STEP 4 exactly
     (`sdks/python/agenta/sdk/managers/secrets.py`): a `provider_key` secret contributes
     `api_key`; a `custom_provider` secret contributes its `extras`, merged verbatim."""
-    if credential is None:
+    if secret is None:
         return {}
 
-    data = credential.secret.data
-    if credential.secret.kind == SecretKind.PROVIDER_KEY and isinstance(
+    data = secret.secret.data
+    if secret.secret.kind == SecretKind.PROVIDER_KEY and isinstance(
         data, StandardProviderDTO
     ):
         return {"api_key": data.provider.key}
-    if credential.secret.kind == SecretKind.CUSTOM_PROVIDER and isinstance(
+    if secret.secret.kind == SecretKind.CUSTOM_PROVIDER and isinstance(
         data, CustomProviderDTO
     ):
         return dict(data.provider.extras or {})
@@ -116,7 +116,7 @@ def _sse(payload_json: str) -> bytes:
 
 
 class TranslatedLlmAdapter(LlmUpstreamInterface):
-    """Calls `litellm.acompletion` in-process. `credential` is None only for a NONE-scheme
+    """Calls `litellm.acompletion` in-process. `secret` is None only for a NONE-scheme
     target; litellm then relies on whatever ambient provider config (if any) is configured
     for the process, same as an unauthenticated call to any other adapter."""
 
@@ -124,7 +124,7 @@ class TranslatedLlmAdapter(LlmUpstreamInterface):
         self,
         *,
         route: LlmResolvedRoute,
-        credential: Optional[ResolvedCredential],
+        secret: Optional[ResolvedSecret],
         #
         context: LlmCallContext,
         body: bytes,
@@ -132,7 +132,7 @@ class TranslatedLlmAdapter(LlmUpstreamInterface):
     ) -> LlmRelayResult:
         model = _prefixed_model(route)
         kwargs = _body_kwargs(body)
-        kwargs.update(_credential_kwargs(credential))
+        kwargs.update(_secret_kwargs(secret))
         kwargs.update(_route_kwargs(route))
         if context.stream:
             # Trailing usage frame, mirroring the OpenAI stream's own convention

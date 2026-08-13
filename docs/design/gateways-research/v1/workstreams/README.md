@@ -46,7 +46,7 @@ interfaces land first, on the base branch, before any worktree starts:
 3. **The owner of each declaration fills it in** in their own worktree. Nobody edits a file they
    do not own.
 
-**The one thing that must be right is the credential resolution signature.** It takes the owner as
+**The one thing that must be right is the secret resolution signature.** It takes the owner as
 a parameter even though the only answer today is the project (D10). Every package that resolves a
 secret inherits it, and retrofitting it later means touching all of them.
 

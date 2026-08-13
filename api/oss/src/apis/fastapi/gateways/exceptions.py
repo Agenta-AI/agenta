@@ -27,8 +27,8 @@ from oss.src.core.gateways.mcps.types import (
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
-    CredentialInvalidError,
-    CredentialNotFoundError,
+    SecretInvalidError,
+    SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
 )
@@ -44,8 +44,8 @@ def handle_gateway_exceptions():
     — D17). `*UpstreamError` -> 424, or 502 when the upstream answered >=500 (the
     424/502 split tools and triggers already use).
 
-    The three credential/step-up arms are not in §9's list but follow from §5: a
-    missing or dead credential "says you could, once someone connects", which is the
+    The three secret/step-up arms are not in §9's list but follow from §5: a
+    missing or dead secret "says you could, once someone connects", which is the
     same interaction 409 as a required authorization (D17, D18). Confirm before
     checkpoint A — see R11 in `open-designs.md`.
     """
@@ -93,7 +93,7 @@ def handle_gateway_exceptions():
                     status_code=status.HTTP_409_CONFLICT,
                     detail={"message": e.message, "scopes": e.scopes},
                 ) from e
-            except (CredentialNotFoundError, CredentialInvalidError) as e:
+            except (SecretNotFoundError, SecretInvalidError) as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=e.message,

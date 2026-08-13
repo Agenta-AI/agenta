@@ -9,7 +9,7 @@ remaining work.
 
 Two gateways — one for model calls, one for tool and MCP calls — sharing one policy core.
 Every outbound call from every caller transits one of them. Callers name what they want and
-authenticate to us; the gateway binds that name to a real route and a real credential.
+authenticate to us; the gateway binds that name to a real route and a real secret.
 
 ## 2. The shape
 
@@ -21,8 +21,8 @@ callers ──▶ protocol surface ──▶ policy core ──▶ adapter ─�
 ```
 
 - **North port** — what a caller speaks. Model plane: an OpenAI-compatible surface. Tool
-  plane: MCP over Streamable HTTP. Both authenticate with a credential we mint.
-- **Policy core** — identity, authorization, governance, credential resolution, audit,
+  plane: MCP over Streamable HTTP. Both authenticate with a secret we mint.
+- **Policy core** — identity, authorization, governance, secret resolution, audit,
   metering. Protocol-neutral. Shared by both surfaces; this sharing is the reason the two
   gateways are one design.
 - **South port** — adapters. Model providers and their deployments on one side, MCP servers
@@ -35,7 +35,7 @@ the boundary sits relative to the main API. See `decisions.md` D1 and D2.
 
 *To establish.* Candidates, each of which needs stating as a rule or discarding:
 
-- No credential material crosses the north port outward.
+- No secret material crosses the north port outward.
 - No caller-supplied value reaches an adapter without passing the policy core.
 - The core never imports a protocol surface or a concrete adapter; wiring happens at the
   entrypoint, per the repo's layering rule.
@@ -66,7 +66,7 @@ Composio-brokered MCP server points at a connection row.
 ## 5. The path of a model call
 
 *To establish.* Must cover: caller authenticates → principal resolved → policy evaluated →
-credential resolved by owner and mode → adapter selected by provider and deployment →
+secret resolved by owner and mode → adapter selected by provider and deployment →
 upstream call → streaming response → usage recorded → audit written.
 
 Open within this: how streaming interacts with a policy decision that has to be made before
@@ -75,11 +75,11 @@ the first token, and what happens to a decision that expires mid-stream.
 ## 6. The path of a tool call
 
 *To establish.* Must cover: caller authenticates → principal resolved → target resolved from
-the request headers → policy and allowlist evaluated → credential resolved → upstream MCP
+the request headers → policy and allowlist evaluated → secret resolved → upstream MCP
 call → result returned → audit written.
 
 Open within this: the endpoint shape (one merged endpoint with namespaced tools, or one per
-server), and how a list call composes across servers with differing credential health.
+server), and how a list call composes across servers with differing secret health.
 
 ## 7. What belongs to the platform, not here
 
@@ -95,7 +95,7 @@ path.
 
 The gateway's central claim is that provider credentials stop at our boundary.
 
-Established: signing for cloud resellers moves to the gateway, so the credential category
+Established: signing for cloud resellers moves to the gateway, so the secret category
 that today must be held in an agent-controlled sandbox stops existing for gateway-routed
 runs; and the per-run redaction set collapses to one short-lived token.
 

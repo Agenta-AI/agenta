@@ -18,9 +18,9 @@ from oss.src.core.gateways.llms.providers.translated import adapter as adapter_m
 from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLlmAdapter
 from oss.src.core.gateways.llms.types import LlmUpstreamError
 from oss.src.core.gateways.policy.dtos import (
-    CredentialOwner,
-    CredentialOwnerKind,
-    ResolvedCredential,
+    SecretOwner,
+    SecretOwnerKind,
+    ResolvedSecret,
     SecretOrigin,
 )
 from oss.src.core.secrets.dtos import (
@@ -45,8 +45,8 @@ def _body(**overrides):
     return json.dumps(payload).encode()
 
 
-def _standard_credential(*, kind=StandardProviderKind.ANTHROPIC, key="sk-test"):
-    return ResolvedCredential(
+def _standard_secret(*, kind=StandardProviderKind.ANTHROPIC, key="sk-test"):
+    return ResolvedSecret(
         secret=SecretResponseDTO(
             kind=SecretKind.PROVIDER_KEY,
             data=StandardProviderDTO(
@@ -54,16 +54,16 @@ def _standard_credential(*, kind=StandardProviderKind.ANTHROPIC, key="sk-test"):
             ),
             header=Header(name=kind.value),
         ),
-        owner=CredentialOwner(kind=CredentialOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
         origin=SecretOrigin.VAULT,
     )
 
 
-def _custom_credential(*, extras):
+def _custom_secret(*, extras):
     # SecretResponseDTO's own `build_up_model_keys` validator runs before the base
     # SecretDTO validator would otherwise dict-ify `data` — pass a dict directly here so
     # its `.get("models")` scan doesn't hit a CustomProviderDTO instance.
-    return ResolvedCredential(
+    return ResolvedSecret(
         secret=SecretResponseDTO(
             kind=SecretKind.CUSTOM_PROVIDER,
             data=CustomProviderDTO(
@@ -73,7 +73,7 @@ def _custom_credential(*, extras):
             ).model_dump(),
             header=Header(name="acme-bedrock"),
         ),
-        owner=CredentialOwner(kind=CredentialOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
         origin=SecretOrigin.VAULT,
     )
 
@@ -107,7 +107,7 @@ def _mock_acompletion(monkeypatch, *, response=None, exc=None, capture=None):
 
 
 @pytest.mark.asyncio
-async def test_standard_provider_credential_passes_api_key(monkeypatch):
+async def test_standard_provider_secret_passes_api_key(monkeypatch):
     capture = {}
     _mock_acompletion(
         monkeypatch,
@@ -122,7 +122,7 @@ async def test_standard_provider_credential_passes_api_key(monkeypatch):
     )
     result = await TranslatedLlmAdapter().relay_chat_completion(
         route=route,
-        credential=_standard_credential(key="sk-abc"),
+        secret=_standard_secret(key="sk-abc"),
         context=LlmCallContext(model="anthropic/x"),
         body=_body(),
         headers={},
@@ -134,7 +134,7 @@ async def test_standard_provider_credential_passes_api_key(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_custom_provider_credential_merges_extras(monkeypatch):
+async def test_custom_provider_secret_merges_extras(monkeypatch):
     capture = {}
     _mock_acompletion(
         monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
@@ -145,7 +145,7 @@ async def test_custom_provider_credential_merges_extras(monkeypatch):
     )
     await TranslatedLlmAdapter().relay_chat_completion(
         route=route,
-        credential=_custom_credential(extras={"aws_access_key_id": "AKIA123"}),
+        secret=_custom_secret(extras={"aws_access_key_id": "AKIA123"}),
         context=LlmCallContext(model="claude-3"),
         body=_body(),
         headers={},
@@ -169,7 +169,7 @@ async def test_azure_deployment_prefixes_model_and_passes_api_version(monkeypatc
     )
     await TranslatedLlmAdapter().relay_chat_completion(
         route=route,
-        credential=None,
+        secret=None,
         context=LlmCallContext(model="gpt-4o"),
         body=_body(),
         headers={},
@@ -198,7 +198,7 @@ async def test_bedrock_and_vertex_pass_region(monkeypatch, deployment, region_kw
     )
     await TranslatedLlmAdapter().relay_chat_completion(
         route=route,
-        credential=None,
+        secret=None,
         context=LlmCallContext(model="a-model"),
         body=_body(),
         headers={},
@@ -222,7 +222,7 @@ async def test_litellm_exception_becomes_llm_upstream_error(monkeypatch):
     with pytest.raises(LlmUpstreamError) as excinfo:
         await TranslatedLlmAdapter().relay_chat_completion(
             route=route,
-            credential=None,
+            secret=None,
             context=LlmCallContext(model="gpt-4o"),
             body=_body(),
             headers={},
@@ -247,7 +247,7 @@ async def test_usage_and_cost_populated_on_success(monkeypatch):
     )
     result = await TranslatedLlmAdapter().relay_chat_completion(
         route=route,
-        credential=None,
+        secret=None,
         context=LlmCallContext(model="gpt-4o"),
         body=_body(),
         headers={},
@@ -284,7 +284,7 @@ async def test_streaming_wraps_chunks_as_sse_and_terminates_with_done(monkeypatc
     )
     result = await TranslatedLlmAdapter().relay_chat_completion(
         route=route,
-        credential=None,
+        secret=None,
         context=LlmCallContext(model="anthropic/x", stream=True),
         body=_body(stream=True),
         headers={},

@@ -171,7 +171,7 @@ async def test_relay_chat_completion_returns_llm_relay_result(adapter):
 
     result = await adapter.relay_chat_completion(
         route=route,
-        credential=None,
+        secret=None,
         context=LlmCallContext(model="mock/echo"),
         body=body,
         headers={},
@@ -201,7 +201,7 @@ async def test_relay_returns_mcp_relay_result(adapter, method, monkeypatch):
         lambda *a, **kw: [(None, None, None, None, ("93.184.216.34", 0))],
     )
     route = McpResolvedRoute(url="https://mcp.example.com/")
-    auth = McpDirectAuth(credential=None)
+    auth = McpDirectAuth(secret=None)
     payload = {"jsonrpc": "2.0", "id": 1, "method": method}
     if method == "tools/call":
         payload["params"] = {"name": "echo", "arguments": {}}

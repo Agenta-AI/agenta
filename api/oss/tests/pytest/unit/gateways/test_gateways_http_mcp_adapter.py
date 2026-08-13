@@ -35,8 +35,8 @@ def _context() -> McpCallContext:
     return McpCallContext(method="tools/list")
 
 
-def _auth(*, credential=None) -> McpDirectAuth:
-    return McpDirectAuth(credential=credential)
+def _auth(*, secret=None) -> McpDirectAuth:
+    return McpDirectAuth(secret=secret)
 
 
 def _json_response(status_code: int = 200, **body) -> httpx.Response:
@@ -183,7 +183,7 @@ async def test_brokered_auth_is_rejected():
 
 
 @pytest.mark.asyncio
-async def test_no_authorization_header_when_credential_is_none():
+async def test_no_authorization_header_when_secret_is_none():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -194,7 +194,7 @@ async def test_no_authorization_header_when_credential_is_none():
 
     await adapter.relay(
         route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
-        auth=_auth(credential=None),
+        auth=_auth(secret=None),
         context=_context(),
         body=b"{}",
         headers={},
@@ -206,7 +206,7 @@ async def test_no_authorization_header_when_credential_is_none():
 @pytest.mark.asyncio
 async def test_authorization_header_derived_from_oauth_grant():
     """`OAuthGrantSettingsDTO` (entities.md §4.5) isn't in this codebase yet (WP16,
-    wave 3), so the mock credential is a SimpleNamespace shaped like its future
+    wave 3), so the mock secret is a SimpleNamespace shaped like its future
     `.secret.data.grant.{access_token,token_type}` — the shape HttpMcpAdapter reads
     defensively via getattr."""
     captured = {}
@@ -216,7 +216,7 @@ async def test_authorization_header_derived_from_oauth_grant():
         return _json_response()
 
     adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
-    mock_credential = SimpleNamespace(
+    mock_secret = SimpleNamespace(
         secret=SimpleNamespace(
             data=SimpleNamespace(
                 grant=SimpleNamespace(access_token="tok-abc123", token_type="Bearer")
@@ -226,7 +226,7 @@ async def test_authorization_header_derived_from_oauth_grant():
 
     await adapter.relay(
         route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
-        auth=McpDirectAuth.model_construct(credential=mock_credential),
+        auth=McpDirectAuth.model_construct(secret=mock_secret),
         context=_context(),
         body=b"{}",
         headers={},

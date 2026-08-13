@@ -22,7 +22,7 @@ from typing import Any, AsyncIterator, Dict, Optional
 from oss.src.core.gateways.llms.dtos import LlmCallContext, LlmResolvedRoute
 from oss.src.core.gateways.llms.interfaces import LlmRelayResult, LlmUpstreamInterface
 from oss.src.core.gateways.llms.types import LlmUpstreamError
-from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedCredential
+from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
 _ERROR_PREFIX = "mock/error"
 _SLOW_RE = re.compile(r"^mock/slow-(\d+)")
@@ -98,14 +98,14 @@ async def _empty_body() -> AsyncIterator[bytes]:
 
 class MockLlmAdapter(LlmUpstreamInterface):
     """The mock upstream (D23): unauthenticated, in-process, never opens a
-    socket. `credential` may be None — targets with GatewayAuthScheme.NONE are
+    socket. `secret` may be None — targets with GatewayAuthScheme.NONE are
     the intended callers (entities.md §2)."""
 
     async def relay_chat_completion(
         self,
         *,
         route: LlmResolvedRoute,
-        credential: Optional[ResolvedCredential],
+        secret: Optional[ResolvedSecret],
         #
         context: LlmCallContext,
         body: bytes,

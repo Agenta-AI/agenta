@@ -1,5 +1,5 @@
 """`LlmGatewayService` (entities.md §8): management CRUD, the generated-endpoint merge, and
-the relay path's policy/allowlist/ceiling/credential/adapter-selection pipeline.
+the relay path's policy/allowlist/ceiling/secret/adapter-selection pipeline.
 """
 
 import json
@@ -35,16 +35,16 @@ from oss.src.core.gateways.llms.types import (
 )
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
-    CredentialMode,
-    CredentialRef,
+    SecretMode,
+    SecretRef,
     GatewayOutcome,
     GatewayPlane,
     GatewayTarget,
     PolicyDecision,
     ProviderKeyRef,
-    ResolvedCredential,
+    ResolvedSecret,
 )
-from oss.src.core.gateways.policy.interfaces import CredentialResolverInterface
+from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.policy.types import CeilingExceededError, PolicyDeniedError
 from oss.src.core.shared.dtos import Windowing
@@ -78,7 +78,7 @@ class _ResolvedLlmTarget:
             model=model,
         )
 
-    def credential_ref(self) -> Optional[CredentialRef]:
+    def secret_ref(self) -> Optional[SecretRef]:
         if self.namespace == GatewayEndpointNamespace.BUILTIN:
             return ProviderKeyRef(provider_key=self.provider_key)
         if self.secret_id is not None:
@@ -130,7 +130,7 @@ class LlmGatewayService:
         *,
         llm_endpoints_dao: LlmEndpointsDAOInterface,
         policy: GatewayPolicyService,
-        resolver: CredentialResolverInterface,
+        resolver: SecretsResolverInterface,
         upstream_registry: LlmUpstreamRegistry,
     ) -> None:
         self.llm_endpoints_dao = llm_endpoints_dao
@@ -226,7 +226,7 @@ class LlmGatewayService:
         namespace: GatewayEndpointNamespace,
         name: str,
     ) -> List[str]:
-        """Backs `GET /v1/models` (R3): the allowlist itself, per endpoint. No credential
+        """Backs `GET /v1/models` (R3): the allowlist itself, per endpoint. No secret
         resolved, no upstream called."""
         target = await self._resolve_target(
             project_id=scope.project_id, namespace=namespace, name=name
@@ -259,9 +259,9 @@ class LlmGatewayService:
         )
         context = _parse_call_context(body)
 
-        # Allowlist and ceiling before credential (§8): a refused model must not cost a
+        # Allowlist and ceiling before secret (§8): a refused model must not cost a
         # vault read, and the refusal reason must be the allowlist, never a coincidental
-        # credential gap.
+        # secret gap.
         self._check_allowlist(target=target, context=context)
         self._check_ceilings(target=target, body=body)
 
@@ -284,10 +284,10 @@ class LlmGatewayService:
                 permission=Permission.USE_LLM_ENDPOINTS, target=target.target_path()
             )
 
-        ref = target.credential_ref()
-        credential = (
+        ref = target.secret_ref()
+        secret = (
             await self.resolver.resolve(
-                scope=scope, ref=ref, mode=CredentialMode.PROJECT_ONLY
+                scope=scope, ref=ref, mode=SecretMode.PROJECT_ONLY
             )
             if ref is not None
             else None
@@ -298,7 +298,7 @@ class LlmGatewayService:
         )
         result = await adapter.relay_chat_completion(
             route=target.route(context),
-            credential=credential,
+            secret=secret,
             #
             context=context,
             body=body,
@@ -315,7 +315,7 @@ class LlmGatewayService:
                 target=policy_target,
                 decision=decision,
                 result=result,
-                credential=credential,
+                secret=secret,
             )
             return result
 
@@ -323,7 +323,7 @@ class LlmGatewayService:
             scope=scope,
             target=policy_target,
             decision=decision,
-            outcome=self._outcome_from(result=result, credential=credential),
+            outcome=self._outcome_from(result=result, secret=secret),
         )
         return result
 
@@ -390,13 +390,13 @@ class LlmGatewayService:
         )
 
     def _outcome_from(
-        self, *, result: LlmRelayResult, credential: Optional[ResolvedCredential]
+        self, *, result: LlmRelayResult, secret: Optional[ResolvedSecret]
     ) -> GatewayOutcome:
         return GatewayOutcome(
             status_code=result.status_code,
             usage=result.usage,
-            owner=credential.owner if credential is not None else None,
-            origin=credential.origin if credential is not None else None,
+            owner=secret.owner if secret is not None else None,
+            origin=secret.origin if secret is not None else None,
         )
 
     async def _drain_and_record(
@@ -407,7 +407,7 @@ class LlmGatewayService:
         target: GatewayTarget,
         decision: PolicyDecision,
         result: LlmRelayResult,
-        credential: Optional[ResolvedCredential],
+        secret: Optional[ResolvedSecret],
     ) -> AsyncIterator[bytes]:
         try:
             async for chunk in body:
@@ -419,5 +419,5 @@ class LlmGatewayService:
                 scope=scope,
                 target=target,
                 decision=decision,
-                outcome=self._outcome_from(result=result, credential=credential),
+                outcome=self._outcome_from(result=result, secret=secret),
             )

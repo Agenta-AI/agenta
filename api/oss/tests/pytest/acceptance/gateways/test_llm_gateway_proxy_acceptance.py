@@ -43,7 +43,7 @@ def _create_custom_endpoint(authed_api, *, model_slugs, timeout_seconds=None):
                     "slug": slug,
                     "provider_key": "mock",
                     "deployment": "custom",
-                    "secret_id": None,  # GatewayAuthScheme.NONE — the mock needs no credential (D23)
+                    "secret_id": None,  # GatewayAuthScheme.NONE — the mock needs no secret (D23)
                     "data": {
                         "route": {"base_url": _MOCK_BASE_URL},
                         "model_slugs": model_slugs,

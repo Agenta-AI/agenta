@@ -448,7 +448,7 @@ GET /gateways/mcps/endpoints/{a builtin entry's synthetic identity, if one
 - The data-plane proxies (`apis/fastapi/gateways/{llms,mcps}/proxy.py`) and
   their `utils.py` — **WP6** (LLM), **WP8** (MCP).
 - `core/gateways/{llms,mcps}/service.py` and everything behind it (target
-  resolution, credential resolution, the namespace merges) — **WP7**
+  resolution, secret resolution, the namespace merges) — **WP7**
   (LLM), **WP9** (MCP).
 - `core/access/permissions/types.py`'s six new members — **WP3**, already
   landed by M1.

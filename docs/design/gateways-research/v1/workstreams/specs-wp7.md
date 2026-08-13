@@ -3,7 +3,7 @@
 The **domain** half of the LLM gateway (`workstreams/README.md`'s cut: "WP7 and WP9 own the
 service, the registry, the catalogue and the allowlists"). Owns `LlmGatewayService` in full —
 management CRUD orchestration, the generated-endpoint catalogue, the relay's policy/allowlist/
-ceiling/credential/adapter-selection pipeline — and the `translated` south-port adapter that puts
+ceiling/secret/adapter-selection pipeline — and the `translated` south-port adapter that puts
 the routing library (litellm, `sdks/python/pyproject.toml` line 31: `"litellm>=1,<2"`) in-process
 for every upstream whose wire is not OpenAI-shaped.
 
@@ -13,7 +13,7 @@ for every upstream whose wire is not OpenAI-shaped.
   the service methods those routes call, it does not declare the routes.
 - The DAO and storage for custom endpoint rows — **WP1**; WP7 depends on
   `LlmEndpointsDAOInterface`, never a concrete DAO.
-- Credential resolution itself — **WP2**; WP7 calls `CredentialResolverInterface.resolve`, never
+- Secret resolution itself — **WP2**; WP7 calls `SecretsResolverInterface.resolve`, never
   reimplements the mode logic.
 - Policy authorization and audit — **WP3**/**WP4**; WP7 calls `GatewayPolicyService.authorize`/
   `.record`, never reimplements permission or entitlement checks.
@@ -45,7 +45,7 @@ class LlmGatewayService:
         *,
         llm_endpoints_dao: LlmEndpointsDAOInterface,
         policy: GatewayPolicyService,
-        resolver: CredentialResolverInterface,
+        resolver: SecretsResolverInterface,
         upstream_registry: LlmUpstreamRegistry,
     ) -> None: ...
 ```
@@ -76,9 +76,9 @@ keys = await self.resolver.available_provider_keys(scope=scope)   # Set[str], na
 ```
 
 Intersect `standard_llm_endpoints()` with that set. The port answers because existence of a
-credential is a credential-layer question; handing this service a `VaultService` would give it two
-credential seams and defeat the port, and calling `resolve()` once per provider to catch
-`CredentialNotFoundError` is control flow by exception plus eleven vault reads per list. The method
+secret is a secret-layer question; handing this service a `VaultService` would give it two
+secret seams and defeat the port, and calling `resolve()` once per provider to catch
+`SecretNotFoundError` is control flow by exception plus eleven vault reads per list. The method
 returns the empty set for a project with no keys — that is an ordinary state, not an error, so
 there is nothing to catch here.
 
@@ -153,7 +153,7 @@ code, not in the design set).
 ```python
 class TranslatedLlmAdapter(LlmUpstreamInterface):
     async def relay_chat_completion(
-        self, *, route, credential, context, body, headers,
+        self, *, route, secret, context, body, headers,
     ) -> LlmRelayResult: ...
 ```
 
@@ -166,12 +166,12 @@ constraint honest"*), call `litellm.acompletion(model=..., **kwargs)` with:
 - `model` prefixed per `route.deployment` (`"azure/{model}"`, `"bedrock/{model}"`,
   `"sagemaker/{model}"`, `"vertex_ai/{model}"`; for `DIRECT` non-OpenAI-shaped providers, the
   model id already carries its litellm prefix from the catalogue, e.g. `"anthropic/claude-..."`).
-- credential kwargs assembled by the **same branch** the SDK's settings builder already runs —
+- secret kwargs assembled by the **same branch** the SDK's settings builder already runs —
   `sdks/python/agenta/sdk/managers/secrets.py::get_provider_settings` /
   `get_provider_settings_from_workflow` (both copies read in full, lines 172–260 and 308–404):
   STEP 4 there merges `secret_provider_extras` (`CustomProviderDTO.provider.extras`) straight into
   the kwargs dict passed to litellm — this adapter performs the identical merge, moved behind the
-  gateway, against `credential.secret.data` (`StandardProviderDTO`/`CustomProviderDTO`,
+  gateway, against `secret.secret.data` (`StandardProviderDTO`/`CustomProviderDTO`,
   `core/secrets/dtos.py` lines 20–48). `api_version` (Azure) and `region` (Bedrock/Vertex) come
   from `route.api_version`/`route.region`, not from the secret.
 - streaming: `stream=context.stream`; litellm's async generator is wrapped into an
@@ -201,7 +201,7 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
 
     context = parse_call_context(body)             # WP6's parse_llm_call_context
     self._check_allowlist(target, context)          # LlmModelNotAllowedError — before
-                                                     # any credential is touched
+                                                     # any secret is touched
     self._check_ceilings(target, context)            # CeilingExceededError: reject,
                                                      # never clamp (D25)
 
@@ -214,17 +214,17 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
                                  outcome=GatewayOutcome(status_code=403))
         raise PolicyDeniedError(...)
 
-    credential = await self.resolver.resolve(
-        scope=scope, ref=target.credential_ref(), mode=CredentialMode.PROJECT_ONLY,
+    secret = await self.resolver.resolve(
+        scope=scope, ref=target.secret_ref(), mode=SecretMode.PROJECT_ONLY,
     )   # NONE-scheme targets (the mocks) skip this step
 
     result = await self.upstream_registry.get(
         select_upstream(target.provider_key, target.deployment)
-    ).relay_chat_completion(route=target.route(context), credential=credential,
+    ).relay_chat_completion(route=target.route(context), secret=secret,
                             context=context, body=body, headers=headers)
 
     await self.policy.record(scope=scope, target=..., decision=decision,
-                             outcome=outcome_from(result, credential))
+                             outcome=outcome_from(result, secret))
     return result
 ```
 
@@ -233,7 +233,7 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
 is free to shape it (a small dataclass, not a Pydantic model, matching the south-port result
 types' own reasoning in §7.1: "lives for one call... never validated, stored or serialized").
 
-**The LLM plane resolves with `CredentialMode.PROJECT_ONLY`** (§7.2: "the LLM plane resolves with
+**The LLM plane resolves with `SecretMode.PROJECT_ONLY`** (§7.2: "the LLM plane resolves with
 PROJECT_ONLY, the MCP plane with USER_OPTIONAL — the deliberate asymmetry... one billing identity
 for models, personal authority for tools"). This is not a parameter WP7 exposes; it is hardcoded
 at this call site, per §7.2's own note that the mode is "an argument at the call site," not the
@@ -264,7 +264,7 @@ before calling sees exactly what policy will allow: the catalogue's `model_slugs
 
 Body: `_resolve_target` exactly as the relay does, then `policy.authorize` with
 `Permission.USE_LLM_ENDPOINTS` — it is a data-plane read that reveals configuration, so it is
-authorized like one — then return the slugs. No credential is resolved and no upstream is called.
+authorized like one — then return the slugs. No secret is resolved and no upstream is called.
 
 **No new DTO.** It returns `List[str]`, and WP6's proxy shapes the OpenAI list body inline; the
 data plane has no wire models (§6). Inventing a response DTO here would break the "do not invent
@@ -272,7 +272,7 @@ names" rule for no gain.
 
 ### The three orderings, restated as this package's obligations
 
-- **Allowlist before credential** (`_check_allowlist` before `self.resolver.resolve`) — a refused
+- **Allowlist before secret** (`_check_allowlist` before `self.resolver.resolve`) — a refused
   model must not cost a vault read.
 - **The denial is recorded before the exception leaves** — `policy.record` runs inside the
   `if not decision.allowed` branch, before `raise PolicyDeniedError`.
@@ -310,7 +310,7 @@ names" rule for no gain.
  llm_gateway_service = LlmGatewayService(
      llm_endpoints_dao=llm_endpoints_dao,
      policy=gateway_policy_service,
-     resolver=credential_resolver,
+     resolver=secret_resolver,
      upstream_registry=LlmUpstreamRegistry(adapters={
 -        "passthrough": PassthroughLlmAdapter(),  # WP6's import, added at that merge
 -        "translated": TranslatedLlmAdapter(),
@@ -347,7 +347,7 @@ Unit — nothing running:
   streaming call's `policy.record` fires only after the returned iterator is exhausted (assert
   ordering with a spy).
 - `TranslatedLlmAdapter` against a stubbed `litellm.acompletion` (monkeypatched, not a real call):
-  `StandardProviderDTO` credential passes `api_key=...`; `CustomProviderDTO` credential merges
+  `StandardProviderDTO` secret passes `api_key=...`; `CustomProviderDTO` secret merges
   `provider.extras` into the call kwargs; `route.deployment=AZURE` prefixes the model
   `"azure/..."` and passes `api_version`; `BEDROCK`/`VERTEX` pass `region`; a raised litellm
   exception becomes `LlmUpstreamError`.
@@ -403,7 +403,7 @@ list is refused."*
 
 - **`list_endpoints`'s constructor cannot reach the vault → option (b), R2.** The resolver port
   gains `available_provider_keys(*, scope) -> Set[str]`; the constructor is untouched. Option (a)
-  would have given this service two credential seams, and (c) breaks §8's own DI rule for this
+  would have given this service two secret seams, and (c) breaks §8's own DI rule for this
   very service. The seed carries the new method, so nothing here is a mid-wave signature change.
 - **`GET /v1/models` has no backing method → `list_models`, R3.** Owned here, called by WP6.
   Section above.

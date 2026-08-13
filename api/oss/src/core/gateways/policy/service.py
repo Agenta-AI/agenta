@@ -15,7 +15,7 @@ from oss.src.core.gateways.policy.dtos import (
     GatewayTarget,
     PolicyDecision,
 )
-from oss.src.core.gateways.policy.interfaces import CredentialResolverInterface
+from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.utils.context import AuthScope
 from oss.src.utils.logging import get_module_logger
 
@@ -26,7 +26,7 @@ class GatewayPolicyService:
     def __init__(
         self,
         *,
-        resolver: CredentialResolverInterface,
+        resolver: SecretsResolverInterface,
     ) -> None:
         self.resolver = resolver
 

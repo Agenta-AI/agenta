@@ -39,7 +39,7 @@ async def test_echo_returns_well_formed_result():
     adapter = MockLlmAdapter()
     result = await adapter.relay_chat_completion(
         route=_route(),
-        credential=None,
+        secret=None,
         context=LlmCallContext(model="mock/echo"),
         body=_body("hello there"),
         headers={},
@@ -62,7 +62,7 @@ async def test_error_model_raises_upstream_error():
     with pytest.raises(LlmUpstreamError) as excinfo:
         await adapter.relay_chat_completion(
             route=_route("mock/error"),
-            credential=None,
+            secret=None,
             context=LlmCallContext(model="mock/error"),
             body=_body(),
             headers={},
@@ -79,7 +79,7 @@ async def test_slow_model_sleeps_before_returning():
 
     result = await adapter.relay_chat_completion(
         route=_route("mock/slow-1"),
-        credential=None,
+        secret=None,
         context=LlmCallContext(model="mock/slow-1"),
         body=_body(),
         headers={},
@@ -97,7 +97,7 @@ async def test_streaming_yields_multiple_chunks_ending_in_done():
 
     result = await adapter.relay_chat_completion(
         route=_route(),
-        credential=None,
+        secret=None,
         context=LlmCallContext(model="mock/echo", stream=True),
         body=_body("hi"),
         headers={},
@@ -116,7 +116,7 @@ async def test_usage_populated_after_body_exhausted():
 
     result = await adapter.relay_chat_completion(
         route=_route(),
-        credential=None,
+        secret=None,
         context=LlmCallContext(model="mock/echo"),
         body=_body("hello world"),
         headers={},

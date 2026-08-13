@@ -22,10 +22,10 @@ from oss.src.core.gateways.llms.types import (
     LlmUpstreamError,
 )
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.gateways.policy.dtos import CredentialMode, CredentialOwnerKind
+from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
-    CredentialNotFoundError,
+    SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
 )
@@ -277,13 +277,13 @@ _DENIAL_CASES = [
         "ceiling_exceeded",
     ),
     (
-        CredentialNotFoundError(
-            mode=CredentialMode.PROJECT_ONLY,
-            missing=CredentialOwnerKind.PROJECT,
+        SecretNotFoundError(
+            mode=SecretMode.PROJECT_ONLY,
+            missing=SecretOwnerKind.PROJECT,
             target="t",
         ),
         404,
-        "credential_missing",
+        "secret_missing",
     ),
     (
         LlmEndpointNotFoundError(

@@ -63,10 +63,10 @@ def _authorization_header(auth: McpDirectAuth) -> Optional[str]:
     shape is read defensively via `getattr` rather than imported, and this needs no
     change once it lands. Unreachable in Checkpoint A (D23): no OAuth targets exist yet.
     """
-    if auth.credential is None:
+    if auth.secret is None:
         return None
 
-    grant = getattr(auth.credential.secret.data, "grant", None)
+    grant = getattr(auth.secret.secret.data, "grant", None)
     access_token = getattr(grant, "access_token", None) if grant is not None else None
     if not access_token:
         return None
