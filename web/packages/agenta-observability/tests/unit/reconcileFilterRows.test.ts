@@ -114,11 +114,7 @@ describe("reconcileFilterRows", () => {
 
     it("never touches non-permanent rows", () => {
         const user = {field: "evaluator.id", operator: "in", value: ["z"]} as FilterItem
-        const out = reconcileFilterRows(
-            [user, traceTypeRow("is", "invocation")],
-            "evaluator",
-            MAP,
-        )
+        const out = reconcileFilterRows([user, traceTypeRow("is", "invocation")], "evaluator", MAP)
         expect(out[0]).toBe(user)
     })
 

@@ -12,7 +12,7 @@ import {
 } from "@agenta/observability"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import type {ColumnDefs} from "@agenta/ui/table"
+import {isColumnGroupDef, type ColumnDefs} from "@agenta/ui/table"
 import {useAtomValue} from "jotai"
 import Papa from "papaparse"
 
@@ -25,6 +25,16 @@ import type {TraceRow} from "../columns/getObservabilityColumns"
  * mapper — already lived in @agenta/observability; only the app id and filename came from
  * web/oss app state, so those are injected and the rest moves here unchanged.
  */
+/** Leaf titles only: a group's own title has no row data behind it. */
+const flattenLeafTitles = <T>(columns: ColumnDefs<T>): string[] =>
+    columns.flatMap((column) =>
+        isColumnGroupDef(column)
+            ? flattenLeafTitles(column.children)
+            : typeof column.title === "string"
+              ? [column.title]
+              : [],
+    )
+
 export interface UseTracesExportOptions {
     columns: ColumnDefs<TraceRow>
     canExportData?: boolean
@@ -56,14 +66,16 @@ export const useTracesExport = ({
         const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
             buildTraceQueryParams(filters, sort, traceTabs, undefined)
 
-        const headers =
-            columns
-                .map((col) => {
-                    if (col.title === "ID") return "Trace ID"
-                    return typeof col.title === "string" ? col.title : null
-                })
-                .filter((header): header is string => Boolean(header)) || []
-        const csvHeaders = headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS
+        // Papa reads row[field] per header, and createTraceObject emits exactly the
+        // DEFAULT_TRACE_EXPORT_HEADERS keys. A header it cannot fill — the "Evaluators" group,
+        // or any evaluator column, whose metrics live in annotation atoms rather than on the
+        // row — wrote an empty column. So headers come from what the mapper actually emits,
+        // narrowed to the columns still visible, in the mapper's order.
+        const visibleTitles = new Set(
+            flattenLeafTitles(columns).map((title) => (title === "ID" ? "Trace ID" : title)),
+        )
+        const selected = DEFAULT_TRACE_EXPORT_HEADERS.filter((header) => visibleTitles.has(header))
+        const csvHeaders = selected.length > 0 ? selected : DEFAULT_TRACE_EXPORT_HEADERS
 
         // Open the native file picker BEFORE starting the scan when the
         // browser supports `showSaveFilePicker` (Chromium). User-cancel of

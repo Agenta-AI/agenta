@@ -1,5 +1,6 @@
-import {filterKeySpans, filterTree, isKeySpan} from "@agenta/observability/trace"
 import {describe, expect, it} from "vitest"
+
+import {filterKeySpans, filterTree, isKeySpan} from "@agenta/observability/trace"
 
 import type {TraceSpanNode} from "../../src/core/traceSpan"
 
