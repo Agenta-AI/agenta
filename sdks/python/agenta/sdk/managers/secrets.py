@@ -5,7 +5,10 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.net import assert_endpoint_url_allowed
 from agenta.sdk.contexts.routing import RoutingContext
 from agenta.sdk.contexts.running import RunningContext
-from agenta.sdk.utils.assets import model_to_provider_mapping as _standard_providers
+from agenta.sdk.utils.assets import (
+    litellm_model_id,
+    model_to_provider_mapping as _standard_providers,
+)
 from agenta.sdk.engines.running.errors import (
     ConnectionModelMismatchV0Error,
     UnknownConnectionV0Error,
@@ -209,6 +212,61 @@ class SecretsManager:
 
         return modified_model
 
+    @staticmethod
+    def _litellm_model(*, model: str, family: Optional[str]) -> str:
+        """Give a standard provider's model the litellm prefix its family expects.
+
+        A safety net for callers that hand us a bare id — a picker that stores "claude-fable-5"
+        against an Anthropic connection means the same model as "anthropic/claude-fable-5", but
+        only the latter tells litellm which API to call. Idempotent, so an id that already
+        carries its prefix passes through untouched.
+
+        Catalog first: a model the prompt catalog knows uses its own family, so a record whose
+        kind is spelled differently ("mistralai") cannot mis-prefix it. `family` is the fallback
+        for ids the catalog has never heard of, which is the case this exists for.
+
+        Only ever called for `provider_key` records. A custom connection's model string has
+        already been rewritten by `_get_compatible_model` into litellm's `openai/<model>` form,
+        and prefixing that again would corrupt it — see both call sites.
+        """
+        resolved = _standard_providers.get(model) or family
+        if not resolved:
+            return model
+
+        return litellm_model_id(
+            model, SecretsManager._normalize_provider_kind(resolved)
+        )
+
+    @staticmethod
+    def _claims_model(
+        *, secret: Dict[str, Any], model: str, family: Optional[str]
+    ) -> bool:
+        """Does this record's saved model list name `model`?
+
+        The two sides are spelled differently by design: a saved list stores the provider's own
+        spelling ("claude-sonnet-5") so it reads the same in every harness, while a config
+        stores the litellm one ("anthropic/claude-sonnet-5"). Compared raw, an explicit claim on
+        a model never matches for any family but OpenAI, and the tiebreak below quietly falls
+        through to the first record of the family — a different connection's key, with no error.
+
+        `family` is None for a model that resolved through a custom connection, which keeps the
+        exact comparison it has always had.
+        """
+        saved = secret.get("models") or []
+
+        if model in saved:
+            return True
+
+        if not family:
+            return False
+
+        target = SecretsManager._litellm_model(model=model, family=family)
+
+        return any(
+            SecretsManager._litellm_model(model=slug, family=family) == target
+            for slug in saved
+        )
+
     # ------------------------------------------------------------------
     # Resolution
     #
@@ -264,7 +322,12 @@ class SecretsManager:
             )
             if "key" not in provider_info:
                 return None
-            return dict(model=model, api_key=provider_info["key"])
+            return dict(
+                model=SecretsManager._litellm_model(
+                    model=model, family=data.get("kind", "")
+                ),
+                api_key=provider_info["key"],
+            )
 
         # A custom connection's model string encodes its namespace
         # (`provider_slug/kind/model`), so the slug and the model have to agree or the litellm
@@ -321,7 +384,8 @@ class SecretsManager:
         request_provider_model = model
 
         # STEP 1: check model exists in supported standard models
-        provider = _standard_providers.get(request_provider_model)
+        standard_family = _standard_providers.get(request_provider_model)
+        provider = standard_family
         if not provider:
             # check and get provider kind if model exists in custom provider models
             provider = SecretsManager._custom_providers_get(
@@ -344,8 +408,18 @@ class SecretsManager:
             model=request_provider_model, provider_slug=request_provider_slug
         )
 
-        # STEP 2: initialize provider settings and simplify provider name
-        provider_settings = dict(model=compatible_provider_model)
+        # STEP 2: initialize provider settings and simplify provider name.
+        # A model that resolved through the catalog is a standard provider's, so it goes to
+        # litellm with its family prefix. A model that resolved through a custom connection is
+        # exempt: `standard_family` is None for it, and `_get_compatible_model` above has
+        # already put its model string in the form litellm wants.
+        provider_settings = dict(
+            model=SecretsManager._litellm_model(
+                model=compatible_provider_model, family=standard_family
+            )
+            if standard_family
+            else compatible_provider_model
+        )
         request_provider_kind = SecretsManager._normalize_provider_kind(provider)
 
         # STEP 3a: standard credentials (openai/anthropic/gemini, ...). A connection that saved
@@ -363,7 +437,11 @@ class SecretsManager:
             (
                 secret
                 for secret in family_records
-                if request_provider_model in (secret.get("models") or [])
+                if SecretsManager._claims_model(
+                    secret=secret,
+                    model=request_provider_model,
+                    family=standard_family,
+                )
             ),
             family_records[0] if family_records else None,
         )
