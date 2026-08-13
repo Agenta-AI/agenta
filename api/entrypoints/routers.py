@@ -1513,10 +1513,10 @@ app.include_router(
 # GATEWAYS: nothing mounted yet — each line lands with its owning package
 # (entities.md §9 "Wiring"). Two router OBJECTS per plane, not one with two
 # attributes: management CRUD and the data plane are separate (§1).
-# app.include_router(router=llm_gateway.router, prefix="/gateways/llms", tags=["Gateway: LLM"])
-# app.include_router(router=llm_gateway.proxy,  prefix="/gateways/llms", include_in_schema=False)
-# app.include_router(router=mcp_gateway.router, prefix="/gateways/mcps", tags=["Gateway: MCP"])
-# app.include_router(router=mcp_gateway.proxy,  prefix="/gateways/mcps", include_in_schema=False)
+# app.include_router(router=llm_gateway_router.router, prefix="/gateways/llms", tags=["Gateway: LLM"])   # WP10
+# app.include_router(router=llm_gateway_proxy.router,  prefix="/gateways/llms", include_in_schema=False)  # WP6
+# app.include_router(router=mcp_gateway_router.router, prefix="/gateways/mcps", tags=["Gateway: MCP"])   # WP10
+# app.include_router(router=mcp_gateway_proxy.router,  prefix="/gateways/mcps", include_in_schema=False)  # WP8
 
 app.include_router(
     router=sessions.interactions.router,

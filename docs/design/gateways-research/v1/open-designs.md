@@ -104,6 +104,29 @@ reads as intent rather than omission.
 If routing runs in the API process, that service declares it (`raw/model-call-sites.md` notes the
 same thing).
 
+**R12. `McpGatewayService`'s frozen constructor omitted `connections_service`** — surfaced by
+building it. §8 mandates that `list_endpoints` resolve a builtin entry's state *"through the
+existing connections service"*, and `relay` resolve a builtin target the same way, so the
+behaviour the document requires cannot be written from the listed dependencies. **Settled: the
+constructor gains it**, as a concrete service object — §8's own paragraph says cross-domain
+composition passes concrete services and that the interface rule bites at the DAO and adapter
+seams, not between services. §8 now lists it.
+
+This is the same class of gap as R2, and the two were settled differently on purpose. R2's
+question was *does a credential exist*, which is the credential layer's own question, so it became
+a method on the port rather than a second dependency. R12's is *what does the integrations domain
+say about this connection*, which no port of ours can answer. The blast radius is one line in the
+composition root: the proxies and routers receive the service, they do not construct it.
+
+**R13. The seed put the two upstream registries in `interfaces.py` as well as `registry.py`.**
+§7.1 presents the south ports and their registries in one code block headed `interfaces.py`, so
+the transcription carried the registry classes there; but §0's file layout is explicit —
+`interfaces.py` holds *"the DAO interface + the south port"* and `registry.py` holds *"adapter key
+-> interface"*. The result is two classes of each name, the `interfaces.py` pair being
+never-implemented stubs that would win silently if imported. **The stubs come out at the merge**,
+leaving the real ones in `registry.py`. Deferred to M2 rather than fixed mid-flight, because the
+packages that own `registry.py` were still writing when it was found.
+
 **R11. §9's exception-mapping table is narrower than §5's exception set** — surfaced by writing
 the seed. The table names six categories; `CredentialNotFoundError`, `CredentialInvalidError` and
 `McpScopeInsufficientError` are not among them, and a fall-through would answer a project with no

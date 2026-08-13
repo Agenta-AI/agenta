@@ -2176,8 +2176,15 @@ class McpGatewayService:
         mcp_grants_dao: McpGrantsDAOInterface,
         policy: GatewayPolicyService,
         resolver: CredentialResolverInterface,
+        connections_service: ConnectionsService,
         upstream_registry: McpUpstreamRegistry,
     ) -> None: ...
+    # connections_service is required and was missing from this list until R12.
+    # list_endpoints resolves a builtin entry's state "through the existing
+    # connections service" and relay resolves a builtin target the same way, so
+    # the behaviour this document mandates is unreachable without it. It is a
+    # concrete service object by the paragraph above, not an interface — the
+    # rule bites at the DAO and adapter seams, not between services.
 ```
 
 Service method signatures drop the kwarg type hints — the DTOs carry the types — following
