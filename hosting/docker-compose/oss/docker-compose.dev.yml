@@ -800,6 +800,58 @@ services:
     #
     #
     #
+    # Fake upstreams (D23, WP5): the only reachable targets for Checkpoint A's acceptance
+    # suite. Not profile-gated — unlike the composio and tunnel services these are ours, not a third-party
+    # dependency, so they run every deploy (entities.md §0, "the gateways have no
+    # third-party dependency to gate on").
+    fake-llm-gateway:
+        # === IMAGE ================================================ #
+        image: agenta-oss-dev-api:latest
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "uvicorn",
+                "oss.src.core.gateways.llms.providers.fake.app:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "9091",
+            ]
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "curl", "-sf", "http://localhost:9091/health"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    fake-mcp-gateway:
+        # === IMAGE ================================================ #
+        image: agenta-oss-dev-api:latest
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "uvicorn",
+                "oss.src.core.gateways.mcps.providers.fake.app:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "9092",
+            ]
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "curl", "-sf", "http://localhost:9092/health"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
     #
     #
     #
