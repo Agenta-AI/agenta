@@ -15,7 +15,13 @@ import {PolicyEditor} from "./PolicyEditor"
 interface GrantFormValues {
     agent_id: string
     space_id: string
+    effect: AgentaApi.ChannelGrantEffect
 }
+
+const EFFECT_OPTIONS: {label: string; value: AgentaApi.ChannelGrantEffect}[] = [
+    {label: "Allow", value: "allow"},
+    {label: "Deny", value: "deny"},
+]
 
 export interface GrantFormDrawerProps {
     open: boolean
@@ -32,9 +38,14 @@ export interface GrantFormDrawerProps {
 const emptyPolicy: AgentaApi.ChannelPolicy = {}
 
 /**
- * Grant create/edit. No raw `is_default` toggle here — default-setting is
- * the dedicated `set_channel_grant_default` action on the roster/detail
- * screens, never a field on this form's PUT body.
+ * A single space-level grant, create/edit — reached from the space detail
+ * screen with the space fixed and an agent to pick. Kind-level grants (the
+ * DM/group-chat questions) and the channel picker live in
+ * `GrantKindSection`/`GrantChannelsSection` instead, never here.
+ *
+ * No raw `is_default` toggle here — default-setting is the dedicated
+ * `set_channel_grant_default` action on the roster/detail screens, never a
+ * field on this form's PUT body.
  */
 export default function GrantFormDrawer({
     open,
@@ -59,6 +70,7 @@ export default function GrantFormDrawer({
         form.setFieldsValue({
             agent_id: grant?.agent_id ?? initialAgentId ?? undefined,
             space_id: grant?.space_id ?? initialSpaceId ?? undefined,
+            effect: grant?.effect ?? "allow",
         })
         setPolicy(grant?.data.policy ?? {})
     }, [open, grant, initialAgentId, initialSpaceId, form])
@@ -76,9 +88,7 @@ export default function GrantFormDrawer({
                 await create({
                     agent_id: values.agent_id,
                     space_id: values.space_id,
-                    // this drawer grants access; a denial is a different intent
-                    // and would need its own control before it can be authored
-                    effect: "allow",
+                    effect: values.effect,
                     data,
                 })
                 message.success("Grant created")
@@ -134,6 +144,13 @@ export default function GrantFormDrawer({
                             value: s.id,
                         }))}
                     />
+                </Form.Item>
+                <Form.Item
+                    name="effect"
+                    label="Effect"
+                    rules={[{required: true, message: "Effect is required"}]}
+                >
+                    <Select disabled={!!grant} options={EFFECT_OPTIONS} />
                 </Form.Item>
             </Form>
             <div className="mt-4 flex flex-col gap-3">
