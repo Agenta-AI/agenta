@@ -9,7 +9,7 @@ see `specs.md` for why.
 
 - [x] New `ngrok-ingress` service in `hosting/docker-compose/oss/docker-compose.dev.yml`
       and the EE twin, forwarding to `traefik:80`, on the `with-tunnel` profile, gated
-      on `NGROK_AUTHTOKEN`, with `NGROK_INGRESS_DOMAIN` optional.
+      on `NGROK_AUTHTOKEN`, with `NGROK_DOMAIN_INGRESS` optional.
 - [x] `ngrok` renamed to **`ngrok-mounts`**, so each service is named for what it
       publishes. Its target, token gate, comments and `depends_on` are otherwise
       unchanged from `main`.
@@ -23,7 +23,7 @@ see `specs.md` for why.
 - [x] Both call sites in `environment.ts` pass the store endpoint they already hold.
 - [x] Three tests: the two-tunnel case picks the store's; no matching tunnel returns
       null; the upstream matches however the agent spells it.
-- [x] `NGROK_INGRESS_DOMAIN` documented in both dev env examples, beside the existing
+- [x] `NGROK_DOMAIN_INGRESS` documented in both dev env examples, beside the existing
       `NGROK_AUTHTOKEN` text, which is left as it was.
 - [x] `docker compose config` validates for both editions with both tunnels defined.
 - [x] `pnpm run typecheck` clean; `pnpm test` 2117 passed. The 19 failures in
@@ -35,7 +35,7 @@ see `specs.md` for why.
 
 Each item is here because it can fail quietly.
 
-- [ ] Set `NGROK_AUTHTOKEN`, and `NGROK_INGRESS_DOMAIN` if a reserved domain exists.
+- [ ] Set `NGROK_AUTHTOKEN`, and `NGROK_DOMAIN_INGRESS` if a reserved domain exists.
 - [ ] Bring the stack up with the tunnel profile on (it is on by default), and pass
       `--remove-orphans` the first time: the rename leaves an orphaned `ngrok`
       container behind otherwise, which is confusing rather than harmful.

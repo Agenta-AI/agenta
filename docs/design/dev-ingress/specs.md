@@ -35,7 +35,7 @@ URL into a sandbox.
 `ngrok` becomes **`ngrok-mounts`** — it publishes the object store, and its name should say
 so. A new **`ngrok-ingress`** service publishes the ingress, forwarding to `traefik:80`.
 Same `with-tunnel` profile, same token gate, same quiet exit-0 when no token is set.
-`NGROK_INGRESS_DOMAIN` pins a reserved domain.
+`NGROK_DOMAIN_INGRESS` pins a reserved domain.
 
 **The store tunnel keeps its behaviour exactly.** Same target, same token gate, same
 comments — only the service name changes, and with it the one place that addresses it.
@@ -53,7 +53,7 @@ in a deployment. Tests inject through the `deps` seam instead, and the service n
 resolves, so it was configuration with no consumer. The seam stays; re-adding an override is
 one line beside the default if a daemon ever runs outside compose.
 
-**Only one variable, and it is for a person.** `NGROK_INGRESS_DOMAIN` pins a reserved
+**Only one variable, and it is for a person.** `NGROK_DOMAIN_INGRESS` pins a reserved
 domain. Nothing in the code reads the ingress tunnel's address — it is read off the daemon's
 dashboard once and registered with a provider by hand — so the variable's whole job is to
 keep that registration valid across a restart.

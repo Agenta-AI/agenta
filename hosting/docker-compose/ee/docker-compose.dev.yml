@@ -742,7 +742,7 @@ services:
         # === EXECUTION ============================================ #
         # Same shape as the store tunnel: without a token ngrok would exit non-zero and, under
         # `restart: on-failure`, loop; exit 0 instead so an unconfigured deploy stays quiet.
-        # NGROK_INGRESS_DOMAIN pins a reserved domain, which is what keeps an address we hand to a
+        # NGROK_DOMAIN_INGRESS pins a reserved domain, which is what keeps an address we hand to a
         # provider valid across restarts -- a rotating one invalidates every registration.
         entrypoint: ["/bin/sh", "-c"]
         command:
@@ -752,15 +752,15 @@ services:
                 exit 0
               fi
               DOMAIN_ARG=""
-              if [ -n "$${NGROK_INGRESS_DOMAIN}" ]; then
-                DOMAIN_ARG="--domain=$${NGROK_INGRESS_DOMAIN}"
+              if [ -n "$${NGROK_DOMAIN_INGRESS}" ]; then
+                DOMAIN_ARG="--domain=$${NGROK_DOMAIN_INGRESS}"
               fi
               printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
               exec /bin/ngrok http traefik:80 $${DOMAIN_ARG} --log stdout --config /tmp/ngrok.yml
         # === CONFIGURATION ======================================== #
         environment:
             NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
-            NGROK_INGRESS_DOMAIN: ${NGROK_INGRESS_DOMAIN:-}
+            NGROK_DOMAIN_INGRESS: ${NGROK_DOMAIN_INGRESS:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
