@@ -136,3 +136,179 @@ describe("resolveToolDisplay under an MCP wrapper", () => {
         expect(display.raw).toBe("mcp__agenta-tools__commit_revision")
     })
 })
+
+// The wire name of one platform tool differs per harness (#5976). All three must read alike.
+describe("resolveToolDisplay across harnesses", () => {
+    it("reads the same whichever harness wrapped the tool", () => {
+        const expected = {running: "Testing the agent", done: "Tested the agent"}
+
+        expect(resolveToolDisplay("test_run").activity).toEqual(expected)
+        expect(resolveToolDisplay("mcp__agenta-tools__test_run").activity).toEqual(expected)
+        expect(resolveToolDisplay("mcp.agenta-tools.test_run").activity).toEqual(expected)
+    })
+
+    it("drops our own server's chip, which said nothing and differed per harness", () => {
+        expect(resolveToolDisplay("mcp.agenta-tools.test_run").source).toBeUndefined()
+        expect(resolveToolDisplay("mcp__agenta-tools__test_run").source).toBeUndefined()
+        expect(resolveToolDisplay("test_run").source).toBeUndefined()
+    })
+
+    it("no longer leaks the Codex dot form into the label", () => {
+        expect(resolveToolDisplay("mcp.agenta-tools.test_run").label).not.toContain("Mcp.")
+    })
+})
+
+// Platform ops are `verb_noun`, so their wording is derived rather than written out one by one —
+// a newly shipped op reads correctly with no registry entry.
+describe("resolveToolDisplay derives our platform ops", () => {
+    const done = (raw: string) => resolveToolDisplay(raw).activity.done
+
+    it("conjugates the verb", () => {
+        expect(done("create_schedule")).toBe("Created a schedule")
+        expect(done("pause_schedule")).toBe("Paused a schedule")
+        expect(done("list_schedules")).toBe("Checked schedules")
+        expect(done("discover_tools")).toBe("Searched for tools")
+    })
+
+    it("says what the product calls the thing, not what the code calls it", () => {
+        expect(done("create_subscription")).toBe("Created a trigger")
+        expect(done("resume_subscription")).toBe("Resumed a trigger")
+        expect(done("query_spans")).toBe("Looked through runs")
+        expect(done("query_workflows")).toBe("Looked through agents")
+        expect(done("read_config")).toBe("Read the agent's setup")
+        expect(done("rename_session")).toBe("Renamed this chat")
+        expect(done("commit_revision")).toBe("Saved changes")
+    })
+
+    it("derives an op it has never seen", () => {
+        expect(done("archive_schedule")).toBe("Archived a schedule")
+    })
+
+    it("derives the same wording under every harness wrapper", () => {
+        expect(done("mcp.agenta-tools.create_subscription")).toBe("Created a trigger")
+        expect(done("mcp__agenta-tools__create_subscription")).toBe("Created a trigger")
+    })
+
+    // The glossary is ours alone: a Stripe subscription is a subscription, not a trigger.
+    it("never applies our vocabulary to an external tool", () => {
+        expect(done("tools__composio__stripe__CANCEL_SUBSCRIPTION__c1")).toBe(
+            "Cancelled a subscription",
+        )
+        expect(done("mcp__stripe__cancel_subscription")).toBe("Cancelled a subscription")
+    })
+})
+
+// Codex records a shell call under the command itself and a read under an English sentence, so
+// neither name is a name. Both are recognised by argument shape / title pattern instead.
+describe("resolveToolDisplay for Codex calls whose name is not a name", () => {
+    const CODEX_SHELL = "pwd && rg --files .codex/skills | sed -n '1,80p'"
+
+    it("reads a shell call as a command, with the command itself as the detail", () => {
+        const display = resolveToolDisplay(CODEX_SHELL, {cwd: "/tmp/x", command: CODEX_SHELL})
+
+        expect(display.kind).toBe("shell")
+        expect(display.activity).toEqual({running: "Running a command", done: "Ran a command"})
+        expect(display.detail).toContain("pwd && rg --files")
+        expect(display.raw).toBe(CODEX_SHELL)
+    })
+
+    it("strips the login-shell wrapper Codex adds around the real command", () => {
+        const display = resolveToolDisplay("whatever", {
+            command: `/bin/bash -lc "sed -n '1,200p' SKILL.md"`,
+        })
+
+        expect(display.detail).toBe("sed -n '1,200p' SKILL.md")
+    })
+
+    it("reads a file read as a file read, with just the filename as the detail", () => {
+        const raw = "Read file '/tmp/agenta/mounts/019fe1f4/.codex/skills/build-an-agent/SKILL.md'"
+        const display = resolveToolDisplay(raw, null)
+
+        expect(display.kind).toBe("file")
+        expect(display.activity).toEqual({running: "Reading a file", done: "Read a file"})
+        expect(display.detail).toBe("SKILL.md")
+    })
+
+    it("reads a directory listing", () => {
+        const display = resolveToolDisplay("List files in 'skills'", null)
+
+        expect(display.activity.done).toBe("Listed files")
+        expect(display.detail).toBe("skills")
+    })
+
+    it("still recognises a one-word command, where the title is the command", () => {
+        expect(resolveToolDisplay("pwd", {command: "pwd"}).kind).toBe("shell")
+    })
+
+    it("leaves a properly named tool alone even when it takes a `command` argument", () => {
+        const display = resolveToolDisplay("deploy", {command: "kubectl apply -f x"})
+
+        expect(display.kind).not.toBe("shell")
+        expect(display.label).toBe("Deploy")
+    })
+
+    it("shortens an unrecognised prose name rather than dumping it", () => {
+        const raw = `sed -n '1,200p' ${"x".repeat(200)}`
+        const display = resolveToolDisplay(raw)
+
+        expect(display.label.length).toBeLessThanOrEqual(61)
+        expect(display.activity.done).toBe(display.label)
+    })
+})
+
+describe("resolveToolDisplay for harness builtins", () => {
+    it("keys Claude's title-cased builtins and Pi's lowercase ones alike", () => {
+        expect(resolveToolDisplay("Read").activity.done).toBe("Read a file")
+        expect(resolveToolDisplay("read").activity.done).toBe("Read a file")
+        expect(resolveToolDisplay("Bash").activity.done).toBe("Ran a command")
+        expect(resolveToolDisplay("bash").activity.done).toBe("Ran a command")
+    })
+
+    it("takes the detail from whichever argument the builtin carries", () => {
+        expect(resolveToolDisplay("Read", {file_path: "/repo/src/index.ts"}).detail).toBe(
+            "index.ts",
+        )
+        expect(resolveToolDisplay("Grep", {pattern: "TODO"}).detail).toBe("TODO")
+    })
+})
+
+// External tools cannot be listed by hand, so their wording is derived from the structured name.
+describe("resolveToolDisplay for external tools", () => {
+    it("conjugates a gateway action and keeps the app in its own chip", () => {
+        const display = resolveToolDisplay("tools__composio__gmail__SEND_EMAIL__b81")
+
+        expect(display.label).toBe("Send email")
+        expect(display.source).toBe("Gmail")
+        expect(display.activity).toEqual({running: "Sending an email", done: "Sent an email"})
+    })
+
+    // The app's real name lives in the tool catalog, which is async — so the resolver reports the
+    // slug and the row looks it up. Title case is only the first-paint fallback.
+    it("reports the integration slug so the catalog can supply the real app name", () => {
+        const display = resolveToolDisplay("tools__composio__github__SEARCH_ISSUES__a4f")
+
+        expect(display.sourceKey).toBe("github")
+        expect(display.source).toBe("Github")
+        expect(display.activity.done).toBe("Searched issues")
+    })
+
+    it("reports the slug for the generic {source}__ACTION form too", () => {
+        expect(resolveToolDisplay("googledrive__UPLOAD_FILE").sourceKey).toBe("googledrive")
+    })
+
+    it("handles a third-party MCP tool under either harness's wrapper", () => {
+        for (const raw of ["mcp__linear__create_issue", "mcp.linear.create_issue"]) {
+            const display = resolveToolDisplay(raw)
+            expect(display.source).toBe("Linear · MCP")
+            expect(display.sourceKey).toBe("linear")
+            expect(display.activity.done).toBe("Created an issue")
+        }
+    })
+
+    it("leaves an action alone when its leading word is not a verb we know", () => {
+        const display = resolveToolDisplay("tools__composio__slack__FOO_BAR__c2")
+
+        expect(display.label).toBe("Foo bar")
+        expect(display.activity).toEqual({running: "Foo bar", done: "Foo bar"})
+    })
+})

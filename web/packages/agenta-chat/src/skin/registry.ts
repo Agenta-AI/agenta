@@ -15,6 +15,7 @@ import type {
     ClientToolMeta,
     ClientToolWidget,
     ResolvedToolDisplay,
+    ToolActivity,
     ToolDisplayEntry,
     ToolKind,
 } from "./types"
@@ -75,45 +76,266 @@ export const hasClientToolWidget = (
 export const resolveApprovalBody = (toolName: string): ApprovalBodyEntry | undefined =>
     store.approvals[toolName]
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/toolDisplay.ts (2026-07-25);
+// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/toolDisplay.ts (2026-08-13);
 // the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
 // Keep byte-parity if either side changes. (`parseGatewayToolName` itself is NOT copied — it
 // already lives in `@agenta/entities/workflow/commitDiff`, an existing package dependency, and is
 // imported directly above.)
 // Adaptations: `resolveToolDisplay` below also lets a registered entry override `kind`
-// (`override?.kind ?? parsed.kind`), which the OSS `ToolDisplayOverride` cannot do — a
-// deliberate extension over the OSS chain for skin flexibility.
-const parseNameShape = (raw: string): {label: string; source?: string; kind: ToolKind} => {
-    // mcp__{server}__{tool} → tool from "Server · MCP".
-    if (raw.startsWith("mcp__")) {
-        const parts = raw.split("__").filter(Boolean)
-        const tool = parts[parts.length - 1]
-        const server = parts.length >= 3 ? parts[1] : undefined
+// (`override?.kind ?? parsed.kind`), which OSS now does too; and the platform-tool registry
+// (OSS `BY_TOOL_NAME`) is the skin store here, so no wording table is copied.
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    Boolean(value && typeof value === "object" && !Array.isArray(value))
+
+/**
+ * Verb forms for external tool actions (`SEND_EMAIL`, `SEARCH_ISSUES`).
+ *
+ * Deliberately a closed list: an action whose leading word is missing here keeps its plain label,
+ * so an unfamiliar verb reads as it does today instead of as "Getted".
+ */
+const VERB_FORMS: Record<string, ToolActivity> = {
+    add: {running: "Adding", done: "Added"},
+    annotate: {running: "Annotating", done: "Annotated"},
+    archive: {running: "Archiving", done: "Archived"},
+    assign: {running: "Assigning", done: "Assigned"},
+    cancel: {running: "Cancelling", done: "Cancelled"},
+    close: {running: "Closing", done: "Closed"},
+    // Plain English beats the git term for a reader who never asked about revisions.
+    commit: {running: "Saving", done: "Saved"},
+    copy: {running: "Copying", done: "Copied"},
+    create: {running: "Creating", done: "Created"},
+    delete: {running: "Deleting", done: "Deleted"},
+    discover: {running: "Looking for", done: "Searched for"},
+    download: {running: "Downloading", done: "Downloaded"},
+    fetch: {running: "Fetching", done: "Fetched"},
+    find: {running: "Finding", done: "Found"},
+    get: {running: "Getting", done: "Got"},
+    list: {running: "Checking", done: "Checked"},
+    move: {running: "Moving", done: "Moved"},
+    open: {running: "Opening", done: "Opened"},
+    pause: {running: "Pausing", done: "Paused"},
+    post: {running: "Posting", done: "Posted"},
+    query: {running: "Looking through", done: "Looked through"},
+    read: {running: "Reading", done: "Read"},
+    remove: {running: "Removing", done: "Removed"},
+    rename: {running: "Renaming", done: "Renamed"},
+    reply: {running: "Replying", done: "Replied"},
+    request: {running: "Requesting", done: "Requested"},
+    resume: {running: "Resuming", done: "Resumed"},
+    run: {running: "Running", done: "Ran"},
+    search: {running: "Searching", done: "Searched"},
+    send: {running: "Sending", done: "Sent"},
+    set: {running: "Setting", done: "Set"},
+    start: {running: "Starting", done: "Started"},
+    stop: {running: "Stopping", done: "Stopped"},
+    test: {running: "Testing", done: "Tested"},
+    update: {running: "Updating", done: "Updated"},
+    upload: {running: "Uploading", done: "Uploaded"},
+    write: {running: "Writing", done: "Wrote"},
+}
+
+/**
+ * What our internal nouns are called in the product, article included.
+ *
+ * `create_subscription` is a trigger, `query_spans` reads runs, `read_config` reads the agent's
+ * setup. Applied ONLY to our own tools — a gateway action like `stripe__CANCEL_SUBSCRIPTION` means
+ * a real subscription and must never be renamed to "trigger".
+ */
+const PLATFORM_TERMS: Record<string, string> = {
+    config: "the agent's setup",
+    revision: "changes",
+    session: "this chat",
+    span: "a run",
+    spans: "runs",
+    subscription: "a trigger",
+    subscriptions: "triggers",
+    workflow: "an agent",
+    workflows: "agents",
+}
+
+/** "an" before a vowel sound, near enough for a one-word object. */
+const article = (word: string): string => ("aeiou".includes(word[0]?.toLowerCase()) ? "an" : "a")
+
+/**
+ * Turn a `verb noun` label into both tenses ("Search issues" → "Searching issues" / "Searched
+ * issues"). Returns null when the leading word is not a verb we know, so an unfamiliar action
+ * keeps its plain label instead of reading as "Getted".
+ *
+ * `ours` opts into the platform glossary; leave it off for anything we did not name.
+ */
+const conjugate = (label: string, ours = false): ToolActivity | null => {
+    const [head, ...rest] = label.split(" ")
+    const forms = VERB_FORMS[head?.toLowerCase() ?? ""]
+    if (!forms) return null
+    const object = rest.join(" ").trim()
+    if (!object) return forms
+    // A glossary term brings its own article; otherwise only a single bare word gets one.
+    const term = ours ? PLATFORM_TERMS[object.toLowerCase()] : undefined
+    const phrase =
+        term ??
+        (rest.length === 1 && !object.endsWith("s") ? `${article(object)} ${object}` : object)
+    return {running: `${forms.running} ${phrase}`, done: `${forms.done} ${phrase}`}
+}
+
+/**
+ * The integration slug behind a gateway wire name, as the tool catalog keys it ("github").
+ *
+ * Mirrors `parseGatewayToolName`'s branches, which title-case the same token and so lose it. This
+ * resolver is pure, so it reports the slug and leaves the catalog lookup to the rendering skin —
+ * title case alone yields "Github".
+ */
+const sourceKeyOf = (raw: string): string | undefined => {
+    const parts = raw.split("__").filter(Boolean)
+    if (parts[0] === "tools" && parts.length >= 4) return parts[2]
+    if (parts.length >= 2) return parts[parts.length - 2]
+    return undefined
+}
+
+/** Codex names its builtins in prose rather than with an identifier. */
+const CODEX_READ_TITLE = /^Read file '(.+)'$/
+const CODEX_LIST_TITLE = /^List files in '(.+)'$/
+
+/** An identifier-shaped name, as opposed to Codex's prose titles and raw shell commands. */
+const isTokenName = (raw: string): boolean => /^[\w.-]+$/.test(raw)
+
+const clamp = (text: string, max: number): string => {
+    const points = Array.from(text.trim().replace(/\s+/g, " "))
+    return points.length <= max ? points.join("") : `${points.slice(0, max).join("")}…`
+}
+
+interface ParsedShape {
+    label: string
+    source?: string
+    sourceKey?: string
+    kind: ToolKind
+    activity?: ToolActivity
+}
+
+/** Our in-sandbox MCP server, wrapped as Claude `mcp__<server>__` / Codex `mcp.<server>.`. Only
+ * a tool of ours may take the platform glossary. */
+const INTERNAL_MCP_PREFIXES = ["mcp__agenta-tools__", "mcp.agenta-tools."]
+const isInternalName = (raw: string): boolean =>
+    INTERNAL_MCP_PREFIXES.some((prefix) => raw.startsWith(prefix))
+
+const parseMcpName = (raw: string, ours: boolean): ParsedShape => {
+    const separator = raw.startsWith("mcp__") ? "__" : "."
+    const parts = raw.split(separator).filter(Boolean)
+    const tool = parts[parts.length - 1]
+    const server = parts.length >= 3 ? parts[1] : undefined
+    const {label} = parseGatewayToolName(tool)
+    return {
+        label,
+        source: server ? `${parseGatewayToolName(server).label} · MCP` : "MCP",
+        sourceKey: server,
+        kind: "mcp",
+        activity: conjugate(label, ours) ?? undefined,
+    }
+}
+
+/**
+ * Family and wording from the wire name plus, where the name is not a name, the call's arguments.
+ *
+ * Codex records shell calls under the command itself and file reads under an English sentence, so
+ * those two are recognised by argument shape and title pattern instead. A bare identifier is a
+ * platform op as Pi sends it, so the glossary applies there too; a gateway or third-party MCP name
+ * is never ours.
+ */
+const parseShape = (raw: string, input?: unknown): ParsedShape => {
+    const token = isTokenName(raw)
+    if (token && /^mcp(__|\.)/.test(raw)) return parseMcpName(raw, isInternalName(raw))
+    if (token && raw.includes("__")) {
+        const parsed = parseGatewayToolName(raw)
         return {
-            label: parseGatewayToolName(tool).label,
-            source: server ? `${parseGatewayToolName(server).label} · MCP` : "MCP",
-            kind: "mcp",
+            label: parsed.label,
+            source: parsed.source,
+            sourceKey: parsed.source ? sourceKeyOf(raw) : undefined,
+            kind: parsed.source ? "gateway" : "platform",
+            activity: conjugate(parsed.label) ?? undefined,
         }
     }
+    // Codex titles a shell call with the command itself, so its "name" is not an identifier — the
+    // one exception being a single-word command, where the title IS that word. Requiring that
+    // keeps a properly named tool that merely takes a `command` argument from reading as a shell.
+    const command = isRecord(input) && typeof input.command === "string" ? input.command : ""
+    if (command && (!token || command.split(/\s+/)[0] === raw)) {
+        return {
+            label: "Command",
+            kind: "shell",
+            activity: {running: "Running a command", done: "Ran a command"},
+        }
+    }
+    if (CODEX_READ_TITLE.test(raw)) {
+        return {
+            label: "File",
+            kind: "file",
+            activity: {running: "Reading a file", done: "Read a file"},
+        }
+    }
+    if (CODEX_LIST_TITLE.test(raw)) {
+        return {
+            label: "Files",
+            kind: "file",
+            activity: {running: "Listing files", done: "Listed files"},
+        }
+    }
+    if (!token) return {label: clamp(raw, 60), kind: "platform"}
     const parsed = parseGatewayToolName(raw)
-    return {...parsed, kind: parsed.source ? "gateway" : "platform"}
+    return {
+        ...parsed,
+        kind: parsed.source ? "gateway" : "platform",
+        activity: conjugate(parsed.label, !parsed.source) ?? undefined,
+    }
+}
+
+/** A shell command as the agent ran it, minus the login-shell wrapper Codex adds. */
+const shortCommand = (command: string): string =>
+    clamp(command.replace(/^\/bin\/[a-z]*sh\s+-\w+\s+/, "").replace(/^["']|["']$/g, ""), 48)
+
+const basename = (path: string): string => path.split("/").filter(Boolean).pop() ?? path
+
+/** Path-ish argument keys, in the order the harnesses prefer them. */
+const PATH_KEYS = ["file_path", "filePath", "path", "notebook_path"]
+
+/**
+ * The short technical string shown next to the sentence: the command for a shell call, the
+ * filename for a read. Undefined for tools whose arguments say nothing at a glance.
+ */
+const toolDetail = (raw: string, input?: unknown): string | undefined => {
+    if (isRecord(input)) {
+        const command = input.command
+        if (typeof command === "string" && command) return shortCommand(command)
+        for (const key of PATH_KEYS) {
+            const value = input[key]
+            if (typeof value === "string" && value) return clamp(basename(value), 48)
+        }
+        const pattern = input.pattern
+        if (typeof pattern === "string" && pattern) return clamp(pattern, 48)
+    }
+    const read = CODEX_READ_TITLE.exec(raw)
+    if (read) return clamp(basename(read[1]), 48)
+    const list = CODEX_LIST_TITLE.exec(raw)
+    if (list) return clamp(basename(list[1]), 48)
+    return undefined
 }
 
 /**
  * Resolve display info for a raw runtime tool name. Pure and total — never throws. Reproduces the
- * OSS `resolveToolDisplay` fallback chain: a registered entry overrides label/source/kind/summary
- * piecewise; anything it doesn't override falls back to the name-shape heuristics above
- * (`mcp__…` server/tool split, gateway `tools__provider__integration__ACTION` parsing, or a
- * title-cased raw name).
+ * OSS `resolveToolDisplay` fallback chain: a registered entry overrides
+ * label/source/kind/activity/summary piecewise; anything it doesn't override falls back to the
+ * shape heuristics above. `input` is optional — omit it and you simply get no `detail`.
  */
-export const resolveToolDisplay = (raw: string): ResolvedToolDisplay => {
+export const resolveToolDisplay = (raw: string, input?: unknown): ResolvedToolDisplay => {
     const override = store.toolDisplay[raw]
-    const parsed = parseNameShape(raw)
+    const parsed = parseShape(raw, input)
+    const label = override?.label ?? parsed.label
     return {
         raw,
         kind: override?.kind ?? parsed.kind,
-        label: override?.label ?? parsed.label,
+        label,
         source: override?.source ?? parsed.source,
+        sourceKey: parsed.sourceKey,
+        activity: override?.activity ?? parsed.activity ?? {running: label, done: label},
+        detail: toolDetail(raw, input),
         summary: override?.summary,
     }
 }

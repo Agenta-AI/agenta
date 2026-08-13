@@ -47,6 +47,17 @@ export const isNotHandledOutput = (output: unknown): boolean =>
 // Copied verbatim from web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
 // PR deletes it. Keep byte-parity if either side changes.
+/** Parse a JSON object or array; undefined for anything else, so a sentence stays a sentence. */
+const parseJsonish = (text: string): unknown => {
+    if (!/^[[{]/.test(text)) return undefined
+    try {
+        const value = JSON.parse(text)
+        return value && typeof value === "object" ? value : undefined
+    } catch {
+        return undefined
+    }
+}
+
 /**
  * Derive a single human line from a tool's output. Output shape is arbitrary, so this stays
  * conservative: it recognises the common shapes and otherwise returns null (the row then shows
@@ -60,6 +71,10 @@ export const summarizeOutput = (output: unknown): string | null => {
     if (typeof output === "string") {
         const s = stripFence(output).trim().replace(/\s+/g, " ")
         if (!s) return null
+        // A serialised payload is data, not a sentence: read it as structure rather than spilling
+        // 80 characters of braces into the row.
+        const parsed = parseJsonish(s)
+        if (parsed !== undefined) return summarizeOutput(parsed)
         return s.length > 80 ? `${s.slice(0, 80)}…` : s
     }
     if (typeof output === "object") {
@@ -68,9 +83,8 @@ export const summarizeOutput = (output: unknown): string | null => {
             const v = o[k]
             if (typeof v === "string" && v.trim()) return summarizeOutput(v)
         }
-        const keys = Object.keys(o)
-        if (keys.length === 0) return null
-        return `${keys.length} field${keys.length === 1 ? "" : "s"}`
+        // Nothing readable in it. "3 fields" tells the reader nothing the checkmark hasn't.
+        return null
     }
     return String(output)
 }

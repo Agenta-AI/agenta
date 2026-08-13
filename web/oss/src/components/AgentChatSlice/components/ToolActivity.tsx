@@ -1,5 +1,6 @@
 import {memo} from "react"
 
+import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
 import {HeightCollapse} from "@agenta/ui"
 import {
@@ -50,10 +51,31 @@ const isUnknownResultError = (errorText: string | undefined): boolean =>
 const isNonFinalRunnerError = (errorText: string | undefined): boolean =>
     isDeferredError(errorText) || isUnknownResultError(errorText)
 
+/** Whether the call actually ran. Settled is not enough: a denial or a deferral never executed,
+ * so neither may claim the past tense. */
+const hasLanded = (part: ToolUIPart): boolean => {
+    const state = part.state as string
+    if (state === "output-available") return true
+    return (
+        state === "output-error" && !isNonFinalRunnerError((part as {errorText?: string}).errorText)
+    )
+}
+
 const isNotHandledOutput = (output: unknown): boolean =>
     !!output &&
     typeof output === "object" &&
     (output as {status?: unknown}).status === "not_handled"
+
+/** Parse a JSON object or array; undefined for anything else, so a sentence stays a sentence. */
+const parseJsonish = (text: string): unknown => {
+    if (!/^[[{]/.test(text)) return undefined
+    try {
+        const value = JSON.parse(text)
+        return value && typeof value === "object" ? value : undefined
+    } catch {
+        return undefined
+    }
+}
 
 /**
  * Derive a single human line from a tool's output. Output shape is arbitrary, so this stays
@@ -68,6 +90,10 @@ const summarizeOutput = (output: unknown): string | null => {
     if (typeof output === "string") {
         const s = stripFence(output).trim().replace(/\s+/g, " ")
         if (!s) return null
+        // A serialised payload is data, not a sentence: read it as structure rather than spilling
+        // 80 characters of braces into the row.
+        const parsed = parseJsonish(s)
+        if (parsed !== undefined) return summarizeOutput(parsed)
         return s.length > 80 ? `${s.slice(0, 80)}…` : s
     }
     if (typeof output === "object") {
@@ -76,9 +102,8 @@ const summarizeOutput = (output: unknown): string | null => {
             const v = o[k]
             if (typeof v === "string" && v.trim()) return summarizeOutput(v)
         }
-        const keys = Object.keys(o)
-        if (keys.length === 0) return null
-        return `${keys.length} field${keys.length === 1 ? "" : "s"}`
+        // Nothing readable in it. "3 fields" tells the reader nothing the checkmark hasn't.
+        return null
     }
     return String(output)
 }
@@ -128,6 +153,29 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
     return <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
 }
 
+/**
+ * The app a tool belongs to. A gateway tool gets its real catalog name ("GitHub", "Google Drive");
+ * the wire name only supports title case, which gets both wrong. Everything else — MCP servers,
+ * platform tools — keeps the name parsed off the wire, since they are not catalog integrations.
+ *
+ * Passing "" disables the query (`enabled: !!integrationKey`), so non-gateway rows never fetch.
+ */
+const useToolSourceName = (display: ToolDisplay | null): string | undefined => {
+    const key = display?.kind === "gateway" ? (display.sourceKey ?? "") : ""
+    const {integration} = useToolIntegrationDetail(key)
+    return integration?.name ?? display?.source
+}
+
+const ToolSource = ({display}: {display: ToolDisplay}) => {
+    const name = useToolSourceName(display)
+    if (!name) return null
+    return (
+        <Text type="secondary" className="!text-xs shrink-0 whitespace-nowrap">
+            {name}
+        </Text>
+    )
+}
+
 /** One labeled monospace block (input / output / error) in the Build-mode step log. Capped in
  * height with its own scroll so a large payload can't blow up the transcript. */
 const IOBlock = ({label, value, danger}: {label: string; value: string; danger?: boolean}) => (
@@ -156,11 +204,10 @@ const ToolRow = ({
     detailed?: boolean
 }) => {
     const name = partToolName(part)
-    // Humanized label in both modes; the raw wire name stays reachable via the tooltip.
-    const display = resolveToolDisplay(name)
-    const shownName = display.label
     const state = part.state as string
     const input = (part as {input?: unknown}).input
+    // Plain-English sentence in both modes; the raw wire name stays reachable in the expander.
+    const display = resolveToolDisplay(name, input)
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
     const nonFinalError = state === "output-error" && isNonFinalRunnerError(errorText)
@@ -168,6 +215,8 @@ const ToolRow = ({
     // a sibling part, so this must not spin forever (the cold-replay lingering-gate spinner).
     const running =
         !isSettled(state) && state !== "approval-requested" && state !== "approval-responded"
+    // Anything that hasn't executed reads in the present tense — running, gated, denied, deferred.
+    const shownName = hasLanded(part) ? display.activity.done : display.activity.running
     // Status line: an approval marker, a live "running…", or the settled one-line summary.
     const midText =
         state === "approval-requested"
@@ -202,11 +251,16 @@ const ToolRow = ({
             <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
                 {shownName}
             </Text>
-            {display.source ? (
-                <Text type="secondary" className="!text-xs shrink-0 whitespace-nowrap">
-                    {display.source}
+            {display.detail ? (
+                <Text
+                    type="secondary"
+                    className="!text-xs font-mono min-w-0 truncate"
+                    title={display.detail}
+                >
+                    {display.detail}
                 </Text>
             ) : null}
+            <ToolSource display={display} />
             {midText ? (
                 <Text
                     type={state === "output-error" && !nonFinalError ? "danger" : "secondary"}
@@ -255,6 +309,7 @@ const ToolRow = ({
             {hasIO ? (
                 <HeightCollapse open={open}>
                     <div className="mt-1 flex min-w-0 flex-col gap-1.5 pl-[21px]">
+                        <IOBlock label="tool" value={display.raw} />
                         {hasInput ? <IOBlock label="input" value={formatToolValue(input)} /> : null}
                         {hasError ? (
                             <IOBlock
@@ -306,6 +361,14 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
     // Keep the gate visible in-context: force the list open whenever one is awaiting approval.
     const expanded = open || approvalPending
 
+    // Resolved above the live branch below: the collapsed line needs it, and hooks cannot sit
+    // after an early return.
+    const single =
+        parts.length === 1
+            ? resolveToolDisplay(partToolName(parts[0]), (parts[0] as {input?: unknown}).input)
+            : null
+    const singleSource = useToolSourceName(single)
+
     // ---- Live: the gutter timeline while tools are in flight ----
     if (live) {
         return (
@@ -336,9 +399,15 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
             !isNonFinalRunnerError((p as {errorText?: string}).errorText),
     ).length
     const count = parts.length
-    const single = count === 1 ? resolveToolDisplay(partToolName(parts[0])) : null
+    // One tool speaks for itself ("Tested the agent"); a run of them only gets a count. A cold
+    // replay can land here with the call still unsettled, so the tense follows the part.
+    const singleActivity = single
+        ? hasLanded(parts[0])
+            ? single.activity.done
+            : single.activity.running
+        : ""
     const label = single
-        ? `Used ${single.label}${single.source ? ` · ${single.source}` : ""}`
+        ? `${singleActivity}${singleSource ? ` · ${singleSource}` : ""}`
         : `Used ${count} tools`
     const SummaryIcon = failed > 0 ? Warning : CheckCircle
 
