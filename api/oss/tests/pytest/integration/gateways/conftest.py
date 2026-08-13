@@ -6,6 +6,9 @@ from urllib.parse import urlparse
 import pytest
 from sqlalchemy import text
 
+import oss.src.dbs.postgres.secrets.dbes  # noqa: F401  — registers `secrets`
+import oss.src.dbs.postgres.shared.engine as engine_module
+import oss.src.models.db_models  # noqa: F401  — registers `projects`; both FK targets
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.utils.env import env
 
@@ -30,6 +33,18 @@ def _postgres_reachable() -> bool:
 def _skip_when_postgres_unreachable(request):
     if request.node.get_closest_marker("integration") and not _postgres_reachable():
         pytest.skip("Postgres not reachable — skipping gateways DAO integration tests")
+
+
+@pytest.fixture(autouse=True)
+async def _fresh_engine_per_test():
+    # asyncpg binds its connections to the loop that opened them, and each test gets a
+    # new loop — a cached engine from an earlier test fails with "attached to a
+    # different loop" (same fixture as integration/sessions).
+    engine_module._transactions_engine = None
+    yield
+    if engine_module._transactions_engine is not None:
+        await engine_module._transactions_engine.close()
+        engine_module._transactions_engine = None
 
 
 @pytest.fixture

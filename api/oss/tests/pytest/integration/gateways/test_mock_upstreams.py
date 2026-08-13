@@ -5,13 +5,12 @@ be drivable to fail/hang on demand from a real HTTP client, not a mocked transpo
 suite that points an endpoint at them inherits that assumption, so it is checked directly
 here rather than left implicit.
 
-Needs the compose stack: these address `mock-llm-gateway` / `mock-mcp-gateway` by service
-name, so they only resolve from inside the network —
-`docker compose -p <project> exec api python -m pytest oss/tests/pytest/integration/gateways`.
+Needs the compose stack up; skips with a reason when it is not.
 """
 
 import socket
 from functools import lru_cache
+from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -19,29 +18,40 @@ import pytest
 
 from oss.src.utils.env import env
 
-_LLM_URL = env.mock_gateways.llm_url
-_MCP_URL = env.mock_gateways.mcp_url
+
+def _reachable(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return True
+    except OSError:
+        return False
 
 
-@lru_cache(maxsize=1)
-def _mock_upstreams_reachable() -> bool:
-    for url, default_port in ((_LLM_URL, 9091), (_MCP_URL, 9092)):
-        parsed = urlparse(url)
-        try:
-            with socket.create_connection(
-                (parsed.hostname or "", parsed.port or default_port), timeout=0.5
-            ):
-                continue
-        except OSError:
-            return False
-    return True
+@lru_cache(maxsize=2)
+def _resolve(url: str, default_port: int) -> Optional[str]:
+    """The compose service name in-network, else the published loopback port.
 
+    Both dev compose files publish these on 127.0.0.1, so a host-side run reaches the
+    same containers without the env var having to lie to the API container, which needs
+    the service name.
+    """
+    parsed = urlparse(url)
+    port = parsed.port or default_port
+    if parsed.hostname and _reachable(parsed.hostname, port):
+        return url
+    if _reachable("127.0.0.1", port):
+        return f"http://127.0.0.1:{port}"
+    return None
+
+
+_LLM_URL = _resolve(env.mock_gateways.llm_url, 9091)
+_MCP_URL = _resolve(env.mock_gateways.mcp_url, 9092)
 
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
-        not _mock_upstreams_reachable(),
-        reason="mock gateway services not reachable — run inside the compose network",
+        _LLM_URL is None or _MCP_URL is None,
+        reason="mock gateway services not reachable — deploy the compose stack",
     ),
 ]
 
