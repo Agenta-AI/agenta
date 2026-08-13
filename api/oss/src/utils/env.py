@@ -741,6 +741,23 @@ class FakeGatewaysConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# gateways: mcp adapter (WP8, D28)
+# ---------------------------------------------------------------------------
+
+
+class McpGatewayConfig(BaseModel):
+    """`HttpMcpAdapter`'s outbound-guard escape hatch. Mirrors the runner's
+    `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP server whose host is
+    listed here skips the SSRF guard (`core/webhooks/utils.py`) entirely, so a
+    self-hoster can reach one known internal server without disabling the
+    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED."""
+
+    host_allowlist: list[str] = _load_csv_env_list("AGENTA_MCP_GATEWAY_HOST_ALLOWLIST")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # crisp
 # ---------------------------------------------------------------------------
 
@@ -1661,6 +1678,7 @@ class EnvironSettings(BaseModel):
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
+    mcp_gateway: McpGatewayConfig = McpGatewayConfig()
     mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()
