@@ -9,6 +9,14 @@ so this router can be built, wired and unit-tested against a fake before WP9 lan
 `query_mcp_grants`/`revoke_mcp_grant` ARE this package's to wire even though the service
 bodies they call raise `NotImplementedError` until wave 3 — route wiring and method
 implementation are separate concerns (plan.md's wave-0 pattern).
+
+The SSRF gate at registration (D28): every `custom` endpoint this router can create or edit
+carries a user-typed `data.url` the gateway will later connect to (`McpEndpointCreate`/
+`McpEndpointEdit` have no `namespace` field and no way to express `provider_key`/
+`integration_key`, so every row this router writes is `custom` by construction — same as
+the DAO's own "every row is custom by construction" invariant). Gated here with the no-DNS
+`validate_url_format_and_literal_ip` (save-time; the resolving variant runs again at relay
+time in WP8) — no new guard written, exact precedent `core/secrets/dtos.py:140`.
 """
 
 from typing import TYPE_CHECKING
@@ -31,11 +39,23 @@ from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.mcps.types import McpEndpointNotFoundError
+from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
 from oss.src.utils.exceptions import intercept_exceptions
 
 if TYPE_CHECKING:
     from oss.src.core.gateways.mcps.service import McpGatewayService
+
+
+def _guard_custom_endpoint_url(*, url: str) -> None:
+    """SSRF gate at registration (D28) — no-DNS variant; never a leaked ValueError."""
+    try:
+        validate_url_format_and_literal_ip(url)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"endpoint.data.url is invalid: {e}",
+        ) from e
 
 
 class McpGatewayRouter:
@@ -128,6 +148,8 @@ class McpGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
+        _guard_custom_endpoint_url(url=body.endpoint.data.url)
+
         endpoint = await self.service.create_endpoint(
             project_id=scope.project_id,
             user_id=scope.user_id,
@@ -214,6 +236,8 @@ class McpGatewayRouter:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Path endpoint_id does not match body id",
             )
+
+        _guard_custom_endpoint_url(url=body.endpoint.data.url)
 
         endpoint = await self.service.edit_endpoint(
             project_id=scope.project_id,

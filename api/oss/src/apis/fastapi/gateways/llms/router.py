@@ -3,6 +3,14 @@
 `LlmGatewayService` is WP7's — declared here only as a `TYPE_CHECKING` forward reference
 so this router can be built, wired and unit-tested against a fake before WP7 lands (rule
 4: "stop at the merge point").
+
+The SSRF gate at registration (D28): `LlmEndpointData.route.base_url` is the LLM plane's
+equivalent of the MCP plane's `data.url` — a user-typed upstream URL for a custom endpoint
+(every row this router writes is custom by construction, same as MCP). Unlike the MCP url
+it is optional (only some deployments set a base URL), so the gate only runs when it is
+set. Gated with the no-DNS `validate_url_format_and_literal_ip` (save-time; the resolving
+variant runs again at relay time in WP6) — no new guard written, exact precedent
+`core/secrets/dtos.py:140`.
 """
 
 from typing import TYPE_CHECKING
@@ -23,11 +31,27 @@ from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.types import LlmEndpointNotFoundError
+from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
 from oss.src.utils.exceptions import intercept_exceptions
 
 if TYPE_CHECKING:
     from oss.src.core.gateways.llms.service import LlmGatewayService
+
+
+def _guard_custom_endpoint_base_url(*, base_url) -> None:
+    """SSRF gate at registration (D28) — no-DNS variant; never a leaked ValueError.
+
+    `base_url` is optional on `LlmEndpointRoute`; only some deployments set one."""
+    if not base_url:
+        return
+    try:
+        validate_url_format_and_literal_ip(base_url)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"endpoint.data.route.base_url is invalid: {e}",
+        ) from e
 
 
 class LlmGatewayRouter:
@@ -105,6 +129,8 @@ class LlmGatewayRouter:
     ) -> LlmEndpointResponse:
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_LLM_ENDPOINTS)
+
+        _guard_custom_endpoint_base_url(base_url=body.endpoint.data.route.base_url)
 
         endpoint = await self.service.create_endpoint(
             project_id=scope.project_id,
@@ -192,6 +218,8 @@ class LlmGatewayRouter:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Path endpoint_id does not match body id",
             )
+
+        _guard_custom_endpoint_base_url(base_url=body.endpoint.data.route.base_url)
 
         endpoint = await self.service.edit_endpoint(
             project_id=scope.project_id,
