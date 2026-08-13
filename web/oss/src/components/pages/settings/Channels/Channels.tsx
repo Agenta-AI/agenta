@@ -4,6 +4,7 @@ import AgentRosterSection from "./components/AgentRosterSection"
 import ConnectionsSection from "./components/ConnectionsSection"
 import InboxEventsSection from "./components/InboxEventsSection"
 import OutboxEventsSection from "./components/OutboxEventsSection"
+import SlackHostedAppSection from "./components/SlackHostedAppSection"
 import SlackOwnAppSection from "./components/SlackOwnAppSection"
 import SpacesSection from "./components/SpacesSection"
 import ThreadsSection from "./components/ThreadsSection"
@@ -18,6 +19,7 @@ export default function Channels() {
                 </Typography.Text>
             </div>
             <ConnectionsSection />
+            <SlackHostedAppSection />
             <SlackOwnAppSection />
             <AgentRosterSection />
             <SpacesSection />
