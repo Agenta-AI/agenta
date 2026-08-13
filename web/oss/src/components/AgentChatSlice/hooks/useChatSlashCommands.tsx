@@ -20,7 +20,6 @@ import {
     describeMcp,
     describeSkill,
     describeTool,
-    harnessAllowsModel,
     harnessMetaFor,
     modelLabel,
     permissionPolicyLabel,
@@ -50,15 +49,7 @@ import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 // Same icons the config panel gives these sections (AgentTemplateControl / itemKinds).
-import {
-    ChatCircleDots,
-    Cpu,
-    Cube,
-    GraduationCap,
-    Plugs,
-    ShieldCheck,
-    Wrench,
-} from "@phosphor-icons/react"
+import {ChatCircleDots, Cpu, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
@@ -67,12 +58,12 @@ import {useChatScopeKey} from "../state/scope"
 import {addSessionAtomFamily} from "../state/sessions"
 
 /** Which picker the palette drilled into, or null when the palette is just a list. */
-export type SlashPicker = "model" | "harness" | "permissions" | null
+export type SlashPicker = "model" | "permissions" | null
 
 /**
  * The `/` palette for the agent chat composer.
  *
- * `/model` and `/harness` drill into pickers whose apply writes the DRAFT agent config through
+ * `/model` drills into a picker whose apply writes the DRAFT agent config through
  * `updateConfiguration` — the same write-through `useAlwaysAllowTool` uses, so the change takes
  * effect on the next send with no commit. Tools and skills insert their slug as plain text: the
  * request carries text and file parts only, so an inserted name is a hint the agent usually
@@ -255,59 +246,6 @@ export function useChatSlashCommands({
         [capabilities, config, currentHarness, write],
     )
 
-    /**
-     * The model a harness falls back to when it cannot reach the current one: the first entry of
-     * its first published provider group. The capability catalog publishes no explicit default, and
-     * leaving an unreachable model behind (what the drawer does) reads as a silent failure in chat.
-     */
-    const fallbackModelFor = useCallback(
-        (harness: string) => {
-            const groups = buildModelOptionGroups(capabilities, harness)
-            const first = groups[0]?.options[0]
-            return first ? {id: first.value, label: first.label} : null
-        },
-        [capabilities],
-    )
-
-    const applyHarness = useCallback(
-        (kind: string) => {
-            const meta = harnessMetaFor(kind)
-            const keepsModel = harnessAllowsModel(
-                capabilities,
-                kind,
-                currentModel,
-                customSecrets,
-                currentConnectionSlug,
-            )
-            const fallback = keepsModel ? null : fallbackModelFor(kind)
-            const switched = withHarnessKind(config, kind)
-            const next =
-                fallback && switched
-                    ? withModel(switched, {
-                          modelId: fallback.id,
-                          provider: providerForModel(capabilities, kind, fallback.id),
-                      })
-                    : switched
-            // The panel already warned which model a stranded switch moves to, before applying.
-            write(
-                next,
-                fallback
-                    ? `Harness set to ${meta.label} · model moved to ${fallback.label}`
-                    : `Harness set to ${meta.label}`,
-            )
-            setPicker(null)
-        },
-        [
-            capabilities,
-            config,
-            currentConnectionSlug,
-            currentModel,
-            customSecrets,
-            fallbackModelFor,
-            write,
-        ],
-    )
-
     const applyPermission = useCallback(
         (policy: PermissionPolicy) => {
             const label = permissionPolicyLabel(policy) ?? policy
@@ -399,15 +337,6 @@ export function useChatSlashCommands({
                       onSelect: () => openPicker("model"),
                   }
                 : null,
-            {
-                key: "harness",
-                label: "/harness",
-                description: "Switch the runtime that executes this agent",
-                tail: currentHarness ? `${harnessMetaFor(currentHarness).label} ›` : "›",
-                icon: <Cube size={14} />,
-                kind: "open" as const,
-                onSelect: () => openPicker("harness"),
-            },
             permissionsAvailable
                 ? {
                       key: "permissions",
@@ -500,7 +429,6 @@ export function useChatSlashCommands({
         harnessIds,
         capabilities,
         applyModel,
-        applyHarness,
         applyPermission,
     }
 }

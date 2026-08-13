@@ -210,7 +210,7 @@ export const PlaygroundSubscriptionsSection = ({
     return (
         <div className="shrink-0 border-0 border-t border-solid border-colorSplit">
             <SectionLabel>Subscriptions</SectionLabel>
-            {pairs.length ? (
+            {pairs?.length ? (
                 pairs.map((pair) => (
                     <SubscriptionRow
                         key={pair.key}

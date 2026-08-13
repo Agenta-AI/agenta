@@ -11,8 +11,7 @@ a keyboard flow. Adding a command means honouring all of this:
 
 - `↑↓` move the selection. `Home`/`End` jump to the ends.
 - `Enter` **applies**. No panel adds a confirmation keystroke. If a choice needs a warning, render
-  it in the panel as the selection moves, so it is already on screen when `Enter` lands — that is
-  how `/harness` shows model-stranding without a second step.
+  it in the panel as the selection moves, so it is already on screen when `Enter` lands.
 - `←` steps back to the command list, restoring the `/` the panel consumed. `→` drills in and `←`
   backs out at every level, so a nested panel (`/model`'s provider → model cascade) collapses one
   column per press and then leaves. Show it in the footer as a key, not as decoration.

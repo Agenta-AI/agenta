@@ -65,7 +65,7 @@ import {useBuildKit} from "./useBuildKit"
 // flash a false "Connect key" warning on the section, rail item, and config-panel row.
 const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
-// Shared with the chat composer's `/harness` palette so a hidden harness stays hidden everywhere.
+// Shared with the chat composer's model palette so a hidden harness stays hidden everywhere.
 
 export function useModelHarness({
     schema,

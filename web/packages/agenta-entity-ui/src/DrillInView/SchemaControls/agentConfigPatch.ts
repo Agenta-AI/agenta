@@ -2,7 +2,7 @@
  * agentConfigPatch — set an agent template's model, harness, or permission policy from OUTSIDE the
  * config drawer.
  *
- * The chat composer's `/model`, `/harness`, and `/permissions` commands write through these. Same contract as
+ * The chat composer's `/model` and `/permissions` commands write through these. Same contract as
  * `toolPermission`'s `withToolPermission`: pure, `parameters`-in / `parameters`-out, and located
  * via `locateTemplate` so the write lands exactly where `buildAgentRequest` reads from (the run
  * reads the draft config, so the change takes effect on the next send without a commit).

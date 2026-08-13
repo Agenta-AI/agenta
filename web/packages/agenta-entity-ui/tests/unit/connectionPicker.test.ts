@@ -338,6 +338,30 @@ describe("buildConnectionPickerRows", () => {
         )
     })
 
+    it("hides subscription rows once the runner answered that nothing is ready", () => {
+        // The regression this pins: an answered-but-empty status (every harness not_configured)
+        // fell through to the static placeholder rows, so a deployment with no mounted login
+        // offered "Claude" and "ChatGPT" subscription rows that could never work.
+        const args = {
+            connections: [standard("1", "anthropic", {slug: "anthropic"})],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        }
+
+        expect(
+            buildConnectionPickerRows({...args, subscriptionPairs: []}).some(
+                (row) => row.kind === "subscription",
+            ),
+        ).toBe(false)
+        // No answer at all (null) still keeps the placeholders, so the menu holds its shape
+        // while the check is in flight or against an old runner.
+        expect(
+            buildConnectionPickerRows({...args, subscriptionPairs: null}).some(
+                (row) => row.kind === "subscription",
+            ),
+        ).toBe(true)
+    })
+
     it("offers the same model through a key and a subscription as separate rows", () => {
         const rows = buildConnectionPickerRows({
             connections: [

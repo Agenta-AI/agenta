@@ -467,22 +467,25 @@ const subscriptionRows = ({
 /**
  * The picker's first level: every stored connection, then every subscription.
  *
- * The runner's live pairs decide the subscription rows when it has answered; until then (and on an
- * old or unreachable runner) the static mapping stands in, so the menu holds its shape rather than
- * losing rows while a check is in flight.
+ * The runner's live pairs decide the subscription rows once it has answered — including an answer
+ * of "none ready", which lists NO subscription rows (a plan the deployment is not signed in to
+ * must not be offered). Only while no answer exists at all (`subscriptionPairs` null: the check is
+ * in flight, or the runner is old or unreachable) does the static mapping stand in, so the menu
+ * holds its shape rather than losing rows mid-check.
  */
 export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConnectionRow[] => {
     const {capabilities, showSubscriptions = true, subscriptionPairs, pairModelSelection} = args
-    const live =
-        showSubscriptions && subscriptionPairs?.length
-            ? subscriptionRowsFromPairs({
-                  capabilities,
-                  pairs: subscriptionPairs,
-                  pairModelSelection,
-              })
-            : null
+    const subscriptions = !showSubscriptions
+        ? []
+        : subscriptionPairs
+          ? subscriptionRowsFromPairs({
+                capabilities,
+                pairs: subscriptionPairs,
+                pairModelSelection,
+            })
+          : subscriptionRows(args)
 
-    return [...connectionRows(args), ...(live ?? subscriptionRows(args))]
+    return [...connectionRows(args), ...subscriptions]
 }
 
 /** The metadata a picked option carries back, so a selection never has to be guessed by model id. */

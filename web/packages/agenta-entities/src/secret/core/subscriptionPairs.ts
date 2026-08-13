@@ -67,11 +67,15 @@ export const subscriptionPlanName = (provider: string): string =>
  * Only `ready` counts. The other states are setup states — a missing folder, an unreadable login —
  * and the drawer says nothing about them: a row with a green dot means it works, and everything
  * else is what the setup guide is for.
+ *
+ * `null` in means `null` out: no answer from the runner is not the same as an answer of "none
+ * ready", and consumers gate their static fallbacks on exactly that difference — a deployment
+ * whose runner answered "nothing is ready" must not be shown phantom subscription rows.
  */
 export const subscriptionPairsFrom = (
     harnesses: Record<string, SubscriptionHarnessStatus> | null | undefined,
-): SubscriptionPair[] => {
-    if (!harnesses) return []
+): SubscriptionPair[] | null => {
+    if (!harnesses) return null
 
     const pairs: SubscriptionPair[] = []
     const seen = new Set<string>()
