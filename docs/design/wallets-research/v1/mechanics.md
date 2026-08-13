@@ -36,25 +36,67 @@ What this rules out, concretely:
 
 **One ledger, one unit.** The point of a wallet is a single number a person can act on. More
 than one value ledger means more than one balance, and every user question becomes two. What
-looks like "several ledgers" is really several **kinds** of movement in one, which section 3
-and 4 enumerate. A second ledger becomes justified only if a second *unit of account* appears
+looks like "several ledgers" is really several **kinds** of movement in one, which sections 4
+and 5 enumerate. A second ledger becomes justified only if a second *unit of account* appears
 that cannot be pegged to the first.
-
-### The one live overlap
-
-Traces are metered monthly with an allowance, and the overage is reported to Stripe in
-arrears — the only key in `REPORTS` today. That is genuinely the same job the wallet does,
-done the other way round. It is the one existing product that could move, and whether it
-should is the real test of whether the wallet is general or just a model-call feature. It
-cannot be both: an allowance meter and a wallet debit for the same event double-charges.
-
-**Proposal:** the wallet absorbs anything variable-cost and pay-as-you-go. Meters keep
-anything that is a plan entitlement with a hard cap. Traces move only when we want them
-prepaid.
 
 ---
 
-## 2. Naming
+## 2. Three classes of resource, handled separately by one wallet
+
+Not every resource behaves the same way, and the differences are not stylistic. Two questions
+separate them: **what does one more unit cost us in cash**, and **can we refuse it before it
+happens.**
+
+| | **A — vendor pass-through** | **B — platform capacity** | **C — entitlements** |
+| --- | --- | --- | --- |
+| Examples | model tokens, sandbox seconds, tool and MCP calls, egress | spans, events, session records, evaluations, storage at rest | audit log, RBAC, SSO, domains, seats, retention tier |
+| Marginal cash cost | real, per unit, to a third party at a rate we do not set | ≈ zero; the cost is capacity and retention | none |
+| Known before the call? | no — the cost depends on the response | not applicable; it has already happened | not applicable |
+| Refusable? | yes, before dispatch | no, in practice: it arrives asynchronously, in bulk, from a worker | yes, at the feature boundary |
+| Failure posture | **fail closed** — the alternative is spending cash we do not have | **fail open** — dropping telemetry to protect billing is the wrong trade | fail closed |
+| Hold needed? | yes | no | no |
+| Ledger cardinality | **one movement per call**, run-attributed | **one rollup movement per organization per period** | none — never enters the wallet |
+| Journal | `usage_event`, one row per call | the meter row itself | none |
+| Reconciles against | the vendor invoice | nothing external | nothing |
+| Pricing basis | cost-plus; must stay re-priceable from raw quantities | a product decision; the levers are volume and retention | the plan price |
+
+**Class B already works this way and the machinery is built.** `TRACES_INGESTED`,
+`EVENTS_INGESTED` and `RECORDS_INGESTED` share one shape today: a volume meter, a retention
+tier per plan, and the two-layer check — a cached soft check at the publish boundary and an
+authoritative one in the worker. What a customer buys is "this many, kept this long." That is
+an allowance, and allowances are meters. Nothing about that should change.
+
+**So meters are not legacy.** For class B they are the usage journal — the right store,
+already atomic, already cached, already handling volumes no per-event ledger could. The wallet
+does not replace them; it reads them once a period.
+
+**One movement per span is not viable and that settles the shape.** Class A traffic is calls
+per second and each one is worth writing down. Class B is orders of magnitude larger and each
+row is worth a fraction of a cent. So class B aggregates in the meter and a periodic job posts
+a single rollup movement per organization per resource. Same ledger, same unit, same lots,
+same allocation walk — different cardinality.
+
+**Class C must never touch the wallet.** An audit record is a compliance artifact. Gating it
+on a balance means "you ran out of credits, so we stopped recording who did what," which is
+not shippable. It is a flag today (`Flag.AUDIT`, on the top three plans) and it should stay
+one. Note the distinction: the audit *capability* is class C; the *volume* of events ingested
+is class B, and only the second is ever priced.
+
+### What this makes cheap
+
+Traces are the only key in `REPORTS` — metered monthly, overage reported to Stripe in arrears.
+Moving them onto the wallet does not touch the ingestion path at all: the same meter
+accumulates, the same two-layer check runs, the same retention job prunes, and the monthly job
+posts one wallet movement instead of one Stripe usage record. That is a change to one job, not
+to a pipeline.
+
+What it cannot be is both. An allowance meter and a wallet debit for the same event
+double-charges, so moving a resource from arrears to prepaid is a switch, not an addition.
+
+---
+
+## 3. Naming
 
 Generic names are how two systems end up meaning the same word. Three rules.
 
@@ -82,13 +124,13 @@ container of arrived value* and *the free kind of arrival*. Those must be two wo
 | A promotion and its total exposure cap | `campaign` | — |
 | Permission to spend past zero | `credit_line` | — |
 
-A movement carries a **direction** (`inbound` / `outbound`), a **kind** from sections 3 and 4,
+A movement carries a **direction** (`inbound` / `outbound`), a **kind** from sections 4 and 5,
 and a **phase** (`posted` / `held` / `settled`). Direction and kind are separate on purpose: an
 expiry and a model call are both outbound and nothing else about them is alike.
 
 ---
 
-## 3. Everything that can put value in
+## 4. Everything that can put value in
 
 Thirteen kinds. Each needs an idempotency key, and the key is different for each — that is the
 main reason to enumerate them rather than write "grant".
@@ -96,10 +138,10 @@ main reason to enumerate them rather than write "grant".
 | Kind | Trigger | Idempotency key | Expires? | Notes |
 | --- | --- | --- | --- | --- |
 | `signup_grant` | signup path only | organization + campaign | yes | never on explicit org creation, or it is farmable |
-| `plan_allowance` | subscription period start | organization + plan + period | at period end | see §5; the only recurring inbound |
+| `plan_allowance` | subscription period start | organization + plan + period | at period end | see §7; the only recurring inbound |
 | `purchase` | checkout completed | payment identifier | long or never | |
-| `auto_recharge` | balance crossed a threshold | payment identifier | long or never | same shape as purchase, different trigger; §7 |
-| `promotion` | a code, a campaign, a conference | organization + campaign | yes | must debit a campaign budget, §7 |
+| `auto_recharge` | balance crossed a threshold | payment identifier | long or never | same shape as purchase, different trigger; §8 |
+| `promotion` | a code, a campaign, a conference | organization + campaign | yes | must debit a campaign budget, §8 |
 | `contribution_award` | approved contribution | contribution identifier | yes | backdatable; approver recorded |
 | `referral_bonus` | referral converted | referral identifier | yes | both sides get one |
 | `goodwill` | a human deciding | support case identifier | choice | not tied to any one charge |
@@ -117,22 +159,33 @@ about.
 
 ---
 
-## 4. Everything that can take value out
+## 5. Everything that can take value out
 
 Two families, and conflating them is a mistake. A **charge** is value exchanged for something
 the customer got. An **adjustment** is value leaving for any other reason.
 
-**Charges** — always paired with a `usage_event`:
+**Class A charges** — one movement per call, each paired with a `usage_event`:
 
 | Kind | Measured by | Priced from |
 | --- | --- | --- |
 | `model_call` | gateway | five components: fresh input, cached input, cache write, output, reasoning |
 | `tool_call` | gateway, tool plane | per category |
 | `sandbox_compute` | provider webhook or poll | four components: vCPU-second, RAM GiB-second, disk GiB-second, GPU-second |
-| `storage_at_rest` | gauge, sampled | derived: a periodic charge computed from a level, not from an event |
-| `trace_ingestion` | ingestion pipeline | only if traces move off the meter, §1 |
-| `evaluation_run` | evaluation service | only if it moves off the meter |
 | `egress` | not measured today | — |
+
+**Class B charges** — one rollup movement per organization per period, read from the meter,
+with no `usage_event` because the meter is the journal:
+
+| Kind | Read from | Priced from |
+| --- | --- | --- |
+| `span_ingestion` | `TRACES_INGESTED` | volume above the plan allowance |
+| `event_ingestion` | `EVENTS_INGESTED` | volume above the plan allowance |
+| `record_ingestion` | `RECORDS_INGESTED` | volume above the plan allowance |
+| `evaluation_run` | `EVALUATIONS_RUN` | volume above the plan allowance |
+| `storage_at_rest` | the storage gauge | a level sampled over the period, never cumulative writes |
+
+Each of these is posted only if that resource has been switched from arrears to prepaid
+(§2). Until then the meter alone governs it and no movement is written.
 
 **Adjustments** — no `usage_event`:
 
@@ -150,6 +203,10 @@ Four notes that decide schema:
 - **`storage_at_rest` is derived from a level**, not from events. Billing cumulative writes
   instead of held size is a real and easy error, and the sandbox track's specification already
   warns about it.
+- **Class B kinds carry no run.** The meter is organization-scoped and the movement is a
+  period rollup, so per-run attribution is a class A property only. That is the right trade:
+  attribution matters where a user asks "which run spent my credits", and no user asks that
+  about last month's span volume.
 - **`hold` and `settle` are phases, not kinds.** A hold is a `model_call` movement in phase
   `held`. This keeps the kind list about resources.
 - **`write_off` is not the absence of a charge.** It is a recorded decision, so the circuit
@@ -157,7 +214,7 @@ Four notes that decide schema:
 
 ---
 
-## 5. How numbers become money
+## 6. How numbers become money
 
 Two conversions, opposite directions, and they must be governed differently. Every credit
 system that has angered its users moved both.
@@ -183,7 +240,7 @@ must never be reported in arrears.
 
 ---
 
-## 6. How a subscription relates to a wallet
+## 7. How a subscription relates to a wallet
 
 A subscription does three separate things. Today they are one thing, and that is why the
 question is hard.
@@ -211,12 +268,12 @@ themselves, and it protects earned value from being stranded behind a grant that
 
 ---
 
-## 7. Extending: the number nobody has defined
+## 8. Extending: the number nobody has defined
 
 "Am I able to spend more, and by how much" is not the balance. Four numbers, and the product
 needs all four:
 
-```
+```text
 balance    = inbound_posted − outbound_posted        value owned right now
 available  = balance − outbound_held                 what a new call may draw against
 headroom   = available + credit_line + recharge_capacity
@@ -241,10 +298,11 @@ up. The campaign is also what makes "what did this conference cost us" answerabl
 
 ---
 
-## 8. What has to be decided
+## 9. What has to be decided
 
-1. **Does the wallet absorb traces and evaluations, or only the new resources?** The answer
-   decides whether this is a billing system or a model-call feature.
+1. **Which class B resources switch from arrears to prepaid, and when?** Per resource, not
+   all at once — each switch is a change to one periodic job, and each is irreversible in the
+   sense that a resource cannot be metered-in-arrears and prepaid at the same time.
 2. **Which of the three names for the user-visible unit survives**, and what the old
    100-request monthly allowance converts to as an `opening_balance`.
 3. **Is the peg fixed at one tenth of a cent**, and is the price book the only thing that
@@ -252,5 +310,7 @@ up. The campaign is also what makes "what did this conference cost us" answerabl
 4. **Does plan allowance roll over**, or expire at period end?
 5. **Is there a credit line at launch**, or is hard-stop-everywhere the first version with the
    column present and always zero?
-6. **Do the three families — model, tool, sandbox — stay a dimension of a charge** so
-   "what did we spend on models versus sandboxes" is a `GROUP BY` rather than a schema change?
+6. **Does every movement carry its class and its resource family** so "what did we spend on
+   models versus sandboxes versus telemetry" is a `GROUP BY` rather than a schema change?
+7. **Is the failure posture fixed per class** — closed for A, open for B — rather than
+   decided per call site?

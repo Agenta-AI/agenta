@@ -114,9 +114,11 @@ a constant factor of ten, so the conversion is lossless either way.
 
 ## What nobody owns yet
 
-- **The failure posture when one balance serves several resources.** The metering track
-  fails open, the gateway design fails closed. Both are right for their own resource. If
-  they share a balance the posture has to be decided per call site and written down.
+- ~~**The failure posture when one balance serves several resources.**~~ Answered in
+  `mechanics.md` §2: it is fixed per resource class, not per call site. Fail closed on
+  vendor pass-through, because the alternative is spending cash we do not have. Fail open on
+  platform capacity, because dropping telemetry to protect billing is the wrong trade. The
+  two existing designs were each right about their own resource and wrong to generalise.
 - **Reconciliation against the provider invoice.** Named as a relaxed guarantee in
   `report.md` §8.4 and absent from every other document.
 - **The success criterion for a funded tier.** `report.md` §9.10 argues this is the decision
