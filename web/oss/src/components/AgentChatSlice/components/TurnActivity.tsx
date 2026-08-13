@@ -21,10 +21,10 @@ export const WorkingDots = () => (
 export const WaitingForInput = () => (
     <span
         role="status"
-        aria-label="Agent is waiting for your input"
+        aria-label="The agent is waiting for you"
         className="flex items-center gap-1.5 px-1 py-0.5 text-xs text-colorTextTertiary"
     >
         <Hourglass size={12} />
-        Waiting for your input
+        Waiting for you
     </span>
 )

@@ -14,7 +14,7 @@ import {
     type StepInfo,
     formatReviewValue,
 } from "@agenta/entity-ui/gatewayTool"
-import {isInteractionEndedOutput} from "@agenta/shared/clientTools"
+import {CLIENT_TOOL_NAMES, isInteractionEndedOutput} from "@agenta/shared/clientTools"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {
     type ElicitationResult,
@@ -34,7 +34,7 @@ import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@ph
 import {Button, Form, Typography} from "antd"
 import dayjs from "dayjs"
 
-import {resolveToolDisplay} from "../../assets/toolDisplay"
+import {canonicalToolName, resolveToolDisplay} from "../../assets/toolDisplay"
 
 import type {ClientToolHandlerProps} from "./types"
 
@@ -296,6 +296,14 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     if (!parsed.ok) return null // degradation auto-settle in flight (effect above)
 
     const requiredCount = parsed.payload.requestedSchema.required?.length ?? 0
+    // The run being parked on you is already said by the composer dock and the turn's status line;
+    // a third line here was the same sentence a third time.
+    const asker = CLIENT_TOOL_NAMES.has(canonicalToolName(meta.toolName))
+        ? null
+        : `Asked by ${resolveToolDisplay(meta.toolName).label}`
+    const subtext = [asker, requiredCount > 0 ? `${requiredCount} required` : null]
+        .filter(Boolean)
+        .join(" · ")
     const stepperHint = Boolean(parsed.payload.requestedSchema["x-ag-stepper"])
 
     const handleAccept = async () => {
@@ -346,13 +354,14 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 <Question size={14} weight="fill" className="shrink-0 mt-0.5 text-colorPrimary" />
                 <div className="flex min-w-0 flex-col">
                     <Text className="!text-xs">{parsed.payload.message}</Text>
-                    {/* Requester attribution — muted subtext, never a banner (design D-spec). */}
-                    <Text type="secondary" className="!text-xs">
-                        Asked by {resolveToolDisplay(meta.toolName).label}
-                        {requiredCount > 0
-                            ? ` · Waiting on your input · ${requiredCount} required`
-                            : " · Waiting on your input"}
-                    </Text>
+                    {/* Requester attribution — muted subtext, never a banner (design D-spec).
+                        Our own elicitation tool goes unnamed: the card in front of you IS the agent
+                        asking, so "Asked by Request input" only restates the obvious. */}
+                    {subtext ? (
+                        <Text type="secondary" className="!text-xs">
+                            {subtext}
+                        </Text>
+                    ) : null}
                 </div>
             </div>
 
