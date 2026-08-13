@@ -113,9 +113,22 @@ describe("canonicalToolName", () => {
         expect(canonicalToolName("mcp.other.commit_revision")).toBe("mcp.other.commit_revision")
     })
 
+    // A client tool streams under our reserved workflow-slug namespace, where the generic parser
+    // read "ag" as the app: "Requested an Ag input".
+    it("unwraps our reserved workflow-slug namespace", () => {
+        expect(canonicalToolName("__ag__request_input")).toBe("request_input")
+        expect(resolveToolDisplay("__ag__request_input").activity.done).toBe(
+            "Asked you some questions",
+        )
+        expect(resolveToolDisplay("__ag__request_connection").activity.done).toBe(
+            "Asked you to connect an app",
+        )
+    })
+
     it("never returns an empty name", () => {
         expect(canonicalToolName("mcp__agenta-tools__")).toBe("mcp__agenta-tools__")
         expect(canonicalToolName("mcp.agenta-tools.")).toBe("mcp.agenta-tools.")
+        expect(canonicalToolName("__ag__")).toBe("__ag__")
         expect(canonicalToolName("")).toBe("")
     })
 })

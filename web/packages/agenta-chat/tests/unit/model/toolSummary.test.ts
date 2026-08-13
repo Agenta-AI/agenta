@@ -160,3 +160,12 @@ describe("rowSummary", () => {
         expect(rowSummary(part)).toBeNull()
     })
 })
+
+// The OSS mirror cuts on code points; this copy used to cut on UTF-16 units.
+describe("summarizeOutput code-point cut", () => {
+    it("never splits a surrogate pair at the limit", () => {
+        const out = summarizeOutput("🙂".repeat(90))
+        expect(out).toBe(`${"🙂".repeat(80)}…`)
+        expect(out).not.toContain("�")
+    })
+})

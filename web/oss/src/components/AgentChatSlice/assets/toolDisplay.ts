@@ -40,18 +40,14 @@ export interface ToolDisplay {
 }
 
 interface ToolDisplayOverride {
-    label?: string
-    source?: string
     kind?: ToolKind
     /** A function when the sentence names an app; it receives the app's real name, or undefined
      * before the catalog answers. */
     activity?: ToolActivity | ((appName?: string) => ToolActivity)
-    /** Reads a tool-catalog integration slug out of the call itself, for a tool whose app is named
-     * in its arguments or in what came back rather than in its wire name. */
-    appSlug?: (input: unknown, output: unknown) => string | undefined
-    /** Reads a gateway ACTION token out of what came back, for a tool that reports another tool.
-     * Its wording is then derived exactly as that tool's own row would derive it. */
-    foundAction?: (input: unknown, output: unknown) => string | undefined
+    /** Reads the app this call is about out of the call itself, for a tool whose app is named in
+     * its arguments or in what came back rather than in its wire name. `action` is the gateway
+     * ACTION token of a tool this one merely reported, worded as that tool's own row would word it. */
+    app?: (input: unknown, output: unknown) => {slug?: string; action?: string}
     summary?: (input: unknown, output: unknown) => string | null
 }
 
@@ -85,24 +81,19 @@ const firstCapability = (output: unknown): Record<string, unknown> | undefined =
     ) as Record<string, unknown> | undefined
 }
 
-/** The integration `discover_tools` matched. */
-const firstCapabilityIntegration = (output: unknown): string | undefined => {
-    const capability = firstCapability(output)
-    if (!capability) return undefined
-    return (
-        stringAt(capability.integration) ??
-        (isRecord(capability.tool) ? stringAt(capability.tool.integration) : undefined)
-    )
-}
-
 /**
- * The ACTION half of the matched tool's name (`EVENTS_LIST`), which the API splits off the provider
- * slug — the same token a gateway wire name carries, so it describes the tool the same way the row
- * that later runs it will.
+ * The app `discover_tools` matched, and the ACTION half of that tool's name (`EVENTS_LIST`) — the
+ * same token a gateway wire name carries, so the row describes the tool the way the row that later
+ * runs it will. One read: the result is a large payload and both halves live in one capability.
  */
-const firstCapabilityAction = (output: unknown): string | undefined => {
-    const tool = firstCapability(output)?.tool
-    return isRecord(tool) ? stringAt(tool.action) : undefined
+const matchedTool = (output: unknown): {slug?: string; action?: string} => {
+    const capability = firstCapability(output)
+    if (!capability) return {}
+    const tool = isRecord(capability.tool) ? capability.tool : undefined
+    return {
+        slug: stringAt(capability.integration) ?? (tool && stringAt(tool.integration)),
+        action: tool && stringAt(tool.action),
+    }
 }
 
 /** Our in-sandbox MCP server (runner: `INTERNAL_TOOL_MCP_SERVER_NAME`). */
@@ -111,6 +102,10 @@ const INTERNAL_MCP_SERVER = "agenta-tools"
 /** How each harness wraps a tool of that server: Claude `mcp__<server>__`, Codex `mcp.<server>.`
  * (runner `client-tools.ts` strips the same two). */
 const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_MCP_SERVER}.`]
+
+/** Our reserved workflow-slug namespace. A client tool streams under it (`__ag__request_input`),
+ * where the generic parser reads "ag" as the app and derives "Requested an Ag input". */
+const INTERNAL_SLUG_PREFIX = "__ag__"
 
 /**
  * The platform tool name behind a harness wrapper.
@@ -124,7 +119,7 @@ const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_
  * the wire name verbatim (see `useAlwaysAllowTool`).
  */
 export const canonicalToolName = (raw: string): string => {
-    for (const prefix of INTERNAL_MCP_PREFIXES) {
+    for (const prefix of [...INTERNAL_MCP_PREFIXES, INTERNAL_SLUG_PREFIX]) {
         if (raw.startsWith(prefix)) return raw.slice(prefix.length) || raw
     }
     return raw
@@ -154,20 +149,19 @@ const BY_TOOL_NAME: Record<string, ToolDisplayOverride> = {
     test_run: {activity: {running: "Testing the agent", done: "Tested the agent"}},
     // A tool search reports which tool it landed on. That name is worth far more than the keywords
     // it searched with, which are model-written and shapeless.
-    discover_tools: {
-        appSlug: (_input, output) => firstCapabilityIntegration(output),
-        foundAction: (_input, output) => firstCapabilityAction(output),
-    },
+    discover_tools: {app: (_input, output) => matchedTool(output)},
     // These two prompt the user, so they are written from the reader's side, not the agent's. The
     // running form says the run is blocked on the reader, which "Asking" left implicit.
     request_connection: {
-        appSlug: (input) => (isRecord(input) ? stringAt(input.integration) : undefined),
+        app: (input) => ({slug: isRecord(input) ? stringAt(input.integration) : undefined}),
         activity: (app) => ({
             running: `Waiting for you to connect ${app ?? "an app"}`,
             done: `Asked you to connect ${app ?? "an app"}`,
         }),
     },
-    request_input: {activity: {running: "Asking you for details", done: "Asked you for details"}},
+    request_input: {
+        activity: {running: "Waiting for your answers", done: "Asked you some questions"},
+    },
 
     // Harness builtins. Claude title-cases them, Pi lowercases them; the key is lowercased.
     bash: {kind: "shell", activity: {running: "Running a command", done: "Ran a command"}},
@@ -255,15 +249,15 @@ const SLUG_ECHO_MIN_LENGTH = 5
  * Matches both spellings the name arrives in: the catalog's "Google Calendar" by word, and the
  * pre-catalog slug "Googlecalendar" by substring. Skipping is safe — the app moves to the chip.
  */
-const echoesApp = (object: string, appName: string): boolean => {
-    const words = object.toLowerCase().split(/\s+/).filter(Boolean)
+const appWordTest = (appName: string): ((word: string) => boolean) => {
     const appWords = new Set(appName.toLowerCase().split(/\s+/).filter(Boolean))
     const squashed = appName.toLowerCase().replace(/[^a-z0-9]/g, "")
-    return words.some(
-        (word) =>
-            appWords.has(word) || (word.length >= SLUG_ECHO_MIN_LENGTH && squashed.includes(word)),
-    )
+    return (word) =>
+        appWords.has(word) || (word.length >= SLUG_ECHO_MIN_LENGTH && squashed.includes(word))
 }
+
+const echoesApp = (object: string, appName: string): boolean =>
+    object.toLowerCase().split(/\s+/).filter(Boolean).some(appWordTest(appName))
 
 interface BuiltActivity {
     activity: ToolActivity
@@ -300,17 +294,7 @@ const splitVerb = (label: string): {verb: string; forms: ToolActivity; rest: str
  * Read-only on purpose. A query is what the agent looked for, not what it did — lending "send"
  * would have a row that only searched a catalog claim it sent something.
  */
-const QUERY_VERBS = new Set([
-    "check",
-    "discover",
-    "fetch",
-    "find",
-    "get",
-    "list",
-    "query",
-    "read",
-    "search",
-])
+const QUERY_VERBS = new Set(["discover", "fetch", "find", "get", "list", "query", "read", "search"])
 
 /** The query's own verb and what follows it, when it leads with one we are willing to borrow. */
 const lendVerb = (query: string): {forms: ToolActivity; object: string} | null => {
@@ -351,19 +335,10 @@ const DANGLING_WORDS = new Set([
 
 /** The query beside a named app: its own name dropped, then trimmed to a short qualifier. */
 const qualifierFor = (query: string, appName: string): string => {
-    const appWords = new Set(appName.toLowerCase().split(/\s+/).filter(Boolean))
-    const squashed = appName.toLowerCase().replace(/[^a-z0-9]/g, "")
+    const isAppWord = appWordTest(appName)
     const words = query.split(/\s+/).filter(Boolean)
     let start = 0
-    while (start < words.length) {
-        const word = words[start].toLowerCase()
-        if (
-            !appWords.has(word) &&
-            !(word.length >= SLUG_ECHO_MIN_LENGTH && squashed.includes(word))
-        )
-            break
-        start += 1
-    }
+    while (start < words.length && isAppWord(words[start].toLowerCase())) start += 1
     const tail = words.slice(start, start + QUERY_TAIL_WORDS)
     while (tail.length && DANGLING_WORDS.has(tail[tail.length - 1].toLowerCase())) tail.pop()
     return tail.join(" ")
@@ -398,7 +373,7 @@ const conjugate = (
         // until then the whole query is all the row has to show.
         const phrase = appName
             ? [appName, qualifierFor(asked, appName)].filter(Boolean).join(" ")
-            : lent || /\b(for|through|at|in|on)$/.test(verb.done)
+            : lent || / (for|through)$/.test(verb.done)
               ? asked
               : `for ${asked}`
         return {
@@ -447,8 +422,10 @@ const CODEX_LIST_TITLE = /^List files in '(.+)'$/
 const isTokenName = (raw: string): boolean => /^[\w.-]+$/.test(raw)
 
 const clamp = (text: string, max: number): string => {
-    const points = Array.from(text.trim().replace(/\s+/g, " "))
-    return points.length <= max ? points.join("") : `${points.slice(0, max).join("")}…`
+    const normalized = text.trim().replace(/\s+/g, " ")
+    if (normalized.length <= max) return normalized
+    const points = Array.from(normalized)
+    return points.length <= max ? normalized : `${points.slice(0, max).join("")}…`
 }
 
 interface ParsedShape {
@@ -542,13 +519,8 @@ const parseShape = (
     }
     if (!token) return {label: clamp(raw, 60), kind: "platform"}
     // A bare identifier is a platform op as Pi sends it, so the glossary applies.
-    const parsed = parseGatewayToolName(raw)
-    return {
-        ...parsed,
-        kind: parsed.source ? "gateway" : "platform",
-        activity:
-            conjugate(parsed.label, !parsed.source, appName ?? parsed.source, query) ?? undefined,
-    }
+    const {label} = parseGatewayToolName(raw)
+    return {label, kind: "platform", activity: conjugate(label, true, appName, query) ?? undefined}
 }
 
 /** The sandbox root every path in a session sits under. Machine-generated and identical on every
@@ -571,11 +543,11 @@ const shortCommand = (command: string): string =>
 
 const basename = (path: string): string => path.split("/").filter(Boolean).pop() ?? path
 
-/** Path-ish argument keys, in the order the harnesses prefer them. */
-const PATH_KEYS = ["file_path", "filePath", "path", "notebook_path"]
+/** Path-ish argument keys. Kept in step with `PATH_KEYS` in `@agenta/entities`'
+ * `session/core/fileActivity.ts`, which reads the same argument for the file cards on this row. */
+const PATH_KEYS = ["path", "file_path", "filePath", "notebook_path", "filename", "target_file"]
 
-/** Arguments naming what was looked for. Joined with a colon rather than a preposition: the text
- * is model-authored and may be a phrase or a bare noun, and a colon claims nothing about which. */
+/** Arguments naming what the call was looking for. */
 const QUERY_KEYS = ["use_cases", "query", "keywords", "search"]
 
 /** What the call was looking for, or "" when it was not a search. */
@@ -613,6 +585,18 @@ const toolDetail = (raw: string, input?: unknown): string | undefined => {
     const list = CODEX_LIST_TITLE.exec(raw)
     if (list) return clamp(basename(list[1]), 48)
     return undefined
+}
+
+/** A registered activity as a `BuiltActivity`: only the app-naming form puts the app in the
+ * sentence, and only when it actually got one. */
+const overrideActivity = (
+    override: ToolDisplayOverride | undefined,
+    ownApp?: string,
+): BuiltActivity | null => {
+    const activity = override?.activity
+    if (!activity) return null
+    if (typeof activity !== "function") return {activity, namedApp: false}
+    return {activity: activity(ownApp), namedApp: Boolean(ownApp)}
 }
 
 /**
@@ -653,34 +637,25 @@ export const resolveToolDisplay = (
     // identically under all three harnesses.
     const wrapped = canonical !== raw
     // A tool that names its app in its own call. Until the catalog answers, the slug title-cased
-    // reads the way a gateway name does ("Googlecalendar", then "Google Calendar").
-    const argSlug = override?.appSlug?.(input, output)
-    const ownApp = argSlug ? (appName ?? parseGatewayToolName(argSlug).label) : undefined
+    // reads the way a gateway name does ("Googlecalendar", then "Google Calendar"). The reported
+    // action only earns a sentence once the catalog can spell that app, so it is read no sooner.
+    const own = override?.app?.(input, output)
+    const ownApp = own?.slug ? (appName ?? parseGatewayToolName(own.slug).label) : undefined
     const parsed = parseShape(raw, input, wrapped, appName)
-    const label = override?.label ?? parsed.label
-    // A reported tool describes the call better than the query that found it — but only once the
-    // catalog can spell its app.
-    const action = override?.foundAction?.(input, output)
-    const reported = action && appName ? reportedActivity(action, appName) : null
-    const built = reported ?? parsed.activity
-    const overrideActivity =
-        typeof override?.activity === "function" ? override.activity(ownApp) : override?.activity
-    // Naming the app inside the sentence retires the chip. When the sentence declines the app (it
-    // would stutter) or there is no sentence at all, the chip still carries the provenance.
-    const folded =
-        (typeof override?.activity === "function" && Boolean(ownApp)) ||
-        Boolean(built?.namedApp && !override?.activity)
+    const label = parsed.label
+    // Whichever sentence wins carries its own answer to "did the app end up inside it?", which is
+    // what decides the chip.
+    const built =
+        overrideActivity(override, ownApp) ??
+        (own?.action && appName ? reportedActivity(own.action, appName) : null) ??
+        parsed.activity
     return {
         raw,
         kind: override?.kind ?? parsed.kind,
         label,
-        source: override?.source ?? (wrapped || folded ? undefined : (appName ?? parsed.source)),
-        sourceKey: argSlug ?? (wrapped ? undefined : parsed.sourceKey),
-        activity: overrideActivity ??
-            built?.activity ?? {
-                running: label,
-                done: label,
-            },
+        source: wrapped || built?.namedApp ? undefined : (appName ?? parsed.source),
+        sourceKey: own?.slug ?? (wrapped ? undefined : parsed.sourceKey),
+        activity: built?.activity ?? {running: label, done: label},
         detail: toolDetail(raw, input),
         summary: override?.summary,
     }
