@@ -315,15 +315,25 @@ describe("resolveToolDisplay for external tools", () => {
     })
 
     // "Got Google Calendar calendar settings" stutters, so the app steps back into the chip.
+    // Both spellings must be caught: the catalog's "Google Calendar" and, before it answers, the
+    // run-together slug "Googlecalendar" the row paints first.
     it("skips the app when the object already says which app it is", () => {
-        const display = resolveToolDisplay(
-            "tools__composio__googlecalendar__GET_CALENDAR_SETTINGS__c1",
-            undefined,
-            "Google Calendar",
-        )
+        const raw = "tools__composio__googlecalendar__GET_CALENDAR_SETTINGS__c1"
 
-        expect(display.activity.done).toBe("Got calendar settings")
-        expect(display.source).toBe("Google Calendar")
+        const fromCatalog = resolveToolDisplay(raw, undefined, "Google Calendar")
+        expect(fromCatalog.activity.done).toBe("Got calendar settings")
+        expect(fromCatalog.source).toBe("Google Calendar")
+
+        const firstPaint = resolveToolDisplay(raw)
+        expect(firstPaint.activity.done).toBe("Got calendar settings")
+        expect(firstPaint.source).toBe("Googlecalendar")
+    })
+
+    it("keeps the app when the object merely shares a short fragment with the slug", () => {
+        // "file" is inside "googledrive" only by accident of length, so it must not trip the rule.
+        expect(resolveToolDisplay("googledrive__UPLOAD_FILE").activity.done).toBe(
+            "Uploaded a Googledrive file",
+        )
     })
 
     it("matches whole words only, so a near-miss still names the app", () => {

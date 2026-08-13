@@ -163,6 +163,24 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
         expect(display.activity).toEqual({running: "Foo bar", done: "Foo bar"})
     })
 
+    // Parity with OSS: our own server says nothing useful, so it never reaches the chip.
+    it("drops our own MCP server's chip under either harness wrapper", () => {
+        expect(resolveToolDisplay("mcp__agenta-tools__create_subscription").source).toBeUndefined()
+        expect(resolveToolDisplay("mcp.agenta-tools.query_spans").source).toBeUndefined()
+        // A third-party server is not ours, so it still names itself.
+        expect(resolveToolDisplay("mcp__linear__create_issue").activity.done).toBe(
+            "Created a Linear issue",
+        )
+    })
+
+    // The app name arrives as a run-together slug before the catalog answers.
+    it("skips the app when the slug already contains the object word", () => {
+        expect(
+            resolveToolDisplay("tools__composio__googlecalendar__GET_CALENDAR_SETTINGS__c1")
+                .activity.done,
+        ).toBe("Got calendar settings")
+    })
+
     it("merges a registered override with the parsed fallback, piece by piece", () => {
         const summary = (input: unknown) => (typeof input === "string" ? input : null)
         registerChatSkin({toolDisplay: {td_commit_like: {summary}}})
