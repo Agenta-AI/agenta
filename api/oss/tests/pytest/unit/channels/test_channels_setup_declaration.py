@@ -72,6 +72,49 @@ async def test_slack_renders_all_three_slots_through_the_same_code_path():
     assert "https://example.com/channels/slack/events/" in setup.document.content
 
 
+async def test_channel_setup_declares_all_three_slots_with_no_connection_in_existence():
+    """`get_channel_setup` is the route reachable before any connection row
+    exists -- the manifest an operator needs to go build the app at all.
+    No connection is ever constructed or fetched here."""
+
+    service = ChannelsService(
+        channels_dao=MagicMock(),
+        adapter_registry=ChannelAdapterRegistry(adapters={"slack": SlackAdapter()}),
+    )
+
+    setup = await service.get_channel_setup(
+        channel="slack",
+        request_url="https://example.com/channels/slack/events/",
+    )
+
+    assert setup.instructions
+    assert {field.name for field in setup.fields} == {
+        "bot_token",
+        "signing_secret",
+        "api_app_id",
+    }
+    assert setup.document is not None
+    assert "https://example.com/channels/slack/events/" in setup.document.content
+
+
+async def test_channel_setup_is_empty_for_a_channel_declaring_nothing():
+    service = ChannelsService(
+        channels_dao=MagicMock(),
+        adapter_registry=ChannelAdapterRegistry(
+            adapters={"mock": MockAdapter(capabilities=mock_full())}
+        ),
+    )
+
+    setup = await service.get_channel_setup(
+        channel="mock",
+        request_url="https://example.com/channels/mock/events/",
+    )
+
+    assert setup.instructions == []
+    assert setup.fields == []
+    assert setup.document is None
+
+
 async def test_setup_raises_a_domain_error_for_a_missing_connection():
     dao = MagicMock()
     dao.fetch_connection = AsyncMock(return_value=None)

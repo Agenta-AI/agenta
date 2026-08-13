@@ -845,6 +845,14 @@ class ChannelConnectionSetupResponse(BaseModel):
     setup: Optional[ChannelSetup] = None
 
 
+class ChannelSetupResponse(BaseModel):
+    """The channel-level twin of `ChannelConnectionSetupResponse`: reachable
+    with a channel name alone, before any connection row exists."""
+
+    count: int = 0
+    setup: Optional[ChannelSetup] = None
+
+
 class ChannelAgentRequest(BaseModel):
     agent: ChannelAgentCreate
 
