@@ -255,8 +255,12 @@ export function DriveExplorer({
     // it falls through and renders the tree; its retry rides the existing header (see DriveHeader's
     // `partialErrored` slot), NOT a new banner row that would shove the content down.
     let body: ReactNode
+    // Search/filters/tree toggle only earn their row when there IS a tree — a terminal state has
+    // nothing to search or filter, and the row's own borders make an empty pane look broken.
+    let showToolbar = true
     if (drive.errored && drive.fileCount === 0) {
         body = <DriveErrorState drive={drive} />
+        showToolbar = false
     } else if (drive.isLoading || (drive.mount && lazyTree.rootLoading)) {
         // The right pane will be a FILE preview if we're opening onto a file, else the browse GRID.
         // Nothing is loaded yet, so the name is all we have to go on.
@@ -270,6 +274,7 @@ export function DriveExplorer({
         )
     } else if (drive.fileCount === 0) {
         body = <DriveEmptyState scope={scope} />
+        showToolbar = false
     } else {
         // What shows for the current selection: the folder's children (as a tile grid) or a file's
         // preview. The right pane of the tree navigator (and the whole body when the tree is hidden).
@@ -422,23 +427,25 @@ export function DriveExplorer({
                     {/* Pending uploads render as tiles in the grid + a pinned group in the tree (both
                         drawer-global), so no separate header banner here — a banner that mounts/unmounts
                         shoved the toolbar + panes on every upload state change. */}
-                    <DriveToolbar
-                        mirrored={mirrored}
-                        search={search}
-                        setSearch={setSearch}
-                        searchActive={searchActive}
-                        showTree={showTree}
-                        treeVisible={treeVisible}
-                        toggleTree={toggleTree}
-                        showOrigin={showOrigin}
-                        originFilter={originFilter}
-                        setOriginFilter={setOriginFilter}
-                        showHidden={showHidden}
-                        setShowHidden={setShowHidden}
-                        inGitScope={inGitScope}
-                        showGitignored={showGitignored}
-                        setShowGitignored={setShowGitignored}
-                    />
+                    {showToolbar ? (
+                        <DriveToolbar
+                            mirrored={mirrored}
+                            search={search}
+                            setSearch={setSearch}
+                            searchActive={searchActive}
+                            showTree={showTree}
+                            treeVisible={treeVisible}
+                            toggleTree={toggleTree}
+                            showOrigin={showOrigin}
+                            originFilter={originFilter}
+                            setOriginFilter={setOriginFilter}
+                            showHidden={showHidden}
+                            setShowHidden={setShowHidden}
+                            inGitScope={inGitScope}
+                            showGitignored={showGitignored}
+                            setShowGitignored={setShowGitignored}
+                        />
+                    ) : null}
                     <div className="flex min-h-0 flex-1 flex-col">{body}</div>
                 </div>
             ) : (

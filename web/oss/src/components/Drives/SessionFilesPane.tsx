@@ -11,11 +11,12 @@
  */
 import {useCallback, useEffect, useMemo} from "react"
 
-import {atom, useAtom} from "jotai"
+import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import dynamic from "next/dynamic"
 
 import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
+import {playgroundInspectorEnabledAtom} from "@/oss/state/settings/featureFlags"
 
 import {type DriveId} from "./DriveExplorer"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
@@ -80,13 +81,20 @@ export function SessionFilesPane({sessionId}: {sessionId: string}) {
         return hit?.path ?? quickLook.path
     }, [quickLook, drive.recents])
 
+    // Raw ids are a DEBUGGING affordance (wiring an SDK call, filing a bug), so they ride the same
+    // switch as the rest of the inspection surface — off, the overflow menu is just "Download all".
+    const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const driveIds = useMemo(
         () =>
-            [
-                drive.mount?.id ? {key: "mount", label: "Drive ID", value: drive.mount.id} : null,
-                sessionId ? {key: "owner", label: "Session ID", value: sessionId} : null,
-            ].filter(Boolean) as DriveId[],
-        [drive.mount?.id, sessionId],
+            !inspectorEnabled
+                ? []
+                : ([
+                      drive.mount?.id
+                          ? {key: "mount", label: "Drive ID", value: drive.mount.id}
+                          : null,
+                      sessionId ? {key: "owner", label: "Session ID", value: sessionId} : null,
+                  ].filter(Boolean) as DriveId[]),
+        [inspectorEnabled, drive.mount?.id, sessionId],
     )
 
     const driveGeneration = useDriveGeneration(drive.mount?.id)
