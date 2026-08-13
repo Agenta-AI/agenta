@@ -80,7 +80,9 @@ const agentChatTests = () => {
                     await expect(page.getByText(ELICITATION_PAYLOAD.message)).toBeVisible({
                         timeout: 30000,
                     })
-                    await expect(page.getByText(/Asked by .*request_input/)).toBeVisible()
+                    // Our own elicitation tool goes unnamed — the card IS the agent asking —
+                    // so the subtext is the required-field count alone.
+                    await expect(page.getByText("1 required")).toBeVisible()
                     await expect(
                         page.getByRole("button", {name: "Accept", exact: true}),
                     ).toBeVisible()
