@@ -192,9 +192,15 @@ describe("resolveToolDisplay derives our platform ops", () => {
     // The glossary is ours alone: a Stripe subscription is a subscription, not a trigger.
     it("never applies our vocabulary to an external tool", () => {
         expect(done("tools__composio__stripe__CANCEL_SUBSCRIPTION__c1")).toBe(
-            "Cancelled a subscription",
+            "Cancelled a Stripe subscription",
         )
-        expect(done("mcp__stripe__cancel_subscription")).toBe("Cancelled a subscription")
+        expect(done("mcp__stripe__cancel_subscription")).toBe("Cancelled a Stripe subscription")
+    })
+
+    // Our own tools have no app to name: "Saved Agenta tools changes" would be nonsense.
+    it("never names our own server inside the sentence", () => {
+        expect(done("mcp.agenta-tools.commit_revision")).toBe("Saved changes")
+        expect(done("mcp__agenta-tools__create_schedule")).toBe("Created a schedule")
     })
 })
 
@@ -273,42 +279,56 @@ describe("resolveToolDisplay for harness builtins", () => {
 })
 
 // External tools cannot be listed by hand, so their wording is derived from the structured name.
+// The app is named inside the sentence ("Searched GitHub issues"), which retires the chip.
 describe("resolveToolDisplay for external tools", () => {
-    it("conjugates a gateway action and keeps the app in its own chip", () => {
-        const display = resolveToolDisplay("tools__composio__gmail__SEND_EMAIL__b81")
+    const GITHUB_SEARCH = "tools__composio__github__SEARCH_ISSUES__a4f"
 
-        expect(display.label).toBe("Send email")
-        expect(display.source).toBe("Gmail")
-        expect(display.activity).toEqual({running: "Sending an email", done: "Sent an email"})
+    it("names the app inside the sentence and drops the now-redundant chip", () => {
+        const display = resolveToolDisplay(GITHUB_SEARCH)
+
+        expect(display.activity.done).toBe("Searched Github issues")
+        expect(display.source).toBeUndefined()
+        expect(display.label).toBe("Search issues")
     })
 
-    // The app's real name lives in the tool catalog, which is async — so the resolver reports the
-    // slug and the row looks it up. Title case is only the first-paint fallback.
-    it("reports the integration slug so the catalog can supply the real app name", () => {
-        const display = resolveToolDisplay("tools__composio__github__SEARCH_ISSUES__a4f")
+    // The app's real name lives in the tool catalog, which answers asynchronously, so the row
+    // resolves once for the slug and again with the name. Title case is the first-paint fallback.
+    it("takes the catalog's app name when the caller supplies it", () => {
+        expect(resolveToolDisplay(GITHUB_SEARCH).sourceKey).toBe("github")
+        expect(resolveToolDisplay(GITHUB_SEARCH, undefined, "GitHub").activity).toEqual({
+            running: "Searching GitHub issues",
+            done: "Searched GitHub issues",
+        })
+    })
 
-        expect(display.sourceKey).toBe("github")
-        expect(display.source).toBe("Github")
-        expect(display.activity.done).toBe("Searched issues")
+    it("puts the article before the app for a singular object", () => {
+        expect(resolveToolDisplay("tools__composio__gmail__SEND_EMAIL__b81").activity.done).toBe(
+            "Sent a Gmail email",
+        )
+        expect(
+            resolveToolDisplay("googledrive__UPLOAD_FILE", undefined, "Google Drive").activity.done,
+        ).toBe("Uploaded a Google Drive file")
     })
 
     it("reports the slug for the generic {source}__ACTION form too", () => {
         expect(resolveToolDisplay("googledrive__UPLOAD_FILE").sourceKey).toBe("googledrive")
     })
 
-    it("handles a third-party MCP tool under either harness's wrapper", () => {
+    it("names the server for a third-party MCP tool under either harness's wrapper", () => {
         for (const raw of ["mcp__linear__create_issue", "mcp.linear.create_issue"]) {
             const display = resolveToolDisplay(raw)
-            expect(display.source).toBe("Linear · MCP")
+            expect(display.activity.done).toBe("Created a Linear issue")
             expect(display.sourceKey).toBe("linear")
-            expect(display.activity.done).toBe("Created an issue")
+            expect(display.source).toBeUndefined()
         }
     })
 
+    // Without a verb there is no sentence to fold the app into, so the chip still carries it.
     it("leaves an action alone when its leading word is not a verb we know", () => {
         const display = resolveToolDisplay("tools__composio__slack__FOO_BAR__c2")
 
         expect(display.label).toBe("Foo bar")
         expect(display.activity).toEqual({running: "Foo bar", done: "Foo bar"})
+        expect(display.source).toBe("Slack")
     })
 })

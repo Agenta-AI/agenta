@@ -110,9 +110,9 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             raw: "tools__composio__gmail__ADD_LABEL__b81",
             kind: "gateway",
             label: "Add label",
-            source: "Gmail",
+            source: undefined,
             sourceKey: "gmail",
-            activity: {running: "Adding a label", done: "Added a label"},
+            activity: {running: "Adding a Gmail label", done: "Added a Gmail label"},
             detail: undefined,
             summary: undefined,
         })
@@ -124,9 +124,9 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             raw: "mcp__linear__search_issues",
             kind: "mcp",
             label: "Search issues",
-            source: "Linear · MCP",
+            source: undefined,
             sourceKey: "linear",
-            activity: {running: "Searching issues", done: "Searched issues"},
+            activity: {running: "Searching Linear issues", done: "Searched Linear issues"},
             detail: undefined,
             summary: undefined,
         })
