@@ -173,12 +173,8 @@ class SlackAdapter(ChannelAdapterInterface):
                 message=body.get("error", "unknown_error"),
             )
 
-        # Same function the ingress path keys events with, applied to
-        # auth.test's own response: exactly one of enterprise_id/team_id
-        # populated, the other "". `compose_external_key` raises on a
-        # declared field missing from the locator, and the declaration
-        # names all three -- dropping enterprise_id here (or filtering it
-        # out for being falsy) fails every install before a row is written.
+        # The function the ingress keys events with, so both sides compose
+        # one key by construction rather than by agreement.
         enterprise_id, team_id = _connection_discriminator(body)
 
         discovered = {
