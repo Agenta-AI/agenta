@@ -1,4 +1,4 @@
-import {memo} from "react"
+import {memo, useMemo} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
@@ -68,23 +68,32 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
     return <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
 }
 
+/** What a part says, resolved from the part alone. */
+const displayFor = (part: ToolUIPart, appName?: string): ToolDisplay =>
+    resolveToolDisplay(
+        partToolName(part),
+        (part as {input?: unknown}).input,
+        appName,
+        (part as {output?: unknown}).output,
+    )
+
+const useDisplay = (part: ToolUIPart): ToolDisplay => useMemo(() => displayFor(part), [part])
+
 /**
  * Re-resolve a tool once the catalog names its app ("GitHub", not "Github").
  *
- * Only tools with a catalog slug subscribe. Rows live inside a virtualized transcript and mount and
- * unmount on every scroll, and this query carries an IndexedDB persister, so a subscription per row
- * would charge every session for a lookup that almost none of them need.
+ * Callers must only mount this once `base.sourceKey` is set. Rows live inside a virtualized
+ * transcript and mount and unmount on every scroll, and this query carries an IndexedDB persister,
+ * so a subscription per row would charge every session for a lookup almost none of them need.
  */
-const CatalogToolRow = ({base, ...props}: ToolRowProps & {base: ToolDisplay}) => {
+const useCatalogDisplay = (part: ToolUIPart, base: ToolDisplay): ToolDisplay => {
     const {integration} = useToolIntegrationDetail(base.sourceKey ?? "")
-    const display = integration?.name
-        ? resolveToolDisplay(
-              base.raw,
-              (props.part as {input?: unknown}).input,
-              integration.name,
-              (props.part as {output?: unknown}).output,
-          )
-        : base
+    const name = integration?.name
+    return useMemo(() => (name ? displayFor(part, name) : base), [part, base, name])
+}
+
+const CatalogToolRow = ({base, ...props}: ToolRowProps & {base: ToolDisplay}) => {
+    const display = useCatalogDisplay(props.part, base)
     return <ToolRowView {...props} display={display} />
 }
 
@@ -256,12 +265,7 @@ ToolRowView.displayName = "ToolRowView"
  * and platform calls subscribes to nothing.
  */
 const ToolRow = (props: ToolRowProps) => {
-    const base = resolveToolDisplay(
-        partToolName(props.part),
-        (props.part as {input?: unknown}).input,
-        undefined,
-        (props.part as {output?: unknown}).output,
-    )
+    const base = useDisplay(props.part)
     if (base.sourceKey) return <CatalogToolRow {...props} base={base} />
     return <ToolRowView {...props} display={base} />
 }
@@ -273,26 +277,13 @@ const GroupLabel = ({parts}: {parts: ToolUIPart[]}) => {
 }
 
 const SingleGroupLabel = ({part}: {part: ToolUIPart}) => {
-    const base = resolveToolDisplay(
-        partToolName(part),
-        (part as {input?: unknown}).input,
-        undefined,
-        (part as {output?: unknown}).output,
-    )
+    const base = useDisplay(part)
     if (base.sourceKey) return <CatalogGroupLabel part={part} base={base} />
     return <>{groupLabelText(part, base)}</>
 }
 
 const CatalogGroupLabel = ({part, base}: {part: ToolUIPart; base: ToolDisplay}) => {
-    const {integration} = useToolIntegrationDetail(base.sourceKey ?? "")
-    const display = integration?.name
-        ? resolveToolDisplay(
-              base.raw,
-              (part as {input?: unknown}).input,
-              integration.name,
-              (part as {output?: unknown}).output,
-          )
-        : base
+    const display = useCatalogDisplay(part, base)
     return <>{groupLabelText(part, display)}</>
 }
 

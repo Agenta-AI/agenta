@@ -20,33 +20,29 @@ export interface ToolSummaryDisplay {
 // keep working, without a second definition.
 export {stripFence}
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+// Mirrors web/oss/src/components/AgentChatSlice/assets/toolRow.ts, which stays authoritative for
+// the desktop chat until the re-plumb PR deletes it. Port changes both ways.
 // A tool has finished when it produced output, errored, or was denied. Everything else
 // (preparing input, running, awaiting/just-answered an approval) is still in flight.
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 export const isSettled = (state: string) => SETTLED.has(state)
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+// Mirrors web/oss/src/components/AgentChatSlice/assets/toolRow.ts, which stays authoritative for
+// the desktop chat until the re-plumb PR deletes it. Port changes both ways.
 export const isDeferredError = (errorText: string | undefined): boolean =>
     !!errorText && errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
 export const isUnknownResultError = (errorText: string | undefined): boolean =>
     !!errorText && errorText.startsWith(APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX)
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+// Mirrors web/oss/src/components/AgentChatSlice/assets/toolRow.ts, which stays authoritative for
+// the desktop chat until the re-plumb PR deletes it. Port changes both ways.
 export const isNotHandledOutput = (output: unknown): boolean =>
     !!output &&
     typeof output === "object" &&
     (output as {status?: unknown}).status === "not_handled"
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+// Mirrors web/oss/src/components/AgentChatSlice/assets/toolRow.ts, which stays authoritative for
+// the desktop chat until the re-plumb PR deletes it. Port changes both ways.
 /** Parse a JSON object or array; undefined for anything else, so a sentence stays a sentence. */
 const parseJsonish = (text: string): unknown => {
     if (!/^[[{]/.test(text)) return undefined
@@ -57,6 +53,10 @@ const parseJsonish = (text: string): unknown => {
         return undefined
     }
 }
+
+/** Longest run of a tool's own text we put in a row. Counted in code points: cutting on UTF-16
+ * units can split a surrogate pair and render a replacement character. */
+export const OUTPUT_SUMMARY_MAX_LENGTH = 80
 
 /**
  * Derive a single human line from a tool's output. Output shape is arbitrary, so this stays
@@ -75,7 +75,10 @@ export const summarizeOutput = (output: unknown): string | null => {
         // 80 characters of braces into the row.
         const parsed = parseJsonish(s)
         if (parsed !== undefined) return summarizeOutput(parsed)
-        return s.length > 80 ? `${s.slice(0, 80)}…` : s
+        const points = Array.from(s)
+        return points.length > OUTPUT_SUMMARY_MAX_LENGTH
+            ? `${points.slice(0, OUTPUT_SUMMARY_MAX_LENGTH).join("")}…`
+            : s
     }
     if (typeof output === "object") {
         const o = output as Record<string, unknown>
@@ -89,9 +92,10 @@ export const summarizeOutput = (output: unknown): string | null => {
     return String(output)
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+// Mirrors `rowSummary` in web/oss/src/components/AgentChatSlice/assets/toolRow.ts, with two
+// deliberate differences: the OSS row folds a failure into its sentence ("Testing the agent
+// failed") and reports file/shell output by line count, and neither exists here — mobile renders no
+// sentence and `ToolSummaryDisplay` carries no `kind`. Port anything else both ways.
 export const rowSummary = (part: ToolUIPart, display?: ToolSummaryDisplay): string | null => {
     if (part.state === "output-available") {
         if (isNotHandledOutput(part.output)) return "not handled by this client"
