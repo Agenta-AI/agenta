@@ -156,25 +156,37 @@ const PLATFORM_TERMS: Record<string, string> = {
 /** "an" before a vowel sound, near enough for a one-word object. */
 const article = (word: string): string => ("aeiou".includes(word[0]?.toLowerCase()) ? "an" : "a")
 
+/** Builds the sentence, naming the app that ran it when one is known. */
+type ActivityBuilder = (appName?: string) => ToolActivity
+
 /**
- * Turn a `verb noun` label into both tenses ("Search issues" → "Searching issues" / "Searched
- * issues"). Returns null when the leading word is not a verb we know, so an unfamiliar action
- * keeps its plain label instead of reading as "Getted".
+ * Turn a `verb noun` label into both tenses, optionally naming the app: "Search issues" becomes
+ * "Searched issues", or "Searched GitHub issues" once the app is known. Returns null when the
+ * leading word is not a verb we know, so an unfamiliar action keeps its plain label instead of
+ * reading as "Getted".
  *
  * `ours` opts into the platform glossary; leave it off for anything we did not name.
  */
-const conjugate = (label: string, ours = false): ToolActivity | null => {
+const conjugate = (label: string, ours = false): ActivityBuilder | null => {
     const [head, ...rest] = label.split(" ")
     const forms = VERB_FORMS[head?.toLowerCase() ?? ""]
     if (!forms) return null
     const object = rest.join(" ").trim()
-    if (!object) return forms
-    // A glossary term brings its own article; otherwise only a single bare word gets one.
-    const term = ours ? PLATFORM_TERMS[object.toLowerCase()] : undefined
-    const phrase =
-        term ??
-        (rest.length === 1 && !object.endsWith("s") ? `${article(object)} ${object}` : object)
-    return {running: `${forms.running} ${phrase}`, done: `${forms.done} ${phrase}`}
+    const say = (phrase: string): ToolActivity => ({
+        running: `${forms.running} ${phrase}`,
+        done: `${forms.done} ${phrase}`,
+    })
+    return (appName) => {
+        if (!object) return appName ? say(appName) : forms
+        // A glossary term brings its own article and never takes an app name: it is ours.
+        const term = ours ? PLATFORM_TERMS[object.toLowerCase()] : undefined
+        if (term) return say(term)
+        // The app modifies the object ("GitHub issues"), so a singular object takes its article
+        // from whichever word now comes first.
+        const phrase = appName ? `${appName} ${object}` : object
+        const bare = rest.length === 1 && !object.endsWith("s")
+        return say(bare ? `${article(appName ?? object)} ${phrase}` : phrase)
+    }
 }
 
 /**
@@ -207,9 +219,17 @@ interface ParsedShape {
     label: string
     source?: string
     sourceKey?: string
+    /** The app to name inside the sentence. Absent for our own tools and for the harness itself. */
+    appName?: string
     kind: ToolKind
-    activity?: ToolActivity
+    activity?: ActivityBuilder
 }
+
+/** A fixed sentence, for the families whose wording never names an app. */
+const fixed =
+    (activity: ToolActivity): ActivityBuilder =>
+    () =>
+        activity
 
 /** Our in-sandbox MCP server, wrapped as Claude `mcp__<server>__` / Codex `mcp.<server>.`. Only
  * a tool of ours may take the platform glossary. */
@@ -222,11 +242,14 @@ const parseMcpName = (raw: string, ours: boolean): ParsedShape => {
     const parts = raw.split(separator).filter(Boolean)
     const tool = parts[parts.length - 1]
     const server = parts.length >= 3 ? parts[1] : undefined
+    const serverLabel = server ? parseGatewayToolName(server).label : undefined
     const {label} = parseGatewayToolName(tool)
     return {
         label,
-        source: server ? `${parseGatewayToolName(server).label} · MCP` : "MCP",
+        source: serverLabel ? `${serverLabel} · MCP` : "MCP",
         sourceKey: server,
+        // Our own tools read as "Saved changes", never "Saved Agenta tools changes".
+        appName: ours ? undefined : serverLabel,
         kind: "mcp",
         activity: conjugate(label, ours) ?? undefined,
     }
@@ -249,6 +272,7 @@ const parseShape = (raw: string, input?: unknown): ParsedShape => {
             label: parsed.label,
             source: parsed.source,
             sourceKey: parsed.source ? sourceKeyOf(raw) : undefined,
+            appName: parsed.source,
             kind: parsed.source ? "gateway" : "platform",
             activity: conjugate(parsed.label) ?? undefined,
         }
@@ -261,27 +285,28 @@ const parseShape = (raw: string, input?: unknown): ParsedShape => {
         return {
             label: "Command",
             kind: "shell",
-            activity: {running: "Running a command", done: "Ran a command"},
+            activity: fixed({running: "Running a command", done: "Ran a command"}),
         }
     }
     if (CODEX_READ_TITLE.test(raw)) {
         return {
             label: "File",
             kind: "file",
-            activity: {running: "Reading a file", done: "Read a file"},
+            activity: fixed({running: "Reading a file", done: "Read a file"}),
         }
     }
     if (CODEX_LIST_TITLE.test(raw)) {
         return {
             label: "Files",
             kind: "file",
-            activity: {running: "Listing files", done: "Listed files"},
+            activity: fixed({running: "Listing files", done: "Listed files"}),
         }
     }
     if (!token) return {label: clamp(raw, 60), kind: "platform"}
     const parsed = parseGatewayToolName(raw)
     return {
         ...parsed,
+        appName: parsed.source,
         kind: parsed.source ? "gateway" : "platform",
         activity: conjugate(parsed.label, !parsed.source) ?? undefined,
     }
@@ -323,18 +348,30 @@ const toolDetail = (raw: string, input?: unknown): string | undefined => {
  * OSS `resolveToolDisplay` fallback chain: a registered entry overrides
  * label/source/kind/activity/summary piecewise; anything it doesn't override falls back to the
  * shape heuristics above. `input` is optional — omit it and you simply get no `detail`.
+ *
+ * `appName` names the app inside the sentence ("Searched GitHub issues"). The tool catalog holds
+ * the real name and answers asynchronously, so a skin resolves once without it, looks the app up
+ * by `sourceKey`, then resolves again with it. Left out, the name parsed off the wire is used.
  */
-export const resolveToolDisplay = (raw: string, input?: unknown): ResolvedToolDisplay => {
+export const resolveToolDisplay = (
+    raw: string,
+    input?: unknown,
+    appName?: string,
+): ResolvedToolDisplay => {
     const override = store.toolDisplay[raw]
     const parsed = parseShape(raw, input)
     const label = override?.label ?? parsed.label
+    const app = appName ?? parsed.appName
+    // Naming the app inside the sentence retires the chip; without a sentence the chip still
+    // carries the provenance on its own.
+    const folded = Boolean(parsed.activity && app && !override?.activity)
     return {
         raw,
         kind: override?.kind ?? parsed.kind,
         label,
-        source: override?.source ?? parsed.source,
+        source: override?.source ?? (folded ? undefined : (appName ?? parsed.source)),
         sourceKey: parsed.sourceKey,
-        activity: override?.activity ?? parsed.activity ?? {running: label, done: label},
+        activity: override?.activity ?? parsed.activity?.(app) ?? {running: label, done: label},
         detail: toolDetail(raw, input),
         summary: override?.summary,
     }

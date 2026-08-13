@@ -154,24 +154,24 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
 }
 
 /**
- * The app a tool belongs to. A gateway tool gets its real catalog name ("GitHub", "Google Drive");
- * the wire name only supports title case, which gets both wrong. Everything else — MCP servers,
- * platform tools — keeps the name parsed off the wire, since they are not catalog integrations.
+ * Resolve a tool for display, naming its app from the tool catalog once that answers.
  *
- * Passing "" disables the query (`enabled: !!integrationKey`), so non-gateway rows never fetch.
+ * The resolver is pure and synchronous, so this resolves twice: once to learn the integration slug,
+ * then again with the real app name ("GitHub", not the title-cased "Github"). Only gateway tools are
+ * catalog integrations; passing "" disables the query, so nothing else fetches.
  */
-const useToolSourceName = (display: ToolDisplay | null): string | undefined => {
-    const key = display?.kind === "gateway" ? (display.sourceKey ?? "") : ""
+const useToolDisplay = (name: string, input: unknown): ToolDisplay => {
+    const base = resolveToolDisplay(name, input)
+    const key = base.kind === "gateway" ? (base.sourceKey ?? "") : ""
     const {integration} = useToolIntegrationDetail(key)
-    return integration?.name ?? display?.source
+    return integration?.name ? resolveToolDisplay(name, input, integration.name) : base
 }
 
 const ToolSource = ({display}: {display: ToolDisplay}) => {
-    const name = useToolSourceName(display)
-    if (!name) return null
+    if (!display.source) return null
     return (
         <Text type="secondary" className="!text-xs shrink-0 whitespace-nowrap">
-            {name}
+            {display.source}
         </Text>
     )
 }
@@ -207,7 +207,7 @@ const ToolRow = ({
     const state = part.state as string
     const input = (part as {input?: unknown}).input
     // Plain-English sentence in both modes; the raw wire name stays reachable in the expander.
-    const display = resolveToolDisplay(name, input)
+    const display = useToolDisplay(name, input)
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
     const nonFinalError = state === "output-error" && isNonFinalRunnerError(errorText)
@@ -363,11 +363,11 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
 
     // Resolved above the live branch below: the collapsed line needs it, and hooks cannot sit
     // after an early return.
-    const single =
-        parts.length === 1
-            ? resolveToolDisplay(partToolName(parts[0]), (parts[0] as {input?: unknown}).input)
-            : null
-    const singleSource = useToolSourceName(single)
+    const first = parts[0]
+    const single = useToolDisplay(
+        parts.length === 1 ? partToolName(first) : "",
+        parts.length === 1 ? (first as {input?: unknown}).input : undefined,
+    )
 
     // ---- Live: the gutter timeline while tools are in flight ----
     if (live) {
@@ -401,14 +401,11 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
     const count = parts.length
     // One tool speaks for itself ("Tested the agent"); a run of them only gets a count. A cold
     // replay can land here with the call still unsettled, so the tense follows the part.
-    const singleActivity = single
-        ? hasLanded(parts[0])
-            ? single.activity.done
-            : single.activity.running
-        : ""
-    const label = single
-        ? `${singleActivity}${singleSource ? ` · ${singleSource}` : ""}`
-        : `Used ${count} tools`
+    const singleActivity = hasLanded(first) ? single.activity.done : single.activity.running
+    const label =
+        count === 1
+            ? `${singleActivity}${single.source ? ` · ${single.source}` : ""}`
+            : `Used ${count} tools`
     const SummaryIcon = failed > 0 ? Warning : CheckCircle
 
     return (
