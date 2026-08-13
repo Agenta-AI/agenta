@@ -1,3 +1,5 @@
+import type {Key} from "react"
+
 import {ObservabilityTracesTable} from "@agenta/observability-ui"
 
 import {ObservabilityEmpty, ObservabilityListSkeleton} from "./states/ObservabilityStates"
@@ -5,14 +7,25 @@ import {ObservabilityEmpty, ObservabilityListSkeleton} from "./states/Observabil
 /**
  * The traces table — the SAME component web/oss renders, through the SAME shell.
  *
- * No explicit height: the shell's `autoHeight` fills the flex parent, which is what web/oss
- * relies on too. Passing one made the body a fixed few hundred pixels with dead space below.
+ * The shell owns sizing (`autoHeight` fills the flex parent), so nothing is threaded through
+ * here; passing a height once made the body a fixed few hundred pixels with dead space below.
  */
-export const TracesTable = () => (
+export const TracesTable = ({
+    selectedRowKeys,
+    onSelectionChange,
+}: {
+    selectedRowKeys: Key[]
+    onSelectionChange: (keys: Key[]) => void
+}) => (
     <ObservabilityTracesTable
         className="min-h-0 flex-1"
         loadingState={<ObservabilityListSkeleton />}
         emptyState={<ObservabilityEmpty />}
+        rowSelection={{
+            type: "checkbox",
+            selectedRowKeys,
+            onChange: (keys) => onSelectionChange(keys),
+        }}
     />
 )
 

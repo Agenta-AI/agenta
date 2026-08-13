@@ -1,3 +1,4 @@
+import type {Key} from "react"
 import {useCallback, useRef, useState} from "react"
 
 import {useObservability, useSessions} from "@agenta/observability"
@@ -18,6 +19,7 @@ import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
 import {TracesList} from "./TracesList"
 import {TracesTable} from "./TracesTable"
+import {useTracesExportBinding} from "./useTracesExportBinding"
 
 type ObservabilityTab = "traces" | "sessions"
 
@@ -75,6 +77,9 @@ export const ObservabilityScreen = ({
     const {refetchSessions} = useSessions()
 
     // Swallow the refetch results: the toolbar only needs the promise to settle.
+    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+    const {onExport, isExporting} = useTracesExportBinding()
+
     const onRefresh = useCallback(async () => {
         if (tab === "traces") await fetchTraces()
         else await refetchSessions()
@@ -108,6 +113,8 @@ export const ObservabilityScreen = ({
                             onRefresh={onRefresh}
                             sortSlot={<ObservabilityRangePicker />}
                             filtersSlot={tab === "traces" ? <TracesFilters /> : undefined}
+                            onExport={tab === "traces" ? onExport : undefined}
+                            isExporting={isExporting}
                         />
                         <div
                             ref={bodyRef}
@@ -130,7 +137,10 @@ export const ObservabilityScreen = ({
                                     <TracesList />
                                 </div>
                             ) : (
-                                <TracesTable />
+                                <TracesTable
+                                    selectedRowKeys={selectedRowKeys}
+                                    onSelectionChange={setSelectedRowKeys}
+                                />
                             )}
                         </div>
                     </PageLayout>
