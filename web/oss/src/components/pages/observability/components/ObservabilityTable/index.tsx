@@ -5,10 +5,10 @@ import {AUTO_REFRESH_INTERVAL} from "@agenta/observability-ui"
 import {
     getDefaultHiddenObservabilityColumnKeys,
     getObservabilityColumns,
+    ObservabilityTracesTable,
     type ObservabilityTraceRow as TraceRow,
 } from "@agenta/observability-ui"
-import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
-import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
+import type {TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -60,7 +60,6 @@ const ObservabilityTable = () => {
     const store = useStore()
     const {
         traces,
-        traceCount,
         isLoading,
         traceTabs,
         selectedTraceId,
@@ -72,9 +71,6 @@ const ObservabilityTable = () => {
         selectedNode,
         setSelectedNode,
         activeTrace,
-        fetchMoreTraces,
-        hasMoreTraces,
-        isFetchingMore,
         autoRefresh,
         fetchAnnotations,
         resetTracePages,
@@ -249,23 +245,6 @@ const ObservabilityTable = () => {
     const showTableLoading = isLoading && traces.length === 0
     const showOnboarding = isNewUser && !hasReceivedTraces
 
-    // Build pagination object expected by InfiniteVirtualTableFeatureShell
-    const pagination: TableFeaturePagination<TraceRow> = useMemo(
-        () => ({
-            rows: traces as TraceRow[],
-            loadNextPage: () => fetchMoreTraces(),
-            resetPages: resetTracePages,
-            paginationInfo: {
-                hasMore: hasMoreTraces,
-                nextCursor: null,
-                nextOffset: null,
-                isFetching: isFetchingMore,
-                totalCount: traceCount,
-            },
-        }),
-        [traces, fetchMoreTraces, resetTracePages, hasMoreTraces, isFetchingMore, traceCount],
-    )
-
     useEffect(() => {
         if (onboardingStorageUserId && traces.length > 0 && !hasReceivedTraces) {
             setHasReceivedTraces(true)
@@ -286,11 +265,9 @@ const ObservabilityTable = () => {
             ) : (
                 // The empty state renders INSIDE the table rather than replacing it, so the
                 // header and its controls stay put instead of vanishing with the rows.
-                <InfiniteVirtualTableFeatureShell<TraceRow>
+                <ObservabilityTracesTable
                     tableScope={tableScope}
-                    columns={columns}
-                    rowKey={(record) => record.span_id || record.key || ""}
-                    pagination={pagination}
+                    evaluatorSlugs={evaluatorSlugs}
                     resizableColumns
                     enableExport={false}
                     useSettingsDropdown={false}
@@ -309,7 +286,7 @@ const ObservabilityTable = () => {
                         loading: showTableLoading,
                         sticky: true,
                         style: {cursor: "pointer"},
-                        onRow: (record, index) => ({
+                        onRow: (record: TraceRow, index?: number) => ({
                             onClick: () => handleTraceRowClick(record),
                             "data-tour": index === 0 ? "trace-row" : undefined,
                         }),
