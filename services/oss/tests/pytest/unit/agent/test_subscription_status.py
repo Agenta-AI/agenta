@@ -179,6 +179,87 @@ async def test_only_known_provider_families_reach_the_card(
 
 
 @pytest.mark.parametrize(
+    "provider,expected",
+    [
+        ("openai", "openai"),
+        ("anthropic", "anthropic"),
+        ("quokka-ai", None),  # a family the card cannot render
+        ("/home/agent/.codex/auth.json", None),  # a path, not a family
+        ("sk-proj-abc123", None),  # a credential, not a family
+        (7, None),  # not a string
+        ({"name": "openai"}, None),  # not a string
+    ],
+)
+async def test_only_known_provider_families_reach_the_card_singular(
+    monkeypatch, provider, expected
+):
+    """`provider` is closed exactly like `providers`: the card draws this family too."""
+    _mock_runner(
+        monkeypatch,
+        _responds(
+            200,
+            json_body={
+                "version": 1,
+                "harnesses": {"codex": {"state": "ready", "provider": provider}},
+            },
+        ),
+    )
+
+    status = await runtime_status.fetch_subscription_status()
+
+    # The entry survives either way: an unreadable extra never costs the state.
+    assert status.harnesses["codex"].state == "ready"
+    assert status.harnesses["codex"].provider == expected
+
+
+async def test_only_known_harnesses_become_response_keys(monkeypatch):
+    """Map keys are runner-controlled too, so they are allow-listed like the values."""
+    _mock_runner(
+        monkeypatch,
+        _responds(
+            200,
+            json_body={
+                "version": 1,
+                "harnesses": {
+                    "codex": {"state": "ready", "provider": "openai"},
+                    # A harness a newer runner invents, and three shapes of runner leakage.
+                    "quokka": {"state": "ready"},
+                    "/home/agent/.codex/auth.json": {"state": "ready"},
+                    "sk-proj-abc123": {"state": "ready"},
+                    "acme-corp@example.com": {"state": "ready"},
+                },
+            },
+        ),
+    )
+
+    status = await runtime_status.fetch_subscription_status()
+
+    assert set(status.harnesses) == {"codex"}
+    assert status.harnesses["codex"].state == "ready"
+
+
+async def test_the_harness_map_cannot_grow_past_the_known_harnesses(monkeypatch):
+    """Closing the key set caps the map, whatever the runner sends."""
+    _mock_runner(
+        monkeypatch,
+        _responds(
+            200,
+            json_body={
+                "version": 1,
+                "harnesses": {
+                    f"harness-{index}": {"state": "ready"} for index in range(5000)
+                },
+            },
+        ),
+    )
+
+    status = await runtime_status.fetch_subscription_status()
+
+    assert status.harnesses == {}
+    assert len(status.harnesses) <= len(runtime_status.KNOWN_HARNESSES)
+
+
+@pytest.mark.parametrize(
     "exception",
     [
         httpx.ConnectError("connection refused"),

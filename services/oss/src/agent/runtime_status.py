@@ -53,6 +53,12 @@ HARNESS_STATES = frozenset(
 # the list's length — a runner cannot push an unbounded array through this field.
 PROVIDER_FAMILIES = frozenset({"openai", "anthropic"})
 
+# The harnesses this service will name in a response. Keys arrive from the runner and become
+# object keys in the browser's JSON, so they are allow-listed like every other runner-controlled
+# word here. Closing the set also caps the map: a runner cannot push more entries than there are
+# known harnesses, whatever it sends.
+KNOWN_HARNESSES = frozenset(kind.value for kind in HarnessKind)
+
 # This is deployment state behind a UI poll, not a run: fail fast instead of holding the
 # request open on an unreachable runner.
 _TIMEOUT_SECONDS = 3.0
@@ -72,6 +78,18 @@ class HarnessStatus(BaseModel):
     # A harness whose login file can hold several plans (Pi) names the families it holds; the
     # single-provider harnesses use `provider` instead and leave this out.
     providers: Optional[List[str]] = None
+
+    @field_validator("provider", mode="before")
+    @classmethod
+    def _known_family(cls, value: Any) -> Optional[str]:
+        """Same closed set as `providers`, for the same reason: the card draws this family.
+
+        An unrenderable family is dropped rather than failing the entry — the state word is the
+        part the card needs, and it is still good.
+        """
+        if isinstance(value, str) and value in PROVIDER_FAMILIES:
+            return value
+        return None
 
     @field_validator("providers", mode="before")
     @classmethod
@@ -131,6 +149,8 @@ def _normalized_harnesses(raw: Dict[str, Any]) -> Dict[str, HarnessStatus]:
     """
     harnesses: Dict[str, HarnessStatus] = {}
     for name, entry in raw.items():
+        if name not in KNOWN_HARNESSES:
+            continue
         try:
             status = HarnessStatus.model_validate(entry)
         except ValueError:
