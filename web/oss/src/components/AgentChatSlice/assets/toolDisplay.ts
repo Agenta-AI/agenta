@@ -24,8 +24,9 @@ export interface ToolDisplay {
     label: string
     /** Where the tool comes from ("Gmail", "Linear · MCP"), derived from the name alone. */
     source?: string
-    /** The integration slug ("github"). Look it up in the tool catalog for the real app name —
-     * the wire name only supports title case, which gets "Github" wrong. */
+    /** A tool-catalog integration slug ("github"), when this tool has one. Look it up for the real
+     * app name — the wire name only supports title case, which gets "Github" wrong. An MCP server
+     * name is not a catalog slug, so MCP tools leave this unset. */
     sourceKey?: string
     /** The wire name — always kept reachable (tooltips, Build mode, traces). */
     raw: string
@@ -42,12 +43,67 @@ interface ToolDisplayOverride {
     label?: string
     source?: string
     kind?: ToolKind
-    activity?: ToolActivity
+    /** A function when the sentence names an app; it receives the app's real name, or undefined
+     * before the catalog answers. */
+    activity?: ToolActivity | ((appName?: string) => ToolActivity)
+    /** Reads a tool-catalog integration slug out of the call itself, for a tool whose app is named
+     * in its arguments or in what came back rather than in its wire name. */
+    appSlug?: (input: unknown, output: unknown) => string | undefined
+    /** Reads a gateway ACTION token out of what came back, for a tool that reports another tool.
+     * Its wording is then derived exactly as that tool's own row would derive it. */
+    foundAction?: (input: unknown, output: unknown) => string | undefined
     summary?: (input: unknown, output: unknown) => string | null
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     Boolean(value && typeof value === "object" && !Array.isArray(value))
+
+const stringAt = (value: unknown): string | undefined =>
+    typeof value === "string" && value ? value : undefined
+
+/** A tool result, which reaches the FE either parsed or still JSON-encoded. */
+const asRecord = (output: unknown): Record<string, unknown> | undefined => {
+    if (isRecord(output)) return output
+    if (typeof output !== "string" || !output.trim().startsWith("{")) return undefined
+    try {
+        const parsed: unknown = JSON.parse(output)
+        return isRecord(parsed) ? parsed : undefined
+    } catch {
+        return undefined
+    }
+}
+
+/** The first capability `discover_tools` resolved to a tool. */
+const firstCapability = (output: unknown): Record<string, unknown> | undefined => {
+    const capabilities = asRecord(output)?.capabilities
+    if (!Array.isArray(capabilities)) return undefined
+    return capabilities.find(
+        (capability) =>
+            isRecord(capability) &&
+            (stringAt(capability.integration) ||
+                (isRecord(capability.tool) && stringAt(capability.tool.integration))),
+    ) as Record<string, unknown> | undefined
+}
+
+/** The integration `discover_tools` matched. */
+const firstCapabilityIntegration = (output: unknown): string | undefined => {
+    const capability = firstCapability(output)
+    if (!capability) return undefined
+    return (
+        stringAt(capability.integration) ??
+        (isRecord(capability.tool) ? stringAt(capability.tool.integration) : undefined)
+    )
+}
+
+/**
+ * The ACTION half of the matched tool's name (`EVENTS_LIST`), which the API splits off the provider
+ * slug — the same token a gateway wire name carries, so it describes the tool the same way the row
+ * that later runs it will.
+ */
+const firstCapabilityAction = (output: unknown): string | undefined => {
+    const tool = firstCapability(output)?.tool
+    return isRecord(tool) ? stringAt(tool.action) : undefined
+}
 
 /** Our in-sandbox MCP server (runner: `INTERNAL_TOOL_MCP_SERVER_NAME`). */
 const INTERNAL_MCP_SERVER = "agenta-tools"
@@ -96,9 +152,20 @@ const BY_TOOL_NAME: Record<string, ToolDisplayOverride> = {
     },
     // "Tested a run" misses the point — the run IS the agent under test.
     test_run: {activity: {running: "Testing the agent", done: "Tested the agent"}},
-    // These two prompt the user, so they are written from the reader's side, not the agent's.
+    // A tool search reports which tool it landed on. That name is worth far more than the keywords
+    // it searched with, which are model-written and shapeless.
+    discover_tools: {
+        appSlug: (_input, output) => firstCapabilityIntegration(output),
+        foundAction: (_input, output) => firstCapabilityAction(output),
+    },
+    // These two prompt the user, so they are written from the reader's side, not the agent's. The
+    // running form says the run is blocked on the reader, which "Asking" left implicit.
     request_connection: {
-        activity: {running: "Asking you to connect an app", done: "Asked you to connect an app"},
+        appSlug: (input) => (isRecord(input) ? stringAt(input.integration) : undefined),
+        activity: (app) => ({
+            running: `Waiting for you to connect ${app ?? "an app"}`,
+            done: `Asked you to connect ${app ?? "an app"}`,
+        }),
     },
     request_input: {activity: {running: "Asking you for details", done: "Asked you for details"}},
 
@@ -131,7 +198,7 @@ const VERB_FORMS: Record<string, ToolActivity> = {
     copy: {running: "Copying", done: "Copied"},
     create: {running: "Creating", done: "Created"},
     delete: {running: "Deleting", done: "Deleted"},
-    discover: {running: "Looking for", done: "Searched for"},
+    discover: {running: "Searching for", done: "Searched for"},
     download: {running: "Downloading", done: "Downloaded"},
     fetch: {running: "Fetching", done: "Fetched"},
     find: {running: "Finding", done: "Found"},
@@ -163,6 +230,8 @@ const VERB_FORMS: Record<string, ToolActivity> = {
 /** Our internal nouns in the product's words, article included. Ours only: a Stripe subscription
  * is a subscription, not a trigger. */
 const PLATFORM_TERMS: Record<string, string> = {
+    // A session has exactly one agent, so it is "the agent", never "an agent".
+    agent: "the agent",
     config: "the agent's setup",
     revision: "changes",
     session: "this chat",
@@ -202,19 +271,141 @@ interface BuiltActivity {
     namedApp: boolean
 }
 
+const ARTICLES = new Set(["a", "an", "the"])
+
+/**
+ * The verb in an action name and what it acts on.
+ *
+ * Verb-first is the common shape ("Send message"), but plenty of catalog actions are noun-first
+ * ("Events list", "Emails fetch"), which used to read with no tense at all.
+ */
+const splitVerb = (label: string): {verb: string; forms: ToolActivity; rest: string[]} | null => {
+    const words = label.split(" ").filter(Boolean)
+    if (!words.length) return null
+    const first = words[0].toLowerCase()
+    if (VERB_FORMS[first]) return {verb: first, forms: VERB_FORMS[first], rest: words.slice(1)}
+    if (words.length < 2) return null
+    const last = words[words.length - 1].toLowerCase()
+    if (!VERB_FORMS[last]) return null
+    // The label is title-cased, so its first word carries a capital it only had for leading the
+    // phrase. Mid-sentence ("Checked Google Calendar Events") that capital is wrong.
+    const rest = [words[0].toLowerCase(), ...words.slice(1, -1)]
+    return {verb: last, forms: VERB_FORMS[last], rest}
+}
+
+/**
+ * Verbs a search query may lend to the sentence, so a run of searches does not read as eight
+ * identical rows: "list google calendar settings" becomes "Checked google calendar settings".
+ *
+ * Read-only on purpose. A query is what the agent looked for, not what it did — lending "send"
+ * would have a row that only searched a catalog claim it sent something.
+ */
+const QUERY_VERBS = new Set([
+    "check",
+    "discover",
+    "fetch",
+    "find",
+    "get",
+    "list",
+    "query",
+    "read",
+    "search",
+])
+
+/** The query's own verb and what follows it, when it leads with one we are willing to borrow. */
+const lendVerb = (query: string): {forms: ToolActivity; object: string} | null => {
+    const [head, ...rest] = query.split(" ")
+    const key = head?.toLowerCase() ?? ""
+    if (!QUERY_VERBS.has(key)) return null
+    const forms = VERB_FORMS[key]
+    const object = rest.join(" ").trim()
+    if (!forms || !object) return null
+    return {forms, object}
+}
+
+/**
+ * How much of a query survives beside a named app. The app carries the identity, so the rest is a
+ * qualifier — and a model writes these as keyword salad ("events date range"), which reads worse
+ * the longer it runs.
+ */
+const QUERY_TAIL_WORDS = 2
+
+/** Words that cannot end a phrase. Cutting a keyword list at a fixed length lands on one often
+ * enough ("activities for", "top stories of") that it is worth dropping them. */
+const DANGLING_WORDS = new Set([
+    "a",
+    "an",
+    "and",
+    "at",
+    "by",
+    "for",
+    "from",
+    "in",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "with",
+])
+
+/** The query beside a named app: its own name dropped, then trimmed to a short qualifier. */
+const qualifierFor = (query: string, appName: string): string => {
+    const appWords = new Set(appName.toLowerCase().split(/\s+/).filter(Boolean))
+    const squashed = appName.toLowerCase().replace(/[^a-z0-9]/g, "")
+    const words = query.split(/\s+/).filter(Boolean)
+    let start = 0
+    while (start < words.length) {
+        const word = words[start].toLowerCase()
+        if (
+            !appWords.has(word) &&
+            !(word.length >= SLUG_ECHO_MIN_LENGTH && squashed.includes(word))
+        )
+            break
+        start += 1
+    }
+    const tail = words.slice(start, start + QUERY_TAIL_WORDS)
+    while (tail.length && DANGLING_WORDS.has(tail[tail.length - 1].toLowerCase())) tail.pop()
+    return tail.join(" ")
+}
+
 /**
  * "Search issues" → "Searched issues", or "Searched GitHub issues" once the app is known. Null
  * when the leading word is not a known verb. `ours` opts into the platform glossary.
  */
-const conjugate = (label: string, ours: boolean, appName?: string): BuiltActivity | null => {
-    const [head, ...rest] = label.split(" ")
-    const forms = VERB_FORMS[head?.toLowerCase() ?? ""]
-    if (!forms) return null
+const conjugate = (
+    label: string,
+    ours: boolean,
+    appName?: string,
+    query?: string,
+): BuiltActivity | null => {
+    const split = splitVerb(label)
+    if (!split) return null
+    const {forms, rest} = split
     const object = rest.join(" ").trim()
     const say = (phrase: string): ToolActivity => ({
         running: `${forms.running} ${phrase}`,
         done: `${forms.done} ${phrase}`,
     })
+    // A search says what it looked for, so the query stands in for the object entirely:
+    // "Searched for tools" + "send email" reads "Searched for send email". The verb carries its own
+    // preposition where it has one ("Searched for", "Looked through"); otherwise add one.
+    if (query) {
+        const lent = lendVerb(query)
+        const verb = lent?.forms ?? forms
+        const asked = lent?.object ?? query
+        // Once the app is known it becomes the subject and the query is trimmed to a qualifier;
+        // until then the whole query is all the row has to show.
+        const phrase = appName
+            ? [appName, qualifierFor(asked, appName)].filter(Boolean).join(" ")
+            : lent || /\b(for|through|at|in|on)$/.test(verb.done)
+              ? asked
+              : `for ${asked}`
+        return {
+            activity: {running: `${verb.running} ${phrase}`, done: `${verb.done} ${phrase}`},
+            namedApp: Boolean(appName),
+        }
+    }
     if (!object) {
         return appName
             ? {activity: say(appName), namedApp: true}
@@ -223,13 +414,18 @@ const conjugate = (label: string, ours: boolean, appName?: string): BuiltActivit
     // A glossary term brings its own article and never takes an app name: it is ours.
     const term = ours ? PLATFORM_TERMS[object.toLowerCase()] : undefined
     if (term) return {activity: say(term), namedApp: false}
-    const app = appName && !echoesApp(object, appName) ? appName : undefined
-    // The app modifies the object, so a singular object takes its article from whichever word
-    // now comes first.
-    const phrase = app ? `${app} ${object}` : object
-    const bare = rest.length === 1 && !object.endsWith("s")
+    // An article the action name already carries ("Create an issue") has to come off before the app
+    // goes in front of the noun, or it lands mid-phrase ("Created GitHub an issue").
+    const words = object.split(" ")
+    const carried = ARTICLES.has(words[0]?.toLowerCase() ?? "")
+    const noun = (carried ? words.slice(1) : words).join(" ")
+    if (!noun) return {activity: say(object), namedApp: false}
+    const app = appName && !echoesApp(noun, appName) ? appName : undefined
+    // The app modifies the noun, so the article is chosen for whichever word now comes first.
+    const phrase = app ? `${app} ${noun}` : noun
+    const single = carried || (words.length === 1 && !noun.endsWith("s"))
     return {
-        activity: say(bare ? `${article(app ?? object)} ${phrase}` : phrase),
+        activity: say(single ? `${article(app ?? noun)} ${phrase}` : phrase),
         namedApp: Boolean(app),
     }
 }
@@ -263,7 +459,12 @@ interface ParsedShape {
     activity?: BuiltActivity
 }
 
-const parseMcpName = (raw: string, ours: boolean, appName?: string): ParsedShape => {
+const parseMcpName = (
+    raw: string,
+    ours: boolean,
+    appName?: string,
+    query?: string,
+): ParsedShape => {
     const separator = raw.startsWith("mcp__") ? "__" : "."
     const parts = raw.split(separator).filter(Boolean)
     const tool = parts[parts.length - 1]
@@ -273,9 +474,11 @@ const parseMcpName = (raw: string, ours: boolean, appName?: string): ParsedShape
     return {
         label,
         source: serverLabel ? `${serverLabel} · MCP` : "MCP",
-        sourceKey: server,
+        // No sourceKey: an MCP server is not a tool-catalog integration, so there is nothing to
+        // look up and the row must not pay for a query.
         kind: "mcp",
-        activity: conjugate(label, ours, ours ? undefined : (appName ?? serverLabel)) ?? undefined,
+        activity:
+            conjugate(label, ours, ours ? undefined : (appName ?? serverLabel), query) ?? undefined,
     }
 }
 
@@ -296,8 +499,9 @@ const parseShape = (
     wrapped: boolean,
     appName?: string,
 ): ParsedShape => {
+    const query = queryFor(input)
     const token = isTokenName(raw)
-    if (token && /^mcp(__|\.)/.test(raw)) return parseMcpName(raw, wrapped, appName)
+    if (token && /^mcp(__|\.)/.test(raw)) return parseMcpName(raw, wrapped, appName, query)
     if (token && raw.includes("__")) {
         const parsed = parseGatewayToolName(raw)
         return {
@@ -305,7 +509,7 @@ const parseShape = (
             source: parsed.source,
             sourceKey: parsed.source ? sourceKeyOf(raw) : undefined,
             kind: parsed.source ? "gateway" : "platform",
-            activity: conjugate(parsed.label, false, appName ?? parsed.source) ?? undefined,
+            activity: conjugate(parsed.label, false, appName ?? parsed.source, query) ?? undefined,
         }
     }
     // Codex titles a shell call with the command itself, so its "name" is not an identifier — the
@@ -342,7 +546,8 @@ const parseShape = (
     return {
         ...parsed,
         kind: parsed.source ? "gateway" : "platform",
-        activity: conjugate(parsed.label, !parsed.source, appName ?? parsed.source) ?? undefined,
+        activity:
+            conjugate(parsed.label, !parsed.source, appName ?? parsed.source, query) ?? undefined,
     }
 }
 
@@ -369,6 +574,27 @@ const basename = (path: string): string => path.split("/").filter(Boolean).pop()
 /** Path-ish argument keys, in the order the harnesses prefer them. */
 const PATH_KEYS = ["file_path", "filePath", "path", "notebook_path"]
 
+/** Arguments naming what was looked for. Joined with a colon rather than a preposition: the text
+ * is model-authored and may be a phrase or a bare noun, and a colon claims nothing about which. */
+const QUERY_KEYS = ["use_cases", "query", "keywords", "search"]
+
+/** What the call was looking for, or "" when it was not a search. */
+const queryFor = (input: unknown): string => {
+    if (!isRecord(input)) return ""
+    for (const key of QUERY_KEYS) {
+        const text = queryText(input[key])
+        if (text) return clamp(text, 48)
+    }
+    return ""
+}
+
+/** A query argument as one line: a plain string, or a list joined. */
+const queryText = (value: unknown): string => {
+    if (typeof value === "string") return value
+    if (Array.isArray(value)) return value.filter((v) => typeof v === "string").join(", ")
+    return ""
+}
+
 /** The short technical string beside the sentence: a command, or a filename. */
 const toolDetail = (raw: string, input?: unknown): string | undefined => {
     if (isRecord(input)) {
@@ -378,6 +604,7 @@ const toolDetail = (raw: string, input?: unknown): string | undefined => {
             const value = input[key]
             if (typeof value === "string" && value) return clamp(basename(value), 48)
         }
+        // A regex is not prose, so it stays in the detail slot where monospace reads right.
         const pattern = input.pattern
         if (typeof pattern === "string" && pattern) return clamp(pattern, 48)
     }
@@ -389,16 +616,35 @@ const toolDetail = (raw: string, input?: unknown): string | undefined => {
 }
 
 /**
+ * How a tool another call merely *reported* reads, derived from its ACTION token exactly as its own
+ * row would derive it.
+ *
+ * Only read-only verbs are adopted, for the same reason a search query's verb is: the call found
+ * the tool, it did not run it, so "Sent a Gmail email" would be a false claim.
+ */
+const reportedActivity = (action: string, appName: string): BuiltActivity | null => {
+    const label = parseGatewayToolName(action).label
+    const split = splitVerb(label)
+    if (!split || !QUERY_VERBS.has(split.verb)) return null
+    return conjugate(label, false, appName)
+}
+
+/**
  * Resolve display info for a raw runtime tool name. Pure and total — never throws.
  *
- * `input` is optional: callers that only need a label (traces, approvals, permission prompts) may
- * omit it and simply get no `detail`.
+ * `input` and `output` are optional: callers that only need a label (traces, approvals, permission
+ * prompts) may omit them and simply get no `detail` and no app.
  *
  * `appName` names the app inside the sentence ("Searched GitHub issues"). The tool catalog holds
  * the real name and answers asynchronously, so a caller resolves once without it, looks the app up
- * by `sourceKey`, then resolves again with it. Left out, the name parsed off the wire is used.
+ * by `sourceKey`, then resolves again with it. Left out, the slug title-cased is used.
  */
-export const resolveToolDisplay = (raw: string, input?: unknown, appName?: string): ToolDisplay => {
+export const resolveToolDisplay = (
+    raw: string,
+    input?: unknown,
+    appName?: string,
+    output?: unknown,
+): ToolDisplay => {
     // Canonical for the override lookup, raw for the shape: the same platform tool must get its
     // wording under every harness, while a third-party MCP tool still reads as an MCP tool.
     const canonical = canonicalToolName(raw)
@@ -406,19 +652,35 @@ export const resolveToolDisplay = (raw: string, input?: unknown, appName?: strin
     // Our own tools carry no useful provenance — dropping the wrapper's chip makes one call read
     // identically under all three harnesses.
     const wrapped = canonical !== raw
+    // A tool that names its app in its own call. Until the catalog answers, the slug title-cased
+    // reads the way a gateway name does ("Googlecalendar", then "Google Calendar").
+    const argSlug = override?.appSlug?.(input, output)
+    const ownApp = argSlug ? (appName ?? parseGatewayToolName(argSlug).label) : undefined
     const parsed = parseShape(raw, input, wrapped, appName)
     const label = override?.label ?? parsed.label
-    const built = parsed.activity
+    // A reported tool describes the call better than the query that found it — but only once the
+    // catalog can spell its app.
+    const action = override?.foundAction?.(input, output)
+    const reported = action && appName ? reportedActivity(action, appName) : null
+    const built = reported ?? parsed.activity
+    const overrideActivity =
+        typeof override?.activity === "function" ? override.activity(ownApp) : override?.activity
     // Naming the app inside the sentence retires the chip. When the sentence declines the app (it
     // would stutter) or there is no sentence at all, the chip still carries the provenance.
-    const folded = Boolean(built?.namedApp && !override?.activity)
+    const folded =
+        (typeof override?.activity === "function" && Boolean(ownApp)) ||
+        Boolean(built?.namedApp && !override?.activity)
     return {
         raw,
         kind: override?.kind ?? parsed.kind,
         label,
         source: override?.source ?? (wrapped || folded ? undefined : (appName ?? parsed.source)),
-        sourceKey: wrapped ? undefined : parsed.sourceKey,
-        activity: override?.activity ?? built?.activity ?? {running: label, done: label},
+        sourceKey: argSlug ?? (wrapped ? undefined : parsed.sourceKey),
+        activity: overrideActivity ??
+            built?.activity ?? {
+                running: label,
+                done: label,
+            },
         detail: toolDetail(raw, input),
         summary: override?.summary,
     }
@@ -456,6 +718,13 @@ export const extractCallDescription = (input: unknown): CallDescription | null =
     if (points.length <= CALL_DESCRIPTION_MAX_LENGTH) return {text, truncated: false}
     return {text: points.slice(0, CALL_DESCRIPTION_MAX_LENGTH).join(""), truncated: true}
 }
+
+/**
+ * A tool sentence dropped into surrounding prose ("…before running a command"). The running form
+ * is a gerund phrase, so it only needs its leading capital removed.
+ */
+export const inSentence = (phrase: string): string =>
+    phrase ? phrase.charAt(0).toLowerCase() + phrase.slice(1) : phrase
 
 /** Wire name of a tool part. `dynamic-tool` carries it on `toolName`; typed parts encode it as
  * `tool-<name>`. */
