@@ -167,19 +167,46 @@ check. Read the code.
 The reachability check: every symbol any package introduced, grepped for callers
 outside its own module. Green merges have hidden disconnections twice.
 
-- [ ] The per-channel setup route reached by the web page, not only by a test.
-- [ ] The hosted install route **refusing** — not 500ing — when the deployment sets
-      no client credentials.
-- [ ] The two-source verification secret exercised by both a customer-owned and a
-      hosted connection. A branch taken one way only is a branch nobody tested.
-- [ ] A kind-level grant written by the form and read by `resolve`, end to end.
-- [ ] A bridge connection built through the **write path**, not seeded by a fixture,
-      delivering one reply. All three bridge defects so far hid behind a fixture that
-      inserted its row directly, so the suite proved the adapter and never the path.
-- [ ] The bridge's generated document reaching the create response. A secret shown
-      nowhere is a secret nobody can use.
-- [ ] The paste form rendering from the declaration rather than from hardcoded field
-      names.
+**All seven confirmed, and the sweep found nothing dead and nothing test-only.**
+Each was traced from a real entry point — a page, or a route the composition root
+mounts — never from a fixture. That is the first wave where this phase found no
+disconnection, which is worth stating plainly rather than assuming the check went
+soft: the guard added in CU-A is the reason the one that would have hidden here
+was caught a phase earlier instead.
+
+- [x] The per-channel setup route reached by the web page, not only by a test.
+      Settings page → the channels tab → the own-app section's setup query and
+      create action → the generated client → the handler → the service.
+- [x] The hosted install route **refusing** — not 500ing — when the deployment sets
+      no client credentials. It answers 404 with a reason, and the check runs before
+      any credential is read. The gate needs all three settings non-empty.
+- [x] The two-source verification secret exercised by both a customer-owned and a
+      hosted connection. Both call the real verification end to end rather than the
+      helper in isolation, and two negative paths are covered as well.
+- [x] A kind-level grant written by the form and read by `resolve`, end to end. The
+      form sends a kind and no space; the matching query is a real OR over the two.
+- [x] A bridge connection built through the **write path**, not seeded by a fixture,
+      delivering one reply. Write and read now agree on where `delivery_url` lives.
+      **The code is confirmed; the run is not** — these are the tests the deployment
+      has to execute, and they are counted below as unrun rather than as passing.
+- [x] The bridge's generated document reaching the create response. Confirmed to the
+      response and through the regenerated client, which was the half missing at the
+      merge: the API returned the document and no client type carried it.
+- [x] The paste form rendering from the declaration rather than from hardcoded field
+      names. No platform field name appears in any component in that folder.
+
+### What the merge is standing on
+
+| | |
+| --- | --- |
+| unit, api | 3051 passed, 8 skipped |
+| unit, web | 55 passed across 8 files |
+| typecheck | clean, both apps |
+| integration, channels | 65 collected, **0 run** |
+| acceptance, channels | 18 collected, **0 run** |
+
+The 83 unrun tests are the whole reason the deployment is a checkpoint activity and
+not a formality. Nothing about a seam is proven yet.
 
 ---
 
@@ -187,6 +214,17 @@ outside its own module. Green merges have hidden disconnections twice.
 
 The first integration run against a real stack found four defects after C4 and four
 more after C5. Budget for it rather than treating it as slack.
+
+**This wave arrives at the deployment with more unproven than the last two did.** 83
+tests are written and none has been run: the local stack carries a different branch's
+schema, so the channels tables do not exist in it. Every seam this wave built is
+unexercised — the setup write path, the direct message through the ingress, the bridge
+write path, and the in-process-versus-bridged comparison.
+
+**The single most likely failure, if one is to be bet on:** the org-wide install
+discriminator. Everything else in the wave has a real caller chain and a test on both
+branches. That one branch has never seen a real payload, and it fails as a bare 401
+that nothing reports.
 
 - [ ] The deployment needs a publicly reachable request URL. Slack cannot call a
       laptop, so the tunnel is part of the deployment and the setup page has to say
