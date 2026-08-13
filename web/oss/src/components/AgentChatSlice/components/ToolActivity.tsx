@@ -27,9 +27,14 @@ import {
 } from "../assets/toolDisplay"
 import {formatToolValue, stripFence} from "../assets/toolFormat"
 import {
-    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
-    DEFERRED_NOT_EXECUTED_PREFIX,
-} from "../assets/transcriptToMessages"
+    groupLabelText,
+    hasFailed,
+    isNonFinalRunnerError,
+    isNotHandledOutput,
+    isSettled,
+    partSentence,
+    rowSummary,
+} from "../assets/toolRow"
 import {
     expandedValueAtomFamily,
     setExpandedAtom,
@@ -38,96 +43,6 @@ import {
 } from "../state/expandState"
 
 const {Text} = Typography
-
-// A tool has finished when it produced output, errored, or was denied. Everything else
-// (preparing input, running, awaiting/just-answered an approval) is still in flight.
-const SETTLED = new Set(["output-available", "output-error", "output-denied"])
-const isSettled = (state: string) => SETTLED.has(state)
-
-const isDeferredError = (errorText: string | undefined): boolean =>
-    !!errorText && errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
-const isUnknownResultError = (errorText: string | undefined): boolean =>
-    !!errorText && errorText.startsWith(APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX)
-const isNonFinalRunnerError = (errorText: string | undefined): boolean =>
-    isDeferredError(errorText) || isUnknownResultError(errorText)
-
-/** Whether the call actually ran. Settled is not enough: a denial or a deferral never executed,
- * so neither may claim the past tense. */
-const hasLanded = (part: ToolUIPart): boolean => {
-    const state = part.state as string
-    if (state === "output-available") return true
-    return (
-        state === "output-error" && !isNonFinalRunnerError((part as {errorText?: string}).errorText)
-    )
-}
-
-const isNotHandledOutput = (output: unknown): boolean =>
-    !!output &&
-    typeof output === "object" &&
-    (output as {status?: unknown}).status === "not_handled"
-
-/** Parse a JSON object or array; undefined for anything else, so a sentence stays a sentence. */
-const parseJsonish = (text: string): unknown => {
-    if (!/^[[{]/.test(text)) return undefined
-    try {
-        const value = JSON.parse(text)
-        return value && typeof value === "object" ? value : undefined
-    } catch {
-        return undefined
-    }
-}
-
-/**
- * Derive a single human line from a tool's output. Output shape is arbitrary, so this stays
- * conservative: it recognises the common shapes and otherwise returns null (the row then shows
- * just the tool name + status). Never throws — the full payload lives in the trace drawer.
- */
-const summarizeOutput = (output: unknown): string | null => {
-    if (output == null) return null
-    if (Array.isArray(output)) {
-        return `${output.length} result${output.length === 1 ? "" : "s"}`
-    }
-    if (typeof output === "string") {
-        const s = stripFence(output).trim().replace(/\s+/g, " ")
-        if (!s) return null
-        // A serialised payload is data, not a sentence: read it as structure rather than spilling
-        // 80 characters of braces into the row.
-        const parsed = parseJsonish(s)
-        if (parsed !== undefined) return summarizeOutput(parsed)
-        return s.length > 80 ? `${s.slice(0, 80)}…` : s
-    }
-    if (typeof output === "object") {
-        const o = output as Record<string, unknown>
-        for (const k of ["summary", "result", "content", "text", "message", "title"]) {
-            const v = o[k]
-            if (typeof v === "string" && v.trim()) return summarizeOutput(v)
-        }
-        // Nothing readable in it. "3 fields" tells the reader nothing the checkmark hasn't.
-        return null
-    }
-    return String(output)
-}
-
-const rowSummary = (part: ToolUIPart, display?: ToolDisplay): string | null => {
-    if (part.state === "output-available") {
-        if (isNotHandledOutput(part.output)) return "not handled by this client"
-        // A registered per-tool summary wins; run it through the generic normalizer for the
-        // same whitespace/length clamp. Falls back to shape heuristics when it returns null.
-        const custom = display?.summary?.((part as {input?: unknown}).input, part.output)
-        if (typeof custom === "string" && custom.trim()) {
-            return summarizeOutput(custom) ?? summarizeOutput(part.output)
-        }
-        return summarizeOutput(part.output)
-    }
-    if (part.state === "output-error") {
-        const errorText = (part as {errorText?: string}).errorText
-        if (isDeferredError(errorText)) return "waiting on another approval"
-        if (isUnknownResultError(errorText)) return "approved, result unknown"
-        return "failed"
-    }
-    if (part.state === "output-denied") return "denied"
-    return null
-}
 
 /** Per-tool status glyph, shared by the live gutter and the expanded list. */
 const StatusIcon = ({part}: {part: ToolUIPart}) => {
@@ -154,17 +69,23 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
 }
 
 /**
- * Resolve a tool for display, naming its app from the tool catalog once that answers.
+ * Re-resolve a tool once the catalog names its app ("GitHub", not "Github").
  *
- * The resolver is pure and synchronous, so this resolves twice: once to learn the integration slug,
- * then again with the real app name ("GitHub", not the title-cased "Github"). Only gateway tools are
- * catalog integrations; passing "" disables the query, so nothing else fetches.
+ * Only tools with a catalog slug subscribe. Rows live inside a virtualized transcript and mount and
+ * unmount on every scroll, and this query carries an IndexedDB persister, so a subscription per row
+ * would charge every session for a lookup that almost none of them need.
  */
-const useToolDisplay = (name: string, input: unknown): ToolDisplay => {
-    const base = resolveToolDisplay(name, input)
-    const key = base.kind === "gateway" ? (base.sourceKey ?? "") : ""
-    const {integration} = useToolIntegrationDetail(key)
-    return integration?.name ? resolveToolDisplay(name, input, integration.name) : base
+const CatalogToolRow = ({base, ...props}: ToolRowProps & {base: ToolDisplay}) => {
+    const {integration} = useToolIntegrationDetail(base.sourceKey ?? "")
+    const display = integration?.name
+        ? resolveToolDisplay(
+              base.raw,
+              (props.part as {input?: unknown}).input,
+              integration.name,
+              (props.part as {output?: unknown}).output,
+          )
+        : base
+    return <ToolRowView {...props} display={display} />
 }
 
 const ToolSource = ({display}: {display: ToolDisplay}) => {
@@ -193,139 +114,186 @@ const IOBlock = ({label, value, danger}: {label: string; value: string; danger?:
     </div>
 )
 
-/** One tool row: humanized name + status + summary; Build rows expand to input/output blocks. */
-const ToolRow = ({
-    part,
-    live,
-    detailed = false,
-}: {
+interface ToolRowProps {
     part: ToolUIPart
     live: boolean
     detailed?: boolean
-}) => {
-    const name = partToolName(part)
-    const state = part.state as string
-    const input = (part as {input?: unknown}).input
-    // Plain-English sentence in both modes; the raw wire name stays reachable in the expander.
-    const display = useToolDisplay(name, input)
-    const output = (part as {output?: unknown}).output
-    const errorText = (part as {errorText?: string}).errorText
-    const nonFinalError = state === "output-error" && isNonFinalRunnerError(errorText)
-    // `approval-responded` is resolved (the user answered) — not "running". Its execution shows on
-    // a sibling part, so this must not spin forever (the cold-replay lingering-gate spinner).
-    const running =
-        !isSettled(state) && state !== "approval-requested" && state !== "approval-responded"
-    // Anything that hasn't executed reads in the present tense — running, gated, denied, deferred.
-    const shownName = hasLanded(part) ? display.activity.done : display.activity.running
-    // Status line: an approval marker, a live "running…", or the settled one-line summary.
-    const midText =
-        state === "approval-requested"
-            ? "Awaiting approval"
-            : state === "approval-responded"
-              ? (part as {approval?: {approved?: boolean}}).approval?.approved === false
-                  ? "denied"
-                  : "approved"
-              : live && running
-                ? "running…"
-                : rowSummary(part, display)
+}
 
-    // Track presence explicitly: a legit `null` output is real (don't hide it), and
-    // `output-available` with no `output` key must not open an empty expander.
-    const hasInput = input !== undefined
-    const hasOutput = state === "output-available" && output !== undefined
-    const hasError = errorText !== undefined
-    const hasIO = detailed && (hasInput || hasOutput || hasError)
-    // Default COLLAPSED: the inline Build step log stays a compact name+status timeline; the full
-    // per-tool input/output lives in the Turn Inspector. Click a row to expand its I/O in place.
-    // Persisted by tool-call id so the expanded state survives a Virtuoso unmount (scroll-off).
-    const rowKey = toolRowKey((part as {toolCallId?: string}).toolCallId ?? name)
-    const stored = useAtomValue(expandedValueAtomFamily(rowKey))
-    const setExpanded = useSetAtom(setExpandedAtom)
-    const open = stored ?? false
-    // The agent's own note about this call (R12). Always shown: explaining the call is its job.
-    const callDescription = extractCallDescription(input)
+/** One tool row: humanized name + status + summary; Build rows expand to input/output blocks. */
+const ToolRowView = memo(
+    ({part, live, detailed = false, display}: ToolRowProps & {display: ToolDisplay}) => {
+        const name = partToolName(part)
+        const state = part.state as string
+        const input = (part as {input?: unknown}).input
+        const output = (part as {output?: unknown}).output
+        const errorText = (part as {errorText?: string}).errorText
+        const nonFinalError = state === "output-error" && isNonFinalRunnerError(errorText)
+        // `approval-responded` is resolved (the user answered) — not "running". Its execution shows on
+        // a sibling part, so this must not spin forever (the cold-replay lingering-gate spinner).
+        const running =
+            !isSettled(state) && state !== "approval-requested" && state !== "approval-responded"
+        const shownName = partSentence(part, display)
+        // Status line: an approval marker, a live "running…", or the settled one-line summary.
+        const midText =
+            state === "approval-requested"
+                ? "Awaiting approval"
+                : state === "approval-responded"
+                  ? (part as {approval?: {approved?: boolean}}).approval?.approved === false
+                      ? "denied"
+                      : "approved"
+                  : live && running
+                    ? "running…"
+                    : rowSummary(part, display)
 
-    const header = (
-        <>
-            <StatusIcon part={part} />
-            {/* The sentence never yields: the detail and status beside it absorb the squeeze. */}
-            <Text className="!text-xs !font-medium max-w-full shrink-0 truncate" title={name}>
-                {shownName}
-            </Text>
-            {display.detail ? (
-                <Text
-                    type="secondary"
-                    className="!text-xs font-mono min-w-0 truncate"
-                    title={display.detail}
-                >
-                    {display.detail}
+        // Track presence explicitly: a legit `null` output is real (don't hide it), and
+        // `output-available` with no `output` key must not open an empty expander.
+        const hasInput = input !== undefined
+        const hasOutput = state === "output-available" && output !== undefined
+        const hasError = errorText !== undefined
+        const hasIO = detailed && (hasInput || hasOutput || hasError)
+        // Default COLLAPSED: the inline Build step log stays a compact name+status timeline; the full
+        // per-tool input/output lives in the Turn Inspector. Click a row to expand its I/O in place.
+        // Persisted by tool-call id so the expanded state survives a Virtuoso unmount (scroll-off).
+        const rowKey = toolRowKey((part as {toolCallId?: string}).toolCallId ?? name)
+        const stored = useAtomValue(expandedValueAtomFamily(rowKey))
+        const setExpanded = useSetAtom(setExpandedAtom)
+        const open = stored ?? false
+        // The agent's own note about this call (R12). Always shown: explaining the call is its job.
+        const callDescription = extractCallDescription(input)
+
+        const header = (
+            <>
+                <StatusIcon part={part} />
+                {/* The sentence never yields: the detail and status beside it absorb the squeeze. */}
+                <Text className="!text-xs max-w-full shrink-0 truncate" title={name}>
+                    {shownName}
                 </Text>
-            ) : null}
-            <ToolSource display={display} />
-            {midText ? (
-                <Text
-                    type={state === "output-error" && !nonFinalError ? "danger" : "secondary"}
-                    className="!text-xs min-w-0 truncate"
-                    title={typeof midText === "string" ? midText : undefined}
-                >
-                    {midText}
-                </Text>
-            ) : null}
-        </>
+                {display.detail ? (
+                    <Text
+                        type="secondary"
+                        className="!text-xs font-mono min-w-0 truncate"
+                        title={display.detail}
+                    >
+                        {display.detail}
+                    </Text>
+                ) : null}
+                <ToolSource display={display} />
+                {midText ? (
+                    <Text
+                        type={state === "output-error" && !nonFinalError ? "danger" : "secondary"}
+                        className="!text-xs min-w-0 truncate"
+                        title={typeof midText === "string" ? midText : undefined}
+                    >
+                        {midText}
+                    </Text>
+                ) : null}
+            </>
+        )
+
+        return (
+            <div className="flex min-w-0 flex-col py-1">
+                {hasIO ? (
+                    <button
+                        type="button"
+                        onClick={() => setExpanded({key: rowKey, value: !open})}
+                        aria-expanded={open}
+                        className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
+                    >
+                        <CaretRight
+                            size={11}
+                            weight="bold"
+                            className={`shrink-0 text-colorTextTertiary transition-transform ${
+                                open ? "rotate-90" : ""
+                            }`}
+                        />
+                        {header}
+                    </button>
+                ) : (
+                    <div className="flex min-w-0 items-center gap-2">{header}</div>
+                )}
+
+                {callDescription ? (
+                    <Text
+                        type="secondary"
+                        className="!text-xs mt-0.5 pl-[21px] italic leading-snug"
+                        title={callDescription.text}
+                    >
+                        {callDescription.text}
+                        {callDescription.truncated ? "… (shortened)" : ""}
+                    </Text>
+                ) : null}
+
+                {hasIO ? (
+                    <HeightCollapse open={open}>
+                        <div className="mt-1 flex min-w-0 flex-col gap-1.5 pl-[21px]">
+                            <IOBlock label="tool" value={display.raw} />
+                            {hasInput ? (
+                                <IOBlock label="input" value={formatToolValue(input)} />
+                            ) : null}
+                            {hasError ? (
+                                <IOBlock
+                                    label={nonFinalError ? "note" : "error"}
+                                    value={stripFence(errorText)}
+                                    danger={!nonFinalError}
+                                />
+                            ) : hasOutput ? (
+                                <IOBlock label="output" value={formatToolValue(output)} />
+                            ) : null}
+                        </div>
+                    </HeightCollapse>
+                ) : null}
+            </div>
+        )
+    },
+)
+ToolRowView.displayName = "ToolRowView"
+
+/**
+ * A tool row, resolved purely unless the tool has a catalog app.
+ *
+ * The split is the point: only the catalog branch mounts the query, so a transcript of shell, file
+ * and platform calls subscribes to nothing.
+ */
+const ToolRow = (props: ToolRowProps) => {
+    const base = resolveToolDisplay(
+        partToolName(props.part),
+        (props.part as {input?: unknown}).input,
+        undefined,
+        (props.part as {output?: unknown}).output,
     )
+    if (base.sourceKey) return <CatalogToolRow {...props} base={base} />
+    return <ToolRowView {...props} display={base} />
+}
 
-    return (
-        <div className="flex min-w-0 flex-col py-1">
-            {hasIO ? (
-                <button
-                    type="button"
-                    onClick={() => setExpanded({key: rowKey, value: !open})}
-                    aria-expanded={open}
-                    className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
-                >
-                    <CaretRight
-                        size={11}
-                        weight="bold"
-                        className={`shrink-0 text-colorTextTertiary transition-transform ${
-                            open ? "rotate-90" : ""
-                        }`}
-                    />
-                    {header}
-                </button>
-            ) : (
-                <div className="flex min-w-0 items-center gap-2">{header}</div>
-            )}
+/** The collapsed line: one tool speaks for itself, a run of them only gets a count. */
+const GroupLabel = ({parts}: {parts: ToolUIPart[]}) => {
+    if (parts.length !== 1) return <>{`Used ${parts.length} tools`}</>
+    return <SingleGroupLabel part={parts[0]} />
+}
 
-            {callDescription ? (
-                <Text
-                    type="secondary"
-                    className="!text-xs mt-0.5 pl-[21px] italic leading-snug"
-                    title={callDescription.text}
-                >
-                    {callDescription.text}
-                    {callDescription.truncated ? "… (shortened)" : ""}
-                </Text>
-            ) : null}
-
-            {hasIO ? (
-                <HeightCollapse open={open}>
-                    <div className="mt-1 flex min-w-0 flex-col gap-1.5 pl-[21px]">
-                        <IOBlock label="tool" value={display.raw} />
-                        {hasInput ? <IOBlock label="input" value={formatToolValue(input)} /> : null}
-                        {hasError ? (
-                            <IOBlock
-                                label={nonFinalError ? "note" : "error"}
-                                value={stripFence(errorText)}
-                                danger={!nonFinalError}
-                            />
-                        ) : hasOutput ? (
-                            <IOBlock label="output" value={formatToolValue(output)} />
-                        ) : null}
-                    </div>
-                </HeightCollapse>
-            ) : null}
-        </div>
+const SingleGroupLabel = ({part}: {part: ToolUIPart}) => {
+    const base = resolveToolDisplay(
+        partToolName(part),
+        (part as {input?: unknown}).input,
+        undefined,
+        (part as {output?: unknown}).output,
     )
+    if (base.sourceKey) return <CatalogGroupLabel part={part} base={base} />
+    return <>{groupLabelText(part, base)}</>
+}
+
+const CatalogGroupLabel = ({part, base}: {part: ToolUIPart; base: ToolDisplay}) => {
+    const {integration} = useToolIntegrationDetail(base.sourceKey ?? "")
+    const display = integration?.name
+        ? resolveToolDisplay(
+              base.raw,
+              (part as {input?: unknown}).input,
+              integration.name,
+              (part as {output?: unknown}).output,
+          )
+        : base
+    return <>{groupLabelText(part, display)}</>
 }
 
 interface ToolActivityProps {
@@ -362,14 +330,6 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
     // Keep the gate visible in-context: force the list open whenever one is awaiting approval.
     const expanded = open || approvalPending
 
-    // Resolved above the live branch below: the collapsed line needs it, and hooks cannot sit
-    // after an early return.
-    const first = parts[0]
-    const single = useToolDisplay(
-        parts.length === 1 ? partToolName(first) : "",
-        parts.length === 1 ? (first as {input?: unknown}).input : undefined,
-    )
-
     // ---- Live: the gutter timeline while tools are in flight ----
     if (live) {
         return (
@@ -394,19 +354,7 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
     }
 
     // ---- Settled: the quiet "Used N tools" line + expandable list ----
-    const failed = parts.filter(
-        (p) =>
-            (p.state as string) === "output-error" &&
-            !isNonFinalRunnerError((p as {errorText?: string}).errorText),
-    ).length
-    const count = parts.length
-    // One tool speaks for itself ("Tested the agent"); a run of them only gets a count. A cold
-    // replay can land here with the call still unsettled, so the tense follows the part.
-    const singleActivity = hasLanded(first) ? single.activity.done : single.activity.running
-    const label =
-        count === 1
-            ? `${singleActivity}${single.source ? ` · ${single.source}` : ""}`
-            : `Used ${count} tools`
+    const failed = parts.filter(hasFailed).length
     const SummaryIcon = failed > 0 ? Warning : CheckCircle
 
     return (
@@ -436,9 +384,9 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
                     weight="fill"
                     className={`shrink-0 ${failed > 0 ? "text-colorError" : "text-colorSuccess"}`}
                 />
-                <Text type="secondary" className="!text-xs" title={single?.raw}>
-                    {label}
-                    {failed > 0 ? ` · ${failed} failed` : ""}
+                <Text type="secondary" className="!text-xs">
+                    <GroupLabel parts={parts} />
+                    {failed > 0 && parts.length > 1 ? ` · ${failed} failed` : ""}
                 </Text>
             </button>
 
