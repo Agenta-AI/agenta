@@ -3,6 +3,7 @@
 from typing import Optional
 
 from oss.src.core.channels.adapters.agenta.adapter import AgentaAdapter
+from oss.src.core.channels.adapters.bridge.adapter import BridgeAdapter
 from oss.src.core.channels.adapters.mock.adapter import MockAdapter
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
@@ -22,12 +23,13 @@ async def _resolve_agenta_api_key_project(raw_key: str) -> Optional[str]:
 
 
 def build_channel_adapter_registry() -> ChannelAdapterRegistry:
-    # Stateless: the connection is passed per call, never held. The bridge
-    # route resolves its own adapter at runtime and is not registered here.
+    # Stateless: the connection is passed per call, never held. Every bridge
+    # shares one registration -- the installation is on the connection.
     return ChannelAdapterRegistry(
         adapters={
             "slack": SlackAdapter(),
             "mock": MockAdapter(),
+            "bridge": BridgeAdapter(),
             "agenta": AgentaAdapter(
                 channels_dao=ChannelsDAO(),
                 resolve_project=_resolve_agenta_api_key_project,
