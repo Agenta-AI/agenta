@@ -10,7 +10,7 @@
 
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {withoutAmbiguousCatalogGroups} from "@agenta/entities/secret"
+import {selectedOptionLabel} from "@agenta/entities/secret"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {getOptionsFromSchema} from "@agenta/shared/utils"
 import type {DrillInUIComponents} from "@agenta/ui/drill-in"
@@ -311,9 +311,12 @@ export function useModelConfigurePopover({
         }))
     }, [promptModelInfo])
 
-    // One group per stored provider connection, ahead of the static catalog groups. Each option
-    // carries its connection slug, which the model pick persists next to the model.
-    const connectionGroups = useMemo(
+    // The whole menu: one group per stored provider connection, each option carrying the
+    // connection slug the model pick persists beside the model. The schema's static catalog no
+    // longer contributes groups of its own — a vendor the project holds no key for was offered
+    // there and then failed at run time, and a connected one appeared twice under one name. The
+    // catalog still feeds a connection that saved no model list of its own.
+    const modelOptions = useMemo(
         () =>
             llmProviderConfig?.connectionGroupsFor?.(promptModelInfo?.modelCatalog) ??
             llmProviderConfig?.extraOptionGroups ??
@@ -325,20 +328,20 @@ export function useModelConfigurePopover({
         ],
     )
 
-    // The static catalog group for a family two connections both offer models for is dropped:
-    // its options carry no slug, so a pick there would bind to whichever of the user's keys the
-    // resolver reaches first. The connection groups above cover those models with the slug.
-    const modelOptions = useMemo(
-        () => [
-            ...connectionGroups,
-            ...withoutAmbiguousCatalogGroups({
-                staticGroups: promptModelInfo?.modelOptions ?? [],
-                connectionGroups,
-                catalog: promptModelInfo?.modelCatalog,
-            }),
-        ],
-        [connectionGroups, promptModelInfo?.modelOptions, promptModelInfo?.modelCatalog],
-    )
+    // What the closed trigger prints: the menu's own name for the stored model. Falling back to the
+    // id matches the merged-in current-selection row, which labels an unoffered model with its id.
+    const selectedModelLabel = useMemo(() => {
+        const model = promptModelInfo?.llmConfigValue?.model
+        if (typeof model !== "string" || !model) return null
+        const connection = promptModelInfo?.llmConfigValue?.connection
+        return (
+            selectedOptionLabel({
+                groups: modelOptions,
+                model,
+                connectionSlug: typeof connection === "string" ? connection : null,
+            }) ?? model
+        )
+    }, [modelOptions, promptModelInfo?.llmConfigValue])
 
     const handleRetryConfigFieldChange = useCallback(
         (key: "max_retries" | "base_delay", nextValue: number | null) => {
@@ -603,7 +606,7 @@ export function useModelConfigurePopover({
                                 <ArrowLeft size={16} />
                             </Button>
                         )}
-                        <span className="truncate font-medium">
+                        <span className="truncate text-sm font-medium">
                             {fallbackDetail
                                 ? fallbackDetail.mode === "new"
                                     ? "Add Fallback Model"
@@ -635,6 +638,7 @@ export function useModelConfigurePopover({
                             llmConfigProps={promptModelInfo?.llmConfigProps ?? {}}
                             modelOptions={modelOptions}
                             footerContent={llmProviderConfig?.footerContent}
+                            emptyState={llmProviderConfig?.emptyStateContent}
                             disabled={disabled}
                             excludeKeys={PROMPT_EXTENSION_KEYS}
                         />
@@ -677,6 +681,7 @@ export function useModelConfigurePopover({
                                     llmConfigProps={promptModelInfo.llmConfigProps}
                                     modelOptions={modelOptions}
                                     footerContent={llmProviderConfig?.footerContent}
+                                    emptyState={llmProviderConfig?.emptyStateContent}
                                     disabled={disabled}
                                     excludeKeys={PROMPT_EXTENSION_KEYS}
                                 />
@@ -780,7 +785,7 @@ export function useModelConfigurePopover({
             handleRetryConfigFieldChange,
             handleRetryPolicyChange,
             hasPromptExtensionFields,
-            llmProviderConfig?.extraOptionGroups,
+            llmProviderConfig?.emptyStateContent,
             llmProviderConfig?.footerContent,
             promptModelInfo,
             retryPolicyOptions,
@@ -793,6 +798,7 @@ export function useModelConfigurePopover({
         handleConfigureOpenChange,
         isModelConfigOpen,
         promptModelInfo,
+        selectedModelLabel,
     }
 }
 

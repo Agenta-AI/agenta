@@ -12,6 +12,14 @@ import {
     flattenEvaluatorConfiguration,
     nestEvaluatorConfiguration,
 } from "../../src/runnable/evaluatorTransforms"
+import type {ProviderConnection} from "../../src/secret/core/connections"
+import {
+    CURRENT_SELECTION_GROUP_KEY,
+    buildConnectionModelGroups,
+    selectedOptionKey,
+    withCurrentSelectionGroup,
+} from "../../src/secret/core/promptModelGroups"
+import {SecretKind} from "../../src/secret/core/types"
 
 const flatJudge = (extra: Record<string, unknown> = {}) => ({
     prompt_template: [{role: "user", content: "Score {{prediction}}."}],
@@ -61,7 +69,7 @@ describe("judge connection — flatten", () => {
         })
     })
 
-    it("removes the slug when the model is picked from the static catalog instead", () => {
+    it("removes the slug when the model is picked from an option carrying none", () => {
         const flat = flatJudge({connection: "openai-2"})
         const nested = nestEvaluatorConfiguration(flat)
         const edited = {
@@ -118,11 +126,79 @@ describe("judge connection — flatten", () => {
         expect(result.model).toBe("gpt-4o-mini")
     })
 
+    it("carries a litellm-spelled model through untouched", () => {
+        // The judge edits through the same ModelConfigEditor as the prompt, so what it commits is
+        // whatever the picker wrote — a prefixed id must survive the nest→flatten round trip
+        // rather than being collapsed back to the provider's own spelling.
+        const flat = flatJudge()
+        const nested = nestEvaluatorConfiguration(flat)
+        const edited = {
+            ...nested,
+            prompt: {
+                ...(nested.prompt as Record<string, unknown>),
+                llm_config: {model: "anthropic/claude-haiku-4-5", connection: "anthropic-1"},
+            },
+        }
+
+        expect(flattenEvaluatorConfiguration(edited, flat)).toMatchObject({
+            model: "anthropic/claude-haiku-4-5",
+            connection: "anthropic-1",
+        })
+    })
+
     it("round-trips an unedited judge with a connection", () => {
         const flat = flatJudge({connection: "openai-2"})
 
         expect(flattenEvaluatorConfiguration(nestEvaluatorConfiguration(flat), flat)).toMatchObject(
             {model: "gpt-4o-mini", connection: "openai-2"},
         )
+    })
+})
+
+describe("judge model picker", () => {
+    // The judge's model dropdown IS the prompt's — same ModelConfigEditor, fed the same
+    // connection-only groups — so what the picker shows for a judge is decided by the nested
+    // `llm_config` these transforms produce.
+    const openAIConnection: ProviderConnection = {
+        id: "conn-1",
+        slug: "openai",
+        name: "OpenAI",
+        kind: "openai",
+        title: "OpenAI",
+        secretKind: SecretKind.ProviderKey,
+        models: ["gpt-4o-mini"],
+        source: {},
+    }
+
+    const menuFor = (flat: Record<string, unknown>, connections: ProviderConnection[]) => {
+        const llmConfig = llmConfigOf(nestEvaluatorConfiguration(flat))
+        return withCurrentSelectionGroup({
+            groups: buildConnectionModelGroups({connections}),
+            model: llmConfig.model as string,
+            connectionSlug: (llmConfig.connection as string | undefined) ?? null,
+        })
+    }
+
+    it("offers the judge only what the project has connected", () => {
+        const groups = menuFor(flatJudge({connection: "openai"}), [openAIConnection])
+
+        expect(groups.map((group) => group.label)).toEqual(["OpenAI"])
+    })
+
+    it("keeps a judge model no connection offers visible and selected", () => {
+        // A judge saved against a key that has since been removed or renamed still runs (family
+        // fallback), so its model must not vanish from the control that edits it.
+        const groups = menuFor(flatJudge({model: "gpt-4o", connection: "openai-gone"}), [
+            openAIConnection,
+        ])
+
+        expect(groups.map((group) => group.label)).toEqual(["OpenAI", "Current selection"])
+        expect(selectedOptionKey({groups, model: "gpt-4o", connectionSlug: "openai-gone"})).toBe(
+            `${CURRENT_SELECTION_GROUP_KEY}:gpt-4o`,
+        )
+    })
+
+    it("leaves a judge on a project with no connections nothing but its own model", () => {
+        expect(menuFor(flatJudge(), []).map((group) => group.label)).toEqual(["Current selection"])
     })
 })
