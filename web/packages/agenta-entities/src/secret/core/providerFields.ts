@@ -22,6 +22,11 @@ export interface ProviderFieldConfig {
     label: string
     placeholder: string
     note?: string
+    /**
+     * Per-kind override of `note`, for fields whose hint is only true of one provider. A kind
+     * absent here falls back to `note`; a field with neither shows none.
+     */
+    notesByKind?: Record<string, string>
     required?: boolean
     model?: string[]
     attributes?: ProviderFieldAttributes
@@ -35,6 +40,10 @@ export const CUSTOM_PROVIDER_KIND_FAMILIES: Record<string, readonly string[] | "
     sagemaker: "*",
     custom: "*",
 }
+
+/** A field's hint for one provider kind: the per-kind override when it has one, else the shared note. */
+export const fieldNoteForKind = (field: ProviderFieldConfig, kind: string): string | undefined =>
+    field.notesByKind ? field.notesByKind[kind] : field.note
 
 export const PROVIDER_FIELDS: ProviderFieldConfig[] = [
     {
@@ -56,7 +65,12 @@ export const PROVIDER_FIELDS: ProviderFieldConfig[] = [
         key: "apiBaseUrl",
         label: "API base URL",
         placeholder: "Enter API base URL",
-        note: "Include version (e.g. /v1) in the base URL (e.g. https://api.openai.com/v1)",
+        // No shared note: the OpenAI-style `/v1` example is true of an OpenAI-compatible endpoint
+        // and misleading under Azure (a resource endpoint) or Vertex (project + location).
+        notesByKind: {
+            custom: "Include the version path, e.g. /v1.",
+            azure: "Your resource endpoint, e.g. https://YOUR-RESOURCE.openai.azure.com",
+        },
         model: ["azure", "vertex_ai", "custom"],
         required: false,
     },

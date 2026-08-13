@@ -36,12 +36,25 @@ def _context() -> RuntimeAuthContext:
     return RuntimeAuthContext(harness="pi_core", backend="local")
 
 
-def _provider_key(name: str, provider: str, key: str) -> dict:
-    return {
-        "kind": "provider_key",
-        "header": {"name": name},
-        "data": {"kind": provider, "provider": {"key": key}},
-    }
+def _provider_key(
+    name: str,
+    provider: str,
+    key: str,
+    *,
+    slug: str | None = None,
+    models: list[str] | None = None,
+    harnesses: list[str] | None = None,
+) -> dict:
+    data: dict = {"kind": provider, "provider": {"key": key}}
+    if models is not None:
+        data["models"] = [{"slug": model} for model in models]
+    if harnesses is not None:
+        data["harnesses"] = harnesses
+    secret = {"kind": "provider_key", "header": {"name": name}, "data": data}
+    # Records created before named connections have no slug at all.
+    if slug is not None:
+        secret["slug"] = slug
+    return secret
 
 
 def _custom_provider(
@@ -53,8 +66,9 @@ def _custom_provider(
     version: str | None = None,
     extras: dict | None = None,
     models: list[str] | None = None,
+    slug: str | None = None,
 ) -> dict:
-    return {
+    secret = {
         "kind": "custom_provider",
         "header": {"name": name},
         "data": {
@@ -70,6 +84,10 @@ def _custom_provider(
             "model_keys": [f"{name}/{kind}/{m}" for m in (models or ["my-model"])],
         },
     }
+    # Records created before named connections have no slug and are addressed by their name.
+    if slug is not None:
+        secret["slug"] = slug
+    return secret
 
 
 async def test_resolve_fetches_secrets_and_selects_one_key(fake_http, connection):
@@ -146,6 +164,82 @@ async def test_default_connection_ambiguous(fake_http, connection):
         await VaultConnectionResolver(connection).resolve(
             model=_model(slug=None), context=_context()
         )
+
+
+async def test_default_connection_picks_the_one_declaring_the_model(
+    fake_http, connection
+):
+    # A project may hold two keys for one provider, and a new app's config is slug-less. When
+    # exactly one of those connections saved the requested model, that is the connection the
+    # picker offered it from — resolve it instead of failing ambiguous.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("openai-a", "openai", "sk-a", slug="a", models=["gpt-4o"]),
+            _provider_key("openai-b", "openai", "sk-b", slug="b", models=["gpt-5.5"]),
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model(slug=None), context=_context()
+    )
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-b"}
+
+
+async def test_an_explicit_model_declaration_beats_a_connection_with_no_list(
+    fake_http, connection
+):
+    # A connection that saved no list only implies the model (it means "use Agenta's defaults");
+    # one that saved it claims it outright. The explicit claim wins the tie.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("openai-a", "openai", "sk-a", slug="a"),
+            _provider_key("openai-b", "openai", "sk-b", slug="b", models=["gpt-5.5"]),
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model(slug=None), context=_context()
+    )
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-b"}
+
+
+async def test_two_connections_declaring_the_same_model_stay_ambiguous(
+    fake_http, connection
+):
+    # Narrowing only resolves what is unambiguous; two connections claiming the same model still
+    # fail loud rather than picking one by iteration order.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("openai-a", "openai", "sk-a", slug="a", models=["gpt-5.5"]),
+            _provider_key("openai-b", "openai", "sk-b", slug="b", models=["gpt-5.5"]),
+        ],
+    )
+    with pytest.raises(AmbiguousConnectionError):
+        await VaultConnectionResolver(connection).resolve(
+            model=_model(slug=None), context=_context()
+        )
+
+
+async def test_ambiguous_default_is_a_client_error_naming_the_candidates(
+    fake_http, connection
+):
+    # The invoke remap reads `status_code` off the exception; without one this surfaced as a 500
+    # server fault. It is a config problem, and "name one in the config" is only actionable when
+    # the message says which names exist.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("openai-a", "openai", "sk-a", slug="openai-a"),
+            _provider_key("openai-b", "openai", "sk-b", slug="openai-b"),
+        ],
+    )
+    with pytest.raises(AmbiguousConnectionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model(slug=None), context=_context()
+        )
+    assert exc.value.status_code == 422
+    assert "openai-a" in str(exc.value) and "openai-b" in str(exc.value)
 
 
 async def test_bare_model_without_provider_fails_loud(fake_http, connection):
@@ -641,3 +735,186 @@ async def test_resolve_without_api_base_fails_loud(fake_http):
         await VaultConnectionResolver(PlatformConnection()).resolve(
             model=_model(), context=_context()
         )
+
+
+async def test_saved_slug_selects_one_of_two_keys_for_one_provider(
+    fake_http, connection
+):
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("OpenAI", "openai", "sk-first", slug="openai-aaaaaaaaaaaa"),
+            _provider_key(
+                "OpenAI 2", "openai", "sk-second", slug="openai-2-bbbbbbbbbbbb"
+            ),
+        ],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("openai-2-bbbbbbbbbbbb"), context=_context()
+    )
+
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-second"}
+
+
+async def test_a_slugged_record_still_resolves_provider_only_when_unique(
+    fake_http, connection
+):
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("OpenAI", "openai", "sk-one", slug="openai-aaaaaaaaaaaa")
+        ],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model(slug=None), context=_context()
+    )
+
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-one"}
+
+
+async def test_legacy_record_without_a_slug_stays_addressable_by_provider(
+    fake_http, connection
+):
+    fake_http(connections, payload=[_provider_key("My key", "openai", "sk-legacy")])
+
+    # Both the provider-only default and the provider-as-slug form existing agent
+    # configurations committed still reach the record.
+    for model in (_model(slug=None), _model("openai")):
+        resolved = await VaultConnectionResolver(connection).resolve(
+            model=model, context=_context()
+        )
+        assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-legacy"}
+
+
+def test_saved_models_and_harnesses_are_carried_on_the_candidate():
+    catalog = connections._catalog(
+        [
+            _provider_key(
+                "OpenAI",
+                "openai",
+                "sk-one",
+                slug="openai-aaaaaaaaaaaa",
+                models=["gpt-5.6-luna", "gpt-5.6-sol"],
+                harnesses=["pi_core", "codex"],
+            ),
+            _provider_key("Legacy", "anthropic", "sk-ant"),
+        ]
+    )
+
+    saved, legacy = catalog
+    assert saved.slug == "openai-aaaaaaaaaaaa"
+    assert saved.models == ["gpt-5.6-luna", "gpt-5.6-sol"]
+    assert saved.harnesses == ["pi_core", "codex"]
+    # A record that saved nothing must stay distinguishable from one that saved an empty
+    # list: the first uses Agenta's defaults, the second offers no models at all.
+    assert legacy.slug == "anthropic"
+    assert legacy.models is None
+    assert legacy.harnesses is None
+    assert (
+        connections._catalog([_provider_key("None", "groq", "k", models=[])])[0].models
+        == []
+    )
+
+
+async def test_saved_models_do_not_filter_resolution_yet(fake_http, connection):
+    fake_http(
+        connections,
+        payload=[
+            _provider_key(
+                "OpenAI",
+                "openai",
+                "sk-one",
+                slug="openai-aaaaaaaaaaaa",
+                models=["gpt-5.6-luna"],
+                harnesses=["codex"],
+            )
+        ],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("openai-aaaaaaaaaaaa"), context=_context()
+    )
+
+    # The request asks for a model outside the saved list on a harness outside the saved
+    # set; enforcement belongs to a later slice, so resolution must not start filtering here.
+    assert resolved.model == "gpt-5.5"
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-one"}
+
+
+async def test_custom_connection_resolves_by_its_stored_slug(fake_http, connection):
+    # The slug is identity, so renaming the connection must not move it: the record answers to
+    # its stored slug even though the display name now says something else.
+    endpoint = "https://93.184.216.34/v1"
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "Renamed gateway",
+                "custom",
+                key="sk-gw",
+                url=endpoint,
+                models=["qwen2.5-coder:7b"],
+                slug="my-gateway-abcdef123456",
+            )
+        ],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model="qwen2.5-coder:7b",
+            connection={"mode": "agenta", "slug": "my-gateway-abcdef123456"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.deployment == "custom"
+    assert resolved.endpoint.base_url == endpoint
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-gw"}
+
+
+async def test_legacy_custom_connection_without_a_slug_resolves_by_name(
+    fake_http, connection
+):
+    endpoint = "https://93.184.216.34/v1"
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "my-gateway",
+                "custom",
+                key="sk-legacy",
+                url=endpoint,
+                models=["qwen2.5-coder:7b"],
+            )
+        ],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model="qwen2.5-coder:7b",
+            connection={"mode": "agenta", "slug": "my-gateway"},
+        ),
+        context=_context(),
+    )
+
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-legacy"}
+
+
+def test_a_slugged_custom_record_keeps_its_model_key_namespace():
+    # Stored model keys are namespaced by the display name, so a committed model selector must
+    # keep matching after the record gained a slug.
+    candidate = connections._catalog(
+        [
+            _custom_provider(
+                "my-bedrock",
+                "bedrock",
+                models=["anthropic.claude-3"],
+                slug="my-bedrock-abcdef123456",
+            )
+        ]
+    )[0]
+
+    assert candidate.slug == "my-bedrock-abcdef123456"
+    assert candidate.model_keys == {"my-bedrock/bedrock/anthropic.claude-3"}
