@@ -282,9 +282,7 @@ const ObservabilityTable = () => {
                         locale: {
                             emptyText: <EmptyObservability showOnboarding={showOnboarding} />,
                         },
-                        bordered: true,
                         loading: showTableLoading,
-                        sticky: true,
                         style: {cursor: "pointer"},
                         onRow: (record: TraceRow, index?: number) => ({
                             onClick: () => handleTraceRowClick(record),

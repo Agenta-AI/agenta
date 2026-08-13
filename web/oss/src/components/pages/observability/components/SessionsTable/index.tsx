@@ -106,7 +106,6 @@ const SessionsTable: React.FC = () => {
                             locale: {
                                 emptyText: <EmptySessions showOnboarding={showOnboarding} />,
                             },
-                            bordered: true,
                             loading: isLoading && sessionIds.length === 0,
                             onRow: () => ({style: {cursor: "pointer"}}),
                         }}

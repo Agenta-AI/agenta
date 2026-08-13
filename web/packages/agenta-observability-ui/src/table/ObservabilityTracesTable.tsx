@@ -8,6 +8,7 @@ import {
     type TableFeaturePagination,
     type TableScopeConfig,
 } from "@agenta/ui/table"
+import {useStore} from "jotai"
 
 import {
     getDefaultHiddenObservabilityColumnKeys,
@@ -52,6 +53,7 @@ export const ObservabilityTracesTable = ({
     onRowClick,
     tableScope,
     tableProps,
+    store,
     ...featureProps
 }: ObservabilityTracesTableProps) => {
     const {
@@ -63,6 +65,9 @@ export const ObservabilityTracesTable = ({
         isFetchingMore,
         traceCount,
     } = useObservability()
+
+    // The cells read page-level atoms; an isolated store leaves them empty.
+    const ambientStore = useStore()
 
     const slugs = useMemo(() => evaluatorSlugs ?? [], [evaluatorSlugs])
     const columns = useMemo(() => getObservabilityColumns({evaluatorSlugs: slugs}), [slugs])
@@ -102,11 +107,16 @@ export const ObservabilityTracesTable = ({
     return (
         <InfiniteVirtualTableFeatureShell<TraceRow>
             {...featureProps}
+            store={store ?? ambientStore}
             tableScope={scope}
             columns={columns}
             rowKey={(record) => record.span_id || record.key || ""}
             pagination={pagination}
             tableProps={{
+                // Part of this table's identity, not either app's: without them /m rendered
+                // the same rows with no cell borders and a non-sticky header.
+                bordered: true,
+                sticky: true,
                 ...tableProps,
                 ...(emptyState ? {locale: {...tableProps?.locale, emptyText: emptyState}} : {}),
                 ...(onRowClick

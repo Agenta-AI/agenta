@@ -8,6 +8,7 @@ import {
     type TableFeaturePagination,
     type TableScopeConfig,
 } from "@agenta/ui/table"
+import {useStore} from "jotai"
 
 import {getSessionColumns, type SessionRow} from "../columns/getSessionColumns"
 
@@ -38,6 +39,7 @@ export const ObservabilitySessionsTable = ({
     onRowClick,
     tableScope,
     tableProps,
+    store,
     ...featureProps
 }: ObservabilitySessionsTableProps) => {
     const {
@@ -49,6 +51,9 @@ export const ObservabilitySessionsTable = ({
         isFetchingMore,
         resetSessionPages,
     } = useSessions()
+
+    // The cells read page-level atoms; an isolated store leaves them empty.
+    const ambientStore = useStore()
 
     const columns = useMemo(() => getSessionColumns(), [])
 
@@ -89,11 +94,16 @@ export const ObservabilitySessionsTable = ({
     return (
         <InfiniteVirtualTableFeatureShell<SessionRow>
             {...featureProps}
+            store={store ?? ambientStore}
             tableScope={scope}
             columns={columns}
             rowKey="session_id"
             pagination={pagination}
             tableProps={{
+                // Part of this table's identity, not either app's: without them /m rendered
+                // the same rows with no cell borders and a non-sticky header.
+                bordered: true,
+                sticky: true,
                 ...tableProps,
                 ...(emptyState ? {locale: {...tableProps?.locale, emptyText: emptyState}} : {}),
                 ...(onRowClick
