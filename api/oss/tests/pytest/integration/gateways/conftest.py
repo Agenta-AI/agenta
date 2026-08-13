@@ -1,7 +1,4 @@
-import socket
 import uuid
-from functools import lru_cache
-from urllib.parse import urlparse
 
 import pytest
 from sqlalchemy import text
@@ -10,28 +7,15 @@ import oss.src.dbs.postgres.secrets.dbes  # noqa: F401  — registers `secrets`
 import oss.src.dbs.postgres.shared.engine as engine_module
 import oss.src.models.db_models  # noqa: F401  — registers `projects`; both FK targets
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-from oss.src.utils.env import env
-
-
-@lru_cache(maxsize=1)
-def _postgres_reachable() -> bool:
-    """TCP-probe the configured core Postgres once per session (mirrors
-    unit/migrations/conftest.py). These DAO tests need a real Postgres — probe
-    rather than error so a native `py-run-tests --api` skips them instead of
-    failing setup when no deployment is up."""
-    parsed = urlparse(env.postgres.uri_core)
-    host = parsed.hostname or "postgres"
-    port = parsed.port or 5432
-    try:
-        with socket.create_connection((host, port), timeout=0.5):
-            return True
-    except OSError:
-        return False
+from oss.tests.pytest.utils.postgres import use_reachable_core_uri
 
 
 @pytest.fixture(autouse=True)
 def _skip_when_postgres_unreachable(request):
-    if request.node.get_closest_marker("integration") and not _postgres_reachable():
+    if (
+        request.node.get_closest_marker("integration")
+        and use_reachable_core_uri() is None
+    ):
         pytest.skip("Postgres not reachable — skipping gateways DAO integration tests")
 
 
