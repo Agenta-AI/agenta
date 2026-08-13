@@ -801,6 +801,49 @@
   deployment does, and both were wrong. The deployment repository is the authority
   on public URLs, and it is not in this tree.
 
+### F67. Slack declares three identity fields and discovers two, so every writer must guess the third
+
+- ID: `F67`
+- Origin: `wave-6 WP26`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Slack's `CONNECTION` identity is `api_app_id`, `enterprise_id`, `team_id`.
+  `verify_connection` discovers `team_id`, `bot_user_id` and `api_app_id` only, and
+  filters falsy values out, so `enterprise_id` can never reach the locator from the
+  adapter. `compose_external_key` raises `ChannelLocatorIncomplete` on any declared
+  field missing from the locator. So creating a Slack connection with exactly the
+  three fields the declaration asks a human for **fails before a row is written**, and
+  the caller has to know to send an empty string for a field no declaration mentions.
+- Evidence:
+  - `adapters/slack/capabilities.py` declares `["api_app_id", "enterprise_id",
+    "team_id"]` at connection grain, with a comment saying one of the two is always
+    empty.
+  - `adapters/slack/adapter.py` `verify_connection` returns
+    `{k: v for k, v in discovered.items() if v}` over the three names, none of which
+    is `enterprise_id`.
+  - `connection_locator`, on the ingress side, always returns all three, with the
+    absent one as `""`. So the two sides must agree on the empty string or no event
+    ever matches its connection.
+  - The setup section now sends `enterprise_id: ""` from web, matching what the
+    pre-existing write-path fixtures already did. It works, and it means every future
+    caller repeats it.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py`,
+  `web/oss/src/components/pages/settings/Channels/components/SlackOwnAppSection.tsx`
+- Suggested Fix: complete the identity in `verify_connection`, where the adapter
+  already knows its own identity model, and delete the caller-side filler. It must
+  mirror `_connection_discriminator` exactly — **exactly one of the pair populated,
+  the other empty** — because `auth.test` returns a `team_id` for an org-wide install
+  too, and storing it while the ingress composes an empty one is a key mismatch that
+  surfaces as a bare 401. That half is `F53`'s unproven path and cannot be settled
+  before a real workspace exists.
+- Notes: found by building the first caller. Two writers existed before it and both
+  were test fixtures that carried the empty string, so nothing disagreed with the
+  declaration until a human-facing form had to satisfy it. The next caller is the
+  hosted install callback, which is why this is assigned to the package that owns the
+  adapter rather than left where it was found.
+
 ### F66. The bridge is absent from the adapter registry, so its own route 404s
 
 - ID: `F66`
