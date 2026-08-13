@@ -97,6 +97,7 @@ export function SessionFilesPane({sessionId}: {sessionId: string}) {
                 drive={drive}
                 scope="session"
                 initialPath={initialPath}
+                initialIsFolder={quickLook?.isFolder}
                 onClose={close}
                 closeVariant="collapse"
                 mirrored

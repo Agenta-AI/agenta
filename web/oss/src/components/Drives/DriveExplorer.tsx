@@ -61,6 +61,7 @@ export function DriveExplorer({
     explicitFiles,
     scope = "session",
     initialPath,
+    initialIsFolder,
     onClose,
     driveIds,
     expanded: drawerExpanded = false,
@@ -78,6 +79,9 @@ export function DriveExplorer({
     explicitFiles?: MountFile[]
     scope?: DriveScope
     initialPath?: string | null
+    /** The opener already PROVED `initialPath`'s kind — use it instead of guessing from the name
+     * while the tree level loads. */
+    initialIsFolder?: boolean
     /** When provided, the explorer renders its OWN single header (breadcrumb + node + actions + this
      * close button) + the shared search/filters toolbar. Always provided by {@link FilesDrawer}. */
     onClose?: () => void
@@ -192,15 +196,14 @@ export function DriveExplorer({
         setShowGitignored,
     })
     const selectedNode = selectedPath != null ? nodeByPath.get(selectedPath) : undefined
-    // The root and any node flagged a folder render the grid; everything else the preview. In lazy
-    // mode a not-yet-loaded selection falls back to the NAME (the same heuristic `useDriveTreeData`
-    // subscribes by), so an initial file target shows its preview immediately instead of a wrong
-    // "empty folder" flash — and an initial FOLDER target doesn't show a broken file preview until
-    // its level lands.
+    // Backend `is_folder` once the level loads; before that, the opener's proven kind if it had one,
+    // else the name (the same heuristic `useDriveTreeData` subscribes by).
     const selectedIsFolder =
         selectedPath != null &&
-        (selectedPath === "" ||
-            (selectedNode ? selectedNode.isFolder === true : !looksLikeFilePath(selectedPath)))
+        (selectedNode?.isFolder ??
+            (selectedPath === initialPath && initialIsFolder != null
+                ? initialIsFolder
+                : !looksLikeFilePath(selectedPath)))
 
     // Where an upload lands: the selection when it's a folder, else the selected file's folder.
     const currentFolder = selectedIsFolder

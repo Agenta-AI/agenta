@@ -13,5 +13,7 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 export const driveQuickLookAtomFamily = atomFamily((_sessionId: string) =>
-    atom<{path: string; hideTree?: boolean} | null>(null),
+    // `isFolder` is for an opener that already PROVED the kind (a chat mention resolved by listing
+    // it); the explorer otherwise guesses from the name until the tree level lands.
+    atom<{path: string; isFolder?: boolean; hideTree?: boolean} | null>(null),
 )

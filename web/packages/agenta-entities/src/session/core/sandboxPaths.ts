@@ -1,12 +1,8 @@
 /**
- * Sandbox path → drive path. The runner mounts a session's durable cwd at
- * `<base>/agenta/mounts/<project_id>/<mount_id>` (`/tmp/…` locally, `/home/sandbox/…` on Daytona)
- * and the agent's own mount at the `-agent` sibling of that directory, which the drive presents
- * folded under `agent-files/`.
- *
- * An agent names files by their SANDBOX path, so every surface that resolves a mention against a
- * mount listing has to map one to the other first — a listing path is mount-root-relative, and a
- * sandbox path compared to it resolves to nothing.
+ * Sandbox path → drive path. Agents name files by their sandbox path, but a mount listing is
+ * mount-root-relative, so the two never match until one is mapped. The runner mounts the session
+ * cwd at `<base>/agenta/[<namespace>/]mounts/<project_id>/<mount_id>` and the agent's own mount at
+ * that directory's `-agent` sibling, which the drive folds under `agent-files/`.
  */
 import {stripTrailingSlashes} from "./pathUtils"
 
@@ -17,24 +13,25 @@ export const AGENT_FILES_DIR = "agent-files"
 const AGENT_MOUNT_SUFFIX = "-agent"
 
 /**
- * The drive-presented path a sandbox-absolute path names, or `null` when it isn't one — a path
- * outside the mounts (`/etc/hosts`) and a relative mention both return `null`, since neither needs
- * mapping. The mount root itself maps to `""`.
+ * The drive-presented path a sandbox-absolute path names, or `null` when it isn't one (`/etc/hosts`
+ * and relative mentions need no mapping). The mount root itself maps to `""`.
  *
- * Segment-walked rather than matched with a regex: the mount prefix is backend-supplied and an
- * end-anchored quantifier over it backtracks quadratically (the polynomial-ReDoS the sibling path
- * helpers already avoid).
+ * Segment-walked, not regex-matched: an end-anchored quantifier over a backend-supplied prefix
+ * backtracks quadratically (the polynomial-ReDoS the sibling path helpers avoid). `mounts` is
+ * located rather than assumed to follow `agenta`, because a deploy-time store namespace sits
+ * between the two (api `MountsService._storage_key`).
  */
 export function toolPathToDrivePath(toolPath: string): string | null {
     if (!toolPath.startsWith("/")) return null
     const segments = stripTrailingSlashes(toolPath).split("/")
-    for (let i = 0; i + 3 < segments.length; i++) {
-        if (segments[i] !== "agenta" || segments[i + 1] !== "mounts") continue
-        const rest = segments.slice(i + 4).join("/")
-        if (!segments[i + 3].endsWith(AGENT_MOUNT_SUFFIX)) return rest
-        return rest ? `${AGENT_FILES_DIR}/${rest}` : AGENT_FILES_DIR
-    }
-    return null
+    const agenta = segments.indexOf("agenta")
+    if (agenta === -1) return null
+    const mounts = segments.indexOf("mounts", agenta + 1)
+    // Needs a project AND a mount segment after `mounts` to name a drive.
+    if (mounts === -1 || mounts + 2 >= segments.length) return null
+    const rest = segments.slice(mounts + 3).join("/")
+    if (!segments[mounts + 2].endsWith(AGENT_MOUNT_SUFFIX)) return rest
+    return rest ? `${AGENT_FILES_DIR}/${rest}` : AGENT_FILES_DIR
 }
 
 /** Does this path point inside the session cwd / agent mount the drive shows? */

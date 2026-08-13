@@ -16,6 +16,15 @@ describe("toolPathToDrivePath", () => {
         )
     })
 
+    it("tolerates a deploy-time store namespace before the mounts segment", () => {
+        expect(toolPathToDrivePath("/tmp/agenta/staging/mounts/proj-1/mount-1/README.md")).toBe(
+            "README.md",
+        )
+        expect(
+            toolPathToDrivePath("/tmp/agenta/staging/mounts/proj-1/mount-1-agent/SKILL.md"),
+        ).toBe("agent-files/SKILL.md")
+    })
+
     it("folds the agent mount under agent-files/", () => {
         expect(toolPathToDrivePath("/tmp/agenta/mounts/proj-1/mount-1-agent/SKILL.md")).toBe(
             "agent-files/SKILL.md",

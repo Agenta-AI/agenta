@@ -1,17 +1,9 @@
 /**
- * A marked extension that tokenizes a sandbox file path written as BARE PROSE — "I updated
- * /tmp/agenta/mounts/…/README.md for you" — into a `<agenta-file-path>` element the chat renderer
- * resolves against the session drive (see `markdown.tsx`). Backticked and markdown-linked mentions
- * already had a path there; this closes the third way an agent names a file.
- *
- * Running as a marked extension (rather than a pass over the rendered text) is what makes it safe:
- * marked tokenizes fenced blocks, inline code, and link destinations first, so none of those are
- * rewritten.
- *
- * Scope is deliberately narrow — an absolute path INSIDE the session/agent mounts. A bare relative
- * mention ("see README.md") is indistinguishable from ordinary prose, and an absolute path outside
- * the mounts (`/etc/hosts`) can never resolve to a drive file, so tokenizing either would only buy
- * speculative lookups that always miss.
+ * Tokenizes a sandbox path written as BARE PROSE ("I updated /tmp/agenta/mounts/…/README.md") into
+ * an `<agenta-file-path>` element the chat renderer resolves against the session drive. Running as
+ * a marked extension is what makes it safe: fenced blocks, inline code, and link destinations are
+ * already claimed by the time it runs. Only paths inside the mounts match — nothing else can
+ * resolve to a drive file.
  */
 import {isSandboxPath} from "@agenta/entities/session"
 import type {TokenizerAndRendererExtension} from "marked"
@@ -31,40 +23,45 @@ const isPathChar = (char: string): boolean =>
     char === "~" ||
     char.charCodeAt(0) > 127
 
-/** Sentence punctuation that trails a path rather than belonging to it ("…/README.md."). */
-const TRAILING = new Set([".", ",", ";", ":", "!", "?", ")", "]", "}", ">", "'", '"'])
+/** Trailing characters that punctuate a path rather than belong to it ("…/README.md.", "…/src/"). */
+const TRAILING = new Set([".", ",", ";", ":", "!", "?", ")", "]", "}", ">", "'", '"', "/"])
 
 /** Longest plausible mention — a guard against a pathological token, not a real limit. */
 const MAX_LENGTH = 512
 
+/** The one segment every mount path contains, whatever the base dir or store namespace. */
+const MOUNTS_MARKER = "/mounts/"
+
 /**
- * The sandbox path at the START of `src`, or null. Hand-scanned rather than matched with a nested
+ * The sandbox path starting at `from`, or null. Hand-scanned rather than matched with a nested
  * quantifier, which is the polynomial-ReDoS shape CodeQL flags on this kind of input.
  */
-export function matchSandboxPath(src: string): string | null {
-    if (src.charAt(0) !== "/" || src.charAt(1) === "/") return null
-    let end = 1
-    while (end < src.length && end < MAX_LENGTH) {
+export function matchSandboxPath(src: string, from = 0): string | null {
+    if (src.charAt(from) !== "/" || src.charAt(from + 1) === "/") return null
+    const limit = Math.min(src.length, from + MAX_LENGTH)
+    let end = from + 1
+    while (end < limit) {
         const char = src.charAt(end)
         if (char !== "/" && !isPathChar(char)) break
         end++
     }
-    while (end > 0 && (TRAILING.has(src.charAt(end - 1)) || src.charAt(end - 1) === "/")) end--
-    const path = src.slice(0, end)
+    while (end > from && TRAILING.has(src.charAt(end - 1))) end--
+    const path = src.slice(from, end)
     return isSandboxPath(path) ? path : null
 }
 
-/** May a path start at this index — i.e. is the slash a word boundary and not part of `://`? */
-const startsHere = (src: string, index: number): boolean => {
-    const before = index > 0 ? src.charAt(index - 1) : ""
-    if (before && (isPathChar(before) || before === ":" || before === "/")) return false
-    return matchSandboxPath(src.slice(index)) !== null
-}
-
-/** The index where the next bare path begins, for marked's inline scanner. */
+/**
+ * The index where the next bare path begins, for marked's inline scanner. marked calls this once
+ * per inline run over the whole remaining source, so the miss case — no mount path in the text at
+ * all — has to cost one native substring search, not a walk of every slash in the paragraph.
+ */
 export function nextPathIndex(src: string): number | undefined {
+    if (src.indexOf(MOUNTS_MARKER) === -1) return undefined
     for (let i = src.indexOf("/"); i !== -1; i = src.indexOf("/", i + 1)) {
-        if (startsHere(src, i)) return i
+        const before = i > 0 ? src.charAt(i - 1) : ""
+        // A slash mid-word ("and/or") or in a scheme ("https://") never starts a path.
+        if (before && (isPathChar(before) || before === ":" || before === "/")) continue
+        if (matchSandboxPath(src, i)) return i
     }
     return undefined
 }
@@ -75,7 +72,7 @@ export const FILE_PATH_TAG = "agenta-file-path"
 export const filePathExtension: TokenizerAndRendererExtension = {
     name: "agentaFilePath",
     level: "inline",
-    start: (src) => nextPathIndex(src),
+    start: nextPathIndex,
     tokenizer(src) {
         const path = matchSandboxPath(src)
         if (!path) return undefined

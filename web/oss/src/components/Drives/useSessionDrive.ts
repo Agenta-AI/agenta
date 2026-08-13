@@ -441,11 +441,8 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     }, [mountsQuery, cwdCount, rootQuery, agentMountQuery, agentCount, agentRootQuery, artifactId])
 
     const data = useMemo(() => {
-        // Newest write/edit per path. Record paths are TOOL paths (sandbox-absolute on harnesses
-        // that require it) and every consumer matches them against the mount-relative tree, so map
-        // them first — otherwise `agents/…` plumbing slips past the listable filter and nothing
-        // selects. Re-dedupe after mapping: two tool paths for one file (absolute from one tool,
-        // cwd-relative from another) collapse to the same drive path, and these rows are keyed by it.
+        // Record paths are TOOL paths; map before filtering or `agents/…` plumbing slips through.
+        // Re-dedupe after: two tool paths for one file collapse to the drive path these rows key by.
         const newestByPath = new Map<string, number>()
         for (const [toolPath, at] of recordRecency) {
             const path = toolPathToDrivePath(toolPath) ?? cleanPath(toolPath)

@@ -32,8 +32,7 @@ const OP_META: Record<FileActivityOp, {label: string; color?: string}> = {
  * The heavy block {@link DriveFileCard} is reserved for the tool step that actually wrote the file,
  * so a mention in the reply never breaks the paragraph with a full card.
  *
- * `isFolder` swaps the kind glyph for the tree's folder icon — a mentioned directory opens the
- * explorer ON that folder, so the chip has to read as one.
+ * `isFolder` swaps the glyph and travels with the open request, so the explorer doesn't re-guess.
  */
 export function DriveFileInlineRef({path, isFolder}: {path: string; isFolder?: boolean}) {
     const sessionId = useDriveSessionId()
@@ -42,7 +41,7 @@ export function DriveFileInlineRef({path, isFolder}: {path: string; isFolder?: b
     return (
         <button
             type="button"
-            onClick={() => openQuickLook({path})}
+            onClick={() => openQuickLook({path, isFolder})}
             title={path}
             className="mx-px inline-flex max-w-full cursor-pointer items-center gap-1 rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary px-1 py-0 align-baseline font-mono text-[0.9em] leading-[1.4] text-colorText transition-colors hover:border-colorBorder hover:bg-colorFillSecondary"
         >

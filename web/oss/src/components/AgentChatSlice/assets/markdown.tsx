@@ -89,22 +89,35 @@ const childrenToText = (children: ReactNode): string => {
 }
 
 /**
- * Inline code chip. When the active conversation has published a file-link resolver and this span's
- * text names a real drive file, it renders as a compact inline file reference (icon + name, opens
- * Quick Look) that flows within the sentence — the heavy block file card is reserved for the tool
- * step that wrote the file. Otherwise it's a plain code chip.
+ * The active conversation's file-link resolver: renders `text` as a drive reference when it names a
+ * real file, else `fallback`. Resolution is async (records + an on-demand check) and the Drives
+ * layer owns both outcomes; no resolver mounted → `fallback`.
+ *
+ * Reads the session from the ambient drive context, so a backgrounded pane's mentions never resolve
+ * against another mounted session.
  */
-const InlineCode = ({className, children}: {className?: string; children?: ReactNode}) => {
-    // Resolve against THIS conversation's session (from the ambient drive context), so a
-    // backgrounded pane's file mentions don't read another mounted session's resolver.
+const useDriveFileRef = () => {
     const sessionId = useDriveSessionId()
     const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
-    const text = childrenToText(children).trim()
-    const fallback = <code className={className}>{children}</code>
-    // The Drives resolver decides link-vs-plain (async: records + on-demand single-file check) and
-    // owns the fallback; no resolver mounted → plain code.
-    if (link && text) return <>{link.renderCode(text, fallback)}</>
-    return fallback
+    return (text: string | undefined, fallback: ReactNode): ReactNode =>
+        link && text ? <>{link.renderCode(text, fallback)}</> : fallback
+}
+
+/**
+ * Inline code chip. When this span's text names a real drive file it renders as a compact inline
+ * file reference (icon + name, opens Quick Look) that flows within the sentence — the heavy block
+ * file card is reserved for the tool step that wrote the file. Otherwise it's a plain code chip.
+ */
+const InlineCode = ({className, children}: {className?: string; children?: ReactNode}) => {
+    const renderRef = useDriveFileRef()
+    return (
+        <>
+            {renderRef(
+                childrenToText(children).trim(),
+                <code className={className}>{children}</code>,
+            )}
+        </>
+    )
 }
 
 /**
@@ -196,33 +209,28 @@ const ExternalLink = ({href, title, className, children}: AnchorProps) => (
  * uses ({@link InlineCode}), so a markdown link and a code-span mention of the same file behave
  * identically (issue #5481: nested / `NN-name/` paths get emitted as links and bypassed it). */
 const DriveLink = ({href, ...rest}: AnchorProps) => {
-    const sessionId = useDriveSessionId()
-    const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
-    // A sandbox path is a FILE path, never a URL. When it doesn't resolve to a drive file, showing
-    // the label as plain text beats an anchor to `<app-origin>/tmp/agenta/mounts/…` (issue #5983).
+    const renderRef = useDriveFileRef()
+    // A sandbox path is a FILE path, never a URL: unresolved, plain text beats an anchor to
+    // `<app-origin>/tmp/agenta/mounts/…` (issue #5983).
     const fallback =
         href && isSandboxPath(href) ? (
             <span title={href}>{rest.children}</span>
         ) : (
             <ExternalLink href={href} {...rest} />
         )
-    if (link && href) return <>{link.renderCode(href, fallback)}</>
-    return fallback
+    return <>{renderRef(href, fallback)}</>
 }
 
 /** Split so an ordinary URL costs nothing: only a relative href subscribes to the drive resolver. */
 const Anchor = (props: AnchorProps) =>
     isExternalHref(props.href) ? <ExternalLink {...props} /> : <DriveLink {...props} />
 
-/** A bare sandbox path in prose (see `filePathExtension`). Same resolver as the code-span and link
- * paths; unresolved, it renders as the plain text it already was. */
+/** A bare sandbox path in prose (see `filePathExtension`); unresolved, it stays the plain text it
+ * already was. */
 const BareFilePath = ({children}: {children?: ReactNode}) => {
-    const sessionId = useDriveSessionId()
-    const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
+    const renderRef = useDriveFileRef()
     const text = childrenToText(children).trim()
-    const fallback = <>{text}</>
-    if (link && text) return <>{link.renderCode(text, fallback)}</>
-    return fallback
+    return <>{renderRef(text, text)}</>
 }
 
 /** Stable `components` map: a fresh object literal per render churns XMarkdown's prop identity, and

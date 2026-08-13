@@ -35,13 +35,8 @@ export const filesDrawerStagedAtomFamily = atomFamily((_sessionId: string) =>
 export const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
 
-/**
- * The drive path a quick-look request names. A sandbox path (an opener may pass the raw tool path)
- * maps to its drive path first; then an exact listing hit wins outright, else the LONGEST tail match
- * — a request for `…/src/README.md` suffix-matches both `README.md` and `src/README.md`, and the
- * deeper one is the file that was actually asked for. Unknown to the listing → the mapped path (the
- * explorer selects it directly).
- */
+/** The drive path a quick-look request names: map a sandbox path, then take an exact listing hit,
+ * else the LONGEST tail match (`…/src/README.md` suffix-matches a root `README.md` too). */
 export const resolveDrivePath = (files: {path: string}[], requested: string): string => {
     const target = toolPathToDrivePath(requested) ?? requested
     let best: string | null = null

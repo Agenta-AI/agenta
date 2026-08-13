@@ -13,9 +13,10 @@
  * Never lists the tree; the on-demand read is viewport-gated and deduped per path. Markdown stays
  * decoupled from Drives — it just calls {@link chatFileResolver}.renderCode.
  */
-import {type ReactNode, useCallback, useEffect, useRef, useState} from "react"
+import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    AGENT_FILES_DIR,
     mountDirQueryFamily,
     mountFileContentQueryFamily,
     mountPathMatchesToolPath,
@@ -33,34 +34,36 @@ import {DriveFileInlineRef} from "./DriveFileCard"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {cleanPath} from "./driveTree"
 import {looksLikeFilePath} from "./driveTreeView"
-import {AGENT_FILES_DIR} from "./useSessionDrive"
 
-/** A resolvable mention: the drive-presented path it names, plus whether it looks like a folder. */
+/** A resolvable mention, normalized once: the drive path it names, whether it reads as a folder
+ * (which existence check to run), and the mention as written (what the record index matches on). */
 interface FileCandidate {
     path: string
     isFolder: boolean
+    mention: string
 }
 
-/** Which existence check to run. Shares the drive's own name heuristic, so a dot-DIRECTORY
- * (`.claude`, `.git`) is read as a folder here exactly as the tree reads it. */
-const looksLikeFolder = (path: string): boolean => !looksLikeFilePath(path)
+const LEADING_DOT_SLASH = /^\.?\/+/
 
-/** A span that could NAME a file or folder. A sandbox-absolute path (`/tmp/agenta/mounts/…`) is one
- * by construction, so it only needs mapping to its drive path. Anything else must strip a leading
- * `./` and look path-ish: a slash, or a letter-led trailing extension (`.ts`, `.tar.gz`). A bare
- * `/[./]/` matched any dotted token — decimals (`3.14`), abbreviations (`e.g.`), and dotted
- * identifiers (`user.name`) — each firing a guaranteed-404 on-demand read once scrolled into view;
- * the shape test drops those. */
+/** A span that could NAME a file or folder. A sandbox path is one by construction and only needs
+ * mapping; anything else must look path-ish — a slash, or a letter-led trailing extension. Without
+ * that shape test every dotted token (`3.14`, `e.g.`, `user.name`) would fire a guaranteed-404 read
+ * once scrolled into view. */
 const fileCandidate = (text: string): FileCandidate | null => {
     const raw = text.trim()
+    const mention = raw.replace(LEADING_DOT_SLASH, "")
     const drivePath = toolPathToDrivePath(raw)
-    // A sandbox path that maps to the mount ROOT names the drive itself, not an item in it.
-    if (drivePath !== null)
-        return drivePath ? {path: drivePath, isFolder: looksLikeFolder(drivePath)} : null
-    const t = raw.replace(/^\.?\/+/, "")
-    if (!t || !/\/|\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(t)) return null
-    return {path: t, isFolder: looksLikeFolder(t)}
+    // A sandbox path mapping to the mount ROOT names the drive itself, not an item in it.
+    if (drivePath !== null) return drivePath ? candidate(drivePath, mention) : null
+    if (!mention || !/\/|\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(mention)) return null
+    return candidate(mention, mention)
 }
+
+const candidate = (path: string, mention: string): FileCandidate => ({
+    path,
+    isFolder: !looksLikeFilePath(path),
+    mention,
+})
 
 /** Basenames of every file the agent wrote/edited (from records) → the tool paths sharing them, for
  * a cheap "does a written file tail-match this mention" test (records paths are tool paths — absolute
@@ -103,16 +106,16 @@ function useMountResolver(sessionId: string, artifactId?: string | null) {
     )
 }
 
-/** The path once it has stopped changing. A streaming reply grows a bare path mention prefix by
- * prefix (`/tmp/ag`, `/tmp/agenta/mo`, …) and every prefix is a path in its own right — checking
- * each one would fire a burst of guaranteed misses for a single mention. */
-function useSettledPath(path: string, ms = 400): string {
+/** True once `path` has held still. A streaming mention grows a segment at a time and each prefix
+ * is its own path, so checking every one fires a burst of misses. `""` arms nothing. */
+function useSettled(path: string, ms = 400): boolean {
     const [settled, setSettled] = useState("")
     useEffect(() => {
+        if (!path) return
         const timer = window.setTimeout(() => setSettled(path), ms)
         return () => window.clearTimeout(timer)
     }, [path, ms])
-    return settled
+    return Boolean(path) && settled === path
 }
 
 /** Latch true once the element scrolls near the viewport (never resets — the link stays). */
@@ -135,20 +138,19 @@ function useInView() {
     return [ref, inView] as const
 }
 
-/** A mention NOT already known from records: check that ONE path when it scrolls into view — a hit
- * links it (and, for a file, warms Quick Look), a miss stays plain code. A file is checked by
- * reading it; a folder by listing its one level, since reading a directory always misses. Only the
- * matching query is ever enabled — the other is keyed empty, which disables it. */
+/** A mention NOT already known from records: check that ONE path once it scrolls into view — a file
+ * by reading it (which also warms Quick Look), a folder by listing its one level, since reading a
+ * directory always misses. The check that doesn't apply is keyed empty, which disables it. */
 function OnDemandFileRef({candidate, fallback}: {candidate: FileCandidate; fallback: ReactNode}) {
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId()
     const resolveMount = useMountResolver(sessionId, artifactId)
     const [ref, inView] = useInView()
-    const settledPath = useSettledPath(candidate.path)
-    const resolved = resolveMount(candidate.path)
-    const enabled = inView && settledPath === candidate.path && Boolean(resolved?.mount?.id)
-    const mountId = enabled ? (resolved?.mount.id ?? "") : ""
-    const path = enabled ? (resolved?.path ?? "") : ""
+    // Gated on `inView` so an offscreen mention arms no timer and forces no extra render.
+    const settled = useSettled(inView ? candidate.path : "")
+    const resolved = settled ? resolveMount(candidate.path) : null
+    const mountId = resolved?.mount.id ?? ""
+    const path = resolved?.path ?? ""
     const content = useAtomValue(
         mountFileContentQueryFamily({
             mountId: candidate.isFolder ? "" : mountId,
@@ -173,11 +175,10 @@ function OnDemandFileRef({candidate, fallback}: {candidate: FileCandidate; fallb
 function ChatFileCode({text, fallback}: {text: string; fallback: ReactNode}) {
     const sessionId = useDriveSessionId() ?? ""
     const index = useAtomValue(recordIndexAtomFamily(sessionId))
-    const candidate = fileCandidate(text)
+    const candidate = useMemo(() => fileCandidate(text), [text])
     if (!candidate) return <>{fallback}</>
-    // Records hold TOOL paths, which tail-match the mention AS WRITTEN (`mountPathMatchesToolPath`
-    // strips the leading slash itself) — so this asks with the raw text, not the mapped drive path.
-    if (knownFromRecords(index, text.trim().replace(/^\.\/+/, "")))
+    // Records hold tool paths — match the mention as written, not the mapped drive path.
+    if (knownFromRecords(index, candidate.mention))
         return <DriveFileInlineRef path={candidate.path} />
     return <OnDemandFileRef candidate={candidate} fallback={fallback} />
 }
