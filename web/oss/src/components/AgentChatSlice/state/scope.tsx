@@ -43,15 +43,6 @@ export const drawerScopeKey = (entityId: string | null | undefined): string =>
 export const isDrawerScopeKey = (key: string): boolean => key.startsWith("drawer:")
 
 /**
- * Which of the two live panels owns the keyboard. The revision drawer mounts a second
- * `AgentChatPanel` over the playground's under its own scope, and a document-level listener in both
- * would double-handle every keypress: the drawer's panel owns them while it's open, the
- * playground's owns them the rest of the time.
- */
-export const ownsSessionShortcuts = (scope: string, drawerOpen: boolean): boolean =>
-    isDrawerScopeKey(scope) === drawerOpen
-
-/**
  * Scope key for the playground-native onboarding surface. The onboarding playground runs on the
  * PROJECT route (no app id), so without an override it would fall back to the shared `__global__`
  * app scope and inherit whatever conversation the previous app-less visit left there (a stale/failed

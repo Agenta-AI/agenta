@@ -1,16 +1,7 @@
 import {useEffect} from "react"
 
-/** How many open sessions the digit row can reach. 9 is the whole row; lower it and both the
- * matcher below and the tab chips' advertised shortcuts follow. */
+/** How many open sessions the digit row can reach. */
 export const SESSION_SHORTCUT_MAX = 9
-
-/** The 1-based tab position an `event.code` addresses, or null when it isn't a bound digit. */
-export const shortcutPosition = (code: string): number | null => {
-    const match = /^Digit([1-9])$/.exec(code)
-    if (!match) return null
-    const position = Number(match[1])
-    return position <= SESSION_SHORTCUT_MAX ? position : null
-}
 
 export interface UseSessionShortcutsParams {
     /** Open sessions in tab order — position N is `sessions[N - 1]`. */
@@ -76,9 +67,9 @@ export function useSessionShortcuts({
             if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
             if (isOverlayOpen()) return
 
-            const position = shortcutPosition(e.code)
-            if (position) {
-                const target = sessions[position - 1]
+            const digit = /^Digit([1-9])$/.exec(e.code)
+            if (digit) {
+                const target = sessions[Number(digit[1]) - 1]
                 if (!target) return
                 e.preventDefault()
                 e.stopPropagation()
