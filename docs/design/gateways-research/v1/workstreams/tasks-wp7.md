@@ -6,19 +6,19 @@ commit and fix all errors, per `api/AGENTS.md`.
 
 ## Phase 1 — `catalog.py`
 
-- [ ] `core/gateways/llms/catalog.py`: implement `standard_llm_endpoint(*, provider_key: str) ->
+- [x] `core/gateways/llms/catalog.py`: implement `standard_llm_endpoint(*, provider_key: str) ->
       Optional[LlmEndpoint]` reading `sdks/python/agenta/sdk/utils/assets.py::supported_llm_models`
       — `namespace=BUILTIN`, `slug=provider_key`, `deployment=DIRECT`, `data.model_slugs` from
       the map, `data.config` at code defaults, no `id`, no `Lifecycle`. Return `None` for a
       provider absent from the map.
-- [ ] Implement `standard_llm_endpoints() -> List[LlmEndpoint]`: all eleven, calling
+- [x] Implement `standard_llm_endpoints() -> List[LlmEndpoint]`: all eleven, calling
       `standard_llm_endpoint` per key in `supported_llm_models`, unfiltered by existence.
-- [ ] Ruff format + check; run and fix.
-- [ ] Unit tests: `standard_llm_endpoint("openai")` matches the catalogue's `openai` model list
+- [x] Ruff format + check; run and fix.
+- [x] Unit tests: `standard_llm_endpoint("openai")` matches the catalogue's `openai` model list
       exactly; the three `StandardProviderKind` members with no catalogue entry (`anyscale`,
       `alephalpha`, `mistralai`) and an arbitrary unknown string all return `None`;
       `standard_llm_endpoints()` returns exactly eleven entries.
-- [ ] Commit: "wp7: catalog.py — generated standard endpoints".
+- [x] Commit: "wp7: catalog.py — generated standard endpoints".
 
 ## Phase 2 — `registry.py`
 
