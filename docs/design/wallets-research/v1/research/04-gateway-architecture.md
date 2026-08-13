@@ -1373,9 +1373,8 @@ why the entries have to exist from the beginning.
 | Tests: streaming relay, disconnect, usage extraction, balance exhaustion, allowlist rejection, cache preservation | 400 to 600 lines |
 | **Total** | **roughly 1,100 to 1,650 lines** |
 
-Calendar estimate for one engineer who knows our codebase: **two to three weeks** to something
-deployed behind a flag, plus a week of running it in the background against real traffic
-before it gates anything. The tests are more than a third of the work, and that ratio is
+The shape of the work: something deployed behind a flag, then run in the background against
+real traffic before it gates anything. The tests are more than a third of the work, and that ratio is
 correct, because every failure in this system is silent by nature. A broken cache costs money
 without producing an error. A missed usage record costs money without producing an error. A
 buffered stream produces a correct answer, slowly.

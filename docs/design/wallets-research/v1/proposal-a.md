@@ -1179,8 +1179,7 @@ Estimates are for one engineer who knows this codebase. Treat them as estimates,
 measurements. Every phase is shippable on its own and no phase invalidates the data model of the
 one below it.
 
-### Phase 0: prove the delivery path. Three to five days.
-
+### Phase 0: prove the delivery path.
 Build the dumb forwarder: one endpoint that accepts an OpenAI chat completion, swaps the
 authorization header for a Google credential, forwards to the Vertex OpenAI-compatible endpoint,
 and streams the response back untouched. No balance, no token, no accounting. About a hundred
@@ -1200,8 +1199,7 @@ Then run the four tests that can still change the design.
 **What we learn:** whether the cost model in section 4 is real, and which model we launch on. If
 test 3 shows no cached tokens, stop and rethink, because the economics change completely.
 
-### Phase 1: the ledger, with no enforcement. One and a half to two weeks.
-
+### Phase 1: the ledger, with no enforcement.
 The six tables and the migration. The hold, settle, and grant functions with their idempotency
 keys. The burn walk and the allocation writer. The hold sweeper. An admin endpoint that writes a
 grant. A read endpoint that returns the balance and a paged history. The signup hook that grants
@@ -1215,8 +1213,7 @@ into pytest gives us a conformance suite almost free.
 
 **What we learn:** nothing about users yet. This phase exists so Phase 2 has somewhere to write.
 
-### Phase 2: the gateway enforces. One and a half to two weeks.
-
+### Phase 2: the gateway enforces.
 Run token minting at request acceptance, and the resolver change that carries it. Token
 verification, the model allowlist, the output ceiling splice, and the per-run cap. The hold before
 the call and the settle after. Usage extraction from the stream tail and from a non-streaming
@@ -1231,8 +1228,7 @@ reaches the client well before the last one.
 **What we ship:** a person signs up, runs an agent immediately, watches a number go down, and
 hits a clear wall. That is the product.
 
-### Phase 3: see what is happening. One week.
-
+### Phase 3: see what is happening.
 The daily rollup table, built nightly from entries with an insert-select. The nightly
 reconciliation that recomputes the account counters from the entries and alerts on a mismatch. A
 report of the cache hit rate and of what caching saved in dollars, which is nearly free once the
@@ -1243,8 +1239,7 @@ rate.
 **What we learn:** whether caching is working, what a conversation really costs, and whether our
 rate card is above our cost.
 
-### Phase 4: money in. One to two weeks.
-
+### Phase 4: money in.
 Stripe checkout for credit blocks at the published rate, with the webhook writing a purchase
 grant keyed on the payment intent. The grant expiry job. The admin award flow for contributions,
 with an approver, a reason, a published award schedule, and backdating. The void and correction
@@ -1252,15 +1247,11 @@ endpoints.
 
 **What we ship:** people can buy credits and we can pay people in credits.
 
-### Phase 5: meter everything else. One to two weeks.
-
+### Phase 5: meter everything else.
 Tool call metering at `execute_tool`. Sandbox time metering, reported by the runner and priced by
 the backend. Extend the rollup and the history to show the three categories separately.
 
 **What we ship:** the unit finally covers everything the brief said it should.
-
-Total: roughly seven to nine weeks of one engineer, with a usable funded free tier at the end of
-week five or six.
 
 ### What Phase 2 deliberately does not build
 
@@ -1366,7 +1357,7 @@ accept that the account counter is then briefly optimistic. Under an hour of wor
 *Worst outcome:* our cost per active organization is understated, and a user who runs many tool
 calls on few model calls is under-charged. *Why acceptable:* the model call dominates our cost
 today, at roughly 23,600 replayed tokens per call. *Cost to add back:* two new callers of the
-existing hold and settle interface, no schema change. Phase 5, one to two weeks.
+existing hold and settle interface, no schema change. Phase 5.
 
 **8. Nothing reconciles our numbers against Google's invoice.**
 
@@ -1493,5 +1484,4 @@ That is the one place where I deliberately paid a small cost now, in the `measur
 concrete and specific: entries rather than a counter, integer micro-dollars, grants as rows, raw
 measurement and run identifier on every debit, three counters rather than one, and a durable hold
 row. Everything I deferred is either a new caller of an existing interface, a value in a table, or
-a function in code. The first version is roughly five to six weeks to a working funded free tier,
-and I do not see a piece of it that a later phase has to demolish.
+a function in code, and I do not see a piece of it that a later phase has to demolish.
