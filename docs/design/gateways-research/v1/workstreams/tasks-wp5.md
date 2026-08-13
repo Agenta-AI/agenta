@@ -98,7 +98,7 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
       `command`, always-on (no profile gate), healthchecks on `/health`.
 - [ ] `hosting/docker-compose/ee/docker-compose.dev.yml`: same two services (not a license-gated
       feature).
-- [ ] Verify the healthcheck config against the existing `ngrok`/`composio` service blocks'
+- [ ] Verify the healthcheck config against the existing profile-gated service blocks'
       indentation and section-comment style (`# === ACTIVATION`, `# === IMAGE`, etc.) so the new
       blocks read like the rest of the file.
 - [ ] Ruff format + check (no Python touched here, but re-run to confirm the phase-4/5 files

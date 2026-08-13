@@ -216,8 +216,9 @@ Both apps expose `GET /health` for the compose healthcheck.
 ## Compose wiring
 
 Following the existing profile-gated satellite-service precedent
-(`hosting/docker-compose/oss/docker-compose.dev.yml`, the `composio`/`ngrok` services under
-`with-tunnel`) for shape, but **not profile-gated** — Checkpoint A's acceptance tests need these
+(`hosting/docker-compose/oss/docker-compose.dev.yml`, the `composio` and tunnel services under
+`with-tunnel`) for shape — copy their shape, never their names: the tunnel services belong to the
+development-ingress work, which renames and adds to them (D26), but **not profile-gated** — Checkpoint A's acceptance tests need these
 every run, unconditionally, matching D23 ("no third-party dependency to gate on... the gateways
 have no third-party dependency to gate on" — same reasoning: the fakes are ours, not optional):
 

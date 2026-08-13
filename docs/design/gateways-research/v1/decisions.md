@@ -489,6 +489,28 @@ discovers its public address at runtime through the tunnel agent's own API. That
 scope for it. Outside development a deployment has a domain, and if an operator chooses to run a
 tunnel anyway that is their arrangement, not something the product ships.
 
+**The tunnels belong to the development-ingress work, and the gateways never add one.** That
+work owns the tunnel services, their names, and the runner's selector; this design builds on top
+of them and changes none of them. Three reasons a gateway-specific tunnel is not merely
+unnecessary but harmful:
+
+- **It would publish something already published.** The ingress tunnel forwards to Traefik, so
+  every inbound route arrives on its normal path — the gateways are behind Traefik under `/api/`
+  like everything else. A second tunnel to the same place adds no reach. That work states the
+  rule directly: *"Do not add a tunnel per integration. One endpoint serves all of them"*, and it
+  names the model and MCP gateways as one of the three consumers it was built for.
+- **It would break tunnel selection, silently.** The runner used to take the first HTTPS tunnel
+  it found, which was correct only while one existed. The ingress work replaces that with a match
+  on the upstream a tunnel forwards to, precisely because a second tunnel makes order-based
+  selection wrong. A third re-enters that space, and the failure is quiet: a sandbox handed the
+  platform's HTTP API where it expected the object store.
+- **Each tunnel is a live agent session.** Two already risk exceeding a provider plan — that work
+  documents a single-agent fallback for exactly this. A third makes it likelier that the store
+  tunnel fails, and Daytona sandboxes depend on that one for a durable working folder.
+
+So the only inbound need this design has is the client-identity fetch below, it belongs to the
+OAuth wave rather than to checkpoint A, and the ingress tunnel already serves it.
+
 ### The one thing that can genuinely fail
 
 The newer client-registration mechanism makes the client identifier an HTTPS URL and has **the

@@ -138,9 +138,15 @@ on by default and disabled with `--no-tunnel`, and idles when no API key is set.
 webhook URL is a deliberate dummy on an RFC 2606 reserved host — it passes the provider's
 anti-forgery check and is never delivered to, existing only to mint the subscription secret.
 
-**An optional ngrok container, development only.** Both compose files define it, gated on
-`NGROK_AUTHTOKEN`; without a token it logs that remote sandbox mounts are disabled and does
-nothing. It is absent from the GitHub and production compose files.
+**Optional tunnel containers, development only.** Both compose files define them, gated on an
+authorization token; without one they log that the thing they publish is unavailable and do
+nothing. They are absent from the GitHub and production compose files.
+
+**These belong to the development-ingress work, not to this one.** It renames the store's tunnel
+for what it publishes and adds a second that publishes the ingress, forwarding to Traefik — which
+is what serves the gateways' own routes. This design adds no tunnel of its own and changes none
+of theirs; D26 records why a gateway-specific one would duplicate an existing endpoint, break the
+runner's tunnel selection, and cost an agent session the plan may not have.
 
 ### Why none of these carries an OAuth redirect
 
