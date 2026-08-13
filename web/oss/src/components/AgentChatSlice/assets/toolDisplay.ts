@@ -186,20 +186,30 @@ const PLATFORM_TERMS: Record<string, string> = {
 /** "an" before a vowel sound, near enough for a one-word object. */
 const article = (word: string): string => ("aeiou".includes(word[0]?.toLowerCase()) ? "an" : "a")
 
+/** Shortest object word allowed to match inside a run-together slug. Keeps "file" out of
+ * "googledrive" while letting "calendar" out of "googlecalendar". */
+const SLUG_ECHO_MIN_LENGTH = 5
+
 /**
  * Whether the object already says which app this is, so naming the app would stutter: a Google
  * Calendar action on "calendar settings" would read "Got Google Calendar calendar settings".
  *
- * Matches whole words only. A near-miss like Gmail against "email" shares no word and still reads
- * "Sent a Gmail email", which is redundant but not wrong. Loosening this to substrings would start
- * guessing.
+ * Two forms have to match, because the app name arrives spelled two ways. The catalog gives
+ * "Google Calendar", where a whole-word check is enough. Before it answers we hold the title-cased
+ * slug "Googlecalendar", where the words are run together and only a substring check finds them.
+ *
+ * Erring toward skipping is safe: the app then shows in the chip instead, so nothing is lost. A
+ * near-miss like Gmail against "email" matches neither form and still reads "Sent a Gmail email",
+ * which is redundant but not wrong.
  */
 const echoesApp = (object: string, appName: string): boolean => {
-    const words = new Set(object.toLowerCase().split(/\s+/).filter(Boolean))
-    return appName
-        .toLowerCase()
-        .split(/\s+/)
-        .some((word) => words.has(word))
+    const words = object.toLowerCase().split(/\s+/).filter(Boolean)
+    const appWords = new Set(appName.toLowerCase().split(/\s+/).filter(Boolean))
+    const squashed = appName.toLowerCase().replace(/[^a-z0-9]/g, "")
+    return words.some(
+        (word) =>
+            appWords.has(word) || (word.length >= SLUG_ECHO_MIN_LENGTH && squashed.includes(word)),
+    )
 }
 
 interface BuiltActivity {
