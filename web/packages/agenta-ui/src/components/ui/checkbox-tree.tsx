@@ -59,7 +59,11 @@ const Node = ({
     const halfChecked = halfCheckedKeys.includes(key)
 
     return (
-        <li className="list-none">
+        <li
+            role="treeitem"
+            aria-expanded={hasChildren ? expanded : undefined}
+            className="list-none"
+        >
             <div
                 className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-colorFillTertiary"
                 style={{paddingLeft: depth * 16 + 4}}
@@ -91,7 +95,7 @@ const Node = ({
             </div>
 
             {hasChildren && expanded ? (
-                <ul className="m-0 p-0">
+                <ul role="group" className="m-0 p-0">
                     {children.map((child) => (
                         <Node
                             key={String(child.key)}

@@ -27,7 +27,11 @@ const valueAt = <RecordType>(record: RecordType, column: ColumnDef<RecordType>):
     )
 }
 
-const idOf = <RecordType>(column: ColumnDef<RecordType>, index: number): string =>
+/**
+ * The column's id. Anything that keys state by column MUST use this — TanStack keys
+ * columnSizing/visibility/selection by it, so a second derivation silently addresses nothing.
+ */
+export const columnIdOf = <RecordType>(column: ColumnDef<RecordType>, index: number): string =>
     String(
         column.key ??
             (Array.isArray(column.dataIndex) ? column.dataIndex.join(".") : column.dataIndex) ??
@@ -45,7 +49,7 @@ export const toTanstackColumns = <RecordType extends RowData>(
     columns: ColumnDefs<RecordType>,
 ): TanstackColumnDef<VirtualTableFeatures, RecordType, unknown>[] =>
     columns.map((column, index) => {
-        const id = idOf(column as ColumnDef<RecordType>, index)
+        const id = columnIdOf(column as ColumnDef<RecordType>, index)
 
         if (isColumnGroupDef(column)) {
             return {

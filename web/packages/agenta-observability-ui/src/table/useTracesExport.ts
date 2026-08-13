@@ -69,7 +69,16 @@ export const useTracesExport = ({
         // browser supports `showSaveFilePicker` (Chromium). User-cancel of
         // the picker bails before any request is fired. On Safari / Firefox
         // this falls back to the buffered Blob path — same UX as before.
-        const writer = await createExportWriter({filename, headers: csvHeaders})
+        // Outside the try below, so a rejection here would escape into a void-ed call with no
+        // feedback: the caller fires this with `void onExport()`.
+        let writer: Awaited<ReturnType<typeof createExportWriter>>
+        try {
+            writer = await createExportWriter({filename, headers: csvHeaders})
+        } catch (error) {
+            console.error(error)
+            message.error({content: "Could not start the export.", key: exportKey})
+            return
+        }
         if (writer === PICKER_CANCELLED) return
 
         const controller = new AbortController()

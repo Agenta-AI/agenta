@@ -58,27 +58,31 @@ const useVirtualTableRowSelection = <RecordType extends object>({
     }, [selectedRowKeys])
 
     // Lets us hand `onChange` the records for the keys it reports, and skip disabled rows.
-    const {recordById, disabledIds} = useMemo(() => {
+    const {recordById, disabledIds, keyById} = useMemo(() => {
         const byId = new Map<string, RecordType>()
+        // Object.keys() is always strings; antd keys may be numbers, so map back on the way out.
+        const keys = new Map<string, Key>()
         const disabled = new Set<string>()
         dataSource.forEach((record, index) => {
             const id = String(rowKey(record, index))
             byId.set(id, record)
+            keys.set(id, rowKey(record, index))
             if (getCheckboxProps?.(record).disabled) disabled.add(id)
         })
-        return {recordById: byId, disabledIds: disabled}
+        return {recordById: byId, disabledIds: disabled, keyById: keys}
     }, [dataSource, rowKey, getCheckboxProps])
 
     const emit = useCallback(
         (next: RowSelectionState) => {
-            const keys = Object.keys(next).filter((id) => next[id])
+            const ids = Object.keys(next).filter((id) => next[id])
+            const keys: Key[] = ids.map((id) => keyById.get(id) ?? id)
             // Keys can outlive their rows across pages; only map back the ones we hold.
-            const rows = keys
+            const rows = ids
                 .map((id) => recordById.get(id))
                 .filter((record): record is RecordType => record !== undefined)
             onChange?.(keys, rows)
         },
-        [onChange, recordById],
+        [onChange, recordById, keyById],
     )
 
     const onRowSelectionChange = useCallback<OnChangeFn<RowSelectionState>>(

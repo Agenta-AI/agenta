@@ -699,7 +699,9 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     // Stable class hooks for app code, so a consumer's selector does not depend on antd's DOM.
     // The structural nodes exist for the table's lifetime; rows and cells get theirs from
     // rowClassName and the column adapter, because virtualization recycles them.
-    useEffect(() => {
+    // Layout effect, not effect: consumers query avt-* right after mount, and useEffect would
+    // let the first painted frame go out unstamped.
+    useLayoutEffect(() => {
         stampTableDom(containerRef.current)
     }, [dataSource])
 

@@ -28,7 +28,7 @@ import {distributeColumnWidths, type DistributableColumn} from "../distributeCol
 import useInfiniteScroll from "../hooks/useInfiniteScroll"
 import {AVT} from "../tableDom"
 import {TABLE_FEATURES, type VirtualTableFeatures} from "../tableFeatures"
-import {sourceOf, toTanstackColumns} from "../tanstackColumns"
+import {columnIdOf, sourceOf, toTanstackColumns} from "../tanstackColumns"
 
 /**
  * The antd-free render leaf.
@@ -165,7 +165,7 @@ const toDistributable = <RecordType,>(columns: ColumnDefs<RecordType>): Distribu
     }
     visit(columns)
 
-    return leaves.map((column) => {
+    return leaves.map((column, index) => {
         const width =
             typeof column.width === "number"
                 ? column.width
@@ -175,7 +175,8 @@ const toDistributable = <RecordType,>(columns: ColumnDefs<RecordType>): Distribu
         // maxWidth is not on ColumnDef; callers pass it through, as they did before.
         const declaredMax = (column as {maxWidth?: number}).maxWidth
         return {
-            key: String(column.key ?? column.dataIndex ?? ""),
+            // Must match toTanstackColumns exactly, or these widths key nothing.
+            key: columnIdOf(column, index),
             width,
             // A column narrower than the default floor keeps its own smaller floor, else the
             // floor would exceed the width it asked for and it could never be dragged down.

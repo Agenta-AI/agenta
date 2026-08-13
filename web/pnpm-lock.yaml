@@ -2270,6 +2270,9 @@ importers:
       '@floating-ui/react':
         specifier: ^0.27.13
         version: 0.27.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@testing-library/dom':
+        specifier: ^10.4.0
+        version: 10.4.1
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
