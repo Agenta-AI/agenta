@@ -314,6 +314,26 @@ describe("resolveToolDisplay for external tools", () => {
         expect(resolveToolDisplay("googledrive__UPLOAD_FILE").sourceKey).toBe("googledrive")
     })
 
+    // "Got Google Calendar calendar settings" stutters, so the app steps back into the chip.
+    it("skips the app when the object already says which app it is", () => {
+        const display = resolveToolDisplay(
+            "tools__composio__googlecalendar__GET_CALENDAR_SETTINGS__c1",
+            undefined,
+            "Google Calendar",
+        )
+
+        expect(display.activity.done).toBe("Got calendar settings")
+        expect(display.source).toBe("Google Calendar")
+    })
+
+    it("matches whole words only, so a near-miss still names the app", () => {
+        // "Gmail" and "email" share no word, so this stays redundant rather than guessing.
+        expect(
+            resolveToolDisplay("tools__composio__gmail__SEND_EMAIL__b81", undefined, "Gmail")
+                .activity.done,
+        ).toBe("Sent a Gmail email")
+    })
+
     it("names the server for a third-party MCP tool under either harness's wrapper", () => {
         for (const raw of ["mcp__linear__create_issue", "mcp.linear.create_issue"]) {
             const display = resolveToolDisplay(raw)
