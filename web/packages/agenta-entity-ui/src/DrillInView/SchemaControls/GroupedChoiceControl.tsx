@@ -12,6 +12,7 @@
 
 import {memo, useMemo} from "react"
 
+import {withoutSlugBoundGroups} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -83,10 +84,15 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
     const schemaOptions = useMemo(() => getOptionsFromSchema(schema), [schema])
     const isModel = useMemo(() => isModelField(schema), [schema])
 
-    // Merge schema options with extra option groups from vault/custom secrets
+    // This control writes a single scalar at its path and has no way to persist a sibling
+    // connection slug, so standard-provider connection groups are filtered out: picking
+    // "OpenAI 2 / gpt-4o-mini" here would silently run on whichever OpenAI key the family
+    // fallback picks. Custom-provider groups survive — their model keys name the connection.
+    // The model popover (ModelConfigEditor), which writes both fields, is where standard
+    // connection groups appear.
     const mergedOptions = useMemo(() => {
         const base = schemaOptions?.options ?? []
-        const extra = llmProviderConfig?.extraOptionGroups ?? []
+        const extra = withoutSlugBoundGroups(llmProviderConfig?.extraOptionGroups ?? [])
         return [...extra, ...base]
     }, [schemaOptions, llmProviderConfig?.extraOptionGroups])
 

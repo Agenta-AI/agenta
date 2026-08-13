@@ -31,6 +31,16 @@ export function subscriptionStatusKey({
 }
 
 /**
+ * The harness key the ONE whole-map subscription-status query is filed under.
+ *
+ * The runner answers for every harness in a single call — the request's `harness` is informational
+ * (`SubscriptionStatusRequest.harness` is optional server-side) — so every surface that wants the
+ * whole map must ask under the SAME key or TanStack Query files them as separate queries and the
+ * deployment gets one poll per surface. Shared by the providers drawer and the model pickers.
+ */
+export const SUBSCRIPTION_STATUS_QUERY_HARNESS = "claude"
+
+/**
  * Live runner status for one harness. Keyed by the harness (`""` = idle, no request).
  *
  * Not persisted: this is a point-in-time check, and a stale "Subscription login found" restored

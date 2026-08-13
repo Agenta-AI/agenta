@@ -23,6 +23,16 @@ import {
 /** A login file that passes the shape check without resembling a real credential. */
 const FAKE_LOGIN = JSON.stringify({ fake: "not-a-real-token" });
 
+/** A Pi `auth.json`: provider id -> login. Same shape Pi writes, with invented credentials. */
+const piAuth = (entries: Record<string, unknown>) => JSON.stringify(entries);
+
+const FAKE_OAUTH_LOGIN = {
+  type: "oauth",
+  access: "fake-access",
+  refresh: "fake-refresh",
+  expires: 1,
+};
+
 describe("harnessSubscriptionStatus", () => {
   let root: string;
 
@@ -166,6 +176,107 @@ describe("harnessSubscriptionStatus", () => {
     });
   });
 
+  it("names the provider families a Pi login holds", async () => {
+    // One mount, two plans: this is the only way the card can say WHICH plan a ready Pi runs.
+    const env = mount(
+      "PI_CODING_AGENT_DIR",
+      "auth.json",
+      piAuth({
+        "openai-codex": { ...FAKE_OAUTH_LOGIN, accountId: "fake-account" },
+        anthropic: FAKE_OAUTH_LOGIN,
+      }),
+    );
+
+    for (const harness of ["pi_core", "pi_agenta"]) {
+      assert.deepEqual(await harnessSubscriptionStatus(harness, env), {
+        state: "ready",
+        providers: ["anthropic", "openai"],
+      });
+    }
+  });
+
+  it("ignores a login id it has no provider family for", async () => {
+    // A real Pi login (GitHub Copilot) and an invented one: both are logins we cannot name a plan
+    // for, so the harness stays ready and says nothing about them.
+    const env = mount(
+      "PI_CODING_AGENT_DIR",
+      "auth.json",
+      piAuth({
+        "github-copilot": FAKE_OAUTH_LOGIN,
+        "some-future-provider": FAKE_OAUTH_LOGIN,
+      }),
+    );
+
+    assert.deepEqual(await harnessSubscriptionStatus("pi_core", env), {
+      state: "ready",
+    });
+  });
+
+  it("counts subscription logins only, never a pasted API key", async () => {
+    const env = mount(
+      "PI_CODING_AGENT_DIR",
+      "auth.json",
+      piAuth({
+        anthropic: { type: "api_key", key: "fake-key" },
+        "openai-codex": FAKE_OAUTH_LOGIN,
+      }),
+    );
+
+    assert.deepEqual(await harnessSubscriptionStatus("pi_core", env), {
+      state: "ready",
+      providers: ["openai"],
+    });
+  });
+
+  it("reads a login Pi wrote before it tagged the type", async () => {
+    const env = mount(
+      "PI_CODING_AGENT_DIR",
+      "auth.json",
+      piAuth({ anthropic: { access: "fake-access", refresh: "fake-refresh" } }),
+    );
+
+    assert.deepEqual(await harnessSubscriptionStatus("pi_core", env), {
+      state: "ready",
+      providers: ["anthropic"],
+    });
+  });
+
+  it("keeps the state ladder when the Pi login file is malformed", async () => {
+    // Unparseable: the ladder already calls this unusable, and no provider list is attempted.
+    assert.deepEqual(
+      await harnessSubscriptionStatus(
+        "pi_core",
+        mount("PI_CODING_AGENT_DIR", "auth.json", "{ not json"),
+      ),
+      { state: "login_unusable" },
+    );
+
+    // Parses, but the entries are not logins: still a login file the harness can open, so the
+    // state stands and only the naming is lost.
+    assert.deepEqual(
+      await harnessSubscriptionStatus(
+        "pi_core",
+        mount(
+          "PI_CODING_AGENT_DIR",
+          "auth.json",
+          piAuth({ anthropic: "not-an-object", "openai-codex": null }),
+        ),
+      ),
+      { state: "ready" },
+    );
+  });
+
+  it("names no providers for a harness tied to one", async () => {
+    // Codex reads a login file of its own shape; its provider is the harness constant, and a
+    // `providers` list would be a second answer to the same question.
+    const status = await harnessSubscriptionStatus(
+      "codex",
+      mount("CODEX_HOME", "auth.json", piAuth({ anthropic: FAKE_OAUTH_LOGIN })),
+    );
+
+    assert.deepEqual(status, { state: "ready", provider: "openai" });
+  });
+
   it("looks for Claude's OAuth credentials file, not a Codex-style auth.json", async () => {
     assert.equal(
       (
@@ -263,17 +374,35 @@ describe("subscriptionStatusResponse", () => {
         account: { email: "someone@example.com", plan: "fake-plan-name" },
       }),
     );
+    // A Pi login is the one file this module reads INTO, so its values are the ones most at risk.
+    const piDir = join(root, "pi-agent");
+    mkdirSync(piDir, { recursive: true });
+    writeFileSync(
+      join(piDir, "auth.json"),
+      JSON.stringify({
+        "openai-codex": {
+          type: "oauth",
+          access: "fake-pi-access-token",
+          refresh: "fake-pi-refresh-token",
+          expires: 1,
+          accountId: "fake-pi-account-id",
+        },
+      }),
+    );
     const env = {
       CODEX_HOME: codexDir,
       CLAUDE_CONFIG_DIR: join(root, "never-mounted"),
+      PI_CODING_AGENT_DIR: piDir,
     } as NodeJS.ProcessEnv;
 
     const response = await subscriptionStatusResponse(env);
     assert.equal(response.harnesses.codex.state, "ready");
+    assert.deepEqual(response.harnesses.pi_core.providers, ["openai"]);
 
     const serialized = JSON.stringify(response);
     for (const secret of [
       codexDir,
+      piDir,
       root,
       tmpdir(),
       "auth.json",
@@ -281,8 +410,14 @@ describe("subscriptionStatusResponse", () => {
       "fake-token-value",
       "someone@example.com",
       "fake-plan-name",
+      "fake-pi-access-token",
+      "fake-pi-refresh-token",
+      "fake-pi-account-id",
+      "openai-codex",
+      "oauth",
       "CODEX_HOME",
       "CLAUDE_CONFIG_DIR",
+      "PI_CODING_AGENT_DIR",
     ]) {
       assert.ok(
         !serialized.includes(secret),
@@ -302,6 +437,9 @@ describe("subscriptionStatusResponse", () => {
       assert.ok(allowedStates.includes(status.state), status.state);
       if (status.provider !== undefined) {
         assert.ok(["openai", "anthropic"].includes(status.provider));
+      }
+      for (const family of status.providers ?? []) {
+        assert.ok(["openai", "anthropic"].includes(family), family);
       }
     }
   });

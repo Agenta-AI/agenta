@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional, Any, List
 
 ERRORS_BASE_URL = "https://agenta.ai/docs/misc/errors"
 
@@ -157,6 +157,54 @@ class InvalidSecretsV0Error(ErrorStatus):
             code=self.code,
             type=self.type,
             message=message,
+        )
+
+
+class UnknownConnectionV0Error(ErrorStatus):
+    """A configuration names a connection slug the vault has no record for.
+
+    Failing loud beats falling back to the provider family: the user asked for one specific
+    credential, and silently running on another connection's key is a billing surprise. It is a
+    configuration mistake, not a server fault, so it carries a 4xx and no stacktrace.
+    """
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:schemas:unknown-connection"
+
+    def __init__(self, slug: str, known: Optional[List[str]] = None):
+        self.slug = slug
+        self.known = known or []
+        # Slugs only — a connection's key never reaches the message.
+        known_hint = (
+            f" Known connections: {', '.join(self.known)}." if self.known else ""
+        )
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=f"No provider connection named '{slug}'.{known_hint}",
+        )
+
+
+class ConnectionModelMismatchV0Error(ErrorStatus):
+    """A connection slug selects a credential from one provider family for another's model.
+
+    Running it would hand the provider someone else's key and come back as an opaque downstream
+    401, so it fails here instead, naming both families.
+    """
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:schemas:connection-model-mismatch"
+
+    def __init__(
+        self, slug: str, connection_family: str, model: str, model_family: str
+    ):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=(
+                f"Connection '{slug}' provides '{connection_family}' credentials, "
+                f"which cannot run model '{model}' ('{model_family}')."
+            ),
         )
 
 

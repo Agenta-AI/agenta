@@ -34,6 +34,7 @@ export {
 export {
     subscriptionStatusKey,
     subscriptionStatusQueryAtomFamily,
+    SUBSCRIPTION_STATUS_QUERY_HARNESS,
     resolveSubscriptionStatus,
     type SubscriptionStatusDisplay,
     type SubscriptionStatusTone,

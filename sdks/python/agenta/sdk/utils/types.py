@@ -419,6 +419,14 @@ class ModelConfig(BaseModel):
         json_schema_extra={"x-ag-type-ref": "model"},
     )
 
+    connection: Optional[str] = Field(
+        default=None,
+        description="Slug of the saved provider connection supplying the credential for this model. Absent resolves through the model's provider family.",
+        # The model picker writes it alongside the model; it is never edited on its own, so the
+        # generic schema renderer must not surface it as a free-text field.
+        json_schema_extra={"x-ag-type": "hidden"},
+    )
+
     temperature: Optional[float] = Field(
         default=None,
         ge=0.0,
@@ -570,6 +578,13 @@ class AgLLM(AgSchemaMixin):
         default="gpt-4o-mini",
         description="Model identifier to use for execution.",
         json_schema_extra={"x-ag-type-ref": "model"},
+    )
+    connection: Optional[str] = Field(
+        default=None,
+        description="Slug of the saved provider connection supplying the credential for this model. Absent resolves through the model's provider family.",
+        # The model picker writes it alongside the model; it is never edited on its own, so the
+        # generic schema renderer must not surface it as a free-text field.
+        json_schema_extra={"x-ag-type": "hidden"},
     )
     temperature: Optional[float] = Field(
         default=None,

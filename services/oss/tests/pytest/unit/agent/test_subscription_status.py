@@ -117,10 +117,146 @@ async def test_unknown_runner_fields_are_dropped(monkeypatch):
 
     status = await runtime_status.fetch_subscription_status()
 
-    assert status.harnesses["claude"].model_dump() == {
+    assert status.harnesses["claude"].model_dump(exclude_none=True) == {
         "state": "ready",
         "provider": "anthropic",
     }
+
+
+async def test_provider_families_pass_through(monkeypatch):
+    """A multi-provider harness names its families; that is the only way the card can."""
+    _mock_runner(
+        monkeypatch,
+        _responds(
+            200,
+            json_body={
+                "version": 1,
+                "harnesses": {
+                    "pi_core": {"state": "ready", "providers": ["openai", "anthropic"]},
+                    "codex": {"state": "ready", "provider": "openai"},
+                },
+            },
+        ),
+    )
+
+    status = await runtime_status.fetch_subscription_status()
+
+    assert status.harnesses["pi_core"].providers == ["anthropic", "openai"]
+    assert status.harnesses["codex"].providers is None
+
+
+@pytest.mark.parametrize(
+    "providers,expected",
+    [
+        (["openai", "openai"], ["openai"]),  # deduped
+        (["openai", "quokka-ai"], ["openai"]),  # a family the card cannot render
+        (["quokka-ai"], None),  # nothing left to say
+        (["openai", 7, None, {"provider": "anthropic"}], ["openai"]),  # not strings
+        ("openai", None),  # not a list
+        ([], None),
+    ],
+)
+async def test_only_known_provider_families_reach_the_card(
+    monkeypatch, providers, expected
+):
+    """The list is closed at the boundary, exactly like the state vocabulary above it."""
+    _mock_runner(
+        monkeypatch,
+        _responds(
+            200,
+            json_body={
+                "version": 1,
+                "harnesses": {"pi_core": {"state": "ready", "providers": providers}},
+            },
+        ),
+    )
+
+    status = await runtime_status.fetch_subscription_status()
+
+    # The entry survives either way: an unreadable extra never costs the state.
+    assert status.harnesses["pi_core"].state == "ready"
+    assert status.harnesses["pi_core"].providers == expected
+
+
+@pytest.mark.parametrize(
+    "provider,expected",
+    [
+        ("openai", "openai"),
+        ("anthropic", "anthropic"),
+        ("quokka-ai", None),  # a family the card cannot render
+        ("/home/agent/.codex/auth.json", None),  # a path, not a family
+        ("sk-proj-abc123", None),  # a credential, not a family
+        (7, None),  # not a string
+        ({"name": "openai"}, None),  # not a string
+    ],
+)
+async def test_only_known_provider_families_reach_the_card_singular(
+    monkeypatch, provider, expected
+):
+    """`provider` is closed exactly like `providers`: the card draws this family too."""
+    _mock_runner(
+        monkeypatch,
+        _responds(
+            200,
+            json_body={
+                "version": 1,
+                "harnesses": {"codex": {"state": "ready", "provider": provider}},
+            },
+        ),
+    )
+
+    status = await runtime_status.fetch_subscription_status()
+
+    # The entry survives either way: an unreadable extra never costs the state.
+    assert status.harnesses["codex"].state == "ready"
+    assert status.harnesses["codex"].provider == expected
+
+
+async def test_only_known_harnesses_become_response_keys(monkeypatch):
+    """Map keys are runner-controlled too, so they are allow-listed like the values."""
+    _mock_runner(
+        monkeypatch,
+        _responds(
+            200,
+            json_body={
+                "version": 1,
+                "harnesses": {
+                    "codex": {"state": "ready", "provider": "openai"},
+                    # A harness a newer runner invents, and three shapes of runner leakage.
+                    "quokka": {"state": "ready"},
+                    "/home/agent/.codex/auth.json": {"state": "ready"},
+                    "sk-proj-abc123": {"state": "ready"},
+                    "acme-corp@example.com": {"state": "ready"},
+                },
+            },
+        ),
+    )
+
+    status = await runtime_status.fetch_subscription_status()
+
+    assert set(status.harnesses) == {"codex"}
+    assert status.harnesses["codex"].state == "ready"
+
+
+async def test_the_harness_map_cannot_grow_past_the_known_harnesses(monkeypatch):
+    """Closing the key set caps the map, whatever the runner sends."""
+    _mock_runner(
+        monkeypatch,
+        _responds(
+            200,
+            json_body={
+                "version": 1,
+                "harnesses": {
+                    f"harness-{index}": {"state": "ready"} for index in range(5000)
+                },
+            },
+        ),
+    )
+
+    status = await runtime_status.fetch_subscription_status()
+
+    assert status.harnesses == {}
+    assert len(status.harnesses) <= len(runtime_status.KNOWN_HARNESSES)
 
 
 @pytest.mark.parametrize(
@@ -328,6 +464,29 @@ def test_route_returns_the_public_shape(monkeypatch, authed):
         "pi_core": {"state": "not_configured"},
     }
     assert set(body) == {"runner", "checked_at", "harnesses"}
+
+
+def test_route_carries_provider_families_and_omits_the_empty_field(monkeypatch, authed):
+    _mock_runner(
+        monkeypatch,
+        _responds(
+            200,
+            json_body={
+                "version": 1,
+                "harnesses": {
+                    "pi_core": {"state": "ready", "providers": ["openai"]},
+                    "claude": {"state": "ready", "provider": "anthropic"},
+                },
+            },
+        ),
+    )
+
+    response = authed.post("/runtime/subscription-status", json={"harness": "pi_core"})
+
+    assert response.json()["harnesses"] == {
+        "pi_core": {"state": "ready", "providers": ["openai"]},
+        "claude": {"state": "ready", "provider": "anthropic"},
+    }
 
 
 def test_route_omits_harnesses_when_the_runner_is_down(monkeypatch, authed):

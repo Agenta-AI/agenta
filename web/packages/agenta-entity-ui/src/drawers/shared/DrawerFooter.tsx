@@ -18,6 +18,7 @@ export function DrawerFooter({
     canSave,
     submitLabel,
     onSubmit,
+    cancelVariant = "outline",
 }: {
     /** When `onEnabledChange` is provided, render an Active toggle on the left. */
     enabled?: boolean
@@ -31,6 +32,8 @@ export function DrawerFooter({
     canSave: boolean
     submitLabel: string
     onSubmit: () => void
+    /** `ghost` draws Cancel as text, for footers where only the primary action carries a box. */
+    cancelVariant?: "outline" | "ghost"
 }) {
     // Names the Switch from the adjacent visible "Active" text (axe button-name).
     const activeLabelId = useId()
@@ -58,7 +61,7 @@ export function DrawerFooter({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={onCancel}>
+                    <Button variant={cancelVariant} onClick={onCancel}>
                         Cancel
                     </Button>
                     {run}

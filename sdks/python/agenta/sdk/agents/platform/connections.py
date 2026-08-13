@@ -270,6 +270,21 @@ class _ConnectionCandidate:
         values = _model_lookup_values(model, self.deployment)
         return bool(values & self.model_slugs) or bool(values & self.model_keys)
 
+    def declares_model(self, model: ModelRef) -> bool:
+        """Whether the connection's SAVED model list names this model.
+
+        ``models is None`` means "use Agenta's defaults" — an absent declaration, not a claim on
+        every model — so it never narrows a provider pool. Saved ids are stored in their bare
+        spelling (the settings card collapses them), hence the case-insensitive bare compare.
+        """
+        if not self.models:
+            return False
+        declared = {value.lower() for value in self.models}
+        return bool(
+            {value.lower() for value in _model_lookup_values(model, self.deployment)}
+            & declared
+        )
+
     def selected_model_id(self, model: ModelRef) -> str:
         full = model.to_model_string()
         for key in self.model_keys:
@@ -488,11 +503,22 @@ def _choose_default(
         raise MissingCredentialError(provider=model.provider or "")
     if len(pool) == 1:
         return pool[0]
+    # A project may hold several connections per provider (Settings -> AI providers lists one row
+    # per connection), and a slug-less config is the shape the product itself creates for a new
+    # app. It is still resolvable when exactly one of those connections DECLARES the requested
+    # model in its saved list — the same list the picker offered the model from. Connections that
+    # saved no list stay unconstrained and never win by declaration.
+    declaring = [candidate for candidate in pool if candidate.declares_model(model)]
+    if len(declaring) == 1:
+        return declaring[0]
     default_named = [candidate for candidate in pool if candidate.slug == "default"]
     if len(default_named) == 1:
         return default_named[0]
     provider = model.provider or ""
-    raise AmbiguousConnectionError(provider=provider)
+    raise AmbiguousConnectionError(
+        provider=provider,
+        candidates=[candidate.slug for candidate in pool if candidate.slug],
+    )
 
 
 def _choose_named(

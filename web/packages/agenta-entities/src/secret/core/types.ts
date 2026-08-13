@@ -109,6 +109,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
     gemini: "Google Gemini",
     vertex_ai: "Google Vertex AI",
     bedrock: "AWS Bedrock",
+    sagemaker: "AWS SageMaker",
     azure: "Azure OpenAI",
     minimax: "MiniMax",
     // Stored value stays "custom"; only the user-visible label changes. The v1 custom deployment
@@ -139,6 +140,13 @@ export const PROVIDER_KINDS: Record<string, string> = {
 export const STANDARD_PROVIDER_KINDS: StandardProviderKind[] = (
     Object.values(StandardProviderKind) as StandardProviderKind[]
 ).filter((kind) => kind !== StandardProviderKind.Mistralai)
+
+/**
+ * Truthy, obviously-not-a-key sentinel the vault persister writes to disk in place of secret
+ * values. It lives here rather than beside the persister because readers of a restored row — the
+ * connection card seeds its credential fields from one — must recognise it as "no value yet".
+ */
+export const VAULT_PERSIST_REDACTED = "[redacted]"
 
 // ---------------------------------------------------------------------------
 // Migration status (UI state, not wire)

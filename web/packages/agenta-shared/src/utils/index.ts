@@ -145,6 +145,7 @@ export type {Formatter, FormatterOptions} from "./formatters/index"
 
 // Enum label utilities
 export {formatEnumLabel} from "./formatEnumLabel"
+export {splitCuratedLabel, type CuratedLabel} from "./curatedLabel"
 
 // Schema options utilities
 export {getOptionsFromSchema} from "./schemaOptions"

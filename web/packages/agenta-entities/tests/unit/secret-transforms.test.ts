@@ -89,6 +89,24 @@ describe("transformStandardProviderPayloadData", () => {
         expect(data.harnesses).toEqual(["pi_core"])
     })
 
+    it("sends a hand-typed variant id byte-identically, colon and all", () => {
+        // OpenRouter's variant syntax (`vendor/model:variant`). Nothing here may normalize,
+        // split on the colon, or re-prefix it — the gateway only answers to the exact id.
+        const typed = "deepseek/deepseek-v4-flash:nitro"
+        const payload = transformStandardProviderPayloadData(
+            {
+                title: "OpenRouter",
+                key: "sk-or-test",
+                name: "OPENROUTER_API_KEY",
+                models: ["deepseek/deepseek-v4-flash", typed],
+            },
+            StandardProviderKind.Openrouter,
+        )
+
+        const data = payload.secret.data as StandardProviderDto
+        expect(data.models).toEqual([{slug: "deepseek/deepseek-v4-flash"}, {slug: typed}])
+    })
+
     it("omits both fields when the connection has neither", () => {
         const payload = transformStandardProviderPayloadData(
             {title: "OpenAI", key: "sk-one", name: "OPENAI_API_KEY"},

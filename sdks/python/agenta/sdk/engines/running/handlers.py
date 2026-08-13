@@ -955,6 +955,15 @@ async def auto_ai_critique_v0(
             got=model,
         )
 
+    connection = parameters.get("connection") or None
+
+    if connection is not None and not isinstance(connection, str):
+        raise InvalidConfigurationParameterV0Error(
+            path="connection",
+            expected="str",
+            got=connection,
+        )
+
     response_type = parameters.get("response_type") or (
         "json_schema" if template_version == "4" else "text"
     )
@@ -989,7 +998,9 @@ async def auto_ai_critique_v0(
 
     await SecretsManager.ensure_secrets_in_workflow()
 
-    provider_settings = SecretsManager.get_provider_settings_from_workflow(model)
+    provider_settings = SecretsManager.get_provider_settings_from_workflow(
+        model, connection=connection
+    )
 
     if not provider_settings:
         raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
@@ -2053,7 +2064,8 @@ async def _run_prompt_llm_config_with_retry(
     for attempt in range(attempts):
         try:
             provider_settings = SecretsManager.get_provider_settings_from_workflow(
-                llm_config.model
+                llm_config.model,
+                connection=llm_config.connection,
             )
 
             if not provider_settings:
@@ -3566,33 +3578,31 @@ async def _call_llm_with_fallback(
         if (cls := getattr(litellm, name, None)) is not None
     )
 
-    secrets, _, _ = await SecretsManager.retrieve_secrets()
-    if secrets and isinstance(secrets, list):
-        for secret in secrets:
-            if secret.get("kind") != "provider_key":
-                continue
-            data = secret.get("data", {})
-            kind = data.get("kind")
-            key = data.get("provider", {}).get("key")
-            if kind == "openai" and key:
-                litellm.openai_key = key
-            elif kind == "anthropic" and key:
-                litellm.anthropic_key = key
-            elif kind == "openrouter" and key:
-                litellm.openrouter_key = key
-            elif kind == "cohere" and key:
-                litellm.cohere_key = key
-            elif kind == "azure" and key:
-                litellm.azure_key = key
-            elif kind == "groq" and key:
-                litellm.groq_key = key
+    await SecretsManager.ensure_secrets_in_workflow()
 
     last_error = None
     for llm_config in llms:
         model = llm_config.get("model")
         if not model:
             continue
-        kwargs: Dict[str, Any] = {"model": str(model), "messages": messages}
+
+        # Resolved per entry, not per family: two connections of one provider are the whole
+        # point of the slug, and a module-global `litellm.<family>_key` cannot express the
+        # second one. An entry without a slug still lands on the family's first record, the
+        # same answer `SecretsManager._settings_by_family` gives every other path.
+        provider_settings = (
+            SecretsManager.get_provider_settings_from_workflow(
+                str(model),
+                connection=llm_config.get("connection"),
+            )
+            or {}
+        )
+
+        kwargs: Dict[str, Any] = {
+            "model": str(model),
+            "messages": messages,
+            **provider_settings,
+        }
         if tools:
             kwargs["tools"] = tools
             if llm_config.get("tool_choice"):

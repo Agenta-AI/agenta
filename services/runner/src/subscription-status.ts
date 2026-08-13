@@ -13,15 +13,20 @@
  * (`describeCodexSubscriptionAuthFault`): a 0-byte or unreadable login is the failure operators
  * actually hit, because Codex rewrites `auth.json` in place and a degraded mount leaves it empty.
  *
- * REDACTION IS THE CONTRACT. The result is a state word (plus a constant provider name) and
- * nothing else: never an environment value, a path, a token, an account name, a plan name, or a
- * raw filesystem/parse error. The caller is a browser-facing status card; anything richer than a
- * state word is a leak. For the same reason nothing here logs.
+ * REDACTION IS THE CONTRACT. The result is a state word plus PROVIDER FAMILY names (`openai`,
+ * `anthropic`) and nothing else: never an environment value, a path, a token, an account name, a
+ * plan name, or a raw filesystem/parse error. The caller is a browser-facing status card; anything
+ * richer than that is a leak. For the same reason nothing here logs. A family name is the one
+ * thing read out of a login file, and only because a multi-provider harness (Pi) is otherwise
+ * unattributable: the card cannot say WHICH plan is ready without it.
  */
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
-/** Response envelope version. Bump only for a shape change a v1 client could not read. */
+/**
+ * Response envelope version. Bump only for a shape change a v1 client could not read — an ADDED
+ * optional field (`providers`) is not one: a v1 reader ignores it and gets the answer it expects.
+ */
 export const SUBSCRIPTION_STATUS_VERSION = 1;
 
 export type SubscriptionState =
@@ -51,6 +56,13 @@ export interface HarnessSubscriptionStatus {
    * read out of the login file — so it carries no account information.
    */
   provider?: string;
+  /**
+   * For a harness whose login file can hold SEVERAL plans (Pi), the provider families it holds,
+   * sorted and deduped. Family names only — the file's own provider ids, tokens, and account
+   * fields never leave this module. Omitted when there is nothing to report, so a client that
+   * never heard of the field reads the same answer it always did.
+   */
+  providers?: string[];
 }
 
 export interface SubscriptionStatusResponse {
@@ -65,13 +77,57 @@ interface LoginProbe {
   file: string;
   /** Omitted when the harness is not tied to one provider. */
   provider?: string;
+  /**
+   * For a login file that can hold several plans: the provider families it holds. Runs only after
+   * the state ladder said `ready`, and its failure is never the state's problem.
+   */
+  providersFrom?: (raw: string) => string[];
 }
 
-// Pi can hold logins for more than one provider, so v1 reports one state and no provider
-// rather than a provider map.
+/**
+ * Pi's `auth.json` is a map of PROVIDER ID -> login (`{type, ...credentials}`), so one Pi mount
+ * can hold a ChatGPT plan and a Claude plan at once. These are the ids Pi writes for its OAuth
+ * logins (`@earendil-works/pi-ai`, `utils/oauth`), mapped onto the provider families the vault
+ * names. Anything else is ignored rather than guessed at: `github-copilot` is a real Pi login with
+ * no provider family of ours, and an unknown id is a login we cannot name a plan for.
+ */
+const PI_PROVIDER_FAMILIES: Record<string, string> = {
+  anthropic: "anthropic",
+  "openai-codex": "openai",
+};
+
+/**
+ * True for a SUBSCRIPTION login, not an API key. Pi stores both in the same file under the same
+ * provider id, and a key is a vault connection the user pastes, not a plan they pay for — a row
+ * calling it a ChatGPT subscription would be a lie. Pi tags what it writes (`type: "oauth"`); the
+ * shape check covers a file written before it did.
+ */
+function isOAuthLogin(entry: unknown): boolean {
+  if (typeof entry !== "object" || entry === null) return false;
+  const login = entry as Record<string, unknown>;
+  return (
+    login.type === "oauth" ||
+    (typeof login.access === "string" && typeof login.refresh === "string")
+  );
+}
+
+/** The provider families whose subscription logins Pi's `auth.json` holds. */
+function piProviders(raw: string): string[] {
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  const families = new Set<string>();
+  for (const [id, entry] of Object.entries(parsed)) {
+    const family = PI_PROVIDER_FAMILIES[id];
+    if (family && isOAuthLogin(entry)) families.add(family);
+  }
+  return [...families].sort();
+}
+
+// Pi is not tied to one provider, so it reports which families its login holds instead of a
+// harness-constant `provider`.
 const PI_PROBE: LoginProbe = {
   dirEnv: "PI_CODING_AGENT_DIR",
   file: "auth.json",
+  providersFrom: piProviders,
 };
 
 const PROBES: Record<SubscriptionHarness, LoginProbe> = {
@@ -104,6 +160,12 @@ function hasMinimumShape(raw: string): boolean {
   );
 }
 
+interface ProbeResult {
+  state: SubscriptionState;
+  /** The login file's text, kept only for a `ready` probe that has providers to read from it. */
+  contents?: string;
+}
+
 /**
  * The reads are async so a hung or slow mount (a stalled network filesystem) blocks only this
  * request, never the runner's event loop and the runs sharing it.
@@ -111,29 +173,33 @@ function hasMinimumShape(raw: string): boolean {
 async function probeState(
   probe: LoginProbe,
   env: NodeJS.ProcessEnv,
-): Promise<SubscriptionState> {
+): Promise<ProbeResult> {
   const dir = env[probe.dirEnv]?.trim();
-  if (!dir) return "not_configured";
+  if (!dir) return { state: "not_configured" };
   // stat follows symlinks, so a Codex login reached through the runner-owned home's symlink
   // reports on the file the harness actually reads.
   const loginFile = join(dir, probe.file);
   try {
-    if ((await stat(loginFile)).size === 0) return "login_unusable";
+    if ((await stat(loginFile)).size === 0) return { state: "login_unusable" };
   } catch (err) {
     // Absent folder or absent file is `login_missing`. Anything else (a permission denial, a
     // broken mount) is a login we cannot use, which is a different fix for the operator.
     const code = (err as NodeJS.ErrnoException).code;
-    return code === "ENOENT" || code === "ENOTDIR"
-      ? "login_missing"
-      : "login_unusable";
+    return {
+      state:
+        code === "ENOENT" || code === "ENOTDIR"
+          ? "login_missing"
+          : "login_unusable",
+    };
   }
   try {
-    return hasMinimumShape(await readFile(loginFile, "utf8"))
-      ? "ready"
-      : "login_unusable";
+    const contents = await readFile(loginFile, "utf8");
+    return hasMinimumShape(contents)
+      ? { state: "ready", contents }
+      : { state: "login_unusable" };
   } catch {
     // Unreadable or not JSON. The error itself is dropped: it would carry the path.
-    return "login_unusable";
+    return { state: "login_unusable" };
   }
 }
 
@@ -148,13 +214,26 @@ export async function harnessSubscriptionStatus(
 ): Promise<HarnessSubscriptionStatus> {
   const probe = PROBES[harness as SubscriptionHarness];
   if (!probe) return { state: "unsupported" };
-  let state: SubscriptionState;
+  let result: ProbeResult;
   try {
-    state = await probeState(probe, env);
+    result = await probeState(probe, env);
   } catch {
-    state = "login_unusable";
+    result = { state: "login_unusable" };
   }
-  return probe.provider ? { state, provider: probe.provider } : { state };
+  const status: HarnessSubscriptionStatus = probe.provider
+    ? { state: result.state, provider: probe.provider }
+    : { state: result.state };
+  if (probe.providersFrom && result.contents !== undefined) {
+    try {
+      const providers = probe.providersFrom(result.contents);
+      // An empty list is nothing to say, not a claim that the file holds no plans.
+      if (providers.length) status.providers = providers;
+    } catch {
+      // A login the harness itself can use but we cannot attribute is still `ready`: naming its
+      // plans is an extra, and losing it must never cost the state.
+    }
+  }
+  return status;
 }
 
 /** The `GET /subscription-status` body: one state per harness this runner knows how to check. */
