@@ -108,9 +108,21 @@ describe("subscriptionPairsFrom", () => {
         expect(pairs.some((pair) => /\d$/.test(pair.name))).toBe(false)
     })
 
-    it("has nothing to list before the runner has answered", () => {
-        expect(subscriptionPairsFrom(undefined)).toEqual([])
-        expect(subscriptionPairsFrom(null)).toEqual([])
+    it("returns null before the runner has answered — unanswered is not 'none ready'", () => {
+        // Consumers gate static fallbacks on this difference: null keeps the placeholder rows,
+        // while an answered-but-empty status must hide every subscription row.
+        expect(subscriptionPairsFrom(undefined)).toBeNull()
+        expect(subscriptionPairsFrom(null)).toBeNull()
+    })
+
+    it("returns an empty list when the runner answered and nothing is ready", () => {
+        expect(
+            subscriptionPairsFrom({
+                claude: {state: "not_configured", provider: "anthropic"},
+                codex: {state: "not_configured", provider: "openai"},
+                pi_core: {state: "not_configured"},
+            }),
+        ).toEqual([])
     })
 })
 

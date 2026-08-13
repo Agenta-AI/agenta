@@ -37,7 +37,6 @@ import QueuedMessages from "./QueuedMessages"
 import RecordingBar from "./RecordingBar"
 import RevealCollapse from "./RevealCollapse"
 import RunningElsewhereStrip from "./RunningElsewhereStrip"
-import HarnessPickerPanel from "./SlashCommand/HarnessPickerPanel"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 import VoiceInputButton from "./VoiceInputButton"
 
@@ -326,26 +325,6 @@ const AgentComposerDock = ({
                 <div className="relative mb-3" ref={composerBoxRef}>
                     {/* Drilled into from the palette: same anchor, so the panel replaces the menu
                         in place rather than opening somewhere else on screen. */}
-                    {slash.picker === "harness" ? (
-                        // `origin-bottom`: the panel is docked to the composer's top edge, so it
-                        // grows out of that edge rather than from its own middle.
-                        <div
-                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
-                        >
-                            <HarnessPickerPanel
-                                harnessIds={slash.harnessIds}
-                                capabilities={slash.capabilities}
-                                currentHarness={slash.currentHarness}
-                                currentModel={slash.currentModel}
-                                customSecrets={slash.customSecrets}
-                                currentConnectionSlug={slash.currentConnectionSlug}
-                                onApply={slash.applyHarness}
-                                onDismiss={dismissPicker}
-                                onBackToCommands={backToCommands}
-                                onOpenConfig={openModelHarnessConfig}
-                            />
-                        </div>
-                    ) : null}
                     {slash.picker === "permissions" ? (
                         <div
                             className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}

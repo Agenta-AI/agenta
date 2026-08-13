@@ -179,14 +179,17 @@ describe("subscription rows from the runner's live pairs", () => {
         expect(models.every((model) => model.provider === "openai")).toBe(true)
     })
 
-    it("falls back to the static mapping while the runner has not answered", () => {
-        // Loading, an old runner, an unreachable service: the menu holds its shape rather than
-        // losing every subscription row mid-check.
+    it("falls back to the static mapping ONLY while the runner has not answered", () => {
+        // Loading, an old runner, an unreachable service (null): the menu holds its shape rather
+        // than losing every subscription row mid-check.
         // Static rows follow `harnessIds` order (codex before claude here), the live ones follow
         // the runner's harness-id sort — both deterministic, neither claiming the other's order.
-        for (const pairs of [null, [] as SubscriptionPair[]]) {
-            expect(rowsFor(pairs).map((row) => row.name)).toEqual(["ChatGPT", "Claude"])
-        }
+        expect(rowsFor(null).map((row) => row.name)).toEqual(["ChatGPT", "Claude"])
+
+        // An answered "none ready" ([]) is authoritative and lists NO subscription rows. The old
+        // behavior treated it like null, which offered plans a deployment with no mounted login
+        // could never run — the bug this distinction exists to prevent.
+        expect(rowsFor([] as SubscriptionPair[])).toEqual([])
     })
 
     it("lets the live answer REMOVE a row the static mapping would have shown", () => {
