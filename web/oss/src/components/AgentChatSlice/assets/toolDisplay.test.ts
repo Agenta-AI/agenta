@@ -180,6 +180,12 @@ describe("resolveToolDisplay derives our platform ops", () => {
         expect(done("commit_revision")).toBe("Saved changes")
     })
 
+    // A session has exactly one agent, so "an agent" reads as if there were several.
+    it("calls the session's own agent 'the agent'", () => {
+        expect(done("rename_agent")).toBe("Renamed the agent")
+        expect(done("test_run")).toBe("Tested the agent")
+    })
+
     it("derives an op it has never seen", () => {
         expect(done("archive_schedule")).toBe("Archived a schedule")
     })
@@ -201,6 +207,194 @@ describe("resolveToolDisplay derives our platform ops", () => {
     it("never names our own server inside the sentence", () => {
         expect(done("mcp.agenta-tools.commit_revision")).toBe("Saved changes")
         expect(done("mcp__agenta-tools__create_schedule")).toBe("Created a schedule")
+    })
+})
+
+describe("resolveToolDisplay builds a tool search's sentence", () => {
+    const found = (integration: string) => ({capabilities: [{integration}]})
+    const sentence = (query: string, output?: unknown, appName?: string) =>
+        resolveToolDisplay("discover_tools", {use_cases: [query]}, appName, output).activity.done
+
+    // Eight searches in one turn all reading "Searched for …" is a wall; the query usually leads
+    // with a verb of its own.
+    it("varies the verb with what was searched for", () => {
+        expect(sentence("list google calendar settings")).toBe("Checked google calendar settings")
+        expect(sentence("get youtube channel activities")).toBe("Got youtube channel activities")
+        expect(sentence("search events")).toBe("Searched events")
+    })
+
+    // A query says what the agent looked for, not what it did. Borrowing "send" would have a row
+    // that only searched a catalog claim it sent something.
+    it("never borrows a verb with a side effect", () => {
+        expect(sentence("send a slack message")).toBe("Searched for send a slack message")
+        expect(sentence("delete the calendar event")).toBe("Searched for delete the calendar event")
+        expect(sentence("create a github issue")).toBe("Searched for create a github issue")
+    })
+
+    it("keeps the plain form when the query does not lead with a verb", () => {
+        expect(sentence("hacker news top stories")).toBe("Searched for hacker news top stories")
+    })
+
+    it("keeps the plain form when the verb has nothing after it", () => {
+        expect(sentence("list")).toBe("Searched for list")
+    })
+
+    // The query is model-written keyword salad. When the result reports which tool it matched, that
+    // tool's own name describes the call — no cut length to pick, no words to guess.
+    it("describes the tool it found rather than the keywords it searched with", () => {
+        const withTool = (integration: string, action: string) => ({
+            capabilities: [{integration, tool: {integration, action}}],
+        })
+        expect(
+            sentence(
+                "get youtube channel activities uploads recent",
+                withTool("youtube", "LIST_CHANNEL_VIDEOS"),
+                "YouTube",
+            ),
+        ).toBe("Checked YouTube channel videos")
+        // Noun-first action names used to read with no tense at all.
+        expect(
+            sentence(
+                "list google calendar events date range",
+                withTool("googlecalendar", "EVENTS_LIST"),
+                "Google Calendar",
+            ),
+        ).toBe("Checked Google Calendar events")
+        expect(sentence("read gmail emails", withTool("gmail", "FETCH_EMAILS"), "Gmail")).toBe(
+            "Fetched Gmail emails",
+        )
+    })
+
+    // The call found the tool; it did not run it.
+    it("never adopts a found tool whose verb has a side effect", () => {
+        expect(
+            sentence(
+                "send email gmail",
+                {
+                    capabilities: [
+                        {integration: "gmail", tool: {integration: "gmail", action: "SEND_EMAIL"}},
+                    ],
+                },
+                "Gmail",
+            ),
+        ).toBe("Searched for Gmail send email")
+    })
+
+    it("keeps the app on the chip when the tool's own name already says which app it is", () => {
+        const display = resolveToolDisplay(
+            "discover_tools",
+            {use_cases: ["list google tasks"]},
+            "Google Tasks",
+            {
+                capabilities: [
+                    {
+                        integration: "googletasks",
+                        tool: {integration: "googletasks", action: "LIST_TASKS"},
+                    },
+                ],
+            },
+        )
+        expect(display.activity.done).toBe("Checked tasks")
+        expect(display.source).toBe("Google Tasks")
+    })
+
+    // Falls back to the query when the search matched no tool at all.
+    it("names the app it found and trims the keywords down to a qualifier", () => {
+        expect(
+            sentence("hacker news top stories front page", found("hackernews"), "Hacker News"),
+        ).toBe("Searched for Hacker News top stories")
+        expect(
+            sentence(
+                "list google calendar events date range",
+                found("googlecalendar"),
+                "Google Calendar",
+            ),
+        ).toBe("Checked Google Calendar events date")
+        expect(sentence("list google tasks", found("googletasks"), "Google Tasks")).toBe(
+            "Checked Google Tasks",
+        )
+    })
+
+    it("reports the slug so the row can ask the catalog for the real spelling", () => {
+        const display = resolveToolDisplay(
+            "discover_tools",
+            {use_cases: ["list google tasks"]},
+            undefined,
+            found("googletasks"),
+        )
+        expect(display.sourceKey).toBe("googletasks")
+        // The squashed slug is not folded into the sentence: "Checked Googletasks google tasks"
+        // stutters, because the slug's word boundaries do not match the query's.
+        expect(display.activity.done).toBe("Checked google tasks")
+        // Named inside the sentence once the catalog answers, so a chip would only repeat it.
+        expect(display.source).toBeUndefined()
+    })
+
+    it("takes the slug off the matched tool when the capability does not carry one", () => {
+        const display = resolveToolDisplay(
+            "discover_tools",
+            {use_cases: ["send email"]},
+            undefined,
+            {capabilities: [{tool: {integration: "gmail"}}]},
+        )
+        expect(display.sourceKey).toBe("gmail")
+    })
+
+    it("reads a result that is still JSON-encoded", () => {
+        const display = resolveToolDisplay(
+            "discover_tools",
+            {use_cases: ["x"]},
+            undefined,
+            JSON.stringify(found("slack")),
+        )
+        expect(display.sourceKey).toBe("slack")
+    })
+
+    it("falls back to the query alone while the call is still in flight", () => {
+        expect(sentence("list google calendar events date range")).toBe(
+            "Checked google calendar events date range",
+        )
+    })
+
+    // A fixed cut lands on a dangling word often enough to be worth handling.
+    it("never ends the qualifier on a word that cannot end a phrase", () => {
+        expect(
+            sentence("youtube activities for the authenticated user", found("youtube"), "YouTube"),
+        ).toBe("Searched for YouTube activities")
+    })
+})
+
+describe("resolveToolDisplay for a tool that names an app in its arguments", () => {
+    it("names the app it is asking you to connect", () => {
+        const display = resolveToolDisplay("request_connection", {integration: "github"})
+
+        expect(display.activity).toEqual({
+            running: "Waiting for you to connect Github",
+            done: "Asked you to connect Github",
+        })
+        // The slug is a catalog integration, so the row can ask for the real spelling.
+        expect(display.sourceKey).toBe("github")
+        // Named inside the sentence, so the chip would only stutter.
+        expect(display.source).toBeUndefined()
+    })
+
+    it("takes the catalog's spelling once it answers", () => {
+        const display = resolveToolDisplay("request_connection", {integration: "github"}, "GitHub")
+
+        expect(display.activity.running).toBe("Waiting for you to connect GitHub")
+    })
+
+    it("still reads without naming an app when the call names none", () => {
+        expect(resolveToolDisplay("request_connection", {}).activity.done).toBe(
+            "Asked you to connect an app",
+        )
+    })
+
+    it("keeps its wording under every harness wrapper", () => {
+        const wrapped = resolveToolDisplay("mcp__agenta-tools__request_connection", {
+            integration: "slack",
+        })
+        expect(wrapped.activity.done).toBe("Asked you to connect Slack")
     })
 })
 
@@ -294,6 +488,30 @@ describe("resolveToolDisplay for harness builtins", () => {
         expect(resolveToolDisplay("bash").activity.done).toBe("Ran a command")
     })
 
+    // "Searched for tools" alone does not say what for, and the answer belongs in the sentence
+    // rather than beside it: a use case is prose, not a filename.
+    it("folds what was searched for into the sentence", () => {
+        const display = resolveToolDisplay("discover_tools", {
+            use_cases: ["send a Telegram message"],
+        })
+
+        expect(display.activity.done).toBe("Searched for send a Telegram message")
+        expect(display.activity.running).toBe("Searching for send a Telegram message")
+        // It joined the sentence, so it must not also sit in the detail slot.
+        expect(display.detail).toBeUndefined()
+    })
+
+    // A regex is not prose: it keeps the monospace detail slot rather than joining the sentence.
+    it("leaves a pattern in the detail slot", () => {
+        const display = resolveToolDisplay("grep", {pattern: "TODO"})
+        expect(display.activity.done).toBe("Searched files")
+        expect(display.detail).toBe("TODO")
+    })
+
+    it("ignores a query argument that is not text", () => {
+        expect(resolveToolDisplay("query_spans", {query: {filter: "x"}}).detail).toBeUndefined()
+    })
+
     it("takes the detail from whichever argument the builtin carries", () => {
         expect(resolveToolDisplay("Read", {file_path: "/repo/src/index.ts"}).detail).toBe(
             "index.ts",
@@ -372,9 +590,37 @@ describe("resolveToolDisplay for external tools", () => {
         for (const raw of ["mcp__linear__create_issue", "mcp.linear.create_issue"]) {
             const display = resolveToolDisplay(raw)
             expect(display.activity.done).toBe("Created a Linear issue")
-            expect(display.sourceKey).toBe("linear")
+            // An MCP server is not a tool-catalog integration, so there is nothing to look up.
+            expect(display.sourceKey).toBeUndefined()
             expect(display.source).toBeUndefined()
         }
+    })
+
+    // An action name that carries its own article used to land it mid-phrase: "Created GitHub an
+    // issue".
+    it("puts the article in front of the app, not between it and the noun", () => {
+        expect(
+            resolveToolDisplay("tools__composio__github__CREATE_AN_ISSUE__c1", {}, "GitHub")
+                .activity.done,
+        ).toBe("Created a GitHub issue")
+        expect(
+            resolveToolDisplay("tools__composio__slack__SEND_A_MESSAGE__c1", {}, "Slack").activity
+                .done,
+        ).toBe("Sent a Slack message")
+    })
+
+    // Plenty of catalog actions are noun-first, and those used to read with no tense at all.
+    it("finds the verb at the end of an action name too", () => {
+        expect(
+            resolveToolDisplay(
+                "tools__composio__googlecalendar__EVENTS_LIST__c1",
+                {},
+                "Google Calendar",
+            ).activity,
+        ).toEqual({
+            running: "Checking Google Calendar events",
+            done: "Checked Google Calendar events",
+        })
     })
 
     // Without a verb there is no sentence to fold the app into, so the chip still carries it.
