@@ -149,8 +149,9 @@ export const effectiveHarnesses = (
 }
 
 /**
- * The models a connection offers, in Agenta's bare spelling: its saved list when it has one
- * (including an empty one — the user chose to offer nothing), otherwise the provider's default
+ * The models a connection offers, in the spelling the SDK resolves on: a credential-set
+ * connection's own `model_keys`, else a standard connection's saved list when it has one
+ * (including an empty one — the user chose to offer nothing), else the provider's default
  * models from the harness catalog.
  *
  * A backend that publishes no `default_models` yet falls back to the family's full catalog, which
@@ -160,16 +161,15 @@ export const connectionModelIds = (
     connection: ProviderConnection,
     capabilities: HarnessCapabilityMap | null | undefined,
 ): string[] => {
-    if (connection.models) return connection.models.filter(Boolean)
-
     // The RECORD's kind, not the provider kind's default: a `custom_provider` saved under a plain
     // family (a second, differently-configured OpenAI endpoint) serves its own model keys, not
-    // Agenta's catalog for that family.
+    // Agenta's catalog for that family. Ahead of the saved list because such a record carries
+    // both, and only `model_keys` is the spelling the SDK resolves on.
     if (connection.secretKind !== SecretKind.ProviderKey) {
-        // A credential-set connection carries whatever its endpoint serves; there is no catalog
-        // to default from.
-        return (connection.source.modelKeys ?? []).filter(Boolean)
+        return (connection.source.modelKeys ?? connection.models ?? []).filter(Boolean)
     }
+
+    if (connection.models) return connection.models.filter(Boolean)
 
     const {models, defaults} = providerModelCatalog(capabilities, connection.kind)
     return defaults.length ? defaults : models

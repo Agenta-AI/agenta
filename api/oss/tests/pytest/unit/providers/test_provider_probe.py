@@ -7,6 +7,7 @@ provider with no free credential test answers `unknown` rather than guessing.
 Outbound calls are served by `httpx.MockTransport`, so no test reaches a real provider.
 """
 
+import asyncio
 from typing import List
 from uuid import uuid4
 
@@ -270,6 +271,31 @@ async def test_openrouter_valid_key_fetches_the_catalog():
         "/api/v1/key",
         "/api/v1/models",
     ]
+
+
+async def test_the_timeout_budget_covers_the_whole_probe_not_each_request():
+    """OpenRouter issues two requests, so a per-request budget would double the wait."""
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(10)
+        return httpx.Response(200, json={"data": {"limit": None}})
+
+    service = ProviderProbeService(timeout=0.05, transport=httpx.MockTransport(slow))
+
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    result = await service.probe(
+        kind="openrouter",
+        credentials=ProviderCredentials(key=CANARY),
+    )
+    elapsed = loop.time() - started
+
+    # One budget for the call, not one per request.
+    assert elapsed < 1.0
+    # A probe that ran out of time proved nothing; it does not claim the key is bad.
+    assert result.credential.status.value == "unknown"
+    assert result.discovery.status.value == "failed"
+    assert CANARY not in result.credential.message
 
 
 @pytest.mark.parametrize(

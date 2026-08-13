@@ -50,8 +50,8 @@ export const probeProviderMutationAtom = atomWithMutation<
 /**
  * Save a connection draft — create when `connectionId` is absent, update otherwise.
  *
- * Models and harnesses always go out explicitly, because the card shows exactly what is checked;
- * an omitted list would mean "keep what was stored" and silently ignore an unchecking edit.
+ * Models and harnesses go out only when the draft carries them (see `connectionPolicyForSave`):
+ * an omitted list leaves the connection on Agenta's defaults, while an explicit `[]` offers none.
  * `fallbackName` names a `custom_provider` whose name field was left empty (the API names an
  * unnamed `provider_key` itself, so that one goes out header-less).
  */

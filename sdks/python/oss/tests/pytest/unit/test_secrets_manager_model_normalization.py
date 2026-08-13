@@ -203,6 +203,42 @@ def test_a_saved_list_claims_its_model_across_the_two_spellings(resolve):
     assert resolve(secrets, "anthropic/claude-haiku-4-5")["api_key"] == "sk-claimed"
 
 
+def test_a_list_less_connection_beats_one_narrowed_away_from_the_model(resolve):
+    """A saved list is the user narrowing that connection; no list follows Agenta's defaults.
+
+    With neither record claiming the model, first-wins would hand the request the credential the
+    user explicitly narrowed away from it, while a later record still offers the model.
+    """
+    secrets = [
+        _provider_key(slug="oai", kind="openai", key="sk-narrowed", models=["gpt-4o"]),
+        _provider_key(slug="oai-2", kind="openai", key="sk-list-less"),
+    ]
+
+    assert resolve(secrets, "gpt-4o-mini")["api_key"] == "sk-list-less"
+
+
+def test_an_empty_saved_list_is_not_treated_as_list_less(resolve):
+    """`[]` is "offer nothing", not "follow defaults", so it wins nothing on the fallback."""
+    secrets = [
+        _provider_key(slug="oai", kind="openai", key="sk-first", models=["gpt-4o"]),
+        _provider_key(slug="oai-2", kind="openai", key="sk-offers-none", models=[]),
+    ]
+
+    assert resolve(secrets, "gpt-4o-mini")["api_key"] == "sk-first"
+
+
+def test_a_claiming_connection_still_outranks_a_list_less_one(resolve):
+    """The explicit claim is still the strongest signal; the new rule is only the fallback."""
+    secrets = [
+        _provider_key(slug="oai", kind="openai", key="sk-list-less"),
+        _provider_key(
+            slug="oai-2", kind="openai", key="sk-claimed", models=["gpt-4o-mini"]
+        ),
+    ]
+
+    assert resolve(secrets, "gpt-4o-mini")["api_key"] == "sk-claimed"
+
+
 def test_a_saved_list_already_in_litellm_spelling_still_claims_its_model(resolve):
     """Records written by anything that stores the litellm spelling keep working."""
     secrets = [

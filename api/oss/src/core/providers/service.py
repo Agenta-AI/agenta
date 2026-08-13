@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -5,6 +6,10 @@ import httpx
 
 from oss.src.core.providers.adapters import get_adapter, supported_kinds
 from oss.src.core.providers.dtos import (
+    CredentialResult,
+    CredentialStatus,
+    DiscoveryResult,
+    DiscoveryStatus,
     ProviderCredentials,
     ProviderProbeResult,
 )
@@ -52,7 +57,26 @@ class ProviderProbeService:
             transport=self.transport,
             follow_redirects=False,
         ) as client:
-            outcome = await adapter.probe(client=client, credentials=credentials)
+            try:
+                # httpx's timeout is per request, and an adapter may issue several (OpenRouter
+                # proves the key, then lists models), so the budget is applied to the whole
+                # probe as well — otherwise the button's worst case is a multiple of it.
+                outcome = await asyncio.wait_for(
+                    adapter.probe(client=client, credentials=credentials),
+                    timeout=self.timeout,
+                )
+            except (asyncio.TimeoutError, TimeoutError):
+                log.info("[PROVIDERS] probe timed out", kind=kind)
+                # A probe that ran out of time proved nothing either way, which is what
+                # `unknown` says; discovery `failed` keeps the shipped catalog.
+                return ProviderProbeResult(
+                    credential=CredentialResult(
+                        status=CredentialStatus.UNKNOWN,
+                        message=f"Could not reach {adapter.label} in time.",
+                    ),
+                    discovery=DiscoveryResult(status=DiscoveryStatus.FAILED),
+                    fetched_at=datetime.now(timezone.utc),
+                )
 
         log.info(
             "[PROVIDERS] probe",

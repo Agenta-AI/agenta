@@ -1,8 +1,8 @@
-import re
 from typing import Optional, Dict, Any, List
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.net import assert_endpoint_url_allowed
+from agenta.sdk.utils.providers import normalize_provider_kind
 from agenta.sdk.contexts.routing import RoutingContext
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.assets import (
@@ -32,16 +32,10 @@ def _safe_api_base(url: Optional[str]) -> Optional[str]:
     return url
 
 
-_PROVIDER_KIND_ALIASES = {
-    "mistralai": "mistral",
-}
-
-
 class SecretsManager:
     @staticmethod
     def _normalize_provider_kind(provider_kind: str) -> str:
-        normalized = re.sub(r"[\s-]+", "", provider_kind.lower())
-        return _PROVIDER_KIND_ALIASES.get(normalized, normalized)
+        return normalize_provider_kind(provider_kind)
 
     @staticmethod
     def get_from_route(scope: str = "all") -> Optional[List[Dict[str, Any]]]:
@@ -443,7 +437,13 @@ class SecretsManager:
                     family=standard_family,
                 )
             ),
-            family_records[0] if family_records else None,
+            next(
+                # No saved list means "follow Agenta's defaults", so the record still offers this
+                # model. A record that saved a list without it was narrowed away from the model
+                # by the user, so it loses to a list-less one even when it comes first.
+                (secret for secret in family_records if secret.get("models") is None),
+                family_records[0] if family_records else None,
+            ),
         )
         if chosen:
             provider_info = chosen.get("data", {}).get("provider", {})

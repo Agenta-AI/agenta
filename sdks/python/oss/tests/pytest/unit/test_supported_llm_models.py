@@ -68,9 +68,12 @@ def _agent_catalog_ids() -> set:
     """
     try:
         from agenta.sdk.agents.model_catalog import pi_model_catalog
+
+        # Inside the guard as well: this runs at import, so an exception here would fail
+        # collection of the whole module instead of degrading to an empty set.
+        return {entry.id for entry in pi_model_catalog().models}
     except Exception:  # pragma: no cover - agent extras not installed
         return set()
-    return {entry.id for entry in pi_model_catalog().models}
 
 
 _AGENT_CATALOG_IDS: set = _agent_catalog_ids()

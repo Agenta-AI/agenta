@@ -132,6 +132,16 @@ describe("connectionModelIds", () => {
             connectionModelIds(custom("1", "openai", ["my-gateway/openai/gpt-oss"]), CAPABILITIES),
         ).toEqual(["my-gateway/openai/gpt-oss"])
     })
+
+    it("prefers a credential-set connection's model keys over its bare saved slugs", () => {
+        // The row carries both: `models` holds bare slugs (the card's spelling), `modelKeys` the
+        // namespaced ids. The SDK matches a custom connection on `model_keys` only, so offering
+        // the bare slug persists a value that resolves to no provider settings.
+        const connection = custom("1", "openai", ["my-gateway/openai/gpt-oss"], {
+            models: ["gpt-oss"],
+        })
+        expect(connectionModelIds(connection, CAPABILITIES)).toEqual(["my-gateway/openai/gpt-oss"])
+    })
 })
 
 describe("buildConnectionPickerRows", () => {

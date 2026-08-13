@@ -191,7 +191,7 @@ supported_llm_models = {
         "together_ai/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "together_ai/meta-llama/Llama-3.2-3B-Instruct-Turbo",
         "together_ai/moonshotai/Kimi-K2.7-Code",
-        "together_ai/moonshotai/Kimi-K2-Instruct",
+        "together_ai/moonshotai/Kimi-K2.6",
         "together_ai/mistralai/Mistral-Small-24B-Instruct-2501",
         "together_ai/mistralai/Mistral-7B-Instruct-v0.1",
         "together_ai/mistralai/Mixtral-8x7B-Instruct-v0.1",
