@@ -100,6 +100,21 @@ reads as intent rather than omission.
 If routing runs in the API process, that service declares it (`raw/model-call-sites.md` notes the
 same thing).
 
+**R11. §9's exception-mapping table is narrower than §5's exception set** — surfaced by writing
+the seed. The table names six categories; `CredentialNotFoundError`, `CredentialInvalidError` and
+`McpScopeInsufficientError` are not among them, and a fall-through would answer a project with no
+provider key with a 500, on checkpoint A's hot path.
+
+**Mapped to 409 in the seed, on §5's own words** rather than on invention: "the second says *you
+could, once someone connects* … maps to the needs-auth / needs-input interaction path (D17)", which
+is the same interaction status `McpAuthRequiredError` already takes. `CredentialInvalidError`
+follows D18 identically. Confirm before checkpoint A; a different status is a one-file change.
+
+Note this is the CRUD boundary's mapping. Both proxies translate into their own surface's error
+shape (§9), where WP6's spec already maps a missing credential to a 404 `credential_missing` in the
+OpenAI body — the two are different wire contracts, not a contradiction, but they should be read
+together once both exist.
+
 **R10. Two small resolution behaviours are undefined:** the tie-break when two secrets of the same
 kind match one provider, and whether resolution validates that a grant reference's endpoint is
 actually OAuth-protected.

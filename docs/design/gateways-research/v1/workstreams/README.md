@@ -77,7 +77,7 @@ merge point rather than editing.
 | `core/gateways/mcps/providers/fake/` | **WP5** |
 | `dbs/postgres/gateways/llms/`, `dbs/postgres/gateways/mcps/` | **WP1** |
 | the migration | **WP1** |
-| `apis/fastapi/gateways/exceptions.py` | **seed** — three packages need the decorator, so no one package can own it |
+| `apis/fastapi/gateways/exceptions.py` | **seed** — three packages need the decorator, so no one package can own it. **Complete, not declared**: it maps exceptions the seed itself defines and depends on no package, so a not-implemented body would leave it unowned |
 | `apis/fastapi/gateways/llms/{proxy,utils}.py` | **WP6** |
 | `apis/fastapi/gateways/mcps/{proxy,utils}.py` | **WP8** |
 | `apis/fastapi/gateways/llms/{router,models}.py` | **WP10** |
