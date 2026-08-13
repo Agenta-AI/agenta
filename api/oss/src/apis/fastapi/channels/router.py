@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, List
+from html import escape as escape_html
+from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 
+from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 
 from oss.src.apis.fastapi.channels.models import (
@@ -46,13 +49,17 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelThreadsResponse,
     ChannelsCatalogResponse,
 )
+from oss.src.core.channels.adapters.slack import oauth as slack_oauth
 from oss.src.core.channels.dtos import (
+    ChannelConnectionCreate,
+    ChannelConnectionFlags,
     ChannelInboxEventQuery,
     ChannelOutboxEventQuery,
     ChannelThreadQuery,
 )
 from oss.src.core.channels.types import (
     ChannelAgentNotFound,
+    ChannelConnectionIdentityConflict,
     ChannelConnectionIncomplete,
     ChannelConnectionKeyUndeclared,
     ChannelConnectionNotFound,
@@ -62,6 +69,7 @@ from oss.src.core.channels.types import (
     ChannelSpaceNotFound,
     ChannelThreadNotFound,
 )
+from oss.src.core.gateway.connections.utils import decode_oauth_state, make_oauth_state
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
@@ -91,6 +99,50 @@ def handle_channel_adapter_exceptions():
         return wrapper
 
     return decorator
+
+
+def _slack_callback_url() -> str:
+    """Server-owned, not derived from the request -- Slack requires an exact
+    match against the redirect URI registered for the app, so it has to be
+    deterministic across every host a request could arrive on."""
+
+    return f"{env.agenta.api_url}/channels/catalog/channels/slack/callback/"
+
+
+def _slack_install_card(*, success: bool, message: str) -> str:
+    """A minimal, self-contained page: the browser lands here straight from
+    Slack, outside the settings app, so there is no SPA to hand the result
+    back to."""
+
+    heading = "Slack connected" if success else "Slack install did not complete"
+    color = "#16794F" if success else "#B3261E"
+    web_url = env.agenta.web_url
+    message = escape_html(message)
+
+    return f"""<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>{heading}</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          display: flex; align-items: center; justify-content: center;
+          height: 100vh; margin: 0; background: #f5f5f5; color: #1a1a1a; }}
+  .card {{ max-width: 420px; padding: 32px; border-radius: 12px; background: #fff;
+           box-shadow: 0 1px 4px rgba(0,0,0,0.12); text-align: center; }}
+  h1 {{ font-size: 18px; color: {color}; margin: 0 0 12px; }}
+  p {{ font-size: 14px; line-height: 1.5; }}
+  a {{ color: #2563eb; }}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>{heading}</h1>
+    <p>{message}</p>
+    <p><a href="{web_url}">Return to Agenta</a></p>
+  </div>
+</body>
+</html>"""
 
 
 class ChannelsRouter:
@@ -134,6 +186,23 @@ class ChannelsRouter:
             operation_id="fetch_channel_setup",
             response_model=ChannelSetupResponse,
             response_model_exclude_none=True,
+        )
+
+        # --- The hosted Slack app: one-click install --------------------------- #
+        # Literal paths, not `/catalog/channels/{channel}/...` -- the callback's
+        # path has to be a literal string _PUBLIC_ENDPOINTS can exempt, and only
+        # Slack has a hosted app to install.
+        self.router.add_api_route(
+            "/catalog/channels/slack/install/",
+            self.install_slack_connection,
+            methods=["GET"],
+            operation_id="install_slack_connection",
+        )
+        self.router.add_api_route(
+            "/catalog/channels/slack/callback/",
+            self.slack_install_callback,
+            methods=["GET"],
+            operation_id="slack_install_callback",
         )
 
         # --- Connections ------------------------------------------------------ #
@@ -465,6 +534,150 @@ class ChannelsRouter:
         return ChannelSetupResponse(count=1, setup=setup)
 
     # -----------------------------------------------------------------------
+    # The hosted Slack app: install + callback
+    # -----------------------------------------------------------------------
+
+    @intercept_exceptions()
+    async def install_slack_connection(self, request: Request) -> RedirectResponse:
+        """One click, from Settings -> Channels: mint the install state and
+        send the browser straight to Slack's authorize URL. A deployment
+        with no hosted-app credentials refuses here, not with a 500 -- that
+        is the normal shape of a self-hosted deployment, not an error."""
+
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        if not slack_oauth.hosted_app_configured():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="This deployment has not configured the hosted Slack app.",
+            )
+
+        state = make_oauth_state(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            secret_key=env.agenta.crypt_key,
+        )
+
+        return RedirectResponse(
+            url=slack_oauth.build_authorize_url(
+                state=state, redirect_uri=_slack_callback_url()
+            ),
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    async def slack_install_callback(
+        self,
+        request: Request,
+        *,
+        code: Optional[str] = Query(default=None),
+        state: Optional[str] = Query(default=None),
+        error: Optional[str] = Query(default=None),
+    ) -> HTMLResponse:
+        """Slack redirects the browser here, in or out of the session that
+        started the install -- the signed state is the whole of the
+        authorisation on this route, so this is public (see
+        `_PUBLIC_ENDPOINTS`), never `self._check`. State decodes first:
+        unknown, expired or tampered refuses before any exchange is
+        attempted."""
+
+        state_payload = (
+            decode_oauth_state(
+                state,
+                secret_key=env.agenta.crypt_key,
+                max_age=slack_oauth.INSTALL_STATE_MAX_AGE_SECONDS,
+            )
+            if state
+            else None
+        )
+        if state_payload is None:
+            return HTMLResponse(
+                status_code=400,
+                content=_slack_install_card(
+                    success=False,
+                    message=(
+                        "This install link is invalid or has expired. "
+                        "Start again from Settings -> Channels."
+                    ),
+                ),
+            )
+
+        if error:
+            # A decline is a normal outcome, not an error -- Slack sends
+            # error=access_denied when the operator cancels the consent screen.
+            return HTMLResponse(
+                status_code=200,
+                content=_slack_install_card(
+                    success=False,
+                    message="The Slack install was cancelled.",
+                ),
+            )
+
+        if not code:
+            return HTMLResponse(
+                status_code=400,
+                content=_slack_install_card(
+                    success=False,
+                    message="Slack did not return an authorization code.",
+                ),
+            )
+
+        try:
+            project_id = UUID(state_payload["project_id"])
+            user_id = UUID(state_payload["user_id"])
+        except (KeyError, ValueError, TypeError):
+            return HTMLResponse(
+                status_code=400,
+                content=_slack_install_card(
+                    success=False,
+                    message=(
+                        "This install link is invalid. Start again from "
+                        "Settings -> Channels."
+                    ),
+                ),
+            )
+
+        exchange = await slack_oauth.exchange_code(
+            code=code, redirect_uri=_slack_callback_url()
+        )
+        if not exchange.ok or not exchange.access_token:
+            return HTMLResponse(
+                status_code=400,
+                content=_slack_install_card(
+                    success=False,
+                    message=exchange.error or "Slack rejected the installation.",
+                ),
+            )
+
+        scopes = [scope for scope in (exchange.scope or "").split(",") if scope]
+
+        try:
+            await self.channels_service.install_connection(
+                project_id=project_id,
+                user_id=user_id,
+                connection=ChannelConnectionCreate(
+                    channel="slack",
+                    data={"scopes": scopes},
+                    credentials={"bot_token": exchange.access_token},
+                    flags=ChannelConnectionFlags(is_hosted=True),
+                ),
+            )
+        except ChannelConnectionVerificationFailed as e:
+            return HTMLResponse(
+                status_code=400,
+                content=_slack_install_card(success=False, message=str(e)),
+            )
+        except ChannelConnectionIdentityConflict as e:
+            return HTMLResponse(
+                status_code=409,
+                content=_slack_install_card(success=False, message=str(e)),
+            )
+
+        return HTMLResponse(
+            status_code=200,
+            content=_slack_install_card(success=True, message="Slack is connected."),
+        )
+
+    # -----------------------------------------------------------------------
     # Connections
     # -----------------------------------------------------------------------
 
@@ -575,13 +788,14 @@ class ChannelsRouter:
                 detail="Channel connection not found",
             )
 
+        platform_notice = await self.channels_service.describe_connection_teardown(
+            connection=connection
+        )
+
         return ChannelConnectionTeardownResponse(
             count=1,
             connection=connection,
-            platform_notice=(
-                "Archived on our side only. We never own the customer's app, "
-                "so nothing was uninstalled or removed on the platform."
-            ),
+            platform_notice=platform_notice,
         )
 
     @intercept_exceptions()

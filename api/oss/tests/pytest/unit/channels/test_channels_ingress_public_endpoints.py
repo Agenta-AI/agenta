@@ -1,5 +1,9 @@
-"""The channels ingress owns one _PUBLIC_ENDPOINTS addition, and this is the
-guard against a future wildcard undoing it.
+"""The channels ingress owns one _PUBLIC_ENDPOINTS addition, and the hosted
+Slack app owns a second, narrower one: only the callback (Slack redirects
+the browser here with no Agenta session) is public. The install route stays
+authenticated -- it is the one that mints the state in the first place.
+
+This is the guard against a future wildcard undoing either.
 
 The middleware matches `request.url.path.startswith(_PUBLIC_ENDPOINTS)` --
 a literal-prefix test. If someone later "simplifies" the four ingress
@@ -51,6 +55,10 @@ def _make_request(path: str) -> Request:
         "/api/channels/agenta/events/",
         "/preview/channels/agenta/events/",
         "/api/preview/channels/agenta/events/",
+        "/channels/catalog/channels/slack/callback/",
+        "/api/channels/catalog/channels/slack/callback/",
+        "/preview/channels/catalog/channels/slack/callback/",
+        "/api/preview/channels/catalog/channels/slack/callback/",
     ],
 )
 def test_ingress_paths_are_public(path):
@@ -72,6 +80,10 @@ def test_ingress_paths_are_public(path):
         "/api/channels/agenta/events/",
         "/preview/channels/agenta/events/",
         "/api/preview/channels/agenta/events/",
+        "/channels/catalog/channels/slack/callback/",
+        "/api/channels/catalog/channels/slack/callback/",
+        "/preview/channels/catalog/channels/slack/callback/",
+        "/api/preview/channels/catalog/channels/slack/callback/",
     ],
 )
 async def test_ingress_paths_reach_the_handler_with_no_auth(path):
@@ -105,6 +117,12 @@ async def test_ingress_paths_reach_the_handler_with_no_auth(path):
         "/api/channels/agents/",
         "/preview/channels/agents/",
         "/api/preview/channels/agents/",
+        # The install route mints the state -- it must stay authenticated;
+        # only the callback it redirects to is public.
+        "/channels/catalog/channels/slack/install/",
+        "/api/channels/catalog/channels/slack/install/",
+        "/preview/channels/catalog/channels/slack/install/",
+        "/api/preview/channels/catalog/channels/slack/install/",
     ],
 )
 async def test_config_routes_under_channels_are_not_public(path):
