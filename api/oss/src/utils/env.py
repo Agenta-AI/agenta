@@ -635,9 +635,9 @@ class AlembicConfig(BaseModel):
 
 
 class ChannelsSlackConfig(BaseModel):
-    client_id: str | None = os.getenv("SLACK_APP_CLIENT_ID")
-    client_secret: str | None = os.getenv("SLACK_APP_CLIENT_SECRET")
-    signing_secret: str | None = os.getenv("SLACK_APP_SIGNING_SECRET")
+    client_id: str | None = os.getenv("SLACK_CLIENT_ID")
+    client_secret: str | None = os.getenv("SLACK_CLIENT_SECRET")
+    signing_secret: str | None = os.getenv("SLACK_SIGNING_SECRET")
 
     model_config = ConfigDict(extra="ignore")
 
