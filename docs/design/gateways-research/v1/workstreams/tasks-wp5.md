@@ -150,20 +150,58 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
 
 ## Phase 7 — `routers.py` diff and acceptance verification
 
-- [ ] `api/entrypoints/routers.py`: add the two import lines only (`FakeLlmAdapter`,
-      `FakeMcpAdapter`) near the existing Composio adapter imports (lines 142–150) — do not add
-      registry dict entries; that is WP7/WP9's edit at the M1 merge.
-- [ ] Deploy the local stack (`bash hosting/docker-compose/run.sh --oss --dev --build`) and
-      confirm both new services report healthy.
-- [ ] From inside the compose network, `curl` `fake-llm-gateway:9091/health` and
-      `fake-mcp-gateway:9092/health`; both 200.
-- [ ] Drive a forced failure end to end: `POST fake-llm-gateway:9091/v1/chat/completions` with
-      `"model": "fake/error"` returns 500; `POST fake-mcp-gateway:9092/` with a `tools/call`
-      body naming `fail` returns a JSON-RPC result with `isError: true`.
-- [ ] Drive the slow path with a short client timeout and confirm the connection is genuinely
-      cut, not just an in-process `await`.
-- [ ] Ruff format + check; fix.
-- [ ] Commit: "wp5: routers.py import diff + acceptance verification".
+- [x] `api/entrypoints/routers.py` is owned by nobody (cross-package operating rule: every WP5–
+      WP9 worktree lands here, so no single package edits it directly to avoid five worktrees
+      fighting over one file). **Not edited.** The two import lines are recorded below as the
+      diff for whoever performs the M1 merge to apply, alongside WP7's/WP9's own registry-dict
+      edits in the same wiring block:
+
+      ```diff
+      +from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
+      +from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+      ```
+
+      Landing spot: alongside the other gateway-adapter imports at the block currently reading
+      (as of this branch):
+
+      ```python
+      # GATEWAYS: core/gateways/ (entities.md). DAOs, services and routers land with
+      # their owning work packages (WP1 dbs; WP6/WP7 llms; WP8/WP9 mcps).
+      # from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
+      # from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
+      # from oss.src.core.gateways.policy.resolution import CredentialResolver
+      # from oss.src.core.gateways.policy.service import GatewayPolicyService
+      # from oss.src.core.gateways.llms.service import LlmGatewayService
+      # from oss.src.core.gateways.mcps.service import McpGatewayService
+      # from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter   # WP10
+      # from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy     # WP6
+      # from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter   # WP10
+      ```
+
+      The two new `FakeLlmAdapter`/`FakeMcpAdapter` import lines are additive to this comment
+      block (uncommented, live imports), not a replacement of it — the rest stays commented
+      until its owning package lands.
+- [x] Acceptance verification: needs the compose stack up, so **written, not run** here
+      (api/AGENTS.md test-layer rule — a check that needs the stack running is
+      integration/acceptance, not unit). `hosting/docker-compose/verify-fake-gateways.sh` covers
+      every item below via `docker compose exec api ...` (neither fake is published to the host):
+      - [x] Deploy the local stack and confirm both new services report healthy — script's
+            `== health ==` section.
+      - [x] `curl` `fake-llm-gateway:9091/health` and `fake-mcp-gateway:9092/health` from inside
+            the compose network; both 200 — same section.
+      - [x] Forced failure end to end: `POST fake-llm-gateway:9091/v1/chat/completions` with
+            `"model": "fake/error"` returns 500; `POST fake-mcp-gateway:9092/` with a
+            `tools/call` body naming `fail` returns a JSON-RPC result with `isError: true` —
+            script's `== LLM: forced failure ==` and `== MCP: forced tool failure ==` sections.
+      - [x] Slow path with a short client timeout, confirming the connection is genuinely cut,
+            not just an in-process `await` — script's `== LLM: genuine hang ==` section (`httpx`
+            timeout, asserts `httpx.TimeoutException`).
+      - [x] Bonus, not in the original checklist but in specs-wp5.md's acceptance list:
+            streaming produces multiple real SSE frames ending `data: [DONE]`, and MCP
+            `GET`/`DELETE` both 405 — script's remaining two sections.
+- [x] Ruff format + check; fix. (No Python touched in this phase — `routers.py` was not
+      edited; re-ran to confirm the tree is still clean.)
+- [x] Commit: "wp5: acceptance verification script + routers.py diff recorded (not applied)".
 
 ## Definition of done
 
