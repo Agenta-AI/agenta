@@ -9,6 +9,7 @@ from dataclasses import fields
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateway.connections.dtos import Connection, ConnectionProviderKind
@@ -449,10 +450,103 @@ def test_mcp_relay_result_and_ports():
 
 
 @pytest.mark.asyncio
-async def test_handle_gateway_exceptions_seed_raises_not_implemented():
+async def test_handle_gateway_exceptions_passes_through():
     @handle_gateway_exceptions()
     async def _handler():
-        return "unreachable"
+        return "ok"
 
-    with pytest.raises(NotImplementedError):
+    assert await _handler() == "ok"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "raised, expected_status",
+    [
+        (
+            LlmEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
+            ),
+            404,
+        ),
+        (
+            McpEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
+            ),
+            404,
+        ),
+        # USE_MOUNTS stands in: the six gateway members are WP3's edit, not the seed's.
+        (PolicyDeniedError(permission=Permission.USE_MOUNTS, target="t"), 403),
+        (EntitlementDeniedError(key="k", target="t"), 403),
+        (
+            LlmModelNotAllowedError(
+                model="m", namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
+            ),
+            403,
+        ),
+        (
+            McpToolNotAllowedError(
+                tool="t", namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
+            ),
+            403,
+        ),
+        (
+            CeilingExceededError(
+                ceiling="max_output_tokens", requested=100, allowed=10, target="t"
+            ),
+            400,
+        ),
+        (CredentialInvalidError(target="t"), 409),
+        (McpScopeInsufficientError(target="t", scopes=["a"]), 409),
+        (LlmUpstreamError(provider_key="openai", status_code=503), 502),
+        (LlmUpstreamError(provider_key="openai", status_code=429), 424),
+        (LlmUpstreamError(provider_key="openai"), 424),
+        (McpUpstreamError(target="t", status_code=500), 502),
+    ],
+)
+async def test_handle_gateway_exceptions_mapping(raised, expected_status):
+    @handle_gateway_exceptions()
+    async def _handler():
+        raise raised
+
+    with pytest.raises(HTTPException) as excinfo:
         await _handler()
+    assert excinfo.value.status_code == expected_status
+
+
+@pytest.mark.asyncio
+async def test_ceiling_denial_names_all_three_numbers():
+    """D25: rejection is tolerable only because the denial says what to retry with."""
+
+    @handle_gateway_exceptions()
+    async def _handler():
+        raise CeilingExceededError(
+            ceiling="max_output_tokens", requested=4096, allowed=1024, target="t"
+        )
+
+    with pytest.raises(HTTPException) as excinfo:
+        await _handler()
+    detail = excinfo.value.detail
+    assert detail["ceiling"] == "max_output_tokens"
+    assert detail["requested"] == 4096
+    assert detail["allowed"] == 1024
+
+
+@pytest.mark.asyncio
+async def test_auth_required_carries_the_connect_affordance():
+    """D17: an interaction, not a failure — the 409 must carry the requirement."""
+    requirement = GatewayConnectionRequirement(
+        target="custom/acme",
+        state=GatewayConnectionState.NEEDS_AUTH,
+        connect=GatewayConnectAffordance(
+            endpoint="/gateways/mcps/custom/acme/connect",
+        ),
+    )
+
+    @handle_gateway_exceptions()
+    async def _handler():
+        raise McpAuthRequiredError(requirement=requirement)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await _handler()
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.detail["requirement"]["target"] == "custom/acme"

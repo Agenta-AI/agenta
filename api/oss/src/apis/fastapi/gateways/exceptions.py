@@ -1,11 +1,37 @@
 """Gateway exception -> HTTP mapping (entities.md §9).
 
-Written once, shared by both planes' routers — tools and triggers currently duplicate
-`handle_adapter_exceptions()` verbatim per router, which is a habit not repeated here.
-Modelled on `apis/fastapi/tools/router.py::handle_adapter_exceptions()`.
+Written once, shared by both planes' routers and both data-plane proxies — tools and
+triggers each duplicate `handle_adapter_exceptions()` per router, a habit not repeated
+here. Modelled on `apis/fastapi/tools/router.py::handle_adapter_exceptions()`.
+
+Unlike the rest of the seed this file is COMPLETE, not declared: it maps exceptions the
+seed itself defines and depends on no work package, so leaving it unimplemented would
+leave it unowned (R1).
 """
 
 from functools import wraps
+
+from fastapi import HTTPException, status
+
+from oss.src.core.gateways.llms.types import (
+    LlmEndpointNotFoundError,
+    LlmModelNotAllowedError,
+    LlmUpstreamError,
+)
+from oss.src.core.gateways.mcps.types import (
+    McpAuthRequiredError,
+    McpEndpointNotFoundError,
+    McpScopeInsufficientError,
+    McpToolNotAllowedError,
+    McpUpstreamError,
+)
+from oss.src.core.gateways.policy.types import (
+    CeilingExceededError,
+    CredentialInvalidError,
+    CredentialNotFoundError,
+    EntitlementDeniedError,
+    PolicyDeniedError,
+)
 
 
 def handle_gateway_exceptions():
@@ -17,12 +43,71 @@ def handle_gateway_exceptions():
     409 carrying the `GatewayConnectionRequirement` (an interaction, not a failure
     — D17). `*UpstreamError` -> 424, or 502 when the upstream answered >=500 (the
     424/502 split tools and triggers already use).
+
+    The three credential/step-up arms are not in §9's list but follow from §5: a
+    missing or dead credential "says you could, once someone connects", which is the
+    same interaction 409 as a required authorization (D17, D18). Confirm before
+    checkpoint A — see R11 in `open-designs.md`.
     """
 
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            raise NotImplementedError
+            try:
+                return await func(*args, **kwargs)
+            except (LlmEndpointNotFoundError, McpEndpointNotFoundError) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=e.message,
+                ) from e
+            except (PolicyDeniedError, EntitlementDeniedError) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=e.message,
+                ) from e
+            except (LlmModelNotAllowedError, McpToolNotAllowedError) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=e.message,
+                ) from e
+            except CeilingExceededError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": e.message,
+                        "ceiling": e.ceiling,
+                        "requested": e.requested,
+                        "allowed": e.allowed,
+                    },
+                ) from e
+            except McpAuthRequiredError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": e.message,
+                        "requirement": e.requirement.model_dump(mode="json"),
+                    },
+                ) from e
+            except McpScopeInsufficientError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"message": e.message, "scopes": e.scopes},
+                ) from e
+            except (CredentialNotFoundError, CredentialInvalidError) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=e.message,
+                ) from e
+            except (LlmUpstreamError, McpUpstreamError) as e:
+                upstream = e.status_code
+                raise HTTPException(
+                    status_code=(
+                        status.HTTP_502_BAD_GATEWAY
+                        if upstream is not None and upstream >= 500
+                        else status.HTTP_424_FAILED_DEPENDENCY
+                    ),
+                    detail=e.detail or e.message,
+                ) from e
 
         return wrapper
 

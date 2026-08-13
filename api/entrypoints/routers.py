@@ -170,8 +170,10 @@ from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 # from oss.src.core.gateways.policy.service import GatewayPolicyService
 # from oss.src.core.gateways.llms.service import LlmGatewayService
 # from oss.src.core.gateways.mcps.service import McpGatewayService
-# from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter, LlmGatewayProxy
-# from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter, McpGatewayProxy
+# from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter   # WP10
+# from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy     # WP6
+# from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter   # WP10
+# from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy     # WP8
 
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
@@ -1494,7 +1496,8 @@ app.include_router(
 )
 
 # GATEWAYS: nothing mounted yet — each line lands with its owning package
-# (entities.md §9 "Wiring").
+# (entities.md §9 "Wiring"). Two router OBJECTS per plane, not one with two
+# attributes: management CRUD and the data plane are separate (§1).
 # app.include_router(router=llm_gateway.router, prefix="/gateways/llms", tags=["Gateway: LLM"])
 # app.include_router(router=llm_gateway.proxy,  prefix="/gateways/llms", include_in_schema=False)
 # app.include_router(router=mcp_gateway.router, prefix="/gateways/mcps", tags=["Gateway: MCP"])
