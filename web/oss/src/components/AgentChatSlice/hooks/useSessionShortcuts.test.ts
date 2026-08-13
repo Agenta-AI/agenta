@@ -66,6 +66,45 @@ describe("useSessionShortcuts", () => {
         expect(onJump).not.toHaveBeenCalled()
     })
 
+    it("steps to the previous and next session", () => {
+        const {onJump} = setup()
+        press("KeyX")
+        expect(onJump).toHaveBeenLastCalledWith("s3")
+        press("KeyZ")
+        expect(onJump).toHaveBeenLastCalledWith("s1")
+    })
+
+    it("wraps forward from the last session to the first", () => {
+        const {onJump} = setup({activeId: "s3"})
+        press("KeyX")
+        expect(onJump).toHaveBeenCalledWith("s1")
+    })
+
+    it("wraps backward from the first session to the last", () => {
+        const {onJump} = setup({activeId: "s1"})
+        press("KeyZ")
+        expect(onJump).toHaveBeenCalledWith("s3")
+    })
+
+    it("steps from the head when the active id is stale", () => {
+        const {onJump} = setup({activeId: "closed-tab"})
+        press("KeyX")
+        expect(onJump).toHaveBeenCalledWith("s2")
+    })
+
+    it("steps to the only session when there is just one", () => {
+        const {onJump} = setup({sessions: [{id: "solo"}], activeId: "solo"})
+        press("KeyX")
+        expect(onJump).toHaveBeenCalledWith("solo")
+    })
+
+    it("does not step when no sessions are open", () => {
+        const {onJump} = setup({sessions: [], activeId: undefined})
+        press("KeyX")
+        press("KeyZ")
+        expect(onJump).not.toHaveBeenCalled()
+    })
+
     it("renames and archives the active session", () => {
         const {onRename, onArchive} = setup()
         press("KeyR")
@@ -132,7 +171,7 @@ describe("useSessionShortcuts", () => {
             cancelable: true,
         })
         const unmatched = new KeyboardEvent("keydown", {
-            code: "KeyZ",
+            code: "KeyQ",
             altKey: true,
             cancelable: true,
         })

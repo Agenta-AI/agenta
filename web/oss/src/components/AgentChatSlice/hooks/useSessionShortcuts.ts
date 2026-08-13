@@ -31,9 +31,28 @@ const isOverlayOpen = (): boolean =>
         ),
     )
 
+/** Physical keys that step through the strip, one session at a time. Z and X sit directly above
+ * Alt/Option, so the whole set stays under one resting hand — the reason they're positions
+ * (`event.code`), not letters, on a non-QWERTY layout. */
+const STEP_BY_CODE: Record<string, -1 | 1> = {KeyZ: -1, KeyX: 1}
+
+/** The session one step from `activeId`, wrapping at both ends. Null when there's nowhere to go. */
+const steppedSession = <T extends {id: string}>(
+    sessions: readonly T[],
+    activeId: string | undefined,
+    step: -1 | 1,
+): T | null => {
+    if (sessions.length === 0) return null
+    // An unknown active id (its tab just closed) steps from the head, as the panel's own fallback does.
+    const current = sessions.findIndex((session) => session.id === activeId)
+    const from = current === -1 ? 0 : current
+    return sessions[(from + step + sessions.length) % sessions.length] ?? null
+}
+
 /**
- * Session shortcuts for the agent playground: `Alt+1…9` jumps to the Nth open session, `Alt+R`
- * renames the active one, `Alt+A` archives it.
+ * Session shortcuts for the agent playground: `Alt+1…9` jumps to the Nth open session, `Alt+Z` and
+ * `Alt+X` step to the previous/next one (wrapping), `Alt+R` renames the active one, `Alt+A`
+ * archives it.
  *
  * Alt alone, because ⌘/Ctrl+digit is browser tab switching on every OS, and one binding for all
  * platforms (the label differs, the keys don't). Matched on `event.code`: macOS Option+1 reports
@@ -60,6 +79,16 @@ export function useSessionShortcuts({
             const position = shortcutPosition(e.code)
             if (position) {
                 const target = sessions[position - 1]
+                if (!target) return
+                e.preventDefault()
+                e.stopPropagation()
+                onJump(target.id)
+                return
+            }
+
+            const step = STEP_BY_CODE[e.code]
+            if (step) {
+                const target = steppedSession(sessions, activeId, step)
                 if (!target) return
                 e.preventDefault()
                 e.stopPropagation()
