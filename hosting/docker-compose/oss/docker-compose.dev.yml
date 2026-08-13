@@ -742,7 +742,7 @@ services:
     #
     #
     # Fake upstreams (D23, WP5): the only reachable targets for Checkpoint A's acceptance
-    # suite. Not profile-gated — unlike composio/ngrok these are ours, not a third-party
+    # suite. Not profile-gated — unlike the composio and tunnel services these are ours, not a third-party
     # dependency, so they run every deploy (entities.md §0, "the gateways have no
     # third-party dependency to gate on").
     fake-llm-gateway:
