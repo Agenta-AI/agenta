@@ -11,14 +11,28 @@ from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
 from oss.src.core.secrets.services import VaultService, next_provider_key_name
 
 
+PROJECT_ID = uuid4()
+OTHER_PROJECT_ID = uuid4()
+
+
 class _FakeSecretsDAO:
-    """In-memory stand-in for the postgres DAO: enough to exercise create + list + update."""
+    """In-memory stand-in for the postgres DAO: enough to exercise create + list + update.
+
+    Records carry their scope and every read filters on it, like the real DAO — otherwise a
+    test could see provider numbering or saved policy cross a project boundary.
+    """
 
     def __init__(self):
-        self.records: list[SecretResponseDTO] = []
+        self.records: list[tuple[tuple, SecretResponseDTO]] = []
+
+    def _scoped(self, project_id, organization_id):
+        return [
+            record
+            for scope, record in self.records
+            if scope == (project_id, organization_id)
+        ]
 
     async def create(self, project_id, organization_id, create_secret_dto):
-        del project_id, organization_id
         record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
@@ -26,17 +40,19 @@ class _FakeSecretsDAO:
             data=create_secret_dto.secret.data.model_dump(exclude_none=True),
             header=create_secret_dto.header,
         )
-        self.records.append(record)
+        self.records.append(((project_id, organization_id), record))
         return record
 
     async def list(self, project_id, organization_id):
-        del project_id, organization_id
-        return list(self.records)
+        return self._scoped(project_id, organization_id)
 
     async def get_by_id(self, secret_id, project_id, organization_id):
-        del project_id, organization_id
         return next(
-            (record for record in self.records if record.id == secret_id),
+            (
+                record
+                for record in self._scoped(project_id, organization_id)
+                if record.id == secret_id
+            ),
             None,
         )
 
@@ -48,9 +64,10 @@ class _FakeSecretsDAO:
         organization_id,
         user_id=None,
     ):
-        del project_id, organization_id, user_id
+        del user_id
+        scope = (project_id, organization_id)
         stored = next(
-            (record for record in self.records if record.id == secret_id),
+            (record for record in self._scoped(*scope) if record.id == secret_id),
             None,
         )
         if stored is None:
@@ -64,7 +81,7 @@ class _FakeSecretsDAO:
             data=update_secret_dto.secret.data.model_dump(),
             header=update_secret_dto.header or stored.header,
         )
-        self.records[self.records.index(stored)] = record
+        self.records[self.records.index((scope, stored))] = (scope, record)
         return record
 
 
@@ -151,10 +168,10 @@ def test_next_provider_key_name_uses_the_provider_display_name():
 
 async def test_create_names_and_slugs_unnamed_provider_keys(vault):
     first = await vault.create_secret(
-        project_id=uuid4(), create_secret_dto=_provider_key_payload()
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_payload()
     )
     second = await vault.create_secret(
-        project_id=uuid4(), create_secret_dto=_provider_key_payload()
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_payload()
     )
 
     assert first.header.name == "OpenAI"
@@ -166,7 +183,7 @@ async def test_create_names_and_slugs_unnamed_provider_keys(vault):
 
 async def test_create_keeps_a_user_supplied_name_and_still_assigns_a_slug(vault):
     secret = await vault.create_secret(
-        project_id=uuid4(),
+        project_id=PROJECT_ID,
         create_secret_dto=_provider_key_payload(name="Billing team key"),
     )
 
@@ -176,19 +193,31 @@ async def test_create_keeps_a_user_supplied_name_and_still_assigns_a_slug(vault)
 
 async def test_create_numbers_per_provider_display_name(vault):
     await vault.create_secret(
-        project_id=uuid4(), create_secret_dto=_provider_key_payload()
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_payload()
     )
     anthropic = await vault.create_secret(
-        project_id=uuid4(), create_secret_dto=_provider_key_payload(kind="anthropic")
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_payload(kind="anthropic")
     )
 
     # A second provider family starts at its own name, not at "2".
     assert anthropic.header.name == "Anthropic"
 
 
+async def test_numbering_does_not_cross_a_project_boundary(vault):
+    """Numbering counts one project's connections; another project's are not "taken"."""
+    await vault.create_secret(
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_payload()
+    )
+    elsewhere = await vault.create_secret(
+        project_id=OTHER_PROJECT_ID, create_secret_dto=_provider_key_payload()
+    )
+
+    assert elsewhere.header.name == "OpenAI"
+
+
 async def test_create_stores_the_saved_models_and_harnesses(vault):
     secret = await vault.create_secret(
-        project_id=uuid4(),
+        project_id=PROJECT_ID,
         create_secret_dto=_provider_key_payload(
             models=[{"slug": "gpt-5.6-luna"}], harnesses=["pi_core"]
         ),
@@ -201,7 +230,7 @@ async def test_create_stores_the_saved_models_and_harnesses(vault):
 
 async def test_create_slugs_a_custom_provider_from_its_name(vault):
     secret = await vault.create_secret(
-        project_id=uuid4(), create_secret_dto=_custom_provider_payload()
+        project_id=PROJECT_ID, create_secret_dto=_custom_provider_payload()
     )
 
     # The slug is identity, so a later rename of the display name cannot move the connection.
@@ -210,7 +239,7 @@ async def test_create_slugs_a_custom_provider_from_its_name(vault):
 
 async def test_create_keeps_a_custom_provider_slug_the_caller_supplied(vault):
     secret = await vault.create_secret(
-        project_id=uuid4(),
+        project_id=PROJECT_ID,
         create_secret_dto=_custom_provider_payload(slug="my-own-slug"),
     )
 
@@ -220,7 +249,7 @@ async def test_create_keeps_a_custom_provider_slug_the_caller_supplied(vault):
 @pytest.fixture
 async def saved_connection(vault):
     return await vault.create_secret(
-        project_id=uuid4(),
+        project_id=PROJECT_ID,
         create_secret_dto=_provider_key_payload(
             name="OpenAI", models=[{"slug": "gpt-5.6-luna"}], harnesses=["pi_core"]
         ),
@@ -232,7 +261,7 @@ async def test_update_preserves_saved_policy_the_payload_omits(vault, saved_conn
     updated = await vault.update_secret(
         secret_id=saved_connection.id,
         update_secret_dto=_provider_key_update(),
-        project_id=uuid4(),
+        project_id=PROJECT_ID,
     )
 
     assert [model.slug for model in updated.data.models] == ["gpt-5.6-luna"]
@@ -246,7 +275,7 @@ async def test_update_with_an_empty_list_clears_the_saved_policy(
     updated = await vault.update_secret(
         secret_id=saved_connection.id,
         update_secret_dto=_provider_key_update(models=[], harnesses=[]),
-        project_id=uuid4(),
+        project_id=PROJECT_ID,
     )
 
     # An explicit empty list is a choice ("offer nothing"), not an omission.
@@ -262,8 +291,18 @@ async def test_update_with_a_new_list_replaces_the_saved_policy(
         update_secret_dto=_provider_key_update(
             models=[{"slug": "gpt-5.6-sol"}], harnesses=["codex"]
         ),
-        project_id=uuid4(),
+        project_id=PROJECT_ID,
     )
 
     assert [model.slug for model in updated.data.models] == ["gpt-5.6-sol"]
     assert updated.data.harnesses == ["codex"]
+
+
+async def test_update_does_not_reach_across_a_project_boundary(vault, saved_connection):
+    updated = await vault.update_secret(
+        secret_id=saved_connection.id,
+        update_secret_dto=_provider_key_update(),
+        project_id=OTHER_PROJECT_ID,
+    )
+
+    assert updated is None

@@ -34,8 +34,7 @@ const ConfigureProviderModal = ({selectedProvider, ...props}: ConfigureProviderM
             await handleModifyVaultSecret({
                 name: selectedProvider?.name,
                 id: selectedProvider?.id,
-                // Only a brand-new connection is named after its provider; an existing one keeps
-                // the name it was saved with, which the catalog title would overwrite.
+                // Preserve saved names; name new connections from the provider title.
                 title: selectedProvider?.id ? undefined : selectedProvider?.title,
                 key,
             })

@@ -276,8 +276,14 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
 
 def test_default_models_are_a_subset_of_what_the_harness_can_select():
     for harness, caps in HARNESS_CONNECTION_CAPABILITIES.items():
-        catalog_ids = {str(entry["id"]) for entry in caps.model_catalog}
         for provider, defaults in caps.default_models.items():
+            # Scoped to the provider: an id under another provider's catalog is not something
+            # this provider's connection can select.
+            catalog_ids = {
+                str(entry["id"])
+                for entry in caps.model_catalog
+                if entry.get("provider") == provider
+            }
             assert provider in caps.providers, harness
             selectable = set(caps.models.get(provider) or []) | catalog_ids
             assert set(defaults) <= selectable, (harness, provider)
