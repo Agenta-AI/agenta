@@ -22,10 +22,23 @@ The first three all specify a request path for model calls. Only this one covers
 
 Read `model-call-sites.md` first for the library question; this is the rest.
 
-- **The run token is the cached policy decision.** A short-lived signed token whose claims
-  name the organization, project, run, permitted model, a token ceiling and a spend cap. The
-  gateway checks signature and expiry and reads no database. This design left that mechanism
-  open.
+- **The run token is the cached policy decision.** It names the organization, project, run,
+  permitted model, a token ceiling and a spend cap. This design left that mechanism open.
+
+  **Correction — this entry cited the wrong shape.** It previously described a *signed token
+  carrying its own claims*, verified without a database read. That is the credits work's
+  **proposal A**, which its own report considered and rejected. Its decision (§6.2, item 1) is
+  the opposite: *"Take B"* — an opaque random string whose digest is stored, so the gateway
+  reads a row per call. The reasoning is that statelessness saves a round trip the design never
+  banks, because *"every model call already needs a Postgres transaction in order to place a
+  hold"*, and it is paid for *"in the currency of revocation"* — the row can be revoked the
+  moment a run ends, a user cancels, or an organization is suspended, and it is also the natural
+  home for the per-run cap.
+
+  Whichever wave designs the funded-run token should resolve it against that argument, not
+  against the discarded proposal. Note the two shapes differ on where the constraint lives, not
+  on whether it exists: the permitted model and the ceilings are in a **row** keyed by the token
+  digest, which is not the payload claim set D13 declines to add.
 - **The north port shape.** One endpoint, the body byte for byte, all metadata in the URL or a
   header. It agrees with the header-based routing the current MCP revision requires, so both
   planes route the same way.
@@ -72,7 +85,7 @@ run is funded. This design's D1 says everything transits, always.
 **Settled by D12: funded-only is a delivery phase, not the design.** The target stays "all
 calls transit". A funded-first version is a step toward it, not a different destination.
 
-The mechanism was never in conflict — the same signed run token, the same endpoint, the same
+The mechanism was never in conflict — the same run token, the same endpoint, the same
 secret swap. Only the trigger differed.
 
 ## Ownership — settled
