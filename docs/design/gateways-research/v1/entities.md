@@ -3,6 +3,12 @@
 The data model and its full stack, following the codebase's existing layering.
 Column lists are the proposal, not migrations.
 
+> **Namespaces are `builtin` / `standard` / `custom` (D30**, superseding D27's set).
+> `builtin` is the namespace whose upstream *we* pay for and is the only one metering will
+> attach to; `standard` and `custom` both spend the user's own key. `agenta` is no longer a
+> namespace — it is a provider inside `builtin`, next to `composio`, so the builtin path
+> carries a provider segment. Nothing migrates: `namespace` was never a column.
+
 The gateways have no sibling domain to mirror, and — despite the name — the existing
 `core/gateway/` is not it. That domain is an integrations surface ("connect my project to
 GitHub"); this one is traffic transiting a boundary. §1 makes the argument. The gateways
@@ -31,8 +37,8 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
     types.py          domain exceptions
     interfaces.py     LlmEndpointsDAOInterface + LlmUpstreamInterface (south port)
     registry.py       adapter key -> LlmUpstreamInterface
-    catalog.py        the builtin set, generated from the SDK's static provider map
-                      (D20) — and the one place standard maps to builtin (D27)
+    catalog.py        the standard set, generated from the SDK's static provider
+                      map and its direct base URLs (D20, D30)
     service.py        LlmGatewayService: management + the data-plane relay
     providers/
       passthrough/adapter.py   OpenAI-compatible upstreams, byte-for-byte relay
@@ -47,7 +53,7 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
     service.py        McpGatewayService: management + the transparent proxy
     providers/
       http/adapter.py          remote Streamable HTTP servers (custom)
-      composio/adapter.py      the builtin relay — reuses the brokered connection (D27)
+      composio/adapter.py      the builtin/composio relay — reuses the brokered connection (D30)
       mock/adapter.py          the mock MCP server (D23, WP5)
 dbs/postgres/gateways/
   llms/               dbas.py, dbes.py, dao.py, mappings.py
@@ -82,17 +88,17 @@ Three new, two reused, one deliberately left alone.
 
 | table | what it is | what it is not |
 | --- | --- | --- |
-| `llm_gateway_endpoints` | one **custom** LLM endpoint: a reachable provider deployment, its route, its model allowlist, its configuration | not a model, and not the catalogue — builtin endpoints are generated, never stored (D20, D27) |
+| `llm_gateway_endpoints` | one **custom** LLM endpoint: a reachable provider deployment, its route, its model allowlist, its configuration | not a model, and not the catalogue — standard endpoints are generated, never stored (D20, D30) |
 | `mcp_gateway_endpoints` | one **custom** MCP server: its URL, auth mode, tool policy, configuration | not a catalog of tools — the server owns its tool list (D19) |
 | `mcp_gateway_grants` | one owner's authorization on one server, pointing at the vault row that holds the tokens | not a token store — the `oauth_grant` secret is (D3, D14) |
 | `secrets` *(reused)* | gains two kinds, `oauth_provider` and `oauth_grant`; the payload is one encrypted blob, so **no schema change** | not gaining the owner column yet — ownership is designed, not scheduled (`secrets.md`) |
 | events stream *(reused)* | one audit record per call, carrying decision, principal, owner, payer and usage | not a new table and not a second pipeline (D22) |
 | `gateway_connections` *(existing)* | untouched; a Composio-brokered MCP endpoint will reference a row here | not the endpoint registry, and not our domain — see below |
 
-Reading it as a sentence: *a project registers custom endpoints on either plane; a builtin
-endpoint exists the moment a key exists for it; an OAuth-protected server accumulates one
-grant row per owner, each pointing at one vault secret; and every call, allowed or denied,
-becomes one event.*
+Reading it as a sentence: *a project registers custom endpoints on either plane; a standard
+endpoint exists the moment a key exists for it; a builtin endpoint exists because we run or
+broker it; an OAuth-protected server accumulates one grant row per owner, each pointing at
+one vault secret; and every call, allowed or denied, becomes one event.*
 
 ### Why the planes are a separate domain, not members of `core/gateway/`
 
@@ -213,7 +219,7 @@ decision would need invalidation on every input; the existing two-layer entitlem
 reused rather than reinvented (`policy.md`).
 
 **Model routes are not rows.** A generated endpoint's route is derivable: a stable prefix,
-the namespace marker — the URL spells it `builtin` (D27, §2.3) — and the provider's own
+the namespace marker — `standard` (D30, §2.3) — and the provider's own
 name (D20). The provider-to-models catalogue
 is already a static map in the SDK (`sdks/python/agenta/sdk/utils/assets.py`,
 `supported_llm_models`, eleven providers), and the API already imports the SDK for exactly
@@ -384,60 +390,67 @@ over-applies it:
 ### 2.3 The slug is the namespaced identifier
 
 D16 requires the identifier in a gateway URL to carry a namespace — an id or a slug, never
-a display name. The grammar, final per D27:
+a display name. The grammar, per D30:
 
 ```text
-/gateways/mcps/builtin/agenta/{slug}                                  agenta/tools
-/gateways/mcps/builtin/{provider}/{integration}/{connection}  builtin/composio/notion/my-notion
-/gateways/mcps/custom/{slug}                                  custom/acme-notion
+/gateways/mcps/builtin/agenta/{slug}                        builtin/agenta/tools
+/gateways/mcps/builtin/composio/{integration}/{connection}  builtin/composio/notion/my-notion
+/gateways/mcps/custom/{slug}                                custom/acme-notion
 
-/gateways/llms/agenta/{slug}                                  reserved, empty today
-/gateways/llms/standard/{provider}                             builtin/openai
-/gateways/llms/custom/{slug}                                  custom/acme-azure
+/gateways/llms/builtin/{provider}/...                       reserved, empty today
+/gateways/llms/standard/{provider}                          standard/openai
+/gateways/llms/custom/{slug}                                custom/acme-azure
 ```
 
+**`builtin` carries a provider segment; each provider owns the grammar after it.** That is
+what makes `agenta` a supplier rather than a namespace (D30): composio addresses a
+connection as `{integration}/{connection}`, agenta serves its own endpoints under a bare
+slug, and a third builtin provider would bring its own shape without disturbing either.
+
 **The segment names are the codebase's own words, and that is the justification for the
-three builtin segments.** `provider`, `integration` and `connection` are `provider_key`,
+three composio segments.** `provider`, `integration` and `connection` are `provider_key`,
 `integration_key` and the connection's slug — the three columns of
 `gateway_connections`'s unique key, `(project_id, provider_key, integration_key, slug)`,
 minus the project, which comes from the token. The brokered URL simply spells the
 brokered connection's identity; naming the segments anything else would invent a second
 vocabulary for one set of values (D27).
 
-- **`agenta`** — the Agenta tools. On the MCP plane, **the mocks are its first members**
-  (D23) — servers we implement and run. On the LLM plane: **reserved with no members
-  today**, where an Agenta-owned or fine-tuned model would live. The names are defined in
-  code; the secret is nobody's — our own servers, reached with our own minted token
-  (D13). The runner's loopback channel is not in this picture: it is the runner's tool
-  executor, not a transport, and the exclusion recorded in `notes.md` holds — the slice
-  of it that could eventually address the gateway directly, and the boundary of that
-  slice, is `cleanups.md` item 5, not this document's scope.
-- **`builtin`** — what we ship ready to click, generated on both planes, never a row. On
-  the LLM plane: the standard-provider set (D20) — the provider's own key is the whole
-  identifier (`builtin/openai`), the set is the static catalogue
-  (`core/gateways/llms/catalog.py`), and an endpoint exists when a provider key exists
-  for it. On the MCP plane: third-party servers backed by the Composio catalog the
-  integrations domain already consumes — the path spells the brokered connection's
-  identity (`builtin/composio/notion/my-notion`), and the secret lives at the broker
-  behind the existing connection state machine (D27). Spelled without a hyphen because
-  the namespace is a path segment — the same reason the slug rules exist.
+- **`builtin`** — **our account pays**, which is the whole reason it is one namespace
+  (D30). Generated, never a row. Two providers today. **`agenta`**: servers we implement
+  and run, the mocks being its first members (D23), reached with our own minted token
+  (D13); the runner's loopback channel is not in this picture — it is the runner's tool
+  executor, not a transport, and the exclusion recorded in `notes.md` holds, with the
+  slice that could eventually address the gateway directly tracked as `cleanups.md`
+  item 5. **`composio`**: third-party servers backed by the Composio catalog the
+  integrations domain already consumes, the path spelling the brokered connection's
+  identity, the secret living at the broker behind the existing connection state
+  machine. On the LLM plane `builtin` is **reserved with no members today** — it is where
+  a model we supply the key for lands, and where metering will attach. Spelled without a
+  hyphen because the namespace is a path segment.
+- **`standard`** — a deployment whose wire we already know, **paid for with the user's own
+  key** (D30). Generated, never a row. On the LLM plane: the standard-provider set (D20)
+  — the provider's own key is the whole identifier (`standard/openai`), the set is the
+  static catalogue (`core/gateways/llms/catalog.py`), and an endpoint exists when a
+  provider key exists for it. On the MCP plane: **reserved, empty today**. The word is
+  the secrets domain's own — a *standard* provider there is a standard target here, and
+  the two-line mapping an earlier draft defended is gone rather than defended.
 - **`custom`** — stored endpoints, the only rows: a customer's own deployment or reseller
   on the LLM plane, a server the user brought by URL on the MCP plane. The name is the
   row's `slug`, one slug, unique per project (`uq_llm_gateway_endpoints_project_slug`,
   §3), validated by the shared `Slug` DTO's `URL_SAFE_SLUG` rule.
 
-**Identifiers are slugs or keys, never display names — and an `agenta` slug may be
-nested.** An `agenta` identifier is ours, defined in code, and may carry `/` separators
-(`agenta/tools/search` is one endpoint whose slug is `tools/search`), so its route
-segment is a **path**, not a single component — which is a routing fact §9 has to honour
-with a catch-all parameter, where `builtin` and `custom` take fixed components. The
-shared `Slug` validator governs what a *user* may type on a custom row; agenta
-identifiers never pass through it, because nobody types them.
+**Identifiers are slugs or keys, never display names — and an agenta slug may be nested.**
+An agenta identifier is ours, defined in code, and may carry `/` separators
+(`builtin/agenta/tools/search` is one endpoint whose slug is `tools/search`), so what
+follows the provider segment is a **path**, not a single component — a routing fact §9
+honours with a catch-all parameter, where composio and `custom` take fixed components. The
+shared `Slug` validator governs what a *user* may type on a custom row; agenta identifiers
+never pass through it, because nobody types them.
 
-**All three are reserved from the start, even where one is empty.** The LLM plane's
-`agenta` namespace has no members today; it exists anyway, because taking a keyword costs
+**All three are reserved on both planes, even where one is empty.** LLM's `builtin` and
+MCP's `standard` have no members today; they exist anyway, because taking a keyword costs
 nothing now, while discovering later that something else claimed the segment costs a
-migration of live URLs (D27).
+migration of live URLs (D27, kept by D30).
 
 **The broker is named in the path, and that is deliberate** (D27). An earlier instinct hid
 it behind a stable name so a provider swap would not change URLs, and it was wrong twice
@@ -470,15 +483,14 @@ domain calls a non-custom provider *standard* (`StandardProviderKind`,
 `core/secrets/enums.py`), and the LLM plane resolves against that enum; the URL says
 `builtin`. The gateway maps one to the other in exactly one place — `catalog.py`, whose
 functions keep the internal *standard* vocabulary (§8). **A public path segment does not
-owe its spelling to an internal enum.** The alternative — two vocabularies for one idea,
-`standard` on one plane and `builtin` on the other — was rejected because it would split
-the URL grammar across the planes purely to avoid a two-line mapping (D27).
+owe its spelling to an internal enum.**
 
 **The namespace selects the backend, which is why it earns a place in the path** rather
-than in a column: a hit on `agenta` calls the Agenta tools; a hit on `builtin` calls the
-generated set — the standard provider, or the broker, reusing the connection the
-integrations domain already brokered; a hit on `custom` calls the upstream the endpoint
-row names, with the secret we resolved for it (D27, §4.4). Every row is `custom` by
+than in a column: a hit on `builtin/agenta` calls the Agenta tools; a hit on
+`builtin/composio` calls the broker, reusing the connection the integrations domain
+already brokered; a hit on `standard` calls the provider named by the segment, with the
+user's own key; a hit on `custom` calls the upstream the endpoint row names, with the
+secret we resolved for it (D30, §4.4). Every row is `custom` by
 construction (D20 stores nothing else), so a namespace column would hold one value
 forever. The DTO carries a `namespace` field stamped by the service — `CUSTOM` for rows,
 the generated value otherwise — so one endpoint shape per plane serves all three
@@ -502,15 +514,16 @@ authorization endpoints never invalidates a catalog entry.
 
 Where the five fields come from, per namespace:
 
-- **`builtin`, MCP plane** — the Composio catalog contract we already consume:
+- **`builtin/composio`, MCP plane** — the Composio catalog contract we already consume:
   `CatalogIntegration` (`core/gateway/catalog/dtos.py`) carries `key`, `name`,
   `description`, `categories`, `logo`, `url` and `auth_schemes`. Nothing new is curated
   and nothing new is maintained; the gateway reads the same DTO the tools domain reads
   today.
-- **`builtin`, LLM plane** — the static provider catalogue the SDK already ships
-  (`supported_llm_models`, §1); the same already-maintained-elsewhere property, from the
-  other direction.
-- **`agenta`** — in code, next to the servers themselves.
+- **`standard`, LLM plane** — the static provider catalogue the SDK already ships
+  (`supported_llm_models`, §1), plus the direct base URL from the SDK's own endpoint map
+  (`agents/connections/endpoints.py::direct_endpoint`), which the passthrough adapter
+  dials; the same already-maintained-elsewhere property, from the other direction.
+- **`builtin/agenta`** — in code, next to the servers themselves.
 - **`custom`** — the user supplies the URL; everything else is discovered as above, and
   the name and description are theirs to type on the row.
 
@@ -576,8 +589,11 @@ the row's identity never moves.
 Three different facts, three different homes, following the house pattern:
 
 - **`flags.is_active`** — an operator's switch, on endpoints and grants. Server-set default
-  `True`; a deactivated endpoint refuses calls at policy time with a reason that names the
-  flag.
+  `True`; a deactivated endpoint refuses calls with a reason that names the flag —
+  `GatewayEndpointInactiveError`, one type for both planes, since the flag, the refusal and
+  the reason are identical and only the endpoint named differs. The check sits immediately
+  after resolution, before the allowlist: a deactivated endpoint should not report what it
+  would have allowed.
 - **`flags.is_valid`** — secret health, on grants only. Server-set, never
   client-writable (the connections service already enforces exactly this: "always
   server-set in flags"). A failed refresh flips it `False`; D18 then holds — the server's
@@ -758,15 +774,13 @@ class GatewayConnectionRequirement(BaseModel):
 
 class GatewayEndpointNamespace(str, Enum):
     """The first URL segment under either plane — the same three words on both
-    (§2.3, D16, D27). The namespace selects the backend, which is what earns it
-    a place in the path."""
-    AGENTA = "agenta"       # what Agenta itself serves; reserved on the LLM plane,
-                            # empty today — a keyword costs nothing now, a URL
-                            # migration later costs plenty (D27)
-    BUILTIN = "builtin"     # generated, ready to click: the standard-provider set
-                            # on the LLM plane, the Composio-backed set on MCP;
-                            # never a row, never editable (D20, D21)
-    CUSTOM = "custom"       # a row; configurable
+    (§2.3, D16, D30). The namespace selects the backend and says whose secret
+    pays, which is what earns it a place in the path."""
+    BUILTIN = "builtin"     # our account, so we bill: a provider segment follows
+                            # (agenta, composio). Generated, never a row (D20, D21)
+    STANDARD = "standard"   # a shape we know, the user's own key: the
+                            # standard-provider set on the LLM plane, empty on MCP
+    CUSTOM = "custom"       # a row; configurable, the user's key
 
 
 class GatewayEndpointConfig(BaseModel):
@@ -776,13 +790,17 @@ class GatewayEndpointConfig(BaseModel):
     extra_headers: Optional[Dict[str, str]] = None
 ```
 
-**One namespace enum, shared by both planes.** D27 makes the value set identical on
+**One namespace enum, shared by both planes.** D30 keeps the value set identical on
 purpose — the same three words, all three reserved even where one is empty — so a shared
 type is the honest one, and it lives here at the domain root because the policy core's
-`GatewayTarget` (§4.2) and both plane DTOs all carry it. The internal vocabulary mismatch
-this creates on the LLM plane is absorbed in one place, not in the type: the secrets
-domain says *standard*, the URL says `builtin`, and `catalog.py` owns the two-line mapping
-(§2.3, §8). A public path segment does not owe its spelling to an internal enum.
+`GatewayTarget` (§4.2) and both plane DTOs all carry it.
+
+**The split that matters is billing, not backend.** `builtin` is the one namespace whose
+upstream we pay for, so it is the only one metering will ever attach to; `standard` and
+`custom` both spend the user's own key and need no charging path at all. An earlier draft
+made `builtin` an alias of the secrets domain's *standard* and put that boundary inside a
+single namespace. The vocabulary mismatch that alias created is now gone too — the secrets
+domain says *standard* and so does the URL.
 
 ### 4.2 The policy core's DTOs
 
@@ -825,7 +843,7 @@ class SecretOrigin(str, Enum):
 # --- what the resolver is asked for ---------------------------------------- #
 
 class ProviderKeyRef(BaseModel):
-    """A builtin LLM endpoint — the standard-provider set (D27): find the
+    """A standard LLM endpoint — the standard-provider set (D30): find the
     provider_key secret for this provider."""
     provider_key: str
 
@@ -859,8 +877,8 @@ class GatewayTarget(BaseModel):
                                         # key (LLM builtin), or the connection slug
                                         # (MCP builtin) — §2.3
     #
-    provider: Optional[str] = None      # MCP builtin: the broker segment (D27)
-    integration: Optional[str] = None   # MCP builtin: the integration segment (D27)
+    provider: Optional[str] = None      # builtin: which supplier — agenta, composio (D30)
+    integration: Optional[str] = None   # builtin/composio: the integration segment
     endpoint_id: Optional[UUID] = None  # set when the target is a row
     model: Optional[str] = None         # LLM plane
     method: Optional[str] = None        # MCP plane: the protocol method
@@ -934,7 +952,12 @@ class LlmEndpointRoute(BaseModel):
 class LlmEndpointConfig(GatewayEndpointConfig):
     max_output_tokens: Optional[int] = None   # the ceiling (D21). A call above it
                                               # is REJECTED, never silently
-                                              # clamped (D25) — CeilingExceededError, §5
+                                              # clamped (D25) — CeilingExceededError, §5.
+                                              # The CONFIG key. The request field it
+                                              # binds to is Chat Completions' own:
+                                              # max_tokens, or max_completion_tokens
+                                              # on reasoning models. Reading the config
+                                              # key off the body would never engage.
 
 
 class LlmEndpointData(BaseModel):
@@ -1145,7 +1168,7 @@ class McpResolvedRoute(BaseModel):
 # --- the two secret mechanisms, made legible (D27) ----------------------- #
 
 class McpDirectAuth(BaseModel):
-    """agenta + custom: the secret is ours to present — an oauth_grant
+    """builtin/agenta + custom: the secret is ours to present — an oauth_grant
     resolved from the vault (§7.2), or nothing for a NONE-scheme target."""
     secret: Optional[ResolvedSecret] = None
 
@@ -1959,9 +1982,9 @@ class McpUpstreamInterface(ABC):
     ) -> McpRelayResult:
         """Transparent per-server relay (D16): same method, same body, same
         response, with only the route and the authorization changed. `auth` is
-        the discriminated union from §4.4 — McpDirectAuth for agenta and custom,
-        McpBrokeredAuth for builtin — so the two secret mechanisms cannot be
-        conflated by an adapter (D27). Raises McpUpstreamError on transport
+        the discriminated union from §4.4 — McpDirectAuth for builtin/agenta and
+        custom, McpBrokeredAuth for builtin/composio — so the two secret
+        mechanisms cannot be conflated by an adapter (D30). Raises McpUpstreamError on transport
         failure; protocol-level errors from the server are NOT exceptions — they
         are the response body, relayed, because the server's own failure reason
         is what lets the model correct itself (the pass-through rule in
@@ -1972,8 +1995,10 @@ class McpUpstreamInterface(ABC):
         resolving variant in core/webhooks/utils.py, connecting to the literal
         IP it returns rather than re-resolving the hostname (D28). A blocked
         target is McpUpstreamError — a transport refusal, never relayed as an
-        upstream body. Only `custom` needs it: agenta targets are ours and
-        builtin targets are the broker's."""
+        upstream body. Only `custom` strictly needs it — agenta targets are ours
+        and composio's are the broker's — but the adapter is reached only by
+        `custom`, so it runs unconditionally rather than branching on a namespace
+        it is never given."""
         ...
 ```
 
@@ -2220,9 +2245,9 @@ class LlmGatewayService:
     async def delete_endpoint(self, *, project_id, endpoint_id) -> bool: ...
     async def query_endpoints(self, *, project_id, endpoint=None, windowing=None) -> List[LlmEndpoint]: ...
     async def list_endpoints(self, *, project_id) -> List[LlmEndpoint]: ...
-    # list_endpoints is the merge: generated builtin endpoints (catalog.py,
+    # list_endpoints is the merge: generated standard endpoints (catalog.py,
     # existing iff a provider_key secret exists for the provider — D20) plus the
-    # custom rows; agenta joins when it has members (D27). The only read that
+    # custom rows; builtin joins when it has members (D30). The only read that
     # spans namespaces. Existence comes from the resolver port's
     # available_provider_keys (§7.2, R2) — names only, no vault dependency on
     # this constructor.
@@ -2235,9 +2260,10 @@ class LlmGatewayService:
     #       """The generated endpoint for one provider: namespace=BUILTIN,
     #       slug=provider_key, deployment=DIRECT, model_slugs from the map,
     #       config at code defaults, no id and no lifecycle — it is not a row.
-    #       None for an unknown provider. The function keeps the secrets
-    #       domain's *standard* vocabulary; the namespace it stamps says
-    #       builtin — this file is the whole of that mapping (D27, §2.3)."""
+    #       None for an unknown provider. base_url comes from the SDK's direct
+    #       endpoint map for passthrough-routed providers, which the adapter
+    #       refuses without; translated ones keep litellm's own default.
+    #       Secrets domain and URL now say the same word (D30, §2.3)."""
     #
     #   def standard_llm_endpoints() -> List[LlmEndpoint]:
     #       """All eleven, existence-unfiltered. The service intersects with
@@ -2268,14 +2294,16 @@ class McpGatewayService:
     async def delete_endpoint(self, *, project_id, endpoint_id) -> bool: ...
     async def query_endpoints(self, *, project_id, endpoint=None, windowing=None) -> List[McpEndpoint]: ...
     async def list_endpoints(self, *, project_id) -> List[McpEndpoint]: ...
-    # The three-namespace merge (D27): agenta entries from code, builtin entries
-    # generated from the Composio catalog with their connection state resolved
-    # through the existing connections service, custom rows from the DAO.
+    # The three-namespace merge (D30): builtin/agenta entries from code,
+    # builtin/composio entries generated from the Composio catalog with their
+    # connection state resolved through the existing connections service, custom
+    # rows from the DAO. A revoked composio connection stays listed, in
+    # NEEDS_AUTH — the query passes is_active=None, per D18.
 
     # --- grants (WP17, WP18 wire these; declared now) ----------------------- #
 
     async def connect_endpoint(self, *, project_id, user_id, endpoint_id, scopes) -> str: ...
-    # CUSTOM OAuth endpoints only (D27): builtin servers connect through the
+    # CUSTOM OAuth endpoints only (D30): composio servers connect through the
     # existing integrations connect flow, whose state machine and redirect
     # Composio already drives — this verb never fronts it.
     # Begins consent: builds the authorization redirect via the OAuth client,
@@ -2298,9 +2326,9 @@ class McpGatewayService:
         self, *, scope, namespace, name, provider=None, integration=None,
         context, body, headers,
     ) -> McpRelayResult: ...
-    # name is the last path component (§2.3): the agenta slug (possibly nested),
-    # the custom slug, or the builtin connection slug — in which case provider
-    # and integration carry the other two segments
+    # name is what follows the provider segment (§2.3): the agenta slug
+    # (possibly nested), the custom slug, or composio's connection slug — in
+    # which case provider and integration carry the other two segments
 ```
 
 **The relay path, spelled once** — both planes walk the same six steps, which is D7 made
@@ -2313,6 +2341,8 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
     target = await self._resolve_target(project_id=scope.project_id,
                                         namespace=namespace, name=name)
     # generated or row; LlmEndpointNotFoundError / McpEndpointNotFoundError
+    self._check_active(target)                    # GatewayEndpointInactiveError:
+                                                  # the operator's switch, §2.6
 
     context = parse_call_context(body)            # model + stream; MCP reads headers
     self._check_allowlist(target, context)        # LlmModelNotAllowedError /
@@ -2332,24 +2362,35 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
 
     secret = await self.resolver.resolve(
         scope=scope, ref=target.secret_ref(), mode=SecretMode.PROJECT_ONLY,
-    )   # MCP: USER_OPTIONAL (§7.2); NONE-scheme targets skip this step; builtin
-        # MCP targets take the brokered path instead — the connection row in
-        # McpBrokeredAuth, never the resolver (§4.4, D27)
+    )   # MCP: USER_OPTIONAL (§7.2); NONE-scheme targets skip this step;
+        # builtin/composio takes the brokered path instead — the connection row
+        # in McpBrokeredAuth, never the resolver (§4.4, D30) — and refuses with
+        # SecretInvalidError when that connection is revoked, before dispatch
 
-    result = await self.upstream_registry.get(
-        select_upstream(target.provider_key, target.deployment)
-    ).relay_chat_completion(route=target.route(context), secret=secret,
-                            context=context, body=body, headers=headers)
+    result = await asyncio.wait_for(
+        self.upstream_registry.get(
+            select_upstream(target.provider_key, target.deployment)
+        ).relay_chat_completion(route=target.route(context), secret=secret,
+                                context=context, body=body, headers=headers),
+        timeout=target.config.timeout_seconds,
+    )   # LlmUpstreamError on expiry
 
-    await self.policy.record(scope=scope, target=..., decision=decision,
-                             outcome=outcome_from(result, secret))
+    result.body = self._drain_and_record(body=result.body, scope=scope, ...)
     return result
 ```
 
-Three orderings in that body are deliberate:
+Four things in that body are deliberate:
 
 - **Allowlist before secret.** A refused model or tool must not cost a vault read, and
   the refusal reason must be the allowlist, not a coincidental secret gap.
+- **The timeout is the service's, not an adapter's.** `timeout_seconds` is a property of
+  the endpoint, so an adapter that forgets it must not leave the call with no ceiling at
+  all — which is exactly what happened while the value lived in one of three adapters.
+  For a stream this bounds time-to-first-byte: the proxy drains the body after this
+  returns, and a long legitimate stream is not a timeout.
+- **Usage is recorded after the drain, on both paths.** Every adapter fills
+  `result.usage` while its body generator runs, and the proxy is what advances it —
+  so reading usage at this point would record `None` on every non-streaming call.
 - **The denial is recorded before the exception leaves.** An audit trail that only records
   successes answers "did every call get checked" with "every call that succeeded" — the
   exact failure D1 names.
@@ -2370,11 +2411,11 @@ of the first increment anyway (`scope-checklist.md`).
 
 **Where the state machine is computed.** `GatewayConnectionState` (§4.1) is derived in
 `McpGatewayService` per owner and per namespace: `READY` iff the endpoint's scheme is NONE
-(every `agenta` entry), or — `custom` — a valid grant exists for this owner, or —
-`builtin` — the referenced connection row is active and valid, read through the existing
-connections service; `NEEDS_AUTH` otherwise for an OAuth or builtin endpoint — with the
-connect affordance pointing at `connect_endpoint`'s route for `custom` and at the existing
-integrations connect flow for `builtin`; `NEEDS_INPUT` reserved for the api_key scheme
+(every `builtin/agenta` entry), or — `custom` — a valid grant exists for this owner, or —
+`builtin/composio` — the referenced connection row is active and valid, read through the
+existing connections service; `NEEDS_AUTH` otherwise for an OAuth or brokered endpoint —
+with the connect affordance pointing at `connect_endpoint`'s route for `custom` and at the
+existing integrations connect flow for composio; `NEEDS_INPUT` reserved for the api_key scheme
 (deferred with its kind, D14). The LLM side derives the same states from key
 presence (`NEEDS_INPUT` when no provider secret exists). Nothing stores these (§2.6).
 
@@ -2395,7 +2436,7 @@ app.include_router(router=mcp_gateway.proxy,   prefix="/gateways/mcps", include_
 ```
 
 The proxies share the plane prefix with the CRUD without collision because their first
-path segment is the shared namespace enum (`agenta | builtin | custom`, typed as the
+path segment is the shared namespace enum (`builtin | standard | custom`, typed as the
 path parameter so a wrong segment 422s at the router before any handler runs), and none
 of those values can spell `endpoints` or `grants`.
 
@@ -2526,11 +2567,18 @@ converge when touched.
 `apis/fastapi/gateways/exceptions.py`, not duplicated per router — tools and
 triggers currently duplicate `handle_adapter_exceptions()` verbatim, and those domains
 are out of scope to fix (D15); ours is simply written once. Mapping: `*NotFoundError` → 404,
+`GatewayEndpointInactiveError` → 403 naming the flag (§2.6),
 `PolicyDeniedError` / `EntitlementDeniedError` → 403, `*NotAllowedError` → 403,
 `CeilingExceededError` → 400, its body naming the ceiling, the requested and the allowed
 values (D25), `McpAuthRequiredError` → 409 carrying the `GatewayConnectionRequirement`
-(an interaction, not a failure — D17), `*UpstreamError` → 424, or 502 when the upstream
-answered ≥500 (the 424/502 split tools and triggers already use).
+(an interaction, not a failure — D17), `SecretNotFoundError` / `SecretInvalidError` → 409
+on the same reading — *you could, once someone connects* — `*UpstreamError` → 424, or 502
+when the upstream answered ≥500 (the 424/502 split tools and triggers already use).
+
+**The 409 for a missing secret holds on all three surfaces**, the two proxies included
+(R11, settled). The proxies still translate into their own error *bodies* — that is the
+real difference between the surfaces — but a caller branching on status gets one answer
+per cause, not one per plane.
 
 **The connect callback is the one route with no permission check**, authenticated by the
 signed state token instead — precisely the `GET /tools/connections/callback` shape,
@@ -2547,6 +2595,14 @@ The proxies declare externally-fixed paths and **no wire models** (§6). Authent
 the platform's own: the minted secret token travels as `Secret <token>`, one of the three
 schemes the middleware already verifies by decode alone (D13) — so the proxy handlers see
 a full `AuthScope` like any other route, and nothing here is public.
+
+**Both proxies strip the upstream's framing headers before answering** — `content-length`,
+`content-encoding`, `transfer-encoding`, `connection`, `keep-alive` — through one shared
+helper rather than a copy per plane. Two reasons, and the second is the one that bites:
+ASGI computes those for our own response, and Starlette keeps a `content-length` it is
+handed, so a relayed one outlives any body we rewrite. The MCP plane rewrites bodies
+routinely — an INCLUDE tool policy filters `tools/list` — and `content-encoding: gzip`
+would describe bytes httpx already decoded on our behalf.
 
 ```python
 class LlmGatewayProxy:
@@ -2581,14 +2637,14 @@ class LlmGatewayProxy:
             operation_id="llm_gateway_list_models_custom",
         )
         # /v1/models answers from the allowlist — the static catalogue for
-        # builtin, model_slugs for custom — so a harness that lists before
+        # standard, model_slugs for custom — so a harness that lists before
         # calling sees exactly what policy will allow. Backed by
         # LlmGatewayService.list_models (§8, R3); the handler shapes the
         # OpenAI list body inline, since the data plane has no wire models.
         #
-        # "/agenta/{slug:path}/v1/chat/completions"
-        # Reserved, empty today (D27) — declared when the namespace gains its
-        # first member. Note the catch-all: an agenta slug may be nested (§2.3).
+        # "/builtin/{provider}/{rest:path}/v1/chat/completions"
+        # Reserved, empty today (D30) — declared when the LLM plane gains a
+        # provider we hold the key for, which is also where metering attaches.
         #
         # "/{namespace}/.../v1/embeddings"
         # Deferred with the evaluator path (D15). The shape is reserved by this
@@ -2603,15 +2659,13 @@ class McpGatewayProxy:
         # POST carries JSON-RPC; GET/DELETE answer 405, as the runner's
         # internal tool server already does. No version segment: the MCP
         # protocol is a POST to the endpoint URL itself, revision negotiated
-        # in a header (§2.3). One route per namespace, per the grammar —
-        # agenta takes a catch-all because its slug may be nested; builtin
-        # takes the three fixed components of the connection's unique key.
+        # in a header (§2.3). One route per namespace — builtin takes a
+        # catch-all after its provider segment, because each provider owns the
+        # grammar under it: composio spells {integration}/{connection}, agenta a
+        # slug that may itself be nested (D30). split_builtin_path does the
+        # per-provider split at the boundary.
         self.router.add_api_route(
-            "/agenta/{slug:path}", self.relay_agenta, methods=["POST"],
-            operation_id="mcp_gateway_relay_agenta",
-        )
-        self.router.add_api_route(
-            "/builtin/{provider}/{integration}/{connection}",
+            "/builtin/{provider}/{rest:path}",
             self.relay_builtin, methods=["POST"],
             operation_id="mcp_gateway_relay_builtin",
         )
@@ -2697,8 +2751,8 @@ mcp_gateway_service = McpGatewayService(
     resolver=secret_resolver,
     upstream_registry=McpUpstreamRegistry(adapters={
         "http": HttpMcpAdapter(),          # custom: McpDirectAuth
-        "composio": ComposioMcpAdapter(),  # builtin: McpBrokeredAuth (D27)
-        "mock": MockMcpAdapter(),          # serves the agenta-namespace mocks (D23)
+        "composio": ComposioMcpAdapter(),  # builtin/composio: McpBrokeredAuth (D30)
+        "mock": MockMcpAdapter(),          # serves the builtin/agenta mocks (D23)
     }),
 )
 ```
