@@ -1894,7 +1894,7 @@ of the design, and that is the point of running them first.
 
 ### 9.2 The phases
 
-**Phase 1, the ledger foundation and manual credits. Seven to nine engineer days.** This delivers
+**Phase 1, the ledger foundation and manual credits.** This delivers
 migrations 0004 and 0005, the credit domain types, the pricing calculator, the ledger data access
 object, the service operations and their invariants, lazy creation of accounts and lots, and the
 grant, hold, settle, void, expiry, reverse, and refund operations. It delivers concurrency and
@@ -1910,7 +1910,7 @@ metering, sandbox metering, any Redis in the correctness path, and the customer 
 screens. Mixing payment and provider integration into the foundational ledger would make failures
 much harder to isolate. The permanent data model and the concurrency behaviour come first.
 
-**Phase 2, the gateway in shadow mode. Eight to ten engineer days once the probes pass.** This
+**Phase 2, the gateway in shadow mode, once the probes pass.** This
 delivers the separate gateway entrypoint and Compose service, opaque token verification with
 scopes, revocation, request caps, and concurrency, upstream authentication, the relay for both
 streamed and non streamed responses, request records with provider attribution, usage parsing and
@@ -1921,7 +1921,7 @@ telemetry, and a global circuit breaker on dispatch.
 Only internal organizations use it. The gateway calculates what each call would have cost. It
 places no holds and debits no balances.
 
-**Phase 3, the funded public cohort. Seven to ten engineer days.** This delivers migration 0006,
+**Phase 3, the funded public cohort.** This delivers migration 0006,
 the token minting endpoint, the SDK's managed connection resolver, the reserved connection
 identity carried through the wire contract, updated golden fixtures for the runner and SDK, the
 atomic hold before dispatch, settlement or voiding on every termination path, the sweeper for
@@ -1932,7 +1932,7 @@ temporary failure, and the cohort allowlist with emergency disable controls.
 This is the first public experiment. For the enabled cohort, the wall that asks a new user to
 connect a provider disappears.
 
-**Phase 4, operational hardening. Five to seven engineer days.** This delivers the reconciliation
+**Phase 4, operational hardening.** This delivers the reconciliation
 report between provider and gateway, the tooling and approval checks for activating a price card,
 the Redis settlement spool backed by an append only file, automatic release of stale requests and
 holds, alerts for cache hit regression, negative balances, projection drift, delayed settlement,
@@ -1942,7 +1942,7 @@ provider timeout, gateway restart, and client disconnect.
 
 A broad rollout to all signups waits for this phase.
 
-**Phase 5, credit purchases. Five to eight engineer days.** This delivers one time credit pack
+**Phase 5, credit purchases.** This delivers one time credit pack
 checkout, signed webhook handling, purchase transfers keyed by the payment event, receipts and
 balance refresh, the path from a payment provider refund to a reversing transfer, the pack catalog
 and purchase history, and the finance export and reconciliation.
@@ -1951,7 +1951,7 @@ Do not overload the existing subscription checkout. Reuse its authentication, it
 records, its signature verification, and its portal, but give credit packs their own product and
 their own webhook semantics.
 
-**Phase 6, contribution earnings. Five to eight engineer days.** This delivers migration 0007, the
+**Phase 6, contribution earnings.** This delivers migration 0007, the
 submission form and evidence records, a fixed award catalog with versions, a reviewer queue with
 two person approval above a configurable threshold, the award transfer with a twelve month lot
 expiry, rejection, withdrawal, duplicate detection, clawback, and audit history, and reporting by
@@ -1961,7 +1961,7 @@ The first version is manual on purpose. The research found little evidence that 
 contribution credit programmes stay stable, so we should expect to iterate before automating
 payouts (`research/02-competitor-credit-products.md`, line 861).
 
-**Phase 7, tools and sandbox compute. Seven to ten engineer days.** This delivers rate card
+**Phase 7, tools and sandbox compute.** This delivers rate card
 components for tool actions and sandbox seconds, a charging client interface shared by the API
 services, tool authorize and settle integration, runner lifecycle usage events with durable
 idempotency, periodic settlement of sandbox time for long sessions, a combined cost breakdown per
@@ -1969,13 +1969,6 @@ run, and reconciliation for timeouts and abandoned sandboxes.
 
 The ledger, the lots, the unit, and the pricing code do not change. These are new charging
 clients.
-
-### 9.3 Totals
-
-The first public cohort can ship after roughly four to six engineer weeks including the probes.
-The full path through purchases, earnings, and non model resources is roughly nine to thirteen
-engineer weeks for one engineer who knows the codebase. Review, quality assurance, and the
-operational rollout extend the calendar beyond the engineering time.
 
 ---
 

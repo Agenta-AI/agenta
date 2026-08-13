@@ -260,8 +260,7 @@ integer count of micro-dollars, meaning millionths of a dollar. Prices live in a
 meaning a versioned and immutable price list, and every charge records which card priced it,
 which run caused it, and the raw token counts behind it.
 
-The plan is phased. The first user-visible result is roughly five to seven weeks of one engineer's
-work. No code exists yet.
+The plan is phased. No code exists yet.
 
 ---
 
@@ -574,7 +573,7 @@ Redis caching and invalidation, and the balance half of the gate swap. That is m
 and C5 in `billing-tasks.md`.
 
 It adds a dependency: his sandbox gating cannot enforce anything until our Phase 1 ledger exists,
-which is about two weeks of work that has not started. If sandbox gating is urgent on its own
+which has not started. If sandbox gating is urgent on its own
 timetable, the in-between path is to land Track B now, hold Track C's gating at the create-time
 soft check reading a plain per-plan quota, and not build the wallet. That is a smaller change to
 his branch than either full option and it wastes nothing.
@@ -641,8 +640,8 @@ allowances, tiers, and automatic recharge get built once, from his specification
 rows.
 
 **Three things get wasted if we pick the wrong order.** Building `wallet_credits` before deciding
-this question costs two to three days of schema and query work that then has to be reconciled with
-an almost identical table. Adding a sandbox key to `REPORTS` and creating the Stripe meter and the
+this question costs schema and query work that then has to be reconciled with an almost identical
+table. Adding a sandbox key to `REPORTS` and creating the Stripe meter and the
 prices to match is worse than wasted, because Stripe prices are immutable and existing
 subscriptions have to be swept by hand, which pull request 5037 documents in its own operational
 notes. And shipping a

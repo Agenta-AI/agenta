@@ -12,35 +12,56 @@ State as of 13 August 2026.
 | --- | --- | --- | --- |
 | Meters and entitlements | shipped, on `main` | in production | Meter rows per organization, quotas with strict/non-strict caps, `check_entitlements` as the one gate, `MetersDAO.adjust()` as the atomic conditional write |
 | Sandbox metering, tracks A–D | PR 5037 merged; 5039, 5040 open drafts; track D unfiled | code frozen since 6 July 2026 | Measurement from two providers with opposite billing windows, a typed rate table, the unit-in-the-name meter key scheme, `secret_origin` zero-rating, measure/bill split |
-| Gateways | `docs/design/gateways-research/`, PR 5925 | wave-1 workstreams written, worktrees cut | The request path, one policy core under two protocol surfaces, the minted run token, D11 (this design owns the gateway) and D12 (the gateway owns all six concerns) |
-| Credits and the ledger | this branch | design only, no code | Append-only entries with a stored balance projection, grants as lots, holds and settlement, a versioned rate card, micro-dollar storage |
+| Gateways | `docs/design/gateways-research/`, PR 5925 | wave-1 workstreams written, worktrees cut | The request path, one policy core under two protocol surfaces, the minted run token, D11 (that design owns the gateway) |
+| Wallets — the ledger | this branch | design only, no code | Append-only entries with a stored balance projection, grants as lots, holds and settlement, a versioned rate card, micro-dollar storage |
 
-## What the gateway design already took, and what it left
+## The line between the gateway and the wallet
 
-`gateways-research` D11 resolves the overlap that used to exist between it and `report.md`:
-four efforts had specified an LLM gateway, and that design owns it. The run token, the north
-port shape and the process placement were adopted from `report.md` rather than re-derived.
-D12 goes further — the gateway owns metering and billing too, and a ledger is a **caller**,
-never a second request path.
+**The gateway owns the request path. The wallet owns metering and billing.** D11 stands: four
+efforts had specified an LLM gateway and that design owns it — the run token, the north port
+shape and the process placement were adopted from `report.md` rather than re-derived. D12's
+claim that the gateway also owns metering and billing does not; it is being removed from that
+design.
 
-So the gateway half of `report.md` §6.3, §7.3 and §7.4 is **input, not plan**. Read those
-sections for the reasoning behind a decision that has already been made elsewhere, and read
-`gateways-research/v1/{architecture,policy}.md` for what is actually being built.
+So the gateway half of `report.md` §6.3, §7.3 and §7.4 is **input, not plan** — read
+`gateways-research/v1/{architecture,policy}.md` for what is actually being built on the
+request path. But the accounting half of §7.4 is now wrong in the other direction: it gives
+pricing to the gateway. Pricing belongs here, with the rate card.
 
-What survives here as unowned work is everything a caller decides:
+The split follows the distinction the metering track already insists on, that permission and
+entitlement are different questions and neither may stand in for the other. Extended one
+step: **the gateway enforces, the wallet accounts.**
 
-- What a balance is, and how it is computed. §7.2 of `report.md`.
-- Where credits come from — grant, purchase, contribution — and how lots expire and are
-  spent in order. §4.4, §7.2.
-- What a hold and a settlement mean, and which of them the gateway calls. §4.3.
-- What a charge records so it can be explained a year later: raw token counts, run
-  identifier, rate card version. §7.5 lists these as the decisions with no later backfill.
-- The unit, the price list, and who converts credits to money. §7.1.
-- The twelve product decisions in §9.
+| Question | Owner |
+| --- | --- |
+| May this principal call at all, and against which model | gateway |
+| Does this organization have value left to spend | wallet |
+| What is this call allowed to cost | wallet decides the number, gateway enforces it |
+| What did it actually consume | gateway measures, wallet records |
+| What is that worth in credits | wallet, from the rate card |
+| What does the balance say now | wallet |
 
-Two of the gateway design's own open items land squarely on this side and should be answered
-here rather than there: `policy.md` leaves *"the meter keys, and where pricing lives"* to
-establish, and *"where spend ceilings are evaluated."*
+That makes the seam a **port, not a shared table**: an authorization call before dispatch that
+returns a spending ceiling, and a usage call after the response that hands over raw
+measurement. The gateway holds the interface; the wallet holds both implementations. It is
+the same shape the sandbox sink needs, so model calls, tool calls and sandbox time end up
+three callers of one interface rather than three accounting systems.
+
+Four things the gateway must still carry from its first day, because none can be added
+retroactively — they are the test that an increment forecloses nothing:
+
+- the principal on every emission: organization, project, and **run**;
+- `secret_origin` and the credential owner, so a call paid on a customer's own key is not
+  billed as ours;
+- the raw measurement, including cache reads separately from fresh input;
+- a decision point before dispatch, even while it always answers yes.
+
+What is wholly ours: the balance and how it is computed (§7.2), where credits come from and
+how lots expire and are spent (§4.4, §7.2), what a charge records (§7.5), the unit and the
+price list and who converts credits to money (§7.1), and the twelve product decisions in §9.
+Plus the two items `gateways-research/v1/policy.md` still leaves open — *"the meter keys, and
+where pricing lives"* and *"where spend ceilings are evaluated"* — which are now questions
+with a home rather than questions between two designs.
 
 ## What the sandbox-metering track already settled
 

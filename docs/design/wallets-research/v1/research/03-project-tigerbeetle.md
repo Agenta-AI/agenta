@@ -773,7 +773,7 @@ The build is three tables, one background sweeper that expires stale holds, and 
 statements: place a hold, settle a hold, release a hold, and record a single-phase entry. Everything
 runs inside our existing FastAPI request handlers and inside our existing database transactions. As a
 rough size, that is one migration, a few hundred lines of Python behind four functions, and a test
-suite whose hard part is the concurrency test. Call it one to two weeks of one person's time,
+suite whose hard part is the concurrency test,
 including the tests, and treat that as an estimate rather than a measurement.
 
 The real cost is getting the concurrency right and proving it. The test that matters spins up many

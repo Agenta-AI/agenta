@@ -9,8 +9,7 @@ sits between a running agent and the model provider, holds the real provider cre
 decides for each request whether to forward it. The second is a **ledger**, meaning a balance per
 organization that we compute from a list of entries we never edit.
 
-The plan is phased. The first phase a user can see arrives after roughly five to seven weeks of one
-engineer's work. At that point a person signs up, runs an agent immediately on our money, watches a
+The plan is phased. At the end of its first user-visible phase a person signs up, runs an agent immediately on our money, watches a
 number go down, and hits a clear wall with a way past it. Buying credits and earning credits arrive
 later, and they arrive without a database migration that rewrites existing rows.
 
@@ -869,7 +868,7 @@ than a safety property, until we want to recognise revenue on sold credits prope
 A's version has a property worth real money in the first version: one transaction touches exactly one
 account row, so deadlock is impossible by construction and there is no lock ordering discipline to get
 wrong. Adding the counterparty later is a nullable column plus a backfill derived from the reason
-code, which is about two days of work and touches no existing value.
+code, and it touches no existing value.
 
 **3. The order lots are spent in.** Proposal A follows OpenMeter: lowest priority number first, then
 soonest expiry. Proposal B inverts the first two keys, so soonest expiry comes first and priority
@@ -916,7 +915,7 @@ cached prefix is unaffected.
 
 **B's technical argument is right and A's decision rule is right.** Caching applies to a prefix, and a
 tool call in the recent conversation sits after our 23,500-token prefix, so restoring a field there
-does not invalidate the prefix. But building the relay is still about a week of work plus a permanent
+does not invalidate the prefix. But building the relay is still real work plus a permanent
 obligation to parse and rebuild request bodies, and we should only take that on for a model that earns
 it. So the rule is this: launch on the cheapest candidate that passes a real evaluation of tool use
 and instruction following. If Gemini 2.5 Flash passes, launch on it and skip the relay. If it does
@@ -993,7 +992,7 @@ What it buys is large. The price is known before the call runs, so the balance c
 collapse into a single atomic statement. There is no estimate, no hold, no settlement, no client
 disconnect problem, and no dependency on whether the provider reports usage on a streamed response. A
 disconnected call costs exactly what a completed one costs. Most of sections 4.3 and 4.6 disappear,
-and the first version gets perhaps two to three weeks shorter.
+and the first version gets materially shorter.
 
 What it costs is that our credits stop tracking our costs. A call whose 23,500-token prefix hit the
 cache and one whose prefix missed differ by roughly eight times in real money, and would be priced
@@ -1010,7 +1009,7 @@ switch a code change in both directions, forever.
 
 One other option should be named and closed. We could keep renting enforcement from a third party
 that does sell per-key spending caps, which was the previous plan. That still works technically and it
-is about a week cheaper. It fails now for a business reason: it spends cash instead of the credit we
+is cheaper. It fails now for a business reason: it spends cash instead of the credit we
 were given, which is the entire reason this project changed shape. Its largest component is a key
 lifecycle that we throw away the moment we fund anything other than a model call.
 
@@ -1647,19 +1646,15 @@ one agent a tool and ask a question that needs two sequential tool calls. A 400 
 thought signature tells us the relay is required for that model. A cheap model that fails at tool use
 is not an activation feature, so this is a product test as much as a technical one.
 
-All six together are perhaps a week of one engineer's time.
-
 ### 8.2 The phases
 
-Estimates are for one engineer who knows this codebase. Treat them as estimates rather than
-measurements. Every phase is shippable on its own, and no phase invalidates the data model of the one
-below it. The two independent proposals estimated four to six weeks and five to six weeks to the first
-funded cohort, which is the same answer twice.
+Every phase is shippable on its own, and no phase invalidates the data model of the one
+below it.
 
-**Phase 0. Prove the path. Three to five days.** The forwarder, the connection slug fix, and tests 1
+**Phase 0. Prove the path.** The forwarder, the connection slug fix, and tests 1
 through 6. What we learn is whether the cost model is real, and which model we launch on.
 
-**Phase 1. The ledger, with no enforcement. Two weeks.** The migration, the pricing calculator, the
+**Phase 1. The ledger, with no enforcement.** The migration, the pricing calculator, the
 grant, hold, settle, and void operations with their idempotency keys, the spend-order walk, the
 allocation writer, the hold sweeper, an admin endpoint that writes a grant, and read endpoints for the
 balance and a paged history.
@@ -1671,13 +1666,13 @@ and translating their tables into pytest gives us a conformance suite almost fre
 
 Support can use this phase before any model traffic exists.
 
-**Phase 2. The gateway, in shadow mode. Two weeks.** The separate entrypoint and compose service,
+**Phase 2. The gateway, in shadow mode.** The separate entrypoint and compose service,
 token minting and verification, the allowlist and the ceilings, upstream authentication, the streaming
 relay, usage parsing, the operational request row, and pricing that calculates what a call would have
 cost without debiting anyone. Only internal organizations use it. Add dashboards for the cache hit rate
 and for the share of calls that arrive with no usage.
 
-**Phase 3. The gateway enforces, for a cohort. One and a half to two weeks.** The hold before dispatch,
+**Phase 3. The gateway enforces, for a cohort.** The hold before dispatch,
 settlement on every exit path, the signup grant on the signup path only, the per-run cap, and the
 frontend states: the balance as two labelled numbers, the credit cost printed inside the run, and the
 exhausted state with a way forward. A cohort allowlist and an emergency disable.
@@ -1689,24 +1684,21 @@ was still written. And a buffering test that asserts the first chunk reaches the
 last one.
 
 **What we ship at the end of Phase 3:** a person signs up, runs an agent immediately, watches a number
-go down, and hits a clear wall. That is the product, and it arrives at roughly week five to seven.
+go down, and hits a clear wall. That is the product.
 
-**Phase 4. See what is happening, and harden. One week.** A daily rollup built from the entries, the
+**Phase 4. See what is happening, and harden.** A daily rollup built from the entries, the
 nightly reconciliation that recomputes the account counters and alerts on a mismatch, a report of the
 cache hit rate and of what caching saved in dollars, alerts for negative balances and delayed
 settlements, and a support console for entries, holds, and token revocation. A broad rollout to all
 signups waits for this.
 
-**Phase 5. Money in. One to two weeks.** Credit pack checkout, the signed webhook writing a purchase
+**Phase 5. Money in.** Credit pack checkout, the signed webhook writing a purchase
 grant keyed on the payment identifier, the grant expiry job, and the admin award flow with an approver,
 a published schedule, and backdating.
 
-**Phase 6. Meter everything else. One to two weeks.** Tool call metering at the tool execution
+**Phase 6. Meter everything else.** Tool call metering at the tool execution
 endpoint, sandbox time reported by the runner and priced by the backend, and the history grouped by the
 three categories.
-
-Total: roughly eight to eleven weeks of one engineer, with a working funded free tier at week five to
-seven.
 
 ### 8.3 What the first version deliberately leaves out
 
@@ -1725,15 +1717,15 @@ beyond what the hold already provides.
 forwarding and before writing the settle, the provider served a call we never charged for. The bound is
 that the hold row is durable, so the sweeper finds it and an alert fires, and we know the size of the
 loss even when we cannot attribute it. To add back: write the upstream request identifier onto the
-operational row before forwarding, and reconcile against Google's usage export. About two days plus a
-dependency on that export.
+operational row before forwarding, and reconcile against Google's usage export. It depends on that
+export existing.
 
 **Holds over-reserve by roughly ten to fifteen times on a cached call.** The estimate prices the whole
 prefix at the uncached rate, because it cannot know whether the cache will hit, and it prices output at
 the enforced ceiling. On the worked numbers a hold is about 24 credits against a settle of about 1.6.
 The bound is that this only bites in the last few credits of a balance, so a user loses at most one
 message of value at the very end. To add back: keep the previous call's observed cache fraction per run
-and blend the input rate. About thirty lines, and it needs the data from Phase 2.
+and blend the input rate. It needs the data from Phase 2.
 
 **Some ambiguous calls are written off rather than charged.** If a successful response carries no usage,
 we release the hold and pay for it. The bound is the circuit breaker: after a small number of
@@ -1742,7 +1734,7 @@ count tokens ourselves, or move to Google's own dialect where the cached count i
 
 **Expired grants stay spendable until the daily job runs.** The bound is twenty-four hours, and the
 direction of the error favours the user. To add back: run the job hourly, or add an expiry predicate to
-the spend walk. Under an hour of work either way.
+the spend walk.
 
 **The account counters can drift from the entries if a bug writes one without the other.** The bound is
 that every write goes through one function and one transaction, so drift requires a bug rather than a
@@ -1756,7 +1748,7 @@ and settle interface, with no schema change.
 
 **Nothing reconciles our numbers against Google's invoice.** The bound is that we set the rate card
 above cost deliberately, and only for the first months. To add back: a monthly manual comparison first,
-about two days, then an automated one.
+then an automated one.
 
 **The gateway is a single point of failure for funded runs.** Runs on a user's own key keep working, so
 the population that breaks is exactly the one we are trying to activate. To add back: nothing
@@ -1764,7 +1756,7 @@ structural, just more replicas and a health check.
 
 **There is no double-entry sum-to-zero invariant.** The bound is that the account counters are already
 provable against the entries, which catches the same class of arithmetic bug. To add back: fill in the
-reserved counterparty column and backfill it from the reason code. About two days, and additive.
+reserved counterparty column and backfill it from the reason code. It is additive.
 
 **Signup abuse prevention is basic.** Someone can create several organizations and consume several
 grants. The bound per accepted identity is the grant, the model allowlist, the per-run cap, and the

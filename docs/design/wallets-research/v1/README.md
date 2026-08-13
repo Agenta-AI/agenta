@@ -40,6 +40,11 @@ never read each other. Nothing here has been implemented.
 Documents under `prior-work/` are verbatim archives and keep whatever names and framing
 they were written with. Documents written for this branch do not.
 
+**No schedules.** Duration estimates have been removed from every document above
+`prior-work/`. Phases and their ordering stand, because the dependencies are real and
+`report.md` §7.5 turns on what cannot be retrofitted later; the calendar attached to them
+was invention. Anything that survives in an archived document is not part of the design.
+
 ## Not here, deliberately
 
 **The gateway design.** [docs/design/gateways-research/](../gateways-research/) owns it,
