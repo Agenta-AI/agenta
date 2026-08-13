@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 import pytest
 
 from oss.src.utils.env import env
-from oss.tests.pytest.utils.postgres import postgres_reachable
+from oss.tests.pytest.utils.postgres import postgres_reachable, postgres_target
 
 
 @pytest.fixture(autouse=True)
@@ -14,7 +14,8 @@ def _skip_db_adjacent_when_postgres_unreachable(request):
     # verify server-side effects, and those only work adjacent to the stack.
     if request.node.get_closest_marker("integration") and not postgres_reachable():
         pytest.skip(
-            "Postgres not reachable — skipping database-adjacent acceptance tests"
+            f"Postgres not reachable at {postgres_target()} — skipping "
+            "database-adjacent acceptance tests"
         )
 
 
