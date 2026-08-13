@@ -46,6 +46,7 @@ import {useComposerDraft} from "./hooks/useComposerDraft"
 import {useFirstRunSeed} from "./hooks/useFirstRunSeed"
 import {useOnboardingChat} from "./hooks/useOnboardingChat"
 import {useScrollIntent} from "./hooks/useScrollIntent"
+import {isAltChord, isOverlayOpen} from "./hooks/useSessionShortcuts"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
@@ -61,6 +62,7 @@ import {
     sessionMessagesAtom,
     setSessionStatusAtom,
 } from "./state/sessions"
+import {focusComposerRequestAtom, matchesSessionRequest} from "./state/uiRequests"
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -390,6 +392,46 @@ const AgentConversation = ({
         submit({text: pendingRun.text})
         setPendingRun(null)
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
+
+    // Run-level shortcuts. They live here, not in the panel's session hook, because only this
+    // conversation knows whether a run is in flight and what it is waiting on. Bubble phase, so an
+    // open picker or dialog that stops propagation still gets Escape first.
+    useEffect(() => {
+        if (activeSessionId !== sessionId) return
+        const onKey = (e: KeyboardEvent) => {
+            if (isOverlayOpen()) return
+            if (e.key === "Escape" && busyRef.current) {
+                e.preventDefault()
+                handleStop()
+                return
+            }
+            // Approve answers ONE gate, never the dock's "Approve all": a mis-press should not
+            // grant a tool the user never read.
+            if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
+                e.preventDefault()
+                addToolApprovalResponse({id: pendingApprovals[0].approvalId, approved: true})
+            }
+        }
+        document.addEventListener("keydown", onKey)
+        return () => document.removeEventListener("keydown", onKey)
+    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, addToolApprovalResponse])
+
+    // A keyboard switch (Alt+1…9 / Alt+Z / Alt+X) lands the caret here. antd mounts a never-visited
+    // pane only on activation, so this effect runs on that mount and a first-visit switch focuses
+    // too. The frame claims the nonce, not the effect body: StrictMode replays the mount, and
+    // claiming it up front would leave the replay with nothing to do.
+    const focusRequest = useAtomValue(focusComposerRequestAtom)
+    const consumedFocusNonceRef = useRef<number | null>(null)
+    useEffect(() => {
+        if (!matchesSessionRequest(focusRequest, scopeKey, sessionId)) return
+        const {nonce} = focusRequest
+        if (consumedFocusNonceRef.current === nonce) return
+        requestAnimationFrame(() => {
+            if (consumedFocusNonceRef.current === nonce) return
+            consumedFocusNonceRef.current = nonce
+            richInputRef.current?.focus()
+        })
+    }, [focusRequest, scopeKey, sessionId])
 
     // Exactly one scroll engine owns the transcript: Virtuoso when it's enabled in the playground
     // settings, the SC-1..4 DOM engine otherwise (each bails on the other's flag). Both act on the
