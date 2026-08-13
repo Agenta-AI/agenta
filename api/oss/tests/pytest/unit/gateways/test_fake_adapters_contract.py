@@ -13,6 +13,7 @@ import importlib
 import json
 from dataclasses import fields
 
+import httpx
 import pytest
 
 from oss.src.core.gateways.llms.dtos import (
@@ -50,15 +51,30 @@ def _adapter_param(instance, *, name: str):
     return pytest.param(instance, id=name)
 
 
+def _passthrough_mock_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json={"id": "chatcmpl-contract", "choices": []})
+
+
+def _passthrough_llm_adapter():
+    """PassthroughLlmAdapter needs real network I/O (entities.md §7.1), so —
+    unlike the other entries here — it cannot be built with a bare no-arg
+    constructor: it is wired against an `httpx.MockTransport` instead, keeping
+    this contract test in the "nothing running" tier (workstreams/specs-wp6.md)."""
+    try:
+        module = importlib.import_module(
+            "oss.src.core.gateways.llms.providers.passthrough.adapter"
+        )
+        adapter_cls = module.PassthroughLlmAdapter
+    except (ImportError, AttributeError):
+        return None
+
+    transport = httpx.MockTransport(_passthrough_mock_handler)
+    return adapter_cls(client=httpx.AsyncClient(transport=transport))
+
+
 _LLM_ADAPTER_PARAMS = [
     _adapter_param(FakeLlmAdapter(), name="FakeLlmAdapter"),
-    _adapter_param(
-        _optional_instance(
-            "oss.src.core.gateways.llms.providers.passthrough.adapter",
-            "PassthroughLlmAdapter",
-        ),
-        name="PassthroughLlmAdapter",
-    ),
+    _adapter_param(_passthrough_llm_adapter(), name="PassthroughLlmAdapter"),
     _adapter_param(
         _optional_instance(
             "oss.src.core.gateways.llms.providers.translated.adapter",
@@ -89,7 +105,12 @@ _MCP_ADAPTER_PARAMS = [
 @pytest.mark.parametrize("adapter", _LLM_ADAPTER_PARAMS)
 async def test_relay_chat_completion_returns_llm_relay_result(adapter):
     route = LlmResolvedRoute(
-        provider_key="fake", deployment=LlmDeploymentKind.DIRECT, model="fake/echo"
+        provider_key="fake",
+        deployment=LlmDeploymentKind.DIRECT,
+        model="fake/echo",
+        # Unused by FakeLlmAdapter; PassthroughLlmAdapter needs one to build an
+        # outbound URL, and the MockTransport above never dials it for real.
+        base_url="http://fake-passthrough-upstream.invalid",
     )
     body = json.dumps(
         {"model": "fake/echo", "messages": [{"role": "user", "content": "hi"}]}
