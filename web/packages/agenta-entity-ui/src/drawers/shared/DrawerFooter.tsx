@@ -13,6 +13,7 @@ export function DrawerFooter({
     canSave,
     submitLabel,
     onSubmit,
+    cancelVariant = "outline",
 }: {
     left?: ReactNode
     onCancel: () => void
@@ -20,6 +21,8 @@ export function DrawerFooter({
     canSave: boolean
     submitLabel: string
     onSubmit: () => void
+    /** `ghost` draws Cancel as text, for footers where only the primary action carries a box. */
+    cancelVariant?: "outline" | "ghost"
 }) {
     return (
         <>
@@ -27,7 +30,7 @@ export function DrawerFooter({
             <div className="flex shrink-0 items-center justify-between gap-2 px-6 py-3">
                 <div className="flex items-center gap-2">{left}</div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={onCancel}>
+                    <Button variant={cancelVariant} onClick={onCancel}>
                         Cancel
                     </Button>
                     <LoadingButton

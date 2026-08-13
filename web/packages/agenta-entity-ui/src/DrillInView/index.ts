@@ -300,6 +300,9 @@ export {
     providerForModel,
     vaultModelGroups,
     vaultPickedProviderFamily,
+    buildConnectionPickerRows,
+    pickerSelectionFrom,
+    selectionFromModelRow,
     describeMcp,
     describeSkill,
     describeTool,
@@ -310,6 +313,13 @@ export {
     selectableHarnesses,
     type OptionGroup,
 } from "./SchemaControls"
+
+// The flyout's harness split, kept beside the rows it groups.
+export {
+    buildPickerGroupsWithSections,
+    harnessSections,
+    SUBSCRIPTION_TAG,
+} from "./SchemaControls/pickerSections"
 
 export type {
     NumberSliderControlProps,
@@ -340,6 +350,9 @@ export type {
     ModelPatch,
     ModelOptionGroup,
     VaultModelSource,
+    PickerConnectionRow,
+    PickerModelRow,
+    PickerSelection,
     ItemDescriptor,
     HarnessMeta,
     PermissionPolicy,

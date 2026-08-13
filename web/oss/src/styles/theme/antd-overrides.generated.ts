@@ -105,6 +105,7 @@ export const LIGHT_TOKEN_OVERRIDES = {
     colorLink: "#5e5e08",
     colorLinkHover: "#242424",
     colorLinkActive: "#1e1c1d",
+    colorLinkOnInk: "#8ccfff",
     colorInfo: "#113955",
     colorInfoText: "#113955",
     colorInfoHover: "#1b5378",
