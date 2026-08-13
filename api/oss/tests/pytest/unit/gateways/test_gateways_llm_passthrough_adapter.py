@@ -1,0 +1,418 @@
+"""Unit tests for PassthroughLlmAdapter (entities.md §7.1, workstreams/specs-wp6.md).
+
+Nothing running: httpx.MockTransport intercepts every request, no real socket.
+"""
+
+import json
+from typing import Optional
+
+import httpx
+import pytest
+
+from oss.src.core.gateways.llms.dtos import (
+    LlmCallContext,
+    LlmDeploymentKind,
+    LlmEndpointConfig,
+    LlmResolvedRoute,
+)
+from oss.src.core.gateways.llms.providers.passthrough.adapter import (
+    PassthroughLlmAdapter,
+)
+from oss.src.core.gateways.llms.types import LlmUpstreamError
+from oss.src.core.gateways.policy.dtos import (
+    CredentialOwner,
+    CredentialOwnerKind,
+    ResolvedCredential,
+    SecretOrigin,
+)
+from oss.src.core.secrets.dtos import (
+    CustomProviderDTO,
+    CustomProviderSettingsDTO,
+    SecretResponseDTO,
+    StandardProviderDTO,
+    StandardProviderSettingsDTO,
+)
+from oss.src.core.secrets.enums import (
+    CustomProviderKind,
+    SecretKind,
+    StandardProviderKind,
+)
+from oss.src.core.shared.dtos import Header
+
+
+def _route(
+    *,
+    base_url: Optional[str] = "https://upstream.example/v1",
+    timeout_seconds: Optional[float] = None,
+) -> LlmResolvedRoute:
+    return LlmResolvedRoute(
+        provider_key="openai",
+        deployment=LlmDeploymentKind.CUSTOM,
+        model="gpt-4o",
+        base_url=base_url,
+        headers={"x-route": "1"},
+        config=LlmEndpointConfig(timeout_seconds=timeout_seconds),
+    )
+
+
+def _context(*, stream: bool = False) -> LlmCallContext:
+    return LlmCallContext(model="gpt-4o", stream=stream)
+
+
+def _body() -> bytes:
+    return json.dumps(
+        {"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]}
+    ).encode()
+
+
+def _standard_credential(key: str = "sk-standard") -> ResolvedCredential:
+    return ResolvedCredential(
+        secret=SecretResponseDTO(
+            kind=SecretKind.PROVIDER_KEY,
+            data=StandardProviderDTO(
+                kind=StandardProviderKind.OPENAI,
+                provider=StandardProviderSettingsDTO(key=key),
+            ),
+            header=Header(name="openai"),
+        ),
+        owner=CredentialOwner(kind=CredentialOwnerKind.PROJECT),
+        origin=SecretOrigin.VAULT,
+    )
+
+
+def _custom_credential(
+    key: str = "sk-custom", extras: Optional[dict] = None
+) -> ResolvedCredential:
+    # SecretResponseDTO's own before-validator calls `.get()` on `data` ahead of
+    # SecretDTO's model-instance-to-dict coercion, so a raw dict here (rather
+    # than a CustomProviderDTO instance) sidesteps that ordering entirely.
+    data = CustomProviderDTO(
+        kind=CustomProviderKind.CUSTOM,
+        provider=CustomProviderSettingsDTO(key=key, extras=extras),
+        models=[],
+    ).model_dump()
+    return ResolvedCredential(
+        secret=SecretResponseDTO(
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data=data,
+            header=Header(name="my-custom"),
+        ),
+        owner=CredentialOwner(kind=CredentialOwnerKind.PROJECT),
+        origin=SecretOrigin.VAULT,
+    )
+
+
+def _adapter(handler) -> PassthroughLlmAdapter:
+    transport = httpx.MockTransport(handler)
+    return PassthroughLlmAdapter(client=httpx.AsyncClient(transport=transport))
+
+
+async def _drain(body):
+    return [chunk async for chunk in body]
+
+
+@pytest.mark.asyncio
+async def test_standard_provider_credential_injects_bearer_header():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(),
+        credential=_standard_credential("sk-standard"),
+        context=_context(),
+        body=_body(),
+        headers={},
+    )
+
+    assert captured["request"].headers["authorization"] == "Bearer sk-standard"
+
+
+@pytest.mark.asyncio
+async def test_custom_provider_credential_injects_bearer_and_merges_extras():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(),
+        credential=_custom_credential("sk-custom", extras={"x-org-id": "org-1"}),
+        context=_context(),
+        body=_body(),
+        headers={},
+    )
+
+    request = captured["request"]
+    assert request.headers["authorization"] == "Bearer sk-custom"
+    assert request.headers["x-org-id"] == "org-1"
+
+
+@pytest.mark.asyncio
+async def test_no_credential_sends_no_authorization_header():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(), credential=None, context=_context(), body=_body(), headers={}
+    )
+
+    assert "authorization" not in captured["request"].headers
+
+
+@pytest.mark.asyncio
+async def test_inbound_authorization_header_is_not_forwarded():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(),
+        credential=None,
+        context=_context(),
+        body=_body(),
+        headers={"Authorization": "Secret caller-token"},
+    )
+
+    assert "authorization" not in captured["request"].headers
+
+
+@pytest.mark.asyncio
+async def test_outbound_url_is_base_url_plus_chat_completions():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(base_url="https://upstream.example/v1"),
+        credential=None,
+        context=_context(),
+        body=_body(),
+        headers={},
+    )
+
+    assert (
+        str(captured["request"].url) == "https://upstream.example/v1/chat/completions"
+    )
+
+
+@pytest.mark.asyncio
+async def test_route_headers_merged_into_outbound():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(), credential=None, context=_context(), body=_body(), headers={}
+    )
+
+    assert captured["request"].headers["x-route"] == "1"
+
+
+@pytest.mark.asyncio
+async def test_request_body_bytes_reach_transport_unchanged():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["content"] = request.content
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    body = _body()
+    await adapter.relay_chat_completion(
+        route=_route(), credential=None, context=_context(), body=body, headers={}
+    )
+
+    assert captured["content"] == body
+
+
+@pytest.mark.asyncio
+async def test_timeout_raises_llm_upstream_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    adapter = _adapter(handler)
+
+    with pytest.raises(LlmUpstreamError) as excinfo:
+        await adapter.relay_chat_completion(
+            route=_route(),
+            credential=None,
+            context=_context(),
+            body=_body(),
+            headers={},
+        )
+
+    assert excinfo.value.status_code is None
+
+
+@pytest.mark.asyncio
+async def test_connection_failure_raises_llm_upstream_error_never_something_else():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    adapter = _adapter(handler)
+
+    with pytest.raises(LlmUpstreamError):
+        await adapter.relay_chat_completion(
+            route=_route(),
+            credential=None,
+            context=_context(),
+            body=_body(),
+            headers={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_non_timeout_5xx_raises_llm_upstream_error_with_status_code():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, text="upstream broke")
+
+    adapter = _adapter(handler)
+
+    with pytest.raises(LlmUpstreamError) as excinfo:
+        await adapter.relay_chat_completion(
+            route=_route(),
+            credential=None,
+            context=_context(),
+            body=_body(),
+            headers={},
+        )
+
+    assert excinfo.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_4xx_response_passes_through_untouched():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": {"message": "bad request"}})
+
+    adapter = _adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_route(), credential=None, context=_context(), body=_body(), headers={}
+    )
+
+    assert result.status_code == 400
+    chunks = await _drain(result.body)
+    assert json.loads(chunks[0]) == {"error": {"message": "bad request"}}
+
+
+@pytest.mark.asyncio
+async def test_non_streaming_result_yields_single_chunk_and_usage():
+    payload = {
+        "id": "x",
+        "choices": [],
+        "usage": {"prompt_tokens": 3, "completion_tokens": 5},
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=payload)
+
+    adapter = _adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        credential=None,
+        context=_context(stream=False),
+        body=_body(),
+        headers={},
+    )
+
+    chunks = await _drain(result.body)
+    assert len(chunks) == 1
+    assert json.loads(chunks[0]) == payload
+    assert result.usage.input_tokens == 3
+    assert result.usage.output_tokens == 5
+
+
+@pytest.mark.asyncio
+async def test_streaming_result_passes_sse_chunks_through_unmodified():
+    sse = b'data: {"choices":[]}\n\n' + b"data: [DONE]\n\n"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=sse, headers={"content-type": "text/event-stream"}
+        )
+
+    adapter = _adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        credential=None,
+        context=_context(stream=True),
+        body=_body(),
+        headers={},
+    )
+
+    chunks = await _drain(result.body)
+    assert b"".join(chunks) == sse
+    assert result.usage is None
+
+
+@pytest.mark.asyncio
+async def test_missing_base_url_raises_llm_upstream_error():
+    adapter = PassthroughLlmAdapter()
+
+    with pytest.raises(LlmUpstreamError):
+        await adapter.relay_chat_completion(
+            route=_route(base_url=None),
+            credential=None,
+            context=_context(),
+            body=_body(),
+            headers={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_configured_timeout_overrides_default():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(timeout_seconds=5.0),
+        credential=None,
+        context=_context(),
+        body=_body(),
+        headers={},
+    )
+
+    assert captured["request"].extensions["timeout"]["connect"] == 5.0
+
+
+@pytest.mark.asyncio
+async def test_default_timeout_used_when_route_leaves_it_unset():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(timeout_seconds=None),
+        credential=None,
+        context=_context(),
+        body=_body(),
+        headers={},
+    )
+
+    assert captured["request"].extensions["timeout"]["connect"] == 60.0
