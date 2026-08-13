@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useRef, useState} from "react"
 
 import {useObservability, useSessions} from "@agenta/observability"
 import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
@@ -46,16 +46,6 @@ export const ObservabilityScreen = ({
 
     const isNarrow = useIsNarrowScreen()
     const bodyRef = useRef<HTMLDivElement | null>(null)
-    const [bodyHeight, setBodyHeight] = useState(0)
-
-    // The windowed table needs a real viewport height, not a flex-derived one.
-    useEffect(() => {
-        const node = bodyRef.current
-        if (!node || typeof ResizeObserver === "undefined") return
-        const observer = new ResizeObserver(([entry]) => setBodyHeight(entry.contentRect.height))
-        observer.observe(node)
-        return () => observer.disconnect()
-    }, [])
 
     const {fetchTraces} = useObservability()
     const {refetchSessions} = useSessions()
@@ -107,22 +97,24 @@ export const ObservabilityScreen = ({
                         ref={bodyRef}
                         className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
                     >
+                        {/* Cards on a phone, the real table on anything wider. The tables size
+                            themselves from this flex parent, so there is no height to thread
+                            through — gating on a measured one just showed cards until it
+                            resolved, chrome and all. */}
                         {tab === "sessions" ? (
-                            // Same responsive split as traces: cards on a phone, the real
-                            // table on anything wide enough to show one.
-                            isNarrow || !bodyHeight ? (
+                            isNarrow ? (
                                 <div className="min-h-0 flex-1 overflow-y-auto pb-6">
                                     <SessionsList />
                                 </div>
                             ) : (
-                                <SessionsTable height={bodyHeight} />
+                                <SessionsTable />
                             )
-                        ) : isNarrow || !bodyHeight ? (
+                        ) : isNarrow ? (
                             <div className="min-h-0 flex-1 overflow-y-auto pb-6">
                                 <TracesList />
                             </div>
                         ) : (
-                            <TracesTable height={bodyHeight} />
+                            <TracesTable />
                         )}
                     </div>
                 </ScreenScaffold>

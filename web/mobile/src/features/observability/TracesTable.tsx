@@ -5,18 +5,14 @@ import {ObservabilityEmpty, ObservabilityListSkeleton} from "./states/Observabil
 /**
  * The traces table — the SAME component web/oss renders, through the SAME shell.
  *
- * This used to be a reduced copy: its own columns, row keys, empty handling and a hand-rolled
- * loadMore in onScroll. All of that lives in @agenta/observability-ui now, and since
- * @agenta/ui is runtime antd-free, `/m` gets the full shell rather than a stripped one.
- * What stays here is only what is genuinely mobile's: its skeleton and empty states.
+ * No explicit height: the shell's `autoHeight` fills the flex parent, which is what web/oss
+ * relies on too. Passing one made the body a fixed few hundred pixels with dead space below.
  */
-export const TracesTable = ({height}: {height: number}) => (
+export const TracesTable = () => (
     <ObservabilityTracesTable
-        autoHeight={false}
+        className="min-h-0 flex-1"
         loadingState={<ObservabilityListSkeleton />}
         emptyState={<ObservabilityEmpty />}
-        className="min-h-0 flex-1"
-        tableProps={{style: {height}}}
     />
 )
 
