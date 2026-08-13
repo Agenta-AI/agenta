@@ -211,15 +211,83 @@ individually so the mapping from item to code is traceable in one diff.
 
 ## Phase 7 — Wiring
 
-- [ ] `api/entrypoints/routers.py`: construct `llm_gateway_service = LlmGatewayService(...)` per
+- [x] `api/entrypoints/routers.py`: construct `llm_gateway_service = LlmGatewayService(...)` per
       the diff in `specs-wp7.md`, with the `upstream_registry` dict entries for `"passthrough"`,
       `"translated"`, `"fake"` — coordinate with WP5's and WP6's import lines landing in the same
       block at the M1→M2 merge.
-- [ ] If the litellm-as-direct-dependency question (flagged in "Missing from the design") is
+- [x] If the litellm-as-direct-dependency question (flagged in "Missing from the design") is
       resolved in favor of adding it: `api/pyproject.toml` gets the `litellm` line, matching the
       SDK's own pin (`litellm>=1,<2`).
-- [ ] Ruff format + check; run and fix.
-- [ ] Commit: "wp7: wire LlmGatewayService into the entrypoint".
+- [x] Ruff format + check; run and fix.
+- [x] Commit: "wp7: wire LlmGatewayService into the entrypoint".
+
+**`api/pyproject.toml` — already done, no action needed (R9).** `litellm>=1.92,<2` is already a
+direct dependency on this branch (line 38) — someone resolved the "missing from the design"
+question before this package started. Confirmed importable (`litellm.acompletion` used directly
+by `providers/translated/adapter.py` since Phase 3).
+
+**`api/entrypoints/routers.py` — diff only, not applied here.** Per rule 6 of the top-level brief,
+this file is nobody's to edit directly mid-wave; the diff below is what should land at the
+M1→M2 merge, once WP6's `PassthroughLlmAdapter` exists on the integration branch (it does not
+exist on this worktree, so applying this diff here would break the import). Two things beyond
+`specs-wp7.md`'s own diff, both flagged by the coordinator mid-task: the `FakeLlmAdapter` import
+uncomments (WP5 left it commented, deliberately, for whichever of WP7/WP9 builds the first plane
+registry — that is WP7 here), and it is registered under `"fake"`, the key `select_upstream`
+returns for `provider_key == "fake"` (see Phase 2's disclosed deviation above) — without both
+halves the fakes are unreachable through the relay path in every environment, including the local
+compose stack, since nothing in the documented classification table itself ever selects `"fake"`.
+
+```diff
+--- a/api/entrypoints/routers.py
++++ b/api/entrypoints/routers.py
+@@
+ from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
+ from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
+ from oss.src.core.gateways.policy.resolution import CredentialResolver
+ from oss.src.core.gateways.policy.service import GatewayPolicyService
+
+-# The fake adapters (WP5) are registered into the plane registries, which WP7 and WP9
+-# own and which do not exist yet — so their imports land with those, not here.
+-# from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
++from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
++from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLlmAdapter
++from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry
++from oss.src.core.gateways.llms.service import LlmGatewayService
++# from oss.src.core.gateways.llms.providers.passthrough.adapter import PassthroughLlmAdapter  # WP6
+ # from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+-# from oss.src.core.gateways.llms.service import LlmGatewayService
+ # from oss.src.core.gateways.mcps.service import McpGatewayService
+ # from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter   # WP10
+ # from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy     # WP6
+ # from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter   # WP10
+ # from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy     # WP8
+@@
+ gateway_policy_service = GatewayPolicyService(resolver=credential_resolver)
+
++llm_gateway_service = LlmGatewayService(
++    llm_endpoints_dao=llm_endpoints_dao,
++    policy=gateway_policy_service,
++    resolver=credential_resolver,
++    upstream_registry=LlmUpstreamRegistry(
++        adapters={
++            "passthrough": PassthroughLlmAdapter(),  # WP6's import, added at that merge
++            "translated": TranslatedLlmAdapter(),
++            "fake": FakeLlmAdapter(),
++        }
++    ),
++)
++
+ simple_traces = SimpleTracesRouter(
+     simple_traces_service=simple_traces_service,
+ )
+```
+
+The `# from ... import PassthroughLlmAdapter  # WP6` line stays commented in this diff — WP6
+uncomments it (and drops the comment marker) at the same merge, per `specs-wp7.md`'s own note
+that "WP6 contributes the import and the proxy mount only." Until then this diff, applied alone,
+does not import-error: the construction block references `PassthroughLlmAdapter` by name, so it
+must land together with WP6's uncomment, not before — same ordering constraint the seed's own
+comment block already documented for `FakeLlmAdapter`.
 
 ## Phase 8 — Acceptance (post-M2, once WP1/WP5/WP6 are merged)
 
