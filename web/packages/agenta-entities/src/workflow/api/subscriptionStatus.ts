@@ -42,6 +42,9 @@ const subscriptionStatusResponseSchema = z.object({
             z.object({
                 state: z.string(),
                 provider: z.string().nullish(),
+                // A harness whose login file holds several plans (Pi) names the provider families
+                // it holds; the single-provider harnesses use `provider` and omit this.
+                providers: z.array(z.string()).nullish(),
             }),
         )
         .nullish(),

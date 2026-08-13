@@ -13,10 +13,10 @@ no runner error text, in the response or in a raised message.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agenta.sdk.agents import HarnessKind
 from agenta.sdk.utils.logging import get_module_logger
@@ -47,6 +47,12 @@ HARNESS_STATES = frozenset(
     }
 )
 
+# The provider families a harness entry may name, closed for the same reason the states are: the
+# card draws a logo and a plan name per family, so a family this service cannot render must not
+# reach it. A runner that learns a new family is a change here too. Closing the set also bounds
+# the list's length — a runner cannot push an unbounded array through this field.
+PROVIDER_FAMILIES = frozenset({"openai", "anthropic"})
+
 # This is deployment state behind a UI poll, not a run: fail fast instead of holding the
 # request open on an unreachable runner.
 _TIMEOUT_SECONDS = 3.0
@@ -63,6 +69,24 @@ class HarnessStatus(BaseModel):
 
     state: str
     provider: Optional[str] = None
+    # A harness whose login file can hold several plans (Pi) names the families it holds; the
+    # single-provider harnesses use `provider` instead and leave this out.
+    providers: Optional[List[str]] = None
+
+    @field_validator("providers", mode="before")
+    @classmethod
+    def _known_families(cls, value: Any) -> Optional[List[str]]:
+        """Keep the known families and drop everything else, rather than failing the entry.
+
+        A family this service cannot render is the same problem as an unknown state word: it is
+        the runner saying more than the card can read, and the rest of the entry is still good.
+        """
+        if not isinstance(value, list):
+            return None
+        families = sorted(
+            {f for f in value if isinstance(f, str) and f in PROVIDER_FAMILIES}
+        )
+        return families or None
 
 
 class SubscriptionStatusRequest(BaseModel):
