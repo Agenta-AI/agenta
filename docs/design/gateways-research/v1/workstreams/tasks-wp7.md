@@ -105,76 +105,109 @@ since none of them import litellm).
 
 ## Phase 5 — `LlmGatewayService` management surface
 
-- [ ] `core/gateways/llms/service.py`: `LlmGatewayService.__init__(self, *, llm_endpoints_dao,
+- [x] `core/gateways/llms/service.py`: `LlmGatewayService.__init__(self, *, llm_endpoints_dao,
       policy, resolver, upstream_registry)` — **exactly this, unchanged**. R2 settled the
       vault-access gap by adding `available_provider_keys` to the resolver port instead of a
       dependency here; do not add `vault_service`.
-- [ ] Implement `create_endpoint`, `fetch_endpoint`, `edit_endpoint`, `delete_endpoint`,
+- [x] Implement `create_endpoint`, `fetch_endpoint`, `edit_endpoint`, `delete_endpoint`,
       `query_endpoints` as thin delegations to `llm_endpoints_dao`.
-- [ ] Implement `list_endpoints`: intersect `standard_llm_endpoints()` with
+- [x] Implement `list_endpoints`: intersect `standard_llm_endpoints()` with
       `await self.resolver.available_provider_keys(scope=scope)` (WP2 implements it; it returns
       names only and never raises for an empty project), plus
       `query_endpoints(project_id=project_id)`'s full result — no duplicates, no `builtin` entry
       for a provider with no key.
-- [ ] Ruff format + check; run and fix.
-- [ ] Unit tests: `list_endpoints` with a stubbed resolver whose `available_provider_keys`
+- [x] Ruff format + check; run and fix.
+- [x] Unit tests: `list_endpoints` with a stubbed resolver whose `available_provider_keys`
       returns two provider keys yields exactly those two `builtin` entries plus every custom
       row; an empty set yields custom rows only, with no exception; `create_endpoint`/
       `fetch_endpoint`/`edit_endpoint`/`delete_endpoint`/`query_endpoints` each delegate to the
       stubbed DAO with the arguments unchanged.
-- [ ] The resolver test double in this package's tests must implement **both** port methods —
+- [x] The resolver test double in this package's tests must implement **both** port methods —
       `resolve` and `available_provider_keys`.
-- [ ] Commit: "wp7: LlmGatewayService management surface".
+- [x] Commit: "wp7: LlmGatewayService management surface".
+
+**Judgment call — `list_endpoints`'s missing scope.** `available_provider_keys(*, scope:
+AuthScope)` needs a full `AuthScope` (org/workspace/project/user, all required, frozen), but
+`list_endpoints(self, *, project_id)`'s signature — fixed verbatim by both `entities.md` §8 and
+this spec — carries only `project_id`. `policy/resolution.py`'s implementation reads only
+`scope.project_id`, so `list_endpoints` builds a placeholder `AuthScope` with a nil UUID
+(`UUID(int=0)`) for `organization_id`/`workspace_id`/`user_id`, documented inline. This is a real
+gap in both design documents, not invented behavior; flagging it rather than silently widening the
+signature to add `scope`, which the checklist's own "exactly this, unchanged" line forbids.
 
 ## Phase 5b — `list_models` (R3)
 
-- [ ] Implement `async def list_models(self, *, scope, namespace, name) -> List[str]`:
+- [x] Implement `async def list_models(self, *, scope, namespace, name) -> List[str]`:
       `_resolve_target` as the relay does, `policy.authorize` with
       `Permission.USE_LLM_ENDPOINTS`, then return the target's `model_slugs` — the static
       catalogue's for `builtin`, the row's for `custom`.
-- [ ] Resolve no credential and call no upstream. It answers from the allowlist, so a harness
+- [x] Resolve no credential and call no upstream. It answers from the allowlist, so a harness
       that lists before calling sees exactly what policy will allow.
-- [ ] Return `List[str]`; invent no response DTO — WP6's proxy shapes the OpenAI body inline
+- [x] Return `List[str]`; invent no response DTO — WP6's proxy shapes the OpenAI body inline
       because the data plane has no wire models (§6).
-- [ ] Unit tests: a `custom` endpoint with `model_slugs: ["a", "b"]` returns exactly those; a
+- [x] Unit tests: a `custom` endpoint with `model_slugs: ["a", "b"]` returns exactly those; a
       `builtin` provider returns the catalogue's slugs verbatim (litellm prefixes intact, not
       re-derived); an unknown name raises `LlmEndpointNotFoundError`; a denied decision raises
       `PolicyDeniedError` before any slug is read.
-- [ ] Commit: "wp7: LlmGatewayService.list_models".
+- [x] Commit: "wp7: LlmGatewayService.list_models".
 
 ## Phase 6 — `LlmGatewayService.relay_chat_completion`
 
-- [ ] Implement `_resolve_target`: look up a row via `fetch_endpoint_by_slug` for `CUSTOM`, or
+- [x] Implement `_resolve_target`: look up a row via `fetch_endpoint_by_slug` for `CUSTOM`, or
       `catalog.standard_llm_endpoint` for `BUILTIN`; raise `LlmEndpointNotFoundError` when
       neither answers.
-- [ ] Implement the allowlist check (`_check_allowlist`): a `CUSTOM` target refuses a `model` not
+- [x] Implement the allowlist check (`_check_allowlist`): a `CUSTOM` target refuses a `model` not
       in `data.model_slugs` (including the empty-list-refuses-everything case, D20); a `BUILTIN`
       target refuses a `model` not in the catalogue's `model_slugs` for that provider. Raise
       `LlmModelNotAllowedError` before any credential lookup.
-- [ ] Implement the ceiling check (`_check_ceilings`): compare the request's
+- [x] Implement the ceiling check (`_check_ceilings`): compare the request's
       `max_output_tokens` (if present in the body) against `target.config.max_output_tokens`;
       raise `CeilingExceededError(ceiling="max_output_tokens", requested=..., allowed=...,
       target=...)` on a breach — reject, never clamp (D25).
-- [ ] Wire `self.policy.authorize(scope=..., permission=Permission.USE_LLM_ENDPOINTS,
+- [x] Wire `self.policy.authorize(scope=..., permission=Permission.USE_LLM_ENDPOINTS,
       target=...)`; on `not decision.allowed`, call `self.policy.record(...)` **then** raise
       `PolicyDeniedError` — denial recorded before the exception leaves.
-- [ ] Wire `self.resolver.resolve(scope=..., ref=target.credential_ref(),
+- [x] Wire `self.resolver.resolve(scope=..., ref=target.credential_ref(),
       mode=CredentialMode.PROJECT_ONLY)`, skipped for `GatewayAuthScheme.NONE` targets (the
       fakes).
-- [ ] Wire adapter selection: `self.upstream_registry.get(select_upstream(target.provider_key,
+- [x] Wire adapter selection: `self.upstream_registry.get(select_upstream(target.provider_key,
       target.deployment)).relay_chat_completion(...)`.
-- [ ] Implement the streaming-aware audit wrapper: wrap a streaming `LlmRelayResult.body` in a
+- [x] Implement the streaming-aware audit wrapper: wrap a streaming `LlmRelayResult.body` in a
       generator whose `finally` calls `self.policy.record(...)` with the usage read off the
       exhausted adapter result; call `policy.record` directly (not wrapped) for a non-streaming
       result.
-- [ ] Ruff format + check; run and fix.
-- [ ] Unit tests against stubbed DAO/policy/resolver/registry (no real adapters, no compose):
+- [x] Ruff format + check; run and fix.
+- [x] Unit tests against stubbed DAO/policy/resolver/registry (no real adapters, no compose):
       allowlist check runs and raises before `resolver.resolve` is called (assert the resolver
       stub's call count is 0 on a rejected model); a policy denial calls `policy.record` exactly
       once before the exception propagates; a ceiling breach names all three values; a
       successful streaming call's `policy.record` fires only once the returned iterator is fully
       consumed (assert via a spy with an interleaved partial read).
-- [ ] Commit: "wp7: LlmGatewayService.relay_chat_completion".
+- [x] Commit: "wp7: LlmGatewayService.relay_chat_completion".
+
+**Consolidation, disclosed.** Phases 5, 5b and 6 landed as **one commit** covering the whole of
+`service.py` plus one test file (`test_gateways_llm_service.py`) exercising all three surfaces,
+rather than three. The three phases build one class with shared private helpers
+(`_resolve_target`, the `_ResolvedLlmTarget` dataclass) that `list_models` and
+`relay_chat_completion` both depend on; writing genuine `NotImplementedError` stubs for two of the
+three phases and filling them in across two more commits would have meant re-touching the same
+file three times with no independent reviewable state in between (a partially-stubbed
+`service.py` is not runnable on its own). Each phase's checklist items above are still checked off
+individually so the mapping from item to code is traceable in one diff.
+
+**Two more judgment calls, in `relay_chat_completion`:**
+- `_check_ceilings` reads `body: bytes` directly (via a private `json.loads`), not `context:
+  LlmCallContext` as `entities.md`'s illustrative pseudocode signature shows — `LlmCallContext`
+  only carries `model`/`stream` (§4.3), so there is no way to read `max_output_tokens` off it. This
+  package's own task bullet above already says "compare the request's `max_output_tokens` (if
+  present in **the body**)", which only body access satisfies; treated as the more specific,
+  correct instruction over the pseudocode's compressed argument list.
+- The pseudocode's `context = parse_call_context(body)` line names WP6's
+  `apis/fastapi/gateways/llms/utils.py::parse_llm_call_context` — a file this package must not
+  write (WP6 owns it) and, more fundamentally, one `core/` must not import (`api/AGENTS.md`'s
+  layering rule: core does not import the api layer). `service.py` instead carries a private
+  `_parse_call_context`, doing the same two-field extraction, so WP6's proxy and this service each
+  own their own copy rather than one importing the other's file.
 
 ## Phase 7 — Wiring
 
