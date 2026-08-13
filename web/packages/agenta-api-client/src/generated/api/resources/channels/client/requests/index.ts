@@ -23,6 +23,7 @@ export type { DeleteChannelSpaceRequest } from "./DeleteChannelSpaceRequest.js";
 export type { FetchChannelAgentRequest } from "./FetchChannelAgentRequest.js";
 export type { FetchChannelCapabilitiesRequest } from "./FetchChannelCapabilitiesRequest.js";
 export type { FetchChannelConnectionSetupRequest } from "./FetchChannelConnectionSetupRequest.js";
+export type { FetchChannelSetupRequest } from "./FetchChannelSetupRequest.js";
 export type { FetchChannelSpaceRequest } from "./FetchChannelSpaceRequest.js";
 export type { ReadAgentaConversationRequest } from "./ReadAgentaConversationRequest.js";
 export type { SetChannelAgentDefaultRequest } from "./SetChannelAgentDefaultRequest.js";

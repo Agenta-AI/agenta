@@ -173,6 +173,7 @@ export * from "./ChannelSessionScope.js";
 export * from "./ChannelSetup.js";
 export * from "./ChannelSetupDoc.js";
 export * from "./ChannelSetupField.js";
+export * from "./ChannelSetupResponse.js";
 export * from "./ChannelSigils.js";
 export * from "./ChannelSpace.js";
 export * from "./ChannelSpaceCandidate.js";

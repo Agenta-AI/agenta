@@ -315,6 +315,85 @@ export class ChannelsClient {
     }
 
     /**
+     * Reachable before any connection exists -- the manifest an
+     * operator needs to go build the platform app in the first place.
+     * `fetch_channel_connection_setup` stays the route for a connection
+     * that already exists; this is the one that precedes it.
+     *
+     * @param {AgentaApi.FetchChannelSetupRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.fetchChannelSetup({
+     *         channel: "channel"
+     *     })
+     */
+    public fetchChannelSetup(
+        request: AgentaApi.FetchChannelSetupRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.ChannelSetupResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchChannelSetup(request, requestOptions));
+    }
+
+    private async __fetchChannelSetup(
+        request: AgentaApi.FetchChannelSetupRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.ChannelSetupResponse>> {
+        const { channel } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `channels/catalog/channels/${core.url.encodePathParam(channel)}/setup/`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.ChannelSetupResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/channels/catalog/channels/{channel}/setup/",
+        );
+    }
+
+    /**
      * @param {AgentaApi.ChannelConnectionRequest} request
      * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
