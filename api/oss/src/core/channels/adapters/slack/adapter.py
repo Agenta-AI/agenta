@@ -20,6 +20,7 @@ from oss.src.core.channels.adapters.slack.mapping import (
     render_buttons_or_degrade,
     split_for_max_chars,
 )
+from oss.src.core.channels.adapters.slack.oauth import hosted_app_configured
 from oss.src.core.channels.adapters.slack.signature import verify_slack_signature
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
@@ -38,12 +39,17 @@ from oss.src.core.channels.types import (
     ChannelConnectionVerificationFailed,
     ChannelSignatureInvalid,
 )
+from oss.src.utils.env import env
 
 _SLACK_API_BASE = "https://slack.com/api"
 
 # Default page size for backfill; clamped further to the install's own rate
 # tier at fetch time.
 _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
+
+# Slack's own signal that an installation stopped -- deactivate, never
+# route these as messages.
+_DEACTIVATION_EVENT_TYPES = {"app_uninstalled", "tokens_revoked"}
 
 
 class ChannelBackfillRefused(Exception):
@@ -56,6 +62,18 @@ class ChannelBackfillRefused(Exception):
 
 
 def _signing_secret(connection: ChannelConnection) -> str:
+    """Two sources, chosen by who owns the app. A hosted connection stores
+    no `signing_secret` at all -- the secret is the APP's, one value for
+    every workspace that installed it, so it lives in this deployment's
+    configuration rather than on the row. That absence is completeness, not
+    a connection waiting to be finished."""
+
+    if connection.flags.is_hosted:
+        secret = env.channels.slack.signing_secret
+        if not secret:
+            raise ChannelSignatureInvalid(channel="slack")
+        return secret
+
     data = connection.data if isinstance(connection.data, dict) else {}
     secret = data.get("signing_secret")
     if not secret:
@@ -89,7 +107,35 @@ class SlackAdapter(ChannelAdapterInterface):
     async def fetch_capabilities(
         self, *, connection: Optional[ChannelConnection] = None
     ) -> ChannelCapabilities:
-        return fetch_slack_capabilities()
+        capabilities = fetch_slack_capabilities()
+
+        data = (
+            connection.data if connection and isinstance(connection.data, dict) else {}
+        )
+        if not (connection and connection.flags.is_hosted):
+            return capabilities
+
+        # Commands, modals and event subscriptions belong to the APP, and a
+        # hosted connection shares one app across every workspace -- it
+        # cannot offer a command surface no other installation gets. There
+        # is no toggle to hide yet (native commands are parsed as noise and
+        # dropped everywhere today), so the obligation is to the
+        # declaration: whatever surface eventually reads it must never see
+        # a command that can never fire.
+        capabilities.addressing.commands.native = False
+
+        # A workspace can decline a scope at install; what it declined, it
+        # never granted, so a fill mode this connection cannot actually use
+        # must not claim to be supported.
+        granted = set(data.get("scopes") or [])
+        for mode in (capabilities.fill.backfill, capabilities.fill.forwardfill):
+            if mode.requires_permission and mode.requires_permission not in granted:
+                mode.supported = False
+
+        return capabilities
+
+    def hosted_setup_available(self) -> bool:
+        return hosted_app_configured()
 
     # --- setup --- #
 
@@ -127,12 +173,25 @@ class SlackAdapter(ChannelAdapterInterface):
                 message=body.get("error", "unknown_error"),
             )
 
+        # Same function the ingress path keys events with, applied to
+        # auth.test's own response: exactly one of enterprise_id/team_id
+        # populated, the other "". `compose_external_key` raises on a
+        # declared field missing from the locator, and the declaration
+        # names all three -- dropping enterprise_id here (or filtering it
+        # out for being falsy) fails every install before a row is written.
+        enterprise_id, team_id = _connection_discriminator(body)
+
         discovered = {
-            "team_id": body.get("team_id"),
+            "enterprise_id": enterprise_id,
+            "team_id": team_id,
             "bot_user_id": body.get("user_id"),
             "api_app_id": body.get("api_app_id"),
         }
-        return {key: value for key, value in discovered.items() if value}
+        return {
+            key: value
+            for key, value in discovered.items()
+            if value or key in ("enterprise_id", "team_id")
+        }
 
     # --- ingress --- #
 
@@ -169,6 +228,13 @@ class SlackAdapter(ChannelAdapterInterface):
             raise ChannelSignatureInvalid(channel=self.channel)
 
         return identity
+
+    async def detect_deactivation(self, *, body: bytes) -> bool:
+        payload = _parse_slack_payload(body)
+        if payload.get("type") != "event_callback":
+            return False
+        event = payload.get("event") or {}
+        return event.get("type") in _DEACTIVATION_EVENT_TYPES
 
     async def parse_event(
         self, *, body: bytes, connection: Optional[ChannelConnection] = None
@@ -261,6 +327,29 @@ class SlackAdapter(ChannelAdapterInterface):
             },
         )
         return {"channel": response["channel"], "ts": response["ts"]}
+
+    # --- teardown --- #
+
+    async def revoke_installation(
+        self, *, connection: ChannelConnection
+    ) -> Optional[str]:
+        """We own the hosted app, so removing the connection revokes the
+        installation with Slack too -- a live token nobody is watching is
+        the opposite of removed. Best-effort: a revoke failure never blocks
+        the connection from being archived on our side."""
+
+        if not connection.flags.is_hosted:
+            return None
+
+        try:
+            await self._call(connection, "auth.revoke", {})
+        except _SlackApiError:
+            pass
+
+        return (
+            "Archived on our side, and the installation was revoked on "
+            "Slack's side too -- we own this app."
+        )
 
     # --- discovery --- #
 

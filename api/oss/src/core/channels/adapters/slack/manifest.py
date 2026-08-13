@@ -1,10 +1,25 @@
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 # Scopes match exactly what adapter.py calls: chat:write (post/edit),
 # channels:history/groups:history/im:history/mpim:history (fetch_history +
 # discover_spaces read), channels:read/groups:read/im:read/mpim:read
 # (discover_spaces listing). No slash command registered in-thread —
 # slash commands cannot be invoked in threads.
+#
+# Shared with the hosted install's authorize URL (oauth.py) -- one list, so
+# the manifest a customer-owned app builds from and the scopes the hosted
+# app requests can never drift apart.
+SLACK_BOT_SCOPES: List[str] = [
+    "chat:write",
+    "channels:history",
+    "groups:history",
+    "im:history",
+    "mpim:history",
+    "channels:read",
+    "groups:read",
+    "im:read",
+    "mpim:read",
+]
 
 
 def build_slack_manifest(*, request_url: str) -> Dict[str, Any]:
@@ -13,21 +28,7 @@ def build_slack_manifest(*, request_url: str) -> Dict[str, Any]:
         "features": {
             "bot_user": {"display_name": "Agenta", "always_online": True},
         },
-        "oauth_config": {
-            "scopes": {
-                "bot": [
-                    "chat:write",
-                    "channels:history",
-                    "groups:history",
-                    "im:history",
-                    "mpim:history",
-                    "channels:read",
-                    "groups:read",
-                    "im:read",
-                    "mpim:read",
-                ]
-            }
-        },
+        "oauth_config": {"scopes": {"bot": SLACK_BOT_SCOPES}},
         "settings": {
             "event_subscriptions": {
                 "request_url": request_url,

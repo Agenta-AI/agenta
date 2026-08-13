@@ -28,4 +28,5 @@ export type { FetchChannelSpaceRequest } from "./FetchChannelSpaceRequest.js";
 export type { ReadAgentaConversationRequest } from "./ReadAgentaConversationRequest.js";
 export type { SetChannelAgentDefaultRequest } from "./SetChannelAgentDefaultRequest.js";
 export type { SetChannelGrantDefaultRequest } from "./SetChannelGrantDefaultRequest.js";
+export type { SlackInstallCallbackRequest } from "./SlackInstallCallbackRequest.js";
 export type { UnarchiveChannelConnectionRequest } from "./UnarchiveChannelConnectionRequest.js";

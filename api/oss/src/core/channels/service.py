@@ -13,6 +13,7 @@ from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelConnectionEdit,
+    ChannelConnectionFlags,
     ChannelConnectionQuery,
     ChannelEffectivePolicy,
     ChannelEventKind,
@@ -48,6 +49,7 @@ from oss.src.core.channels.fill import select_forwardfill_range
 from oss.src.core.channels.interfaces import ChannelsDAOInterface
 from oss.src.core.channels.types import (
     ChannelAgentNotFound,
+    ChannelConnectionIdentityConflict,
     ChannelConnectionNotFound,
     ChannelGrantRuleInvalid,
     ChannelsError,
@@ -161,6 +163,170 @@ class ChannelsService:
             raise _connection_conflict(
                 channel=connection.channel, slug=connection.slug, error=e
             ) from e
+
+    async def install_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection: ChannelConnectionCreate,
+    ) -> ChannelConnection:
+        """The hosted-app entry point: verify, then upsert on the composed
+        identity rather than always inserting.
+
+        A reinstall (token revoked, a scope added, the button clicked twice)
+        arrives as a new code for an installation this project may already
+        hold. Inserting would fork it into two connections -- the old one
+        keeps every grant, space and thread and stops receiving events, the
+        new one receives them and grants nothing. So the identity is looked
+        up first: found in this project, the row is edited in place (same
+        id, same grants, same spaces, same threads, secret rotated); found
+        in a different project, the install is refused rather than silently
+        moved; not found, this behaves exactly like `create_connection`.
+        """
+
+        adapter = self.adapter_registry.get(connection.channel)
+        capabilities = await adapter.fetch_capabilities(connection=None)
+
+        discovered = await adapter.verify_connection(
+            connection=connection,
+            credentials=connection.credentials or {},
+        )
+        connection.flags.is_verified = True
+
+        locator_input = {**(connection.data or {}), **discovered}
+        external_key = compose_external_key(
+            capabilities, ChannelKeyGrain.CONNECTION, locator_input
+        )
+
+        existing = await self.channels_dao.get_project_and_connection_by_external_key(
+            channel=connection.channel,
+            external_key=external_key,
+        )
+        if existing is not None and existing[0] != project_id:
+            raise ChannelConnectionIdentityConflict(channel=connection.channel)
+
+        existing_connection = (
+            await self.channels_dao.fetch_connection(
+                project_id=project_id, connection_id=existing[1]
+            )
+            if existing is not None
+            else None
+        )
+        existing_data = (
+            existing_connection.data
+            if existing_connection and isinstance(existing_connection.data, dict)
+            else {}
+        )
+
+        secret = await self._rotate_credential_secret(
+            project_id=project_id,
+            channel=connection.channel,
+            slug=connection.slug,
+            credentials=connection.credentials or {},
+            existing_secret_id=(
+                UUID(existing_data["credential_secret_id"])
+                if existing_data.get("credential_secret_id")
+                else None
+            ),
+        )
+        data = _compose_connection_data(
+            capabilities=capabilities,
+            locator_input=locator_input,
+            credential_secret_id=secret.id,
+        )
+        connection.credentials = None
+
+        if existing_connection is not None:
+            # A reinstall restores service -- is_active resets to true even
+            # if `app_uninstalled` had flipped it off since the last install.
+            edited = await self.channels_dao.edit_connection(
+                project_id=project_id,
+                user_id=user_id,
+                connection=ChannelConnectionEdit(
+                    id=existing_connection.id,
+                    slug=existing_connection.slug,
+                    name=existing_connection.name,
+                    description=existing_connection.description,
+                    tags=existing_connection.tags,
+                    meta=existing_connection.meta,
+                    data=data,
+                    flags=ChannelConnectionFlags(
+                        is_active=True,
+                        is_verified=True,
+                        is_hosted=True,
+                    ),
+                ),
+            )
+            if edited is None:
+                raise ChannelConnectionNotFound(connection_id=existing_connection.id)
+            return edited
+
+        connection.external_key = external_key
+        connection.data = data
+
+        try:
+            return await self.channels_dao.create_connection(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                connection=connection,
+            )
+        except IntegrityError as e:
+            raise _connection_conflict(
+                channel=connection.channel, slug=connection.slug, error=e
+            ) from e
+
+    async def deactivate_connection(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]:
+        """`app_uninstalled` / `tokens_revoked`: flip `flags.is_active` off,
+        never delete. Grants, spaces and threads outlive this -- a reinstall
+        restores service without redoing them. The full-PUT edit contract
+        means every other field has to come from the row being edited."""
+
+        existing = await self.channels_dao.fetch_connection(
+            project_id=project_id, connection_id=connection_id
+        )
+        if existing is None:
+            return None
+
+        return await self.channels_dao.edit_connection(
+            project_id=project_id,
+            user_id=existing.updated_by_id or existing.created_by_id,
+            connection=ChannelConnectionEdit(
+                id=existing.id,
+                slug=existing.slug,
+                name=existing.name,
+                description=existing.description,
+                tags=existing.tags,
+                meta=existing.meta,
+                data=existing.data,
+                flags=existing.flags.model_copy(update={"is_active": False}),
+            ),
+        )
+
+    async def describe_connection_teardown(
+        self, *, connection: ChannelConnection
+    ) -> str:
+        """The archive-response notice. An adapter that owns its app (a
+        hosted connection) revokes the installation and returns its own
+        wording; every other adapter defaults to None and gets the generic
+        customer-owned notice -- core never branches on "hosted" itself."""
+
+        adapter = self.adapter_registry.get(connection.channel)
+        notice = await adapter.revoke_installation(connection=connection)
+        if notice is not None:
+            return notice
+
+        return (
+            "Archived on our side only. We never own the customer's app, "
+            "so nothing was uninstalled or removed on the platform."
+        )
 
     async def fetch_connection(
         self,
@@ -381,6 +547,7 @@ class ChannelsService:
             instructions=capabilities.setup.instructions,
             fields=capabilities.setup.fields,
             document=document,
+            hosted_available=adapter.hosted_setup_available(),
         )
 
     async def get_channel_setup(
@@ -402,6 +569,7 @@ class ChannelsService:
             instructions=capabilities.setup.instructions,
             fields=capabilities.setup.fields,
             document=document,
+            hosted_available=adapter.hosted_setup_available(),
         )
 
     # --- connections: credentials ------------------------------------------ #

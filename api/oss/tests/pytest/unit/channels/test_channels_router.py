@@ -135,6 +135,10 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
             False,
         ),
         (
+            lambda r, req: r.install_slack_connection(req),
+            False,
+        ),
+        (
             lambda r, req: r.query_channel_connections(
                 req, body=ChannelConnectionQueryRequest()
             ),
@@ -332,7 +336,12 @@ async def test_route_rejects_without_permission(call, is_view_route):
 
 async def test_permission_matrix_covers_every_registered_route():
     """Every add_api_route call in __init__ has a matching parametrize entry
-    above -- a route added without a matrix entry is a silent RBAC gap."""
+    above -- a route added without a matrix entry is a silent RBAC gap.
+
+    One deliberate exception: `slack_install_callback` is public (Slack
+    calls it with no Agenta session; the signed OAuth state is the whole of
+    its authorisation, see `_PUBLIC_ENDPOINTS`), so it has no `self._check`
+    to exercise and is listed here without a parametrize row."""
 
     router = _router()
     registered_handlers = {route.endpoint.__name__ for route in router.router.routes}
@@ -341,6 +350,8 @@ async def test_permission_matrix_covers_every_registered_route():
         "list_channels",
         "fetch_channel_capabilities",
         "fetch_channel_setup",
+        "install_slack_connection",
+        "slack_install_callback",
         "create_channel_connection",
         "query_channel_connections",
         "edit_channel_connection",
@@ -552,6 +563,8 @@ def test_trailing_slash_audit():
     trailing_slash_action_paths = {
         "/catalog/channels/{channel}/capabilities/",
         "/catalog/channels/{channel}/setup/",
+        "/catalog/channels/slack/install/",
+        "/catalog/channels/slack/callback/",
     }
     item_or_action_paths = {
         "/connections/query",

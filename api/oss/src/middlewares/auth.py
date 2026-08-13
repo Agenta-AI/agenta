@@ -89,6 +89,12 @@ _PUBLIC_ENDPOINTS = (
     "/api/channels/agenta/events/",
     "/preview/channels/agenta/events/",
     "/api/preview/channels/agenta/events/",
+    # CHANNELS — Slack redirects the browser here with no Agenta session; the
+    # signed OAuth state is the whole of the authorisation on this route
+    "/channels/catalog/channels/slack/callback/",
+    "/api/channels/catalog/channels/slack/callback/",
+    "/preview/channels/catalog/channels/slack/callback/",
+    "/api/preview/channels/catalog/channels/slack/callback/",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"

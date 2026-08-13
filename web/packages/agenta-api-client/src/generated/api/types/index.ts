@@ -469,7 +469,6 @@ export * from "./SessionInteractionKind.js";
 export * from "./SessionInteractionQuery.js";
 export * from "./SessionInteractionQueryFlags.js";
 export * from "./SessionInteractionRequest.js";
-export * from "./SessionInteractionResolution.js";
 export * from "./SessionInteractionResponse.js";
 export * from "./SessionInteractionStatus.js";
 export * from "./SessionInteractionsResponse.js";

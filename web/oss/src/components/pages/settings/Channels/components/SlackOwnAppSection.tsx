@@ -57,8 +57,7 @@ export default function SlackOwnAppSection() {
         try {
             await create({
                 channel: "slack",
-                // enterprise_id is a declared identity key with no source (not a setup field, not discovered); "" is correct for a per-workspace install.
-                data: {...payload.data, enterprise_id: ""},
+                data: payload.data,
                 credentials: payload.credentials,
             })
             message.success("Slack connection verified and created")

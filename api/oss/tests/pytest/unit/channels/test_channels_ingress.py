@@ -75,6 +75,9 @@ class FakeAdapter:
             raise ChannelSignatureInvalid(channel=self.channel)
         return self.installation_id
 
+    async def detect_deactivation(self, *, body: bytes) -> bool:
+        return False
+
     async def parse_event(
         self, *, body: bytes, connection: Optional[ChannelConnection] = None
     ) -> Optional[ChannelInboundEvent]:

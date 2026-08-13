@@ -226,6 +226,16 @@ class ChannelsIngressRouter:
         if not _connection_owns_identity(connection, external_id):
             raise ChannelSignatureInvalid(channel=channel)
 
+        # An installation-stopped signal (Slack's app_uninstalled /
+        # tokens_revoked), not a message to route. Deactivate and stop --
+        # never reaches parse_event, which has no MESSAGE/ACTION shape for it.
+        if await adapter.detect_deactivation(body=body):
+            await self.channels_service.deactivate_connection(
+                project_id=project_id,
+                connection_id=connection_id,
+            )
+            return ChannelEventAck(status="accepted")
+
         inbound = await adapter.parse_event(body=body, connection=connection)
 
         if inbound is None:

@@ -146,6 +146,10 @@ async def test_archive_channel_connection_states_nothing_changed_on_the_platform
     connection = _connection()
     service = AsyncMock()
     service.archive_connection.return_value = connection
+    service.describe_connection_teardown.return_value = (
+        "Archived on our side only. We never own the customer's app, "
+        "so nothing was uninstalled or removed on the platform."
+    )
     router = _router(service)
     request = _make_request(uuid4(), uuid4())
 
@@ -157,6 +161,7 @@ async def test_archive_channel_connection_states_nothing_changed_on_the_platform
     assert response.connection.id == connection.id
     assert "nothing" in response.platform_notice.lower()
     service.archive_connection.assert_awaited_once()
+    service.describe_connection_teardown.assert_awaited_once_with(connection=connection)
 
 
 async def test_unarchive_channel_connection_404s_on_a_missing_connection():

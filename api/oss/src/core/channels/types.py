@@ -116,6 +116,19 @@ class ChannelConnectionIncomplete(ChannelsError):
         super().__init__(f"Connection for channel {channel} is missing: {field}")
 
 
+class ChannelConnectionIdentityConflict(ChannelsError):
+    """Raised when an install's composed identity already belongs to a
+    connection in a different project. An upsert never crosses tenants --
+    that would silently move an installation between projects rather than
+    refusing it."""
+
+    def __init__(self, *, channel: str):
+        self.channel = channel
+        super().__init__(
+            f"This {channel} installation is already connected to a different project"
+        )
+
+
 class ChannelConnectionVerificationFailed(ChannelsError):
     """Raised by `verify_connection` when the platform rejects a credential.
     Nothing is written on this path — surfaced as the platform said it,

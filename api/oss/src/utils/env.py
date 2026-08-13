@@ -629,6 +629,30 @@ class AlembicConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# channels.slack — the Agenta-owned Slack app (hosted install), one
+# deployment's credentials, never a project's. See channels/adapters/slack.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsSlackConfig(BaseModel):
+    client_id: str | None = os.getenv("SLACK_APP_CLIENT_ID")
+    client_secret: str | None = os.getenv("SLACK_APP_CLIENT_SECRET")
+    signing_secret: str | None = os.getenv("SLACK_APP_SIGNING_SECRET")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_id and self.client_secret and self.signing_secret)
+
+
+class ChannelsConfig(BaseModel):
+    slack: ChannelsSlackConfig = ChannelsSlackConfig()
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # cloudflare.turnstile
 # ---------------------------------------------------------------------------
 
@@ -1636,6 +1660,7 @@ class EnvironSettings(BaseModel):
     agenta: AgentaConfig = AgentaConfig()
     alembic: AlembicConfig = AlembicConfig()
     auth: AuthFacade = AuthFacade()
+    channels: ChannelsConfig = ChannelsConfig()
     cloudflare: CloudflareConfig = CloudflareConfig()
     composio: ComposioConfig = ComposioConfig()
     crisp: CrispConfig = CrispConfig()

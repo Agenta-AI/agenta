@@ -14,6 +14,7 @@ from oss.src.core.channels.adapters.slack.adapter import (
 from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelConnectionCreate,
+    ChannelConnectionFlags,
     ChannelEventKind,
     ChannelRequestContext,
     ChannelSpaceKind,
@@ -25,6 +26,7 @@ from oss.src.core.channels.types import (
 )
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.dtos import ChannelKeyGrain
+from oss.src.utils.env import env
 
 SIGNING_SECRET = "test-signing-secret"
 
@@ -176,6 +178,108 @@ async def test_verify_signature_rejects_bad_signature():
 
     with pytest.raises(ChannelSignatureInvalid):
         await adapter.verify_signature(request=_request(body), connection=connection)
+
+
+# --- the two-source verification secret --------------------------------------- #
+#
+# D35: the signing secret is per APP, not per connection. A customer-owned
+# connection carries its own in `data`; a hosted one carries none at all --
+# that field belongs to the deployment's configuration. Both directions are
+# exercised here, deliberately, because a branch taken one way only is a
+# branch nobody tested.
+
+
+def _hosted_connection() -> ChannelConnection:
+    return ChannelConnection(
+        id=uuid4(),
+        slug="slack-hosted-connection",
+        channel="slack",
+        external_key=uuid4(),
+        data={"bot_token": "xoxb-fake", "bot_user_id": "UBOT1", "team_id": "T1"},
+        flags=ChannelConnectionFlags(is_hosted=True, is_verified=True),
+    )
+
+
+async def test_customer_owned_connection_verifies_against_its_own_stored_secret(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.channels.slack, "signing_secret", None)
+
+    connection = _connection(signing_secret="row-secret")
+    adapter = SlackAdapter()
+    body = json.dumps({"api_app_id": "A1", "team_id": "T1"}).encode()
+    headers = _signed_request(body, secret="row-secret")
+
+    identity = await adapter.verify_signature(
+        request=_request(body, headers=headers), connection=connection
+    )
+
+    assert identity == "T1"
+
+
+async def test_hosted_connection_verifies_against_the_deployment_secret_not_the_row(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.channels.slack, "signing_secret", "hosted-secret")
+
+    connection = _hosted_connection()
+    adapter = SlackAdapter()
+    body = json.dumps({"api_app_id": "A1", "team_id": "T1"}).encode()
+    headers = _signed_request(body, secret="hosted-secret")
+
+    identity = await adapter.verify_signature(
+        request=_request(body, headers=headers), connection=connection
+    )
+
+    assert identity == "T1"
+
+    # The row itself carries no signing_secret at all -- completeness, not a
+    # connection waiting to be finished.
+    assert "signing_secret" not in (connection.data or {})
+
+
+async def test_hosted_connection_with_no_signing_secret_is_never_treated_as_unconfigured(
+    monkeypatch,
+):
+    """A missing `signing_secret` field on a hosted row must never read as
+    "not set up yet" -- that would refuse every hosted connection, silently,
+    which this project keeps rediscovering as its most common defect shape."""
+
+    monkeypatch.setattr(env.channels.slack, "signing_secret", "hosted-secret")
+
+    connection = _hosted_connection()
+    assert connection.data is not None
+    assert "signing_secret" not in connection.data
+
+    adapter = SlackAdapter()
+    body = json.dumps({"api_app_id": "A1", "team_id": "T1"}).encode()
+    headers = _signed_request(body, secret="hosted-secret")
+
+    # Does not raise ChannelSignatureInvalid despite the field being absent.
+    identity = await adapter.verify_signature(
+        request=_request(body, headers=headers), connection=connection
+    )
+    assert identity == "T1"
+
+
+async def test_hosted_connection_refuses_when_the_deployment_also_has_no_secret(
+    monkeypatch,
+):
+    """The one case that IS unconfigured: no row secret (by design) and no
+    deployment secret either. Refuses like any other bad signature -- it
+    must not silently accept an unverifiable request."""
+
+    monkeypatch.setattr(env.channels.slack, "signing_secret", None)
+
+    connection = _hosted_connection()
+    adapter = SlackAdapter()
+    body = json.dumps({"api_app_id": "A1", "team_id": "T1"}).encode()
+    headers = _signed_request(body, secret="anything")
+
+    with pytest.raises(ChannelSignatureInvalid):
+        await adapter.verify_signature(
+            request=_request(body, headers=headers), connection=connection
+        )
 
 
 # --- parse_event -------------------------------------------------------------- #
@@ -543,9 +647,58 @@ async def test_verify_connection_returns_discovered_fields_on_success():
         credentials={"bot_token": "xoxb-good", "signing_secret": "sec"},
     )
 
-    assert discovered == {"team_id": "T1", "bot_user_id": "UBOT1"}
+    # enterprise_id rides along even for a per-workspace install -- "" not
+    # absent, so compose_external_key's three declared connection fields
+    # (api_app_id, enterprise_id, team_id) are all present in the locator.
+    assert discovered == {"enterprise_id": "", "team_id": "T1", "bot_user_id": "UBOT1"}
     sent_auth = transport.requests[0].headers["authorization"]
     assert sent_auth == "Bearer xoxb-good"
+
+
+async def test_verify_connection_discriminator_mirrors_ingress_exactly():
+    """The bug this fixes: creating a Slack connection with exactly the
+    three fields the declaration asks a human for (api_app_id, enterprise_id,
+    team_id) used to fail before a row was written, because enterprise_id
+    was filtered out for being falsy. `verify_connection`'s discriminator
+    must match `_connection_discriminator`'s own contract: exactly one of
+    enterprise_id/team_id populated, the other empty -- not merely present."""
+
+    adapter, _ = _adapter_with_stub([{"ok": True, "team_id": "T1", "user_id": "U1"}])
+
+    discovered = await adapter.verify_connection(
+        connection=_create_stub(),
+        credentials={"bot_token": "xoxb-good"},
+    )
+
+    assert discovered["team_id"] == "T1"
+    assert discovered["enterprise_id"] == ""
+
+
+async def test_verify_connection_discriminator_for_an_org_wide_install():
+    """auth.test on an org-installed token reports is_enterprise_install
+    and enterprise_id; team_id must be the empty half, not T1 -- storing a
+    team id there while the ingress composes "" for an org-wide event would
+    be a key mismatch, which surfaces as a bare 401 indistinguishable from a
+    bad secret."""
+
+    adapter, _ = _adapter_with_stub(
+        [
+            {
+                "ok": True,
+                "is_enterprise_install": True,
+                "enterprise_id": "E1",
+                "user_id": "U1",
+            }
+        ]
+    )
+
+    discovered = await adapter.verify_connection(
+        connection=_create_stub(),
+        credentials={"bot_token": "xoxb-good"},
+    )
+
+    assert discovered["enterprise_id"] == "E1"
+    assert discovered["team_id"] == ""
 
 
 async def test_verify_connection_omits_absent_discovered_fields():
@@ -680,3 +833,134 @@ async def test_backfill_page_size_clamps_to_configured_default(monkeypatch):
 
     sent = json.loads(transport.requests[0].content)
     assert sent["limit"] == 10
+
+
+# --- hosted-connection declaration narrowing ---------------------------------- #
+
+
+async def test_customer_owned_connection_declares_native_commands():
+    adapter = SlackAdapter()
+
+    capabilities = await adapter.fetch_capabilities(connection=_connection())
+
+    assert capabilities.addressing.commands.native is True
+
+
+async def test_hosted_connection_declares_no_native_commands():
+    """One app, shared by every workspace that installed it -- it cannot
+    offer a per-customer command surface. There is no toggle to hide yet, so
+    this is the declaration a later surface must respect."""
+
+    adapter = SlackAdapter()
+
+    capabilities = await adapter.fetch_capabilities(connection=_hosted_connection())
+
+    assert capabilities.addressing.commands.native is False
+
+
+async def test_hosted_connection_with_full_scopes_still_declares_backfill():
+    adapter = SlackAdapter()
+    connection = _hosted_connection()
+    connection.data["scopes"] = ["channels:history", "chat:write"]
+
+    capabilities = await adapter.fetch_capabilities(connection=connection)
+
+    assert capabilities.fill.backfill.supported is True
+    assert capabilities.fill.forwardfill.supported is True
+
+
+async def test_hosted_connection_missing_the_history_scope_declares_no_backfill():
+    """A workspace can decline a scope at install; what it declined, this
+    connection never actually has, so the declaration must say so rather
+    than promise a fetch that will 403."""
+
+    adapter = SlackAdapter()
+    connection = _hosted_connection()
+    connection.data["scopes"] = ["chat:write"]  # channels:history declined
+
+    capabilities = await adapter.fetch_capabilities(connection=connection)
+
+    assert capabilities.fill.backfill.supported is False
+    assert capabilities.fill.forwardfill.supported is False
+
+
+# --- hosted_setup_available ---------------------------------------------------- #
+
+
+async def test_hosted_setup_available_follows_the_deployment_configuration(
+    monkeypatch,
+):
+    adapter = SlackAdapter()
+
+    monkeypatch.setattr(env.channels.slack, "client_id", None)
+    monkeypatch.setattr(env.channels.slack, "client_secret", None)
+    monkeypatch.setattr(env.channels.slack, "signing_secret", None)
+    assert adapter.hosted_setup_available() is False
+
+    monkeypatch.setattr(env.channels.slack, "client_id", "id")
+    monkeypatch.setattr(env.channels.slack, "client_secret", "secret")
+    monkeypatch.setattr(env.channels.slack, "signing_secret", "sig")
+    assert adapter.hosted_setup_available() is True
+
+
+# --- detect_deactivation ------------------------------------------------------- #
+
+
+async def test_detect_deactivation_true_for_app_uninstalled():
+    adapter = SlackAdapter()
+    body = _event_callback({"type": "app_uninstalled"})
+
+    assert await adapter.detect_deactivation(body=body) is True
+
+
+async def test_detect_deactivation_true_for_tokens_revoked():
+    adapter = SlackAdapter()
+    body = _event_callback({"type": "tokens_revoked"})
+
+    assert await adapter.detect_deactivation(body=body) is True
+
+
+async def test_detect_deactivation_false_for_an_ordinary_message():
+    adapter = SlackAdapter()
+    body = _event_callback({"type": "message", "channel": "C1", "text": "hi"})
+
+    assert await adapter.detect_deactivation(body=body) is False
+
+
+async def test_detect_deactivation_false_for_non_event_callback_payloads():
+    adapter = SlackAdapter()
+    body = json.dumps({"type": "url_verification", "challenge": "x"}).encode()
+
+    assert await adapter.detect_deactivation(body=body) is False
+
+
+# --- revoke_installation -------------------------------------------------------- #
+
+
+async def test_revoke_installation_is_a_no_op_for_a_customer_owned_connection():
+    adapter, transport = _adapter_with_stub([])
+
+    notice = await adapter.revoke_installation(connection=_connection())
+
+    assert notice is None
+    assert transport.requests == []
+
+
+async def test_revoke_installation_calls_auth_revoke_for_a_hosted_connection():
+    adapter, transport = _adapter_with_stub([{"ok": True}])
+
+    notice = await adapter.revoke_installation(connection=_hosted_connection())
+
+    assert notice is not None and "revoked" in notice.lower()
+    assert transport.requests[0].url.path.endswith("/auth.revoke")
+
+
+async def test_revoke_installation_still_returns_a_notice_if_slack_rejects_the_call():
+    """Best-effort: the row is archived on our side regardless of whether
+    the platform call succeeds."""
+
+    adapter, _ = _adapter_with_stub([{"ok": False, "error": "invalid_auth"}])
+
+    notice = await adapter.revoke_installation(connection=_hosted_connection())
+
+    assert notice is not None
