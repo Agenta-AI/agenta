@@ -2,7 +2,7 @@
 
 In-process ASGI against a mock `McpGatewayService` and a mockd `get_auth_scope()` — no
 Postgres, no real service, no network. Asserts which handler each path reaches (the
-catch-all nesting on `agenta`, the three fixed segments on `builtin`), the 405s on the
+each builtin provider's own grammar under its segment), the 405s on the
 stream verbs, and the exception -> protocol-error mapping this proxy owns
 (`proxy.py::_map_gateway_exception`) — deliberately NOT the seed's
 `handle_gateway_exceptions()`, which raises a plain `HTTPException(status, detail=str)`
@@ -83,16 +83,18 @@ def client(mock_service, monkeypatch):
     return TestClient(app)
 
 
-def test_agenta_catchall_nests_the_slug(client, mock_service):
+def test_builtin_agenta_nests_the_slug(client, mock_service):
     response = client.post(
-        "/agenta/tools/search",
+        "/builtin/agenta/tools/search",
         headers={"Mcp-Method": "tools/list"},
         content=b"{}",
     )
 
     assert response.status_code == 200
     call = mock_service.calls[0]
-    assert call["namespace"] == GatewayEndpointNamespace.AGENTA
+    assert call["namespace"] == GatewayEndpointNamespace.BUILTIN
+    assert call["provider"] == "agenta"
+    assert call["integration"] is None
     assert call["name"] == "tools/search"
 
 
@@ -129,7 +131,7 @@ def test_custom_reaches_with_the_slug(client, mock_service):
 @pytest.mark.parametrize(
     "path",
     [
-        "/agenta/tools/search",
+        "/builtin/agenta/tools/search",
         "/builtin/composio/notion/my-notion",
         "/custom/acme-notion",
     ],

@@ -387,12 +387,12 @@ D16 requires the identifier in a gateway URL to carry a namespace — an id or a
 a display name. The grammar, final per D27:
 
 ```text
-/gateways/mcps/agenta/{slug}                                  agenta/tools
+/gateways/mcps/builtin/agenta/{slug}                                  agenta/tools
 /gateways/mcps/builtin/{provider}/{integration}/{connection}  builtin/composio/notion/my-notion
 /gateways/mcps/custom/{slug}                                  custom/acme-notion
 
 /gateways/llms/agenta/{slug}                                  reserved, empty today
-/gateways/llms/builtin/{provider}                             builtin/openai
+/gateways/llms/standard/{provider}                             builtin/openai
 /gateways/llms/custom/{slug}                                  custom/acme-azure
 ```
 
@@ -2555,7 +2555,7 @@ class LlmGatewayProxy:
         self.router = APIRouter()
 
         # The OpenAI-compatible surface. base_url for a client is the route
-        # minus the protocol suffix — e.g. {api_url}/gateways/llms/builtin/openai/v1.
+        # minus the protocol suffix — e.g. {api_url}/gateways/llms/standard/openai/v1.
         # The trailing /v1 is the UPSTREAM protocol's own path, not our version
         # segment (§2.3): the client appends /v1/chat/completions to any base it
         # is handed, so the base we hand out ends /v1 and nothing else about

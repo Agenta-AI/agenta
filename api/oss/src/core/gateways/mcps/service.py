@@ -19,6 +19,8 @@ from oss.src.core.gateways.dtos import (
     GatewayEndpointNamespace,
 )
 from oss.src.core.gateways.mcps.dtos import (
+    AGENTA_PROVIDER,
+    COMPOSIO_PROVIDER,
     McpBrokeredAuth,
     McpCallContext,
     McpDirectAuth,
@@ -60,13 +62,26 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
 
-# namespace -> upstream_registry key (§8 step 5). Private: entities.md names no public
-# selector for the MCP plane (contrast the LLM plane's select_upstream).
-_ADAPTER_KEYS: Dict[GatewayEndpointNamespace, str] = {
-    GatewayEndpointNamespace.AGENTA: "mock",
-    GatewayEndpointNamespace.BUILTIN: "composio",
-    GatewayEndpointNamespace.CUSTOM: "http",
+# Adapter selection (§8 step 5). `builtin` dispatches on its provider segment, since
+# the namespace only says whose account pays, not which backend answers (D30).
+_BUILTIN_ADAPTER_KEYS: Dict[str, str] = {
+    AGENTA_PROVIDER: "mock",
+    COMPOSIO_PROVIDER: "composio",
 }
+
+
+def _adapter_key(
+    *, namespace: GatewayEndpointNamespace, provider: Optional[str]
+) -> str:
+    if namespace == GatewayEndpointNamespace.BUILTIN:
+        key = _BUILTIN_ADAPTER_KEYS.get(provider or "")
+        if key is None:
+            raise McpEndpointNotFoundError(namespace=namespace, name=provider or "")
+        return key
+    if namespace == GatewayEndpointNamespace.CUSTOM:
+        return "http"
+    # STANDARD: reserved, empty on the MCP plane (D30).
+    raise McpEndpointNotFoundError(namespace=namespace, name="")
 
 
 @dataclass
@@ -212,23 +227,23 @@ class McpGatewayService:
         )
         builtin = [self._builtin_endpoint(connection) for connection in connections]
 
-        # agenta first, builtin generated, custom rows last — no ordering guarantee is
-        # promised by entities.md §8; this order only mirrors the route grammar's own
-        # listing (agenta, builtin, custom).
+        # builtin's two providers first (agenta, then composio), custom rows last — no
+        # ordering guarantee is promised by entities.md §8.
         return [*self._agenta_endpoints(), *builtin, *custom]
 
     def _agenta_endpoints(self) -> List[McpEndpoint]:
-        """The code-defined agenta-namespace entries (D23, D27). Private and
+        """The endpoints Agenta itself serves — the `agenta` provider inside `builtin`
+        (D23, D30). Private and
         service-internal — entities.md names no public symbol for this, unlike the LLM
         plane's `standard_llm_endpoint(s)`. Wave 1's only member is WP5's deployable
         mock MCP server; slug "tools" matches the route grammar's own worked example
-        (decisions.md D27: `/gateways/mcps/agenta/{slug}` -> `agenta/tools`)."""
+        (D30: `/gateways/mcps/builtin/agenta/{slug}` -> `builtin/agenta/tools`)."""
         return [
             McpEndpoint(
                 slug="tools",
                 name="Agenta Tools",
                 auth_mode=GatewayAuthScheme.NONE,
-                namespace=GatewayEndpointNamespace.AGENTA,
+                namespace=GatewayEndpointNamespace.BUILTIN,
                 data=McpEndpointData(url=env.mock_gateways.mcp_url),
             )
         ]
@@ -290,7 +305,7 @@ class McpGatewayService:
                 return GatewayConnectionState.READY
             return GatewayConnectionState.NEEDS_AUTH
 
-        if endpoint.namespace == GatewayEndpointNamespace.BUILTIN:
+        if endpoint.connection_id is not None:
             connection = await self.connections_service.get_connection(
                 project_id=project_id,
                 connection_id=endpoint.connection_id,
@@ -364,7 +379,7 @@ class McpGatewayService:
         # `_ResolvedTarget` is a plain dataclass, not a pydantic model, so a caller
         # passing the namespace as a bare string (the FastAPI path-param case, or a
         # test) is not auto-coerced the way GatewayTarget's own field would be —
-        # every downstream `.value` access (McpEndpointNotFoundError, _ADAPTER_KEYS)
+        # every downstream `.value` access (McpEndpointNotFoundError, _adapter_key)
         # needs a real enum member.
         namespace = GatewayEndpointNamespace(namespace)
 
@@ -421,7 +436,7 @@ class McpGatewayService:
 
         # 5. Dispatch. Usage is recorded even on failure.
         route = self._route_for(target)
-        adapter_key = _ADAPTER_KEYS[namespace]
+        adapter_key = _adapter_key(namespace=namespace, provider=provider)
         try:
             result = await self.upstream_registry.get(adapter_key).relay(
                 route=route,
@@ -465,13 +480,18 @@ class McpGatewayService:
         provider: Optional[str],
         integration: Optional[str],
     ) -> _ResolvedTarget:
-        if namespace == GatewayEndpointNamespace.AGENTA:
+        if (
+            namespace == GatewayEndpointNamespace.BUILTIN
+            and provider == AGENTA_PROVIDER
+        ):
             endpoint = next(
                 (e for e in self._agenta_endpoints() if e.slug == name), None
             )
             if endpoint is None:
                 raise McpEndpointNotFoundError(namespace=namespace, name=name)
-            return _ResolvedTarget(namespace=namespace, name=name, endpoint=endpoint)
+            return _ResolvedTarget(
+                namespace=namespace, name=name, provider=provider, endpoint=endpoint
+            )
 
         if namespace == GatewayEndpointNamespace.BUILTIN:
             connections = await self.connections_service.query_connections(
@@ -542,8 +562,8 @@ class McpGatewayService:
     async def _resolve_auth(
         self, *, scope: AuthScope, target: _ResolvedTarget
     ) -> McpRelayAuth:
-        if target.namespace == GatewayEndpointNamespace.BUILTIN:
-            # builtin's secret lives at the broker and never enters our vault
+        if target.provider == COMPOSIO_PROVIDER:
+            # the broker's secret never enters our vault
             # (§4.4) — never routed through the resolver.
             connection = target.connection
             if connection is None or not (connection.is_active and connection.is_valid):
@@ -574,7 +594,7 @@ class McpGatewayService:
         raise NotImplementedError("api_key scheme MCP endpoints are deferred (D14)")
 
     def _route_for(self, target: _ResolvedTarget) -> McpResolvedRoute:
-        if target.namespace == GatewayEndpointNamespace.BUILTIN:
+        if target.provider == COMPOSIO_PROVIDER:
             return McpResolvedRoute(
                 url=_builtin_placeholder_url(
                     provider=target.provider or "",

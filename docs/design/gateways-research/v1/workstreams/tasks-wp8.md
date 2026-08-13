@@ -297,7 +297,7 @@ alongside WP10's `mcp_gateway.router` line on 1518, which this package does not 
 
 - [ ] Deploy the merged stack (WP1 migration applied, WP5 mock MCP server
       running as a compose service).
-- [ ] `POST /gateways/mcps/agenta/<mock-slug>` with `tools/list` returns the
+- [ ] `POST /gateways/mcps/builtin/agenta/<mock-slug>` with `tools/list` returns the
       mock server's own tool list unchanged.
 - [ ] The same call, `tools/call` on an in-policy tool, returns the mock
       server's own result unchanged.

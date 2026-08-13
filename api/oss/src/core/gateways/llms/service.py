@@ -83,7 +83,7 @@ class _ResolvedLlmTarget:
         )
 
     def secret_ref(self) -> Optional[SecretRef]:
-        if self.namespace == GatewayEndpointNamespace.BUILTIN:
+        if self.namespace == GatewayEndpointNamespace.STANDARD:
             return ProviderKeyRef(provider_key=self.provider_key)
         if self.secret_id is not None:
             return BoundSecretRef(secret_id=self.secret_id)
@@ -211,7 +211,7 @@ class LlmGatewayService:
         )
 
     async def list_endpoints(self, *, scope: AuthScope) -> List[LlmEndpoint]:
-        """The merge (D20): generated builtin endpoints, existing iff a provider_key secret
+        """The merge (D20): generated standard endpoints, existing iff a provider_key secret
         exists for the provider, plus every custom row. The only read that spans namespaces.
 
         Takes the scope rather than a bare project_id (R14): existence is a per-owner fact
@@ -356,12 +356,12 @@ class LlmGatewayService:
     async def _resolve_target(
         self, *, project_id: UUID, namespace: GatewayEndpointNamespace, name: str
     ) -> _ResolvedLlmTarget:
-        if namespace == GatewayEndpointNamespace.BUILTIN:
+        if namespace == GatewayEndpointNamespace.STANDARD:
             endpoint = standard_llm_endpoint(provider_key=name)
             if endpoint is None:
                 raise LlmEndpointNotFoundError(namespace=namespace, name=name)
             return _ResolvedLlmTarget(
-                namespace=GatewayEndpointNamespace.BUILTIN,
+                namespace=GatewayEndpointNamespace.STANDARD,
                 name=name,
                 provider_key=endpoint.provider_key,
                 deployment=endpoint.deployment,
@@ -389,7 +389,7 @@ class LlmGatewayService:
                 is_active=row.flags.is_active,
             )
 
-        # AGENTA: reserved, empty on the LLM plane (D27, §2.3) — nothing resolves here yet.
+        # BUILTIN: reserved, empty on the LLM plane until we supply the key (D30).
         raise LlmEndpointNotFoundError(namespace=namespace, name=name)
 
     @staticmethod

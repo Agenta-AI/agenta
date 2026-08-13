@@ -14,7 +14,7 @@ def test_standard_llm_endpoint_openai_matches_the_catalogue_exactly():
     endpoint = standard_llm_endpoint(provider_key="openai")
 
     assert endpoint is not None
-    assert endpoint.namespace == GatewayEndpointNamespace.BUILTIN
+    assert endpoint.namespace == GatewayEndpointNamespace.STANDARD
     assert endpoint.slug == "openai"
     assert endpoint.deployment == LlmDeploymentKind.DIRECT
     assert endpoint.data.model_slugs == supported_llm_models["openai"]

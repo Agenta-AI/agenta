@@ -306,15 +306,15 @@ async def test_query_endpoints_delegates_to_dao_and_returns_its_rows():
 
 
 @pytest.mark.asyncio
-async def test_list_endpoints_agenta_entry_has_no_id_and_agenta_namespace():
+async def test_list_endpoints_agenta_entry_has_no_id_and_builtin_namespace():
     service = _service()
 
     endpoints = await service.list_endpoints(scope=_scope())
 
-    agenta = [e for e in endpoints if e.namespace.value == "agenta"]
+    agenta = [e for e in endpoints if e.slug == "tools"]
     assert len(agenta) == 1
     assert agenta[0].id is None
-    assert agenta[0].slug == "tools"
+    assert agenta[0].namespace.value == "builtin"
 
 
 @pytest.mark.asyncio
@@ -324,8 +324,10 @@ async def test_list_endpoints_builtin_entries_stamp_connection_fields():
 
     endpoints = await service.list_endpoints(scope=_scope())
 
-    builtin = [e for e in endpoints if e.namespace.value == "builtin"]
+    # both providers land in `builtin` now, so select composio's by its connection
+    builtin = [e for e in endpoints if e.connection_id is not None]
     assert len(builtin) == 1
+    assert builtin[0].namespace.value == "builtin"
     assert builtin[0].connection_id == connection.id
     assert builtin[0].provider_key == "composio"
     assert builtin[0].integration_key == "notion"
@@ -625,7 +627,7 @@ def _relay_service(
 
 
 @pytest.mark.asyncio
-async def test_relay_agenta_none_scheme_dispatches_without_touching_resolver():
+async def test_relay_builtin_agenta_none_scheme_dispatches_without_touching_resolver():
     adapter = MockUpstreamAdapter()
     resolver = MockResolver()
     policy = MockPolicyService()
@@ -635,7 +637,8 @@ async def test_relay_agenta_none_scheme_dispatches_without_touching_resolver():
 
     result = await service.relay(
         scope=_scope(),
-        namespace="agenta",
+        namespace="builtin",
+        provider="agenta",
         name="tools",
         context=McpCallContext(method="tools/call", target="echo"),
         body=b"{}",

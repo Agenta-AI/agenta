@@ -172,16 +172,16 @@ async def test_streaming_call_passes_body_through_streaming_response_untouched()
 
 
 @pytest.mark.asyncio
-async def test_builtin_route_passes_builtin_namespace_and_provider_as_name():
+async def test_standard_route_passes_standard_namespace_and_provider_as_name():
     service = _MockLlmGatewayService(
         relay_result=_relay_result(status_code=200, chunks=[b"{}"])
     )
     proxy = LlmGatewayProxy(llm_gateway_service=service)
 
     with _auth_scope():
-        await proxy.chat_completions_builtin(_request(body=_body()), "openai")
+        await proxy.chat_completions_standard(_request(body=_body()), "openai")
 
-    assert service.relay_calls[0]["namespace"] == GatewayEndpointNamespace.BUILTIN
+    assert service.relay_calls[0]["namespace"] == GatewayEndpointNamespace.STANDARD
     assert service.relay_calls[0]["name"] == "openai"
 
 
@@ -353,12 +353,12 @@ async def test_ceiling_exceeded_names_the_three_values():
 
 
 @pytest.mark.asyncio
-async def test_list_models_builtin_shapes_the_openai_list_body():
+async def test_list_models_standard_shapes_the_openai_list_body():
     service = _MockLlmGatewayService(models=["gpt-4o", "gpt-4o-mini"])
     proxy = LlmGatewayProxy(llm_gateway_service=service)
 
     with _auth_scope():
-        result = await proxy.list_models_builtin("openai")
+        result = await proxy.list_models_standard("openai")
 
     assert result == {
         "object": "list",
@@ -367,7 +367,9 @@ async def test_list_models_builtin_shapes_the_openai_list_body():
             {"id": "gpt-4o-mini", "object": "model"},
         ],
     }
-    assert service.list_models_calls[0]["namespace"] == GatewayEndpointNamespace.BUILTIN
+    assert (
+        service.list_models_calls[0]["namespace"] == GatewayEndpointNamespace.STANDARD
+    )
     assert service.list_models_calls[0]["name"] == "openai"
 
 

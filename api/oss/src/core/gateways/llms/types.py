@@ -15,7 +15,7 @@ class LlmEndpointNotFoundError(GatewaysError):
 
 class LlmModelNotAllowedError(GatewaysError):
     """The model is outside the endpoint's allowlist — a custom endpoint's
-    declared model_slugs, or a builtin provider's catalogue (§4.3)."""
+    declared model_slugs, or a standard provider's catalogue (§4.3)."""
 
     def __init__(self, *, model: str, namespace: GatewayEndpointNamespace, name: str):
         self.model = model

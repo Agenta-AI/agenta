@@ -47,11 +47,11 @@ class GatewayConnectionRequirement(BaseModel):
 
 class GatewayEndpointNamespace(str, Enum):
     """The first URL segment under either plane — the same three words on both
-    (§2.3, D16, D27). The namespace selects the backend, which is what earns it
-    a place in the path."""
+    (§2.3, D30). The namespace selects the backend, and splits on whose secret pays:
+    builtin is ours and bills through us, standard and custom are the user's."""
 
-    AGENTA = "agenta"  # what Agenta serves; reserved and empty on the LLM plane
-    BUILTIN = "builtin"  # generated, never a row, never editable (D20, D21)
+    BUILTIN = "builtin"  # our account; a provider segment follows (agenta, composio)
+    STANDARD = "standard"  # a known shape, the user's secret; generated, never a row
     CUSTOM = "custom"  # a row; configurable
 
 

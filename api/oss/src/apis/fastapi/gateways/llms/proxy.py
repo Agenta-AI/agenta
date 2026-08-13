@@ -150,10 +150,10 @@ class LlmGatewayProxy:
         self.router = APIRouter()
 
         self.router.add_api_route(
-            "/builtin/{provider}/v1/chat/completions",
-            self.chat_completions_builtin,
+            "/standard/{provider}/v1/chat/completions",
+            self.chat_completions_standard,
             methods=["POST"],
-            operation_id="llm_gateway_chat_completions_builtin",
+            operation_id="llm_gateway_chat_completions_standard",
         )
         self.router.add_api_route(
             "/custom/{slug}/v1/chat/completions",
@@ -162,10 +162,10 @@ class LlmGatewayProxy:
             operation_id="llm_gateway_chat_completions_custom",
         )
         self.router.add_api_route(
-            "/builtin/{provider}/v1/models",
-            self.list_models_builtin,
+            "/standard/{provider}/v1/models",
+            self.list_models_standard,
             methods=["GET"],
-            operation_id="llm_gateway_list_models_builtin",
+            operation_id="llm_gateway_list_models_standard",
         )
         self.router.add_api_route(
             "/custom/{slug}/v1/models",
@@ -176,11 +176,11 @@ class LlmGatewayProxy:
 
     # --- chat completions ---------------------------------------------------- #
 
-    async def chat_completions_builtin(
+    async def chat_completions_standard(
         self, request: Request, provider: str
     ) -> Response:
         return await self._chat_completions(
-            request, namespace=GatewayEndpointNamespace.BUILTIN, name=provider
+            request, namespace=GatewayEndpointNamespace.STANDARD, name=provider
         )
 
     async def chat_completions_custom(self, request: Request, slug: str) -> Response:
@@ -243,9 +243,9 @@ class LlmGatewayProxy:
 
     # --- models ---------------------------------------------------------------- #
 
-    async def list_models_builtin(self, provider: str) -> Any:
+    async def list_models_standard(self, provider: str) -> Any:
         return await self._list_models(
-            namespace=GatewayEndpointNamespace.BUILTIN, name=provider
+            namespace=GatewayEndpointNamespace.STANDARD, name=provider
         )
 
     async def list_models_custom(self, slug: str) -> Any:

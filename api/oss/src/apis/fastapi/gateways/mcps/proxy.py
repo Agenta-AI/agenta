@@ -30,7 +30,10 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from fastapi import APIRouter, Request, Response, status
 
-from oss.src.apis.fastapi.gateways.mcps.utils import parse_mcp_call_context
+from oss.src.apis.fastapi.gateways.mcps.utils import (
+    parse_mcp_call_context,
+    split_builtin_path,
+)
 from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
@@ -226,13 +229,7 @@ class McpGatewayProxy:
         self.router = APIRouter()
 
         self.router.add_api_route(
-            "/agenta/{slug:path}",
-            self.relay_agenta,
-            methods=["POST"],
-            operation_id="mcp_gateway_relay_agenta",
-        )
-        self.router.add_api_route(
-            "/builtin/{provider}/{integration}/{connection}",
+            "/builtin/{provider}/{rest:path}",
             self.relay_builtin,
             methods=["POST"],
             operation_id="mcp_gateway_relay_builtin",
@@ -245,8 +242,7 @@ class McpGatewayProxy:
         )
 
         for path in (
-            "/agenta/{slug:path}",
-            "/builtin/{provider}/{integration}/{connection}",
+            "/builtin/{provider}/{rest:path}",
             "/custom/{slug}",
         ):
             self.router.add_api_route(
@@ -293,25 +289,16 @@ class McpGatewayProxy:
         )
 
     @intercept_exceptions()
-    async def relay_agenta(self, request: Request, slug: str) -> Response:
-        return await self._relay(
-            request=request,
-            namespace=GatewayEndpointNamespace.AGENTA,
-            name=slug,
-        )
-
-    @intercept_exceptions()
     async def relay_builtin(
-        self,
-        request: Request,
-        provider: str,
-        integration: str,
-        connection: str,
+        self, request: Request, provider: str, rest: str
     ) -> Response:
+        # Each builtin provider owns the grammar under its own segment (D30): composio
+        # addresses a connection as {integration}/{connection}, agenta a bare slug.
+        integration, name = split_builtin_path(provider=provider, rest=rest)
         return await self._relay(
             request=request,
             namespace=GatewayEndpointNamespace.BUILTIN,
-            name=connection,
+            name=name,
             provider=provider,
             integration=integration,
         )

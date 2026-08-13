@@ -36,7 +36,7 @@ def standard_llm_endpoint(*, provider_key: str) -> Optional[LlmEndpoint]:
         header=Header(name=provider_key),
         provider_key=provider_key,
         deployment=LlmDeploymentKind.DIRECT,
-        namespace=GatewayEndpointNamespace.BUILTIN,
+        namespace=GatewayEndpointNamespace.STANDARD,
         data=LlmEndpointData(
             route=_route(provider_key),
             model_slugs=list(model_slugs),

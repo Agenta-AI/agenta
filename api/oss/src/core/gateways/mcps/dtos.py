@@ -23,6 +23,12 @@ from oss.src.core.shared.dtos import (
 )
 
 
+# The providers inside the `builtin` namespace (D30). Agenta is one supplier among
+# them, not a namespace of its own.
+AGENTA_PROVIDER = "agenta"
+COMPOSIO_PROVIDER = "composio"
+
+
 class McpToolPolicyMode(str, Enum):
     ALL = "all"
     INCLUDE = "include"

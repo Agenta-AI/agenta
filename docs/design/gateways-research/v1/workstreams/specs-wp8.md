@@ -34,7 +34,7 @@ add routes or parameters not listed here.
 ### The route grammar — three shapes, three different arities (D27, §2.3)
 
 ```text
-/gateways/mcps/agenta/{slug}                                  agenta/tools
+/gateways/mcps/builtin/agenta/{slug}                                  agenta/tools
 /gateways/mcps/builtin/{provider}/{integration}/{connection}  builtin/composio/notion/my-notion
 /gateways/mcps/custom/{slug}                                  custom/acme-notion
 ```
@@ -362,13 +362,13 @@ unchanged and a tool outside the allowlist is refused."* Concretely, once
 WP8 and WP9 are both merged at M2 and the stack is deployed:
 
 ```text
-POST /gateways/mcps/agenta/<mock-slug>   {"method":"tools/list", ...}
+POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/list", ...}
   -> 200, body identical to the mock server's own tools/list response
 
-POST /gateways/mcps/agenta/<mock-slug>   {"method":"tools/call","tool":"<in-policy>", ...}
+POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/call","tool":"<in-policy>", ...}
   -> 200, body identical to the mock server's own tool result
 
-POST /gateways/mcps/agenta/<mock-slug>   {"method":"tools/call","tool":"<not-in-policy>", ...}
+POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/call","tool":"<not-in-policy>", ...}
   -> 403, McpToolNotAllowedError mapped through handle_gateway_exceptions
 ```
 

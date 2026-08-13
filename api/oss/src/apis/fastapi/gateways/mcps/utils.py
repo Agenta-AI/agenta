@@ -7,9 +7,9 @@ Header names pinned against the 2026-07-28 MCP revision
 (`tools/list`, `server/discover`, ...). The body is never parsed for routing.
 """
 
-from typing import Dict
+from typing import Dict, Optional, Tuple
 
-from oss.src.core.gateways.mcps.dtos import McpCallContext
+from oss.src.core.gateways.mcps.dtos import COMPOSIO_PROVIDER, McpCallContext
 
 MCP_METHOD_HEADER = "Mcp-Method"
 MCP_NAME_HEADER = "Mcp-Name"
@@ -30,3 +30,17 @@ def parse_mcp_call_context(*, headers: Dict[str, str]) -> McpCallContext:
     target = (lowered.get(MCP_NAME_HEADER.lower()) or "").strip() or None
 
     return McpCallContext(method=method, target=target)
+
+
+def split_builtin_path(*, provider: str, rest: str) -> Tuple[Optional[str], str]:
+    """Split a builtin path's remainder into (integration, name) for its provider.
+
+    Composio addresses a connection as `{integration}/{connection}`; `agenta` serves its
+    own endpoints under a bare slug (D30). An unknown provider is read the same way as
+    agenta — resolution is what refuses it, not this parse.
+    """
+    remainder = rest.strip("/")
+    if provider == COMPOSIO_PROVIDER:
+        integration, _, name = remainder.partition("/")
+        return integration or None, name
+    return None, remainder

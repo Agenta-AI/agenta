@@ -323,7 +323,11 @@ It is legacy. It is not moved, not reinterpreted, and not fixed as part of this 
 
 It is removed only once the gateway is the sole mechanism the whole system uses.
 
-## D27. Three namespaces on both planes — `agenta`, `builtin`, `custom` — and the namespace picks the backend
+## D27. Three namespaces on both planes — and the namespace picks the backend
+
+**SUPERSEDED IN PART BY D30**, which replaces the set with `builtin` / `standard` / `custom`
+and demotes `agenta` to a provider inside `builtin`. What survives here: the spelling rule,
+the reserve-all-three rule, and the backend-selection table below.
 
 **Spelled without a hyphen.** The namespace is a path segment in every gateway URL, so it stays
 one lowercase word: `builtin`, never `built-in`.
@@ -362,12 +366,12 @@ That is what makes it worth being in the path rather than in a column.
 ### The route grammar
 
 ```text
-/gateways/mcps/agenta/{slug}                                  agenta/tools
+/gateways/mcps/builtin/agenta/{slug}                                  agenta/tools
 /gateways/mcps/builtin/{provider}/{integration}/{connection}  builtin/composio/notion/my-notion
 /gateways/mcps/custom/{slug}                                  custom/acme-notion
 
 /gateways/llms/agenta/{slug}                                  reserved, empty today
-/gateways/llms/builtin/{provider}                             builtin/openai
+/gateways/llms/standard/{provider}                             builtin/openai
 /gateways/llms/custom/{slug}                                  custom/acme-azure
 ```
 
@@ -631,6 +635,42 @@ boundary, on the same reasoning as `McpScopeInsufficientError` (§5): the type c
 having it now means the wave that adds limits changes a body rather than a signature. The
 permission check is untouched and remains wave 1 — permissions and entitlements answer different
 questions, and conflating them is a known trap.
+
+---
+
+## D30. Three namespaces — `builtin`, `standard`, `custom` — split by whose secret pays. Supersedes D27's set
+
+D27 named the three `agenta` / `builtin` / `custom` and treated `builtin` as an alias of the
+secrets domain's *standard*. That alias was the error. The two are not the same idea, and the
+difference is the one that decides who gets billed.
+
+| Namespace | Whose secret | Who pays the upstream | LLM plane | MCP plane |
+|---|---|---|---|---|
+| `builtin` | **Agenta's.** We hold the account | Us, so we charge the caller | Reserved today; where a model we supply the key for lands | `agenta` tools and `composio` tools |
+| `standard` | **The user's.** We only know the shape | The user, directly | The generated provider set — openai, anthropic, and the rest | Reserved, empty today |
+| `custom` | The user's | The user, directly | A stored row: their own deployment or reseller | A stored row: a server they brought by URL |
+
+**`standard` is not `builtin` under another name.** A standard target is one whose wire we already
+know — the models, the base URL, the auth shape — so the user picks it from a list instead of
+typing it. They still bring the key, and the provider bills them. A builtin target is one we own
+the account for: nothing to bring, and the cost lands on us before we pass it on. Metering attaches
+to `builtin` alone; `standard` and `custom` need no charging path at all. Calling both `builtin`
+would have put a billing boundary inside a namespace.
+
+**`agenta` is a provider inside `builtin`, not a namespace of its own.** It was never a fourth kind
+of thing — it is us, as one supplier among the builtin suppliers, next to `composio`. So the
+builtin path carries a provider segment and the rest is that provider's own grammar:
+`/builtin/agenta/tools`, `/builtin/composio/{integration}/{connection}`.
+
+**The internal vocabulary mismatch D27 absorbed disappears.** The secrets domain says *standard*
+and now so does the URL. The two-line mapping D27 defended is deleted rather than defended.
+
+**Each plane still reserves all three**, for D27's original reason: taking a keyword costs nothing
+now, discovering later that something else took it costs a migration of live URLs. Today LLM's
+`builtin` is empty and MCP's `standard` is empty.
+
+**No migration.** `namespace` was never a column — every stored row is `custom` and the other two
+are derived. The change is the enum, the route grammar and the catalogue's naming.
 
 ---
 

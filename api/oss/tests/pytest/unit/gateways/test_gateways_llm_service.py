@@ -287,7 +287,7 @@ async def test_list_endpoints_merges_generated_and_custom_with_two_keys():
 
     result = await _service(dao=dao, resolver=resolver).list_endpoints(scope=_scope())
 
-    generated = [e for e in result if e.namespace == GatewayEndpointNamespace.BUILTIN]
+    generated = [e for e in result if e.namespace == GatewayEndpointNamespace.STANDARD]
     assert {e.provider_key for e in generated} == {"openai", "anthropic"}
     assert custom_row in result
     assert len(result) == len(generated) + 1
@@ -321,11 +321,11 @@ async def test_list_models_custom_returns_model_slugs_exactly():
 
 
 @pytest.mark.asyncio
-async def test_list_models_builtin_returns_catalogue_slugs_verbatim():
+async def test_list_models_standard_returns_catalogue_slugs_verbatim():
     from agenta.sdk.utils.assets import supported_llm_models
 
     slugs = await _service().list_models(
-        scope=_scope(), namespace=GatewayEndpointNamespace.BUILTIN, name="anthropic"
+        scope=_scope(), namespace=GatewayEndpointNamespace.STANDARD, name="anthropic"
     )
 
     assert slugs == supported_llm_models["anthropic"]
