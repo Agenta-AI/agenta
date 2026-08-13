@@ -10,14 +10,15 @@ import {
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {ProviderDrawer, providerIconFor} from "@agenta/entity-ui/secretProvider"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
-import {Plus, Trash, WarningCircle} from "@phosphor-icons/react"
-import {Button, Popconfirm, Typography} from "antd"
+import {PencilSimpleLine, Plus, Trash, WarningCircle} from "@phosphor-icons/react"
+import {Button, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
@@ -38,8 +39,9 @@ interface ConnectionRow extends ProviderConnection {
  *
  * One table of CONNECTIONS, not of providers: a project may hold two OpenAI keys, and each is its
  * own row with its own name, models, and harnesses. Clicking a row opens that connection's card
- * directly; "Add provider" opens the same drawer at the catalog. No modals and no toasts anywhere
- * in the flow — the card carries its own errors, and removal confirms in place.
+ * directly; "Add provider" opens the same drawer at the catalog. No toasts anywhere in the flow —
+ * the card carries its own errors, and a removal that fails says so under the table it happened in.
+ * Removal itself confirms in the same modal the other settings tables use.
  *
  * Design: docs/design/provider-connections-models/experience.md ("Settings page").
  */
@@ -51,7 +53,8 @@ const AIProviders = () => {
 
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [selected, setSelected] = useState<ProviderConnection | null>(null)
-    const [removingId, setRemovingId] = useState<string | null>(null)
+    const [pendingRemoval, setPendingRemoval] = useState<ProviderConnection | null>(null)
+    const [removing, setRemoving] = useState(false)
     const [removeError, setRemoveError] = useState<string | null>(null)
 
     const rows = useMemo<ConnectionRow[]>(
@@ -69,42 +72,43 @@ const AIProviders = () => {
         setDrawerOpen(true)
     }, [])
 
-    const removeConnection = useCallback(
-        async (connection: ProviderConnection) => {
-            setRemovingId(connection.id)
-            setRemoveError(null)
-            try {
-                await deleteSecret(connection.source)
-                mutate()
-            } catch {
-                // No toast anywhere in this flow: the failure is stated under the table it happened in.
-                setRemoveError(`Agenta could not remove ${connection.name}. Try again.`)
-            } finally {
-                setRemovingId(null)
-            }
-        },
-        [deleteSecret, mutate],
-    )
+    const removeConnection = useCallback(async () => {
+        if (!pendingRemoval) return
+        setRemoving(true)
+        setRemoveError(null)
+        try {
+            await deleteSecret(pendingRemoval.source)
+            mutate()
+        } catch {
+            // No toast anywhere in this flow: the failure is stated under the table it happened in,
+            // which is why the confirmation closes either way.
+            setRemoveError(`Agenta could not remove ${pendingRemoval.name}. Try again.`)
+        } finally {
+            setRemoving(false)
+            setPendingRemoval(null)
+        }
+    }, [deleteSecret, mutate, pendingRemoval])
 
     const columns = useMemo(
         () =>
             createStandardColumns<ConnectionRow>([
                 {
                     type: "text",
-                    key: "name",
+                    key: "kind",
                     title: "Provider",
-                    width: 280,
+                    width: 200,
                     fixed: "left",
                     render: (_value, record) => {
                         const Icon = providerIconFor(record.kind)
                         return (
                             <div className="flex min-w-0 items-center gap-2">
                                 <Icon className="h-5 w-5 shrink-0" />
-                                <span className="truncate">{record.name}</span>
+                                <span className="truncate">{record.title}</span>
                             </div>
                         )
                     },
                 },
+                {type: "text", key: "name", title: "Name", width: 200},
                 {
                     type: "text",
                     key: "credential",
@@ -124,7 +128,7 @@ const AIProviders = () => {
                 {
                     type: "text",
                     key: "created_at",
-                    title: "Connected",
+                    title: "Created",
                     width: 170,
                     render: (_value, record) =>
                         record.createdAt
@@ -132,37 +136,27 @@ const AIProviders = () => {
                             : "-",
                 },
                 {
-                    type: "text",
-                    key: "actions",
-                    title: "",
-                    width: 160,
-                    fixed: "right",
-                    render: (_value, record) => (
-                        // The row opens the card; the actions cell must not, or Remove opens it too.
-                        <div onClick={(event) => event.stopPropagation()}>
-                            <Popconfirm
-                                title="Remove key"
-                                description="Agents and prompts using this connection stop working."
-                                okText="Remove"
-                                okType="danger"
-                                cancelText="Cancel"
-                                onConfirm={() => void removeConnection(record)}
-                            >
-                                <Button
-                                    danger
-                                    type="text"
-                                    size="small"
-                                    icon={<Trash size={16} />}
-                                    loading={removingId === record.id}
-                                >
-                                    Remove key
-                                </Button>
-                            </Popconfirm>
-                        </div>
-                    ),
+                    type: "actions",
+                    showCopyId: false,
+                    items: [
+                        {
+                            key: "edit",
+                            label: "Edit",
+                            icon: <PencilSimpleLine size={16} />,
+                            onClick: (record: ConnectionRow) => openConnection(record),
+                        },
+                        {type: "divider"},
+                        {
+                            key: "delete",
+                            label: "Delete",
+                            icon: <Trash size={16} />,
+                            danger: true,
+                            onClick: (record: ConnectionRow) => setPendingRemoval(record),
+                        },
+                    ],
                 } satisfies StandardColumnDef<ConnectionRow>,
             ]),
-        [capabilities, removeConnection, removingId],
+        [capabilities, openConnection],
     )
 
     const {tableScope, pagination} = useStaticTable<ConnectionRow>("settings-ai-providers", rows, {
@@ -235,6 +229,32 @@ const AIProviders = () => {
                     .
                 </Typography.Text>
             </section>
+
+            <EnhancedModal
+                title="Are you sure you want to delete?"
+                open={!!pendingRemoval}
+                okText="Delete"
+                okType="danger"
+                okButtonProps={{icon: <Trash size={14} className="mt-0.5" />, type: "primary"}}
+                classNames={{footer: "flex items-center justify-end"}}
+                confirmLoading={removing}
+                onOk={() => void removeConnection()}
+                onCancel={() => setPendingRemoval(null)}
+            >
+                <div className="flex flex-col gap-4">
+                    <Typography.Text>
+                        This action is not reversible. Agents and prompts using this connection stop
+                        working.
+                    </Typography.Text>
+
+                    <div className="flex flex-col gap-1">
+                        <Typography.Text>You are about to delete:</Typography.Text>
+                        <Typography.Text className="text-sm font-medium">
+                            {pendingRemoval?.name}
+                        </Typography.Text>
+                    </div>
+                </div>
+            </EnhancedModal>
 
             <ProviderDrawer
                 open={drawerOpen}
