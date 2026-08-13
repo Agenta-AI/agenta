@@ -53,32 +53,39 @@ was followed and the tension is flagged here rather than resolved silently.
 
 ## Phase 3 — `TranslatedLlmAdapter`
 
-- [ ] `core/gateways/llms/providers/translated/__init__.py`.
-- [ ] `core/gateways/llms/providers/translated/adapter.py`: `TranslatedLlmAdapter(
+- [x] `core/gateways/llms/providers/translated/__init__.py`.
+- [x] `core/gateways/llms/providers/translated/adapter.py`: `TranslatedLlmAdapter(
       LlmUpstreamInterface)`, implementing `relay_chat_completion` per the exact interface
       signature (same as WP6's `PassthroughLlmAdapter`).
-- [ ] Model-string prefixing per `route.deployment`: `"azure/{model}"`, `"bedrock/{model}"`,
+- [x] Model-string prefixing per `route.deployment`: `"azure/{model}"`, `"bedrock/{model}"`,
       `"sagemaker/{model}"`, `"vertex_ai/{model}"`; `DIRECT` non-OpenAI-shaped providers use
       `route.model` as-is (already prefixed by the catalogue).
-- [ ] Credential kwargs: dispatch on `credential.secret.kind`
+- [x] Credential kwargs: dispatch on `credential.secret.kind`
       (`StandardProviderKind`/`CustomProviderKind`), mirroring
       `sdks/python/agenta/sdk/managers/secrets.py::get_provider_settings` STEP 4 exactly — merge
       `CustomProviderDTO.provider.extras` into the litellm kwargs dict; pull `api_version` from
       `route.api_version` (Azure) and `region` from `route.region` (Bedrock/Vertex), never from
       the secret.
-- [ ] Call `litellm.acompletion(model=..., **kwargs, stream=context.stream)`; wrap the response
+- [x] Call `litellm.acompletion(model=..., **kwargs, stream=context.stream)`; wrap the response
       (or async stream) into an `AsyncIterator[bytes]` of OpenAI-shaped SSE-framed chunks for
       `LlmRelayResult.body`.
-- [ ] Populate `GatewayUsage` from `response.usage` and a cost figure (`litellm.cost_calculator`
+- [x] Populate `GatewayUsage` from `response.usage` and a cost figure (`litellm.cost_calculator`
       or the response's own hidden cost param) — never leave `cost=None` on a successful call.
-- [ ] Catch litellm's exceptions and re-raise `LlmUpstreamError(provider_key=...,
+- [x] Catch litellm's exceptions and re-raise `LlmUpstreamError(provider_key=...,
       status_code=<if present>, detail=str(exc))`.
-- [ ] Ruff format + check; run and fix.
-- [ ] Unit tests, `litellm.acompletion` monkeypatched (no real network): `StandardProviderDTO`
+- [x] Ruff format + check; run and fix.
+- [x] Unit tests, `litellm.acompletion` monkeypatched (no real network): `StandardProviderDTO`
       credential passes `api_key`; `CustomProviderDTO` credential merges `extras`; `AZURE` prefix
       + `api_version` passed; `BEDROCK`/`VERTEX` pass `region`; a raised exception from the mock
       becomes `LlmUpstreamError`; usage/cost populated on a successful mocked response.
-- [ ] Commit: "wp7: TranslatedLlmAdapter".
+- [x] Commit: "wp7: TranslatedLlmAdapter".
+
+**Judgment calls:** litellm kwarg names for region are not specified anywhere in the design set —
+used `aws_region_name` (Bedrock) and `vertex_location` (Vertex), litellm's own parameter names.
+Streaming usage is requested via `stream_options={"include_usage": True}` (not mentioned in the
+spec) because without it litellm reports no usage at all on a streamed call, which would leave
+`GatewayUsage` permanently empty for every streaming call through this adapter — the interface
+docstring's "the translated adapter reports the library's count" only holds with this kwarg set.
 
 ## Phase 4 — Contract test extension
 
