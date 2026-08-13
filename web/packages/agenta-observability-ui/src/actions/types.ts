@@ -1,7 +1,6 @@
 import type {ReactNode} from "react"
 
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
-import type {ButtonProps} from "antd"
 
 export interface AddActionsDropdownAction {
     key: string
@@ -12,11 +11,11 @@ export interface AddActionsDropdownAction {
 }
 
 export interface AddActionsDropdownProps {
-    size?: ButtonProps["size"]
+    size?: "small" | "middle"
     disabled?: boolean
     className?: string
     buttonClassName?: string
-    buttonType?: ButtonProps["type"]
+    buttonType?: "primary" | "default"
     dataTour?: string
     testsetAction?: {
         disabled?: boolean

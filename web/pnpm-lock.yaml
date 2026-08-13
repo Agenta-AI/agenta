@@ -1675,6 +1675,9 @@ importers:
 
   packages/agenta-observability-ui:
     dependencies:
+      '@agenta/annotation-ui':
+        specifier: workspace:../agenta-annotation-ui
+        version: link:../agenta-annotation-ui
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities

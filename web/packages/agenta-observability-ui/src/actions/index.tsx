@@ -1,7 +1,9 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import {renderTableMenuItems, type TableMenuItem} from "@agenta/ui/table"
+import {Button} from "@agenta/ui/ui"
+import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui/ui"
 import {DatabaseIcon, ListChecks, ListPlus, PlusIcon} from "@phosphor-icons/react"
-import {Button, Dropdown, type MenuProps} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
@@ -68,8 +70,8 @@ const AddActionsDropdown = ({
         setDropdownOpen(nextOpen)
     }, [])
 
-    const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
-        ({key}) => {
+    const handleMenuClick = useCallback(
+        (key: string) => {
             setDropdownOpen(false)
 
             if (key === "testset") {
@@ -107,8 +109,8 @@ const AddActionsDropdown = ({
         [additionalActions, queueAction, queueAllMatchingAction, testsetAction],
     )
 
-    const menuItems = useMemo<NonNullable<MenuProps["items"]>>(() => {
-        const items: NonNullable<MenuProps["items"]> = []
+    const menuItems = useMemo<TableMenuItem[]>(() => {
+        const items: TableMenuItem[] = []
 
         if (testsetAction) {
             items.push({
@@ -153,29 +155,31 @@ const AddActionsDropdown = ({
 
     const button = (
         <Button
-            type={buttonType}
-            size={size}
+            variant={buttonType === "primary" ? "default" : "outline"}
+            size={size === "small" ? "sm" : "default"}
             className={clsx(buttonClassName)}
-            icon={<PlusIcon size={14} />}
             disabled={isButtonDisabled}
             aria-label="Add"
             data-tour={dataTour}
             onClick={handleButtonClick}
         >
+            <PlusIcon size={14} />
             Add
         </Button>
     )
 
     const dropdown = (
-        <Dropdown
-            trigger={["click"]}
-            open={dropdownOpen}
-            onOpenChange={handleDropdownOpenChange}
-            placement="bottomRight"
-            menu={{items: menuItems, onClick: handleMenuClick}}
-        >
-            {button}
-        </Dropdown>
+        <DropdownMenu open={dropdownOpen} onOpenChange={handleDropdownOpenChange}>
+            <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                {renderTableMenuItems(
+                    menuItems.map((item) => ({
+                        ...item,
+                        onClick: () => handleMenuClick(String(item.key)),
+                    })),
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 
     const hasQueuePicker = Boolean(queueAction || queueAllMatchingAction)

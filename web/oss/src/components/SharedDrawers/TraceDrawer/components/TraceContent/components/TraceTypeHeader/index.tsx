@@ -1,6 +1,7 @@
 import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
+import {deleteTraceModalAtom, DeleteTraceModal} from "@agenta/observability-ui"
 import {hasAppReference} from "@agenta/playground"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
@@ -9,7 +10,6 @@ import {Play, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
 
 import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
@@ -20,14 +20,9 @@ import {useAppNavigation} from "@/oss/state/appState"
 import {urlAtom} from "@/oss/state/url"
 import {buildPlaygroundUrl} from "@/oss/state/url/playground"
 
-import {deleteTraceModalAtom} from "../../../DeleteTraceModal/store/atom"
 import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
 
 import {TraceTypeHeaderProps} from "./types"
-
-const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
-    ssr: false,
-})
 
 /**
  * Span types whose inputs match the app's root input schema — the unit the

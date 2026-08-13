@@ -3,8 +3,10 @@ import {useCallback, useRef, useState} from "react"
 
 import {useObservability, useSessions} from "@agenta/observability"
 import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
+import {AddActionsDropdown, DeleteTraceModal, deleteTraceModalAtom} from "@agenta/observability-ui"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
+import {useSetAtom} from "jotai"
 import {MessagesSquare, Network} from "lucide-react"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -79,6 +81,12 @@ export const ObservabilityScreen = ({
     // Swallow the refetch results: the toolbar only needs the promise to settle.
     const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
     const {onExport, isExporting} = useTracesExportBinding()
+    const openDeleteModal = useSetAtom(deleteTraceModalAtom)
+
+    const onDelete = useCallback(
+        () => openDeleteModal({isOpen: true, traceIds: selectedRowKeys.map(String)}),
+        [openDeleteModal, selectedRowKeys],
+    )
 
     const onRefresh = useCallback(async () => {
         if (tab === "traces") await fetchTraces()
@@ -115,6 +123,22 @@ export const ObservabilityScreen = ({
                             filtersSlot={tab === "traces" ? <TracesFilters /> : undefined}
                             onExport={tab === "traces" ? onExport : undefined}
                             isExporting={isExporting}
+                            onDelete={tab === "traces" ? onDelete : undefined}
+                            actionsSlot={
+                                tab === "traces" ? (
+                                    <AddActionsDropdown
+                                        queueAction={{
+                                            itemType: "traces",
+                                            itemIds: selectedRowKeys.map(String),
+                                            label:
+                                                selectedRowKeys.length > 0
+                                                    ? `Add ${selectedRowKeys.length} selected to queue`
+                                                    : "Add selected to queue",
+                                            disabled: selectedRowKeys.length === 0,
+                                        }}
+                                    />
+                                ) : undefined
+                            }
                         />
                         <div
                             ref={bodyRef}
@@ -143,6 +167,7 @@ export const ObservabilityScreen = ({
                                 />
                             )}
                         </div>
+                        <DeleteTraceModal />
                     </PageLayout>
                 </ScreenScaffold>
             </AppShell>

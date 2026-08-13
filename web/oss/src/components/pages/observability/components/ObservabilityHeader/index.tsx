@@ -17,17 +17,17 @@ import {
     ObservabilityRangePicker,
     ObservabilityToolbar,
     useTracesExport,
+    DeleteTraceModal,
+    AddActionsDropdown,
 } from "@agenta/observability-ui"
+import {deleteTraceModalAtom} from "@agenta/observability-ui"
 import {projectIdAtom} from "@agenta/shared/state"
 import {modal} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
 
 import AnnotatedFilterDialog from "@/oss/components/Filters/AnnotatedFilterDialog"
 import {FILTER_COLUMN_ICONS} from "@/oss/components/pages/observability/assets/filterColumnIcons"
-import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
-import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
@@ -37,13 +37,6 @@ import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 import {ObservabilityHeaderProps} from "../../assets/types"
 
 import {useBatchAddTracesToQueue} from "./useBatchAddTracesToQueue"
-
-const DeleteTraceModal = dynamic(
-    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal"),
-    {
-        ssr: false,
-    },
-)
 
 /**
  * The observability / sessions chrome. The controls themselves live in
