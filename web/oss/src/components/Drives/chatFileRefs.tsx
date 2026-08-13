@@ -59,7 +59,8 @@ const recordIndexAtomFamily = atomFamily((sessionId: string) =>
 )
 
 /** True when the record log proves this mention names a written file (tail match). */
-const knownFromRecords = (byBasename: Map<string, string[]>, candidate: string): boolean => {
+export const knownFromRecords = (byBasename: Map<string, string[]>, candidate: string): boolean => {
+    if (!candidate.includes("/")) return false
     const base = candidate.split("/").pop() ?? candidate
     return Boolean(byBasename.get(base)?.some((t) => mountPathMatchesToolPath(candidate, t)))
 }
