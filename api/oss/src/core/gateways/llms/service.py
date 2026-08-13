@@ -50,11 +50,6 @@ from oss.src.core.gateways.policy.types import CeilingExceededError, PolicyDenie
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
 
-# available_provider_keys(scope=...) only ever reads scope.project_id (policy/resolution.py) —
-# list_endpoints's own signature is project_id-only (entities.md §8, not this package's to
-# widen), so the other three AuthScope fields are unused placeholders, not real identities.
-_NIL_UUID = UUID(int=0)
-
 
 @dataclass
 class _ResolvedLlmTarget:
@@ -204,15 +199,14 @@ class LlmGatewayService:
             project_id=project_id, endpoint=endpoint, windowing=windowing
         )
 
-    async def list_endpoints(self, *, project_id: UUID) -> List[LlmEndpoint]:
+    async def list_endpoints(self, *, scope: AuthScope) -> List[LlmEndpoint]:
         """The merge (D20): generated builtin endpoints, existing iff a provider_key secret
-        exists for the provider, plus every custom row. The only read that spans namespaces."""
-        scope = AuthScope(
-            organization_id=_NIL_UUID,
-            workspace_id=_NIL_UUID,
-            project_id=project_id,
-            user_id=_NIL_UUID,
-        )
+        exists for the provider, plus every custom row. The only read that spans namespaces.
+
+        Takes the scope rather than a bare project_id (R14): existence is a per-owner fact
+        the moment user-owned secrets ship, and fabricating an AuthScope to satisfy the port
+        put a nil UUID where a user identity goes."""
+        project_id = scope.project_id
         provider_keys = await self.resolver.available_provider_keys(scope=scope)
 
         generated = [

@@ -287,9 +287,7 @@ async def test_list_endpoints_merges_generated_and_custom_with_two_keys():
     dao.query_result = [custom_row]
     resolver = _FakeResolver(provider_keys={"openai", "anthropic"})
 
-    result = await _service(dao=dao, resolver=resolver).list_endpoints(
-        project_id=uuid4()
-    )
+    result = await _service(dao=dao, resolver=resolver).list_endpoints(scope=_scope())
 
     generated = [e for e in result if e.namespace == GatewayEndpointNamespace.BUILTIN]
     assert {e.provider_key for e in generated} == {"openai", "anthropic"}
@@ -304,9 +302,7 @@ async def test_list_endpoints_with_no_keys_yields_custom_rows_only():
     dao.query_result = [custom_row]
     resolver = _FakeResolver(provider_keys=set())
 
-    result = await _service(dao=dao, resolver=resolver).list_endpoints(
-        project_id=uuid4()
-    )
+    result = await _service(dao=dao, resolver=resolver).list_endpoints(scope=_scope())
 
     assert result == [custom_row]
 

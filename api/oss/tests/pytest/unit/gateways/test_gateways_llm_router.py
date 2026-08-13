@@ -61,7 +61,7 @@ class FakeLlmGatewayService:
         self.calls.append("create_endpoint")
         return self.create_return
 
-    async def list_endpoints(self, *, project_id):
+    async def list_endpoints(self, *, scope):
         self.calls.append("list_endpoints")
         return self.list_return
 

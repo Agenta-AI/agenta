@@ -1,4 +1,7 @@
-"""MCP plane DAO interfaces, south port, and upstream registry (entities.md §7, §7.1).
+"""MCP plane DAO interfaces and south port (entities.md §7, §7.1).
+
+The registry lives in `registry.py`, per §0's file layout. §7.1 shows it in the same code
+block as the port, which is presentation, not placement (R13).
 
 DAOs open their own sessions; services never touch the engine. `project_id` is first on
 every method (tenant scope is structural); `user_id` on writes only.
@@ -226,15 +229,4 @@ class McpUpstreamInterface(ABC):
         target is McpUpstreamError — a transport refusal, never relayed as an
         upstream body. Only `custom` needs it: agenta targets are ours and
         builtin targets are the broker's."""
-        raise NotImplementedError
-
-
-class McpUpstreamRegistry:
-    def __init__(self, *, adapters: Dict[str, McpUpstreamInterface]) -> None:
-        raise NotImplementedError
-
-    def get(self, key: str) -> McpUpstreamInterface:
-        raise NotImplementedError
-
-    def keys(self) -> list[str]:
         raise NotImplementedError

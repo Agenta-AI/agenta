@@ -150,9 +150,7 @@ class LlmGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.VIEW_LLM_ENDPOINTS)
 
-        endpoints = await self.service.list_endpoints(
-            project_id=scope.project_id,
-        )
+        endpoints = await self.service.list_endpoints(scope=scope)
 
         return LlmEndpointsResponse(count=len(endpoints), endpoints=endpoints)
 

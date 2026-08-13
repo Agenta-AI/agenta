@@ -162,23 +162,30 @@ from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 
-# GATEWAYS: core/gateways/ (entities.md). The planes' services and routers land with
-# their owning work packages (WP6/WP7 llms; WP8/WP9 mcps; WP10 CRUD).
+# GATEWAYS: core/gateways/ (entities.md §9 "Wiring"). Two router objects per plane —
+# management CRUD and the data plane are separate surfaces (§1).
 from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
 from oss.src.core.gateways.policy.resolution import CredentialResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
+from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry
+from oss.src.core.gateways.llms.service import LlmGatewayService
+from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
+from oss.src.core.gateways.llms.providers.passthrough.adapter import (
+    PassthroughLlmAdapter,
+)
+from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLlmAdapter
+from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
+from oss.src.core.gateways.mcps.service import McpGatewayService
+from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+from oss.src.core.gateways.mcps.providers.http.adapter import HttpMcpAdapter
+from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter
+from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter
+from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy
 
-# The fake adapters (WP5) are registered into the plane registries, which WP7 and WP9
-# own and which do not exist yet — so their imports land with those, not here.
-# from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
-# from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
-# from oss.src.core.gateways.llms.service import LlmGatewayService
-# from oss.src.core.gateways.mcps.service import McpGatewayService
-# from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter   # WP10
-# from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy     # WP6
-# from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter   # WP10
-# from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy     # WP8
+# ComposioMcpAdapter serves the builtin namespace and has no owner in wave 1: no brokered
+# target is reachable yet, so our own servers and the fakes are the whole set (D23).
 
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
@@ -1087,6 +1094,38 @@ credential_resolver = CredentialResolver(
 
 gateway_policy_service = GatewayPolicyService(resolver=credential_resolver)
 
+llm_gateway_service = LlmGatewayService(
+    llm_endpoints_dao=llm_endpoints_dao,
+    policy=gateway_policy_service,
+    resolver=credential_resolver,
+    upstream_registry=LlmUpstreamRegistry(
+        adapters={
+            "passthrough": PassthroughLlmAdapter(),
+            "translated": TranslatedLlmAdapter(),
+            "fake": FakeLlmAdapter(),
+        }
+    ),
+)
+
+mcp_gateway_service = McpGatewayService(
+    mcp_endpoints_dao=mcp_endpoints_dao,
+    mcp_grants_dao=mcp_grants_dao,
+    policy=gateway_policy_service,
+    resolver=credential_resolver,
+    connections_service=connections_service,
+    upstream_registry=McpUpstreamRegistry(
+        adapters={
+            "http": HttpMcpAdapter(),
+            "fake": FakeMcpAdapter(),
+        }
+    ),
+)
+
+llm_gateway_router = LlmGatewayRouter(llm_gateway_service=llm_gateway_service)
+llm_gateway_proxy = LlmGatewayProxy(llm_gateway_service=llm_gateway_service)
+mcp_gateway_router = McpGatewayRouter(mcp_gateway_service=mcp_gateway_service)
+mcp_gateway_proxy = McpGatewayProxy(mcp_gateway_service=mcp_gateway_service)
+
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
 )
@@ -1510,13 +1549,26 @@ app.include_router(
     include_in_schema=False,
 )
 
-# GATEWAYS: nothing mounted yet — each line lands with its owning package
-# (entities.md §9 "Wiring"). Two router OBJECTS per plane, not one with two
-# attributes: management CRUD and the data plane are separate (§1).
-# app.include_router(router=llm_gateway_router.router, prefix="/gateways/llms", tags=["Gateway: LLM"])   # WP10
-# app.include_router(router=llm_gateway_proxy.router,  prefix="/gateways/llms", include_in_schema=False)  # WP6
-# app.include_router(router=mcp_gateway_router.router, prefix="/gateways/mcps", tags=["Gateway: MCP"])   # WP10
-# app.include_router(router=mcp_gateway_proxy.router,  prefix="/gateways/mcps", include_in_schema=False)  # WP8
+app.include_router(
+    router=llm_gateway_router.router,
+    prefix="/gateways/llms",
+    tags=["Gateway: LLM"],
+)
+app.include_router(
+    router=llm_gateway_proxy.router,
+    prefix="/gateways/llms",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_gateway_router.router,
+    prefix="/gateways/mcps",
+    tags=["Gateway: MCP"],
+)
+app.include_router(
+    router=mcp_gateway_proxy.router,
+    prefix="/gateways/mcps",
+    include_in_schema=False,
+)
 
 app.include_router(
     router=sessions.interactions.router,

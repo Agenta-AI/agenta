@@ -168,9 +168,7 @@ class McpGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.VIEW_MCP_ENDPOINTS)
 
-        endpoints = await self.service.list_endpoints(
-            project_id=scope.project_id,
-        )
+        endpoints = await self.service.list_endpoints(scope=scope)
 
         return McpEndpointsResponse(count=len(endpoints), endpoints=endpoints)
 

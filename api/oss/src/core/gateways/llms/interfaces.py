@@ -1,4 +1,7 @@
-"""LLM plane DAO interface, south port, and upstream registry (entities.md §7, §7.1).
+"""LLM plane DAO interface and south port (entities.md §7, §7.1).
+
+The registry lives in `registry.py`, per §0's file layout. §7.1 shows it in the same code
+block as the port, which is presentation, not placement (R13).
 
 DAOs open their own sessions; services never touch the engine. `project_id` is first on
 every method (tenant scope is structural); `user_id` on writes only.
@@ -140,14 +143,3 @@ class LlmUpstreamInterface(ABC):
         raise NotImplementedError
 
     # async def relay_embedding(...) -> LlmRelayResult — deferred with the evaluator path (D15)
-
-
-class LlmUpstreamRegistry:
-    def __init__(self, *, adapters: Dict[str, LlmUpstreamInterface]) -> None:
-        raise NotImplementedError
-
-    def get(self, key: str) -> LlmUpstreamInterface:
-        raise NotImplementedError
-
-    def keys(self) -> list[str]:
-        raise NotImplementedError

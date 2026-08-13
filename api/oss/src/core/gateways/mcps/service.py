@@ -195,7 +195,11 @@ class McpGatewayService:
 
     # --- the three-namespace merge (D27) ------------------------------------- #
 
-    async def list_endpoints(self, *, project_id: UUID) -> List[McpEndpoint]:
+    async def list_endpoints(self, *, scope: AuthScope) -> List[McpEndpoint]:
+        """Takes the scope rather than a bare project_id (R14). §8 derives
+        GatewayConnectionState "per owner and per namespace", which a project_id alone
+        cannot express; `_connection_state` is the seam that wiring lands on."""
+        project_id = scope.project_id
         custom = await self.mcp_endpoints_dao.query_endpoints(project_id=project_id)
 
         connections = await self.connections_service.query_connections(

@@ -77,7 +77,6 @@ from oss.src.core.gateways.llms.interfaces import (
     LlmEndpointsDAOInterface,
     LlmRelayResult,
     LlmUpstreamInterface,
-    LlmUpstreamRegistry,
 )
 
 from oss.src.core.gateways.mcps.dtos import (
@@ -112,7 +111,6 @@ from oss.src.core.gateways.mcps.interfaces import (
     McpGrantsDAOInterface,
     McpRelayResult,
     McpUpstreamInterface,
-    McpUpstreamRegistry,
 )
 
 from oss.src.apis.fastapi.gateways.exceptions import handle_gateway_exceptions
@@ -308,8 +306,6 @@ async def test_llm_relay_result_and_ports():
     assert LlmUpstreamInterface.__abstractmethods__ == frozenset(
         {"relay_chat_completion"}
     )
-    with pytest.raises(NotImplementedError):
-        LlmUpstreamRegistry(adapters={})
 
 
 # --- MCP plane --------------------------------------------------------------- #
@@ -442,8 +438,6 @@ def test_mcp_relay_result_and_ports():
         }
     )
     assert McpUpstreamInterface.__abstractmethods__ == frozenset({"relay"})
-    with pytest.raises(NotImplementedError):
-        McpUpstreamRegistry(adapters={})
 
 
 # --- API boundary -------------------------------------------------------------- #

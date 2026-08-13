@@ -309,7 +309,7 @@ async def test_query_endpoints_delegates_to_dao_and_returns_its_rows():
 async def test_list_endpoints_agenta_entry_has_no_id_and_agenta_namespace():
     service = _service()
 
-    endpoints = await service.list_endpoints(project_id=uuid4())
+    endpoints = await service.list_endpoints(scope=_scope())
 
     agenta = [e for e in endpoints if e.namespace.value == "agenta"]
     assert len(agenta) == 1
@@ -322,7 +322,7 @@ async def test_list_endpoints_builtin_entries_stamp_connection_fields():
     connection = _connection(slug="my-notion", integration_key="notion")
     service = _service(connections_service=FakeConnectionsService([connection]))
 
-    endpoints = await service.list_endpoints(project_id=uuid4())
+    endpoints = await service.list_endpoints(scope=_scope())
 
     builtin = [e for e in endpoints if e.namespace.value == "builtin"]
     assert len(builtin) == 1
@@ -338,7 +338,7 @@ async def test_list_endpoints_builtin_queries_connections_service_for_composio_o
     connections_service = FakeConnectionsService([_connection()])
     service = _service(connections_service=connections_service)
 
-    await service.list_endpoints(project_id=uuid4())
+    await service.list_endpoints(scope=_scope())
 
     assert connections_service.query_connections_calls == [
         {"provider_key": "composio", "integration_key": None}
@@ -353,7 +353,7 @@ async def test_list_endpoints_custom_rows_carry_custom_namespace():
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create("acme-notion")
     )
 
-    endpoints = await service.list_endpoints(project_id=uuid4())
+    endpoints = await service.list_endpoints(scope=_scope())
 
     custom = [e for e in endpoints if e.namespace.value == "custom"]
     assert len(custom) == 1
@@ -368,7 +368,7 @@ async def test_list_endpoints_never_writes_a_generated_entry_to_the_dao():
         connections_service=FakeConnectionsService([_connection()]),
     )
 
-    await service.list_endpoints(project_id=uuid4())
+    await service.list_endpoints(scope=_scope())
 
     assert "create_endpoint" not in dao.calls
     assert "edit_endpoint" not in dao.calls

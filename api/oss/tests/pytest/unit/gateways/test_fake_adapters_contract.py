@@ -32,6 +32,7 @@ from oss.src.core.gateways.mcps.dtos import (
 )
 from oss.src.core.gateways.mcps.interfaces import McpRelayResult
 from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+from oss.src.utils.env import env
 
 
 def _optional_instance(module_path: str, class_name: str):
@@ -73,6 +74,30 @@ def _passthrough_llm_adapter():
     return adapter_cls(client=httpx.AsyncClient(transport=transport))
 
 
+def _mcp_mock_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": {}})
+
+
+def _http_mcp_adapter():
+    """Like the passthrough one, HttpMcpAdapter makes a real outbound call, so it
+    gets an `httpx.MockTransport` rather than a bare constructor.
+
+    It also runs the outbound guard (D28) before that transport is ever reached, and
+    the fake's compose address is exactly what the guard blocks: plain http to a
+    private host. Reaching it takes the same host allowlist a deployment uses — see
+    `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` in the dev compose files — so the test
+    exercises the real path instead of pretending the guard is not there."""
+    try:
+        module = importlib.import_module(
+            "oss.src.core.gateways.mcps.providers.http.adapter"
+        )
+        adapter_cls = module.HttpMcpAdapter
+    except (ImportError, AttributeError):
+        return None
+
+    return adapter_cls(transport=httpx.MockTransport(_mcp_mock_handler))
+
+
 _LLM_ADAPTER_PARAMS = [
     _adapter_param(FakeLlmAdapter(), name="FakeLlmAdapter"),
     _adapter_param(_passthrough_llm_adapter(), name="PassthroughLlmAdapter"),
@@ -87,12 +112,7 @@ _LLM_ADAPTER_PARAMS = [
 
 _MCP_ADAPTER_PARAMS = [
     _adapter_param(FakeMcpAdapter(), name="FakeMcpAdapter"),
-    _adapter_param(
-        _optional_instance(
-            "oss.src.core.gateways.mcps.providers.http.adapter", "HttpMcpAdapter"
-        ),
-        name="HttpMcpAdapter",
-    ),
+    _adapter_param(_http_mcp_adapter(), name="HttpMcpAdapter"),
     _adapter_param(
         _optional_instance(
             "oss.src.core.gateways.mcps.providers.composio.adapter",
@@ -172,7 +192,13 @@ async def test_relay_chat_completion_returns_llm_relay_result(adapter):
 
 @pytest.mark.parametrize("adapter", _MCP_ADAPTER_PARAMS)
 @pytest.mark.parametrize("method", ["initialize", "tools/list", "tools/call"])
-async def test_relay_returns_mcp_relay_result(adapter, method):
+async def test_relay_returns_mcp_relay_result(adapter, method, monkeypatch):
+    # The fake's compose address is plain http to a private host, which the outbound
+    # guard blocks by design (D28). A deployment reaches it through the host
+    # allowlist; so does this test, rather than disabling the guard.
+    monkeypatch.setattr(
+        env.mcp_gateway, "host_allowlist", ["fake-mcp-gateway"], raising=False
+    )
     route = McpResolvedRoute(url="http://fake-mcp-gateway:9092/")
     auth = McpDirectAuth(credential=None)
     payload = {"jsonrpc": "2.0", "id": 1, "method": method}
