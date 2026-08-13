@@ -117,12 +117,8 @@ const BY_TOOL_NAME: Record<string, ToolDisplayOverride> = {
     write: {kind: "file", activity: {running: "Writing a file", done: "Wrote a file"}},
 }
 
-/**
- * Verb forms for external tool actions (`SEND_EMAIL`, `SEARCH_ISSUES`).
- *
- * Deliberately a closed list: an action whose leading word is missing here keeps its plain label,
- * so an unfamiliar verb reads as it does today instead of as "Getted".
- */
+/** Verb forms for `verb noun` tool names. Closed on purpose: an unknown verb keeps its plain
+ * label rather than reading as "Getted". */
 const VERB_FORMS: Record<string, ToolActivity> = {
     add: {running: "Adding", done: "Added"},
     annotate: {running: "Annotating", done: "Annotated"},
@@ -164,13 +160,8 @@ const VERB_FORMS: Record<string, ToolActivity> = {
     write: {running: "Writing", done: "Wrote"},
 }
 
-/**
- * What our internal nouns are called in the product, article included.
- *
- * `create_subscription` is a trigger, `query_spans` reads runs, `read_config` reads the agent's
- * setup. Applied ONLY to our own tools — a gateway action like `stripe__CANCEL_SUBSCRIPTION` means
- * a real subscription and must never be renamed to "trigger".
- */
+/** Our internal nouns in the product's words, article included. Ours only: a Stripe subscription
+ * is a subscription, not a trigger. */
 const PLATFORM_TERMS: Record<string, string> = {
     config: "the agent's setup",
     revision: "changes",
@@ -186,21 +177,14 @@ const PLATFORM_TERMS: Record<string, string> = {
 /** "an" before a vowel sound, near enough for a one-word object. */
 const article = (word: string): string => ("aeiou".includes(word[0]?.toLowerCase()) ? "an" : "a")
 
-/** Shortest object word allowed to match inside a run-together slug. Keeps "file" out of
- * "googledrive" while letting "calendar" out of "googlecalendar". */
+/** Keeps "file" out of "googledrive" while letting "calendar" out of "googlecalendar". */
 const SLUG_ECHO_MIN_LENGTH = 5
 
 /**
- * Whether the object already says which app this is, so naming the app would stutter: a Google
- * Calendar action on "calendar settings" would read "Got Google Calendar calendar settings".
+ * Whether naming the app would stutter ("Got Google Calendar calendar settings").
  *
- * Two forms have to match, because the app name arrives spelled two ways. The catalog gives
- * "Google Calendar", where a whole-word check is enough. Before it answers we hold the title-cased
- * slug "Googlecalendar", where the words are run together and only a substring check finds them.
- *
- * Erring toward skipping is safe: the app then shows in the chip instead, so nothing is lost. A
- * near-miss like Gmail against "email" matches neither form and still reads "Sent a Gmail email",
- * which is redundant but not wrong.
+ * Matches both spellings the name arrives in: the catalog's "Google Calendar" by word, and the
+ * pre-catalog slug "Googlecalendar" by substring. Skipping is safe — the app moves to the chip.
  */
 const echoesApp = (object: string, appName: string): boolean => {
     const words = object.toLowerCase().split(/\s+/).filter(Boolean)
@@ -218,18 +202,11 @@ interface BuiltActivity {
     namedApp: boolean
 }
 
-/** Builds the sentence, naming the app that ran it when one is known and it does not stutter. */
-type ActivityBuilder = (appName?: string) => BuiltActivity
-
 /**
- * Turn a `verb noun` label into both tenses, optionally naming the app: "Search issues" becomes
- * "Searched issues", or "Searched GitHub issues" once the app is known. Returns null when the
- * leading word is not a verb we know, so an unfamiliar action keeps its plain label instead of
- * reading as "Getted".
- *
- * `ours` opts into the platform glossary; leave it off for anything we did not name.
+ * "Search issues" → "Searched issues", or "Searched GitHub issues" once the app is known. Null
+ * when the leading word is not a known verb. `ours` opts into the platform glossary.
  */
-const conjugate = (label: string, ours = false): ActivityBuilder | null => {
+const conjugate = (label: string, ours: boolean, appName?: string): BuiltActivity | null => {
     const [head, ...rest] = label.split(" ")
     const forms = VERB_FORMS[head?.toLowerCase() ?? ""]
     if (!forms) return null
@@ -238,33 +215,27 @@ const conjugate = (label: string, ours = false): ActivityBuilder | null => {
         running: `${forms.running} ${phrase}`,
         done: `${forms.done} ${phrase}`,
     })
-    return (appName) => {
-        if (!object) {
-            return appName
-                ? {activity: say(appName), namedApp: true}
-                : {activity: forms, namedApp: false}
-        }
-        // A glossary term brings its own article and never takes an app name: it is ours.
-        const term = ours ? PLATFORM_TERMS[object.toLowerCase()] : undefined
-        if (term) return {activity: say(term), namedApp: false}
-        const app = appName && !echoesApp(object, appName) ? appName : undefined
-        // The app modifies the object ("GitHub issues"), so a singular object takes its article
-        // from whichever word now comes first.
-        const phrase = app ? `${app} ${object}` : object
-        const bare = rest.length === 1 && !object.endsWith("s")
-        return {
-            activity: say(bare ? `${article(app ?? object)} ${phrase}` : phrase),
-            namedApp: Boolean(app),
-        }
+    if (!object) {
+        return appName
+            ? {activity: say(appName), namedApp: true}
+            : {activity: forms, namedApp: false}
+    }
+    // A glossary term brings its own article and never takes an app name: it is ours.
+    const term = ours ? PLATFORM_TERMS[object.toLowerCase()] : undefined
+    if (term) return {activity: say(term), namedApp: false}
+    const app = appName && !echoesApp(object, appName) ? appName : undefined
+    // The app modifies the object, so a singular object takes its article from whichever word
+    // now comes first.
+    const phrase = app ? `${app} ${object}` : object
+    const bare = rest.length === 1 && !object.endsWith("s")
+    return {
+        activity: say(bare ? `${article(app ?? object)} ${phrase}` : phrase),
+        namedApp: Boolean(app),
     }
 }
 
-/**
- * The integration slug behind a gateway wire name, as the tool catalog keys it ("github").
- *
- * Mirrors `parseGatewayToolName`'s branches, which title-case the same token and so lose it. The
- * catalog turns this into the real app name; title case alone yields "Github".
- */
+/** The integration slug the catalog keys on ("github"). `parseGatewayToolName` title-cases the
+ * same token and loses it. */
 const sourceKeyOf = (raw: string): string | undefined => {
     const parts = raw.split("__").filter(Boolean)
     if (parts[0] === "tools" && parts.length >= 4) return parts[2]
@@ -288,18 +259,11 @@ interface ParsedShape {
     label: string
     source?: string
     sourceKey?: string
-    /** The app to name inside the sentence. Absent for our own tools and for the harness itself. */
-    appName?: string
     kind: ToolKind
-    activity?: ActivityBuilder
+    activity?: BuiltActivity
 }
 
-/** A fixed sentence, for the families whose wording never names an app. */
-const fixed =
-    (activity: ToolActivity): ActivityBuilder =>
-    () => ({activity, namedApp: false})
-
-const parseMcpName = (raw: string, ours: boolean): ParsedShape => {
+const parseMcpName = (raw: string, ours: boolean, appName?: string): ParsedShape => {
     const separator = raw.startsWith("mcp__") ? "__" : "."
     const parts = raw.split(separator).filter(Boolean)
     const tool = parts[parts.length - 1]
@@ -310,10 +274,8 @@ const parseMcpName = (raw: string, ours: boolean): ParsedShape => {
         label,
         source: serverLabel ? `${serverLabel} · MCP` : "MCP",
         sourceKey: server,
-        // Our own tools read as "Saved changes", never "Saved Agenta tools changes".
-        appName: ours ? undefined : serverLabel,
         kind: "mcp",
-        activity: conjugate(label, ours) ?? undefined,
+        activity: conjugate(label, ours, ours ? undefined : (appName ?? serverLabel)) ?? undefined,
     }
 }
 
@@ -328,18 +290,22 @@ const parseMcpName = (raw: string, ours: boolean): ParsedShape => {
  * glossary apply to it. A bare name is ours too (Pi sends platform ops unwrapped); a gateway or
  * third-party MCP name never is.
  */
-const parseShape = (raw: string, input: unknown, wrapped: boolean): ParsedShape => {
+const parseShape = (
+    raw: string,
+    input: unknown,
+    wrapped: boolean,
+    appName?: string,
+): ParsedShape => {
     const token = isTokenName(raw)
-    if (token && /^mcp(__|\.)/.test(raw)) return parseMcpName(raw, wrapped)
+    if (token && /^mcp(__|\.)/.test(raw)) return parseMcpName(raw, wrapped, appName)
     if (token && raw.includes("__")) {
         const parsed = parseGatewayToolName(raw)
         return {
             label: parsed.label,
             source: parsed.source,
             sourceKey: parsed.source ? sourceKeyOf(raw) : undefined,
-            appName: parsed.source,
             kind: parsed.source ? "gateway" : "platform",
-            activity: conjugate(parsed.label) ?? undefined,
+            activity: conjugate(parsed.label, false, appName ?? parsed.source) ?? undefined,
         }
     }
     // Codex titles a shell call with the command itself, so its "name" is not an identifier — the
@@ -350,21 +316,24 @@ const parseShape = (raw: string, input: unknown, wrapped: boolean): ParsedShape 
         return {
             label: "Command",
             kind: "shell",
-            activity: fixed({running: "Running a command", done: "Ran a command"}),
+            activity: {
+                activity: {running: "Running a command", done: "Ran a command"},
+                namedApp: false,
+            },
         }
     }
     if (CODEX_READ_TITLE.test(raw)) {
         return {
             label: "File",
             kind: "file",
-            activity: fixed({running: "Reading a file", done: "Read a file"}),
+            activity: {activity: {running: "Reading a file", done: "Read a file"}, namedApp: false},
         }
     }
     if (CODEX_LIST_TITLE.test(raw)) {
         return {
             label: "Files",
             kind: "file",
-            activity: fixed({running: "Listing files", done: "Listed files"}),
+            activity: {activity: {running: "Listing files", done: "Listed files"}, namedApp: false},
         }
     }
     if (!token) return {label: clamp(raw, 60), kind: "platform"}
@@ -372,9 +341,8 @@ const parseShape = (raw: string, input: unknown, wrapped: boolean): ParsedShape 
     const parsed = parseGatewayToolName(raw)
     return {
         ...parsed,
-        appName: parsed.source,
         kind: parsed.source ? "gateway" : "platform",
-        activity: conjugate(parsed.label, !parsed.source) ?? undefined,
+        activity: conjugate(parsed.label, !parsed.source, appName ?? parsed.source) ?? undefined,
     }
 }
 
@@ -387,10 +355,7 @@ const basename = (path: string): string => path.split("/").filter(Boolean).pop()
 /** Path-ish argument keys, in the order the harnesses prefer them. */
 const PATH_KEYS = ["file_path", "filePath", "path", "notebook_path"]
 
-/**
- * The short technical string shown next to the sentence: the command for a shell call, the
- * filename for a read. Undefined for tools whose arguments say nothing at a glance.
- */
+/** The short technical string beside the sentence: a command, or a filename. */
 const toolDetail = (raw: string, input?: unknown): string | undefined => {
     if (isRecord(input)) {
         const command = input.command
@@ -427,9 +392,9 @@ export const resolveToolDisplay = (raw: string, input?: unknown, appName?: strin
     // Our own tools carry no useful provenance — dropping the wrapper's chip makes one call read
     // identically under all three harnesses.
     const wrapped = canonical !== raw
-    const parsed = parseShape(raw, input, wrapped)
+    const parsed = parseShape(raw, input, wrapped, appName)
     const label = override?.label ?? parsed.label
-    const built = parsed.activity?.(appName ?? parsed.appName)
+    const built = parsed.activity
     // Naming the app inside the sentence retires the chip. When the sentence declines the app (it
     // would stutter) or there is no sentence at all, the chip still carries the provenance.
     const folded = Boolean(built?.namedApp && !override?.activity)

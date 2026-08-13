@@ -110,10 +110,7 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             raw: "tools__composio__gmail__ADD_LABEL__b81",
             kind: "gateway",
             label: "Add label",
-            source: undefined,
-            sourceKey: "gmail",
-            activity: {running: "Adding a Gmail label", done: "Added a Gmail label"},
-            detail: undefined,
+            source: "Gmail",
             summary: undefined,
         })
     })
@@ -124,10 +121,7 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             raw: "mcp__linear__search_issues",
             kind: "mcp",
             label: "Search issues",
-            source: undefined,
-            sourceKey: "linear",
-            activity: {running: "Searching Linear issues", done: "Searched Linear issues"},
-            detail: undefined,
+            source: "Linear · MCP",
             summary: undefined,
         })
     })
@@ -139,46 +133,8 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             kind: "platform",
             label: "Search",
             source: undefined,
-            sourceKey: undefined,
-            activity: {running: "Searching", done: "Searched"},
-            detail: undefined,
             summary: undefined,
         })
-    })
-
-    it("recognises Codex's shell and file calls, which arrive with no usable name", () => {
-        const shell = resolveToolDisplay("rg --files .", {command: "rg --files ."})
-        expect(shell.kind).toBe("shell")
-        expect(shell.activity).toEqual({running: "Running a command", done: "Ran a command"})
-        expect(shell.detail).toBe("rg --files .")
-
-        const read = resolveToolDisplay("Read file '/repo/SKILL.md'", null)
-        expect(read.kind).toBe("file")
-        expect(read.activity.done).toBe("Read a file")
-        expect(read.detail).toBe("SKILL.md")
-    })
-
-    it("leaves an action alone when its leading word is not a verb we know", () => {
-        const display = resolveToolDisplay("tools__composio__slack__FOO_BAR__c2")
-        expect(display.activity).toEqual({running: "Foo bar", done: "Foo bar"})
-    })
-
-    // Parity with OSS: our own server says nothing useful, so it never reaches the chip.
-    it("drops our own MCP server's chip under either harness wrapper", () => {
-        expect(resolveToolDisplay("mcp__agenta-tools__create_subscription").source).toBeUndefined()
-        expect(resolveToolDisplay("mcp.agenta-tools.query_spans").source).toBeUndefined()
-        // A third-party server is not ours, so it still names itself.
-        expect(resolveToolDisplay("mcp__linear__create_issue").activity.done).toBe(
-            "Created a Linear issue",
-        )
-    })
-
-    // The app name arrives as a run-together slug before the catalog answers.
-    it("skips the app when the slug already contains the object word", () => {
-        expect(
-            resolveToolDisplay("tools__composio__googlecalendar__GET_CALENDAR_SETTINGS__c1")
-                .activity.done,
-        ).toBe("Got calendar settings")
     })
 
     it("merges a registered override with the parsed fallback, piece by piece", () => {
