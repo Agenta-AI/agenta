@@ -12,6 +12,7 @@ Nothing running: plain Python objects.
 import importlib
 import json
 from dataclasses import fields
+from types import SimpleNamespace
 
 import pytest
 
@@ -84,6 +85,41 @@ _MCP_ADAPTER_PARAMS = [
         name="ComposioMcpAdapter",
     ),
 ]
+
+
+@pytest.fixture(autouse=True)
+def _mock_litellm_acompletion(monkeypatch):
+    """`TranslatedLlmAdapter` (WP7) is the one adapter here that calls out to litellm — mock
+    it at its own import site so this fixture stays a no-op for every other adapter and
+    still never opens a socket once the module exists."""
+    try:
+        from oss.src.core.gateways.llms.providers.translated import (
+            adapter as translated_adapter_module,
+        )
+    except ImportError:
+        yield
+        return
+
+    async def _fake_acompletion(*, model, stream=False, **kwargs):  # noqa: ARG001
+        response = SimpleNamespace(
+            usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+            _hidden_params={"response_cost": 0.0},
+            model_dump_json=lambda: json.dumps(
+                {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
+            ),
+        )
+        if not stream:
+            return response
+
+        async def _stream():
+            yield response
+
+        return _stream()
+
+    monkeypatch.setattr(
+        translated_adapter_module.litellm, "acompletion", _fake_acompletion
+    )
+    yield
 
 
 @pytest.mark.parametrize("adapter", _LLM_ADAPTER_PARAMS)

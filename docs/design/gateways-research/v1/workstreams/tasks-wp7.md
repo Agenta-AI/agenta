@@ -89,10 +89,19 @@ docstring's "the translated adapter reports the library's count" only holds with
 
 ## Phase 4 — Contract test extension
 
-- [ ] Extend WP5's `test_fake_adapters_contract.py` fixture to include `TranslatedLlmAdapter`
+- [x] Extend WP5's `test_fake_adapters_contract.py` fixture to include `TranslatedLlmAdapter`
       (litellm mocked), asserting `relay_chat_completion` returns `LlmRelayResult`.
-- [ ] Ruff format + check; run and fix.
-- [ ] Commit: "wp7: translated adapter joins the south-port contract suite".
+- [x] Ruff format + check; run and fix.
+- [x] Commit: "wp7: translated adapter joins the south-port contract suite".
+
+**Note:** the fixture already parametrized `TranslatedLlmAdapter` in via `_optional_instance`
+(WP5 wrote it that way so this package's landing needs no edit to the parametrize list itself).
+The only gap was that the shared `test_relay_chat_completion_returns_llm_relay_result` body calls
+`relay_chat_completion` unconditionally for every adapter in the list, and once
+`providers/translated/adapter.py` existed that meant a real `litellm.acompletion` call with
+`credential=None` unless mocked — added one `autouse` fixture that monkeypatches
+`litellm.acompletion` at `translated.adapter`'s own import site (a no-op for every other adapter
+since none of them import litellm).
 
 ## Phase 5 — `LlmGatewayService` management surface
 
