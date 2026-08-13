@@ -13,7 +13,7 @@ export {
 } from "./validators"
 
 // Platform detection (modifier-key naming)
-export {isMacPlatform, modifierKeyLabel} from "./platform"
+export {isMacPlatform, modifierKeyLabel, altKeyLabel} from "./platform"
 
 // Filtering utilities
 export {filterItems} from "./filterItems"

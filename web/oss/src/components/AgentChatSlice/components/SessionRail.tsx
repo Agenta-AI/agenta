@@ -15,6 +15,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {ROW_VARIANTS, SESSION_SPRING} from "../assets/sessionMotion"
+import {useInlineRenameRequest} from "../hooks/useInlineRenameRequest"
 import {useChatScopeKey} from "../state/scope"
 import {
     type AgentChatSession,
@@ -78,6 +79,7 @@ const SessionRailRow = memo(function SessionRailRow({
     archived = false,
 }: SessionRailRowProps) {
     const labelRef = useRef<SessionTabLabelHandle>(null)
+    useInlineRenameRequest(session.id, labelRef, "rail")
     // Hide the action cluster while the inline rename input owns the row, so it gets full width.
     const [renaming, setRenaming] = useState(false)
     // The rename/delete cluster is hover-only. Mount it on hover/focus instead of rendering it

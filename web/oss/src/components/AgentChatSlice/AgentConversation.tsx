@@ -43,6 +43,7 @@ import {useAgentChatSession} from "./hooks/useAgentChatSession"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
 import {useComposerAttachments} from "./hooks/useComposerAttachments"
 import {useComposerDraft} from "./hooks/useComposerDraft"
+import {useComposerFocusRequest} from "./hooks/useComposerFocusRequest"
 import {useFirstRunSeed} from "./hooks/useFirstRunSeed"
 import {useOnboardingChat} from "./hooks/useOnboardingChat"
 import {useScrollIntent} from "./hooks/useScrollIntent"
@@ -100,6 +101,8 @@ const AgentConversation = ({
     const [modal, modalContextHolder] = Modal.useModal()
 
     const richInputRef = useRef<RichChatInputHandle>(null)
+    // A keyboard switch (Alt+1…9) lands the caret here once this pane is mounted.
+    useComposerFocusRequest(sessionId, richInputRef)
 
     const composer = useComposerDraft({sessionId, richInputRef, revealPlayedRef})
 

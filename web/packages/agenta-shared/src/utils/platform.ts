@@ -16,3 +16,6 @@ export function isMacPlatform(): boolean {
 
 /** The modifier key's display glyph on this platform: `⌘` on Apple hardware, `Ctrl` elsewhere. */
 export const modifierKeyLabel = (): string => (isMacPlatform() ? "⌘" : "Ctrl")
+
+/** The Alt key's display glyph on this platform: `⌥` on Apple hardware, `Alt` elsewhere. */
+export const altKeyLabel = (): string => (isMacPlatform() ? "⌥" : "Alt")
