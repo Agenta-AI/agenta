@@ -361,11 +361,6 @@ export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unkno
     containerClassName?: string
     tableClassName?: string
     tableProps?: Omit<TableProps<RecordType>, "columns" | "dataSource" | "onScroll" | "pagination">
-    /**
-     * Which table engine renders the rows. "antd" is the shipping default; "tanstack" swaps in
-     * the antd-free VirtualTable behind this same API, so consumers move over one at a time.
-     */
-    engine?: "antd" | "tanstack"
     rowSelection?: InfiniteVirtualTableRowSelection<RecordType>
     resizableColumns?: boolean | ResizableColumnsConfig
     columnVisibility?: ColumnVisibilityConfig<RecordType>

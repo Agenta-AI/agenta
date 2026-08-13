@@ -127,7 +127,6 @@ const SessionsTable: React.FC = () => {
                 {/* Empty state renders inside the table so the header survives it. */}
                 {
                     <InfiniteVirtualTableFeatureShell<SessionRow>
-                        engine="tanstack"
                         store={store}
                         tableScope={tableScope}
                         columns={columns}

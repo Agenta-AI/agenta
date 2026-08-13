@@ -2,7 +2,6 @@ import {
     type Key,
     memo,
     type MouseEvent,
-    type Ref,
     useCallback,
     useEffect,
     useId,
@@ -12,12 +11,10 @@ import {
     useState,
 } from "react"
 
-import {Table} from "antd"
-import type {TableProps, TableRef} from "antd/es/table"
+import type {TableProps} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import {cn} from "../../utils/styles"
-import {toAntdColumns} from "../antdColumns"
 import {
     deleteColumnViewportVisibilityAtom,
     setColumnUserVisibilityAtom,
@@ -31,12 +28,10 @@ import useColumnVisibilityControlsBuilder from "../hooks/useColumnVisibilityCont
 import useContainerResize from "../hooks/useContainerResize"
 import useExpandableRows from "../hooks/useExpandableRows"
 import useHeaderViewportVisibility from "../hooks/useHeaderViewportVisibility"
-import useInfiniteScroll from "../hooks/useInfiniteScroll"
 import useScrollContainer from "../hooks/useScrollContainer"
 import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useTableKeyboardShortcuts from "../hooks/useTableKeyboardShortcuts"
 import {shouldIgnoreRowClick} from "../hooks/useTableManager"
-import useTableRowSelection from "../hooks/useTableRowSelection"
 import {useTypeChipColumns} from "../hooks/useTypeChipColumns"
 import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
 import useVirtualTableRowSelection from "../hooks/useVirtualTableRowSelection"
@@ -68,7 +63,6 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     scrollThreshold = 300,
     containerClassName,
     tableClassName,
-    engine = "antd",
     tableProps,
     rowSelection,
     resizableColumns,
@@ -119,7 +113,6 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     }, [onHeaderHeightChange, tableHeaderHeight])
 
     // Use extracted hook for infinite scroll handling
-    const handleScroll = useInfiniteScroll({loadMore, scrollThreshold})
 
     const scrollX = containerSize.width
     const scrollY = containerSize.height
@@ -374,34 +367,6 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         dataSource,
         rowKey: resolveRowKey,
     })
-
-    // The tanstack engine honours most of tableProps through the wrapper (onRow via
-    // mergedOnRow, rowClassName directly) and makes some of it moot (its header is always
-    // sticky, its layout always fixed). Warn only about keys that genuinely do nothing,
-    // so the message stays worth reading.
-    useEffect(() => {
-        if (engine !== "tanstack" || process.env.NODE_ENV === "production") return
-        const HONOURED = [
-            "onRow",
-            "rowClassName",
-            "size",
-            "bordered",
-            "loading",
-            "style",
-            "className",
-            "locale",
-            "sticky",
-            "tableLayout",
-            "scroll",
-            "virtual",
-        ]
-        const dropped = Object.keys(tableProps ?? {}).filter((key) => !HONOURED.includes(key))
-        if (dropped.length > 0) {
-            console.warn(
-                `[InfiniteVirtualTable] engine="tanstack" ignores tableProps: ${dropped.join(", ")}.`,
-            )
-        }
-    }, [engine, tableProps])
 
     const resolvedTableProps = useMemo<TableProps<RecordType>>(
         () => tableProps ?? ({} as TableProps<RecordType>),
@@ -716,8 +681,6 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         disableInteractiveClickGuard,
     ])
 
-    const tableRowSelection = useTableRowSelection(rowSelection)
-
     // Expandable rows support
     const expandableConfig = useExpandableRows({
         config: expandable,
@@ -731,21 +694,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         return Object.fromEntries(keys.map((key: Key) => [String(key), true]))
     }, [expandableConfig.expandedRowKeys])
 
-    const tableExpandable = useMemo(() => {
-        if (!expandable) return undefined
-        return {
-            expandedRowKeys: expandableConfig.expandedRowKeys,
-            onExpand: expandableConfig.onExpand,
-            expandedRowRender: expandableConfig.expandedRowRender,
-            expandIcon: expandableConfig.expandIcon,
-            rowExpandable: expandableConfig.rowExpandable,
-            columnWidth: expandableConfig.expandColumnWidth,
-            fixed: expandableConfig.expandFixed,
-        }
-    }, [expandable, expandableConfig])
-
     const columnVisibilityVersion = version
-    const tableComponentRef = tableRef as unknown as Ref<TableRef>
 
     // Stable class hooks for app code, so a consumer's selector does not depend on antd's DOM.
     // The structural nodes exist for the table's lifetime; rows and cells get theirs from
@@ -805,80 +754,57 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                             containerClassName,
                         )}
                     >
-                        {engine === "tanstack" ? (
-                            <VirtualTable<RecordType>
-                                className={cn(tableClassName, finalTableProps.className)}
-                                columns={finalColumns}
-                                dataSource={dataSource}
-                                rowKey={resolveRowKey}
-                                rowHeight={ENGINE_ROW_HEIGHT}
-                                height={
-                                    typeof scrollConfig.y === "number" ? scrollConfig.y : undefined
-                                }
-                                loadMore={loadMore}
-                                scrollThreshold={scrollThreshold}
-                                rowClassName={
-                                    // antd's RowClassName takes (record, index, indent).
-                                    typeof rowClassName === "function"
-                                        ? (record, index) => rowClassName(record, index, 0)
-                                        : undefined
-                                }
-                                loading={Boolean(finalTableProps.loading)}
-                                style={finalTableProps.style}
-                                emptyText={
-                                    // antd allows a render function here; VirtualTable takes a node.
-                                    typeof finalTableProps.locale?.emptyText === "function"
-                                        ? finalTableProps.locale.emptyText()
-                                        : finalTableProps.locale?.emptyText
-                                }
-                                size={
-                                    // antd's SizeType is wider than Table accepts. Pass only the
-                                    // real values through; undefined must stay undefined so
-                                    // VirtualTable's default density applies.
-                                    finalTableProps.size === "small" ||
-                                    finalTableProps.size === "middle" ||
-                                    finalTableProps.size === "large"
-                                        ? finalTableProps.size
-                                        : undefined
-                                }
-                                bordered={finalTableProps.bordered}
-                                enableColumnResizing={resizableEnabled}
-                                tableRef={tableRef}
-                                // Row clicks (and the interactive-click guard) are composed the
-                                // same way for both engines; without this, rows are inert here.
-                                onRow={(record, index) => mergedOnRow(record, index) ?? {}}
-                                // antd's table stretches columns to fill the container; without
-                                // this the tanstack engine would leave the surplus unused.
-                                autoLayout
-                                {...(virtualSelection ?? {})}
-                                {...(expandable
-                                    ? {
-                                          expanded: virtualExpandedState,
-                                          renderExpandedRow: (record) =>
-                                              expandableConfig.expandedRowRender?.(record),
-                                      }
-                                    : {})}
-                            />
-                        ) : (
-                            <Table<RecordType>
-                                ref={tableComponentRef}
-                                className={cn(tableClassName, finalTableProps.className)}
-                                columns={toAntdColumns(finalColumns)}
-                                dataSource={dataSource}
-                                rowKey={rowKey}
-                                pagination={false}
-                                onScroll={handleScroll}
-                                rowSelection={tableRowSelection}
-                                expandable={tableExpandable}
-                                {...tablePropsWithShortcuts}
-                                rowClassName={rowClassName}
-                                scroll={{
-                                    x: scrollConfig.x,
-                                    y: scrollConfig.y,
-                                }}
-                                virtual
-                            />
-                        )}
+                        <VirtualTable<RecordType>
+                            className={cn(tableClassName, finalTableProps.className)}
+                            columns={finalColumns}
+                            dataSource={dataSource}
+                            rowKey={resolveRowKey}
+                            rowHeight={ENGINE_ROW_HEIGHT}
+                            height={typeof scrollConfig.y === "number" ? scrollConfig.y : undefined}
+                            loadMore={loadMore}
+                            scrollThreshold={scrollThreshold}
+                            rowClassName={
+                                // antd's RowClassName takes (record, index, indent).
+                                typeof rowClassName === "function"
+                                    ? (record, index) => rowClassName(record, index, 0)
+                                    : undefined
+                            }
+                            loading={Boolean(finalTableProps.loading)}
+                            style={finalTableProps.style}
+                            emptyText={
+                                // antd allows a render function here; VirtualTable takes a node.
+                                typeof finalTableProps.locale?.emptyText === "function"
+                                    ? finalTableProps.locale.emptyText()
+                                    : finalTableProps.locale?.emptyText
+                            }
+                            size={
+                                // antd's SizeType is wider than Table accepts. Pass only the
+                                // real values through; undefined must stay undefined so
+                                // VirtualTable's default density applies.
+                                finalTableProps.size === "small" ||
+                                finalTableProps.size === "middle" ||
+                                finalTableProps.size === "large"
+                                    ? finalTableProps.size
+                                    : undefined
+                            }
+                            bordered={finalTableProps.bordered}
+                            enableColumnResizing={resizableEnabled}
+                            tableRef={tableRef}
+                            // Row clicks (and the interactive-click guard) are composed the
+                            // same way for both engines; without this, rows are inert here.
+                            onRow={(record, index) => mergedOnRow(record, index) ?? {}}
+                            // antd's table stretches columns to fill the container; without
+                            // this the tanstack engine would leave the surplus unused.
+                            autoLayout
+                            {...(virtualSelection ?? {})}
+                            {...(expandable
+                                ? {
+                                      expanded: virtualExpandedState,
+                                      renderExpandedRow: (record) =>
+                                          expandableConfig.expandedRowRender?.(record),
+                                  }
+                                : {})}
+                        />
                     </div>
                 </ColumnVisibilityFlagProvider>
             </ColumnVisibilityProvider>

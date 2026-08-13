@@ -287,7 +287,6 @@ const ObservabilityTable = () => {
                 // The empty state renders INSIDE the table rather than replacing it, so the
                 // header and its controls stay put instead of vanishing with the rows.
                 <InfiniteVirtualTableFeatureShell<TraceRow>
-                    engine="tanstack"
                     tableScope={tableScope}
                     columns={columns}
                     rowKey={(record) => record.span_id || record.key || ""}

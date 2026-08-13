@@ -2,12 +2,10 @@ import type {CSSProperties, Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Export, Trash} from "@phosphor-icons/react"
-// The last antd component in this package besides <Table>. @agenta/ui has no Pagination
-// primitive, and one page (application management) renders paginationMode="paginated".
-import {Pagination} from "antd"
 
 import {Button} from "../../components/ui/button"
 import {LoadingButton} from "../../components/ui/button-composed"
+import {Pagination} from "../../components/ui/pagination"
 import {Tabs, TabsList, TabsTrigger} from "../../components/ui/tabs"
 import {SimpleTooltip} from "../../components/ui/tooltip-composed"
 import {useIsNarrowScreen} from "../../hooks/useMediaQuery"
@@ -231,8 +229,6 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * />
      * ```
      */
-    /** Which table engine renders the rows; forwarded to InfiniteVirtualTable. */
-    engine?: "antd" | "tanstack"
     rowHeightConfig?: RowHeightFeatureConfig
     /**
      * Pagination display mode:
@@ -336,7 +332,6 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         tableRef,
         typeChips,
         store,
-        engine,
         rowHeightConfig,
         paginationMode = "infinite",
         paginatedPageSize: paginatedPageSizeProp,
@@ -748,7 +743,6 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             >
                 {beforeTable}
                 <InfiniteVirtualTable<Row>
-                    engine={engine}
                     useIsolatedStore={!store}
                     store={store}
                     columns={columns}
