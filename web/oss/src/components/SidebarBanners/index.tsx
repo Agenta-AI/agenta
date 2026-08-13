@@ -24,8 +24,9 @@ const SidebarBanners = () => {
         }
     }
 
+    // px-2 matches the nav items' 8px inline margin so the card shares their edges.
     return (
-        <div className="w-[215px] shrink-0">
+        <div className="w-full shrink-0 px-[19px]">
             <SidebarBanner
                 banner={topBanner}
                 onDismiss={topBanner.dismissible ? handleDismiss : undefined}
