@@ -35,8 +35,12 @@ import {AGENT_FILES_DIR} from "./useSessionDrive"
  * letter-led trailing extension (`.ts`, `.tar.gz`). A bare `/[./]/` matched any dotted token —
  * decimals (`3.14`), abbreviations (`e.g.`), and dotted identifiers (`user.name`) — each firing a
  * guaranteed-404 on-demand read once scrolled into view; the shape test drops those. */
-const fileCandidate = (text: string): string | null => {
-    const t = text.trim().replace(/^\.?\/+/, "")
+export const fileCandidate = (text: string): string | null => {
+    const trimmed = text.trim()
+    // Keep the leading slash on an absolute sandbox path. The Quick Look host uses the complete
+    // tool-path tail to match the mount-relative file, while removing it turns `/tmp/...` into an
+    // unrelated drive-relative path and loses the information needed for that match (#5983).
+    const t = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed
     return t && /\/|\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(t) ? t : null
 }
 
