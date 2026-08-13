@@ -444,6 +444,10 @@ class ChannelConnectionCreate(Slug, Header, Metadata):
     # know it and anything sent here is overwritten
     external_key: Optional[UUID] = None
     #
+    # the plain, non-secret bucket: locator fields (Telegram's chat id, the
+    # bridge's own `source`), and the bridge's `delivery_url` -- where we
+    # call, not who is calling us, so it is not a credential and never rides
+    # `credentials` / a vault-stored secret
     data: Optional[Dict[str, Any]] = None
     # raw field values for the declared setup fields; verified, written to a
     # CHANNEL_SECRET row, and never persisted on this row or echoed back
@@ -822,9 +826,26 @@ class ChannelConnectionEditRequest(BaseModel):
     connection: ChannelConnectionEdit
 
 
+class ChannelConnectionCreated(ChannelConnection):
+    """`create_connection`'s actual return type for a channel that mints its
+    own credential (the bridge): a `ChannelConnection` plus, for this one
+    return trip only, the plaintext secret it just generated. Never
+    persisted, never read back from the vault or from `data` -- callers that
+    only need the connection see nothing different, since this is a strict
+    supertype and `one_time_secret` is dropped by any handler that validates
+    into the plain `ChannelConnection` shape (every existing response does)."""
+
+    one_time_secret: Optional[str] = None
+
+
 class ChannelConnectionResponse(BaseModel):
     count: int = 0
     connection: Optional[ChannelConnection] = None
+    # populated only by create, only for a channel whose adapter generated a
+    # one-time document (the bridge); every other channel's create response
+    # is unchanged since this stays None and is dropped by
+    # response_model_exclude_none
+    setup: Optional[ChannelSetup] = None
 
 
 class ChannelConnectionTeardownResponse(BaseModel):

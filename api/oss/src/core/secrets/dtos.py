@@ -80,6 +80,13 @@ class CustomSecretDTO(BaseModel):
 
 
 class ChannelSecretSettingsDTO(BaseModel):
+    """Vault-stored credential fields only -- things a platform issued and we
+    verify. A bridge's `delivery_url` is not a credential (it is our own
+    address to call, not who is calling us) and does not belong here: it
+    lives on `ChannelConnectionCreate.data`. Unknown keys passed here are
+    silently dropped, so routing a non-credential field through this shape
+    would vanish with no error."""
+
     bot_token: Optional[str] = None
     signing_secret: Optional[str] = None
 
