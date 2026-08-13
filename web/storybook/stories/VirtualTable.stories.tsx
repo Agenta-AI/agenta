@@ -826,3 +826,48 @@ const TypeChipsDemo = () => {
 }
 
 export const TypeChips: Story = {render: () => <TypeChipsDemo />}
+
+/**
+ * `size` and `bordered`, the last two antd props the tanstack engine did not implement.
+ * They are what blocked the observability tables from swapping, so both engines render
+ * them here side by side.
+ */
+const DensityDemo = () => {
+    const rows = useMemo(() => makeRows(8), [])
+    const common = {
+        columns: baseColumns.slice(0, 3),
+        dataSource: rows,
+        rowKey: "key" as const,
+        bodyHeight: 200,
+    }
+    // The observability tables pass `bordered` with no size, so the DEFAULT has to match too.
+    const sizes = [undefined, "small", "middle", "large"] as const
+    return (
+        <div className="flex flex-col gap-4">
+            <Note>Each size, both engines, bordered. Heights should match per row.</Note>
+            {sizes.map((size) => (
+                <div key={String(size)} className="flex flex-col gap-1">
+                    <span className="text-xs text-colorTextSecondary">size={String(size)}</span>
+                    <div data-size={String(size)} className="flex gap-2">
+                        <div data-engine="antd" className="h-[200px] flex-1">
+                            <InfiniteVirtualTable<Row>
+                                {...common}
+                                tableProps={{size, bordered: true}}
+                                engine="antd"
+                            />
+                        </div>
+                        <div data-engine="tanstack" className="h-[200px] flex-1">
+                            <InfiniteVirtualTable<Row>
+                                {...common}
+                                tableProps={{size, bordered: true}}
+                                engine="tanstack"
+                            />
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+export const Density: Story = {render: () => <DensityDemo />}

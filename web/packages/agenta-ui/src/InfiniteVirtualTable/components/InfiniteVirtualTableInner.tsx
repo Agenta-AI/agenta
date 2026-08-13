@@ -381,7 +381,16 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     // so the message stays worth reading.
     useEffect(() => {
         if (engine !== "tanstack" || process.env.NODE_ENV === "production") return
-        const HONOURED = ["onRow", "rowClassName", "sticky", "tableLayout", "scroll", "virtual"]
+        const HONOURED = [
+            "onRow",
+            "rowClassName",
+            "size",
+            "bordered",
+            "sticky",
+            "tableLayout",
+            "scroll",
+            "virtual",
+        ]
         const dropped = Object.keys(tableProps ?? {}).filter((key) => !HONOURED.includes(key))
         if (dropped.length > 0) {
             console.warn(
@@ -810,6 +819,17 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                                         ? (record, index) => rowClassName(record, index, 0)
                                         : undefined
                                 }
+                                size={
+                                    // antd's SizeType is wider than Table accepts. Pass only the
+                                    // real values through; undefined must stay undefined so
+                                    // VirtualTable's default density applies.
+                                    finalTableProps.size === "small" ||
+                                    finalTableProps.size === "middle" ||
+                                    finalTableProps.size === "large"
+                                        ? finalTableProps.size
+                                        : undefined
+                                }
+                                bordered={finalTableProps.bordered}
                                 enableColumnResizing={resizableEnabled}
                                 tableRef={tableRef}
                                 // Row clicks (and the interactive-click guard) are composed the

@@ -84,6 +84,10 @@ export interface VirtualTableProps<RecordType extends object> {
     /** Controlled row selection, keyed by row id. */
     rowSelection?: RowSelectionState
     onRowSelectionChange?: OnChangeFn<RowSelectionState>
+    /** Cell density, matching antd's Table sizes. */
+    size?: "small" | "middle" | "large"
+    /** Draws cell borders, matching antd's `bordered`. */
+    bordered?: boolean
     /**
      * Imperative handle for programmatic scrolling, matching InfiniteVirtualTable's `tableRef`.
      */
@@ -127,6 +131,20 @@ const unpackRender = (
     }
     return {children: result as ReactNode}
 }
+
+/**
+ * antd's density steps. Measured against a real antd virtual table: it renders its default,
+ * "small" and "large" at the same height and only "middle" differs, so an unsized table
+ * defaults to that shared density rather than to the middle of the three.
+ */
+const CELL_PADDING = {
+    small: "px-2 py-2",
+    middle: "px-2 py-3",
+    // Not a typo: antd's VIRTUAL table renders "large" at the same height as its default and
+    // as "small" (measured: 37px for all three, 45px only for "middle"). Matching that keeps
+    // the engine swap invisible, which matters more than a tidier-looking scale.
+    large: "px-4 py-2",
+} as const
 
 /** Defaults carried over from the hook this replaces; changing them moves every layout. */
 const AUTO_LAYOUT_DEFAULT_WIDTH = 200
@@ -186,6 +204,8 @@ export const VirtualTable = <RecordType extends object>({
     onColumnSizingChange,
     rowSelection,
     onRowSelectionChange,
+    size = "small",
+    bordered = false,
     tableRef,
     renderExpandedRow,
     expanded,
@@ -423,7 +443,9 @@ export const VirtualTable = <RecordType extends object>({
                                             data-column-key={header.column.id}
                                             className={cn(
                                                 AVT.headerCell,
-                                                "relative box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2 text-left text-field-md font-medium text-colorText",
+                                                "relative box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer text-left text-field-md font-medium text-colorText",
+                                                CELL_PADDING[size],
+                                                bordered && "border-r",
                                                 source?.ellipsis && "truncate",
                                                 source?.className,
                                                 props.className,
@@ -600,7 +622,10 @@ export const VirtualTable = <RecordType extends object>({
                                                         key={cell.id}
                                                         className={cn(
                                                             AVT.cell,
-                                                            "box-border bg-colorBgContainer px-3 align-top text-field-md text-colorText",
+                                                            "box-border bg-colorBgContainer align-top text-field-md text-colorText",
+                                                            CELL_PADDING[size],
+                                                            bordered &&
+                                                                "border-0 border-r border-solid border-colorBorderSecondary",
                                                             source?.ellipsis && "truncate",
                                                             source?.className,
                                                             props.className,
