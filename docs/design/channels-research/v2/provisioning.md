@@ -14,8 +14,14 @@
 > third (the call is ours to make), Agenta fills none. Empty is a declaration, not
 > a special case.
 
-The gap `F47` names. Nothing writes the credentials the adapters read, no channel
-declares what it needs, and the Slack manifest builder has no callers.
+The gap `F47` named, in the state it was written.
+
+> **Two of its three premises have since closed.** A channel now declares what it
+> needs, and the manifest builder now has a caller. A route writes the credentials
+> the adapters read. What is left of the gap is the one the declaration cannot
+> close by itself: no human can reach any of it, which is `F65`. Read the sections
+> below as the design the landed code came from, not as a description of what is
+> missing.
 
 Target surfaces in order: **Slack, Telegram, Discord**.
 
@@ -65,7 +71,11 @@ command on a managed connection and it silently never fires.
 
 ## 1. Each channel declares its credentials
 
-Alongside the capability declaration, which today says only what a channel *can do*
+> **Landed.** `ChannelCapabilities.setup` carries the three slots, and Slack fills
+> all of them. The section stands as the reasoning; the tense below is the tense it
+> was designed in.
+
+Alongside the capability declaration, which then said only what a channel *can do*
 and nothing about what it must be *given*.
 
 Per field: the name, its **type**, whether it is secret, whether it is required,
@@ -88,6 +98,10 @@ to trim their own output. Better to redact known credential fields on the way in
 than to discover it later.
 
 ## 2. Slack's manifest is generated from the configuration
+
+**Customer-owned only.** The hosted app has one manifest we maintain for every
+installation, not one generated per customer, so nothing below applies to it —
+see [hosted-app.md](hosted-app.md).
 
 We do not have handlers to generate from — we have configuration. A user picks
 agents and enables commands; the manifest follows from that.
@@ -112,6 +126,14 @@ identify for Discord.
 A connection is therefore **configured** and separately **verified**. Only a
 verified connection is routable. This is what makes a misconfiguration visible at
 setup instead of as a dead thread later.
+
+**The principle holds for both app models; the shape of "saved" does not.** Here
+it means an operator pastes a credential and we check it afterward, as its own
+step in the setup page. The hosted app has no paste step — the token arrives
+from `oauth.v2.access`, and `hosted-app.md` runs the same check inside that same
+exchange, before anything is stored, with no separate operator-facing verify
+action. Configured-then-verified still holds; there is no moment in between for
+a hosted connection where it is one but not the other.
 
 ## 4. The inbound URL is part of setup
 

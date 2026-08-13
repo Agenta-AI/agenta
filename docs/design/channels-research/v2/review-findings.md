@@ -243,9 +243,9 @@
 
 ### [CLOSED] F6. No route writes the `connection.data` keys the Slack adapter reads
 
-> **Widened by `F47`.** This is not only Slack's four keys nor only a missing
-> route: no channel declares a credential schema, and no channel has an
-> onboarding flow. Read `F47` first.
+> **Widened by `F47`, since split.** This is not only Slack's four keys nor only
+> a missing route: no channel declared a credential schema (`F47`, closed) and
+> no channel has an onboarding flow (`F65`, open). Read `F65` first.
 
 - **Fixed by WP23 in wave 5.** `create_connection` composes `connection.data`
   through `_compose_connection_data`: the declared identity subset nests under
@@ -253,10 +253,8 @@
   reference is a secret id rather than the credential. `connection.credentials` is
   cleared before the row is written, so the values the adapter needs are written by a
   route and the secret is not on the row.
-- **The `F47` half is not closed by this.** A route writes the keys; a *human* still
-  has no way to reach that route, which is WP26's whole subject. Splitting the two is
-  a CU-A item, and closing this one without saying so would make the ledger claim the
-  onboarding flow exists.
+- **The `F65` half is not closed by this.** A route writes the keys; a *human* still
+  has no way to reach that route, which is WP26's whole subject.
 
 - ID: `F6`
 - Origin: `C2 merge`
@@ -392,54 +390,89 @@
 - Suggested Fix: Bless it in the spec or rename it. Low stakes; the point is
   that it entered the tree undocumented.
 
-### F47. No channel declares its credential schema, and no channel has an onboarding flow
+### [CLOSED] F47. No channel declares its credential schema
+
+- **Closed. Split from the original two-part finding** — the onboarding half is
+  now `F65`. Verified against the code, not the ledger: `ChannelCapabilities.setup`
+  (`core/channels/dtos.py`) is a real declared type — `ChannelSetup` with
+  `instructions: List[str]`, `document: Optional[ChannelSetupDoc]` and
+  `fields: List[ChannelSetupField]`, each field carrying `name`, `label`, `secret`,
+  `required`, `help`. The Slack adapter fills all three slots:
+  `adapters/slack/capabilities.py`'s `SLACK_CAPABILITIES["setup"]` declares four
+  instructions and three fields (`bot_token`, `signing_secret`, `api_app_id`), and
+  `SlackAdapter.build_setup_document` supplies the document. A channel that
+  declares nothing (mock) renders an empty setup through the same code path —
+  empty is a declaration, not a special case, exactly as designed. Both are
+  asserted by `api/oss/tests/pytest/unit/channels/test_channels_setup_declaration.py`
+  (`test_a_channel_declaring_nothing_renders_an_empty_setup` and
+  `test_slack_renders_all_three_slots_through_the_same_code_path`).
 
 - ID: `F47`
 - Origin: `wave-4 review`
 - Severity: `P1`
 - Confidence: `high`
+- Status: `closed`
+- Category: `Completeness`
+- Summary: `ChannelCapabilities` declared `fill`, `rendering` and `identity` —
+  what a channel can *do* — and nothing about what it must be *given*. Each
+  adapter read private keys off `connection.data` that existed only in its own
+  source, with no declared contract a config UI or the contract suite could
+  consult.
+- Evidence:
+  - Slack read `signing_secret`, `bot_token`, `bot_user_id`, `team_id`; the
+    bridge read `secret` and `delivery_url`. Six key names, zero documented at
+    the time this was filed.
+  - The contract suite had to hardcode one platform's credential field names
+    because there was no schema to consult (`F44`).
+- Files: `api/oss/src/core/channels/dtos.py` (`ChannelSetup`,
+  `ChannelSetupField`, `ChannelSetupDoc`),
+  `api/oss/src/core/channels/adapters/slack/capabilities.py` (the Slack
+  declaration), `api/oss/tests/pytest/unit/channels/test_channels_setup_declaration.py`
+- Notes: what this finding originally also named — that nothing lets a human
+  reach a route that uses this declaration — is real and open, and is not this
+  finding. It is filed separately as `F65`, because a declared schema with no
+  onboarding path is a different defect from an undeclared one, and closing
+  this without splitting would make the ledger claim the onboarding flow
+  exists.
+
+### F65. No surface lets a human create a Slack connection with credentials
+
+- ID: `F65`
+- Origin: `wave-6 CU-A`
+- Severity: `P1`
+- Confidence: `high`
 - Status: `open`
 - Category: `Completeness`
-- Summary: **`F6` understates this.** It reads as "no route writes four Slack
-  keys" — a plumbing gap. The real gap is two structural ones, and they apply to
-  every channel, in-process and bridged alike:
-  1. **No channel declares what credentials it needs.** `ChannelCapabilities`
-     declares `fill`, `rendering` and `identity` — what a channel can *do* — and
-     nothing about what it must be *given*. Each adapter reads private keys off
-     `connection.data` that exist only in its own source.
-  2. **No channel has an onboarding flow.** Nothing creates a connection with
-     credentials in it, for any channel.
+- Summary: The declaration half of the original `F47` is closed — Slack's
+  `ChannelSetup` is real and complete. Nothing renders it into a form, and no
+  human has a way to create a Slack connection with credentials. `POST
+  /connections/` (`create_channel_connection`) exists and writes
+  `connection.data` correctly (`F6`, fixed), but no web page calls it for a
+  channel connection. The only per-connection setup route needs a connection id
+  that does not yet exist to create — that specific chicken-and-egg is `F62` —
+  and even setting that aside, no component builds a create form from the
+  declared fields at all.
 - Evidence:
-  - Slack reads `signing_secret`, `bot_token`, `bot_user_id`, `team_id`; the
-    bridge reads `secret` and `delivery_url`. **Six key names, zero documented.**
-    The bridge package stated plainly that it invented its two.
-  - `api/oss/src/core/channels/adapters/slack/manifest.py` exists and builds a
-    real Slack app manifest — and **nothing calls `build_slack_manifest`**. A
-    generator written for a flow that was never built.
-  - The contract suite had to hardcode one platform's credential field names
-    because there is no schema to consult (`F44`).
-- Files: `api/oss/src/core/channels/dtos.py` (no credential declaration),
-  `api/oss/src/core/channels/adapters/slack/manifest.py` (uncalled),
-  `api/oss/src/apis/fastapi/channels/models.py` (no create/edit route)
-- Suggested Fix: two distinct pieces, and the first blocks the second.
-  - **A declared credential schema per channel**, alongside the capability
-    declaration and normalised the same way: field name, whether it is secret,
-    and whether it is required. Then `connection.data` has a contract, a config
-    UI can be generated from it, and the contract suite can build a valid
-    connection for any adapter rather than for one.
-  - **Per-channel onboarding, which does not generalise.** Slack is an app
-    manifest plus OAuth; Telegram is a bot token from a chat with BotFather, no
-    OAuth at all; Discord is an application with a bot user and a gateway intent;
-    a bridge is a shared secret and a delivery URL the operator holds on both
-    ends. A single "connect a channel" flow cannot cover these — what generalises
-    is the *schema*, not the ceremony.
-- Notes: **This is the difference between the two transports, correctly located.**
-  A bridge is self-hosted, so its operator can be handed a secret and a URL and
-  set both env-side; that is why it appears to need no onboarding. A first-party
-  channel cannot work that way — the credential comes from the platform, through
-  a flow only the platform defines. The *ingress* mechanism is uniform (one
-  `_ingest`, no branch on channel); **provisioning is where they genuinely
-  differ**, and nothing in the design covers it for either.
+  - `web/oss/src/components/pages/settings/Channels/components/ConnectionsSection.tsx`
+    states its own scope in a comment: "Read-only list... Install is the
+    platform's existing connection-creation flow — this package never builds a
+    second one." Its only action button links to `/settings?tab=triggers`, the
+    gateway connections tab, not a channel-credential form built from
+    `ChannelSetup`.
+  - `api/oss/src/apis/fastapi/channels/router.py` registers `POST /connections/`
+    and `GET /connections/{connection_id}/setup`, and no per-channel
+    (pre-connection) setup route — the gap `F62` names.
+  - No component under `web/.../settings/Channels/components/` reads
+    `ChannelSetupField`s into inputs or posts to `create_channel_connection`.
+- Files: `web/oss/src/components/pages/settings/Channels/components/ConnectionsSection.tsx`,
+  `api/oss/src/apis/fastapi/channels/router.py`
+- Suggested Fix: the per-channel setup route (`F62`) plus the connection-create
+  form in web, built from the declared `ChannelSetup` fields and posting to
+  `create_channel_connection`. WP26 owns both — the per-channel setup route and
+  the first connection-create form in web.
+- Notes: this is the half of the original `F47` that did not land. The
+  declaration exists and is real; nothing yet uses it to get a human to a
+  working connection.
 
 ### F54. Bridge credentials cannot go through the vault at all
 
@@ -703,18 +736,30 @@
 - Confidence: `low` — that is the finding
 - Status: `open`
 - Category: `Correctness`
-- Summary: A connection's identity now composes from `api_app_id` plus whichever
-  of `enterprise_id`/`team_id` applies, read from the event's `authorizations`
-  with flat and nested fallbacks. Those field positions were derived from
-  documentation, not from a captured payload. If the real shape differs, an
-  org-wide install composes a key that matches no stored connection and every
-  event refuses with a bare 401 — which is indistinguishable from a bad secret.
+- Summary: **The org-wide install path is unproven, and stays unproven until a
+  real Enterprise Grid workspace produces a real payload.** A connection's
+  identity composes from `api_app_id` plus whichever of `enterprise_id`/`team_id`
+  applies, read from the event's `authorizations` with flat and nested
+  fallbacks. Those field positions were derived from documentation, never from a
+  captured payload — no Enterprise Grid workspace has been available to this
+  wave either. **The failure mode is a bare 401**, identical to what a bad
+  secret produces: if the real shape differs, an org-wide install composes a key
+  that matches no stored connection, every event refuses, and nothing
+  distinguishes that refusal from a misconfigured signing secret. So a wrong
+  guess here would not surface as a bug report; it would surface as a
+  workspace that silently never gets a reply, indistinguishable from every
+  other reason a Slack connection can be misconfigured.
 - Files: `api/oss/src/core/channels/adapters/slack/adapter.py`
-- Suggested Fix: capture one real payload of each install kind and assert against
-  it. Until then treat the org-wide path as unproven, and note that the failure
-  mode is silent by design, so nothing will report it.
+- Suggested Fix: capture one real payload of each install kind and assert
+  against it. Until that happens, this path is not merely untested — it is an
+  untested guess dressed as settled code, which is worse than one that admits
+  it. Treat it as unproven in any document that describes it, and do not let
+  "the code handles Enterprise Grid" be said without this caveat attached.
 - Notes: the wave that proves Slack end to end is the place this gets settled;
-  filed now so it is not discovered as a mystery 401 instead.
+  filed now so it is not discovered as a mystery 401 instead. A real Enterprise
+  Grid workspace was not available to wave 6 either, so this stays open past
+  this wave too — settling it needs the workspace, not more reasoning about the
+  documentation.
 
 ### F64. The manifest's request URL is only as public as the host the operator happened to browse
 
@@ -755,6 +800,42 @@
   wave were argued from what a value looked like rather than from what the
   deployment does, and both were wrong. The deployment repository is the authority
   on public URLs, and it is not in this tree.
+
+### F66. The bridge is absent from the adapter registry, so its own route 404s
+
+- ID: `F66`
+- Origin: `wave-6 CU-A`
+- Severity: `P0`
+- Confidence: `high`
+- Status: `closed`
+- Category: `Correctness`
+- Summary: `build_channel_adapter_registry` registered slack, mock and agenta. The
+  bridge ingress route resolves its adapter through that same registry, like every
+  other channel, so `POST /bridge/events/` raised `ChannelNotSupported` and answered
+  404 for every request. The outbox worker resolves the same way, so a bridge
+  connection could not receive an event or deliver a reply. The bridge was mounted,
+  advertised in the generated client, and dead.
+- Evidence:
+  - `_ingest` calls `self.adapter_registry.get(channel)` for a literal
+    `channel="bridge"`; `ChannelAdapterRegistry.get` raises on a miss and never
+    returns `None`.
+  - All three composition roots — `entrypoints/routers.py`,
+    `entrypoints/worker_streams.py`, `entrypoints/worker_queues.py` — build the
+    registry from the one factory, so the gap applied everywhere at once.
+  - Every bridge test in the tree, unit and acceptance alike, builds its own registry
+    with the bridge in it. That is why the whole suite passed against a route that
+    could not work.
+- Files: `api/entrypoints/channel_adapters.py`
+- Fix: **Applied.** `BridgeAdapter()` registered beside the other three. It takes no
+  required dependency and holds no per-bridge state — the installation lives on the
+  connection — so the single shared registration is the correct shape and is what
+  every test already assumed.
+- Notes: the fourth defect on this adapter, and the same cause as the other three.
+  The suites build their own registry, so no suite ever asked the question the
+  composition root answers. A guard now fails when a channel has a contract suite but
+  no registration and no written exemption. The registry's own comment said the gap
+  existed, which is worth stating: it was known, recorded next to the code, and still
+  shipped, because nothing executable disagreed with it.
 
 ### F63. A bridge created through the write path has no `delivery_url`, so every reply fails
 
@@ -1366,9 +1447,36 @@
 
 ### F14. 30 unit tests open external connections, and collide over them
 
+> **Re-audited at wave-6 CU-A, and the count was wrong. It is one file, not 30.**
+>
+> The 30 came from a string match on `TransactionsEngine`, `create_async_engine`,
+> `engine.session()`, `ObjectStore` and redis clients. Re-run today it gives 33, and
+> nearly every hit is a **fake**: `_FakeRedis`, `_FakeTransactionsEngine`,
+> `_FakeObjectStore`, `fakeredis.FakeAsyncRedis`, a `redis_client=None` keyword, or a
+> `monkeypatch.setattr` of the engine getter. `sessions/` supplies 25 of the 33 and
+> every one of them is a deliberately built fake, several saying so in their own
+> docstrings. That is disciplined unit-test design, and the finding read it as the
+> opposite.
+>
+> **Exactly one file calls an unpatched `get_transactions_engine()`:**
+> `api/oss/tests/pytest/unit/triggers/test_triggers_soft_delete_postgres.py`. It is
+> marked `pytest.mark.integration`, it does need Postgres, and it self-guards through
+> its own reachability fixture, so it skips rather than errors. It is misfiled by
+> directory and nothing more. No file in the layer calls `create_async_engine`. The
+> `ObjectStore` constructions in `unit/test_mounts_injection.py` build a client object
+> and exercise pure methods on it, opening nothing.
+>
+> **Measured rather than argued:** the whole unit layer runs green with nothing
+> reachable — 2982 passed, 8 skipped, 0 errors.
+>
+> The correction that matters is not the number. A census by name cannot tell a
+> dependency from a fake of one, and this record has now been corrected four times,
+> three of those by its own author. Downgraded to `P3`, and it is one directory move
+> belonging to another area.
+
 - ID: `F14`
 - Origin: `pre-existing`
-- Severity: `P2`
+- Severity: `P3`
 - Confidence: `high`
 - Status: `open`
 - Category: `Test-design`
@@ -1409,11 +1517,38 @@
 
 ### F22. Channels integration tests error instead of skipping without Postgres
 
+> **Re-audited at wave-6 CU-A and closed. The guard works.** Wave 6's planning entry
+> claimed there was no guard at all and that the channels conftest called
+> `get_transactions_engine()` from an autouse fixture. Both halves are false. The
+> layer-wide autouse guard exists at `api/oss/tests/pytest/integration/conftest.py`,
+> and the channels conftest reaches the engine from `channels_scope`, which is not
+> autouse.
+>
+> Ordering was checked rather than assumed, because a parent conftest racing a child's
+> async autouse fixture is the way this would fail quietly. `--setup-show` puts
+> `_skip_when_postgres_unreachable` first, and when it skips, the channels fixtures
+> never appear in the trace at all. With the probe pointed at a dead port the channels
+> integration suite gives **58 skipped, 0 errors**.
+>
+> **The residue is real and stays open as its own thing: a skip that reads as a
+> pass.** The probe reads `env.postgres.uri_core`, whose host defaults to the
+> compose-internal name `postgres`, which does not resolve from the host machine.
+> `py-run-tests` exports `POSTGRES_HOST` and hides this; a bare `pytest` does not, so
+> a developer with a healthy database sees the whole layer skip and reads it as green.
+>
+> **Not fixed by guessing a better host, deliberately.** The probe and the engine
+> derive from the same setting, so they agree by construction. Pointing the probe
+> somewhere the engine will not follow was tested and produces
+> `InvalidCatalogNameError` — it converts a clean skip into the error the guard exists
+> to prevent. The skip message now names the host and port it tried and says which
+> variable to export, and `pytest.ini` already carries `-ra` so every run prints it.
+> The pass/skip decision is untouched.
+
 - ID: `F22`
 - Origin: `test-layer audit`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `closed`
 - Category: `Test-design`
 - Summary: With Postgres stopped, all 41 channels integration tests **error**
   (`OSError: Connect call failed ... 5432`) rather than skipping. The acceptance

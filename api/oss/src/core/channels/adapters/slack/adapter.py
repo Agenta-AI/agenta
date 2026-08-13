@@ -439,7 +439,11 @@ def _connection_discriminator(payload: Dict[str, Any]) -> Tuple[str, str]:
     Enterprise Grid install spans many workspaces, each firing events with a
     different team_id -- keying on team_id there would fragment one
     installation into many rows, so the discriminator is enterprise_id
-    whenever the install is org-wide, team_id otherwise."""
+    whenever the install is org-wide, team_id otherwise.
+
+    The org-wide field positions come from documentation, not from a captured
+    payload. A wrong guess fails as a bare 401, indistinguishable from a bad
+    secret, so nothing reports it."""
 
     authorizations = payload.get("authorizations")
     auth = (

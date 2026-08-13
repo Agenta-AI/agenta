@@ -3,6 +3,18 @@
 Three phases, per [wave6.md](wave6.md). Clean-up work belongs to no package and is
 done at the checkpoint, not in a worktree.
 
+**What CU-A found, now that it has run.** Three more entries in this file were wrong
+about their own subject, on top of the six the wave already knew about: `F22` claimed
+a guard that exists does not, `F14` counted 30 misfiled tests where there is one, and
+the contract-suite entry treated the bridge's absence from the registry as a coverage
+gap. It is a P0 — the bridge route resolves through that registry, so it answered 404
+for every request, and every suite passed because every suite builds its own registry.
+
+The pattern is one pattern. **A record of a defect is not the defect**, and a check
+that constructs its own subject checks nothing. Nine of this file's entries have now
+been decided by reading the code instead, and the one that mattered most was the one
+nobody had filed.
+
 ---
 
 ## CU-A — before any package
@@ -36,11 +48,13 @@ existed to do, and nothing in the file says whether they closed.
       `UniqueConstraint("channel", "external_key")`, with the reason written beside
       it, plus a separate per-project constraint on the slug — which is what the old
       constraint conflated with identity.
-- [ ] **`F47`** — no channel declares its credential schema and no channel has an
-      onboarding flow. **Half landed**: the declaration is a real type and Slack
-      fills all three slots. The onboarding half is WP26 and is still absent. Split
-      the finding rather than leaving one entry that is half true — an entry that is
-      half true reads as whichever half the reader needs.
+- [x] **`F47`** — split, and the halves now disagree in the record rather than inside
+      one entry. The declaration half is **closed**: `ChannelCapabilities.setup` is a
+      real type, Slack fills all three slots, and a unit test asserts both a channel
+      that declares everything and one that declares nothing. The onboarding half is
+      **`F65`**, open, WP26's. The evidence for the split is blunt — the connections
+      section says in its own comment that it never builds a create form, and links
+      to an unrelated tab instead.
 - [x] **`F6`** — no route writes the connection keys the Slack adapter reads.
       Verified and **closed**: `create_connection` composes `connection.data` with
       the declared identity subset nested under `connection_locator`, the discovered
@@ -54,49 +68,75 @@ check. Read the code.
 
 ### The guards that lie
 
-- [ ] **The contract suite builds adapters the way tests find convenient**, not the
-      way the composition root builds them. **Checked, and it is narrower than the
-      ledger implied** — two of the three worries are already closed:
+- [x] **The contract suite builds adapters the way tests find convenient**, not the
+      way the composition root builds them. **Fixed, and the fourth worry turned out
+      to be a P0 in production.** Two of the three original worries were already
+      closed:
 
       - *Identity fixtures:* **fixed.** The suite derives its locators from each
         adapter's own declared field names. The Slack-shaped constants survive only
         as the fake adapter's own fixture, and say so in place.
       - *Coverage:* **fine.** All four real adapters run the suite — slack, agenta,
         mock, bridge.
-      - *Construction:* **this is the live half.* Agenta runs the suite with a null
-        DAO and a resolver that always returns nothing, where the composition root
-        passes a real `ChannelsDAO` and a real API-key resolver. Slack runs it with
-        a subclass whose `verify_signature` is swapped for the suite's fake header
-        scheme, so the real HMAC never runs inside the suite. Both are documented
-        choices, and both mean the object under test is not the object production
-        builds.
-      - *And one the ledger never named:* **the bridge is not in the registry at
-        all.** `build_channel_adapter_registry` registers slack, mock and agenta;
-        the bridge route resolves its own adapter at runtime. So any check phrased
-        as "compare the suite against the registry" cannot see the bridge — which is
-        the adapter with three defects against it.
-- [ ] **`F22`** — the channels integration tests error instead of skipping without
-      Postgres. **Confirmed, and the cause is simpler than the finding says: there is
-      no guard at all.** `integration/channels/conftest.py` calls
-      `get_transactions_engine()` from an autouse fixture, so a missing database
-      raises during setup rather than skipping. Separately, the guard that exists
-      elsewhere resolves the compose-internal hostname, which cannot resolve from the
-      host — so a developer who *has* Postgres running still sees the suite skip.
-      Two different defects wearing one finding: no guard here, an unreachable guard
-      there.
-- [ ] **`F14`** — 30 unit tests open external connections and collide over them.
-      Unit tests need nothing running; these are misfiled by definition.
+      - *Construction:* **was the live half, now fixed.** Agenta ran the suite with a
+        null DAO and a resolver returning nothing — and with `verify_signature`
+        swapped out on top, which made the resolver dead code whatever it returned.
+        It now runs against a DAO-shaped fake and a resolver that really resolves,
+        with the real API-key check deciding accept or reject. Slack ran with
+        `verify_signature` replaced by the suite's fake header scheme, so the real
+        HMAC never ran; the suite now signs its fixture body with the fixture
+        connection's own secret and calls the production method unmodified.
+      - *And one the ledger never named:* **the bridge was not in the registry at
+        all** — and the consequence is worse than a coverage gap. The bridge ingress
+        route resolves its adapter through that same registry, and the registry
+        raises on a miss, so `POST /bridge/events/` answered 404 for every request in
+        every composition root. The outbox worker resolves the same way, so a bridge
+        connection could neither receive an event nor deliver a reply. Filed and
+        closed as **`F66`**; `BridgeAdapter()` is registered beside the other three.
+      - *Why every suite stayed green:* each bridge test builds its own registry with
+        the bridge in it. No test ever asked the question the composition root
+        answers. A guard now fails when a channel has a contract suite but neither a
+        registration nor a written exemption.
+      - *Worth keeping:* the factory's own comment said the bridge was missing. It was
+        known, recorded beside the code, and shipped, because nothing executable
+        disagreed with it.
+- [x] **`F22`** — **this entry was wrong on both halves, and the guard works.** A
+      layer-wide autouse guard exists at `integration/conftest.py`; the channels
+      conftest reaches the engine from `channels_scope`, which is not autouse. Order
+      was checked with `--setup-show` rather than assumed, since a parent conftest
+      racing a child's async autouse fixture is how this would fail quietly: the
+      guard runs first, and when it skips the channels fixtures never appear at all.
+      Probe pointed at a dead port, the suite gives **58 skipped, 0 errors**.
+
+      The residue is real and is the interesting half: **a skip that reads as a
+      pass.** The probe resolves the compose-internal hostname, so somebody with a
+      healthy database who runs bare `pytest` sees the whole layer skip and calls it
+      green. Not fixed by guessing a better host — probe and engine derive from one
+      setting, and pointing the probe somewhere the engine will not follow was tested
+      and converts the clean skip into `InvalidCatalogNameError`. The skip message now
+      names the host and port it tried and which variable to export, which `-ra`
+      prints on every run. The decision itself is untouched.
+- [x] **`F14`** — **one file, not 30.** The 30 was a string match that could not tell
+      a dependency from a fake of one. Re-run it gives 33 hits and nearly all are
+      `_FakeRedis`, `_FakeTransactionsEngine`, `_FakeObjectStore`, a `redis_client=None`
+      keyword, or a monkeypatched engine getter; `sessions/` supplies 25 of them and
+      every one is deliberate. Exactly one file calls an unpatched
+      `get_transactions_engine()`, it is marked `integration`, and it self-guards, so
+      it skips rather than errors. It is misfiled by directory and belongs to another
+      area. Measured, not argued: the unit layer runs green with nothing reachable —
+      2982 passed, 8 skipped, 0 errors. Channels contributes no violation.
 
 ### One payload nobody has ever seen
 
 - [ ] **`F53`** — capture one real `authorizations` block from an ordinary event and
-      one from an org-wide install, and assert against both. Reconstructed from
-      documentation today, and its failure mode is a bare 401 indistinguishable from
-      a bad secret. The hosted app puts every customer on one `api_app_id`, so the
-      two install models coexisting stops being exotic.
-- [ ] If a real Enterprise Grid workspace is not available, say so in the finding and
-      leave the org-wide path marked unproven. An untested guess that reads as
-      settled is worse than one that admits it.
+      one from an org-wide install, and assert against both. **Carried to CU-C**: no
+      Enterprise Grid workspace is available before the deployment, and there will not
+      be a cheaper moment than one with a real workspace to hand.
+- [x] No Enterprise Grid workspace is available, and the record says so. The finding
+      states plainly that the org-wide path is unproven and stays unproven, and the
+      discriminator in the Slack adapter now carries the same admission in one line —
+      the field positions come from documentation, and a wrong guess fails as a bare
+      401 that nothing reports.
 
 ### The reconciliation debt
 
@@ -109,9 +149,16 @@ check. Read the code.
 - [x] **`F60` is settled as `D37`**, and its premise was wrong: the bridge declares
       no setup fields correctly, because only we can mint a bridge secret. What it
       lacks is the document slot. WP29 builds it.
-- [ ] **`provisioning.md` §2 and §3 are customer-owned only.** The cross-reference is
-      in place; check whether the sections themselves need scoping in their own
-      words before somebody builds drift detection for an app we own.
+- [x] **`provisioning.md` §2 and §3 are customer-owned only**, and now say so in their
+      own words. §2's generate-and-compare drift flow does not apply to one manifest
+      we maintain for everybody. §3's principle holds for both models, but its shape
+      does not: there is no paste step in a hosted install, so verification happens
+      inside the token exchange rather than as an operator action.
+
+      Found while there: the document's own opening and §1 still claimed nothing
+      declares a credential schema and the manifest builder has no callers. Both
+      closed while the document stood still, so it read as a list of missing work.
+      Corrected — it now says which third of the gap survives.
 
 ---
 
