@@ -75,7 +75,34 @@ export const useSessionActions = () => {
     const rename = useCallback(
         (target: SessionActionTarget) => {
             let next = target.name ?? ""
-            modal.confirm({
+
+            const submit = async () => {
+                const title = next.trim()
+                if (!title) return
+                if (isCached(target) && target.appId) {
+                    await store.set(renameSessionAtomFamily(target.appId), {
+                        id: target.sessionId,
+                        title,
+                    })
+                } else {
+                    const ok = await setSessionHeader({
+                        sessionId: target.sessionId,
+                        projectId,
+                        name: title,
+                    })
+                    if (!ok) {
+                        message.error("Couldn't rename this session")
+                        return
+                    }
+                }
+                revalidate()
+            }
+
+            // Held in a box so the Input's Enter handler can close the dialog that is being
+            // created by the very call it is passed to.
+            const dialog: {current?: ReturnType<typeof modal.confirm>} = {}
+
+            dialog.current = modal.confirm({
                 title: "Rename session",
                 content: (
                     <Input
@@ -86,30 +113,17 @@ export const useSessionActions = () => {
                         onChange={(event) => {
                             next = event.target.value
                         }}
+                        // A one-field modal has to confirm on Enter; without this the only way out
+                        // is the mouse.
+                        onPressEnter={() => {
+                            if (!next.trim()) return
+                            dialog.current?.destroy()
+                            void submit()
+                        }}
                     />
                 ),
                 okText: "Rename",
-                onOk: async () => {
-                    const title = next.trim()
-                    if (!title) return
-                    if (isCached(target) && target.appId) {
-                        await store.set(renameSessionAtomFamily(target.appId), {
-                            id: target.sessionId,
-                            title,
-                        })
-                    } else {
-                        const ok = await setSessionHeader({
-                            sessionId: target.sessionId,
-                            projectId,
-                            name: title,
-                        })
-                        if (!ok) {
-                            message.error("Couldn't rename this session")
-                            return
-                        }
-                    }
-                    revalidate()
-                },
+                onOk: submit,
             })
         },
         [isCached, message, modal, projectId, revalidate, store],
