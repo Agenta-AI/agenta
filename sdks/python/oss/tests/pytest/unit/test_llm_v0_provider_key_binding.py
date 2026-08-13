@@ -1,8 +1,11 @@
-"""`llm_v0` binds litellm's per-provider key attributes to the FIRST record of each family.
+"""`llm_v0` resolves the credential per LLM entry, through the shared slug-first resolver.
 
-The agent path sets `litellm.openai_key` & co. from the vault before calling out. With two
-connections for one provider, letting the last record overwrite the first would make this path
-run on a different credential than `SecretsManager._settings_by_family` picks everywhere else.
+The agent path used to pre-bind litellm's module-global `openai_key` & co. from the vault before
+calling out. A module global has room for one key per family, so an entry naming the second of
+two same-family connections silently ran on the first one's key. Resolving each entry through
+`SecretsManager.get_provider_settings_from_workflow` makes this path answer exactly what the
+prompt path and the evaluators answer: the slug picks the record, and a slugless entry falls back
+to the family's first record.
 """
 
 from types import SimpleNamespace
@@ -10,71 +13,174 @@ from types import SimpleNamespace
 import pytest
 
 from agenta.sdk.engines.running import handlers
+from agenta.sdk.engines.running.errors import UnknownConnectionV0Error
 
 pytestmark = pytest.mark.asyncio
 
 
-def _provider_key(kind: str, key: str) -> dict:
-    return {"kind": "provider_key", "data": {"kind": kind, "provider": {"key": key}}}
+def _provider_key(*, slug=None, kind="openai", key="sk-x"):
+    return {
+        "kind": "provider_key",
+        "slug": slug,
+        "data": {"kind": kind, "provider": {"key": key}},
+    }
 
 
 @pytest.fixture
 def litellm(monkeypatch):
-    """A stand-in litellm whose key attributes the handler writes, with no network."""
+    """A stand-in litellm that records the kwargs of each call, with no network."""
 
-    async def acompletion(**_kwargs):
+    calls = []
+
+    async def acompletion(**kwargs):
+        calls.append(kwargs)
         message = SimpleNamespace(
             model_dump=lambda exclude_none=True: {"role": "assistant"}
         )
         return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
 
-    fake = SimpleNamespace(acompletion=acompletion)
+    fake = SimpleNamespace(acompletion=acompletion, calls=calls)
     monkeypatch.setattr(handlers, "_load_litellm", lambda: fake)
     return fake
 
 
-async def _run(monkeypatch, secrets):
-    async def retrieve_secrets():
-        return secrets, [], []
+@pytest.fixture
+def vault(monkeypatch):
+    """Put a secrets list in the workflow context the resolver reads."""
 
-    monkeypatch.setattr(handlers.SecretsManager, "retrieve_secrets", retrieve_secrets)
-    await handlers._call_llm_with_fallback(
-        llms=[{"model": "gpt-4o-mini"}],
+    def _vault(secrets):
+        monkeypatch.setattr(
+            "agenta.sdk.managers.secrets.RunningContext",
+            SimpleNamespace(
+                get=lambda: SimpleNamespace(
+                    secrets=secrets, vault_secrets=secrets, local_secrets=[]
+                )
+            ),
+        )
+
+    return _vault
+
+
+async def _run(llms):
+    return await handlers._call_llm_with_fallback(
+        llms=llms,
         messages=[{"role": "user", "content": "hi"}],
         tools=None,
     )
 
 
-async def test_the_first_connection_of_a_family_wins(litellm, monkeypatch):
+TWO_OPENAI_CONNECTIONS = [
+    _provider_key(slug="openai", key="sk-first"),
+    _provider_key(slug="openai-2", key="sk-second"),
+]
+
+
+async def test_an_entry_naming_the_second_connection_runs_on_its_key(litellm, vault):
+    vault(TWO_OPENAI_CONNECTIONS)
+
+    await _run([{"model": "gpt-4o-mini", "connection": "openai-2"}])
+
+    assert litellm.calls[0]["api_key"] == "sk-second"
+
+
+async def test_a_slugless_entry_still_takes_the_first_record_of_the_family(
+    litellm, vault
+):
+    vault(TWO_OPENAI_CONNECTIONS)
+
+    await _run([{"model": "gpt-4o-mini"}])
+
+    assert litellm.calls[0]["api_key"] == "sk-first"
+
+
+async def test_an_unknown_slug_fails_loud_instead_of_using_another_key(litellm, vault):
+    vault(TWO_OPENAI_CONNECTIONS)
+
+    with pytest.raises(UnknownConnectionV0Error) as excinfo:
+        await _run([{"model": "gpt-4o-mini", "connection": "openai-9"}])
+
+    error = excinfo.value
+    assert error.code == 400
+    assert "openai-9" in error.message
+    assert "sk-first" not in error.message
+    # Failing loud means failing before the call, not after spending a wrong key.
+    assert litellm.calls == []
+
+
+async def test_each_entry_carries_its_own_connection_through_the_fallback(
+    litellm, monkeypatch, vault
+):
+    """The bug this path had: one global key attribute cannot serve two entries at once."""
+
+    vault(TWO_OPENAI_CONNECTIONS)
+
+    class Unavailable(Exception):
+        pass
+
+    monkeypatch.setattr(litellm, "ServiceUnavailableError", Unavailable, raising=False)
+
+    original = litellm.acompletion
+
+    async def acompletion(**kwargs):
+        result = await original(**kwargs)
+        if len(litellm.calls) == 1:
+            raise Unavailable("first entry is down")
+        return result
+
+    monkeypatch.setattr(litellm, "acompletion", acompletion)
+
     await _run(
-        monkeypatch,
-        [_provider_key("openai", "sk-first"), _provider_key("openai", "sk-second")],
-    )
-
-    assert litellm.openai_key == "sk-first"
-
-
-async def test_each_family_binds_independently(litellm, monkeypatch):
-    await _run(
-        monkeypatch,
         [
-            _provider_key("openai", "sk-oai-first"),
-            _provider_key("anthropic", "sk-ant"),
-            _provider_key("openai", "sk-oai-second"),
-        ],
+            {"model": "gpt-4o-mini", "connection": "openai"},
+            {"model": "gpt-4o-mini", "connection": "openai-2"},
+        ]
     )
 
-    assert litellm.openai_key == "sk-oai-first"
-    assert litellm.anthropic_key == "sk-ant"
+    assert [call["api_key"] for call in litellm.calls] == ["sk-first", "sk-second"]
 
 
-async def test_a_keyless_record_does_not_claim_the_family(litellm, monkeypatch):
-    await _run(
-        monkeypatch,
+async def test_each_family_resolves_independently(litellm, vault):
+    vault(
         [
-            {"kind": "provider_key", "data": {"kind": "openai", "provider": {}}},
-            _provider_key("openai", "sk-real"),
-        ],
+            _provider_key(slug="openai", key="sk-oai-first"),
+            _provider_key(slug="anthropic", kind="anthropic", key="sk-ant"),
+            _provider_key(slug="openai-2", key="sk-oai-second"),
+        ]
     )
 
-    assert litellm.openai_key == "sk-real"
+    await _run([{"model": "anthropic/claude-sonnet-5"}])
+    await _run([{"model": "gpt-4o-mini"}])
+
+    assert litellm.calls[0]["api_key"] == "sk-ant"
+    assert litellm.calls[1]["api_key"] == "sk-oai-first"
+
+
+async def test_a_keyless_record_is_addressable_around_by_slug(litellm, vault):
+    """The resolver's answer, not this path's own: a keyless first record yields no key.
+
+    litellm then falls back to its environment, which is the same thing the prompt path and the
+    evaluators do with these secrets. Naming the real connection by slug still reaches its key.
+    """
+
+    vault(
+        [
+            {"kind": "provider_key", "slug": "openai", "data": {"kind": "openai"}},
+            _provider_key(slug="openai-2", key="sk-real"),
+        ]
+    )
+
+    await _run([{"model": "gpt-4o-mini"}])
+    await _run([{"model": "gpt-4o-mini", "connection": "openai-2"}])
+
+    assert "api_key" not in litellm.calls[0]
+    assert litellm.calls[1]["api_key"] == "sk-real"
+
+
+async def test_the_model_reaches_litellm_in_the_form_the_resolver_chose(litellm, vault):
+    """A bare Anthropic id needs its family prefix or litellm calls the wrong API."""
+
+    vault([_provider_key(slug="anthropic", kind="anthropic", key="sk-ant")])
+
+    await _run([{"model": "claude-sonnet-5", "connection": "anthropic"}])
+
+    assert litellm.calls[0]["model"] == "anthropic/claude-sonnet-5"

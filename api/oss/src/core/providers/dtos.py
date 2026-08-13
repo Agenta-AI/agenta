@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 class CredentialStatus(str, Enum):
@@ -32,12 +32,17 @@ class DiscoveryStatus(str, Enum):
 
 
 class ProviderCredentials(BaseModel):
-    """Credentials in transit only. Never persisted here, never logged, never echoed."""
+    """Credentials in transit only. Never persisted here, never logged, never echoed.
 
-    key: Optional[str] = None
+    `key` is a `SecretStr` and `extras` is kept out of `repr`, so an accidental log line
+    or traceback that carries this object cannot print the credential. Unwrap the key with
+    `.get_secret_value()` at the point it is put on the wire, never earlier.
+    """
+
+    key: Optional[SecretStr] = None
     url: Optional[str] = None
     version: Optional[str] = None
-    extras: Optional[Dict[str, Any]] = None
+    extras: Optional[Dict[str, Any]] = Field(default=None, repr=False)
 
 
 class CredentialResult(BaseModel):

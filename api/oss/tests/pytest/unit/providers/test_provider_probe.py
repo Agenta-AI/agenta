@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.providers import router as router_module
+from oss.src.apis.fastapi.providers.models import ProbeProviderRequest
 from oss.src.apis.fastapi.providers.router import ProvidersRouter
 from oss.src.core.providers.dtos import ProviderCredentials
 from oss.src.core.providers.exceptions import (
@@ -505,6 +506,56 @@ async def test_a_hostname_resolving_to_a_private_address_is_rejected(monkeypatch
 
 
 # --- credentials never leak ------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "render",
+    [repr, str, lambda c: str(c.model_dump()), lambda c: c.model_dump_json()],
+    ids=["repr", "str", "model_dump", "model_dump_json"],
+)
+def test_rendering_the_credentials_object_never_shows_the_key(render):
+    """A stray log line or traceback carrying the object must not print the secret."""
+
+    credentials = ProviderCredentials(key=CANARY, url="https://llm.example.com/v1")
+
+    assert CANARY not in render(credentials)
+
+
+@pytest.mark.parametrize("render", [repr, str], ids=["repr", "str"])
+def test_printing_the_credentials_object_never_shows_the_extras(render):
+    """Bedrock's token and AWS secret ride in `extras`, which is kept out of `repr`."""
+
+    credentials = ProviderCredentials(
+        extras={"aws_region_name": "us-east-1", "aws_bearer_token_bedrock": CANARY}
+    )
+
+    assert CANARY not in render(credentials)
+    assert "us-east-1" not in render(credentials)
+
+
+def test_the_masked_key_renders_as_asterisks_in_json():
+    credentials = ProviderCredentials(key=CANARY)
+
+    assert "**********" in credentials.model_dump_json()
+
+
+def test_the_key_is_still_readable_where_the_request_is_built():
+    """Masking is for printing only: the probe must still be able to send the key."""
+
+    credentials = ProviderCredentials(key=f"  {CANARY}  ")
+
+    assert credentials.key.get_secret_value().strip() == CANARY
+
+
+def test_a_plain_string_key_is_accepted_at_the_model_boundary():
+    """The router takes the vault's field vocabulary: `key` arrives as JSON string."""
+
+    body = ProbeProviderRequest.model_validate(
+        {"kind": "openai", "provider": {"key": CANARY}}
+    )
+
+    assert body.provider.key.get_secret_value() == CANARY
+    assert CANARY not in repr(body)
 
 
 async def test_no_probe_result_ever_carries_the_credential(public_dns):

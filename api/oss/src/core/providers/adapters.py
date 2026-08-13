@@ -49,6 +49,13 @@ def _unknown(message: str, discovery: DiscoveryStatus) -> ProbeOutcome:
     )
 
 
+def _api_key(credentials: ProviderCredentials) -> str:
+    """Unwrap the secret at the one place it is about to go on the wire."""
+
+    key = credentials.key
+    return (key.get_secret_value() if key else "").strip()
+
+
 def _missing_key(label: str) -> ProbeOutcome:
     return ProbeOutcome(
         credential=CredentialResult(
@@ -198,7 +205,7 @@ class ApiKeyCatalogAdapter:
     parameterize: Optional[Callable[[str], Dict[str, str]]] = None
 
     async def probe(self, *, client, credentials) -> ProbeOutcome:
-        key = (credentials.key or "").strip()
+        key = _api_key(credentials)
         if not key:
             return _missing_key(self.label)
 
@@ -222,7 +229,7 @@ class PublicCatalogAdapter:
     authorize: Optional[Callable[[str], Dict[str, str]]] = _bearer
 
     async def probe(self, *, client, credentials) -> ProbeOutcome:
-        key = (credentials.key or "").strip()
+        key = _api_key(credentials)
         return await _probe_catalog(
             client=client,
             label=self.label,
@@ -257,7 +264,7 @@ class OpenRouterAdapter:
     models_url: str = "https://openrouter.ai/api/v1/models"
 
     async def probe(self, *, client, credentials) -> ProbeOutcome:
-        key = (credentials.key or "").strip()
+        key = _api_key(credentials)
         if not key:
             return _missing_key(self.label)
 
@@ -295,7 +302,7 @@ class AzureAdapter:
     label: str = "Azure OpenAI"
 
     async def probe(self, *, client, credentials) -> ProbeOutcome:
-        key = (credentials.key or "").strip()
+        key = _api_key(credentials)
         if not key:
             return _missing_key(self.label)
 
@@ -332,7 +339,7 @@ class OpenAICompatibleAdapter:
     async def probe(self, *, client, credentials) -> ProbeOutcome:
         endpoint = guard_endpoint(credentials.url or "", path="models")
         host = endpoint_host(credentials.url or "")
-        key = (credentials.key or "").strip()
+        key = _api_key(credentials)
 
         headers = dict(endpoint.headers)
         if key:
