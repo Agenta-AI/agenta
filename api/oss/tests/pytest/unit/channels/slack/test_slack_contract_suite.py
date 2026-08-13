@@ -1,18 +1,22 @@
 """Runs the reusable contract suite against SlackAdapter.
 
-`run_contract_suite`'s two signature assertions are coupled to the suite's own
-fake header scheme (`x-fake-signature: valid`, contract/fakes.py) rather than
-being adapter-agnostic — a real adapter's `verify_signature` correctly REJECTS
-that header, since it is not a valid Slack HMAC. Rather than editing the
-shared suite or weakening SlackAdapter to accept a fake scheme, this file
-runs the suite against a test-local subclass that swaps in the suite's fake
-header acceptance for verify_signature only — every other method
+`run_contract_suite`'s two signature assertions post the suite's own generic
+good/bad header (`x-fake-signature`, contract/fakes.py), not a real Slack
+HMAC. Rather than swapping `verify_signature` itself for the fake scheme --
+which would mean the real `verify_slack_signature` check never runs inside
+this suite -- `_SuiteAdaptedSlackAdapter` only translates that generic
+good/bad signal into a real signature, signed with the fixture connection's
+own `signing_secret` over a fixture Slack event body, and hands it to the
+real, unmodified `verify_signature`. Every other method
 (post/edit/buttons/backfill/identity keys) is the real SlackAdapter
-implementation, unmodified. SlackAdapter's own signature behaviour is
-covered separately and exhaustively in test_slack_signature.py and
+implementation too. SlackAdapter's own signature behaviour is covered
+separately and exhaustively in test_slack_signature.py and
 test_slack_adapter.py against real Slack HMAC fixtures.
 """
 
+import hashlib
+import hmac
+import time
 from typing import Any, Dict
 from uuid import uuid4
 
@@ -21,12 +25,10 @@ import pytest
 
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
 from oss.src.core.channels.dtos import ChannelConnection, ChannelRequestContext
-from oss.src.core.channels.types import ChannelSignatureInvalid
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.dtos import ChannelKeyGrain
 
 from ..contract.fakes import (
-    INSTALLATION_ID,
     THREAD_LOCATOR_A,
     THREAD_LOCATOR_B,
     THREAD_LOCATOR_INCOMPLETE,
@@ -34,6 +36,18 @@ from ..contract.fakes import (
     VALID_SIGNATURE_VALUE,
 )
 from ..contract.test_channel_adapter_contract import run_contract_suite
+
+SECRET = "test-fixture-slack-signing-secret-not-real"
+_FIXTURE_BODY = b'{"team_id": "T-CONTRACT-SUITE", "api_app_id": "A-CONTRACT-SUITE"}'
+
+
+def _sign_slack_request(*, secret: str, body: bytes) -> Dict[str, str]:
+    timestamp = str(int(time.time()))
+    signed_bytes = f"v0:{timestamp}:".encode() + body
+    signature = (
+        "v0=" + hmac.new(secret.encode(), signed_bytes, hashlib.sha256).hexdigest()
+    )
+    return {"x-slack-signature": signature, "x-slack-request-timestamp": timestamp}
 
 
 class _ScriptedTransport(httpx.AsyncBaseTransport):
@@ -69,16 +83,26 @@ def _json_body(content: bytes) -> Dict[str, Any]:
 
 
 class _SuiteAdaptedSlackAdapter(SlackAdapter):
-    """SlackAdapter with only verify_signature swapped for the suite's fake
-    header scheme, so the suite's own hardcoded good/bad headers apply. Every
-    other method is inherited, unmodified."""
+    """Only verify_signature's INPUT is adapted: the suite's generic good/bad
+    header selects a real, correctly-signed request or an unsigned one, and
+    both go through the real, unmodified verify_signature. Every other
+    method is inherited, unmodified."""
 
     async def verify_signature(
         self, *, request: ChannelRequestContext, connection: ChannelConnection
     ) -> str:
-        if request.headers.get(VALID_SIGNATURE_HEADER) != VALID_SIGNATURE_VALUE:
-            raise ChannelSignatureInvalid(channel=self.channel)
-        return INSTALLATION_ID
+        secret = (connection.data or {}).get("signing_secret", "")
+        headers = (
+            _sign_slack_request(secret=secret, body=_FIXTURE_BODY)
+            if request.headers.get(VALID_SIGNATURE_HEADER) == VALID_SIGNATURE_VALUE
+            else {}
+        )
+        return await super().verify_signature(
+            request=ChannelRequestContext(
+                headers=headers, path=request.path, body=_FIXTURE_BODY
+            ),
+            connection=connection,
+        )
 
     def inspect_posted(self, locator):
         # What was actually rendered onto the wire (post-degradation), not the
@@ -116,7 +140,7 @@ def _connection() -> ChannelConnection:
         slug="slack-contract-suite",
         channel="slack",
         external_key=uuid4(),
-        data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
+        data={"signing_secret": SECRET, "bot_token": "xoxb-fake"},
     )
 
 
