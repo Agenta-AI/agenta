@@ -23,6 +23,7 @@ from agenta.sdk.agents import (
     SandboxNotAllowedError,
 )
 
+from agenta.sdk.agents.fold import assistant_text
 from agenta.sdk.agents.handler import (
     AgentComposition,
     make_agent_handler,
@@ -153,7 +154,10 @@ def create_agent_app():
     # copies of the conversation under `ag.data.inputs` (inputs.messages, request.data.
     # inputs.messages) plus a duplicate of `ag.data.parameters`. Only `messages` is signal.
     register_handler(
-        instrument(ignore_inputs=["request", "inputs", "parameters"])(_agent),
+        instrument(
+            ignore_inputs=["request", "inputs", "parameters"],
+            stream_output=assistant_text,
+        )(_agent),
         uri=AGENT_URI,
     )
     register_interface(

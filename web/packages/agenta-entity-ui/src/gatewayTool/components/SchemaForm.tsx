@@ -16,10 +16,10 @@ import {
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
+    AutosizeTextarea,
     Button,
     Input,
     InputNumber,
-    Textarea,
     TimePicker,
 } from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
@@ -1182,7 +1182,12 @@ function SchemaFormField({
                         rules={rules}
                         initialValue={field.default}
                     >
-                        <Textarea rows={3} placeholder={field.label} disabled={disabled} />
+                        {/* Autosize owns the height, so there is no grabber to drag off the card. */}
+                        <AutosizeTextarea
+                            autoSize={{minRows: 3, maxRows: 20}}
+                            placeholder={field.label}
+                            disabled={disabled}
+                        />
                     </Form.Item>
                 )
             }

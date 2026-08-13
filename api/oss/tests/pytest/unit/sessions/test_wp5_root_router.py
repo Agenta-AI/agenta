@@ -23,7 +23,8 @@ from fastapi import FastAPI, HTTPException, Request
 from oss.src.apis.fastapi.sessions.router import SessionsRootRouter
 from oss.src.apis.fastapi.sessions.models import SessionQueryRequest
 from oss.src.core.sessions.dtos import SessionQueryPage
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.shared.dtos import Windowing
 
 
 def _make_authed_request(app: FastAPI, project_id, user_id, method="POST") -> Request:
@@ -63,7 +64,7 @@ async def test_query_sessions_delegates_to_service():
     app = FastAPI()
     request = _make_authed_request(app, project_id, user_id)
 
-    target_ref = Reference(id=uuid4(), slug="wf", version="v1")
+    target_ref = SessionReference(id=uuid4(), slug="wf", version="v1")
     body = SessionQueryRequest(
         references=[target_ref], windowing=Windowing(order="descending")
     )

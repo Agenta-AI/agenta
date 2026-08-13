@@ -68,7 +68,11 @@ import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts"
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
-import { cancelStaleInteractions } from "./sessions/interactions.ts";
+import {
+  buildWorkflowReferenceList,
+  cancelStaleInteractions,
+} from "./sessions/interactions.ts";
+import { proposeSessionName } from "./sessions/name.ts";
 import {
   buildPersistingEmitter,
   noteRecordsIncomplete,
@@ -477,11 +481,20 @@ async function runAndStreamWithApiBaseResolved(
     // `controller.abort()` is what makes the control-plane signal actually reach this
     // in-flight run — before this, a session-owned run's controller was never aborted.
     // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
+    //
+    // The beat also proposes the two things a headless session otherwise never gets: a name
+    // (no browser ever renders it, and the browser is the only other title writer) and the
+    // run's workflow references (they ride only a fire-and-forget turn append today, so a
+    // dropped append leaves a row the UI cannot open). Both are fill-once server-side.
     const watchdog = await startAliveWatchdog(
       sessionId,
       turnId,
       runCredential(request),
       () => controller.abort(),
+      {
+        name: proposeSessionName(request),
+        references: buildWorkflowReferenceList(request.runContext?.workflow),
+      },
     );
     aliveWatchdog = watchdog;
     // The heartbeat response already carries the session_streams row id — free, no extra
