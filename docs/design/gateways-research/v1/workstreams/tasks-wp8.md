@@ -181,10 +181,29 @@ that file (WP5) or the M2 merge coordinator, not WP8.
 - [x] Translate the returned `McpRelayResult` into a raw `Response` with the
       relayed `status_code`, `headers`, and `body` — no wrapping envelope
       (§6: the data plane has no wire models).
-- [x] Decorate each handler with `@intercept_exceptions()` and
-      `@handle_gateway_exceptions()`, importing the latter from
-      `apis/fastapi/gateways/exceptions.py` — a **seed** file (R1), already on
-      the branch. Import it; never write a local copy.
+- [x] **Correction, applied after the coordinator caught it mid-package:**
+      handlers are decorated with `@intercept_exceptions()` only.
+      `handle_gateway_exceptions()` (seed, R1, `apis/fastapi/gateways/exceptions.py`)
+      is right for WP10's CRUD routers, which speak the house wire, and wrong for a
+      proxy: it raises a plain `HTTPException(status, detail=str)`, which collapses
+      every cause sharing a status into one indistinguishable message —
+      `McpEndpointNotFoundError` and `CredentialNotFoundError` both become an opaque
+      `HTTPException` a caller cannot tell apart. §9 requires the opposite: *"the MCP
+      proxy answers protocol-shaped errors at the transport status the relay produced,
+      and gateway-authored refusals as the protocol's error result with the same
+      stable causes in the error data."* `proxy.py` therefore keeps its own mapping,
+      `_map_gateway_exception`, producing a JSON-RPC error result (`id: null`, since
+      this proxy never parses the body and so never has a real id to echo) with a
+      stable snake_case `cause` in `error.data` — never the house
+      `{code,message,retryable,...}` envelope, which must not leak onto this surface.
+      The HTTP status per cause is unchanged from `handle_gateway_exceptions()`'s
+      table (404 not-found, 403 policy/entitlement/tool-denied, 400
+      ceiling-exceeded/invalid-request, 409 auth-required/scope-insufficient/
+      credential-missing/invalid, 424-or-502 upstream). The missing-`Mcp-Method`
+      `ValueError` folds into the same mapping (`cause: "invalid_request"`) rather
+      than being a bespoke `HTTPException(400)` special case — `handle_gateway_exceptions`
+      is not imported into this file at all. `apis/fastapi/gateways/exceptions.py`
+      itself is untouched — not copied, not edited — and stays what WP10 uses.
 - [x] `ruff format` && `ruff check --fix`; fix all errors.
 - [x] Commit: "gateways(mcp): McpGatewayProxy routes".
 
@@ -200,11 +219,17 @@ that file (WP5) or the M2 merge coordinator, not WP8.
 - [x] Unit test: `POST /custom/acme-notion` reaches `relay_custom` with
       `name="acme-notion"`.
 - [x] Unit test: `GET` and `DELETE` on all three paths return 405.
-- [x] Unit test: the fake service raising `McpToolNotAllowedError` maps to
-      403 through `handle_gateway_exceptions`; raising
-      `McpEndpointNotFoundError` maps to 404; raising `McpUpstreamError`
-      maps to 424 (or 502 when the upstream answered ≥500, per the mapping
-      table).
+- [x] Unit test, revised for the correction above: a parametrized table of all eleven
+      mapped causes (`endpoint_not_found`, `policy_denied`, `entitlement_denied`,
+      `tool_not_allowed`, `ceiling_exceeded`, `auth_required`, `scope_insufficient`,
+      `credential_missing`, `credential_invalid`, `upstream_error` below/above 500 and
+      with no upstream status at all) each asserts BOTH the HTTP status AND the
+      `error.data.cause` string in the JSON-RPC error body — asserting the status
+      alone would also have passed under the old `HTTPException` behaviour and proved
+      nothing about the cause surviving. A second test confirms
+      `McpAuthRequiredError`'s `GatewayConnectionRequirement` rides in `error.data`.
+      The missing-header 400 test now also asserts `cause == "invalid_request"` and
+      the `{jsonrpc, id: null, error}` shape, not just the status.
 - [x] `ruff format` && `ruff check --fix`; run tests; fix failures.
 - [x] Commit: "gateways(mcp): McpGatewayProxy routing tests".
 
