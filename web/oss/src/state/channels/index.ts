@@ -10,6 +10,7 @@
 export * from "./api"
 export * from "./atoms/fetcher"
 export * from "./hooks/useChannelAgentActions"
+export * from "./hooks/useChannelConnectionActions"
 export * from "./hooks/useChannelGrantActions"
 export * from "./hooks/useChannelPolicyResolve"
 export * from "./hooks/useChannelSpaceActions"
