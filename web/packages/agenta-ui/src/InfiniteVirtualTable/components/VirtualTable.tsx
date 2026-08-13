@@ -120,6 +120,11 @@ export interface VirtualTableProps<RecordType extends object> {
     /** Rendered before the first column — the selection checkbox column. */
     leadingColumnWidth?: number
     renderLeadingCell?: (record: RecordType, index: number) => ReactNode
+    /** Props for the leading cell's <td>, so a caller's rowSelection.onCell survives. */
+    leadingCellProps?: (
+        record: RecordType,
+        index: number,
+    ) => React.TdHTMLAttributes<HTMLTableCellElement>
     renderLeadingHeader?: () => ReactNode
 }
 
@@ -225,6 +230,7 @@ export const VirtualTable = <RecordType extends object>({
     columnResizeMode = "onChange",
     leadingColumnWidth = 0,
     renderLeadingCell,
+    leadingCellProps,
     renderLeadingHeader,
 }: VirtualTableProps<RecordType>) => {
     const bodyRef = useRef<HTMLDivElement | null>(null)
@@ -571,12 +577,26 @@ export const VirtualTable = <RecordType extends object>({
                                         >
                                             {leadingColumnWidth ? (
                                                 <td
+                                                    {...leadingCellProps?.(
+                                                        record,
+                                                        virtualRow.index,
+                                                    )}
                                                     key="leading"
                                                     className={cn(
                                                         AVT.cell,
                                                         "box-border bg-colorBgContainer px-2 align-middle",
+                                                        leadingCellProps?.(record, virtualRow.index)
+                                                            ?.className,
                                                     )}
-                                                    style={{position: "sticky", left: 0, zIndex: 1}}
+                                                    style={{
+                                                        position: "sticky",
+                                                        left: 0,
+                                                        zIndex: 1,
+                                                        ...leadingCellProps?.(
+                                                            record,
+                                                            virtualRow.index,
+                                                        )?.style,
+                                                    }}
                                                 >
                                                     {renderLeadingCell?.(record, virtualRow.index)}
                                                 </td>

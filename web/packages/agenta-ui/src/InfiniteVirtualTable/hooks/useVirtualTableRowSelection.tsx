@@ -23,6 +23,11 @@ export interface VirtualTableRowSelectionProps<RecordType extends object> {
     onRowSelectionChange: OnChangeFn<RowSelectionState>
     leadingColumnWidth: number
     renderLeadingCell: (record: RecordType, index: number) => ReactNode
+    /** The caller's rowSelection.onCell, so its cell props are not dropped. */
+    leadingCellProps?: (
+        record: RecordType,
+        index: number,
+    ) => ReturnType<NonNullable<InfiniteVirtualTableRowSelection<RecordType>["onCell"]>>
     renderLeadingHeader: () => ReactNode
     /** Set only when `selectOnRowClick` is on; compose it into the host's `onRow`. */
     onRowClickSelect?: (record: RecordType, index: number) => void
@@ -45,6 +50,7 @@ const useVirtualTableRowSelection = <RecordType extends object>({
         type = "checkbox",
         columnTitle,
         renderCell,
+        onCell,
         selectOnRowClick,
     } = rowSelection ?? {}
 
@@ -200,6 +206,9 @@ const useVirtualTableRowSelection = <RecordType extends object>({
             rowSelection: selectionState,
             onRowSelectionChange,
             leadingColumnWidth: columnWidth,
+            ...(onCell
+                ? {leadingCellProps: (record: RecordType, index: number) => onCell(record, index)}
+                : {}),
             renderLeadingCell,
             renderLeadingHeader,
             ...(selectOnRowClick ? {onRowClickSelect} : {}),
@@ -213,6 +222,7 @@ const useVirtualTableRowSelection = <RecordType extends object>({
         renderLeadingHeader,
         selectOnRowClick,
         onRowClickSelect,
+        onCell,
     ])
 }
 

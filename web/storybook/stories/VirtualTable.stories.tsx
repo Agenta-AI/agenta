@@ -373,17 +373,20 @@ const ExpandableDemo = () => {
 
     // Stands in for a real fetch, so the panel has a loading state to show.
     useEffect(() => {
-        Object.keys(expanded)
+        // forEach discards what its callback returns, so these timers used to outlive the
+        // effect; collect them and clear on cleanup instead.
+        const timers = Object.keys(expanded)
             .filter((key) => expanded[key] && !children[key])
-            .forEach((key) => {
-                const timer = setTimeout(() => {
+            .map((key) => {
+                return setTimeout(() => {
                     setChildren((prev) => ({
                         ...prev,
                         [key]: [`${key} child A`, `${key} child B`, `${key} child C`],
                     }))
                 }, 400)
-                return () => clearTimeout(timer)
             })
+
+        return () => timers.forEach(clearTimeout)
     }, [expanded, children])
 
     const openCount = Object.values(expanded).filter(Boolean).length
