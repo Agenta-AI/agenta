@@ -156,8 +156,30 @@ const PLATFORM_TERMS: Record<string, string> = {
 /** "an" before a vowel sound, near enough for a one-word object. */
 const article = (word: string): string => ("aeiou".includes(word[0]?.toLowerCase()) ? "an" : "a")
 
-/** Builds the sentence, naming the app that ran it when one is known. */
-type ActivityBuilder = (appName?: string) => ToolActivity
+/**
+ * Whether the object already says which app this is, so naming the app would stutter: a Google
+ * Calendar action on "calendar settings" would read "Got Google Calendar calendar settings".
+ *
+ * Matches whole words only. A near-miss like Gmail against "email" shares no word and still reads
+ * "Sent a Gmail email", which is redundant but not wrong. Loosening this to substrings would start
+ * guessing.
+ */
+const echoesApp = (object: string, appName: string): boolean => {
+    const words = new Set(object.toLowerCase().split(/\s+/).filter(Boolean))
+    return appName
+        .toLowerCase()
+        .split(/\s+/)
+        .some((word) => words.has(word))
+}
+
+interface BuiltActivity {
+    activity: ToolActivity
+    /** Whether the app name ended up inside the sentence. When it did not, the chip must show it. */
+    namedApp: boolean
+}
+
+/** Builds the sentence, naming the app that ran it when one is known and it does not stutter. */
+type ActivityBuilder = (appName?: string) => BuiltActivity
 
 /**
  * Turn a `verb noun` label into both tenses, optionally naming the app: "Search issues" becomes
@@ -177,15 +199,23 @@ const conjugate = (label: string, ours = false): ActivityBuilder | null => {
         done: `${forms.done} ${phrase}`,
     })
     return (appName) => {
-        if (!object) return appName ? say(appName) : forms
+        if (!object) {
+            return appName
+                ? {activity: say(appName), namedApp: true}
+                : {activity: forms, namedApp: false}
+        }
         // A glossary term brings its own article and never takes an app name: it is ours.
         const term = ours ? PLATFORM_TERMS[object.toLowerCase()] : undefined
-        if (term) return say(term)
+        if (term) return {activity: say(term), namedApp: false}
+        const app = appName && !echoesApp(object, appName) ? appName : undefined
         // The app modifies the object ("GitHub issues"), so a singular object takes its article
         // from whichever word now comes first.
-        const phrase = appName ? `${appName} ${object}` : object
+        const phrase = app ? `${app} ${object}` : object
         const bare = rest.length === 1 && !object.endsWith("s")
-        return say(bare ? `${article(appName ?? object)} ${phrase}` : phrase)
+        return {
+            activity: say(bare ? `${article(app ?? object)} ${phrase}` : phrase),
+            namedApp: Boolean(app),
+        }
     }
 }
 
@@ -228,8 +258,7 @@ interface ParsedShape {
 /** A fixed sentence, for the families whose wording never names an app. */
 const fixed =
     (activity: ToolActivity): ActivityBuilder =>
-    () =>
-        activity
+    () => ({activity, namedApp: false})
 
 /** Our in-sandbox MCP server, wrapped as Claude `mcp__<server>__` / Codex `mcp.<server>.`. Only
  * a tool of ours may take the platform glossary. */
@@ -361,17 +390,17 @@ export const resolveToolDisplay = (
     const override = store.toolDisplay[raw]
     const parsed = parseShape(raw, input)
     const label = override?.label ?? parsed.label
-    const app = appName ?? parsed.appName
-    // Naming the app inside the sentence retires the chip; without a sentence the chip still
-    // carries the provenance on its own.
-    const folded = Boolean(parsed.activity && app && !override?.activity)
+    const built = parsed.activity?.(appName ?? parsed.appName)
+    // Naming the app inside the sentence retires the chip. When the sentence declines the app (it
+    // would stutter) or there is no sentence at all, the chip still carries the provenance.
+    const folded = Boolean(built?.namedApp && !override?.activity)
     return {
         raw,
         kind: override?.kind ?? parsed.kind,
         label,
         source: override?.source ?? (folded ? undefined : (appName ?? parsed.source)),
         sourceKey: parsed.sourceKey,
-        activity: override?.activity ?? parsed.activity?.(app) ?? {running: label, done: label},
+        activity: override?.activity ?? built?.activity ?? {running: label, done: label},
         detail: toolDetail(raw, input),
         summary: override?.summary,
     }
