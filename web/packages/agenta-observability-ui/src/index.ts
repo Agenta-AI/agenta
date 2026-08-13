@@ -130,6 +130,10 @@ export {
 // Trace row — the compact span presentation both surfaces render
 // ============================================================================
 export {TraceRow, type TraceRowProps, type TraceRowMetrics} from "./trace/TraceRow"
+export {
+    ObservabilityTracesTable,
+    type ObservabilityTracesTableProps,
+} from "./table/ObservabilityTracesTable"
 export {ObservabilityList, type ObservabilityListProps} from "./list/ObservabilityList"
 export {
     getObservabilityColumns,
