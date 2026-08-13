@@ -1,5 +1,6 @@
 import {memo, type ReactNode} from "react"
 
+import {isSandboxPath} from "@agenta/entities/session"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {XMarkdown} from "@ant-design/x-markdown"
 import Latex from "@ant-design/x-markdown/plugins/Latex"
@@ -11,6 +12,8 @@ import {oneDark} from "react-syntax-highlighter/dist/esm/styles/prism"
 import {useDriveSessionId} from "@/oss/components/Drives/driveSessionContext"
 
 import {chatFileLinkAtomFamily} from "../state/fileLinks"
+
+import {FILE_PATH_TAG, filePathExtension} from "./filePathExtension"
 
 // Dark-mode-aware markdown styling. `min-w-0` + `max-w-full` + the per-element width guards
 // keep long lines / code blocks from widening their container; code blocks scroll within their
@@ -65,8 +68,8 @@ export const MD_CLASS =
     // Trim the outer edges so the bubble padding isn't doubled by leading/trailing margins.
     "[&>:first-child]:!mt-0 [&>:last-child]:!mb-0"
 
-/** Math support ($…$ / $$…$$) via KaTeX — registered once as a marked extension. */
-const LATEX_CONFIG = {extensions: Latex()}
+/** Marked extensions: math ($…$ / $$…$$) via KaTeX, plus bare sandbox paths in prose. */
+const MARKED_CONFIG = {extensions: [...Latex(), filePathExtension]}
 
 /** Chat content must never restyle the app document, so forbid document-affecting tags.
  * A pasted HTML doc's <style>/<link> would otherwise mount into the live document and
@@ -195,7 +198,14 @@ const ExternalLink = ({href, title, className, children}: AnchorProps) => (
 const DriveLink = ({href, ...rest}: AnchorProps) => {
     const sessionId = useDriveSessionId()
     const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
-    const fallback = <ExternalLink href={href} {...rest} />
+    // A sandbox path is a FILE path, never a URL. When it doesn't resolve to a drive file, showing
+    // the label as plain text beats an anchor to `<app-origin>/tmp/agenta/mounts/…` (issue #5983).
+    const fallback =
+        href && isSandboxPath(href) ? (
+            <span title={href}>{rest.children}</span>
+        ) : (
+            <ExternalLink href={href} {...rest} />
+        )
     if (link && href) return <>{link.renderCode(href, fallback)}</>
     return fallback
 }
@@ -204,9 +214,22 @@ const DriveLink = ({href, ...rest}: AnchorProps) => {
 const Anchor = (props: AnchorProps) =>
     isExternalHref(props.href) ? <ExternalLink {...props} /> : <DriveLink {...props} />
 
+/** A bare sandbox path in prose (see `filePathExtension`). Same resolver as the code-span and link
+ * paths; unresolved, it renders as the plain text it already was. */
+const BareFilePath = ({children}: {children?: ReactNode}) => {
+    const sessionId = useDriveSessionId()
+    const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
+    const text = childrenToText(children).trim()
+    const fallback = <>{text}</>
+    if (link && text) return <>{link.renderCode(text, fallback)}</>
+    return fallback
+}
+
 /** Stable `components` map: a fresh object literal per render churns XMarkdown's prop identity, and
- * this renderer re-renders on every throttled streaming token — so hoist it to a module constant. */
-const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap, a: Anchor}
+ * this renderer re-renders on every throttled streaming token — so hoist it to a module constant.
+ * Every key here is also allowed through XMarkdown's DOMPurify pass, which is what lets the custom
+ * `agenta-file-path` element survive sanitization. */
+const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap, a: Anchor, [FILE_PATH_TAG]: BareFilePath}
 
 /** Shared markdown renderer for the slice — used by message bubbles and the composer live
  * preview, so both render identically. `className` appends to `MD_CLASS` so callers can tweak
@@ -220,7 +243,7 @@ const Markdown = ({content, className}: {content: string; className?: string}) =
     <XMarkdown
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         content={content}
-        config={LATEX_CONFIG}
+        config={MARKED_CONFIG}
         dompurifyConfig={DOMPURIFY_CONFIG}
         components={MD_COMPONENTS}
     />

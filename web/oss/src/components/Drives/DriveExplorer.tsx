@@ -193,9 +193,14 @@ export function DriveExplorer({
     })
     const selectedNode = selectedPath != null ? nodeByPath.get(selectedPath) : undefined
     // The root and any node flagged a folder render the grid; everything else the preview. In lazy
-    // mode a not-yet-loaded selection is treated as a FILE (the preview reads by path), so an initial
-    // file target shows its preview immediately instead of a wrong "empty folder" flash.
-    const selectedIsFolder = selectedPath === "" || selectedNode?.isFolder === true
+    // mode a not-yet-loaded selection falls back to the NAME (the same heuristic `useDriveTreeData`
+    // subscribes by), so an initial file target shows its preview immediately instead of a wrong
+    // "empty folder" flash — and an initial FOLDER target doesn't show a broken file preview until
+    // its level lands.
+    const selectedIsFolder =
+        selectedPath != null &&
+        (selectedPath === "" ||
+            (selectedNode ? selectedNode.isFolder === true : !looksLikeFilePath(selectedPath)))
 
     // Where an upload lands: the selection when it's a folder, else the selected file's folder.
     const currentFolder = selectedIsFolder

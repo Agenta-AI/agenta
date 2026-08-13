@@ -9,6 +9,7 @@
  */
 import {useMemo} from "react"
 
+import {toolPathToDrivePath} from "@agenta/entities/session"
 import {atom, useAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -34,6 +35,24 @@ export const filesDrawerStagedAtomFamily = atomFamily((_sessionId: string) =>
 export const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
 
+/**
+ * The drive path a quick-look request names. A sandbox path (an opener may pass the raw tool path)
+ * maps to its drive path first; then an exact listing hit wins outright, else the LONGEST tail match
+ * — a request for `…/src/README.md` suffix-matches both `README.md` and `src/README.md`, and the
+ * deeper one is the file that was actually asked for. Unknown to the listing → the mapped path (the
+ * explorer selects it directly).
+ */
+export const resolveDrivePath = (files: {path: string}[], requested: string): string => {
+    const target = toolPathToDrivePath(requested) ?? requested
+    let best: string | null = null
+    for (const file of files) {
+        if (file.path === target) return file.path
+        if (!matchesTail(file.path, target)) continue
+        if (best === null || file.path.length > best.length) best = file.path
+    }
+    return best ?? target
+}
+
 export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const [gridOpen, setGridOpen] = useAtom(filesDrawerOpenAtomFamily(sessionId))
     const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
@@ -49,11 +68,10 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     )
 
     // Resolve the quick-look path (possibly a tail) to the presented drive path the tree selects by.
-    const initialPath = useMemo(() => {
-        if (!quickLook) return null
-        const hit = drive.recents.find((f) => matchesTail(f.path, quickLook.path))
-        return hit?.path ?? quickLook.path
-    }, [quickLook, drive.recents])
+    const initialPath = useMemo(
+        () => (quickLook ? resolveDrivePath(drive.recents, quickLook.path) : null),
+        [quickLook, drive.recents],
+    )
 
     const driveIds = useMemo(
         () =>

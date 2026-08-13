@@ -130,6 +130,7 @@ export {
     type FileActivity,
     type FileActivityOp,
 } from "./core/fileActivity"
+export {AGENT_FILES_DIR, isSandboxPath, toolPathToDrivePath} from "./core/sandboxPaths"
 export {
     sessionFileActivityAtomFamily,
     latestSessionFileActivityAtomFamily,

@@ -1,6 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {
+    AGENT_FILES_DIR,
     latestMountFilesQueryFamily,
     mountFilesQueryFamily,
     mountRootQueryFamily,
@@ -8,6 +9,7 @@ import {
     sessionFileActivityAtomFamily,
     sessionMountsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
+    toolPathToDrivePath,
     type Mount,
     type MountFile,
 } from "@agenta/entities/session"
@@ -19,7 +21,7 @@ import {cleanPath, driveFileStats, isInternalDrivePath, relativeTime} from "./dr
 /** The agent's durable mount is symlinked into the session cwd under this name (runner:
  * `AGENT_FILES_LINK_NAME`). Its files live in a SEPARATE mount/prefix, so the drive folds them in
  * under this path — matching how the agent sees them on disk. */
-export const AGENT_FILES_DIR = "agent-files"
+export {AGENT_FILES_DIR}
 
 /** Where a presented drive path comes from: the durable per-agent mount (`agent-files/…`, shared
  * across the agent's sessions) or the ephemeral session cwd. Drives it visually + the grid filter. */
@@ -439,9 +441,18 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     }, [mountsQuery, cwdCount, rootQuery, agentMountQuery, agentCount, agentRootQuery, artifactId])
 
     const data = useMemo(() => {
-        // Newest write/edit per path (the map already dedups by path, keeping the latest timestamp).
-        const recordRecents: DriveRecentFile[] = [...recordRecency.entries()]
-            .map(([toolPath, at]) => ({path: cleanPath(toolPath), touchedAt: at}))
+        // Newest write/edit per path. Record paths are TOOL paths (sandbox-absolute on harnesses
+        // that require it) and every consumer matches them against the mount-relative tree, so map
+        // them first — otherwise `agents/…` plumbing slips past the listable filter and nothing
+        // selects. Re-dedupe after mapping: two tool paths for one file (absolute from one tool,
+        // cwd-relative from another) collapse to the same drive path, and these rows are keyed by it.
+        const newestByPath = new Map<string, number>()
+        for (const [toolPath, at] of recordRecency) {
+            const path = toolPathToDrivePath(toolPath) ?? cleanPath(toolPath)
+            if (at > (newestByPath.get(path) ?? 0)) newestByPath.set(path, at)
+        }
+        const recordRecents: DriveRecentFile[] = [...newestByPath.entries()]
+            .map(([path, touchedAt]) => ({path, touchedAt}))
             .filter((f) => isListableDrivePath(f.path))
             .sort((a, b) =>
                 b.touchedAt !== a.touchedAt

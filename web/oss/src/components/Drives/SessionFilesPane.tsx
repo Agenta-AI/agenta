@@ -22,7 +22,7 @@ import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {useDriveArtifactId} from "./driveSessionContext"
 import {useDriveGeneration} from "./FilesDrawer"
 import {driveQuickLookAtomFamily} from "./quickLook"
-import {filesDrawerStagedAtomFamily, matchesTail} from "./SessionFilesDrawer"
+import {filesDrawerStagedAtomFamily, resolveDrivePath} from "./SessionFilesDrawer"
 import {useSessionDriveSummary} from "./useSessionDrive"
 
 // Heavy body — loaded lazily on first open (the split unmounts the pane while collapsed).
@@ -74,11 +74,10 @@ export function SessionFilesPane({sessionId}: {sessionId: string}) {
     )
 
     // Resolve the quick-look path (possibly a tail) to the presented drive path the tree selects by.
-    const initialPath = useMemo(() => {
-        if (!quickLook) return null
-        const hit = drive.recents.find((f) => matchesTail(f.path, quickLook.path))
-        return hit?.path ?? quickLook.path
-    }, [quickLook, drive.recents])
+    const initialPath = useMemo(
+        () => (quickLook ? resolveDrivePath(drive.recents, quickLook.path) : null),
+        [quickLook, drive.recents],
+    )
 
     const driveIds = useMemo(
         () =>
