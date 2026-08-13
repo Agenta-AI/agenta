@@ -1,7 +1,5 @@
-/**
- * What one tool row says, derived from the part alone. Pure and total — the rendering lives in
- * `components/ToolActivity.tsx`, which is why this sits here where it can be tested directly.
- */
+/** What one tool row says, derived from the part alone. Pure and total; split out of
+ * `components/ToolActivity.tsx` so it can be tested directly. */
 import type {ToolUIPart} from "ai"
 
 import type {ToolDisplay} from "./toolDisplay"
@@ -11,8 +9,7 @@ import {
     DEFERRED_NOT_EXECUTED_PREFIX,
 } from "./transcriptToMessages"
 
-// A tool has finished when it produced output, errored, or was denied. Everything else
-// (preparing input, running, awaiting/just-answered an approval) is still in flight.
+// Finished = produced output, errored, or denied. Everything else is still in flight.
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 export const isSettled = (state: string): boolean => SETTLED.has(state)
 
@@ -31,22 +28,18 @@ const errorTextOf = (part: ToolUIPart): string | undefined =>
 export const hasFailed = (part: ToolUIPart): boolean =>
     (part.state as string) === "output-error" && !isNonFinalRunnerError(errorTextOf(part))
 
-/** Whether the call actually ran. Settled is not enough: a denial or a deferral never executed,
- * so neither may claim the past tense. */
+/** Whether the call actually ran — a denial or deferral never did, so neither takes past tense. */
 export const hasLanded = (part: ToolUIPart): boolean =>
     (part.state as string) === "output-available" || hasFailed(part)
 
-/**
- * The row's sentence. A genuine failure reads as one thought — "Testing the agent failed" — rather
- * than claiming the action completed and then contradicting it a few words later.
- */
+/** The row's sentence. A failure reads as one thought ("Testing the agent failed") rather than
+ * claiming the action completed and contradicting it a few words later. */
 export const partSentence = (part: ToolUIPart, display: ToolDisplay): string => {
     if (hasFailed(part)) return `${display.activity.running} failed`
     return hasLanded(part) ? display.activity.done : display.activity.running
 }
 
-/** A cold replay can reach the collapsed line with the call still unsettled, so the tense follows
- * the part rather than the branch. */
+/** A cold replay can reach this with the call unsettled, so tense follows the part. */
 export const groupLabelText = (part: ToolUIPart, display: ToolDisplay): string =>
     `${partSentence(part, display)}${display.source ? ` · ${display.source}` : ""}`
 
@@ -69,11 +62,8 @@ const parseJsonish = (text: string): unknown => {
 /** Longest run of a tool's own text we put in a row. */
 export const OUTPUT_SUMMARY_MAX_LENGTH = 80
 
-/**
- * Derive a single human line from a tool's output. Output shape is arbitrary, so this stays
- * conservative: it recognises the common shapes and otherwise returns null (the row then shows
- * just the tool name + status). Never throws — the full payload lives in the trace drawer.
- */
+/** One human line from a tool's output. Output shape is arbitrary, so this recognises the common
+ * shapes and otherwise returns null. Never throws — the full payload is in the trace drawer. */
 export const summarizeOutput = (output: unknown): string | null => {
     if (output == null) return null
     if (Array.isArray(output)) {
@@ -82,8 +72,7 @@ export const summarizeOutput = (output: unknown): string | null => {
     if (typeof output === "string") {
         const s = stripFence(output).trim().replace(/\s+/g, " ")
         if (!s) return null
-        // A serialised payload is data, not a sentence: read it as structure rather than spilling
-        // 80 characters of braces into the row.
+        // A serialised payload is data, not a sentence — read it as structure.
         const parsed = parseJsonish(s)
         if (parsed !== undefined) return summarizeOutput(parsed)
         const points = Array.from(s)
@@ -116,11 +105,9 @@ export const sizeOf = (output: unknown): string | null => {
 export const rowSummary = (part: ToolUIPart, display?: ToolDisplay): string | null => {
     if (part.state === "output-available") {
         if (isNotHandledOutput(part.output)) return "not handled by this client"
-        // A file's contents and a command's stdout are payloads. Their first 80 characters are
-        // never the point, and they leak whatever the file happens to start with.
+        // A file's contents and a command's stdout are payloads, not messages.
         if (display?.kind === "file" || display?.kind === "shell") return sizeOf(part.output)
-        // A registered per-tool summary wins; run it through the generic normalizer for the
-        // same whitespace/length clamp. Falls back to shape heuristics when it returns null.
+        // A registered summary wins, normalized for the same clamp; null falls back to shapes.
         const custom = display?.summary?.((part as {input?: unknown}).input, part.output)
         if (typeof custom === "string" && custom.trim()) {
             return summarizeOutput(custom) ?? summarizeOutput(part.output)
