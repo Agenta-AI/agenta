@@ -267,13 +267,13 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     const unarchiveSession = useSetAtom(unarchiveSessionAtomFamily(scope))
 
     const [query, setQuery] = useState("")
-    // Alt+F focuses the box. The rail is per-panel, so the nonce alone identifies the request.
+    // Alt+F focuses the box. Scope-matched: the drawer's rail must not answer the playground's.
     const searchRef = useRef<InputRef>(null)
     const searchRequest = useAtomValue(sessionSearchRequestAtom)
     useEffect(() => {
-        if (searchRequest === null) return
+        if (searchRequest?.scope !== scope) return
         searchRef.current?.focus({cursor: "all"})
-    }, [searchRequest])
+    }, [searchRequest, scope])
     const [showArchived, setShowArchived] = useState(false)
     const q = query.trim().toLowerCase()
     // `openSession`/`deleteSession`/`archiveSession`/`unarchiveSession` are already stable id-taking

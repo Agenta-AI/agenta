@@ -17,5 +17,9 @@ export function isMacPlatform(): boolean {
 /** The modifier key's display glyph on this platform: `⌘` on Apple hardware, `Ctrl` elsewhere. */
 export const modifierKeyLabel = (): string => (isMacPlatform() ? "⌘" : "Ctrl")
 
-/** The Alt key's display glyph on this platform: `⌥` on Apple hardware, `Alt` elsewhere. */
-export const altKeyLabel = (): string => (isMacPlatform() ? "⌥" : "Alt")
+/**
+ * What an Alt chord is prefixed with on this platform: `⌥` on Apple hardware, `Alt+` elsewhere.
+ * The separator belongs here, not at the call sites, or `⌥R` reads correctly on a Mac while every
+ * other platform prints `AltR`.
+ */
+export const altKeyPrefix = (): string => (isMacPlatform() ? "⌥" : "Alt+")

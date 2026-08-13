@@ -136,7 +136,7 @@ interface SessionTagProps {
     onRename: (id: string, title: string) => void
     /** Right-click actions, from the shared `useSessionActions` set. */
     menu: MenuProps
-    /** This platform's Alt glyph, resolved once by the bar (`⌥` on macOS, `Alt` elsewhere). */
+    /** This platform's Alt chord prefix, resolved once by the bar (`⌥` on macOS, `Alt+` elsewhere). */
     altKey: string
 }
 

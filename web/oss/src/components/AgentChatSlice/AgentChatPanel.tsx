@@ -226,8 +226,8 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 return
             }
             setChatMaximized(true)
-            requestSessionSearch(Date.now())
-        }, [chatMaximized, setChatMaximized, requestSessionSearch]),
+            requestSessionSearch({scope, nonce: Date.now()})
+        }, [chatMaximized, scope, setChatMaximized, requestSessionSearch]),
         onToggleConfigPanel: useCallback(
             () => setConfigPanelCollapsed((collapsed) => !collapsed),
             [setConfigPanelCollapsed],

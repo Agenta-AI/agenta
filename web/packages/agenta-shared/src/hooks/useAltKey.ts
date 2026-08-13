@@ -1,10 +1,11 @@
 import {useEffect, useState} from "react"
 
-import {altKeyLabel} from "../utils/platform"
+import {altKeyPrefix} from "../utils/platform"
 
-/** The Alt key's glyph for this platform, resolved after mount so SSR can't mismatch it. */
+/** The Alt chord prefix for this platform (`⌥` or `Alt+`), resolved after mount so SSR can't
+ * mismatch it. Concatenate the key onto it: `` `${altKey}R` `` gives `⌥R` or `Alt+R`. */
 export function useAltKey(): string {
-    const [label, setLabel] = useState("Alt")
-    useEffect(() => setLabel(altKeyLabel()), [])
-    return label
+    const [prefix, setPrefix] = useState("Alt+")
+    useEffect(() => setPrefix(altKeyPrefix()), [])
+    return prefix
 }

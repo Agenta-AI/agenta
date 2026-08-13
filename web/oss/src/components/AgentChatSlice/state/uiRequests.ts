@@ -31,5 +31,6 @@ export const focusComposerRequestAtom = atom<SessionUiRequest | null>(null)
 /** Open the inline rename editor on this session's tab chip / rail row. */
 export const renameSessionRequestAtom = atom<SessionUiRequest | null>(null)
 
-/** Put the caret in the rail's session-search box. Carries a nonce only: the rail is per-panel. */
-export const sessionSearchRequestAtom = atom<number | null>(null)
+/** Put the caret in the rail's session-search box. Scoped like the others: the drawer's panel and
+ * the playground's are mounted together, each with its own rail. */
+export const sessionSearchRequestAtom = atom<{scope: string; nonce: number} | null>(null)

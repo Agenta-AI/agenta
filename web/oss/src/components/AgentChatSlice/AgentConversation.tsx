@@ -400,21 +400,23 @@ const AgentConversation = ({
         if (activeSessionId !== sessionId) return
         const onKey = (e: KeyboardEvent) => {
             if (isOverlayOpen()) return
-            if (e.key === "Escape" && busyRef.current) {
+            // An IME user presses Escape to cancel composition, not to stop the run.
+            if (e.key === "Escape" && !e.isComposing && busyRef.current) {
                 e.preventDefault()
                 handleStop()
                 return
             }
             // Approve answers ONE gate, never the dock's "Approve all": a mis-press should not
-            // grant a tool the user never read.
+            // grant a tool the user never read. Same path as the dock's button, so the queue's
+            // resume gate is marked live.
             if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
                 e.preventDefault()
-                addToolApprovalResponse({id: pendingApprovals[0].approvalId, approved: true})
+                handleApprovalResponse({id: pendingApprovals[0].approvalId, approved: true})
             }
         }
         document.addEventListener("keydown", onKey)
         return () => document.removeEventListener("keydown", onKey)
-    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, addToolApprovalResponse])
+    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, handleApprovalResponse])
 
     // A keyboard switch (Alt+1…9 / Alt+Z / Alt+X) lands the caret here. antd mounts a never-visited
     // pane only on activation, so this effect runs on that mount and a first-visit switch focuses
