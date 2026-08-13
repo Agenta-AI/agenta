@@ -2,8 +2,9 @@ import {useCallback, useRef, useState} from "react"
 
 import {useObservability, useSessions} from "@agenta/observability"
 import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
+import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
-import {Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {MessagesSquare, Network} from "lucide-react"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -14,6 +15,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 
 import {SessionsList} from "./SessionsList"
 import {SessionsTable} from "./SessionsTable"
+import {TracesFilters} from "./TracesFilters"
 import {TracesList} from "./TracesList"
 import {TracesTable} from "./TracesTable"
 
@@ -31,6 +33,28 @@ type ObservabilityTab = "traces" | "sessions"
  * chrome. Export and delete are hidden by omitting their handlers, which is how the toolbar
  * expresses a capability the host does not offer — not a fork.
  */
+/** The same two tabs, with the same icons, the desktop header shows. */
+const TAB_ITEMS = [
+    {
+        key: "traces",
+        label: (
+            <span className="flex items-center gap-2">
+                <Network size={16} />
+                <span>Traces</span>
+            </span>
+        ),
+    },
+    {
+        key: "sessions",
+        label: (
+            <span className="flex items-center gap-2">
+                <MessagesSquare size={16} />
+                <span>Sessions</span>
+            </span>
+        ),
+    },
+]
+
 export const ObservabilityScreen = ({
     workspaceId,
     projectId,
@@ -63,60 +87,53 @@ export const ObservabilityScreen = ({
                 <ScreenScaffold
                     fill
                     header={
-                        <div className="flex flex-col gap-3 px-4 py-3 lg:px-6">
-                            <div className="flex items-center gap-2">
-                                <span className="lg:hidden">
-                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                </span>
-                                <h1 className="m-0 text-base font-medium text-foreground">
-                                    Observability
-                                </h1>
-                            </div>
-
-                            <Tabs
-                                value={tab}
-                                onValueChange={(next) => setTab(next as ObservabilityTab)}
-                            >
-                                <TabsList>
-                                    <TabsTrigger value="traces">Traces</TabsTrigger>
-                                    <TabsTrigger value="sessions">Sessions</TabsTrigger>
-                                </TabsList>
-                            </Tabs>
-
-                            <ObservabilityToolbar
-                                componentType={tab}
-                                onRefresh={onRefresh}
-                                sortSlot={<ObservabilityRangePicker />}
-                            />
+                        <div className="flex items-center gap-2 px-4 pt-3 lg:hidden">
+                            <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                         </div>
                     }
                 >
                     {/* The desktop app shows a table, so at lg+ so does this. Below lg the same
                         rows stack, which is the only presentation that fits a phone. */}
-                    <div
-                        ref={bodyRef}
-                        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+                    <PageLayout
+                        title="Observability"
+                        className="h-full overflow-hidden"
+                        headerTabsProps={{
+                            items: TAB_ITEMS,
+                            activeKey: tab,
+                            onChange: (key) => setTab(key as ObservabilityTab),
+                        }}
                     >
-                        {/* Cards on a phone, the real table on anything wider. The tables size
+                        <ObservabilityToolbar
+                            componentType={tab}
+                            onRefresh={onRefresh}
+                            sortSlot={<ObservabilityRangePicker />}
+                            filtersSlot={tab === "traces" ? <TracesFilters /> : undefined}
+                        />
+                        <div
+                            ref={bodyRef}
+                            className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+                        >
+                            {/* Cards on a phone, the real table on anything wider. The tables size
                             themselves from this flex parent, so there is no height to thread
                             through — gating on a measured one just showed cards until it
                             resolved, chrome and all. */}
-                        {tab === "sessions" ? (
-                            isNarrow ? (
+                            {tab === "sessions" ? (
+                                isNarrow ? (
+                                    <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+                                        <SessionsList />
+                                    </div>
+                                ) : (
+                                    <SessionsTable />
+                                )
+                            ) : isNarrow ? (
                                 <div className="min-h-0 flex-1 overflow-y-auto pb-6">
-                                    <SessionsList />
+                                    <TracesList />
                                 </div>
                             ) : (
-                                <SessionsTable />
-                            )
-                        ) : isNarrow ? (
-                            <div className="min-h-0 flex-1 overflow-y-auto pb-6">
-                                <TracesList />
-                            </div>
-                        ) : (
-                            <TracesTable />
-                        )}
-                    </div>
+                                <TracesTable />
+                            )}
+                        </div>
+                    </PageLayout>
                 </ScreenScaffold>
             </AppShell>
         </>
