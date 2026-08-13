@@ -13,8 +13,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
+import json
+
 from oss.src.core.gateway.connections.dtos import Connection, ConnectionProviderKind
 from oss.src.core.gateways.mcps.dtos import (
+    McpBrokeredAuth,
+    McpCallContext,
+    McpDirectAuth,
     McpEndpoint,
     McpEndpointCreate,
     McpEndpointData,
@@ -23,12 +28,39 @@ from oss.src.core.gateways.mcps.dtos import (
     McpEndpointQuery,
     McpGrant,
     McpGrantFlags,
+    McpToolPolicy,
+    McpToolPolicyMode,
 )
-from oss.src.core.gateways.mcps.interfaces import McpEndpointsDAOInterface
+from oss.src.core.gateways.mcps.interfaces import (
+    McpEndpointsDAOInterface,
+    McpRelayResult,
+)
 from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
 from oss.src.core.gateways.mcps.service import McpGatewayService
+from oss.src.core.gateways.mcps.types import (
+    McpEndpointNotFoundError,
+    McpToolNotAllowedError,
+    McpUpstreamError,
+)
+from oss.src.core.gateways.policy.dtos import (
+    CredentialMode,
+    CredentialOwner,
+    CredentialOwnerKind,
+    PolicyDecision,
+    ResolvedCredential,
+    SecretOrigin,
+)
 from oss.src.core.gateways.policy.service import GatewayPolicyService
+from oss.src.core.gateways.policy.types import PolicyDeniedError
 from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayConnectionState
+from oss.src.core.secrets.dtos import (
+    CustomSecretDTO,
+    CustomSecretSettingsDTO,
+    SecretResponseDTO,
+)
+from oss.src.core.secrets.enums import CustomSecretFormat, SecretKind
+from oss.src.core.shared.dtos import Header
+from oss.src.utils.context import AuthScope
 
 
 # --- fakes (this package must not subclass the real Postgres DAO or ConnectionsService) --- #
@@ -477,3 +509,399 @@ async def test_connection_state_builtin_with_invalid_connection_needs_auth():
     )
 
     assert state == GatewayConnectionState.NEEDS_AUTH
+
+
+# --- relay: the six-step orchestration ------------------------------------------------- #
+
+
+class FakeUpstreamAdapter:
+    """Logs every call; returns a canned result or raises a canned exception."""
+
+    def __init__(self, *, result=None, raise_exc=None) -> None:
+        self.relay_calls = 0
+        self.last_auth = None
+        self._result = result
+        self._raise = raise_exc
+
+    async def relay(self, *, route, auth, context, body, headers):
+        self.relay_calls += 1
+        self.last_auth = auth
+        if self._raise is not None:
+            raise self._raise
+        return self._result or McpRelayResult(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            body=b'{"jsonrpc":"2.0","id":1,"result":{}}',
+        )
+
+
+class FakeResolver:
+    """Logs every call; returns a canned credential or raises."""
+
+    def __init__(self, *, credential=None, raise_exc=None) -> None:
+        self.resolve_calls = 0
+        self.last_mode = None
+        self._credential = credential
+        self._raise = raise_exc
+
+    async def resolve(self, *, scope, ref, mode):
+        self.resolve_calls += 1
+        self.last_mode = mode
+        if self._raise is not None:
+            raise self._raise
+        return self._credential
+
+    async def available_provider_keys(self, *, scope):
+        return set()
+
+
+class FakePolicyService:
+    """Logs authorize()/record() calls in order; the decision is fixed per test."""
+
+    def __init__(self, *, allow: bool = True) -> None:
+        self.allow = allow
+        self.authorize_calls = 0
+        self.record_calls: List[dict] = []
+
+    async def authorize(self, *, scope, permission, target):
+        self.authorize_calls += 1
+        return PolicyDecision(
+            allowed=self.allow,
+            permission=permission,
+            reason=None if self.allow else "permission_denied",
+        )
+
+    async def record(self, *, scope, target, decision, outcome):
+        self.record_calls.append(
+            {"target": target, "decision": decision, "outcome": outcome}
+        )
+
+
+def _resolved_credential(*, user_id: Optional[UUID] = None) -> ResolvedCredential:
+    return ResolvedCredential(
+        secret=SecretResponseDTO(
+            id=uuid4(),
+            kind=SecretKind.CUSTOM_SECRET,
+            data=CustomSecretDTO(
+                secret=CustomSecretSettingsDTO(
+                    format=CustomSecretFormat.TEXT, content="token"
+                )
+            ),
+            header=Header(name="grant"),
+        ),
+        owner=CredentialOwner(
+            kind=CredentialOwnerKind.USER if user_id else CredentialOwnerKind.PROJECT,
+            user_id=user_id,
+        ),
+        origin=SecretOrigin.VAULT,
+    )
+
+
+def _scope() -> AuthScope:
+    return AuthScope(
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=uuid4(),
+        user_id=uuid4(),
+    )
+
+
+def _relay_service(
+    *,
+    mcp_endpoints_dao=None,
+    connections_service=None,
+    resolver=None,
+    policy=None,
+    adapters: Dict[str, object],
+) -> McpGatewayService:
+    return McpGatewayService(
+        mcp_endpoints_dao=mcp_endpoints_dao or FakeMcpEndpointsDAO(),
+        mcp_grants_dao=FakeMcpGrantsDAO(),
+        policy=policy or FakePolicyService(),
+        resolver=resolver or FakeResolver(),
+        upstream_registry=McpUpstreamRegistry(adapters=adapters),
+        connections_service=connections_service or FakeConnectionsService(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_relay_agenta_none_scheme_dispatches_without_touching_resolver():
+    adapter = FakeUpstreamAdapter()
+    resolver = FakeResolver()
+    policy = FakePolicyService()
+    service = _relay_service(
+        resolver=resolver, policy=policy, adapters={"fake": adapter}
+    )
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="agenta",
+        name="tools",
+        context=McpCallContext(method="tools/call", target="echo"),
+        body=b"{}",
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert adapter.relay_calls == 1
+    assert resolver.resolve_calls == 0
+    assert isinstance(adapter.last_auth, McpDirectAuth)
+    assert adapter.last_auth.credential is None
+    assert len(policy.record_calls) == 1
+    assert policy.record_calls[0]["outcome"].status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_relay_custom_not_found_raises():
+    service = _relay_service(adapters={"http": FakeUpstreamAdapter()})
+
+    with pytest.raises(McpEndpointNotFoundError):
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="missing",
+            context=McpCallContext(method="tools/call", target="echo"),
+            body=b"{}",
+            headers={},
+        )
+
+
+async def _custom_endpoint(
+    dao: "FakeMcpEndpointsDAO", *, tool_policy: Optional[McpToolPolicy] = None
+) -> McpEndpoint:
+    return await dao.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=McpEndpointCreate(
+            slug="acme-notion",
+            auth_mode=GatewayAuthScheme.NONE,
+            data=McpEndpointData(
+                url="https://example.com/mcp",
+                tool_policy=tool_policy or McpToolPolicy(),
+            ),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_relay_tool_outside_include_policy_raises_before_resolver_or_adapter():
+    dao = FakeMcpEndpointsDAO()
+    await _custom_endpoint(
+        dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=["a"])
+    )
+    adapter = FakeUpstreamAdapter()
+    resolver = FakeResolver()
+    policy = FakePolicyService()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=resolver,
+        policy=policy,
+        adapters={"http": adapter},
+    )
+
+    with pytest.raises(McpToolNotAllowedError):
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=McpCallContext(method="tools/call", target="b"),
+            body=b"{}",
+            headers={},
+        )
+
+    assert adapter.relay_calls == 0
+    assert resolver.resolve_calls == 0
+    assert policy.authorize_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_relay_empty_include_policy_refuses_every_tool():
+    dao = FakeMcpEndpointsDAO()
+    await _custom_endpoint(
+        dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=[])
+    )
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={"http": FakeUpstreamAdapter()}
+    )
+
+    with pytest.raises(McpToolNotAllowedError):
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=McpCallContext(method="tools/call", target="anything"),
+            body=b"{}",
+            headers={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_relay_policy_denial_records_before_raising():
+    dao = FakeMcpEndpointsDAO()
+    await _custom_endpoint(dao)
+    adapter = FakeUpstreamAdapter()
+    policy = FakePolicyService(allow=False)
+    service = _relay_service(
+        mcp_endpoints_dao=dao, policy=policy, adapters={"http": adapter}
+    )
+
+    with pytest.raises(PolicyDeniedError):
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=McpCallContext(method="tools/list"),
+            body=b"{}",
+            headers={},
+        )
+
+    assert len(policy.record_calls) == 1
+    assert policy.record_calls[0]["outcome"].status_code == 403
+    assert adapter.relay_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_relay_builtin_never_touches_resolver_only_connections_service():
+    connection = _connection(slug="my-notion", integration_key="notion")
+    connections_service = FakeConnectionsService([connection])
+    adapter = FakeUpstreamAdapter()
+    resolver = FakeResolver()
+    service = _relay_service(
+        connections_service=connections_service,
+        resolver=resolver,
+        adapters={"composio": adapter},
+    )
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="builtin",
+        name="my-notion",
+        provider="composio",
+        integration="notion",
+        context=McpCallContext(method="initialize"),
+        body=b"{}",
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert resolver.resolve_calls == 0
+    assert adapter.relay_calls == 1
+    assert isinstance(adapter.last_auth, McpBrokeredAuth)
+    assert adapter.last_auth.connection is connection
+
+
+@pytest.mark.asyncio
+async def test_relay_custom_oauth_resolves_via_resolver_with_user_optional_mode():
+    dao = FakeMcpEndpointsDAO()
+    endpoint = await dao.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=McpEndpointCreate(
+            slug="acme-oauth",
+            auth_mode=GatewayAuthScheme.OAUTH,
+            data=McpEndpointData(url="https://example.com/mcp"),
+        ),
+    )
+    credential = _resolved_credential()
+    resolver = FakeResolver(credential=credential)
+    adapter = FakeUpstreamAdapter()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, resolver=resolver, adapters={"http": adapter}
+    )
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-oauth",
+        context=McpCallContext(method="tools/call", target="echo"),
+        body=b"{}",
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert resolver.resolve_calls == 1
+    assert resolver.last_mode == CredentialMode.USER_OPTIONAL
+    assert isinstance(adapter.last_auth, McpDirectAuth)
+    assert adapter.last_auth.credential is credential
+    assert endpoint.id is not None
+
+
+@pytest.mark.asyncio
+async def test_relay_upstream_failure_records_outcome_before_raising():
+    dao = FakeMcpEndpointsDAO()
+    await _custom_endpoint(dao)
+    adapter = FakeUpstreamAdapter(
+        raise_exc=McpUpstreamError(target="x", status_code=502)
+    )
+    policy = FakePolicyService()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, policy=policy, adapters={"http": adapter}
+    )
+
+    with pytest.raises(McpUpstreamError):
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=McpCallContext(method="tools/call", target="echo"),
+            body=b"{}",
+            headers={},
+        )
+
+    assert len(policy.record_calls) == 1
+    assert policy.record_calls[0]["outcome"].status_code == 502
+
+
+def _tools_list_result(names: List[str]) -> McpRelayResult:
+    body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [{"name": n, "description": n, "inputSchema": {}} for n in names]
+        },
+    }
+    return McpRelayResult(status_code=200, headers={}, body=json.dumps(body).encode())
+
+
+@pytest.mark.asyncio
+async def test_relay_tools_list_filters_by_include_policy():
+    dao = FakeMcpEndpointsDAO()
+    await _custom_endpoint(
+        dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=["a", "b"])
+    )
+    adapter = FakeUpstreamAdapter(result=_tools_list_result(["a", "b", "c"]))
+    service = _relay_service(mcp_endpoints_dao=dao, adapters={"http": adapter})
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=McpCallContext(method="tools/list"),
+        body=b"{}",
+        headers={},
+    )
+
+    payload = json.loads(result.body)
+    names = {t["name"] for t in payload["result"]["tools"]}
+    assert names == {"a", "b"}
+
+
+@pytest.mark.asyncio
+async def test_relay_tools_list_passes_through_untouched_when_policy_is_all():
+    dao = FakeMcpEndpointsDAO()
+    await _custom_endpoint(dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.ALL))
+    adapter = FakeUpstreamAdapter(result=_tools_list_result(["a", "b", "c"]))
+    service = _relay_service(mcp_endpoints_dao=dao, adapters={"http": adapter})
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=McpCallContext(method="tools/list"),
+        body=b"{}",
+        headers={},
+    )
+
+    payload = json.loads(result.body)
+    names = {t["name"] for t in payload["result"]["tools"]}
+    assert names == {"a", "b", "c"}

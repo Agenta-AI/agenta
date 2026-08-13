@@ -5,9 +5,12 @@ of `relay` that would reach a brokered `builtin` target — D23: no such target 
 reachable yet, and `ComposioMcpAdapter` has no owning package in this wave.
 """
 
+import json
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.gateways.dtos import (
@@ -16,6 +19,9 @@ from oss.src.core.gateways.dtos import (
     GatewayEndpointNamespace,
 )
 from oss.src.core.gateways.mcps.dtos import (
+    McpBrokeredAuth,
+    McpCallContext,
+    McpDirectAuth,
     McpEndpoint,
     McpEndpointCreate,
     McpEndpointData,
@@ -23,16 +29,68 @@ from oss.src.core.gateways.mcps.dtos import (
     McpEndpointQuery,
     McpGrant,
     McpGrantQuery,
+    McpRelayAuth,
+    McpResolvedRoute,
+    McpToolPolicy,
+    McpToolPolicyMode,
 )
 from oss.src.core.gateways.mcps.interfaces import (
     McpEndpointsDAOInterface,
     McpGrantsDAOInterface,
+    McpRelayResult,
 )
 from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
+from oss.src.core.gateways.mcps.types import (
+    McpEndpointNotFoundError,
+    McpToolNotAllowedError,
+    McpUpstreamError,
+)
+from oss.src.core.gateways.policy.dtos import (
+    CredentialMode,
+    GatewayOutcome,
+    GatewayPlane,
+    GatewayTarget,
+    GrantRef,
+)
 from oss.src.core.gateways.policy.interfaces import CredentialResolverInterface
 from oss.src.core.gateways.policy.service import GatewayPolicyService
+from oss.src.core.gateways.policy.types import PolicyDeniedError
 from oss.src.core.shared.dtos import Windowing
+from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
+
+# namespace -> upstream_registry key (§8 step 5). Private: entities.md names no public
+# selector for the MCP plane (contrast the LLM plane's select_upstream).
+_ADAPTER_KEYS: Dict[GatewayEndpointNamespace, str] = {
+    GatewayEndpointNamespace.AGENTA: "fake",
+    GatewayEndpointNamespace.BUILTIN: "composio",
+    GatewayEndpointNamespace.CUSTOM: "http",
+}
+
+
+@dataclass
+class _ResolvedTarget:
+    """Service-internal only (§8: "never crosses a layer... not a DTO in §4").
+    `endpoint` is always populated (generated or a row) so allowlist/auth/route
+    logic reads it uniformly; `connection` is set only for `builtin`, carrying the
+    raw row `McpBrokeredAuth` wraps."""
+
+    namespace: GatewayEndpointNamespace
+    name: str
+    endpoint: McpEndpoint
+    provider: Optional[str] = None
+    integration: Optional[str] = None
+    connection: Optional[Connection] = None
+
+
+def _target_path(
+    *,
+    namespace: GatewayEndpointNamespace,
+    provider: Optional[str],
+    integration: Optional[str],
+    name: str,
+) -> str:
+    return "/".join(s for s in (namespace.value, provider, integration, name) if s)
 
 
 class McpGatewayService:
@@ -277,6 +335,274 @@ class McpGatewayService:
         windowing: Optional[Windowing] = None,
     ) -> List[McpGrant]:
         raise NotImplementedError
+
+    # --- the data plane (WP8 calls this) --------------------------------------- #
+
+    async def relay(
+        self,
+        *,
+        scope: AuthScope,
+        namespace: GatewayEndpointNamespace,
+        name: str,
+        provider: Optional[str] = None,
+        integration: Optional[str] = None,
+        #
+        context: McpCallContext,
+        body: bytes,
+        headers: Dict[str, str],
+    ) -> McpRelayResult:
+        """The six-step orchestration (§8, D7 applied to MCP)."""
+
+        # `_ResolvedTarget` is a plain dataclass, not a pydantic model, so a caller
+        # passing the namespace as a bare string (the FastAPI path-param case, or a
+        # test) is not auto-coerced the way GatewayTarget's own field would be —
+        # every downstream `.value` access (McpEndpointNotFoundError, _ADAPTER_KEYS)
+        # needs a real enum member.
+        namespace = GatewayEndpointNamespace(namespace)
+
+        # 1. Resolve target.
+        target = await self._resolve_target(
+            project_id=scope.project_id,
+            namespace=namespace,
+            name=name,
+            provider=provider,
+            integration=integration,
+        )
+
+        # 2. Allowlist before credential — a refused tool must not cost a vault read.
+        self._check_allowlist(target, context)
+
+        policy_target = GatewayTarget(
+            plane=GatewayPlane.MCP,
+            namespace=namespace,
+            name=name,
+            provider=provider,
+            integration=integration,
+            endpoint_id=target.endpoint.id,
+            method=context.method,
+            tool=context.target,
+        )
+
+        # 3. Authorize. The denial is recorded before the exception leaves.
+        decision = await self.policy.authorize(
+            scope=scope,
+            permission=Permission.USE_MCP_ENDPOINTS,
+            target=policy_target,
+        )
+        if not decision.allowed:
+            await self.policy.record(
+                scope=scope,
+                target=policy_target,
+                decision=decision,
+                outcome=GatewayOutcome(status_code=403),
+            )
+            raise PolicyDeniedError(
+                permission=Permission.USE_MCP_ENDPOINTS,
+                target=_target_path(
+                    namespace=namespace,
+                    provider=provider,
+                    integration=integration,
+                    name=name,
+                ),
+            )
+
+        # 4. Resolve credential — the two-mechanism fork (D27, §4.4).
+        auth = await self._resolve_auth(scope=scope, target=target)
+
+        # 5. Dispatch. Usage is recorded even on failure.
+        route = self._route_for(target)
+        adapter_key = _ADAPTER_KEYS[namespace]
+        try:
+            result = await self.upstream_registry.get(adapter_key).relay(
+                route=route,
+                auth=auth,
+                context=context,
+                body=body,
+                headers=headers,
+            )
+        except McpUpstreamError as exc:
+            await self.policy.record(
+                scope=scope,
+                target=policy_target,
+                decision=decision,
+                outcome=GatewayOutcome(status_code=exc.status_code),
+            )
+            raise
+
+        # 6. Record, then — for a list method — filter the response body.
+        await self.policy.record(
+            scope=scope,
+            target=policy_target,
+            decision=decision,
+            outcome=self._outcome_for(result=result, auth=auth),
+        )
+
+        if context.method == "tools/list":
+            result = _filter_tool_list(
+                result=result, tool_policy=target.endpoint.data.tool_policy
+            )
+
+        return result
+
+    # --- relay step helpers ----------------------------------------------------- #
+
+    async def _resolve_target(
+        self,
+        *,
+        project_id: UUID,
+        namespace: GatewayEndpointNamespace,
+        name: str,
+        provider: Optional[str],
+        integration: Optional[str],
+    ) -> _ResolvedTarget:
+        if namespace == GatewayEndpointNamespace.AGENTA:
+            endpoint = next(
+                (e for e in self._agenta_endpoints() if e.slug == name), None
+            )
+            if endpoint is None:
+                raise McpEndpointNotFoundError(namespace=namespace, name=name)
+            return _ResolvedTarget(namespace=namespace, name=name, endpoint=endpoint)
+
+        if namespace == GatewayEndpointNamespace.BUILTIN:
+            connections = await self.connections_service.query_connections(
+                project_id=project_id,
+                provider_key=provider,
+                integration_key=integration,
+                is_active=None,
+            )
+            connection = next((c for c in connections if c.slug == name), None)
+            if connection is None:
+                raise McpEndpointNotFoundError(
+                    namespace=namespace,
+                    provider=provider,
+                    integration=integration,
+                    name=name,
+                )
+            return _ResolvedTarget(
+                namespace=namespace,
+                name=name,
+                provider=provider,
+                integration=integration,
+                endpoint=self._builtin_endpoint(connection),
+                connection=connection,
+            )
+
+        # CUSTOM
+        endpoint = await self.mcp_endpoints_dao.fetch_endpoint_by_slug(
+            project_id=project_id, slug=name
+        )
+        if endpoint is None:
+            raise McpEndpointNotFoundError(namespace=namespace, name=name)
+        return _ResolvedTarget(namespace=namespace, name=name, endpoint=endpoint)
+
+    def _check_allowlist(
+        self, target: _ResolvedTarget, context: McpCallContext
+    ) -> None:
+        tool = context.target
+        if tool is None:
+            return
+
+        policy = target.endpoint.data.tool_policy
+        if policy.mode != McpToolPolicyMode.INCLUDE:
+            return
+
+        # The empty allowlist refuses (§4.4): `names` unset or empty means no tool
+        # passes, not every tool.
+        if tool not in (policy.names or []):
+            raise McpToolNotAllowedError(
+                tool=tool,
+                namespace=target.namespace,
+                name=target.name,
+                provider=target.provider,
+                integration=target.integration,
+            )
+
+    async def _resolve_auth(
+        self, *, scope: AuthScope, target: _ResolvedTarget
+    ) -> McpRelayAuth:
+        if target.namespace == GatewayEndpointNamespace.BUILTIN:
+            # builtin's credential lives at the broker and never enters our vault
+            # (§4.4) — never routed through the resolver.
+            return McpBrokeredAuth(connection=target.connection)
+
+        endpoint = target.endpoint
+        if endpoint.auth_mode == GatewayAuthScheme.NONE:
+            return McpDirectAuth(credential=None)
+
+        if endpoint.auth_mode == GatewayAuthScheme.OAUTH:
+            credential = await self.resolver.resolve(
+                scope=scope,
+                ref=GrantRef(endpoint_id=endpoint.id),
+                mode=CredentialMode.USER_OPTIONAL,  # §7.2's deliberate asymmetry
+            )
+            return McpDirectAuth(credential=credential)
+
+        # API_KEY: no static MCP secret kind exists yet (D14) — deferred with its kind.
+        raise NotImplementedError("api_key scheme MCP endpoints are deferred (D14)")
+
+    def _route_for(self, target: _ResolvedTarget) -> McpResolvedRoute:
+        if target.namespace == GatewayEndpointNamespace.BUILTIN:
+            return McpResolvedRoute(
+                url=_builtin_placeholder_url(
+                    provider=target.provider or "",
+                    integration=target.integration or "",
+                    slug=target.name,
+                )
+            )
+        endpoint = target.endpoint
+        return McpResolvedRoute(
+            url=endpoint.data.url,
+            headers=endpoint.data.headers or {},
+            config=endpoint.data.config,
+        )
+
+    def _outcome_for(
+        self, *, result: McpRelayResult, auth: McpRelayAuth
+    ) -> GatewayOutcome:
+        if isinstance(auth, McpDirectAuth) and auth.credential is not None:
+            return GatewayOutcome(
+                status_code=result.status_code,
+                owner=auth.credential.owner,
+                origin=auth.credential.origin,
+            )
+        # No credential resolved (NONE-scheme), or a McpBrokeredAuth connection —
+        # neither came from our resolver/vault, so owner/origin stay unset (§2.7:
+        # "None when no credential was resolved").
+        return GatewayOutcome(status_code=result.status_code)
+
+
+def _filter_tool_list(
+    *, result: McpRelayResult, tool_policy: McpToolPolicy
+) -> McpRelayResult:
+    """Step 6's one body rewrite (§8): an INCLUDE policy drops whole tool entries,
+    never renames a surviving one; ALL passes the response through untouched.
+    Scoped strictly to `tools/list`'s own JSON-RPC shape — never applied to
+    resources/list or prompts/list, whose entries a tool allowlist says nothing
+    about."""
+    if tool_policy.mode != McpToolPolicyMode.INCLUDE:
+        return result
+
+    try:
+        payload = json.loads(result.body) if result.body else None
+    except (json.JSONDecodeError, TypeError):
+        return result
+
+    if not isinstance(payload, dict):
+        return result
+    tools = (payload.get("result") or {}).get("tools")
+    if not isinstance(tools, list):
+        return result
+
+    allowed = set(tool_policy.names or [])
+    payload["result"]["tools"] = [
+        tool for tool in tools if isinstance(tool, dict) and tool.get("name") in allowed
+    ]
+
+    return McpRelayResult(
+        status_code=result.status_code,
+        headers=result.headers,
+        body=json.dumps(payload).encode(),
+    )
 
 
 def _builtin_placeholder_url(*, provider: str, integration: str, slug: str) -> str:
