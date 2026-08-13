@@ -161,6 +161,18 @@ from oss.src.apis.fastapi.triggers.router import TriggersRouter
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
+
+# GATEWAYS: core/gateways/ (entities.md). DAOs, services and routers land with
+# their owning work packages (WP1 dbs; WP6/WP7 llms; WP8/WP9 mcps).
+# from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
+# from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
+# from oss.src.core.gateways.policy.resolution import CredentialResolver
+# from oss.src.core.gateways.policy.service import GatewayPolicyService
+# from oss.src.core.gateways.llms.service import LlmGatewayService
+# from oss.src.core.gateways.mcps.service import McpGatewayService
+# from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter, LlmGatewayProxy
+# from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter, McpGatewayProxy
+
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
@@ -1055,6 +1067,9 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
+# GATEWAYS: policy/service construction and router/proxy objects are wired by
+# WP2/WP3 (policy) and WP6-WP9 (llms/mcps) — see entities.md §9 "Wiring".
+
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
 )
@@ -1477,6 +1492,13 @@ app.include_router(
     tags=["Triggers", "Admin"],
     include_in_schema=False,
 )
+
+# GATEWAYS: nothing mounted yet — each line lands with its owning package
+# (entities.md §9 "Wiring").
+# app.include_router(router=llm_gateway.router, prefix="/gateways/llms", tags=["Gateway: LLM"])
+# app.include_router(router=llm_gateway.proxy,  prefix="/gateways/llms", include_in_schema=False)
+# app.include_router(router=mcp_gateway.router, prefix="/gateways/mcps", tags=["Gateway: MCP"])
+# app.include_router(router=mcp_gateway.proxy,  prefix="/gateways/mcps", include_in_schema=False)
 
 app.include_router(
     router=sessions.interactions.router,
