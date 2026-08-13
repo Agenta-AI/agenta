@@ -36,12 +36,12 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
       Done with one addition beyond this signature: `connections_service:
       ConnectionsService` — required for real (see the three-namespace-merge
       section below); entities.md §8's abbreviated constructor pseudocode
-      omits it, which is a gap in the design, not an instruction to fake the
+      omits it, which is a gap in the design, not an instruction to mock the
       integration. Flagged for the M2 merge review.
 - [x] Implement `create_endpoint`, `fetch_endpoint`, `edit_endpoint`,
       `delete_endpoint`, `query_endpoints` as thin delegations to
       `McpEndpointsDAOInterface`.
-- [x] Unit test each, with a fake DAO (in-memory dict), asserting the right
+- [x] Unit test each, with a mock DAO (in-memory dict), asserting the right
       DAO verb is called with the right arguments and the return value is
       passed through unchanged.
 - [x] `ruff format` && `ruff check --fix`; run tests; fix failures.
@@ -53,9 +53,9 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
       `custom` branch maps `query_endpoints()` rows 1:1.
 - [x] `agenta` branch: a private, service-internal enumeration (not a
       public symbol `entities.md` does not name) of the code-defined
-      agenta entries — in wave 1, the fakes WP5 registers. Implemented as
+      agenta entries — in wave 1, the mocks WP5 registers. Implemented as
       `_agenta_endpoints()`: one entry, slug "tools" (matching D27's own
-      route-grammar example `agenta/tools`), `data.url=env.fake_gateways.mcp_url`.
+      route-grammar example `agenta/tools`), `data.url=env.mock_gateways.mcp_url`.
 - [x] `builtin` branch: call `ConnectionsService.query_connections(
       project_id=project_id, provider_key="composio")`, map each
       `Connection` into an `McpEndpoint` with `namespace=BUILTIN`,
@@ -79,7 +79,7 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
 - [x] Unit test: agenta entries carry no `id`, `namespace=AGENTA`; builtin
       entries carry `connection_id`/`provider_key`/`integration_key`,
       `namespace=BUILTIN`; custom rows carry `namespace=CUSTOM`; no
-      generated entry is ever passed to a DAO write (assert the fake DAO's
+      generated entry is ever passed to a DAO write (assert the mock DAO's
       write methods were never called for agenta/builtin entries).
 - [x] Unit test: connection-state derivation for each of the four cases
       above (NONE, custom+grant, builtin+valid-connection, custom+no-grant).
@@ -118,7 +118,7 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
       NONE-scheme targets; `builtin` via `ConnectionsService` directly,
       wrapped in `McpBrokeredAuth` — never through the resolver.
 - [x] Implement dispatch (step 5): a private namespace→adapter-key mapping
-      (`agenta`→`"fake"`, `builtin`→`"composio"`, `custom`→`"http"` in wave
+      (`agenta`→`"mock"`, `builtin`→`"composio"`, `custom`→`"http"` in wave
       1), then `self.upstream_registry.get(key).relay(route=, auth=,
       context=, body=, headers=)`.
 - [x] Implement record + list-filter (step 6): `self.policy.record(...)`
@@ -128,13 +128,13 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
       `context.method == "tools/list"` — not any `*/list` method, since a
       tool allowlist says nothing about resources/prompts entries.
 - [x] Unit test the step ORDER, not just the final outcome: a tool outside
-      policy raises without the fake resolver or fake adapter ever being
-      invoked (assert on the fakes' call counts, zero for both).
+      policy raises without the mock resolver or mock adapter ever being
+      invoked (assert on the mocks' call counts, zero for both).
 - [x] Unit test: a policy denial calls `policy.record` before the exception
-      propagates — assert call order via a call-log fake, not just that
+      propagates — assert call order via a call-log mock, not just that
       both eventually happened.
-- [x] Unit test: a `builtin` target's relay call never touches the fake
-      resolver, only the fake `ConnectionsService`.
+- [x] Unit test: a `builtin` target's relay call never touches the mock
+      resolver, only the mock `ConnectionsService`.
 - [x] Unit test: tool-list filtering — a canned three-tool `tools/list`
       response filtered by `INCLUDE, names=["a","b"]` returns exactly two,
       unmodified in shape; `ALL` passes all three through untouched.
@@ -157,11 +157,11 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
 - [ ] Add the `McpGatewayService` + `McpUpstreamRegistry` construction
       block to `api/entrypoints/routers.py` as a diff fragment. **Updated**
       from `specs-wp9.md`'s own diff (which omits `connections_service` and
-      the fake-adapter import/registration — both required, see below):
+      the mock-adapter import/registration — both required, see below):
 
       ```diff
-      -# from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
-      +from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+      -# from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
+      +from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
       +from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
       +from oss.src.core.gateways.mcps.service import McpGatewayService
       +
@@ -174,7 +174,7 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
       +    upstream_registry=McpUpstreamRegistry(adapters={
       +        # "http": HttpMcpAdapter(),          # custom: McpDirectAuth (WP8)
       +        # "composio": ComposioMcpAdapter(),  # builtin: McpBrokeredAuth (no owner in wave 1)
-      +        "fake": FakeMcpAdapter(),  # serves the agenta-namespace fakes (D23, WP5)
+      +        "mock": MockMcpAdapter(),  # serves the agenta-namespace mocks (D23, WP5)
       +    }),
       +)
       ```
@@ -185,13 +185,13 @@ migration, WP2's `CredentialResolverInterface` implementation, WP3's
          missing required keyword argument; `list_endpoints`'s builtin
          branch and `relay`'s builtin target resolution both call through
          it for real (see the three-namespace-merge section above).
-      2. **The `FakeMcpAdapter` import is uncommented and the adapter is
-         registered under `"fake"`.** Per the coordinator's note on this
+      2. **The `MockMcpAdapter` import is uncommented and the adapter is
+         registered under `"mock"`.** Per the coordinator's note on this
          package's landed foundation: WP5's import was left commented with
          "their imports land with those [WP7/WP9's registries], not here."
          Uncommenting it and registering it here is this package's job, not
-         WP5's or a later merge step — without it the fakes are unreachable
-         and Checkpoint A has nothing to relay to (D23: the fakes are the
+         WP5's or a later merge step — without it the mocks are unreachable
+         and Checkpoint A has nothing to relay to (D23: the mocks are the
          entire reachable target set in wave 1, no brokered target exists).
 - [ ] `"http": HttpMcpAdapter()` and `"composio": ComposioMcpAdapter()` are
       left commented above, not omitted outright, so the shape of the final

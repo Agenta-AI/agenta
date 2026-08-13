@@ -95,7 +95,7 @@ def _credential() -> ResolvedCredential:
     )
 
 
-class _FakeLlmEndpointsDAO(LlmEndpointsDAOInterface):
+class _MockLlmEndpointsDAO(LlmEndpointsDAOInterface):
     def __init__(self):
         self.calls: List[tuple] = []
         self.rows_by_slug: Dict[str, LlmEndpoint] = {}
@@ -130,7 +130,7 @@ class _FakeLlmEndpointsDAO(LlmEndpointsDAOInterface):
         return self.query_result
 
 
-class _FakeResolver(CredentialResolverInterface):
+class _MockResolver(CredentialResolverInterface):
     def __init__(
         self,
         *,
@@ -152,7 +152,7 @@ class _FakeResolver(CredentialResolverInterface):
         return self.provider_keys
 
 
-class _FakePolicy:
+class _MockPolicy:
     def __init__(self, *, allowed: bool = True):
         self.allowed = allowed
         self.authorize_calls: List[tuple] = []
@@ -170,7 +170,7 @@ class _FakePolicy:
         self.record_calls.append((scope, target, decision, outcome))
 
 
-class _FakeAdapter(LlmUpstreamInterface):
+class _MockAdapter(LlmUpstreamInterface):
     def __init__(self, *, result: LlmRelayResult):
         self.result = result
         self.calls: List[dict] = []
@@ -196,9 +196,9 @@ def _service(
     *, dao=None, policy=None, resolver=None, registry=None
 ) -> LlmGatewayService:
     return LlmGatewayService(
-        llm_endpoints_dao=dao if dao is not None else _FakeLlmEndpointsDAO(),
-        policy=policy if policy is not None else _FakePolicy(),
-        resolver=resolver if resolver is not None else _FakeResolver(),
+        llm_endpoints_dao=dao if dao is not None else _MockLlmEndpointsDAO(),
+        policy=policy if policy is not None else _MockPolicy(),
+        resolver=resolver if resolver is not None else _MockResolver(),
         upstream_registry=registry
         if registry is not None
         else LlmUpstreamRegistry(adapters={}),
@@ -210,7 +210,7 @@ def _service(
 
 @pytest.mark.asyncio
 async def test_create_endpoint_delegates_to_dao_unchanged():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.create_result = _custom_row()
     project_id, user_id = uuid4(), uuid4()
     endpoint_create = object()
@@ -225,7 +225,7 @@ async def test_create_endpoint_delegates_to_dao_unchanged():
 
 @pytest.mark.asyncio
 async def test_fetch_endpoint_delegates_to_dao_unchanged():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.fetch_result = _custom_row()
     project_id, endpoint_id = uuid4(), uuid4()
 
@@ -239,7 +239,7 @@ async def test_fetch_endpoint_delegates_to_dao_unchanged():
 
 @pytest.mark.asyncio
 async def test_edit_endpoint_delegates_to_dao_unchanged():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.edit_result = _custom_row()
     project_id, user_id = uuid4(), uuid4()
     endpoint_edit = object()
@@ -254,7 +254,7 @@ async def test_edit_endpoint_delegates_to_dao_unchanged():
 
 @pytest.mark.asyncio
 async def test_delete_endpoint_delegates_to_dao_unchanged():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     project_id, endpoint_id = uuid4(), uuid4()
 
     result = await _service(dao=dao).delete_endpoint(
@@ -267,7 +267,7 @@ async def test_delete_endpoint_delegates_to_dao_unchanged():
 
 @pytest.mark.asyncio
 async def test_query_endpoints_delegates_to_dao_unchanged():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.query_result = [_custom_row()]
     project_id = uuid4()
 
@@ -282,10 +282,10 @@ async def test_query_endpoints_delegates_to_dao_unchanged():
 
 @pytest.mark.asyncio
 async def test_list_endpoints_merges_generated_and_custom_with_two_keys():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     custom_row = _custom_row(slug="acme")
     dao.query_result = [custom_row]
-    resolver = _FakeResolver(provider_keys={"openai", "anthropic"})
+    resolver = _MockResolver(provider_keys={"openai", "anthropic"})
 
     result = await _service(dao=dao, resolver=resolver).list_endpoints(scope=_scope())
 
@@ -297,10 +297,10 @@ async def test_list_endpoints_merges_generated_and_custom_with_two_keys():
 
 @pytest.mark.asyncio
 async def test_list_endpoints_with_no_keys_yields_custom_rows_only():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     custom_row = _custom_row(slug="acme")
     dao.query_result = [custom_row]
-    resolver = _FakeResolver(provider_keys=set())
+    resolver = _MockResolver(provider_keys=set())
 
     result = await _service(dao=dao, resolver=resolver).list_endpoints(scope=_scope())
 
@@ -312,7 +312,7 @@ async def test_list_endpoints_with_no_keys_yields_custom_rows_only():
 
 @pytest.mark.asyncio
 async def test_list_models_custom_returns_model_slugs_exactly():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["a", "b"])
 
     slugs = await _service(dao=dao).list_models(
@@ -343,9 +343,9 @@ async def test_list_models_unknown_name_raises_not_found():
 
 @pytest.mark.asyncio
 async def test_list_models_denied_decision_raises_before_reading_slugs():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["a"])
-    policy = _FakePolicy(allowed=False)
+    policy = _MockPolicy(allowed=False)
 
     with pytest.raises(PolicyDeniedError):
         await _service(dao=dao, policy=policy).list_models(
@@ -359,9 +359,9 @@ async def test_list_models_denied_decision_raises_before_reading_slugs():
 
 @pytest.mark.asyncio
 async def test_disallowed_model_raises_without_calling_resolver():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["gpt-4o"])
-    resolver = _FakeResolver(credential=_credential())
+    resolver = _MockResolver(credential=_credential())
 
     body = json.dumps({"model": "gpt-4o-mini", "messages": []}).encode()
 
@@ -379,10 +379,10 @@ async def test_disallowed_model_raises_without_calling_resolver():
 
 @pytest.mark.asyncio
 async def test_policy_denial_records_once_before_raising():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["gpt-4o"])
-    policy = _FakePolicy(allowed=False)
-    resolver = _FakeResolver(credential=_credential())
+    policy = _MockPolicy(allowed=False)
+    resolver = _MockResolver(credential=_credential())
 
     body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
 
@@ -403,11 +403,11 @@ async def test_policy_denial_records_once_before_raising():
 
 @pytest.mark.asyncio
 async def test_ceiling_breach_names_all_three_values():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(
         slug="acme", model_slugs=["gpt-4o"], max_output_tokens=100
     )
-    resolver = _FakeResolver(credential=_credential())
+    resolver = _MockResolver(credential=_credential())
 
     body = json.dumps(
         {"model": "gpt-4o", "messages": [], "max_output_tokens": 200}
@@ -430,11 +430,11 @@ async def test_ceiling_breach_names_all_three_values():
 
 @pytest.mark.asyncio
 async def test_successful_non_streaming_call_records_after_relay():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     row = _custom_row(slug="acme", model_slugs=["gpt-4o"], secret_id=uuid4())
     dao.rows_by_slug["acme"] = row
     credential = _credential()
-    resolver = _FakeResolver(credential=credential)
+    resolver = _MockResolver(credential=credential)
 
     adapter_result = LlmRelayResult(
         status_code=200,
@@ -442,9 +442,9 @@ async def test_successful_non_streaming_call_records_after_relay():
         body=_one_chunk_body(b'{"ok": true}'),
         usage=GatewayUsage(calls=1, input_tokens=3, output_tokens=4, cost=0.01),
     )
-    adapter = _FakeAdapter(result=adapter_result)
+    adapter = _MockAdapter(result=adapter_result)
     registry = LlmUpstreamRegistry(adapters={"passthrough": adapter})
-    policy = _FakePolicy(allowed=True)
+    policy = _MockPolicy(allowed=True)
 
     body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
     result = await _service(
@@ -469,19 +469,19 @@ async def test_successful_non_streaming_call_records_after_relay():
 
 @pytest.mark.asyncio
 async def test_streaming_call_records_only_after_full_consumption():
-    dao = _FakeLlmEndpointsDAO()
+    dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(
         slug="acme", model_slugs=["gpt-4o"], secret_id=uuid4()
     )
-    resolver = _FakeResolver(credential=_credential())
-    policy = _FakePolicy(allowed=True)
+    resolver = _MockResolver(credential=_credential())
+    policy = _MockPolicy(allowed=True)
 
     async def _two_chunks() -> AsyncIterator[bytes]:
         yield b"chunk-1"
         yield b"chunk-2"
 
     adapter_result = LlmRelayResult(status_code=200, headers={}, body=_two_chunks())
-    adapter = _FakeAdapter(result=adapter_result)
+    adapter = _MockAdapter(result=adapter_result)
     registry = LlmUpstreamRegistry(adapters={"passthrough": adapter})
 
     body = json.dumps({"model": "gpt-4o", "messages": [], "stream": True}).encode()

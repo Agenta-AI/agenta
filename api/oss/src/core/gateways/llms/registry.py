@@ -11,10 +11,10 @@ from oss.src.core.gateways.llms.dtos import LlmDeploymentKind
 from oss.src.core.gateways.llms.interfaces import LlmUpstreamInterface
 from oss.src.core.gateways.llms.types import LlmAdapterNotFoundError
 
-# The fake upstream is selected on provider_key alone, ahead of the deployment split —
-# the fakes register under a third key (entities.md §7.1) and are reachable only through
+# The mock upstream is selected on provider_key alone, ahead of the deployment split —
+# the mocks register under a third key (entities.md §7.1) and are reachable only through
 # a seeded endpoint naming this provider (D23; reachability is WP1/WP10's concern).
-_FAKE_PROVIDER_KEY = "fake"
+_MOCK_PROVIDER_KEY = "mock"
 
 # Cloud-reseller deployments: auth is request signing, never a bearer header, so the wire
 # is never byte-for-byte by construction (§7.1) — always translated.
@@ -51,8 +51,8 @@ _DIRECT_TRANSLATED_PROVIDERS = {
 
 def select_upstream(provider_key: str, deployment: LlmDeploymentKind) -> str:
     """Picks the adapter key for the registry. Pure: no I/O, no DAO, no vault."""
-    if provider_key == _FAKE_PROVIDER_KEY:
-        return "fake"
+    if provider_key == _MOCK_PROVIDER_KEY:
+        return "mock"
 
     if deployment in _TRANSLATED_DEPLOYMENTS:
         return "translated"

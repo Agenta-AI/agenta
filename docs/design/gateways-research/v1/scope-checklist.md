@@ -9,7 +9,7 @@ decided — and the column stopped carrying information.
 
 | Mark | Meaning |
 |---|---|
-| `1` | Wave 1 — both gateways working end to end, on the fakes and our own servers |
+| `1` | Wave 1 — both gateways working end to end, on the mocks and our own servers |
 | `2` | Wave 2 — every caller converted |
 | `3` | Wave 3 — OAuth end to end |
 | `later` | Real gateway work, after checkpoint C |
@@ -37,7 +37,7 @@ Without these there is no gateway, only an open proxy. They are not markable.
 | Secret injection | This is the containment property, and the point of the gateway |
 | Forward and return | Including streaming, since every harness streams |
 | Endpoint CRUD (both) | Custom endpoints need creating and configuring; standard ones are generated |
-| Test doubles | A fake LLM endpoint and a fake MCP server; nothing third-party in tests |
+| Test doubles | A mock LLM endpoint and a mock MCP server; nothing third-party in tests |
 
 **What already exists.** `sign_secret_token` produces an HS256 JWT carrying `user_id`,
 `user_email`, `project_id`, `workspace_id`, `organization_id`, `organization_name` and an

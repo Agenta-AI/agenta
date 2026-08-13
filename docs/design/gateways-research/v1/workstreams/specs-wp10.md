@@ -401,11 +401,11 @@ rule.
   ceiling, requested and allowed values; the `McpAuthRequiredError` case
   asserts the body carries the `GatewayConnectionRequirement`).
 - Router wiring (which handler each route reaches, the `_check` calls) —
-  **unit**, via `TestClient` against a bare `APIRouter` mounted with a fake
-  `LlmGatewayService`/`McpGatewayService` and a faked `get_auth_scope()` /
+  **unit**, via `TestClient` against a bare `APIRouter` mounted with a mock
+  `LlmGatewayService`/`McpGatewayService` and a mockd `get_auth_scope()` /
   `check_action_access()`. Assert: each route's operation_id, method and
   path match the table above; a denied `_check` short-circuits before the
-  service is called (assert the fake service's call count is zero); a
+  service is called (assert the mock service's call count is zero); a
   `None` return from `fetch_endpoint`/`edit_endpoint` maps to 404;
   `delete_endpoint` on a `False` return maps to 404.
 - The "standard endpoint cannot be edited" claim — **unit** is enough to

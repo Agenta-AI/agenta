@@ -62,7 +62,7 @@ from oss.src.utils.env import env
 # namespace -> upstream_registry key (§8 step 5). Private: entities.md names no public
 # selector for the MCP plane (contrast the LLM plane's select_upstream).
 _ADAPTER_KEYS: Dict[GatewayEndpointNamespace, str] = {
-    GatewayEndpointNamespace.AGENTA: "fake",
+    GatewayEndpointNamespace.AGENTA: "mock",
     GatewayEndpointNamespace.BUILTIN: "composio",
     GatewayEndpointNamespace.CUSTOM: "http",
 }
@@ -107,7 +107,7 @@ class McpGatewayService:
         # specs-wp9.md both require calling ConnectionsService.query_connections /
         # get_connection for real, in list_endpoints and in relay's builtin branch alike
         # ("the same instance list_endpoints already uses"). The abbreviated signature is
-        # a gap in the design, not a instruction to fake the integration; flagged for
+        # a gap in the design, not a instruction to mock the integration; flagged for
         # the M2 merge review rather than silently added.
         connections_service: ConnectionsService,
     ) -> None:
@@ -217,7 +217,7 @@ class McpGatewayService:
         """The code-defined agenta-namespace entries (D23, D27). Private and
         service-internal — entities.md names no public symbol for this, unlike the LLM
         plane's `standard_llm_endpoint(s)`. Wave 1's only member is WP5's deployable
-        fake MCP server; slug "tools" matches the route grammar's own worked example
+        mock MCP server; slug "tools" matches the route grammar's own worked example
         (decisions.md D27: `/gateways/mcps/agenta/{slug}` -> `agenta/tools`)."""
         return [
             McpEndpoint(
@@ -225,7 +225,7 @@ class McpGatewayService:
                 name="Agenta Tools",
                 auth_mode=GatewayAuthScheme.NONE,
                 namespace=GatewayEndpointNamespace.AGENTA,
-                data=McpEndpointData(url=env.fake_gateways.mcp_url),
+                data=McpEndpointData(url=env.mock_gateways.mcp_url),
             )
         ]
 

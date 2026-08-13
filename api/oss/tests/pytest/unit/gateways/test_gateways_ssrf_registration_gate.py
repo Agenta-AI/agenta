@@ -103,7 +103,7 @@ def _mcp_create_body(url: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# MCP: create — blocked targets 400 before the fake service is ever called
+# MCP: create — blocked targets 400 before the mock service is ever called
 # ---------------------------------------------------------------------------
 
 
@@ -127,7 +127,7 @@ def test_mcp_create_endpoint_accepts_a_public_https_hostname_without_dns(
     mcp_client, monkeypatch
 ):
     """The whole point of the no-DNS variant: a public https hostname is accepted
-    without any resolution attempt. The fake service still 500s past this point
+    without any resolution attempt. The mock service still 500s past this point
     (it has none of the create fields the real one would validate further), but
     that failure happens AFTER the gate — proving the gate itself let it through."""
 

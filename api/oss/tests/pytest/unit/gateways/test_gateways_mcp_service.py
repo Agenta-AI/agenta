@@ -1,6 +1,6 @@
 """Unit tests for `McpGatewayService` (specs-wp9.md, tasks-wp9.md).
 
-Every case runs against in-memory fakes — a dict-backed `McpEndpointsDAOInterface`, a
+Every case runs against in-memory mocks — a dict-backed `McpEndpointsDAOInterface`, a
 dict-backed `McpGrantsDAOInterface`, a stub `ConnectionsService`, a call-logging
 `GatewayPolicyService`, and a call-logging `CredentialResolverInterface`. No Postgres, no
 HTTP, no real upstream. Organized by the commit sections in tasks-wp9.md:
@@ -63,10 +63,10 @@ from oss.src.core.shared.dtos import Header
 from oss.src.utils.context import AuthScope
 
 
-# --- fakes (this package must not subclass the real Postgres DAO or ConnectionsService) --- #
+# --- mocks (this package must not subclass the real Postgres DAO or ConnectionsService) --- #
 
 
-class FakeMcpEndpointsDAO(McpEndpointsDAOInterface):
+class MockMcpEndpointsDAO(McpEndpointsDAOInterface):
     """In-memory endpoint_id -> McpEndpoint map. Records every call for assertion."""
 
     def __init__(self) -> None:
@@ -120,7 +120,7 @@ class FakeMcpEndpointsDAO(McpEndpointsDAOInterface):
         return list(self._by_id.values())
 
 
-class FakeMcpGrantsDAO:
+class MockMcpGrantsDAO:
     """In-memory (endpoint_id, user_id) -> McpGrant map; only the two verbs the
     service touches in wave 1."""
 
@@ -133,7 +133,7 @@ class FakeMcpGrantsDAO:
         return self._by_key.get((endpoint_id, user_id))
 
 
-class FakeConnectionsService:
+class MockConnectionsService:
     """In-memory stand-in for `ConnectionsService`; only `query_connections` and
     `get_connection` are called by `McpGatewayService`."""
 
@@ -194,12 +194,12 @@ def _service(
     from unittest.mock import AsyncMock
 
     return McpGatewayService(
-        mcp_endpoints_dao=mcp_endpoints_dao or FakeMcpEndpointsDAO(),
-        mcp_grants_dao=mcp_grants_dao or FakeMcpGrantsDAO(),
+        mcp_endpoints_dao=mcp_endpoints_dao or MockMcpEndpointsDAO(),
+        mcp_grants_dao=mcp_grants_dao or MockMcpGrantsDAO(),
         policy=GatewayPolicyService(resolver=AsyncMock()),
         resolver=resolver if resolver is not None else AsyncMock(),
         upstream_registry=McpUpstreamRegistry(adapters={}),
-        connections_service=connections_service or FakeConnectionsService(),
+        connections_service=connections_service or MockConnectionsService(),
     )
 
 
@@ -208,7 +208,7 @@ def _service(
 
 @pytest.mark.asyncio
 async def test_create_endpoint_delegates_to_dao():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     project_id, user_id = uuid4(), uuid4()
 
@@ -223,7 +223,7 @@ async def test_create_endpoint_delegates_to_dao():
 
 @pytest.mark.asyncio
 async def test_fetch_endpoint_delegates_to_dao_and_passes_through_result():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     created = await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create()
@@ -247,7 +247,7 @@ async def test_fetch_endpoint_missing_returns_none():
 
 @pytest.mark.asyncio
 async def test_edit_endpoint_delegates_to_dao():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     created = await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create()
@@ -269,7 +269,7 @@ async def test_edit_endpoint_delegates_to_dao():
 
 @pytest.mark.asyncio
 async def test_delete_endpoint_delegates_to_dao():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     created = await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create()
@@ -284,7 +284,7 @@ async def test_delete_endpoint_delegates_to_dao():
 
 @pytest.mark.asyncio
 async def test_query_endpoints_delegates_to_dao_and_returns_its_rows():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create("a")
@@ -320,7 +320,7 @@ async def test_list_endpoints_agenta_entry_has_no_id_and_agenta_namespace():
 @pytest.mark.asyncio
 async def test_list_endpoints_builtin_entries_stamp_connection_fields():
     connection = _connection(slug="my-notion", integration_key="notion")
-    service = _service(connections_service=FakeConnectionsService([connection]))
+    service = _service(connections_service=MockConnectionsService([connection]))
 
     endpoints = await service.list_endpoints(scope=_scope())
 
@@ -335,7 +335,7 @@ async def test_list_endpoints_builtin_entries_stamp_connection_fields():
 
 @pytest.mark.asyncio
 async def test_list_endpoints_builtin_queries_connections_service_for_composio_only():
-    connections_service = FakeConnectionsService([_connection()])
+    connections_service = MockConnectionsService([_connection()])
     service = _service(connections_service=connections_service)
 
     await service.list_endpoints(scope=_scope())
@@ -347,7 +347,7 @@ async def test_list_endpoints_builtin_queries_connections_service_for_composio_o
 
 @pytest.mark.asyncio
 async def test_list_endpoints_custom_rows_carry_custom_namespace():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create("acme-notion")
@@ -362,10 +362,10 @@ async def test_list_endpoints_custom_rows_carry_custom_namespace():
 
 @pytest.mark.asyncio
 async def test_list_endpoints_never_writes_a_generated_entry_to_the_dao():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     service = _service(
         mcp_endpoints_dao=dao,
-        connections_service=FakeConnectionsService([_connection()]),
+        connections_service=MockConnectionsService([_connection()]),
     )
 
     await service.list_endpoints(scope=_scope())
@@ -406,7 +406,7 @@ async def test_connection_state_custom_with_valid_grant_is_ready():
         secret_id=uuid4(),
         flags=McpGrantFlags(is_valid=True),
     )
-    service = _service(mcp_grants_dao=FakeMcpGrantsDAO([grant]))
+    service = _service(mcp_grants_dao=MockMcpGrantsDAO([grant]))
     endpoint = McpEndpoint(
         id=endpoint_id,
         slug="acme",
@@ -424,7 +424,7 @@ async def test_connection_state_custom_with_valid_grant_is_ready():
 
 @pytest.mark.asyncio
 async def test_connection_state_custom_with_no_grant_needs_auth():
-    service = _service(mcp_grants_dao=FakeMcpGrantsDAO())
+    service = _service(mcp_grants_dao=MockMcpGrantsDAO())
     endpoint = McpEndpoint(
         id=uuid4(),
         slug="acme",
@@ -476,7 +476,7 @@ async def test_query_grants_raises_not_implemented():
 @pytest.mark.asyncio
 async def test_connection_state_builtin_with_valid_connection_is_ready():
     connection = _connection(is_active=True, is_valid=True)
-    service = _service(connections_service=FakeConnectionsService([connection]))
+    service = _service(connections_service=MockConnectionsService([connection]))
     endpoint = McpEndpoint(
         slug=connection.slug,
         auth_mode=GatewayAuthScheme.OAUTH,
@@ -495,7 +495,7 @@ async def test_connection_state_builtin_with_valid_connection_is_ready():
 @pytest.mark.asyncio
 async def test_connection_state_builtin_with_invalid_connection_needs_auth():
     connection = _connection(is_active=True, is_valid=False)
-    service = _service(connections_service=FakeConnectionsService([connection]))
+    service = _service(connections_service=MockConnectionsService([connection]))
     endpoint = McpEndpoint(
         slug=connection.slug,
         auth_mode=GatewayAuthScheme.OAUTH,
@@ -514,7 +514,7 @@ async def test_connection_state_builtin_with_invalid_connection_needs_auth():
 # --- relay: the six-step orchestration ------------------------------------------------- #
 
 
-class FakeUpstreamAdapter:
+class MockUpstreamAdapter:
     """Logs every call; returns a canned result or raises a canned exception."""
 
     def __init__(self, *, result=None, raise_exc=None) -> None:
@@ -535,7 +535,7 @@ class FakeUpstreamAdapter:
         )
 
 
-class FakeResolver:
+class MockResolver:
     """Logs every call; returns a canned credential or raises."""
 
     def __init__(self, *, credential=None, raise_exc=None) -> None:
@@ -555,7 +555,7 @@ class FakeResolver:
         return set()
 
 
-class FakePolicyService:
+class MockPolicyService:
     """Logs authorize()/record() calls in order; the decision is fixed per test."""
 
     def __init__(self, *, allow: bool = True) -> None:
@@ -615,22 +615,22 @@ def _relay_service(
     adapters: Dict[str, object],
 ) -> McpGatewayService:
     return McpGatewayService(
-        mcp_endpoints_dao=mcp_endpoints_dao or FakeMcpEndpointsDAO(),
-        mcp_grants_dao=FakeMcpGrantsDAO(),
-        policy=policy or FakePolicyService(),
-        resolver=resolver or FakeResolver(),
+        mcp_endpoints_dao=mcp_endpoints_dao or MockMcpEndpointsDAO(),
+        mcp_grants_dao=MockMcpGrantsDAO(),
+        policy=policy or MockPolicyService(),
+        resolver=resolver or MockResolver(),
         upstream_registry=McpUpstreamRegistry(adapters=adapters),
-        connections_service=connections_service or FakeConnectionsService(),
+        connections_service=connections_service or MockConnectionsService(),
     )
 
 
 @pytest.mark.asyncio
 async def test_relay_agenta_none_scheme_dispatches_without_touching_resolver():
-    adapter = FakeUpstreamAdapter()
-    resolver = FakeResolver()
-    policy = FakePolicyService()
+    adapter = MockUpstreamAdapter()
+    resolver = MockResolver()
+    policy = MockPolicyService()
     service = _relay_service(
-        resolver=resolver, policy=policy, adapters={"fake": adapter}
+        resolver=resolver, policy=policy, adapters={"mock": adapter}
     )
 
     result = await service.relay(
@@ -653,7 +653,7 @@ async def test_relay_agenta_none_scheme_dispatches_without_touching_resolver():
 
 @pytest.mark.asyncio
 async def test_relay_custom_not_found_raises():
-    service = _relay_service(adapters={"http": FakeUpstreamAdapter()})
+    service = _relay_service(adapters={"http": MockUpstreamAdapter()})
 
     with pytest.raises(McpEndpointNotFoundError):
         await service.relay(
@@ -667,7 +667,7 @@ async def test_relay_custom_not_found_raises():
 
 
 async def _custom_endpoint(
-    dao: "FakeMcpEndpointsDAO", *, tool_policy: Optional[McpToolPolicy] = None
+    dao: "MockMcpEndpointsDAO", *, tool_policy: Optional[McpToolPolicy] = None
 ) -> McpEndpoint:
     return await dao.create_endpoint(
         project_id=uuid4(),
@@ -685,13 +685,13 @@ async def _custom_endpoint(
 
 @pytest.mark.asyncio
 async def test_relay_tool_outside_include_policy_raises_before_resolver_or_adapter():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     await _custom_endpoint(
         dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=["a"])
     )
-    adapter = FakeUpstreamAdapter()
-    resolver = FakeResolver()
-    policy = FakePolicyService()
+    adapter = MockUpstreamAdapter()
+    resolver = MockResolver()
+    policy = MockPolicyService()
     service = _relay_service(
         mcp_endpoints_dao=dao,
         resolver=resolver,
@@ -716,12 +716,12 @@ async def test_relay_tool_outside_include_policy_raises_before_resolver_or_adapt
 
 @pytest.mark.asyncio
 async def test_relay_empty_include_policy_refuses_every_tool():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     await _custom_endpoint(
         dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=[])
     )
     service = _relay_service(
-        mcp_endpoints_dao=dao, adapters={"http": FakeUpstreamAdapter()}
+        mcp_endpoints_dao=dao, adapters={"http": MockUpstreamAdapter()}
     )
 
     with pytest.raises(McpToolNotAllowedError):
@@ -737,10 +737,10 @@ async def test_relay_empty_include_policy_refuses_every_tool():
 
 @pytest.mark.asyncio
 async def test_relay_policy_denial_records_before_raising():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     await _custom_endpoint(dao)
-    adapter = FakeUpstreamAdapter()
-    policy = FakePolicyService(allow=False)
+    adapter = MockUpstreamAdapter()
+    policy = MockPolicyService(allow=False)
     service = _relay_service(
         mcp_endpoints_dao=dao, policy=policy, adapters={"http": adapter}
     )
@@ -763,9 +763,9 @@ async def test_relay_policy_denial_records_before_raising():
 @pytest.mark.asyncio
 async def test_relay_builtin_never_touches_resolver_only_connections_service():
     connection = _connection(slug="my-notion", integration_key="notion")
-    connections_service = FakeConnectionsService([connection])
-    adapter = FakeUpstreamAdapter()
-    resolver = FakeResolver()
+    connections_service = MockConnectionsService([connection])
+    adapter = MockUpstreamAdapter()
+    resolver = MockResolver()
     service = _relay_service(
         connections_service=connections_service,
         resolver=resolver,
@@ -792,7 +792,7 @@ async def test_relay_builtin_never_touches_resolver_only_connections_service():
 
 @pytest.mark.asyncio
 async def test_relay_custom_oauth_resolves_via_resolver_with_user_optional_mode():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     endpoint = await dao.create_endpoint(
         project_id=uuid4(),
         user_id=uuid4(),
@@ -803,8 +803,8 @@ async def test_relay_custom_oauth_resolves_via_resolver_with_user_optional_mode(
         ),
     )
     credential = _resolved_credential()
-    resolver = FakeResolver(credential=credential)
-    adapter = FakeUpstreamAdapter()
+    resolver = MockResolver(credential=credential)
+    adapter = MockUpstreamAdapter()
     service = _relay_service(
         mcp_endpoints_dao=dao, resolver=resolver, adapters={"http": adapter}
     )
@@ -828,12 +828,12 @@ async def test_relay_custom_oauth_resolves_via_resolver_with_user_optional_mode(
 
 @pytest.mark.asyncio
 async def test_relay_upstream_failure_records_outcome_before_raising():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     await _custom_endpoint(dao)
-    adapter = FakeUpstreamAdapter(
+    adapter = MockUpstreamAdapter(
         raise_exc=McpUpstreamError(target="x", status_code=502)
     )
-    policy = FakePolicyService()
+    policy = MockPolicyService()
     service = _relay_service(
         mcp_endpoints_dao=dao, policy=policy, adapters={"http": adapter}
     )
@@ -865,11 +865,11 @@ def _tools_list_result(names: List[str]) -> McpRelayResult:
 
 @pytest.mark.asyncio
 async def test_relay_tools_list_filters_by_include_policy():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     await _custom_endpoint(
         dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=["a", "b"])
     )
-    adapter = FakeUpstreamAdapter(result=_tools_list_result(["a", "b", "c"]))
+    adapter = MockUpstreamAdapter(result=_tools_list_result(["a", "b", "c"]))
     service = _relay_service(mcp_endpoints_dao=dao, adapters={"http": adapter})
 
     result = await service.relay(
@@ -888,9 +888,9 @@ async def test_relay_tools_list_filters_by_include_policy():
 
 @pytest.mark.asyncio
 async def test_relay_tools_list_passes_through_untouched_when_policy_is_all():
-    dao = FakeMcpEndpointsDAO()
+    dao = MockMcpEndpointsDAO()
     await _custom_endpoint(dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.ALL))
-    adapter = FakeUpstreamAdapter(result=_tools_list_result(["a", "b", "c"]))
+    adapter = MockUpstreamAdapter(result=_tools_list_result(["a", "b", "c"]))
     service = _relay_service(mcp_endpoints_dao=dao, adapters={"http": adapter})
 
     result = await service.relay(

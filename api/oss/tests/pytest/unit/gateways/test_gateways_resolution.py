@@ -1,6 +1,6 @@
 """Unit tests for `CredentialResolver` (specs-wp2.md, tasks-wp2.md).
 
-Every case below runs against a dict-backed fake `VaultService` and a dict-backed fake
+Every case below runs against a dict-backed mock `VaultService` and a dict-backed mock
 `McpGrantsDAOInterface` — no Postgres, no Redis, no encryption key. The mode-table cases
 (`USER_REQUIRED` never falls back, `USER_OPTIONAL` names the narrower owner) are the point
 of this suite; everything else exists to pin the ref-arm matching rules.
@@ -50,10 +50,10 @@ ALL_MODES = [
 ]
 
 
-# --- fakes (WP2 must not subclass the real VaultService / DAO) ---------------- #
+# --- mocks (WP2 must not subclass the real VaultService / DAO) ---------------- #
 
 
-class FakeVaultService:
+class MockVaultService:
     """In-memory secret_id -> SecretResponseDTO map; implements only the two
     VaultService methods CredentialResolver calls."""
 
@@ -69,7 +69,7 @@ class FakeVaultService:
         return self._by_id.get(secret_id)
 
 
-class FakeMcpGrantsDAO:
+class MockMcpGrantsDAO:
     """In-memory (endpoint_id, user_id) -> McpGrant map."""
 
     def __init__(self, grants: Optional[List[McpGrant]] = None) -> None:
@@ -152,9 +152,9 @@ def _grant(
 
 def _resolver(
     *, secrets=None, grants=None
-) -> Tuple[CredentialResolver, FakeVaultService, FakeMcpGrantsDAO]:
-    vault = FakeVaultService(secrets)
-    dao = FakeMcpGrantsDAO(grants)
+) -> Tuple[CredentialResolver, MockVaultService, MockMcpGrantsDAO]:
+    vault = MockVaultService(secrets)
+    dao = MockMcpGrantsDAO(grants)
     resolver = CredentialResolver(vault_service=vault, mcp_grants_dao=dao)
     return resolver, vault, dao
 

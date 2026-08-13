@@ -1,6 +1,6 @@
 """Unit tests for McpGatewayProxy routing (entities.md §9, workstreams/specs-wp8.md).
 
-In-process ASGI against a fake `McpGatewayService` and a faked `get_auth_scope()` — no
+In-process ASGI against a mock `McpGatewayService` and a mockd `get_auth_scope()` — no
 Postgres, no real service, no network. Asserts which handler each path reaches (the
 catch-all nesting on `agenta`, the three fixed segments on `builtin`), the 405s on the
 stream verbs, and the exception -> protocol-error mapping this proxy owns
@@ -43,7 +43,7 @@ from oss.src.core.gateways.policy.types import (
 from oss.src.utils.context import AuthScope
 
 
-class _FakeMcpGatewayService:
+class _MockMcpGatewayService:
     def __init__(self):
         self.calls = []
         self.raise_error = None
@@ -60,12 +60,12 @@ class _FakeMcpGatewayService:
 
 
 @pytest.fixture
-def fake_service():
-    return _FakeMcpGatewayService()
+def mock_service():
+    return _MockMcpGatewayService()
 
 
 @pytest.fixture
-def client(fake_service, monkeypatch):
+def client(mock_service, monkeypatch):
     scope = AuthScope(
         organization_id=uuid4(),
         workspace_id=uuid4(),
@@ -77,13 +77,13 @@ def client(fake_service, monkeypatch):
         lambda: scope,
     )
 
-    proxy = McpGatewayProxy(mcp_gateway_service=fake_service)
+    proxy = McpGatewayProxy(mcp_gateway_service=mock_service)
     app = FastAPI()
     app.include_router(proxy.router)
     return TestClient(app)
 
 
-def test_agenta_catchall_nests_the_slug(client, fake_service):
+def test_agenta_catchall_nests_the_slug(client, mock_service):
     response = client.post(
         "/agenta/tools/search",
         headers={"Mcp-Method": "tools/list"},
@@ -91,12 +91,12 @@ def test_agenta_catchall_nests_the_slug(client, fake_service):
     )
 
     assert response.status_code == 200
-    call = fake_service.calls[0]
+    call = mock_service.calls[0]
     assert call["namespace"] == GatewayEndpointNamespace.AGENTA
     assert call["name"] == "tools/search"
 
 
-def test_builtin_reaches_with_three_segments(client, fake_service):
+def test_builtin_reaches_with_three_segments(client, mock_service):
     response = client.post(
         "/builtin/composio/notion/my-notion",
         headers={"Mcp-Method": "tools/list"},
@@ -104,14 +104,14 @@ def test_builtin_reaches_with_three_segments(client, fake_service):
     )
 
     assert response.status_code == 200
-    call = fake_service.calls[0]
+    call = mock_service.calls[0]
     assert call["namespace"] == GatewayEndpointNamespace.BUILTIN
     assert call["provider"] == "composio"
     assert call["integration"] == "notion"
     assert call["name"] == "my-notion"
 
 
-def test_custom_reaches_with_the_slug(client, fake_service):
+def test_custom_reaches_with_the_slug(client, mock_service):
     response = client.post(
         "/custom/acme-notion",
         headers={"Mcp-Method": "tools/list"},
@@ -119,7 +119,7 @@ def test_custom_reaches_with_the_slug(client, fake_service):
     )
 
     assert response.status_code == 200
-    call = fake_service.calls[0]
+    call = mock_service.calls[0]
     assert call["namespace"] == GatewayEndpointNamespace.CUSTOM
     assert call["name"] == "acme-notion"
     assert call["provider"] is None
@@ -139,10 +139,10 @@ def test_get_and_delete_return_405(client, path):
     assert client.delete(path).status_code == 405
 
 
-def test_relayed_body_and_status_pass_through_untouched(client, fake_service):
+def test_relayed_body_and_status_pass_through_untouched(client, mock_service):
     """The upstream's own protocol-level result (success or its own JSON-RPC `error`
     body, D16) never goes through `_map_gateway_exception` — `HttpMcpAdapter` never
-    raises for it, so it is not this test's concern to fake beyond the happy path;
+    raises for it, so it is not this test's concern to mock beyond the happy path;
     the mapping only ever sees exceptions from `service.relay` itself."""
     response = client.post(
         "/custom/acme-notion", headers={"Mcp-Method": "tools/list"}, content=b"{}"
@@ -152,14 +152,14 @@ def test_relayed_body_and_status_pass_through_untouched(client, fake_service):
     assert response.content == b'{"jsonrpc": "2.0", "id": 1, "result": {}}'
 
 
-def test_authorization_header_is_not_forwarded_to_the_service(client, fake_service):
+def test_authorization_header_is_not_forwarded_to_the_service(client, mock_service):
     client.post(
         "/custom/acme-notion",
         headers={"Mcp-Method": "tools/list", "Authorization": "Secret platform-token"},
         content=b"{}",
     )
 
-    forwarded_headers = fake_service.calls[0]["headers"]
+    forwarded_headers = mock_service.calls[0]["headers"]
     assert "authorization" not in {k.lower() for k in forwarded_headers}
 
 
@@ -253,9 +253,9 @@ def _upstream_error_no_status():
     ],
 )
 def test_mapped_gateway_exceptions_carry_status_and_cause(
-    client, fake_service, make_error, expected_status, expected_cause
+    client, mock_service, make_error, expected_status, expected_cause
 ):
-    fake_service.raise_error = make_error()
+    mock_service.raise_error = make_error()
 
     response = client.post(
         "/custom/acme-notion", headers={"Mcp-Method": "tools/list"}, content=b"{}"
@@ -270,8 +270,8 @@ def test_mapped_gateway_exceptions_carry_status_and_cause(
     assert "retryable" not in payload["error"]["data"]
 
 
-def test_auth_required_carries_the_connect_requirement(client, fake_service):
-    fake_service.raise_error = _auth_required()
+def test_auth_required_carries_the_connect_requirement(client, mock_service):
+    mock_service.raise_error = _auth_required()
 
     response = client.post(
         "/custom/acme-notion", headers={"Mcp-Method": "tools/list"}, content=b"{}"
@@ -282,11 +282,11 @@ def test_auth_required_carries_the_connect_requirement(client, fake_service):
     assert requirement["state"] == "needs_auth"
 
 
-def test_missing_mcp_method_header_is_a_protocol_invalid_request(client, fake_service):
+def test_missing_mcp_method_header_is_a_protocol_invalid_request(client, mock_service):
     response = client.post("/custom/acme-notion", content=b"{}")
 
     assert response.status_code == 400
-    assert fake_service.calls == []
+    assert mock_service.calls == []
     payload = response.json()
     assert payload["jsonrpc"] == "2.0"
     assert payload["id"] is None

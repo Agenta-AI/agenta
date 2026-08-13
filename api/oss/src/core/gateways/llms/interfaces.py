@@ -139,7 +139,7 @@ class LlmUpstreamInterface(ABC):
         """Relay one completion call. `body` is the caller's payload untouched;
         `headers` are the caller's headers already stripped of authorization.
         `credential` is None only for targets whose auth scheme is NONE (the
-        fakes). Raises LlmUpstreamError on upstream failure."""
+        mocks). Raises LlmUpstreamError on upstream failure."""
         raise NotImplementedError
 
     # async def relay_embedding(...) -> LlmRelayResult — deferred with the evaluator path (D15)

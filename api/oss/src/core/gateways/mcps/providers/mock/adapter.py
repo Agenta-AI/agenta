@@ -1,10 +1,10 @@
-"""FakeMcpAdapter: the in-process fake MCP upstream (entities.md §7.1, D23).
+"""MockMcpAdapter: the in-process mock MCP upstream (entities.md §7.1, D23).
 
 Unlike the real `http`/`composio` adapters, this one *is* the upstream — it
 parses `body` (the caller's JSON-RPC payload) itself and answers in-process,
 because there is nothing behind it to relay to. This does not violate D16's
 transparency rule: D16 constrains the gateway, which still passes `body`
-through this port untouched; a fake *server* interpreting its own JSON-RPC
+through this port untouched; a mock *server* interpreting its own JSON-RPC
 input is exactly what any real MCP server does.
 
 Three tools, advertised by `tools/list` and dispatched by `tools/call`'s
@@ -19,7 +19,7 @@ Three tools, advertised by `tools/list` and dispatched by `tools/call`'s
 `notifications/*` returns 202 with an empty body, matching the runner's
 internal MCP server (services/runner/src/tools/tool-mcp-http.ts). Any other
 method is a transport-level failure: McpUpstreamError(status_code=501) — there
-is no fourth method to fake.
+is no fourth method to mock.
 
 Forced scope challenges (McpScopeInsufficientError) are explicitly not built
 here (D23's "later"): that type is unreachable until the OAuth checkpoint
@@ -76,7 +76,7 @@ async def _dispatch_tool_call(params: Dict[str, Any]) -> Dict[str, Any]:
         return _tool_result(json.dumps(arguments), is_error=False)
 
     if name == "fail":
-        return _tool_result("fake/fail: forced tool failure", is_error=True)
+        return _tool_result("mock/fail: forced tool failure", is_error=True)
 
     if name == "slow":
         seconds = arguments.get("seconds", 5)
@@ -89,12 +89,12 @@ async def _dispatch_tool_call(params: Dict[str, Any]) -> Dict[str, Any]:
 def _initialize_result() -> Dict[str, Any]:
     return {
         "protocolVersion": _PROTOCOL_VERSION,
-        "serverInfo": {"name": "agenta-fake-mcp", "version": "0.1.0"},
+        "serverInfo": {"name": "agenta-mock-mcp", "version": "0.1.0"},
         "capabilities": {"tools": {}},
     }
 
 
-class FakeMcpAdapter(McpUpstreamInterface):
+class MockMcpAdapter(McpUpstreamInterface):
     async def relay(
         self,
         *,

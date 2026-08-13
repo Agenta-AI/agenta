@@ -38,12 +38,12 @@ commit and fix all errors, per `api/AGENTS.md`.
       `registry.py`).
 - [x] Commit: "wp7: registry.py — LlmUpstreamRegistry + select_upstream".
 
-**Deviation, disclosed:** `select_upstream` also special-cases `provider_key == "fake"` →
-`"fake"`, ahead of the deployment split. Neither `specs-wp7.md`'s table nor this phase's own
+**Deviation, disclosed:** `select_upstream` also special-cases `provider_key == "mock"` →
+`"mock"`, ahead of the deployment split. Neither `specs-wp7.md`'s table nor this phase's own
 bullets state that branch; it was added mid-implementation after the coordinator flagged that
-WP5's `FakeLlmAdapter` import is WP7's to uncomment and register at the composition root (see the
+WP5's `MockLlmAdapter` import is WP7's to uncomment and register at the composition root (see the
 Phase 7 diff below) — without it, nothing in the documented `select_upstream` table ever routes to
-the `"fake"` registry key, which would make the fakes unreachable through the relay path in every
+the `"mock"` registry key, which would make the mocks unreachable through the relay path in every
 environment, not just contradict "registered always; reachable only via a seeded endpoint" from
 `entities.md` §9's wiring comment. `core/gateways/llms/types.py` also gained one new exception,
 `LlmAdapterNotFoundError` (`registry.get`'s miss) — additive only, but it is a `types.py` edit,
@@ -89,7 +89,7 @@ docstring's "the translated adapter reports the library's count" only holds with
 
 ## Phase 4 — Contract test extension
 
-- [x] Extend WP5's `test_fake_adapters_contract.py` fixture to include `TranslatedLlmAdapter`
+- [x] Extend WP5's `test_mock_adapters_contract.py` fixture to include `TranslatedLlmAdapter`
       (litellm mocked), asserting `relay_chat_completion` returns `LlmRelayResult`.
 - [x] Ruff format + check; run and fix.
 - [x] Commit: "wp7: translated adapter joins the south-port contract suite".
@@ -169,7 +169,7 @@ signature to add `scope`, which the checklist's own "exactly this, unchanged" li
       `PolicyDeniedError` — denial recorded before the exception leaves.
 - [x] Wire `self.resolver.resolve(scope=..., ref=target.credential_ref(),
       mode=CredentialMode.PROJECT_ONLY)`, skipped for `GatewayAuthScheme.NONE` targets (the
-      fakes).
+      mocks).
 - [x] Wire adapter selection: `self.upstream_registry.get(select_upstream(target.provider_key,
       target.deployment)).relay_chat_completion(...)`.
 - [x] Implement the streaming-aware audit wrapper: wrap a streaming `LlmRelayResult.body` in a
@@ -213,7 +213,7 @@ individually so the mapping from item to code is traceable in one diff.
 
 - [x] `api/entrypoints/routers.py`: construct `llm_gateway_service = LlmGatewayService(...)` per
       the diff in `specs-wp7.md`, with the `upstream_registry` dict entries for `"passthrough"`,
-      `"translated"`, `"fake"` — coordinate with WP5's and WP6's import lines landing in the same
+      `"translated"`, `"mock"` — coordinate with WP5's and WP6's import lines landing in the same
       block at the M1→M2 merge.
 - [x] If the litellm-as-direct-dependency question (flagged in "Missing from the design") is
       resolved in favor of adding it: `api/pyproject.toml` gets the `litellm` line, matching the
@@ -230,12 +230,12 @@ by `providers/translated/adapter.py` since Phase 3).
 this file is nobody's to edit directly mid-wave; the diff below is what should land at the
 M1→M2 merge, once WP6's `PassthroughLlmAdapter` exists on the integration branch (it does not
 exist on this worktree, so applying this diff here would break the import). Two things beyond
-`specs-wp7.md`'s own diff, both flagged by the coordinator mid-task: the `FakeLlmAdapter` import
+`specs-wp7.md`'s own diff, both flagged by the coordinator mid-task: the `MockLlmAdapter` import
 uncomments (WP5 left it commented, deliberately, for whichever of WP7/WP9 builds the first plane
-registry — that is WP7 here), and it is registered under `"fake"`, the key `select_upstream`
-returns for `provider_key == "fake"` (see Phase 2's disclosed deviation above) — without both
-halves the fakes are unreachable through the relay path in every environment, including the local
-compose stack, since nothing in the documented classification table itself ever selects `"fake"`.
+registry — that is WP7 here), and it is registered under `"mock"`, the key `select_upstream`
+returns for `provider_key == "mock"` (see Phase 2's disclosed deviation above) — without both
+halves the mocks are unreachable through the relay path in every environment, including the local
+compose stack, since nothing in the documented classification table itself ever selects `"mock"`.
 
 ```diff
 --- a/api/entrypoints/routers.py
@@ -246,15 +246,15 @@ compose stack, since nothing in the documented classification table itself ever 
  from oss.src.core.gateways.policy.resolution import CredentialResolver
  from oss.src.core.gateways.policy.service import GatewayPolicyService
 
--# The fake adapters (WP5) are registered into the plane registries, which WP7 and WP9
+-# The mock adapters (WP5) are registered into the plane registries, which WP7 and WP9
 -# own and which do not exist yet — so their imports land with those, not here.
--# from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
-+from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
+-# from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
++from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
 +from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLlmAdapter
 +from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry
 +from oss.src.core.gateways.llms.service import LlmGatewayService
 +# from oss.src.core.gateways.llms.providers.passthrough.adapter import PassthroughLlmAdapter  # WP6
- # from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+ # from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
 -# from oss.src.core.gateways.llms.service import LlmGatewayService
  # from oss.src.core.gateways.mcps.service import McpGatewayService
  # from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter   # WP10
@@ -272,7 +272,7 @@ compose stack, since nothing in the documented classification table itself ever 
 +        adapters={
 +            "passthrough": PassthroughLlmAdapter(),  # WP6's import, added at that merge
 +            "translated": TranslatedLlmAdapter(),
-+            "fake": FakeLlmAdapter(),
++            "mock": MockLlmAdapter(),
 +        }
 +    ),
 +)
@@ -287,7 +287,7 @@ uncomments it (and drops the comment marker) at the same merge, per `specs-wp7.m
 that "WP6 contributes the import and the proxy mount only." Until then this diff, applied alone,
 does not import-error: the construction block references `PassthroughLlmAdapter` by name, so it
 must land together with WP6's uncomment, not before — same ordering constraint the seed's own
-comment block already documented for `FakeLlmAdapter`.
+comment block already documented for `MockLlmAdapter`.
 
 ## Phase 8 — Acceptance (post-M2, once WP1/WP5/WP6 are merged)
 
@@ -297,7 +297,7 @@ comment block already documented for `FakeLlmAdapter`.
       written, not run, by this package.
 - [ ] Seed a custom endpoint with a narrow `model_slugs` list; confirm a request for a model
       outside it is refused `model_not_allowed` with no upstream call made (verifiable against
-      WP5's fake — the fake sees no inbound request at all). **Not run** — needs the deployment
+      WP5's mock — the mock sees no inbound request at all). **Not run** — needs the deployment
       above. The `curl` procedure in `specs-wp7.md`'s "Done test" section is the script to run
       once WP6 is merged and the stack is up; nothing further to add here.
 - [x] Confirm every `DIRECT` provider in `supported_llm_models` maps to the documented adapter key

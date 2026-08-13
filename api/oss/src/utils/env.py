@@ -722,19 +722,19 @@ class ComposioConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# gateways: fakes (WP5, D23)
+# gateways: mocks (WP5, D23)
 # ---------------------------------------------------------------------------
 
 
-class FakeGatewaysConfig(BaseModel):
-    """Local-stack fake upstream addresses (WP5). Unset in production images —
+class MockGatewaysConfig(BaseModel):
+    """Local-stack mock upstream addresses (WP5). Unset in production images —
     nothing references these outside dev/gh compose."""
 
     llm_url: str = os.getenv(
-        "AGENTA_FAKE_LLM_GATEWAY_URL", "http://fake-llm-gateway:9091"
+        "AGENTA_MOCK_LLM_GATEWAY_URL", "http://mock-llm-gateway:9091"
     )
     mcp_url: str = os.getenv(
-        "AGENTA_FAKE_MCP_GATEWAY_URL", "http://fake-mcp-gateway:9092"
+        "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092"
     )
 
     model_config = ConfigDict(extra="ignore")
@@ -1674,11 +1674,11 @@ class EnvironSettings(BaseModel):
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
-    fake_gateways: FakeGatewaysConfig = FakeGatewaysConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
     mcp_gateway: McpGatewayConfig = McpGatewayConfig()
+    mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()

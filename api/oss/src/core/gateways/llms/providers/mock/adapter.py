@@ -1,12 +1,12 @@
-"""FakeLlmAdapter: the in-process fake LLM upstream (entities.md §7.1, D23).
+"""MockLlmAdapter: the in-process mock LLM upstream (entities.md §7.1, D23).
 
-No socket, no process. Registered once, statically, under the "fake" adapter key
+No socket, no process. Registered once, statically, under the "mock" adapter key
 (wiring block, entities.md §9). Controllable behavior is keyed by `context.model`,
 checked as a prefix so the base model name stays free-form:
 
-    fake/echo         (default; any name matching no other suffix below)
-    fake/error        raises LlmUpstreamError
-    fake/slow-{n}     sleeps n seconds, then answers like fake/echo
+    mock/echo         (default; any name matching no other suffix below)
+    mock/error        raises LlmUpstreamError
+    mock/slow-{n}     sleeps n seconds, then answers like mock/echo
 
 The deployable app (app.py) calls this same adapter, so both tiers share one
 implementation of the control convention.
@@ -24,8 +24,8 @@ from oss.src.core.gateways.llms.interfaces import LlmRelayResult, LlmUpstreamInt
 from oss.src.core.gateways.llms.types import LlmUpstreamError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedCredential
 
-_ERROR_PREFIX = "fake/error"
-_SLOW_RE = re.compile(r"^fake/slow-(\d+)")
+_ERROR_PREFIX = "mock/error"
+_SLOW_RE = re.compile(r"^mock/slow-(\d+)")
 
 
 def _parse_slow_seconds(model: str) -> Optional[int]:
@@ -96,8 +96,8 @@ async def _empty_body() -> AsyncIterator[bytes]:
     yield b""  # pragma: no cover — placeholder, makes this an async generator
 
 
-class FakeLlmAdapter(LlmUpstreamInterface):
-    """The fake upstream (D23): unauthenticated, in-process, never opens a
+class MockLlmAdapter(LlmUpstreamInterface):
+    """The mock upstream (D23): unauthenticated, in-process, never opens a
     socket. `credential` may be None — targets with GatewayAuthScheme.NONE are
     the intended callers (entities.md §2)."""
 
@@ -115,7 +115,7 @@ class FakeLlmAdapter(LlmUpstreamInterface):
 
         if model.startswith(_ERROR_PREFIX):
             raise LlmUpstreamError(
-                provider_key="fake", status_code=500, detail="forced by fake/error"
+                provider_key="mock", status_code=500, detail="forced by mock/error"
             )
 
         slow_seconds = _parse_slow_seconds(model)
@@ -125,7 +125,7 @@ class FakeLlmAdapter(LlmUpstreamInterface):
         content = _last_message_content(body)
         input_tokens = _word_count(body.decode(errors="replace")) if body else 0
         output_tokens = _word_count(content)
-        completion_id = f"chatcmpl-fake-{uuid.uuid4().hex}"
+        completion_id = f"chatcmpl-mock-{uuid.uuid4().hex}"
         created = int(time.time())
 
         result = LlmRelayResult(

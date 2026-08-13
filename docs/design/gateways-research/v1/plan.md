@@ -41,18 +41,18 @@ Permission checks and entitlement checks are **in for both gateways**. Credit ch
 
 Three, and the middle one is the big one.
 
-### Checkpoint A — both gateways serve traffic against fakes
+### Checkpoint A — both gateways serve traffic against mocks
 
 The LLM gateway and the MCP gateway both accept a call, authorise it, resolve and inject a
-secret, reach a fake upstream, and return. Policy fires. Nothing is recorded and nothing is
+secret, reach a mock upstream, and return. Policy fires. Nothing is recorded and nothing is
 configurable yet — this checkpoint proves the call path, and only that.
 
 **Why here.** It is the first point where anything runs end to end, and it needs no third-party
 dependency, no OAuth and no converted caller. Everything it proves is proved against our own
-fakes, which is what makes it a clean acceptance-test surface.
+mocks, which is what makes it a clean acceptance-test surface.
 
 **Acceptance tests:** a request with no token is refused; a request for an endpoint the caller
-may not use is refused; a permitted request reaches the fake with the caller's token replaced by
+may not use is refused; a permitted request reaches the mock with the caller's token replaced by
 the upstream secret; a streamed response arrives byte for byte on **both** gateways, tool names,
 schemas and errors included; a tool call outside the allowlist is refused.
 
@@ -82,7 +82,7 @@ revoke and confirm the tool stays listed and the call fails with something actio
 | Wave | From | To | What it delivers |
 |---|---|---|---|
 | 0 | — | the seed | The shared state: every layer declared, column by column |
-| 1 | seed | **Checkpoint A** | Both gateways, the shared policy core, and the fakes |
+| 1 | seed | **Checkpoint A** | Both gateways, the shared policy core, and the mocks |
 | 2 | A | **Checkpoint B** | Every caller converted |
 | 3 | B | **Checkpoint C** | OAuth end to end |
 
@@ -208,10 +208,10 @@ target, and the entitlement check. No credit check.
 *Depends on:* seed. *Blocks:* WP6, WP8.
 *Done when:* a caller without permission on an endpoint is refused before any upstream call.
 
-**WP5 — Test doubles.** A fake LLM endpoint and a fake MCP server, both controllable from tests:
+**WP5 — Test doubles.** A mock LLM endpoint and a mock MCP server, both controllable from tests:
 forced errors, forced slowness, forced scope challenges later.
 *Depends on:* nothing. **Start immediately.** *Blocks:* every acceptance test.
-*Done when:* both fakes run in the local stack and can be driven to fail on demand.
+*Done when:* both mocks run in the local stack and can be driven to fail on demand.
 
 **Merge M1 — foundation.** Static only, not deployed.
 

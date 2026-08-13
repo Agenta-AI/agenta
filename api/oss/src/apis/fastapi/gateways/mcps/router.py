@@ -1,7 +1,7 @@
 """MCP gateway management CRUD router (entities.md §9).
 
 `McpGatewayService` is WP9's — declared here only as a `TYPE_CHECKING` forward reference
-so this router can be built, wired and unit-tested against a fake before WP9 lands (rule
+so this router can be built, wired and unit-tested against a mock before WP9 lands (rule
 4: "stop at the merge point").
 
 `connect_mcp_endpoint` (`POST /endpoints/{endpoint_id}/connect`) and `mcp_connect_callback`

@@ -857,14 +857,14 @@ services:
     # dependency, so they run every deploy (entities.md §0, "the gateways have no
     # third-party dependency to gate on"). Not a license-gated feature: the EE dev stack
     # mirrors OSS dev here.
-    fake-llm-gateway:
+    mock-llm-gateway:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command:
             [
                 "uvicorn",
-                "oss.src.core.gateways.llms.providers.fake.app:app",
+                "oss.src.core.gateways.llms.providers.mock.app:app",
                 "--host",
                 "0.0.0.0",
                 "--port",
@@ -881,14 +881,14 @@ services:
             timeout: 5s
             retries: 10
 
-    fake-mcp-gateway:
+    mock-mcp-gateway:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command:
             [
                 "uvicorn",
-                "oss.src.core.gateways.mcps.providers.fake.app:app",
+                "oss.src.core.gateways.mcps.providers.mock.app:app",
                 "--host",
                 "0.0.0.0",
                 "--port",

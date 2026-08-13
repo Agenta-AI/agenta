@@ -71,13 +71,13 @@ seed's declarations.
 | `gateways-wp1` | `feat/gateways-wp1` | Domain and storage | `dbs/postgres/gateways/`, the migration |
 | `gateways-wp2` | `feat/gateways-wp2` | Secret resolution | `core/gateways/policy/resolution.py` |
 | `gateways-wp3` | `feat/gateways-wp3` | Policy core | `core/gateways/policy/service.py`, the six `Permission` members |
-| `gateways-wp5` | `feat/gateways-wp5` | Test doubles | both `providers/fake/` trees, the compose services |
+| `gateways-wp5` | `feat/gateways-wp5` | Test doubles | both `providers/mock/` trees, the compose services |
 
 Each starts by reading `specs-wp{k}.md`, works `tasks-wp{k}.md` top to bottom, stays inside its
 owned paths, and **stops at the merge point** rather than reaching into another package's files to
 finish something.
 
-**WP5 is not scaffolding.** The fakes are deliverables (D23), and they are what makes checkpoint A
+**WP5 is not scaffolding.** The mocks are deliverables (D23), and they are what makes checkpoint A
 testable without a third-party dependency. A package treating them as throwaway produces a
 checkpoint nobody can verify.
 
@@ -111,10 +111,10 @@ the other's files.
 Checkpoint A is reached when this runs on the merged base, not when five packages report done.
 
 - [ ] Merge the five, applying the `api/entrypoints/routers.py` lines together as one edit.
-- [ ] Both fakes run in the local stack.
+- [ ] Both mocks run in the local stack.
 - [ ] A request with no token is refused.
 - [ ] A request for an endpoint the caller may not use is refused, **before** any upstream call.
-- [ ] A permitted model call reaches the fake with the caller's token replaced by the upstream
+- [ ] A permitted model call reaches the mock with the caller's token replaced by the upstream
       secret.
 - [ ] A streamed response arrives byte for byte, on **both** planes — tool names, schemas and
       errors included.
@@ -130,7 +130,7 @@ Checkpoint A is reached when this runs on the merged base, not when five package
 
 **What is deliberately absent:** no audit record, no usage recorded, no per-endpoint
 configuration, no OAuth, and **no brokered server** — checkpoint A's reachable targets are our own
-servers and the fakes (D23), so the Composio-backed adapter is not a wave 1 deliverable (R8).
+servers and the mocks (D23), so the Composio-backed adapter is not a wave 1 deliverable (R8).
 Checkpoint A proves the call path and only the call path (`scope-checklist.md`).
 
 ## Rules for anyone working a package

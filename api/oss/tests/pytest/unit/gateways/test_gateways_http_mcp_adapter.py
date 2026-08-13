@@ -22,7 +22,7 @@ from oss.src.core.gateways.mcps.dtos import (
     McpResolvedRoute,
 )
 from oss.src.core.gateways.mcps.interfaces import McpRelayResult
-from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMcpAdapter
 from oss.src.core.gateways.mcps.types import McpUpstreamError
 
@@ -206,7 +206,7 @@ async def test_no_authorization_header_when_credential_is_none():
 @pytest.mark.asyncio
 async def test_authorization_header_derived_from_oauth_grant():
     """`OAuthGrantSettingsDTO` (entities.md §4.5) isn't in this codebase yet (WP16,
-    wave 3), so the fake credential is a SimpleNamespace shaped like its future
+    wave 3), so the mock credential is a SimpleNamespace shaped like its future
     `.secret.data.grant.{access_token,token_type}` — the shape HttpMcpAdapter reads
     defensively via getattr."""
     captured = {}
@@ -216,7 +216,7 @@ async def test_authorization_header_derived_from_oauth_grant():
         return _json_response()
 
     adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
-    fake_credential = SimpleNamespace(
+    mock_credential = SimpleNamespace(
         secret=SimpleNamespace(
             data=SimpleNamespace(
                 grant=SimpleNamespace(access_token="tok-abc123", token_type="Bearer")
@@ -226,7 +226,7 @@ async def test_authorization_header_derived_from_oauth_grant():
 
     await adapter.relay(
         route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
-        auth=McpDirectAuth.model_construct(credential=fake_credential),
+        auth=McpDirectAuth.model_construct(credential=mock_credential),
         context=_context(),
         body=b"{}",
         headers={},
@@ -440,14 +440,14 @@ async def test_endpoint_timeout_config_is_respected(monkeypatch):
 
 # ---------------------------------------------------------------------------
 # Namespace scoping: the guard is HttpMcpAdapter's, not McpUpstreamInterface's.
-# The `agenta` namespace routes to FakeMcpAdapter (WP5), which never makes an
+# The `agenta` namespace routes to MockMcpAdapter (WP5), which never makes an
 # outbound call at all, so a private-looking route.url on it is never refused.
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_agenta_route_to_a_private_address_is_not_refused():
-    adapter = FakeMcpAdapter()
+    adapter = MockMcpAdapter()
 
     result = await adapter.relay(
         route=McpResolvedRoute(url="http://127.0.0.1/mcp"),

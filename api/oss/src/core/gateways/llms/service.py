@@ -83,7 +83,7 @@ class _ResolvedLlmTarget:
             return ProviderKeyRef(provider_key=self.provider_key)
         if self.secret_id is not None:
             return BoundSecretRef(secret_id=self.secret_id)
-        # A custom row with no bound secret is a NONE-scheme target (the fakes, D23) —
+        # A custom row with no bound secret is a NONE-scheme target (the mocks, D23) —
         # nothing to resolve.
         return None
 

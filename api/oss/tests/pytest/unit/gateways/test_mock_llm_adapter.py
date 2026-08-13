@@ -1,4 +1,4 @@
-"""Unit tests for FakeLlmAdapter (entities.md §7.1, workstreams/specs-wp5.md).
+"""Unit tests for MockLlmAdapter (entities.md §7.1, workstreams/specs-wp5.md).
 
 Nothing running: the adapter is exercised as a plain Python object.
 """
@@ -14,19 +14,19 @@ from oss.src.core.gateways.llms.dtos import (
     LlmResolvedRoute,
 )
 from oss.src.core.gateways.llms.interfaces import LlmRelayResult
-from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
 from oss.src.core.gateways.llms.types import LlmUpstreamError
 
 
-def _route(model: str = "fake/echo") -> LlmResolvedRoute:
+def _route(model: str = "mock/echo") -> LlmResolvedRoute:
     return LlmResolvedRoute(
-        provider_key="fake", deployment=LlmDeploymentKind.DIRECT, model=model
+        provider_key="mock", deployment=LlmDeploymentKind.DIRECT, model=model
     )
 
 
 def _body(content: str = "hello") -> bytes:
     return json.dumps(
-        {"model": "fake/echo", "messages": [{"role": "user", "content": content}]}
+        {"model": "mock/echo", "messages": [{"role": "user", "content": content}]}
     ).encode()
 
 
@@ -36,11 +36,11 @@ async def _drain(body):
 
 @pytest.mark.asyncio
 async def test_echo_returns_well_formed_result():
-    adapter = FakeLlmAdapter()
+    adapter = MockLlmAdapter()
     result = await adapter.relay_chat_completion(
         route=_route(),
         credential=None,
-        context=LlmCallContext(model="fake/echo"),
+        context=LlmCallContext(model="mock/echo"),
         body=_body("hello there"),
         headers={},
     )
@@ -57,30 +57,30 @@ async def test_echo_returns_well_formed_result():
 
 @pytest.mark.asyncio
 async def test_error_model_raises_upstream_error():
-    adapter = FakeLlmAdapter()
+    adapter = MockLlmAdapter()
 
     with pytest.raises(LlmUpstreamError) as excinfo:
         await adapter.relay_chat_completion(
-            route=_route("fake/error"),
+            route=_route("mock/error"),
             credential=None,
-            context=LlmCallContext(model="fake/error"),
+            context=LlmCallContext(model="mock/error"),
             body=_body(),
             headers={},
         )
 
-    assert excinfo.value.provider_key == "fake"
+    assert excinfo.value.provider_key == "mock"
     assert excinfo.value.status_code == 500
 
 
 @pytest.mark.asyncio
 async def test_slow_model_sleeps_before_returning():
-    adapter = FakeLlmAdapter()
+    adapter = MockLlmAdapter()
     start = time.monotonic()
 
     result = await adapter.relay_chat_completion(
-        route=_route("fake/slow-1"),
+        route=_route("mock/slow-1"),
         credential=None,
-        context=LlmCallContext(model="fake/slow-1"),
+        context=LlmCallContext(model="mock/slow-1"),
         body=_body(),
         headers={},
     )
@@ -93,12 +93,12 @@ async def test_slow_model_sleeps_before_returning():
 
 @pytest.mark.asyncio
 async def test_streaming_yields_multiple_chunks_ending_in_done():
-    adapter = FakeLlmAdapter()
+    adapter = MockLlmAdapter()
 
     result = await adapter.relay_chat_completion(
         route=_route(),
         credential=None,
-        context=LlmCallContext(model="fake/echo", stream=True),
+        context=LlmCallContext(model="mock/echo", stream=True),
         body=_body("hi"),
         headers={},
     )
@@ -112,12 +112,12 @@ async def test_streaming_yields_multiple_chunks_ending_in_done():
 
 @pytest.mark.asyncio
 async def test_usage_populated_after_body_exhausted():
-    adapter = FakeLlmAdapter()
+    adapter = MockLlmAdapter()
 
     result = await adapter.relay_chat_completion(
         route=_route(),
         credential=None,
-        context=LlmCallContext(model="fake/echo"),
+        context=LlmCallContext(model="mock/echo"),
         body=_body("hello world"),
         headers={},
     )

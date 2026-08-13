@@ -1,7 +1,7 @@
 """LLM gateway management CRUD router (entities.md §9).
 
 `LlmGatewayService` is WP7's — declared here only as a `TYPE_CHECKING` forward reference
-so this router can be built, wired and unit-tested against a fake before WP7 lands (rule
+so this router can be built, wired and unit-tested against a mock before WP7 lands (rule
 4: "stop at the merge point").
 
 The SSRF gate at registration (D28): `LlmEndpointData.route.base_url` is the LLM plane's

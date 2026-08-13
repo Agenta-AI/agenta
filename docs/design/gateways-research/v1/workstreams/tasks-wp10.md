@@ -91,11 +91,11 @@ members) having landed.
 
 ## llms/router.py tests (unit)
 
-- [ ] TestClient + fake `LlmGatewayService` + faked `get_auth_scope()` /
+- [ ] TestClient + mock `LlmGatewayService` + mockd `get_auth_scope()` /
       `check_action_access()`: each of the six routes reaches the right
       handler with the right operation_id/method/path.
-- [ ] A denied `_check` short-circuits before the fake service is called —
-      assert the fake's call count is zero.
+- [ ] A denied `_check` short-circuits before the mock service is called —
+      assert the mock's call count is zero.
 - [ ] `None` from `fetch_endpoint`/`edit_endpoint` → 404; `False` from
       `delete_endpoint` → 404.
 - [ ] `ruff format` && `ruff check --fix`; run tests; fix failures.
@@ -124,14 +124,14 @@ members) having landed.
 
 ## mcps/router.py tests (unit)
 
-- [ ] TestClient + fake `McpGatewayService`: each of the eight routes
+- [ ] TestClient + mock `McpGatewayService`: each of the eight routes
       (six CRUD + two grant) reaches the right handler.
 - [ ] Confirm `POST /endpoints/{id}/connect` and `GET /connect/callback`
       are NOT registered on this router (a 404 from FastAPI's own routing,
       not a handled response) — a deliberate absence test, not just an
       omission.
-- [ ] A denied `_check` short-circuits before the fake service is called.
-- [ ] Calling `query_mcp_grants`/`revoke_mcp_grant` against a fake service
+- [ ] A denied `_check` short-circuits before the mock service is called.
+- [ ] Calling `query_mcp_grants`/`revoke_mcp_grant` against a mock service
       whose methods raise `NotImplementedError` propagates as an unhandled
       500 (confirms the mapping table correctly does NOT catch it — this
       is expected wave-1 behavior, not a bug to fix here).
@@ -181,6 +181,6 @@ Feeds **Checkpoint A**. Plan.md's stated done condition, verbatim: *"a
 custom endpoint can be created and deleted, and a standard one cannot be
 edited."* WP10 is done when: every wire model instantiates; every mapped
 exception produces the right status and body shape; both routers' routes
-dispatch correctly against fakes with no real database; the `(WP18)`-tagged
+dispatch correctly against mocks with no real database; the `(WP18)`-tagged
 routes are absent by construction; and the Checkpoint A acceptance
 assertions above pass against the deployed stack.

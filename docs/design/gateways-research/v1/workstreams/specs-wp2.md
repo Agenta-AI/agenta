@@ -47,7 +47,7 @@ From `core/gateways/policy/interfaces.py` (`entities.md` §7.2):
 
 ```python
 class CredentialResolverInterface(ABC):
-    """One lookup, called by both planes. Fakeable (D23): the fake resolver
+    """One lookup, called by both planes. Mockable (D23): the mock resolver
     answers from a dict and never touches the vault."""
 
     @abstractmethod
@@ -335,8 +335,8 @@ already produce different observable behavior in wave 1.
 ## Tests
 
 **Unit (no services running, run now).** This is the point of the spec's framing —
-`resolve()` is pure orchestration over two ports, both trivially fakeable, so every case
-below runs with a dict-backed fake `VaultService` and a dict-backed fake
+`resolve()` is pure orchestration over two ports, both trivially mockable, so every case
+below runs with a dict-backed mock `VaultService` and a dict-backed mock
 `McpGrantsDAOInterface`, no Postgres, no encryption key:
 
 `api/oss/tests/pytest/unit/gateways/test_gateways_resolution.py`
@@ -371,7 +371,7 @@ below runs with a dict-backed fake `VaultService` and a dict-backed fake
   `missing == USER` (the narrower owner, per the mode table above — not `PROJECT`, even
   though the project lookup was also attempted).
 - `GrantRef`, a grant exists with `flags.is_valid == False` → `CredentialInvalidError`,
-  regardless of mode, **before** any vault lookup is attempted (assert the fake
+  regardless of mode, **before** any vault lookup is attempted (assert the mock
   `VaultService.get_secret_by_id` was never called in this case — the invalid-grant
   check must short-circuit).
 - `GrantRef`, a grant exists and is valid but its `secret_id` resolves to nothing in the
@@ -382,7 +382,7 @@ below runs with a dict-backed fake `VaultService` and a dict-backed fake
   not just present).
 
 **Integration:** none required for this package specifically — `VaultService` and
-`McpGrantsDAOInterface` are both fully fake in the unit suite above, and there is no
+`McpGrantsDAOInterface` are both fully mock in the unit suite above, and there is no
 direct database or Redis touch anywhere in `resolution.py`. If a reviewer wants one
 end-to-end sanity check against a real `VaultService` + Postgres-backed grants DAO, it
 belongs in a cross-package integration suite once WP1's DAO exists, not in this package's

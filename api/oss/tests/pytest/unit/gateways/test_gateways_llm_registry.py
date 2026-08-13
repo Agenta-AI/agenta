@@ -62,8 +62,8 @@ def test_direct_non_openai_shaped_providers_are_translated(provider_key):
 
 
 @pytest.mark.parametrize("deployment", list(LlmDeploymentKind))
-def test_fake_provider_key_always_selects_fake(deployment):
-    assert select_upstream("fake", deployment) == "fake"
+def test_mock_provider_key_always_selects_mock(deployment):
+    assert select_upstream("mock", deployment) == "mock"
 
 
 def test_select_upstream_imports_nothing_beyond_llm_deployment_kind():

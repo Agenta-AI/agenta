@@ -3,7 +3,7 @@
 Ordered so each item is one reviewable commit. Depends on the seed commit
 (`core/gateways/{dtos,types}.py`, `core/gateways/mcps/{dtos,types,interfaces}.py`)
 already existing on the base branch, and on merge M1 (WP1 domain/storage,
-WP2 secret resolution, WP3 policy core, WP5 fakes) having landed.
+WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
 
 ## south port
 
@@ -66,22 +66,22 @@ WP2 secret resolution, WP3 policy core, WP5 fakes) having landed.
 
 ## south port tests (unit)
 
-- [x] Unit test: body passed through byte-for-byte to the fake upstream
-      (assert on what the fake received, not just what came back).
+- [x] Unit test: body passed through byte-for-byte to the mock upstream
+      (assert on what the mock received, not just what came back).
 - [x] Unit test: `route.headers` present in the outbound request; caller
       `headers` also present; no collision case needs resolving since
       `entities.md` does not specify one — assert whichever ordering the
       implementation picks and note it in the test docstring.
 - [x] Unit test: `auth.credential is None` → no `Authorization` header sent.
-- [x] Unit test: `auth.credential` present (a fake `ResolvedCredential`
+- [x] Unit test: `auth.credential` present (a mock `ResolvedCredential`
       wrapping an `OAuthGrantSettingsDTO`) → `Authorization: Bearer <token>`
       (or the configured `token_type`) sent. Since `OAuthGrantSettingsDTO` doesn't exist
-      yet, the fake credential is a `types.SimpleNamespace` shaped like its future
+      yet, the mock credential is a `types.SimpleNamespace` shaped like its future
       `.secret.data.grant.{access_token,token_type}`, injected via
       `McpDirectAuth.model_construct(credential=...)` to bypass pydantic validation.
-- [x] Unit test: fake upstream refuses the connection → `McpUpstreamError`
+- [x] Unit test: mock upstream refuses the connection → `McpUpstreamError`
       raised, carrying `target` and no false `status_code`.
-- [x] Unit test: fake upstream returns HTTP 200 with a JSON-RPC `error`
+- [x] Unit test: mock upstream returns HTTP 200 with a JSON-RPC `error`
       object in the body → `McpRelayResult` returned with that body intact,
       no exception.
 - [x] **SSRF unit tests, all with `AGENTA_INSECURE_EGRESS_ALLOWED=false` set
@@ -102,8 +102,8 @@ WP2 secret resolution, WP3 policy core, WP5 fakes) having landed.
       does), the outbound request goes to the **literal IP** while the `Host`
       header carries the hostname.
 - [x] Unit test: an `agenta` route to a private address is NOT refused — the
-      guard is namespace-scoped, and WP5's fakes live on a compose host. Implemented
-      against `FakeMcpAdapter` (WP5, read-only import) directly, since `agenta` routes to
+      guard is namespace-scoped, and WP5's mocks live on a compose host. Implemented
+      against `MockMcpAdapter` (WP5, read-only import) directly, since `agenta` routes to
       that adapter, not to `HttpMcpAdapter` — the guard lives only on the latter, so the
       former never runs it regardless of `route.url`.
 - [x] `ruff format` && `ruff check --fix`; run the new unit tests; fix
@@ -111,9 +111,9 @@ WP2 secret resolution, WP3 policy core, WP5 fakes) having landed.
 - [x] Commit: "gateways(mcp): HttpMcpAdapter unit tests".
 
 **Finding, not fixed here (out of WP8's file ownership):** the pre-existing WP5 contract
-test `oss/tests/pytest/unit/gateways/test_fake_adapters_contract.py::test_relay_returns_mcp_relay_result[*-HttpMcpAdapter]`
+test `oss/tests/pytest/unit/gateways/test_mock_adapters_contract.py::test_relay_returns_mcp_relay_result[*-HttpMcpAdapter]`
 now fails now that `HttpMcpAdapter` exists. It builds a zero-arg `HttpMcpAdapter()` (no
-`MockTransport`) and calls `.relay()` against `route=McpResolvedRoute(url="http://fake-mcp-gateway:9092/")`
+`MockTransport`) and calls `.relay()` against `route=McpResolvedRoute(url="http://mock-mcp-gateway:9092/")`
 — plain `http`, a compose-only hostname. This repo's test suite pins
 `AGENTA_INSECURE_EGRESS_ALLOWED` secure-by-default for every test
 (`oss/tests/pytest/utils/egress.py`'s autouse `secure_egress_by_default` fixture, opt out
@@ -121,7 +121,7 @@ via `@pytest.mark.allow_insecure_env`), so the guard now correctly rejects the b
 URL with "must use https" before any DNS lookup — this is D28's guard working as
 designed, not a defect in `HttpMcpAdapter`. Any conforming implementation of the guard
 would reject this exact call under this suite's default posture. The contract test needs
-one of: the `allow_insecure_env` marker plus an actually-reachable `https` fake-gateway
+one of: the `allow_insecure_env` marker plus an actually-reachable `https` mock-gateway
 target, an injected `MockTransport`, or a host-allowlist entry — a call for whoever owns
 that file (WP5) or the M2 merge coordinator, not WP8.
 
@@ -209,7 +209,7 @@ that file (WP5) or the M2 merge coordinator, not WP8.
 
 ## proxy.py tests (unit)
 
-- [x] Unit test (TestClient + fake `McpGatewayService` + faked
+- [x] Unit test (TestClient + mock `McpGatewayService` + mockd
       `get_auth_scope()`): `POST /agenta/tools/search` reaches
       `relay_agenta` with `name="tools/search"` — proves the catch-all
       nests.
@@ -295,13 +295,13 @@ alongside WP10's `mcp_gateway.router` line on 1518, which this package does not 
 
 ## Checkpoint A verification (acceptance, after M2 deploy)
 
-- [ ] Deploy the merged stack (WP1 migration applied, WP5 fake MCP server
+- [ ] Deploy the merged stack (WP1 migration applied, WP5 mock MCP server
       running as a compose service).
-- [ ] `POST /gateways/mcps/agenta/<fake-slug>` with `tools/list` returns the
-      fake server's own tool list unchanged.
-- [ ] The same call, `tools/call` on an in-policy tool, returns the fake
+- [ ] `POST /gateways/mcps/agenta/<mock-slug>` with `tools/list` returns the
+      mock server's own tool list unchanged.
+- [ ] The same call, `tools/call` on an in-policy tool, returns the mock
       server's own result unchanged.
-- [ ] The same call, `tools/call` on a tool outside the fake endpoint's
+- [ ] The same call, `tools/call` on a tool outside the mock endpoint's
       `tool_policy`, returns 403 (`McpToolNotAllowedError`).
 - [ ] `GET`/`DELETE` on any of the three relay paths returns 405.
 - [ ] File any acceptance-test failure as a finding, not a silent fix —
@@ -315,6 +315,6 @@ and call both relay unchanged and a tool outside the allowlist is
 refused."* WP8 is done when: `parse_mcp_call_context` and `HttpMcpAdapter`
 pass their unit tests with no real network or database; the three proxy
 routes dispatch to the right handler with the right parsed segments,
-verified against a fake service; the two `routers.py` diff fragments are
+verified against a mock service; the two `routers.py` diff fragments are
 ready to hand to the M2 merge; and the Checkpoint A acceptance assertions
 above pass against the deployed stack.

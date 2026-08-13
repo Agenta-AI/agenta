@@ -170,14 +170,14 @@ from oss.src.core.gateways.policy.resolution import CredentialResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry
 from oss.src.core.gateways.llms.service import LlmGatewayService
-from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
     PassthroughLlmAdapter,
 )
 from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLlmAdapter
 from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
 from oss.src.core.gateways.mcps.service import McpGatewayService
-from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMcpAdapter
 from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter
 from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy
@@ -185,7 +185,7 @@ from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter
 from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy
 
 # ComposioMcpAdapter serves the builtin namespace and has no owner in wave 1: no brokered
-# target is reachable yet, so our own servers and the fakes are the whole set (D23).
+# target is reachable yet, so our own servers and the mocks are the whole set (D23).
 
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
@@ -1102,7 +1102,7 @@ llm_gateway_service = LlmGatewayService(
         adapters={
             "passthrough": PassthroughLlmAdapter(),
             "translated": TranslatedLlmAdapter(),
-            "fake": FakeLlmAdapter(),
+            "mock": MockLlmAdapter(),
         }
     ),
 )
@@ -1116,7 +1116,7 @@ mcp_gateway_service = McpGatewayService(
     upstream_registry=McpUpstreamRegistry(
         adapters={
             "http": HttpMcpAdapter(),
-            "fake": FakeMcpAdapter(),
+            "mock": MockMcpAdapter(),
         }
     ),
 )

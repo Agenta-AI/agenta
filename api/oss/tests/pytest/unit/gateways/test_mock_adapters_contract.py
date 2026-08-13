@@ -1,7 +1,7 @@
 """Adapter interface contract tests (entities.md §7.1, workstreams/specs-wp5.md).
 
 The same fixture every `LlmUpstreamInterface` / `McpUpstreamInterface` implementation
-must pass — run against `FakeLlmAdapter`/`FakeMcpAdapter` now, reused by WP6/WP7/WP8/WP9's
+must pass — run against `MockLlmAdapter`/`MockMcpAdapter` now, reused by WP6/WP7/WP8/WP9's
 real adapters once they exist. An adapter that is not implemented yet is parametrized in
 as a skip, not omitted, so the moment `PassthroughLlmAdapter` etc. lands this file starts
 enforcing the contract on it with no further edits here.
@@ -23,7 +23,7 @@ from oss.src.core.gateways.llms.dtos import (
     LlmResolvedRoute,
 )
 from oss.src.core.gateways.llms.interfaces import LlmRelayResult
-from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
 
 from oss.src.core.gateways.mcps.dtos import (
     McpCallContext,
@@ -31,7 +31,7 @@ from oss.src.core.gateways.mcps.dtos import (
     McpResolvedRoute,
 )
 from oss.src.core.gateways.mcps.interfaces import McpRelayResult
-from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
 
 
 def _optional_instance(module_path: str, class_name: str):
@@ -96,7 +96,7 @@ def _http_mcp_adapter():
 
 
 _LLM_ADAPTER_PARAMS = [
-    _adapter_param(FakeLlmAdapter(), name="FakeLlmAdapter"),
+    _adapter_param(MockLlmAdapter(), name="MockLlmAdapter"),
     _adapter_param(_passthrough_llm_adapter(), name="PassthroughLlmAdapter"),
     _adapter_param(
         _optional_instance(
@@ -108,7 +108,7 @@ _LLM_ADAPTER_PARAMS = [
 ]
 
 _MCP_ADAPTER_PARAMS = [
-    _adapter_param(FakeMcpAdapter(), name="FakeMcpAdapter"),
+    _adapter_param(MockMcpAdapter(), name="MockMcpAdapter"),
     _adapter_param(_http_mcp_adapter(), name="HttpMcpAdapter"),
     _adapter_param(
         _optional_instance(
@@ -133,7 +133,7 @@ def _mock_litellm_acompletion(monkeypatch):
         yield
         return
 
-    async def _fake_acompletion(*, model, stream=False, **kwargs):  # noqa: ARG001
+    async def _mock_acompletion(*, model, stream=False, **kwargs):  # noqa: ARG001
         response = SimpleNamespace(
             usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
             _hidden_params={"response_cost": 0.0},
@@ -150,7 +150,7 @@ def _mock_litellm_acompletion(monkeypatch):
         return _stream()
 
     monkeypatch.setattr(
-        translated_adapter_module.litellm, "acompletion", _fake_acompletion
+        translated_adapter_module.litellm, "acompletion", _mock_acompletion
     )
     yield
 
@@ -158,21 +158,21 @@ def _mock_litellm_acompletion(monkeypatch):
 @pytest.mark.parametrize("adapter", _LLM_ADAPTER_PARAMS)
 async def test_relay_chat_completion_returns_llm_relay_result(adapter):
     route = LlmResolvedRoute(
-        provider_key="fake",
+        provider_key="mock",
         deployment=LlmDeploymentKind.DIRECT,
-        model="fake/echo",
-        # Unused by FakeLlmAdapter; PassthroughLlmAdapter needs one to build an
+        model="mock/echo",
+        # Unused by MockLlmAdapter; PassthroughLlmAdapter needs one to build an
         # outbound URL, and the MockTransport above never dials it for real.
-        base_url="http://fake-passthrough-upstream.invalid",
+        base_url="http://mock-passthrough-upstream.invalid",
     )
     body = json.dumps(
-        {"model": "fake/echo", "messages": [{"role": "user", "content": "hi"}]}
+        {"model": "mock/echo", "messages": [{"role": "user", "content": "hi"}]}
     ).encode()
 
     result = await adapter.relay_chat_completion(
         route=route,
         credential=None,
-        context=LlmCallContext(model="fake/echo"),
+        context=LlmCallContext(model="mock/echo"),
         body=body,
         headers={},
     )

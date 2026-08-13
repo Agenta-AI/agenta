@@ -1,12 +1,12 @@
-"""Deployable fake OpenAI-compatible LLM server (entities.md §0, D23, WP5).
+"""Deployable mock OpenAI-compatible LLM server (entities.md §0, D23, WP5).
 
-A standalone ASGI app (`uvicorn oss.src.core.gateways.llms.providers.fake.app:app`),
+A standalone ASGI app (`uvicorn oss.src.core.gateways.llms.providers.mock.app:app`),
 not mounted into the main API process. It terminates a real HTTP connection and a
-real socket, which is what the in-process `FakeLlmAdapter` cannot exercise (SSE
+real socket, which is what the in-process `MockLlmAdapter` cannot exercise (SSE
 framing over the wire, a genuine hang under a client-side timeout) — Checkpoint A's
 acceptance suite needs this running as its own compose service.
 
-Delegates every request straight to `FakeLlmAdapter` so both tiers share one
+Delegates every request straight to `MockLlmAdapter` so both tiers share one
 implementation of the control convention: a test written against the in-process
 adapter and a test written against this process see identical behavior for the
 same input.
@@ -22,11 +22,11 @@ from oss.src.core.gateways.llms.dtos import (
     LlmDeploymentKind,
     LlmResolvedRoute,
 )
-from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
 from oss.src.core.gateways.llms.types import LlmUpstreamError
 
-app = FastAPI(title="agenta-fake-llm-gateway")
-_adapter = FakeLlmAdapter()
+app = FastAPI(title="agenta-mock-llm-gateway")
+_adapter = MockLlmAdapter()
 
 
 @app.get("/health")
@@ -42,11 +42,11 @@ async def chat_completions(request: Request) -> Response:
     except (json.JSONDecodeError, TypeError):
         payload = {}
 
-    model = payload.get("model") or "fake/echo"
+    model = payload.get("model") or "mock/echo"
     stream = bool(payload.get("stream", False))
     context = LlmCallContext(model=model, stream=stream)
     route = LlmResolvedRoute(
-        provider_key="fake", deployment=LlmDeploymentKind.DIRECT, model=model
+        provider_key="mock", deployment=LlmDeploymentKind.DIRECT, model=model
     )
 
     try:
@@ -60,7 +60,7 @@ async def chat_completions(request: Request) -> Response:
                 "error": {
                     "message": exc.detail or str(exc),
                     "type": "server_error",
-                    "code": "fake_upstream_error",
+                    "code": "mock_upstream_error",
                 }
             },
         )

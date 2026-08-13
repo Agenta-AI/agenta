@@ -1,12 +1,12 @@
-"""Deployable fake MCP Streamable HTTP server (entities.md §0, D23, WP5).
+"""Deployable mock MCP Streamable HTTP server (entities.md §0, D23, WP5).
 
-A standalone ASGI app (`uvicorn oss.src.core.gateways.mcps.providers.fake.app:app`),
+A standalone ASGI app (`uvicorn oss.src.core.gateways.mcps.providers.mock.app:app`),
 not mounted into the main API process. Stateless JSON mode: one JSON-RPC request in,
 one `application/json` response out, `202` for a notification — the same shape as
 the runner's internal tool server (services/runner/src/tools/tool-mcp-http.ts), no
 session id, no SSE leg. `GET`/`DELETE` answer `405`.
 
-Delegates every POST straight to `FakeMcpAdapter` so both tiers share one
+Delegates every POST straight to `MockMcpAdapter` so both tiers share one
 implementation of the control convention.
 """
 
@@ -20,12 +20,12 @@ from oss.src.core.gateways.mcps.dtos import (
     McpDirectAuth,
     McpResolvedRoute,
 )
-from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
 from oss.src.core.gateways.mcps.types import McpUpstreamError
 
-app = FastAPI(title="agenta-fake-mcp-gateway")
-_adapter = FakeMcpAdapter()
-_route = McpResolvedRoute(url="http://fake-mcp-gateway:9092/")
+app = FastAPI(title="agenta-mock-mcp-gateway")
+_adapter = MockMcpAdapter()
+_route = McpResolvedRoute(url="http://mock-mcp-gateway:9092/")
 _auth = McpDirectAuth(credential=None)
 
 

@@ -1,7 +1,7 @@
 """HttpMcpAdapter: the south-port relay for `custom` MCP servers (entities.md §7.1).
 
 Registered under the `"http"` key (WP9's `McpUpstreamRegistry`) and reached only via the
-`custom` namespace: `agenta` targets route to the fakes/agenta adapters and `builtin`
+`custom` namespace: `agenta` targets route to the mocks/agenta adapters and `builtin`
 targets route to `ComposioMcpAdapter` (out of this wave). Because only `custom` URLs are
 ever handed to this class, the SSRF guard (D28) runs unconditionally on every call rather
 than branching on a namespace this port is never given.

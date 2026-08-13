@@ -17,7 +17,7 @@ for every upstream whose wire is not OpenAI-shaped.
   reimplements the mode logic.
 - Policy authorization and audit — **WP3**/**WP4**; WP7 calls `GatewayPolicyService.authorize`/
   `.record`, never reimplements permission or entitlement checks.
-- The fake adapter — **WP5**; WP7 registers it under the `"fake"` key but does not write it.
+- The mock adapter — **WP5**; WP7 registers it under the `"mock"` key but does not write it.
 
 ## Files
 
@@ -128,7 +128,7 @@ Copied verbatim from `entities.md` §7.1's registry shape — the same structure
 equivalent).
 
 `select_upstream(provider_key: str, deployment: LlmDeploymentKind) -> str` — a pure function,
-`entities.md` §7.1: *"picks the adapter key; the fakes register under a third key."* The split
+`entities.md` §7.1: *"picks the adapter key; the mocks register under a third key."* The split
 this package must implement, stated qualitatively in §7.1 (*"passthrough for upstreams that speak
 the caller's protocol... translated for providers whose wire differs and for cloud resellers
 whose auth is request signing"*) and made concrete here against the real endpoint map
@@ -216,7 +216,7 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
 
     credential = await self.resolver.resolve(
         scope=scope, ref=target.credential_ref(), mode=CredentialMode.PROJECT_ONLY,
-    )   # NONE-scheme targets (the fakes) skip this step
+    )   # NONE-scheme targets (the mocks) skip this step
 
     result = await self.upstream_registry.get(
         select_upstream(target.provider_key, target.deployment)
@@ -295,8 +295,8 @@ names" rule for no gain.
   check, never by a table read.
 - **`select_upstream` is pure** — no I/O, no DAO, no vault — callable in a unit test with a bare
   `(provider_key, deployment)` pair.
-- **Registration under `"fake"` is unconditional** (D23): `LlmUpstreamRegistry(adapters={
-  "passthrough": ..., "translated": ..., "fake": FakeLlmAdapter()})` in every environment; only
+- **Registration under `"mock"` is unconditional** (D23): `LlmUpstreamRegistry(adapters={
+  "passthrough": ..., "translated": ..., "mock": MockLlmAdapter()})` in every environment; only
   reachability (a seeded endpoint pointing at it) is environment-specific, and that is WP1/WP10's
   concern, not this package's registration decision.
 
@@ -314,10 +314,10 @@ names" rule for no gain.
      upstream_registry=LlmUpstreamRegistry(adapters={
 -        "passthrough": PassthroughLlmAdapter(),  # WP6's import, added at that merge
 -        "translated": TranslatedLlmAdapter(),
--        "fake": FakeLlmAdapter(),                 # WP5's import, added at that merge
+-        "mock": MockLlmAdapter(),                 # WP5's import, added at that merge
 +        "passthrough": PassthroughLlmAdapter(),
 +        "translated": TranslatedLlmAdapter(),
-+        "fake": FakeLlmAdapter(),
++        "mock": MockLlmAdapter(),
      }),
  )
 ```
@@ -355,12 +355,12 @@ Unit — nothing running:
   two generated `builtin` entries plus every custom row for the project — no duplicates, no
   entries for providers with no key.
 
-Contract — extends WP5's fixture (`test_fake_adapters_contract.py`): `TranslatedLlmAdapter`
+Contract — extends WP5's fixture (`test_mock_adapters_contract.py`): `TranslatedLlmAdapter`
 against the same `relay_chat_completion` → `LlmRelayResult` assertion, litellm mocked out. Nothing
 running.
 
 Acceptance — needs the compose stack, real provider credentials are **not** available in CI, so
-this suite runs against WP5's fakes for the relay-path shape and is otherwise a manual /
+this suite runs against WP5's mocks for the relay-path shape and is otherwise a manual /
 staging-only check against real providers:
 - Every `DIRECT` provider in `supported_llm_models` reachable via `builtin/{provider}` returns a
   200 for a trivial prompt (staging only — needs real keys; document as manual, not automated in
@@ -368,7 +368,7 @@ staging-only check against real providers:
 - A custom endpoint with `deployment=BEDROCK`, real AWS credentials in a `custom_provider` secret,
   reaches Bedrock through `TranslatedLlmAdapter` (staging only).
 - A custom endpoint with `model_slugs=["gpt-4o"]` refuses a request for `"gpt-4o-mini"` with
-  `model_not_allowed`, verifiable against WP5's fakes alone (no real provider needed — the refusal
+  `model_not_allowed`, verifiable against WP5's mocks alone (no real provider needed — the refusal
   happens before any upstream call).
 
 ## Done test

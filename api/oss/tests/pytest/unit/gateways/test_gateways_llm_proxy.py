@@ -1,6 +1,6 @@
 """Unit tests for LlmGatewayProxy (entities.md §9, workstreams/specs-wp6.md).
 
-Nothing running: the proxy is exercised against a hand-written fake `LlmGatewayService`
+Nothing running: the proxy is exercised against a hand-written mock `LlmGatewayService`
 (not WP5's fixture — this is the proxy in isolation) and a Starlette `Request` built from a
 raw ASGI scope, no HTTP server.
 """
@@ -86,7 +86,7 @@ def _relay_result(
     )
 
 
-class _FakeLlmGatewayService:
+class _MockLlmGatewayService:
     def __init__(
         self,
         *,
@@ -140,7 +140,7 @@ async def _read_body(response) -> bytes:
 @pytest.mark.asyncio
 async def test_non_streaming_call_returns_single_chunk_verbatim():
     chunk = json.dumps({"id": "x", "choices": []}).encode()
-    service = _FakeLlmGatewayService(
+    service = _MockLlmGatewayService(
         relay_result=_relay_result(status_code=200, chunks=[chunk])
     )
     proxy = LlmGatewayProxy(llm_gateway_service=service)
@@ -157,7 +157,7 @@ async def test_non_streaming_call_returns_single_chunk_verbatim():
 @pytest.mark.asyncio
 async def test_streaming_call_passes_body_through_streaming_response_untouched():
     frames = [b"data: one\n\n", b"data: two\n\n", b"data: [DONE]\n\n"]
-    service = _FakeLlmGatewayService(
+    service = _MockLlmGatewayService(
         relay_result=_relay_result(status_code=200, chunks=frames)
     )
     proxy = LlmGatewayProxy(llm_gateway_service=service)
@@ -173,7 +173,7 @@ async def test_streaming_call_passes_body_through_streaming_response_untouched()
 
 @pytest.mark.asyncio
 async def test_builtin_route_passes_builtin_namespace_and_provider_as_name():
-    service = _FakeLlmGatewayService(
+    service = _MockLlmGatewayService(
         relay_result=_relay_result(status_code=200, chunks=[b"{}"])
     )
     proxy = LlmGatewayProxy(llm_gateway_service=service)
@@ -187,7 +187,7 @@ async def test_builtin_route_passes_builtin_namespace_and_provider_as_name():
 
 @pytest.mark.asyncio
 async def test_custom_route_passes_custom_namespace_and_slug_as_name():
-    service = _FakeLlmGatewayService(
+    service = _MockLlmGatewayService(
         relay_result=_relay_result(status_code=200, chunks=[b"{}"])
     )
     proxy = LlmGatewayProxy(llm_gateway_service=service)
@@ -201,7 +201,7 @@ async def test_custom_route_passes_custom_namespace_and_slug_as_name():
 
 @pytest.mark.asyncio
 async def test_inbound_authorization_header_is_stripped_before_the_service_call():
-    service = _FakeLlmGatewayService(
+    service = _MockLlmGatewayService(
         relay_result=_relay_result(status_code=200, chunks=[b"{}"])
     )
     proxy = LlmGatewayProxy(llm_gateway_service=service)
@@ -222,7 +222,7 @@ async def test_response_headers_drop_upstreams_stale_content_length():
         chunks=[b"hello world"],
         headers={"content-length": "999999", "x-upstream": "yes"},
     )
-    service = _FakeLlmGatewayService(relay_result=result)
+    service = _MockLlmGatewayService(relay_result=result)
     proxy = LlmGatewayProxy(llm_gateway_service=service)
 
     with _auth_scope():
@@ -239,7 +239,7 @@ async def test_response_headers_drop_upstreams_stale_content_length():
 
 @pytest.mark.asyncio
 async def test_missing_model_returns_openai_invalid_request_error_without_calling_service():
-    service = _FakeLlmGatewayService()
+    service = _MockLlmGatewayService()
     proxy = LlmGatewayProxy(llm_gateway_service=service)
     body = json.dumps({"messages": []}).encode()
 
@@ -315,7 +315,7 @@ _DENIAL_CASES = [
 async def test_domain_exception_maps_to_openai_shaped_denial(
     exc, expected_status, expected_code
 ):
-    service = _FakeLlmGatewayService(relay_exception=exc)
+    service = _MockLlmGatewayService(relay_exception=exc)
     proxy = LlmGatewayProxy(llm_gateway_service=service)
 
     with _auth_scope():
@@ -335,7 +335,7 @@ async def test_ceiling_exceeded_names_the_three_values():
     exc = CeilingExceededError(
         ceiling="max_output_tokens", requested=1000, allowed=100, target="t"
     )
-    service = _FakeLlmGatewayService(relay_exception=exc)
+    service = _MockLlmGatewayService(relay_exception=exc)
     proxy = LlmGatewayProxy(llm_gateway_service=service)
 
     with _auth_scope():
@@ -354,7 +354,7 @@ async def test_ceiling_exceeded_names_the_three_values():
 
 @pytest.mark.asyncio
 async def test_list_models_builtin_shapes_the_openai_list_body():
-    service = _FakeLlmGatewayService(models=["gpt-4o", "gpt-4o-mini"])
+    service = _MockLlmGatewayService(models=["gpt-4o", "gpt-4o-mini"])
     proxy = LlmGatewayProxy(llm_gateway_service=service)
 
     with _auth_scope():
@@ -373,7 +373,7 @@ async def test_list_models_builtin_shapes_the_openai_list_body():
 
 @pytest.mark.asyncio
 async def test_list_models_custom_shapes_the_openai_list_body():
-    service = _FakeLlmGatewayService(models=["fake/echo"])
+    service = _MockLlmGatewayService(models=["mock/echo"])
     proxy = LlmGatewayProxy(llm_gateway_service=service)
 
     with _auth_scope():
@@ -381,7 +381,7 @@ async def test_list_models_custom_shapes_the_openai_list_body():
 
     assert result == {
         "object": "list",
-        "data": [{"id": "fake/echo", "object": "model"}],
+        "data": [{"id": "mock/echo", "object": "model"}],
     }
     assert service.list_models_calls[0]["namespace"] == GatewayEndpointNamespace.CUSTOM
     assert service.list_models_calls[0]["name"] == "my-slug"
@@ -392,7 +392,7 @@ async def test_list_models_maps_domain_exception_too():
     exc = LlmEndpointNotFoundError(
         namespace=GatewayEndpointNamespace.CUSTOM, name="missing-slug"
     )
-    service = _FakeLlmGatewayService(models_exception=exc)
+    service = _MockLlmGatewayService(models_exception=exc)
     proxy = LlmGatewayProxy(llm_gateway_service=service)
 
     with _auth_scope():

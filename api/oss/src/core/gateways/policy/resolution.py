@@ -32,7 +32,7 @@ from oss.src.utils.context import AuthScope
 
 
 class CredentialResolver(CredentialResolverInterface):
-    """`VaultService` + `McpGrantsDAOInterface`, composed (D23: both fakeable)."""
+    """`VaultService` + `McpGrantsDAOInterface`, composed (D23: both mockable)."""
 
     def __init__(
         self,

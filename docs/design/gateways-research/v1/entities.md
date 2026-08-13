@@ -37,7 +37,7 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
     providers/
       passthrough/adapter.py   OpenAI-compatible upstreams, byte-for-byte relay
       translated/adapter.py    the routing library in-process: shape + reseller signing
-      fake/adapter.py          the fake LLM endpoint (D23, WP5)
+      mock/adapter.py          the mock LLM endpoint (D23, WP5)
   mcps/               the tool plane (WP1, WP8, WP9)
     dtos.py
     types.py
@@ -48,7 +48,7 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
     providers/
       http/adapter.py          remote Streamable HTTP servers (custom)
       composio/adapter.py      the builtin relay — reuses the brokered connection (D27)
-      fake/adapter.py          the fake MCP server (D23, WP5)
+      mock/adapter.py          the mock MCP server (D23, WP5)
 dbs/postgres/gateways/
   llms/               dbas.py, dbes.py, dao.py, mappings.py
   mcps/               dbas.py, dbes.py, dao.py, mappings.py
@@ -69,8 +69,8 @@ Changed in place, in later work packages: `core/secrets/` gains the two OAuth ki
 `core/events/types.py` gains two `EventType` members (WP4, §4);
 `core/access/permissions/types.py` gains six `Permission` members (§9).
 
-Not shown: the deployable fakes. The adapter-level fakes above satisfy unit and contract
-tests; Checkpoint A's acceptance tests additionally need the fakes running as compose
+Not shown: the deployable mocks. The adapter-level mocks above satisfy unit and contract
+tests; Checkpoint A's acceptance tests additionally need the mocks running as compose
 services in the local stack (`plan.md` WP5). Those are services, not entities, and are out
 of this document's scope.
 
@@ -277,7 +277,7 @@ class LlmEndpointDBA(
     # bedrock, sagemaker, vertex_ai — aligned with CustomProviderKind and the
     # runner wire's `deployment` axis (services/runner/src/protocol.ts).
     secret_id = Column(UUID(as_uuid=True), nullable=True)
-    # nullable: an endpoint with no credential is legitimate — the fake (D23),
+    # nullable: an endpoint with no credential is legitimate — the mock (D23),
     # an unauthenticated self-hosted server. FK with SET NULL, §2.1.
     # data: { route: {...}, model_slugs: [...], config: {...}, extras: {...} } — §2.4
 
@@ -404,7 +404,7 @@ minus the project, which comes from the token. The brokered URL simply spells th
 brokered connection's identity; naming the segments anything else would invent a second
 vocabulary for one set of values (D27).
 
-- **`agenta`** — the Agenta tools. On the MCP plane, **the fakes are its first members**
+- **`agenta`** — the Agenta tools. On the MCP plane, **the mocks are its first members**
   (D23) — servers we implement and run. On the LLM plane: **reserved with no members
   today**, where an Agenta-owned or fine-tuned model would live. The names are defined in
   code; the credential is nobody's — our own servers, reached with our own minted token
@@ -720,7 +720,7 @@ neutral home is `core/shared/dtos.py` — which already holds `Identifier`, `Slu
 it, gated on the gateways existing at all.
 
 One semantic addition the existing copies lack: `NONE`. The first checkpoint's reachable
-targets are unauthenticated by design (D23 — our own servers and the fakes, no OAuth, no
+targets are unauthenticated by design (D23 — our own servers and the mocks, no OAuth, no
 static kind), so the scheme enum must be able to say so.
 
 ```python
@@ -1924,7 +1924,7 @@ class LlmUpstreamInterface(ABC):
         """Relay one completion call. `body` is the caller's payload untouched;
         `headers` are the caller's headers already stripped of authorization.
         `credential` is None only for targets whose auth scheme is NONE (the
-        fakes). Raises LlmUpstreamError on upstream failure."""
+        mocks). Raises LlmUpstreamError on upstream failure."""
         ...
 
     # async def relay_embedding(...) -> LlmRelayResult
@@ -1988,7 +1988,7 @@ OpenAI-shaped), which relays the body untouched with only authorization injected
 **`translated`** for providers whose wire differs and for cloud resellers whose auth is
 request signing, where the library earns its place (D9) and byte-for-byte is impossible by
 the upstream's own definition. A pure function in `registry.py`,
-`select_upstream(provider_key, deployment) -> str`, picks the adapter key; the fakes
+`select_upstream(provider_key, deployment) -> str`, picks the adapter key; the mocks
 register under a third key. The constraint is therefore honest: byte-for-byte wherever
 the protocol matches, and only there.
 
@@ -2019,8 +2019,8 @@ the only answer is the project.
 # core/gateways/policy/interfaces.py
 
 class CredentialResolverInterface(ABC):
-    """One lookup, called by both planes (`secrets.md`). Fakeable (D23): the
-    fake resolver answers from a dict and never touches the vault."""
+    """One lookup, called by both planes (`secrets.md`). Mockable (D23): the
+    mock resolver answers from a dict and never touches the vault."""
 
     @abstractmethod
     async def resolve(
@@ -2090,7 +2090,7 @@ lookup (D27).
 
 **Why the resolver is a port and not just a function.** The mode logic is pure and could
 be a function; the lookups are not, and WP2's tests need the failure cases — which are the
-interesting cases — without a vault. A port gives the fakes a seam (D23) and keeps
+interesting cases — without a vault. A port gives the mocks a seam (D23) and keeps
 `VaultService`'s encryption-context requirement (`set_data_encryption_key`, without which
 the DAO raises) inside one adapter instead of in every caller.
 
@@ -2686,8 +2686,8 @@ llm_gateway_service = LlmGatewayService(
     upstream_registry=LlmUpstreamRegistry(adapters={
         "passthrough": PassthroughLlmAdapter(),
         "translated": TranslatedLlmAdapter(),
-        "fake": FakeLlmAdapter(),          # registered always; reachable only
-    }),                                    # via the fake endpoints the local
+        "mock": MockLlmAdapter(),          # registered always; reachable only
+    }),                                    # via the mock endpoints the local
 )                                          # stack defines (D23)
 
 mcp_gateway_service = McpGatewayService(
@@ -2698,7 +2698,7 @@ mcp_gateway_service = McpGatewayService(
     upstream_registry=McpUpstreamRegistry(adapters={
         "http": HttpMcpAdapter(),          # custom: McpDirectAuth
         "composio": ComposioMcpAdapter(),  # builtin: McpBrokeredAuth (D27)
-        "fake": FakeMcpAdapter(),          # serves the agenta-namespace fakes (D23)
+        "mock": MockMcpAdapter(),          # serves the agenta-namespace mocks (D23)
     }),
 )
 ```

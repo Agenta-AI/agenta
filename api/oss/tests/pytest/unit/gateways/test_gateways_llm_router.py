@@ -1,6 +1,6 @@
 """Router wiring — apis/fastapi/gateways/llms/router.py (entities.md §9).
 
-TestClient + a hand-written fake `LlmGatewayService` + a monkeypatched
+TestClient + a hand-written mock `LlmGatewayService` + a monkeypatched
 `get_auth_scope()`/`check_action_access()` — no real database, no real service.
 """
 
@@ -47,7 +47,7 @@ def _endpoint(endpoint_id) -> LlmEndpoint:
     )
 
 
-class FakeLlmGatewayService:
+class MockLlmGatewayService:
     def __init__(self):
         self.calls = []
         self.create_return = None
@@ -84,7 +84,7 @@ class FakeLlmGatewayService:
 
 @pytest.fixture
 def service():
-    return FakeLlmGatewayService()
+    return MockLlmGatewayService()
 
 
 @pytest.fixture
@@ -241,7 +241,7 @@ def test_delete_endpoint_reaches_the_service(client, service, allow):
 
 
 # ---------------------------------------------------------------------------
-# A denied _check short-circuits before the fake service is called
+# A denied _check short-circuits before the mock service is called
 # ---------------------------------------------------------------------------
 
 

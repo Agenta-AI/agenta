@@ -78,13 +78,13 @@ def _custom_credential(*, extras):
     )
 
 
-class _FakeUsage:
+class _MockUsage:
     def __init__(self, prompt_tokens=10, completion_tokens=5):
         self.prompt_tokens = prompt_tokens
         self.completion_tokens = completion_tokens
 
 
-class _FakeModelResponse:
+class _MockModelResponse:
     def __init__(self, *, usage=None, hidden_params=None):
         self.usage = usage
         self._hidden_params = hidden_params or {}
@@ -96,14 +96,14 @@ class _FakeModelResponse:
 
 
 def _mock_acompletion(monkeypatch, *, response=None, exc=None, capture=None):
-    async def _fake(**kwargs):
+    async def _mock(**kwargs):
         if capture is not None:
             capture.update(kwargs)
         if exc is not None:
             raise exc
         return response
 
-    monkeypatch.setattr(adapter_module.litellm, "acompletion", _fake)
+    monkeypatch.setattr(adapter_module.litellm, "acompletion", _mock)
 
 
 @pytest.mark.asyncio
@@ -111,7 +111,7 @@ async def test_standard_provider_credential_passes_api_key(monkeypatch):
     capture = {}
     _mock_acompletion(
         monkeypatch,
-        response=_FakeModelResponse(usage=_FakeUsage()),
+        response=_MockModelResponse(usage=_MockUsage()),
         capture=capture,
     )
 
@@ -137,7 +137,7 @@ async def test_standard_provider_credential_passes_api_key(monkeypatch):
 async def test_custom_provider_credential_merges_extras(monkeypatch):
     capture = {}
     _mock_acompletion(
-        monkeypatch, response=_FakeModelResponse(usage=_FakeUsage()), capture=capture
+        monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
     )
 
     route = LlmResolvedRoute(
@@ -158,7 +158,7 @@ async def test_custom_provider_credential_merges_extras(monkeypatch):
 async def test_azure_deployment_prefixes_model_and_passes_api_version(monkeypatch):
     capture = {}
     _mock_acompletion(
-        monkeypatch, response=_FakeModelResponse(usage=_FakeUsage()), capture=capture
+        monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
     )
 
     route = LlmResolvedRoute(
@@ -190,7 +190,7 @@ async def test_azure_deployment_prefixes_model_and_passes_api_version(monkeypatc
 async def test_bedrock_and_vertex_pass_region(monkeypatch, deployment, region_kwarg):
     capture = {}
     _mock_acompletion(
-        monkeypatch, response=_FakeModelResponse(usage=_FakeUsage()), capture=capture
+        monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
     )
 
     route = LlmResolvedRoute(
@@ -236,8 +236,8 @@ async def test_litellm_exception_becomes_llm_upstream_error(monkeypatch):
 async def test_usage_and_cost_populated_on_success(monkeypatch):
     _mock_acompletion(
         monkeypatch,
-        response=_FakeModelResponse(
-            usage=_FakeUsage(prompt_tokens=100, completion_tokens=50),
+        response=_MockModelResponse(
+            usage=_MockUsage(prompt_tokens=100, completion_tokens=50),
             hidden_params={"response_cost": 0.0042},
         ),
     )

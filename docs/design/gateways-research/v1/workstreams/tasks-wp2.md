@@ -4,7 +4,7 @@ Ordered so each item is one reviewable commit. Depends on the seed commit
 (`core/gateways/policy/{dtos,types,interfaces}.py`) already existing on the base branch.
 Depends on nothing else — WP2 can start immediately alongside WP1 and WP3, since it
 consumes `McpGrantsDAOInterface` (seed-declared) rather than WP1's concrete
-implementation, and a fake of it for tests.
+implementation, and a mock of it for tests.
 
 ## Setup
 
@@ -103,9 +103,9 @@ implementation, and a fake of it for tests.
 ## tests — unit (run now)
 
 - [x] `api/oss/tests/pytest/unit/gateways/test_gateways_resolution.py`: build a minimal
-      fake `VaultService` (in-memory dict of `secret_id -> SecretResponseDTO`, a fake
+      mock `VaultService` (in-memory dict of `secret_id -> SecretResponseDTO`, a mock
       `list_secrets`/`get_secret_by_id` pair — do not subclass the real `VaultService`,
-      implement only what `CredentialResolver` calls) and a fake
+      implement only what `CredentialResolver` calls) and a mock
       `McpGrantsDAOInterface` (in-memory dict keyed on `(endpoint_id, user_id)`).
 - [x] `BoundSecretRef`: secret exists → resolves with `owner.kind == PROJECT`.
 - [x] `BoundSecretRef`: secret missing → `CredentialNotFoundError(missing=PROJECT)`.
@@ -128,8 +128,8 @@ implementation, and a fake of it for tests.
       `owner.kind == PROJECT`.
 - [x] `GrantRef`, `USER_OPTIONAL`, neither exists → `CredentialNotFoundError(missing=USER)`.
 - [x] `GrantRef`, grant exists with `is_valid=False` → `CredentialInvalidError`,
-      regardless of mode; assert the fake vault's `get_secret_by_id` was never called.
-- [x] `GrantRef`, grant exists and valid, `secret_id` resolves to nothing in the fake
+      regardless of mode; assert the mock vault's `get_secret_by_id` was never called.
+- [x] `GrantRef`, grant exists and valid, `secret_id` resolves to nothing in the mock
       vault → `CredentialInvalidError` (not `CredentialNotFoundError`).
 - [x] Every raised `CredentialNotFoundError`/`CredentialInvalidError` across the above:
       assert `target` is non-empty and format-stable for a given input `ref`.

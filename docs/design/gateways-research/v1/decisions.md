@@ -306,14 +306,14 @@ code and message, and a free-form attributes map, with a query surface beside it
 
 The gateways emit into that. They do not add a second event pipeline or an audit table.
 
-## D23. The gateways must be mockable, and the fakes come first
+## D23. The gateways must be mockable, and the mocks come first
 
-Nothing behind either gateway can be a third-party dependency in tests. A fake LLM endpoint and
-a fake MCP server are **first-class deliverables of the first checkpoint**, not test scaffolding
+Nothing behind either gateway can be a third-party dependency in tests. A mock LLM endpoint and
+a mock MCP server are **first-class deliverables of the first checkpoint**, not test scaffolding
 added afterwards.
 
 This is also what makes the first checkpoint coherent: with no OAuth and no static secret kind
-in it, the only reachable targets are our own servers and the fakes. That is a complete target
+in it, the only reachable targets are our own servers and the mocks. That is a complete target
 set rather than a gap.
 
 ## D24. The legacy credits counter is left alone
@@ -334,7 +334,7 @@ it costs a migration of live URLs.
 
 | Namespace | LLM plane | MCP plane |
 |---|---|---|
-| `agenta` | **Reserved, empty today.** Where an Agenta-owned or fine-tuned model would live | The Agenta tools. The fakes are its first members (D23) |
+| `agenta` | **Reserved, empty today.** Where an Agenta-owned or fine-tuned model would live | The Agenta tools. The mocks are its first members (D23) |
 | `builtin` | The generated standard-provider set (D20) | Third-party servers shipped ready to click, backed by the Composio catalog the integrations domain already consumes |
 | `custom` | A stored endpoint row: a customer's own deployment or reseller | A stored endpoint row: a server the user brought by URL |
 

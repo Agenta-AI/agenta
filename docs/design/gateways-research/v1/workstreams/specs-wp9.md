@@ -149,7 +149,7 @@ compare the top-of-document file tree in `entities.md` §0: `llms/` lists
 `service.py`:
 
 - **`agenta`** — entries defined in code. In wave 1 (D23) these are the
-  fakes WP5 registers; nothing in `entities.md` names a public function or
+  mocks WP5 registers; nothing in `entities.md` names a public function or
   module for this enumeration (contrast the LLM plane's
   `standard_llm_endpoint`/`standard_llm_endpoints`, which are explicitly
   named in §8). Keep the agenta enumeration a private, service-internal
@@ -246,9 +246,9 @@ exactly:
 4. **Resolve credential**, per the two-mechanism fork above.
 5. **Dispatch.** `self.upstream_registry.get(<adapter key for namespace>).relay(
    route=..., auth=..., context=..., body=..., headers=...)`. The
-   namespace→adapter-key mapping (`agenta`→`"fake"` in wave 1 — the wiring
-   block's own comment: `"fake": FakeMcpAdapter(), # serves the
-   agenta-namespace fakes (D23)`; `builtin`→`"composio"`; `custom`→`"http"`)
+   namespace→adapter-key mapping (`agenta`→`"mock"` in wave 1 — the wiring
+   block's own comment: `"mock": MockMcpAdapter(), # serves the
+   agenta-namespace mocks (D23)`; `builtin`→`"composio"`; `custom`→`"http"`)
    is a private implementation detail of this file — `entities.md` names no
    public function for it on the MCP plane (contrast the LLM plane's
    `select_upstream`, explicitly named in §7.1). Do not invent a public
@@ -307,13 +307,13 @@ it is not a DTO in §4 and must not be added to `dtos.py`.
 
 - `McpUpstreamRegistry.get`/`keys` — **unit**. Trivial, mirrors
   `ConnectionsGatewayRegistry`'s own tests if any exist, or a fresh minimal
-  test: registering two fake adapters, `get()` returns the right one,
+  test: registering two mock adapters, `get()` returns the right one,
   `get()` on a missing key raises, `keys()` lists both.
-- `McpGatewayService`'s CRUD delegation — **unit**, with a fake
+- `McpGatewayService`'s CRUD delegation — **unit**, with a mock
   `McpEndpointsDAOInterface` (an in-memory dict-backed double, not the real
   Postgres DAO). Assert each method calls the right DAO verb with the right
   arguments and returns what the DAO returned.
-- `list_endpoints`'s three-namespace merge — **unit** with fakes for both
+- `list_endpoints`'s three-namespace merge — **unit** with mocks for both
   the DAO and `ConnectionsService` (a stub returning a canned list of
   `Connection` rows). Assert: agenta entries appear with `namespace=AGENTA`
   and no `id`; builtin entries appear with `namespace=BUILTIN`,
@@ -321,23 +321,23 @@ it is not a DTO in §4 and must not be added to `dtos.py`.
   appear with `namespace=CUSTOM`; no generated entry is ever passed to a
   DAO write.
 - Connection-state derivation — **unit**. A `custom` OAuth endpoint with no
-  grant (fake `McpGrantsDAOInterface.fetch_grant` returning `None`) derives
+  grant (mock `McpGrantsDAOInterface.fetch_grant` returning `None`) derives
   `NEEDS_AUTH`; a `custom` NONE-scheme endpoint derives `READY`
-  unconditionally; a `builtin` entry backed by a fake `Connection` with
+  unconditionally; a `builtin` entry backed by a mock `Connection` with
   `is_valid=False` derives `NEEDS_AUTH`.
-- `relay`'s six-step order — **unit**, with a fake `GatewayPolicyService`,
-  fake resolver, fake `McpUpstreamRegistry`. Assert: a tool outside the
-  policy raises `McpToolNotAllowedError` **without** the fake resolver or
-  fake adapter ever being called (proves step ordering, not just the final
+- `relay`'s six-step order — **unit**, with a mock `GatewayPolicyService`,
+  mock resolver, mock `McpUpstreamRegistry`. Assert: a tool outside the
+  policy raises `McpToolNotAllowedError` **without** the mock resolver or
+  mock adapter ever being called (proves step ordering, not just the final
   outcome); a policy denial calls `policy.record` before the exception
-  propagates (assert on call order via the fakes' call logs); a `builtin`
+  propagates (assert on call order via the mocks' call logs); a `builtin`
   target never calls the resolver, only `ConnectionsService`.
-- Tool-list filtering — **unit**. A fake adapter returns a canned
+- Tool-list filtering — **unit**. A mock adapter returns a canned
   `tools/list` JSON body with three tools; a target with `tool_policy.mode
   == INCLUDE, names=["a","b"]` filters the response to two entries,
   unmodified in shape; a target with `mode == ALL` passes all three
   through untouched.
-- The full relay path against a real fake MCP server, and the merge against
+- The full relay path against a real mock MCP server, and the merge against
   a real Postgres-backed `McpEndpointsDAO` — **acceptance**, part of
   Checkpoint A (shared with WP8; see `specs-wp8.md`'s acceptance section).
 
@@ -398,7 +398,7 @@ sibling fragments from `specs-wp6.md`/`specs-wp7.md`/`specs-wp8.md`/`specs-wp10.
 +    upstream_registry=McpUpstreamRegistry(adapters={
 +        "http": HttpMcpAdapter(),          # custom: McpDirectAuth (WP8)
 +        "composio": ComposioMcpAdapter(),  # builtin: McpBrokeredAuth (not wave 1)
-+        "fake": FakeMcpAdapter(),          # serves the agenta-namespace fakes (D23, WP5)
++        "mock": MockMcpAdapter(),          # serves the agenta-namespace mocks (D23, WP5)
 +    }),
 +)
 ```

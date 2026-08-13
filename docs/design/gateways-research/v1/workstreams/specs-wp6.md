@@ -17,7 +17,7 @@ it arrived.
 - The adapter that translates through the routing library for non-OpenAI-shaped upstreams
   (Anthropic direct, Azure, Bedrock, SageMaker, Vertex) — `providers/translated/adapter.py`,
   **WP7**.
-- The fake upstream this package's own acceptance tests reach — **WP5**.
+- The mock upstream this package's own acceptance tests reach — **WP5**.
 - The shared exception→HTTP-status mapping, `handle_gateway_exceptions()` — **WP10**
   (`apis/fastapi/gateways/exceptions.py`); WP6 consumes it, does not define it.
 - The management CRUD for LLM endpoints (`router.py`, `models.py`) — **WP10**.
@@ -60,7 +60,7 @@ class LlmUpstreamInterface(ABC):
         """Relay one completion call. `body` is the caller's payload untouched;
         `headers` are the caller's headers already stripped of authorization.
         `credential` is None only for targets whose auth scheme is NONE (the
-        fakes). Raises LlmUpstreamError on upstream failure."""
+        mocks). Raises LlmUpstreamError on upstream failure."""
 ```
 
 ```python
@@ -136,8 +136,8 @@ JSON body, which stays byte for byte). This mirrors the SDK's own dispatch in
 branch on `secret.get("kind") == "provider_key"` vs `"custom_provider"` identically — the same
 branch this adapter needs, moved behind the gateway.
 
-**`credential` is `None` for the fakes** (`GatewayAuthScheme`-equivalent NONE targets, §2 —
-"an endpoint with no credential is legitimate — the fake (D23)"): no `Authorization` header is
+**`credential` is `None` for the mocks** (`GatewayAuthScheme`-equivalent NONE targets, §2 —
+"an endpoint with no credential is legitimate — the mock (D23)"): no `Authorization` header is
 sent at all.
 
 ### `apis/fastapi/gateways/llms/utils.py`
@@ -305,21 +305,21 @@ Unit — nothing running:
   (non-secret routing headers) — assert against `httpx.MockTransport`'s captured request, not by
   reading the module's internals.
 
-Contract — reuses WP5's fixture (`test_fake_adapters_contract.py`, extended once this adapter
+Contract — reuses WP5's fixture (`test_mock_adapters_contract.py`, extended once this adapter
 exists): `PassthroughLlmAdapter` is added to the parametrized fixture asserting
 `relay_chat_completion` returns `LlmRelayResult` for every input. Still nothing running (the
-`httpx.MockTransport` stub, not a real fake).
+`httpx.MockTransport` stub, not a real mock).
 
-Acceptance — needs the compose stack, WP5's `fake-llm-gateway` reachable, and WP7's service/
+Acceptance — needs the compose stack, WP5's `mock-llm-gateway` reachable, and WP7's service/
 catalog/registry wired (i.e., this suite only runs post-M2, at Checkpoint A):
-- A seeded custom endpoint pointing at `fake-llm-gateway`'s URL: `POST
-  /gateways/llms/custom/{slug}/v1/chat/completions` with `"model": "fake/echo", "stream": true`
-  streams back the exact SSE bytes the fake produced — byte comparison, not a re-decoded
+- A seeded custom endpoint pointing at `mock-llm-gateway`'s URL: `POST
+  /gateways/llms/custom/{slug}/v1/chat/completions` with `"model": "mock/echo", "stream": true`
+  streams back the exact SSE bytes the mock produced — byte comparison, not a re-decoded
   equivalence check.
-- The same endpoint with `"model": "fake/slow-30"` and the endpoint's `config.timeout_seconds`
+- The same endpoint with `"model": "mock/slow-30"` and the endpoint's `config.timeout_seconds`
   set below 30: the gateway responds with a timeout error inside that window, not after 30s —
   the gateway's own request does not hang even though the upstream does.
-- An unauthenticated request (no `Secret <token>`) is refused before reaching WP5's fake at all.
+- An unauthenticated request (no `Secret <token>`) is refused before reaching WP5's mock at all.
 - A request naming a model outside the endpoint's `model_slugs` is refused with `model_not_allowed`
   — proves WP7's allowlist check runs before WP6's relay is ever invoked.
 
@@ -327,14 +327,14 @@ catalog/registry wired (i.e., this suite only runs post-M2, at Checkpoint A):
 
 ```bash
 bash hosting/docker-compose/run.sh --oss --dev --build
-curl -N -X POST http://localhost/api/gateways/llms/custom/<seeded-fake-slug>/v1/chat/completions \
+curl -N -X POST http://localhost/api/gateways/llms/custom/<seeded-mock-slug>/v1/chat/completions \
   -H "Authorization: ApiKey <key>" -H "Content-Type: application/json" \
-  -d '{"model": "fake/echo", "stream": true, "messages": [{"role":"user","content":"hi"}]}'
+  -d '{"model": "mock/echo", "stream": true, "messages": [{"role":"user","content":"hi"}]}'
 # observe SSE frames arriving unmodified, terminated by data: [DONE]
 
-curl -m 5 -X POST http://localhost/api/gateways/llms/custom/<seeded-fake-slug>/v1/chat/completions \
+curl -m 5 -X POST http://localhost/api/gateways/llms/custom/<seeded-mock-slug>/v1/chat/completions \
   -H "Authorization: ApiKey <key>" -H "Content-Type: application/json" \
-  -d '{"model": "fake/slow-30", "messages": [{"role":"user","content":"hi"}]}'
+  -d '{"model": "mock/slow-30", "messages": [{"role":"user","content":"hi"}]}'
 # curl's own 5s timeout is irrelevant; the assertion is that the GATEWAY returns before 30s
 ```
 

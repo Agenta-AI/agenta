@@ -70,13 +70,13 @@ commit and fix all errors, per `api/AGENTS.md`.
 
 ## Phase 3 — Contract test extension
 
-- [x] Extend WP5's `test_fake_adapters_contract.py` fixture to include `PassthroughLlmAdapter`
+- [x] Extend WP5's `test_mock_adapters_contract.py` fixture to include `PassthroughLlmAdapter`
       against `httpx.MockTransport`, asserting `relay_chat_completion` returns `LlmRelayResult` for
       every case exercised in Phase 2. The adapter needs real network I/O, so — unlike the file's
       generic `_optional_instance()` no-arg construction — it is built through a dedicated
       `_passthrough_llm_adapter()` helper that wires an `httpx.MockTransport`-backed client;
       `test_relay_chat_completion_returns_llm_relay_result`'s shared `route` fixture gained a
-      `base_url` (inert for `FakeLlmAdapter`, required for `PassthroughLlmAdapter`'s URL builder).
+      `base_url` (inert for `MockLlmAdapter`, required for `PassthroughLlmAdapter`'s URL builder).
 - [x] Ruff format + check; run and fix.
 - [x] Commit: "wp6: passthrough adapter joins the south-port contract suite" (6760fc5949).
 
@@ -125,7 +125,7 @@ commit and fix all errors, per `api/AGENTS.md`.
       has none (§6). WP7 owns the method; code against its declaration.
 - [x] Ruff format + check; run and fix.
 - [x] Unit tests: `chat_completions_custom`/`_builtin` and `list_models_*` against a hand-written
-      fake `LlmGatewayService` (not WP5's fixture — this is testing the proxy in isolation), driven
+      mock `LlmGatewayService` (not WP5's fixture — this is testing the proxy in isolation), driven
       through a `starlette.requests.Request` built from a raw ASGI scope (no HTTP server): every
       documented domain exception maps to its status code and `code` string (parametrized, 9
       cases incl. both 5xx→502/4xx-and-None→424 `LlmUpstreamError` splits); a successful
@@ -163,10 +163,10 @@ not a commit made in this worktree.
  from oss.src.core.gateways.policy.service import GatewayPolicyService
 +from oss.src.core.gateways.llms.providers.passthrough.adapter import PassthroughLlmAdapter
 
- # The fake adapters (WP5) are registered into the plane registries, which WP7 and WP9
+ # The mock adapters (WP5) are registered into the plane registries, which WP7 and WP9
  # own and which do not exist yet — so their imports land with those, not here.
- # from oss.src.core.gateways.llms.providers.fake.adapter import FakeLlmAdapter
- # from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+ # from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
+ # from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
 -# from oss.src.core.gateways.llms.service import LlmGatewayService
 +from oss.src.core.gateways.llms.service import LlmGatewayService              # WP7
  # from oss.src.core.gateways.mcps.service import McpGatewayService
@@ -222,31 +222,31 @@ needs the full M2 deployment WP7/WP10 complete):
 
 - [x] Deploy the local stack with WP1/WP2/WP3/WP5/WP7 all merged — documented in the test
       module's docstring as the manual run instructions; not performed by this package.
-- [x] Seed a custom LLM endpoint pointing at `fake-llm-gateway`'s URL — `fake_llm_endpoint`
+- [x] Seed a custom LLM endpoint pointing at `mock-llm-gateway`'s URL — `mock_llm_endpoint`
       fixture (class-scoped), POSTing `LlmEndpointCreateRequest`'s wire shape (§6) at
       `POST /gateways/llms/endpoints/` (WP10's route, not yet built either — written against its
       declared shape).
 - [x] Streamed request round-trips byte for byte (diff the SSE bytes, not a re-decoded
       equivalence) — `test_streaming_round_trips_sse_bytes_unmodified`, asserting on
       `response.content` directly (the raw bytes), not a JSON-decoded reconstruction.
-- [x] `fake/slow-30` with a short `config.timeout_seconds` returns before 30s elapse —
+- [x] `mock/slow-30` with a short `config.timeout_seconds` returns before 30s elapse —
       `test_slow_upstream_times_out_inside_the_configured_window_not_at_30s`, timed with
       `time.monotonic()`, asserting `elapsed < 30` and an `upstream_error` response rather than a
       hang.
-- [x] An unauthenticated request never reaches the fake — `test_unauthenticated_request_never_reaches_the_fake`,
+- [x] An unauthenticated request never reaches the mock — `test_unauthenticated_request_never_reaches_the_mock`,
       asserting the auth middleware's 401 (D13: rejected before any router runs); this suite has
-      no direct handle on the fake's own request log, so it asserts the platform boundary instead,
+      no direct handle on the mock's own request log, so it asserts the platform boundary instead,
       noted inline as the precision this test can actually offer.
 - [x] A model outside `model_slugs` is refused with `model_not_allowed` before any credential is
       resolved — `test_model_outside_allowlist_is_refused_with_model_not_allowed`. (Credential-
       resolution-order is WP7's `relay_chat_completion` body, §8 — not independently observable
       from this HTTP-only suite; the test asserts the outcome the ordering guarantees.)
-- [x] Extra, beyond the checklist: `test_non_streaming_call_returns_the_fakes_completion_body`
+- [x] Extra, beyond the checklist: `test_non_streaming_call_returns_the_mocks_completion_body`
       (the non-streaming leg) and `test_list_models_answers_the_endpoints_allowlist` (`GET
       .../v1/models`, R3) — both named in specs-wp6.md's contract but not called out as separate
       Phase 6 bullets.
 - [x] Ruff format + check; fix.
-- [x] Commit: "wp6: write acceptance tests against the fake (not run)".
+- [x] Commit: "wp6: write acceptance tests against the mock (not run)".
 
 ## Definition of done
 
@@ -254,7 +254,7 @@ Matches `plan.md` WP6 verbatim: *"a streamed response is relayed unmodified and 
 times out rather than hanging the gateway."* Concretely: `PassthroughLlmAdapter`'s unit and
 contract tests pass with nothing running (16 + 1 tests); `LlmGatewayProxy`'s unit tests pass
 against a stubbed service (20 tests); and, once WP5/WP7/WP10 are merged and deployed, the written
-(not yet run) acceptance suite exercises a real streamed SSE response from the fake reaching a
-client byte-identical to what the fake sent, and a `fake/slow-N` request beyond the endpoint's
+(not yet run) acceptance suite exercises a real streamed SSE response from the mock reaching a
+client byte-identical to what the mock sent, and a `mock/slow-N` request beyond the endpoint's
 configured timeout returning an error inside that timeout window rather than hanging the gateway
 process.

@@ -804,14 +804,14 @@ services:
     # suite. Not profile-gated — unlike the composio and tunnel services these are ours, not a third-party
     # dependency, so they run every deploy (entities.md §0, "the gateways have no
     # third-party dependency to gate on").
-    fake-llm-gateway:
+    mock-llm-gateway:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command:
             [
                 "uvicorn",
-                "oss.src.core.gateways.llms.providers.fake.app:app",
+                "oss.src.core.gateways.llms.providers.mock.app:app",
                 "--host",
                 "0.0.0.0",
                 "--port",
@@ -828,14 +828,14 @@ services:
             timeout: 5s
             retries: 10
 
-    fake-mcp-gateway:
+    mock-mcp-gateway:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command:
             [
                 "uvicorn",
-                "oss.src.core.gateways.mcps.providers.fake.app:app",
+                "oss.src.core.gateways.mcps.providers.mock.app:app",
                 "--host",
                 "0.0.0.0",
                 "--port",

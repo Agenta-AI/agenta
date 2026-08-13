@@ -17,8 +17,8 @@ from oss.src.utils.context import AuthScope
 
 
 class CredentialResolverInterface(ABC):
-    """One lookup, called by both planes (`secrets.md`). Fakeable (D23): the
-    fake resolver answers from a dict and never touches the vault."""
+    """One lookup, called by both planes (`secrets.md`). Mockable (D23): the
+    mock resolver answers from a dict and never touches the vault."""
 
     @abstractmethod
     async def resolve(

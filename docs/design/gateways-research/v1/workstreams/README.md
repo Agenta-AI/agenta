@@ -69,12 +69,12 @@ merge point rather than editing.
 | `core/gateways/llms/{registry,catalog}.py` | **WP7** |
 | `core/gateways/llms/providers/translated/` | **WP7** |
 | `core/gateways/llms/providers/passthrough/` | **WP6** |
-| `core/gateways/llms/providers/fake/` | **WP5** |
+| `core/gateways/llms/providers/mock/` | **WP5** |
 | `core/gateways/mcps/{dtos,types,interfaces}.py` | seed |
 | `core/gateways/mcps/service.py` | **WP9** |
 | `core/gateways/mcps/registry.py` | **WP9** |
 | `core/gateways/mcps/providers/http/` | **WP8** |
-| `core/gateways/mcps/providers/fake/` | **WP5** |
+| `core/gateways/mcps/providers/mock/` | **WP5** |
 | `dbs/postgres/gateways/llms/`, `dbs/postgres/gateways/mcps/` | **WP1** |
 | the migration | **WP1** |
 | `apis/fastapi/gateways/exceptions.py` | **seed** — three packages need the decorator, so no one package can own it. **Complete, not declared**: it maps exceptions the seed itself defines and depends on no package, so a not-implemented body would leave it unowned |

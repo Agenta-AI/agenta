@@ -38,7 +38,7 @@ the credential layer. The alternative — calling `resolve()` eleven times and c
 `CredentialNotFoundError` — is control flow by exception and eleven vault reads per list.
 
 Three packages gain a line: **WP2** implements it in `resolution.py`, **WP5** implements it in the
-fake resolver from its dict, **WP7** calls it from `list_endpoints`.
+mock resolver from its dict, **WP7** calls it from `list_endpoints`.
 
 **R3. `GET /v1/models` has no backing service method. → `list_models`, on the data-plane half of
 `LlmGatewayService`, returning the allowlist.**
@@ -96,7 +96,7 @@ runs. Checkpoint A verifies with it `false`, and setting it `false` on shared de
 named action.
 
 **R8. The Composio-backed MCP adapter has no owning package in wave 1** — and on inspection it
-should not, because checkpoint A's reachable targets are our own servers and the fakes (D23). It
+should not, because checkpoint A's reachable targets are our own servers and the mocks (D23). It
 belongs to whichever wave first makes a brokered server reachable. Worth stating so its absence
 reads as intent rather than omission.
 
@@ -158,7 +158,7 @@ Both gateways are being built. What is open is what each one does first, and the
 The MCP side has a shape: **the first checkpoint has no OAuth**, and OAuth becomes its own
 checkpoint carrying consent, step-up and callback reachability together — the last one so it can
 be tested in development at all. With the static secret kind also deferred, the first
-checkpoint's reachable targets are our own servers and the fakes (D23), which is a complete set
+checkpoint's reachable targets are our own servers and the mocks (D23), which is a complete set
 rather than a gap.
 
 **Blocks the work-package list**, which cannot be sequenced without it.

@@ -215,7 +215,7 @@ into a wire header depends on which secret kind backs it —
 the only populated shape reachable in this wave, and it maps to
 `Authorization: {token_type} {access_token}`. **In Checkpoint A this branch
 is unreachable in practice**: D23 restricts wave 1's reachable MCP targets
-to unauthenticated servers (`auth_mode = NONE`) and the fakes, and OAuth
+to unauthenticated servers (`auth_mode = NONE`) and the mocks, and OAuth
 grants do not exist until WP16/WP17 (wave 3). Implement the credential
 branch so the type-checks against `entities.md`'s frozen shapes, but do not
 build integration tests that depend on a real grant existing — there is
@@ -297,7 +297,7 @@ In `HttpMcpAdapter.relay`, before the outbound POST:
 
 **Only the `custom` namespace needs this.** `agenta` targets are ours and `builtin` targets
 are the broker's — neither URL comes from a user. Guard on the namespace rather than
-guarding unconditionally, or the fakes (WP5, reachable on a compose host) fail their own
+guarding unconditionally, or the mocks (WP5, reachable on a compose host) fail their own
 acceptance tests.
 
 **Two facts about the flag, both load-bearing.** `AGENTA_INSECURE_EGRESS_ALLOWED` defaults
@@ -327,30 +327,30 @@ anything needing Postgres, Redis or the API is integration or acceptance.
 - `parse_mcp_call_context` — **unit**. Pure function; feed representative
   header dicts (both routing headers present, one missing, malformed
   values) and assert the parsed `McpCallContext` or the raised error.
-- `HttpMcpAdapter.relay()` — **unit**. Run against an in-process fake HTTP
+- `HttpMcpAdapter.relay()` — **unit**. Run against an in-process mock HTTP
   server (or an `httpx` mock transport) standing in for the upstream — no
   real network, no real MCP server. Assert: body passed through
   byte-for-byte; `route.headers` merged under caller headers; no
   `Authorization` header added when `auth.credential is None`; the derived
   `Authorization` header is correct when a credential is present; a
   connection failure raises `McpUpstreamError`; a non-2xx JSON-RPC error
-  body from the fake upstream is returned as `McpRelayResult`, not raised.
+  body from the mock upstream is returned as `McpRelayResult`, not raised.
 - `McpGatewayProxy` routing (which handler each path reaches, the 405s) —
   **unit**. Mount the router in a bare `FastAPI()` app with `TestClient`,
-  a fake `McpGatewayService` (a stub whose `relay()` returns a canned
-  `McpRelayResult` and records its call arguments), and a fake
+  a mock `McpGatewayService` (a stub whose `relay()` returns a canned
+  `McpRelayResult` and records its call arguments), and a mock
   `get_auth_scope()`. Assert: `POST /agenta/tools/search` reaches
   `relay_agenta` with `name="tools/search"` (proving the catch-all nests
   correctly); `POST /builtin/composio/notion/my-notion` reaches
   `relay_builtin` with `provider="composio", integration="notion",
   name="my-notion"`; `POST /custom/acme-notion` reaches `relay_custom` with
   `name="acme-notion"`; `GET`/`DELETE` on any of the three return 405. No
-  Postgres, no real service — this is in-process ASGI against a fake,
+  Postgres, no real service — this is in-process ASGI against a mock,
   which the house rule's "nothing running" test still passes (no
   external process, no network).
 - Byte-for-byte relay end to end, and the tool-outside-allowlist refusal —
   **acceptance**, part of Checkpoint A. Needs the deployed stack: real
-  Postgres (WP1's tables), the fake MCP server running as a compose
+  Postgres (WP1's tables), the mock MCP server running as a compose
   service (WP5, D23), and WP9's real `McpGatewayService`. WP8 does not own
   writing this test alone — it is the shared Checkpoint A suite
   (`plan.md`) — but WP8's own "done" claim rests on it passing.
@@ -362,13 +362,13 @@ unchanged and a tool outside the allowlist is refused."* Concretely, once
 WP8 and WP9 are both merged at M2 and the stack is deployed:
 
 ```text
-POST /gateways/mcps/agenta/<fake-slug>   {"method":"tools/list", ...}
-  -> 200, body identical to the fake server's own tools/list response
+POST /gateways/mcps/agenta/<mock-slug>   {"method":"tools/list", ...}
+  -> 200, body identical to the mock server's own tools/list response
 
-POST /gateways/mcps/agenta/<fake-slug>   {"method":"tools/call","tool":"<in-policy>", ...}
-  -> 200, body identical to the fake server's own tool result
+POST /gateways/mcps/agenta/<mock-slug>   {"method":"tools/call","tool":"<in-policy>", ...}
+  -> 200, body identical to the mock server's own tool result
 
-POST /gateways/mcps/agenta/<fake-slug>   {"method":"tools/call","tool":"<not-in-policy>", ...}
+POST /gateways/mcps/agenta/<mock-slug>   {"method":"tools/call","tool":"<not-in-policy>", ...}
   -> 403, McpToolNotAllowedError mapped through handle_gateway_exceptions
 ```
 

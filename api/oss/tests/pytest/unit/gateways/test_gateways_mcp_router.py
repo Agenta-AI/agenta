@@ -1,6 +1,6 @@
 """Router wiring — apis/fastapi/gateways/mcps/router.py (entities.md §9).
 
-TestClient + a hand-written fake `McpGatewayService` + a monkeypatched
+TestClient + a hand-written mock `McpGatewayService` + a monkeypatched
 `get_auth_scope()`/`check_action_access()` — no real database, no real service.
 """
 
@@ -53,7 +53,7 @@ def _grant(grant_id) -> McpGrant:
     return McpGrant(id=grant_id, endpoint_id=uuid4(), secret_id=uuid4())
 
 
-class FakeMcpGatewayService:
+class MockMcpGatewayService:
     def __init__(self):
         self.calls = []
         self.create_return = None
@@ -105,7 +105,7 @@ class FakeMcpGatewayService:
 
 @pytest.fixture
 def service():
-    return FakeMcpGatewayService()
+    return MockMcpGatewayService()
 
 
 @pytest.fixture
@@ -311,7 +311,7 @@ def test_revoke_grant_false_maps_to_404(client, service, allow):
 
 
 # ---------------------------------------------------------------------------
-# A denied _check short-circuits before the fake service is called
+# A denied _check short-circuits before the mock service is called
 # ---------------------------------------------------------------------------
 
 

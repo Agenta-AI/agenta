@@ -1,4 +1,4 @@
-"""Unit tests for FakeMcpAdapter (entities.md §7.1, workstreams/specs-wp5.md).
+"""Unit tests for MockMcpAdapter (entities.md §7.1, workstreams/specs-wp5.md).
 
 Nothing running: the adapter is exercised as a plain Python object.
 """
@@ -14,12 +14,12 @@ from oss.src.core.gateways.mcps.dtos import (
     McpResolvedRoute,
 )
 from oss.src.core.gateways.mcps.interfaces import McpRelayResult
-from oss.src.core.gateways.mcps.providers.fake.adapter import FakeMcpAdapter
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
 from oss.src.core.gateways.mcps.types import McpUpstreamError
 
 
 def _route() -> McpResolvedRoute:
-    return McpResolvedRoute(url="http://fake-mcp-gateway:9092/")
+    return McpResolvedRoute(url="http://mock-mcp-gateway:9092/")
 
 
 def _auth() -> McpDirectAuth:
@@ -35,7 +35,7 @@ def _rpc(method: str, *, params=None, request_id=1) -> bytes:
 
 @pytest.mark.asyncio
 async def test_tools_list_returns_all_three_tools():
-    adapter = FakeMcpAdapter()
+    adapter = MockMcpAdapter()
 
     result = await adapter.relay(
         route=_route(),
@@ -53,7 +53,7 @@ async def test_tools_list_returns_all_three_tools():
 
 @pytest.mark.asyncio
 async def test_echo_tool_echoes_arguments():
-    adapter = FakeMcpAdapter()
+    adapter = MockMcpAdapter()
 
     result = await adapter.relay(
         route=_route(),
@@ -71,7 +71,7 @@ async def test_echo_tool_echoes_arguments():
 
 @pytest.mark.asyncio
 async def test_fail_tool_returns_error_result_not_exception():
-    adapter = FakeMcpAdapter()
+    adapter = MockMcpAdapter()
 
     result = await adapter.relay(
         route=_route(),
@@ -88,7 +88,7 @@ async def test_fail_tool_returns_error_result_not_exception():
 
 @pytest.mark.asyncio
 async def test_slow_tool_sleeps():
-    adapter = FakeMcpAdapter()
+    adapter = MockMcpAdapter()
     start = time.monotonic()
 
     result = await adapter.relay(
@@ -107,7 +107,7 @@ async def test_slow_tool_sleeps():
 
 @pytest.mark.asyncio
 async def test_unrecognized_method_raises_upstream_error():
-    adapter = FakeMcpAdapter()
+    adapter = MockMcpAdapter()
 
     with pytest.raises(McpUpstreamError) as excinfo:
         await adapter.relay(
@@ -123,7 +123,7 @@ async def test_unrecognized_method_raises_upstream_error():
 
 @pytest.mark.asyncio
 async def test_notification_returns_202_with_empty_body():
-    adapter = FakeMcpAdapter()
+    adapter = MockMcpAdapter()
 
     result = await adapter.relay(
         route=_route(),

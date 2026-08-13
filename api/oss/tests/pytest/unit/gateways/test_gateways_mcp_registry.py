@@ -1,6 +1,6 @@
 """Unit tests for `McpUpstreamRegistry` (specs-wp9.md, tasks-wp9.md).
 
-Shape mirrors `ConnectionsGatewayRegistry`: two fake adapters registered, `get()` returns
+Shape mirrors `ConnectionsGatewayRegistry`: two mock adapters registered, `get()` returns
 the right one and raises on a miss, `keys()` lists exactly the registered set.
 """
 
@@ -16,7 +16,7 @@ from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
 from oss.src.core.gateways.mcps.types import McpUpstreamError
 
 
-class _FakeAdapter(McpUpstreamInterface):
+class _MockAdapter(McpUpstreamInterface):
     def __init__(self, name: str) -> None:
         self.name = name
 
@@ -33,16 +33,16 @@ class _FakeAdapter(McpUpstreamInterface):
 
 
 def test_get_returns_the_registered_adapter():
-    fake = _FakeAdapter("fake")
-    http = _FakeAdapter("http")
-    registry = McpUpstreamRegistry(adapters={"fake": fake, "http": http})
+    mock = _MockAdapter("mock")
+    http = _MockAdapter("http")
+    registry = McpUpstreamRegistry(adapters={"mock": mock, "http": http})
 
-    assert registry.get("fake") is fake
+    assert registry.get("mock") is mock
     assert registry.get("http") is http
 
 
 def test_get_on_missing_key_raises_mcp_upstream_error():
-    registry = McpUpstreamRegistry(adapters={"fake": _FakeAdapter("fake")})
+    registry = McpUpstreamRegistry(adapters={"mock": _MockAdapter("mock")})
 
     with pytest.raises(McpUpstreamError) as excinfo:
         registry.get("composio")
@@ -52,7 +52,7 @@ def test_get_on_missing_key_raises_mcp_upstream_error():
 
 def test_keys_returns_exactly_the_registered_set():
     registry = McpUpstreamRegistry(
-        adapters={"fake": _FakeAdapter("fake"), "http": _FakeAdapter("http")}
+        adapters={"mock": _MockAdapter("mock"), "http": _MockAdapter("http")}
     )
 
-    assert set(registry.keys()) == {"fake", "http"}
+    assert set(registry.keys()) == {"mock", "http"}
