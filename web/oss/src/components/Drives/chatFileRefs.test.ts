@@ -1,6 +1,18 @@
 import {describe, expect, it} from "vitest"
 
-import {knownFromRecords} from "./chatFileRefs"
+import {fileCandidate, knownFromRecords} from "./chatFileRefs"
+
+describe("fileCandidate", () => {
+    it("preserves an absolute sandbox path for mount-tail resolution (#5983)", () => {
+        expect(fileCandidate("/tmp/agenta/mounts/p/m/src/README.md")).toBe(
+            "/tmp/agenta/mounts/p/m/src/README.md",
+        )
+    })
+
+    it("still normalizes an explicitly relative path", () => {
+        expect(fileCandidate("./src/README.md")).toBe("src/README.md")
+    })
+})
 
 describe("knownFromRecords", () => {
     it("does not claim a bare basename is known just because a NESTED file shares it (#6004)", () => {
@@ -13,6 +25,12 @@ describe("knownFromRecords", () => {
     it("still fast-paths a qualified mention that tail-matches a written file", () => {
         const byBasename = new Map([["README.md", ["/tmp/agenta/mounts/p/m/src/README.md"]]])
         expect(knownFromRecords(byBasename, "src/README.md")).toBe(true)
+    })
+
+    it("fast-paths the full absolute path of a written file", () => {
+        const path = "/tmp/agenta/mounts/p/m/src/README.md"
+        const byBasename = new Map([["README.md", [path]]])
+        expect(knownFromRecords(byBasename, path)).toBe(true)
     })
 
     it("defers a bare basename to on-demand verification even when the file is at the mount root", () => {
