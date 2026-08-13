@@ -22,21 +22,34 @@ commit and fix all errors, per `api/AGENTS.md`.
 
 ## Phase 2 — `registry.py`
 
-- [ ] `core/gateways/llms/registry.py`: `LlmUpstreamRegistry.__init__(self, *, adapters:
+- [x] `core/gateways/llms/registry.py`: `LlmUpstreamRegistry.__init__(self, *, adapters:
       Dict[str, LlmUpstreamInterface])`, `.get(key) -> LlmUpstreamInterface` (raises on a miss —
       define and raise a typed exception, following `ProviderNotFoundError`'s shape from
       `core/gateway/connections/exceptions.py`, but in this domain's own `types.py` — do not
       import the integrations domain's exception), `.keys() -> list[str]`.
-- [ ] Implement `select_upstream(provider_key: str, deployment: LlmDeploymentKind) -> str` per
+- [x] Implement `select_upstream(provider_key: str, deployment: LlmDeploymentKind) -> str` per
       the classification table in `specs-wp7.md`: `AZURE`/`BEDROCK`/`SAGEMAKER`/`VERTEX` →
       `"translated"`; `CUSTOM` → `"passthrough"`; `DIRECT` split by the six-vs-six provider table.
       Pure function — no DAO, no vault, no I/O.
-- [ ] Ruff format + check; run and fix.
-- [ ] Unit tests: every `(provider, deployment)` pair in the classification table returns the
+- [x] Ruff format + check; run and fix.
+- [x] Unit tests: every `(provider, deployment)` pair in the classification table returns the
       documented key; `.get` on an unregistered key raises; `select_upstream` never imports
       anything beyond `LlmDeploymentKind` (grep-check: no `httpx`/`litellm`/DAO import in
       `registry.py`).
-- [ ] Commit: "wp7: registry.py — LlmUpstreamRegistry + select_upstream".
+- [x] Commit: "wp7: registry.py — LlmUpstreamRegistry + select_upstream".
+
+**Deviation, disclosed:** `select_upstream` also special-cases `provider_key == "fake"` →
+`"fake"`, ahead of the deployment split. Neither `specs-wp7.md`'s table nor this phase's own
+bullets state that branch; it was added mid-implementation after the coordinator flagged that
+WP5's `FakeLlmAdapter` import is WP7's to uncomment and register at the composition root (see the
+Phase 7 diff below) — without it, nothing in the documented `select_upstream` table ever routes to
+the `"fake"` registry key, which would make the fakes unreachable through the relay path in every
+environment, not just contradict "registered always; reachable only via a seeded endpoint" from
+`entities.md` §9's wiring comment. `core/gateways/llms/types.py` also gained one new exception,
+`LlmAdapterNotFoundError` (`registry.get`'s miss) — additive only, but it is a `types.py` edit,
+which rule 1 of the top-level brief lists as off-limits; this phase's own bullet explicitly
+directs adding it there ("but in this domain's own `types.py`"), so the more specific instruction
+was followed and the tension is flagged here rather than resolved silently.
 
 ## Phase 3 — `TranslatedLlmAdapter`
 

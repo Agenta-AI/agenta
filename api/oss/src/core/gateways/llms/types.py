@@ -24,6 +24,16 @@ class LlmModelNotAllowedError(GatewaysError):
         super().__init__(f"Model {model} not allowed on {namespace.value}/{name}")
 
 
+class LlmAdapterNotFoundError(GatewaysError):
+    """No south-port adapter registered under this key (registry.py's own miss,
+    entities.md §7.1's ``ConnectionsGatewayRegistry``/``ProviderNotFoundError`` shape,
+    copied into this domain's vocabulary rather than importing the integrations one)."""
+
+    def __init__(self, *, key: str):
+        self.key = key
+        super().__init__(f"No LLM upstream adapter registered under {key!r}")
+
+
 class LlmUpstreamError(GatewaysError):
     """The upstream failed after policy allowed. Carries the upstream status so
     the proxy can relay a faithful OpenAI-shaped error (§9)."""
