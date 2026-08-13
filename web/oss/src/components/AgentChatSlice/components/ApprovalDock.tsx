@@ -10,7 +10,12 @@ import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
 
 import {isAgentChatSteerEnabled} from "../assets/constants"
 import {isToolPart} from "../assets/messageParts"
-import {canonicalToolName, partToolName, resolveToolDisplay} from "../assets/toolDisplay"
+import {
+    canonicalToolName,
+    inSentence,
+    partToolName,
+    resolveToolDisplay,
+} from "../assets/toolDisplay"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import ApprovedContentManifest, {
@@ -243,7 +248,8 @@ const ApprovalDock = ({
 
     // Chat-mode display name: raw "scary" names stay Build-only; the shared resolver humanizes
     // gateway/MCP/plain names. Raw name stays reachable via the tooltip and the payload expander.
-    const friendly = current ? resolveToolDisplay(current.toolName) : null
+    // The input goes in too, so this card says the same sentence as the row it gates.
+    const friendly = current ? resolveToolDisplay(current.toolName, current.input) : null
 
     // "Always allow this tool": writes a config permission so the runner stops gating this tool
     // (per-tool `permission` for gateway/custom-function tools; `harness.permissions.allow` for
@@ -339,12 +345,11 @@ const ApprovalDock = ({
                                     className="!text-xs"
                                     title={current.toolName}
                                 >
-                                    The agent wants to use{" "}
+                                    The agent needs your approval before{" "}
                                     <span className="font-medium text-colorText">
-                                        {friendly?.label}
+                                        {inSentence(friendly?.activity.running ?? "")}
                                     </span>
-                                    {friendly?.source ? ` from ${friendly.source}` : ""} before it
-                                    can keep going.
+                                    {friendly?.source ? ` from ${friendly.source}` : ""}.
                                 </Text>
                             ) : (
                                 <Text type="secondary" className="!text-xs">
@@ -430,8 +435,10 @@ const ApprovalDock = ({
                                                         {shown.map((a) => {
                                                             const preview = inputPreview(a.input)
                                                             const label =
-                                                                resolveToolDisplay(a.toolName)
-                                                                    ?.label ?? a.toolName
+                                                                resolveToolDisplay(
+                                                                    a.toolName,
+                                                                    a.input,
+                                                                ).activity.running || a.toolName
                                                             return (
                                                                 <div
                                                                     key={a.approvalId}
@@ -557,7 +564,8 @@ const ApprovalDock = ({
                                         <Text className="!text-xs">
                                             Always allow{" "}
                                             <span className="font-medium">
-                                                {friendly?.label ?? current.toolName}
+                                                {inSentence(friendly?.activity.running ?? "") ||
+                                                    current.toolName}
                                             </span>{" "}
                                             for this agent
                                         </Text>
