@@ -1,39 +1,47 @@
 /**
  * ModelPickerControl — the agent playground's connection-first model menu.
  *
- * Level 1 is one row per stored connection (plus a row per subscription), level 2 is that
- * connection's models flat, one row per model and harness pair. Both levels are the platform's
- * existing grouped picker (`SelectLLMProviderBase`, the same cascade the prompt playground uses);
- * only what feeds it changed — groups are connections now, not provider families.
+ * Level 1 is one row per stored connection (plus one per subscription PLAN, however many harnesses
+ * drive it); level 2 is that connection's models grouped by the harness that runs them. It IS the
+ * completion playground's model dropdown (`SelectLLMProviderBase`) — same component, same
+ * geometry; the agent context adds the subscription rows and the harness sections, and the
+ * completion context has neither. Picking a row sets the model AND its harness, which is why the
+ * section has no harness control of its own.
  *
- * The control also owns the two states the menu cannot express: nothing connected at all (a dashed
- * "Set up AI providers" pill that opens the provider drawer instead of a menu) and the one-line
- * explainer for the harness tags, dismissed for good on first read.
+ * The control also owns the one state the menu cannot express: nothing connected at all, where a
+ * dashed set-up pill opens the provider drawer instead of a menu.
  *
  * Design: docs/design/provider-connections-models/experience.md ("Model picker in the playground").
  */
 import {useMemo, useState, type ReactNode} from "react"
 
-import {providerConnectionsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"
-import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Plus, X} from "@phosphor-icons/react"
-import {atom, useAtom, useAtomValue} from "jotai"
-import {atomWithStorage} from "jotai/utils"
+import {
+    providerConnectionsAtom,
+    subscriptionPairModelsAtom,
+    subscriptionPairsFrom,
+    vaultSecretsQueryAtom,
+} from "@agenta/entities/secret"
+import {
+    SUBSCRIPTION_STATUS_QUERY_HARNESS,
+    subscriptionStatusQueryAtomFamily,
+} from "@agenta/entities/workflow"
+import {
+    HarnessTooltip,
+    ManageProvidersRow,
+    SelectLLMProviderBase,
+} from "@agenta/ui/select-llm-provider"
+import {Plus} from "@phosphor-icons/react"
+import {atom, useAtomValue} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
 import {
     buildConnectionPickerRows,
-    buildPickerGroups,
     pickerSelectionFrom,
+    selectedModelRowKey,
     type PickerSelection,
 } from "../connectionPicker"
 import type {ConnectionMode, HarnessCapabilitiesMap} from "../connectionUtils"
-
-/** Dismissed for good: the tags stay, the sentence explaining them is read once. */
-const harnessTagExplainerDismissedAtom = atomWithStorage<boolean>(
-    "agenta:model-picker:harness-tag-explainer-dismissed",
-    false,
-)
+import {buildPickerGroupsWithSections} from "../pickerSections"
 
 /** Narrowed to the refetch handle — the raw query atom churns identity on every fetch-state flip. */
 const vaultRefetchAtom = atom((get) => get(vaultSecretsQueryAtom).refetch)
@@ -45,9 +53,13 @@ export interface ModelPickerControlProps {
     capabilities: HarnessCapabilitiesMap | null | undefined
     /** The harness ids a picker may offer (`selectableHarnesses` of the catalog). */
     harnessIds: string[]
+    /** The stored harness, so the row the config points at is the one marked. */
+    harness: string | null
     modelId: string | null
     /** The stored connection mode, so a subscription-only project still gets a menu. */
     mode: ConnectionMode
+    /** The stored connection slug, so the right connection's row shows as selected. */
+    slug: string | null
     disabled?: boolean
     /**
      * Whether subscription rows belong here — false on cloud, where no provider login can be
@@ -63,8 +75,10 @@ export interface ModelPickerControlProps {
 const ModelPickerControl = ({
     capabilities,
     harnessIds,
+    harness,
     modelId,
     mode,
+    slug,
     disabled,
     showSubscriptions = true,
     onSelect,
@@ -73,21 +87,46 @@ const ModelPickerControl = ({
     const connections = useAtomValue(providerConnectionsAtom)
     const vaultLoaded = useAtomValue(vaultLoadedAtom)
     const refetchVault = useAtomValue(vaultRefetchAtom)
-    const [explainerDismissed, dismissExplainer] = useAtom(harnessTagExplainerDismissedAtom)
     const [drawerOpen, setDrawerOpen] = useState(false)
 
-    const groups = useMemo(
-        () =>
-            buildPickerGroups(
-                buildConnectionPickerRows({
-                    connections,
-                    capabilities,
-                    harnessIds,
-                    showSubscriptions,
-                }),
-            ),
-        [connections, capabilities, harnessIds, showSubscriptions],
+    // The runner's live answer, filed under the shared key so the drawer and both pickers ride ONE
+    // query rather than polling the deployment once per surface.
+    const subscriptionStatus = useAtomValue(
+        subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS),
     )
+    const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
+    const subscriptionPairs = useMemo(
+        () => subscriptionPairsFrom(subscriptionStatus.data?.harnesses),
+        [subscriptionStatus.data?.harnesses],
+    )
+
+    const rows = useMemo(
+        () =>
+            buildConnectionPickerRows({
+                connections,
+                capabilities,
+                harnessIds,
+                showSubscriptions,
+                subscriptionPairs,
+                pairModelSelection,
+            }),
+        [
+            connections,
+            capabilities,
+            harnessIds,
+            showSubscriptions,
+            subscriptionPairs,
+            pairModelSelection,
+        ],
+    )
+
+    // The exact row the config points at. `value` alone selects by model id, which lights up every
+    // connection offering that id; the stored connection and harness resolve it to one.
+    const selectedKey = useMemo(
+        () => selectedModelRowKey(rows, {modelId, slug, mode, harness}),
+        [rows, modelId, slug, mode, harness],
+    )
+    const groups = useMemo(() => buildPickerGroupsWithSections(rows), [rows])
 
     const drawer = (
         <ProviderDrawer
@@ -112,7 +151,7 @@ const ModelPickerControl = ({
                     className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <Plus size={14} className="shrink-0" />
-                    Set up AI providers
+                    Set up model providers
                 </button>
                 {drawer}
             </>
@@ -125,9 +164,14 @@ const ModelPickerControl = ({
         <>
             <SelectLLMProviderBase
                 showGroup
-                providerDropdownWidth={580}
+                // The one model-picker geometry, shared with the completion playground.
+                providerDropdownWidth={560}
+                connectionColumnWidth={290}
+                searchPlaceholder="Search models"
+                sectionTooltip={<HarnessTooltip />}
                 options={groups}
                 value={modelId ?? undefined}
+                selectedKey={selectedKey}
                 onChange={(value, option) => {
                     const picked = Array.isArray(option) ? option[0] : option
                     const metadata = (picked as {metadata?: Record<string, unknown>} | undefined)
@@ -137,36 +181,7 @@ const ModelPickerControl = ({
                 disabled={disabled}
                 placeholder="Select a model…"
                 className="w-full"
-                panelHeader={
-                    explainerDismissed ? undefined : (
-                        <div className="flex items-center gap-2 text-field-sm text-colorTextSecondary">
-                            <span className="flex-1">
-                                The tag names the harness — the program that runs the model and its
-                                tools.
-                            </span>
-                            <button
-                                type="button"
-                                aria-label="Dismiss the harness explainer"
-                                onClick={() => dismissExplainer(true)}
-                                className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-colorTextTertiary"
-                            >
-                                <X size={12} />
-                            </button>
-                        </div>
-                    )
-                }
-                footerContent={
-                    <div className="border-0 border-t border-solid border-border p-1">
-                        <button
-                            type="button"
-                            onClick={() => setDrawerOpen(true)}
-                            className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-3 py-1.5 text-left text-field-md text-colorText hover:bg-muted"
-                        >
-                            <Plus size={14} className="shrink-0" />
-                            Add provider
-                        </button>
-                    </div>
-                }
+                footerContent={<ManageProvidersRow onClick={() => setDrawerOpen(true)} />}
             />
             {drawer}
         </>

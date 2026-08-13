@@ -122,11 +122,12 @@ export type {ModelOptionGroup, VaultModelSource} from "./connectionUtils"
 // Connection-first model menu (the playground picker's rows + the payload a pick persists).
 export {
     buildConnectionPickerRows,
-    buildPickerGroups,
     connectionModelIds,
     effectiveHarnesses,
+    modelRowKey,
     pickerSelectionFrom,
-    COST_HINTS,
+    selectedModelRowKey,
+    selectionFromModelRow,
     SUBSCRIPTION_HARNESSES,
 } from "./connectionPicker"
 export type {

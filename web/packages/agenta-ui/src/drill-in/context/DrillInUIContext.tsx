@@ -306,8 +306,14 @@ export interface DrillInUIComponents {
         connectionGroupsFor?: (catalog?: Record<string, string[]>) => LLMProviderGroup[]
         /** Extra option groups from vault/custom secrets */
         extraOptionGroups?: LLMProviderGroup[]
-        /** Footer content (e.g. "Add provider" button) rendered below the dropdown */
+        /** Footer content (the "Manage model providers" row) rendered below the dropdown */
         footerContent?: ReactElement | null
+        /**
+         * Shown in place of the model picker when nothing is connected and nothing is stored —
+         * the host's "Set up model providers" affordance, which opens its provider drawer. Null
+         * while the vault has not answered yet, so no host claims "nothing connected" early.
+         */
+        emptyStateContent?: ReactElement | null
         /** Opens the host's "Configure provider" drawer for a NEW custom provider, pre-selecting
          * `kind` (e.g. "azure", "bedrock", "vertex_ai", "custom"). Absent on hosts with no drawer
          * wired up — callers hide the affordance in that case. */

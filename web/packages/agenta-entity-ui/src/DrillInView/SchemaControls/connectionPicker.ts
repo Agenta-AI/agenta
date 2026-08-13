@@ -1,10 +1,14 @@
 /**
- * connectionPicker — the agent playground's connection-first model menu.
+ * connectionPicker — the agent playground's connection-first model menus.
  *
  * The old menu's first level was a provider FAMILY (one "OpenAI" row, whichever key happened to be
  * stored). A project may hold several connections per family, so the family cannot identify a
  * credential any more: the first level is now one row per stored connection, plus a row per
  * subscription, and the second level is one row per model AND harness pair.
+ *
+ * Two surfaces are built from those rows, both keeping the model-and-harness pairs and both fed by
+ * `buildPickerGroupsWithSections`: the config section's cascade (`ModelPickerControl`) and the chat's `/model`
+ * palette. Picking a row is what sets the harness — there is no separate harness control any more.
  *
  * Everything here is pure — connections in, rows out — so the intersection rules (saved models vs
  * Agenta's defaults, saved harness policy vs technical reach, one model reachable twice) are
@@ -21,13 +25,16 @@ import {
     connectionSlugFor,
     harnessSupportsProviderKind,
     providerModelCatalog,
+    subscriptionPairModels,
+    subscriptionPlanName,
+    type SubscriptionPair,
     type HarnessCapabilityMap,
     type ProviderConnection,
 } from "@agenta/entities/secret"
-import type {ProviderGroup} from "@agenta/ui/select-llm-provider"
 
 import {
     modelLabel,
+    modelSelectionMode,
     vaultPickedProviderFamily,
     type ConnectionMode,
     type HarnessCapabilitiesMap,
@@ -43,24 +50,22 @@ import {harnessMetaFor} from "./harnessMeta"
  * user would recognise as a subscription. Only these two are offered as subscription ROWS; the
  * other harnesses keep reaching their own environment through the credentials section's
  * "Use subscription" toggle, unchanged.
+ *
+ * Only harnesses that ARE a provider's own client can be listed here: the family is fixed by the
+ * harness. A general harness (Pi) reads whichever login the deployment mounted, so its family is
+ * not knowable from the catalog — only the runner's subscription-status answer can name it, which
+ * is what the drawer's `subscriptionPairsFrom` consumes.
  */
 export const SUBSCRIPTION_HARNESSES: Record<
     string,
     {
-        name: string
         family: string
         /** Where the deployment mounts the provider's login folder. */ mount: string
     }
 > = {
-    claude: {name: "Claude subscription", family: "anthropic", mount: "~/.claude"},
-    codex: {name: "ChatGPT subscription", family: "openai", mount: "~/.codex"},
+    claude: {family: "anthropic", mount: "~/.claude"},
+    codex: {family: "openai", mount: "~/.codex"},
 }
-
-/** Cost hints, shown only when the same model is reachable more than once. */
-export const COST_HINTS = {
-    subscription: "Subscription access has no per-token cost",
-    api: "API access is metered per token",
-} as const
 
 /** One selectable model, in one harness, through one connection. */
 export interface PickerModelRow {
@@ -76,8 +81,6 @@ export interface PickerModelRow {
     provider: string | null
     connectionKey: string
     connectionName: string
-    /** Set only when this model is reachable through more than one connection or harness. */
-    costHint: string | null
 }
 
 /** One first-level row: a stored connection, or a subscription. */
@@ -111,6 +114,20 @@ export interface BuildPickerRowsArgs {
      * cloud. Defaults to true (an unknown deployment is treated as self-hosted, as elsewhere).
      */
     showSubscriptions?: boolean
+    /**
+     * The subscription × harness pairs the RUNNER reports as usable right now
+     * (`subscriptionPairsFrom`). The authoritative source: it is the only thing that can attribute
+     * a mounted login to a provider for a general harness like Pi, which reads whichever login is
+     * there. Absent or empty (loading, an old runner, an unreachable service) falls back to the
+     * static `SUBSCRIPTION_HARNESSES` mapping, so the menu never empties out mid-check.
+     */
+    subscriptionPairs?: SubscriptionPair[] | null
+    /**
+     * Which of a pair's models the user chose to see, keyed by pair (`${provider}:${harness}`).
+     * The drawer stores this FOR this menu; `undefined` for a pair means untouched, and the plan's
+     * recommended set applies.
+     */
+    pairModelSelection?: Record<string, string[] | undefined> | null
 }
 
 /**
@@ -183,8 +200,29 @@ const harnessSpellings = (
     return index
 }
 
+/**
+ * How a harness would spell a saved model id the catalog has never heard of.
+ *
+ * The catalog supplies the spelling for every id it knows; this covers only the ones a user typed
+ * in themselves — an OpenRouter variant suffix (`…:nitro`), a fine-tune, a model newer than the
+ * catalog. The harness's own declared convention decides, not what the user happened to type: a
+ * `provider/id` harness (Pi) will not route an unprefixed id, an `alias` harness (Claude) will not
+ * route a prefixed one. Idempotent — an id that already carries its family prefix keeps exactly one.
+ */
+const uncatalogedSpelling = (
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string,
+    family: string,
+    id: string,
+): string => {
+    const bare = bareModelId(id, family)
+    if (!family || modelSelectionMode(capabilities, harness) !== "provider/id") return bare
+    return `${family}/${bare}`
+}
+
 const modelRow = ({
     modelId,
+    label,
     harness,
     capabilities,
     mode,
@@ -193,6 +231,13 @@ const modelRow = ({
     connection,
 }: {
     modelId: string
+    /**
+     * What to CALL the model, when it differs from the id being persisted. Only the uncataloged
+     * path passes it: the id has to carry the harness's prefix to route, but the user should read
+     * back the string they typed. Label and value diverging is the norm here — a curated row shows
+     * "Sol" and persists `gpt-5.6-sol`.
+     */
+    label?: string
     harness: string
     capabilities: HarnessCapabilitiesMap | null | undefined
     mode: ConnectionMode
@@ -201,7 +246,7 @@ const modelRow = ({
     connection: {key: string; name: string}
 }): PickerModelRow => ({
     modelId,
-    label: modelLabel(capabilities, harness, modelId) ?? modelId,
+    label: modelLabel(capabilities, harness, modelId) ?? label ?? modelId,
     harness,
     harnessLabel: harnessMetaFor(harness).label,
     mode,
@@ -209,7 +254,6 @@ const modelRow = ({
     provider,
     connectionKey: connection.key,
     connectionName: connection.name,
-    costHint: null,
 })
 
 /** One row per stored connection, its models crossed with the harnesses it may drive. */
@@ -227,6 +271,9 @@ const connectionRows = ({
         const ids = connectionModelIds(connection, capabilities)
         if (!ids.length) continue
 
+        // Whether `ids` are the user's own list or Agenta's catalog defaults — the two get
+        // different treatment when the harness catalog cannot spell one of them.
+        const hasSavedModels = Boolean(connection.models)
         const slug = connectionSlugFor(connection)
         const isStandard = connection.secretKind === SecretKind.ProviderKey
         const identity = {key: connection.id, name: connection.name}
@@ -234,15 +281,26 @@ const connectionRows = ({
 
         for (const harness of harnesses) {
             if (isStandard) {
-                // A standard connection's models must exist in the harness's own catalog —
-                // that intersection is what makes the pair runnable.
+                // The catalog spells the ids it knows. An id the user SAVED but the catalog never
+                // listed is still offered, spelled the harness's own way: the catalog enumerates
+                // what a vendor advertises, not what it accepts (OpenRouter's `…:nitro` variants,
+                // fine-tunes, anything newer than the catalog), so treating it as the whole truth
+                // silently swallowed models the user had deliberately added. Catalog-derived
+                // DEFAULTS keep the intersection — the catalog is their only source anyway.
                 const spellings = harnessSpellings(capabilities, harness, connection.kind)
                 for (const id of ids) {
-                    const spelled = spellings.get(bareModelId(id, connection.kind).toLowerCase())
-                    if (!spelled) continue
+                    const catalogued = spellings.get(bareModelId(id, connection.kind).toLowerCase())
+                    if (!catalogued && !hasSavedModels) continue
+                    const spelled =
+                        catalogued ??
+                        uncatalogedSpelling(capabilities, harness, connection.kind, id)
                     models.push(
                         modelRow({
                             modelId: spelled,
+                            // An uncataloged id reads back as the user TYPED it, here and in the
+                            // completion picker alike, even though the id that routes carries the
+                            // harness's prefix. A catalogued one keeps the catalog's own naming.
+                            label: catalogued ? undefined : id,
                             harness,
                             capabilities,
                             mode: "agenta",
@@ -257,6 +315,8 @@ const connectionRows = ({
 
             // A credential-set connection's models come from the connection itself; the harness
             // catalog has never heard of them, so reachability is the deployment check above.
+            // The row's own harness resolves the family a deployment kind cannot name (bedrock
+            // hosts many vendors) — see `vaultPickedProviderFamily`.
             for (const id of ids) {
                 models.push(
                     modelRow({
@@ -265,7 +325,12 @@ const connectionRows = ({
                         capabilities,
                         mode: "agenta",
                         slug,
-                        provider: vaultPickedProviderFamily(id, connection.kind, capabilities),
+                        provider: vaultPickedProviderFamily(
+                            id,
+                            connection.kind,
+                            capabilities,
+                            harness,
+                        ),
                         connection: identity,
                     }),
                 )
@@ -285,6 +350,65 @@ const connectionRows = ({
     return rows
 }
 
+/**
+ * One row per subscription PLAN the runner reports as usable, its harness pairs inside.
+ *
+ * The runner is the only source that can say a ChatGPT login is readable by Pi as well as by
+ * Codex — Pi reads whichever login is mounted, so no static map can attribute it. Pairs arrive
+ * pre-filtered to `ready`, so every pair here contributes models.
+ */
+const subscriptionRowsFromPairs = ({
+    capabilities,
+    pairs,
+    pairModelSelection,
+}: {
+    capabilities: HarnessCapabilitiesMap | null | undefined
+    pairs: SubscriptionPair[]
+    pairModelSelection?: Record<string, string[] | undefined> | null
+}): PickerConnectionRow[] => {
+    const rows: PickerConnectionRow[] = []
+    const byPlan = new Map<string, PickerConnectionRow>()
+
+    for (const pair of pairs) {
+        const {models: offered, defaults} = subscriptionPairModels(capabilities, pair)
+        // The user's own list wins, then the plan's recommended set, then everything the pair runs.
+        // An explicitly EMPTY saved list is a choice ("show me none of these"), not a missing one.
+        const chosen = pairModelSelection?.[pair.key]
+        const ids = chosen ?? (defaults.length ? defaults : offered)
+        if (!ids.length) continue
+
+        let row = byPlan.get(pair.provider)
+        if (!row) {
+            row = {
+                key: `subscription:${pair.provider}`,
+                name: pair.name,
+                iconKey: pair.provider,
+                kind: "subscription",
+                models: [],
+            }
+            byPlan.set(pair.provider, row)
+            rows.push(row)
+        }
+
+        const identity = {key: row.key, name: row.name}
+        for (const id of ids) {
+            row.models.push(
+                modelRow({
+                    modelId: id,
+                    harness: pair.harness,
+                    capabilities,
+                    mode: "self_managed",
+                    slug: null,
+                    provider: pair.provider,
+                    connection: identity,
+                }),
+            )
+        }
+    }
+
+    return rows.filter((row) => row.models.length)
+}
+
 /** One row per subscription the deployment could be signed in to. */
 const subscriptionRows = ({
     capabilities,
@@ -294,32 +418,47 @@ const subscriptionRows = ({
     const rows: PickerConnectionRow[] = []
     if (!showSubscriptions) return rows
 
+    // Keyed by the PLAN, not the harness: one Claude plan driven by two harnesses is one row whose
+    // flyout splits into two harness sections, never two rows offering the same subscription twice.
+    const byPlan = new Map<string, PickerConnectionRow>()
+
     for (const harness of harnessIds) {
         const meta = SUBSCRIPTION_HARNESSES[harness]
         const caps = capabilities?.[harness]
         if (!meta || !caps?.connection_modes?.includes("self_managed")) continue
 
-        const identity = {key: `subscription:${harness}`, name: meta.name}
-        const models = (caps.models?.[meta.family] ?? []).map((id) =>
-            modelRow({
-                modelId: id,
-                harness,
-                capabilities,
-                mode: "self_managed",
-                slug: null,
-                provider: meta.family,
-                connection: identity,
-            }),
-        )
-        if (!models.length) continue
+        const ids = caps.models?.[meta.family] ?? []
+        if (!ids.length) continue
 
-        rows.push({
-            key: identity.key,
-            name: meta.name,
-            iconKey: meta.family,
-            kind: "subscription",
-            models,
-        })
+        let row = byPlan.get(meta.family)
+        if (!row) {
+            row = {
+                key: `subscription:${meta.family}`,
+                name: subscriptionPlanName(meta.family),
+                iconKey: meta.family,
+                kind: "subscription",
+                models: [],
+            }
+            byPlan.set(meta.family, row)
+            rows.push(row)
+        }
+
+        const identity = {key: row.key, name: row.name}
+        for (const id of ids) {
+            row.models.push(
+                modelRow({
+                    modelId: id,
+                    harness,
+                    capabilities,
+                    mode: "self_managed",
+                    slug: null,
+                    // Always set: a self_managed pick with no family leaves the server to guess
+                    // one, and the harness/provider pair check then rejects the run.
+                    provider: meta.family,
+                    connection: identity,
+                }),
+            )
+        }
     }
 
     return rows
@@ -328,32 +467,22 @@ const subscriptionRows = ({
 /**
  * The picker's first level: every stored connection, then every subscription.
  *
- * A model reachable more than once — two keys for the same provider, or one connection under two
- * harnesses — carries a cost hint on each of its rows, because that is the only thing that
- * distinguishes otherwise identical-looking rows.
+ * The runner's live pairs decide the subscription rows when it has answered; until then (and on an
+ * old or unreachable runner) the static mapping stands in, so the menu holds its shape rather than
+ * losing rows while a check is in flight.
  */
 export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConnectionRow[] => {
-    const rows = [...connectionRows(args), ...subscriptionRows(args)]
+    const {capabilities, showSubscriptions = true, subscriptionPairs, pairModelSelection} = args
+    const live =
+        showSubscriptions && subscriptionPairs?.length
+            ? subscriptionRowsFromPairs({
+                  capabilities,
+                  pairs: subscriptionPairs,
+                  pairModelSelection,
+              })
+            : null
 
-    const reach = new Map<string, number>()
-    for (const row of rows) {
-        for (const model of row.models) {
-            const key = bareModelId(model.modelId, model.provider ?? "").toLowerCase()
-            reach.set(key, (reach.get(key) ?? 0) + 1)
-        }
-    }
-
-    return rows.map((row) => ({
-        ...row,
-        models: row.models.map((model) => {
-            const key = bareModelId(model.modelId, model.provider ?? "").toLowerCase()
-            if ((reach.get(key) ?? 0) < 2) return model
-            return {
-                ...model,
-                costHint: model.mode === "self_managed" ? COST_HINTS.subscription : COST_HINTS.api,
-            }
-        }),
-    }))
+    return [...connectionRows(args), ...(live ?? subscriptionRows(args))]
 }
 
 /** The metadata a picked option carries back, so a selection never has to be guessed by model id. */
@@ -365,35 +494,50 @@ export interface PickerOptionMetadata extends Record<string, unknown> {
 }
 
 /**
- * The picker menu, in the shape `SelectLLMProviderBase` renders: one group per connection, one
- * option per model and harness pair.
- *
- * Each option carries the harness as a neutral tag, the cost hint as its caption, and the
- * connection name as its search caption — the flat search view has no group column to say which
- * connection a result came from.
+ * A model row's identity within the picker. One model can appear under several harnesses in the
+ * same connection, so the model id alone is not unique.
  */
-export const buildPickerGroups = (rows: PickerConnectionRow[]): ProviderGroup[] =>
-    rows.map((row) => ({
-        key: row.key,
-        label: row.name,
-        iconKey: row.iconKey,
-        options: row.models.map((model) => ({
-            label: model.label,
-            value: model.modelId,
-            // One model can appear under several harnesses in the same group, so the value alone
-            // is not a unique key.
-            key: `${row.key}:${model.harness}:${model.modelId}`,
-            tag: model.harnessLabel,
-            caption: model.costHint ?? undefined,
-            searchCaption: row.name,
-            metadata: {
-                ...(model.slug ? {connectionSlug: model.slug} : {}),
-                connectionMode: model.mode,
-                harness: model.harness,
-                ...(model.provider ? {provider: model.provider} : {}),
-            } satisfies PickerOptionMetadata,
-        })),
-    }))
+export const modelRowKey = (connectionKey: string, model: PickerModelRow): string =>
+    `${connectionKey}:${model.harness}:${model.modelId}`
+
+/**
+ * The row the stored config points at: the exact model, harness and connection when one matches,
+ * else the same model on the same harness, else the same model anywhere (a config saved before
+ * slugs, or through a connection since renamed).
+ */
+export const selectedModelRowKey = (
+    rows: PickerConnectionRow[],
+    current: {
+        modelId: string | null
+        slug: string | null
+        mode: ConnectionMode
+        harness: string | null
+    },
+): string | undefined => {
+    if (!current.modelId) return undefined
+    const all = rows.flatMap((row) => row.models.map((model) => ({key: row.key, model})))
+    const sameModel = all.filter((entry) => entry.model.modelId === current.modelId)
+    const sameHarness = current.harness
+        ? sameModel.filter((entry) => entry.model.harness === current.harness)
+        : sameModel
+    const pool = sameHarness.length ? sameHarness : sameModel
+    const match =
+        pool.find(
+            (entry) =>
+                entry.model.mode === current.mode &&
+                (entry.model.slug ?? null) === (current.slug ?? null),
+        ) ?? pool[0]
+    return match ? modelRowKey(match.key, match.model) : undefined
+}
+
+/** What a picked row persists: the model AND the harness it belongs to, in one selection. */
+export const selectionFromModelRow = (model: PickerModelRow): PickerSelection => ({
+    modelId: model.modelId,
+    provider: model.provider,
+    mode: model.mode,
+    slug: model.slug,
+    harness: model.harness,
+})
 
 /**
  * What to persist for a picked option: the model, its provider family, the connection mode and

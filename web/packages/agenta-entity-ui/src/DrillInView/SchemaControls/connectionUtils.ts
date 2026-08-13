@@ -20,6 +20,7 @@
  * list) and provider-model-auth/design.md (Concern 1: ModelRef; Concern 3b: per-harness gating).
  */
 
+import {bareModelId} from "@agenta/entities/secret"
 import type {
     HarnessCapabilities,
     HarnessCapabilitiesMap,
@@ -327,6 +328,12 @@ export function buildModelOptionGroups(
  * The catalog's display label for a picked model id (`label`, then `name`). Null when the catalog
  * has neither, so a caller can try the schema's own title before falling back to the raw id; the
  * picker has no schema to consult, which is why it ends at `id` instead.
+ *
+ * Matched on the BARE spelling, not the literal id: harnesses prefix the family differently (Pi
+ * publishes `openai/gpt-5.6-luna`) while the config stores the bare id, so an exact compare missed
+ * and the pill fell back to the raw id — "Pi · gpt-5.6-luna" where the catalog says "Luna". Each
+ * entry normalizes against ITS OWN provider, which is the same rule `curatedModelName` applies on
+ * the completion side.
  */
 export function modelLabel(
     capabilities: HarnessCapabilitiesMap | null | undefined,
@@ -334,7 +341,21 @@ export function modelLabel(
     modelId: string | null | undefined,
 ): string | null {
     if (!modelId) return null
-    const hit = capsFor(capabilities, harness)?.model_catalog?.find((e) => e.id === modelId)
+    const catalog = capsFor(capabilities, harness)?.model_catalog
+    if (!catalog) return null
+
+    const matches = (entry: ModelCatalogEntry): boolean => {
+        if (entry.id === modelId) return true
+        if (!entry.id || !entry.provider) return false
+        return (
+            bareModelId(entry.id, entry.provider).toLowerCase() ===
+            bareModelId(modelId, entry.provider).toLowerCase()
+        )
+    }
+
+    // An exact hit wins over a normalized one, so a catalog that lists both spellings is not
+    // decided by array order.
+    const hit = catalog.find((entry) => entry.id === modelId) ?? catalog.find(matches)
     return hit?.label ?? hit?.name ?? null
 }
 
@@ -469,26 +490,50 @@ export function familyFromModelId(
 }
 
 /**
+ * The one provider family a harness reaches, or null when it reaches none or several.
+ *
+ * A deployment surface (bedrock/azure/vertex_ai) hosts many vendors, so its connection kind names
+ * no family — but a harness that reaches exactly ONE family leaves nothing to guess: a Claude-Code
+ * model on a Bedrock connection is `anthropic`, because that is the only family Claude Code reaches
+ * at all. This mirrors the server's own pair rule (`harness_allows_pair`), which accepts
+ * claude+anthropic+bedrock and rejects every other family on that harness.
+ */
+export function soleHarnessProviderFamily(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+): string | null {
+    const providers = capsFor(capabilities, harness)?.providers ?? []
+    return providers.length === 1 ? providers[0] : null
+}
+
+/**
  * The provider FAMILY to persist for a vault-hosted model pick (a picker option carrying a
- * `connectionSlug`, per `vaultModelGroups`). Prefers the family the model id itself encodes
- * (`familyFromModelId` — deployment-hosted ids like "eu.anthropic.claude-haiku-4-5" carry it
- * structurally); when the id encodes none (e.g. a plain custom connection's own model,
- * "gpt-4o-mini"), falls back to the option's `metadata.provider` — but ONLY when that IS already
- * a plain family, never a deployment kind (bedrock/azure/... is a hosting mechanism, not itself a
- * valid `llm.provider`). Returns null only when neither source resolves a family; the caller
- * (`useModelHarness.writeModel`) falls back further to the prior provider so a vault pick never
- * silently drops the field.
+ * `connectionSlug`, per `vaultModelGroups`). Resolution order:
+ *
+ * 1. the family the model id itself encodes (`familyFromModelId` — deployment-hosted ids like
+ *    "eu.anthropic.claude-haiku-4-5" carry it structurally);
+ * 2. the connection's own kind, but ONLY when that IS already a plain family — a deployment kind
+ *    (bedrock/azure/...) is a hosting mechanism and never a valid `llm.provider`;
+ * 3. the sole family the driving harness reaches (`soleHarnessProviderFamily`), which is what
+ *    resolves a deployment-hosted id that names only the model ("claude-3-sonnet-...-v1:0" on a
+ *    Bedrock connection under Claude Code);
+ * 4. `openai` for the OpenAI-compatible (`custom`) deployment.
+ *
+ * Null when none of them resolves a family. The caller must then write NO provider: inheriting the
+ * previously selected model's family would persist a connection whose provider contradicts it, and
+ * the server validates the pair (`harness_allows_pair`) and fails the run.
  */
 export function vaultPickedProviderFamily(
     modelId: string | null | undefined,
     metadataProvider: string | null | undefined,
     capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness?: string | null,
 ): string | null {
     const family = familyFromModelId(modelId, capabilities)
     if (family) return family
     if (metadataProvider && !isDeploymentProviderKind(metadataProvider)) return metadataProvider
-    // The OpenAI-compatible (`custom`) deployment defaults to openai rather than deferring to the
-    // caller's prior (likely unrelated) provider fallback.
+    const sole = soleHarnessProviderFamily(capabilities, harness)
+    if (sole) return sole
     if (metadataProvider?.toLowerCase() === OPENAI_COMPATIBLE_KIND)
         return OPENAI_COMPATIBLE_DEFAULT_FAMILY
     return null

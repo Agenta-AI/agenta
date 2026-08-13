@@ -11,6 +11,22 @@ export interface ProviderOption {
     caption?: string
     /** Muted second line in the flat/search list, where no group column names the source. */
     searchCaption?: string
+    /** Quiet trailing note after the label — the catalog's "(default)" / "(cheapest)". */
+    hint?: string
+}
+
+/**
+ * A run of options under their own label inside a group's flyout — the agent picker's harnesses.
+ *
+ * One section renders as a `via <logo> <name>` header over plain rows; several render as labelled
+ * runs. A group with no sections is a flat list, which is what the completion picker offers.
+ */
+export interface ProviderSection {
+    key: string
+    label: string
+    /** Harness the section's logo is looked up by (`getHarnessIcon`). */
+    iconKey?: string
+    options: ProviderOption[]
 }
 
 export interface ProviderGroup {
@@ -23,6 +39,17 @@ export interface ProviderGroup {
     key?: string
     /** Provider family the group's logo is looked up by, when the label is not one. */
     iconKey?: string
+    /** Muted second line under the group name (e.g. "Connected" on a stored connection). */
+    caption?: string
+    /** Neutral tag after the group name (the agent picker marks a subscription here). */
+    tag?: string
+    /** The tag's colour. Defaults to the neutral fill; a subscription takes the olive one. */
+    tagTone?: "neutral" | "olive"
+    /**
+     * The group's flyout, split into labelled runs. Absent leaves `options` a flat list; when
+     * present the sections ARE the flyout and `options` only backs search and selection.
+     */
+    sections?: ProviderSection[]
 }
 
 /** antd's size vocabulary, kept verbatim so call sites keep passing `size="small"`. */
@@ -63,6 +90,15 @@ export interface SelectLLMProviderBaseProps extends SelectProps {
     showGroup?: boolean
     /** Whether to show search input in dropdown */
     showSearch?: boolean
+    /** Search field placeholder. The model pickers say "Search models". */
+    searchPlaceholder?: string
+    /** Width of the left connection column. Defaults to half the panel. */
+    connectionColumnWidth?: number | string
+    /**
+     * Tooltip shown on every section label, which is where the agent picker explains what a
+     * harness is. Its presence is also what gives the labels their help affordance.
+     */
+    sectionTooltip?: ReactNode
     /** Total dropdown width for the grouped provider picker */
     providerDropdownWidth?: number | string
     /** Width allocated to the models panel after hovering a provider */
@@ -105,4 +141,12 @@ export interface SelectLLMProviderBaseProps extends SelectProps {
     panelHeader?: ReactNode
     /** Full-width bar below the panel body, under its own divider. */
     panelFooter?: ReactNode
+    /**
+     * The `key` of the selected option, when the caller can tell which one it is.
+     *
+     * `value` alone selects by model id, and one id can be offered by several groups (two keys for
+     * the same provider), which lights them all up at once. A caller that knows which connection
+     * the value was stored against resolves the option itself and names it here.
+     */
+    selectedKey?: string | null
 }

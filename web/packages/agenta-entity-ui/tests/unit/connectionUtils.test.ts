@@ -21,6 +21,7 @@ import {
     harnessSupportsUserMcp,
     isDeploymentProviderKind,
     modelIdFromConfig,
+    modelLabel,
     modelSelectionMode,
     providerForModel,
     vaultModelGroups,
@@ -432,6 +433,29 @@ describe("connectionUtils: model_catalog is preferred when published", () => {
         })
     })
 
+    describe("modelLabel", () => {
+        it("names a BARE stored id from a family-prefixed catalog entry", () => {
+            // The pill's bug: Pi publishes `anthropic/claude-fable-5`, the config stores the bare
+            // id, and an exact compare missed — so the pill read the raw id instead of "Fable".
+            expect(modelLabel(WITH_CATALOG, "pi_core", "claude-fable-5")).toBe("Fable")
+        })
+
+        it("still names the id spelled exactly as the catalog lists it", () => {
+            expect(modelLabel(WITH_CATALOG, "pi_core", "anthropic/claude-fable-5")).toBe("Fable")
+        })
+
+        it("falls back to `name` when the entry curates no label", () => {
+            expect(modelLabel(WITH_CATALOG, "pi_core", "gpt-5.5")).toBe("GPT-5.5")
+            expect(modelLabel(WITH_CATALOG, "pi_core", "openai/gpt-5.5")).toBe("GPT-5.5")
+        })
+
+        it("names nothing for a model the catalog does not carry", () => {
+            // The uncataloged case the picker labels with the user's own saved spelling.
+            expect(modelLabel(WITH_CATALOG, "pi_core", "deepseek/deepseek-v4:nitro")).toBeNull()
+            expect(modelLabel(WITH_CATALOG, "pi_core", null)).toBeNull()
+        })
+    })
+
     it("fills the metadata seam: pricing as {input, output} plus description/name/ratings", () => {
         const groups = buildModelOptionGroups(WITH_CATALOG, "pi_core")
         const fable = groups
@@ -690,9 +714,27 @@ describe("connectionUtils: vaultPickedProviderFamily (F1 — vault pick must per
 
     it("never falls back to a deployment kind as the provider (not itself a model family)", () => {
         // No vendor-prefixed id AND the connection's own kind is a deployment surface: there is no
-        // safe family to derive, so the caller (useModelHarness.writeModel) falls back further to
-        // the prior provider rather than persisting an invalid one.
+        // safe family to derive from these two alone, so the caller must write NO provider rather
+        // than an invalid one (a deployment kind fails the server's harness/provider check).
         expect(vaultPickedProviderFamily("my-model-1", "bedrock", CAPABILITIES)).toBeNull()
+    })
+
+    it("resolves a deployment kind's family from the driving harness when it reaches only one", () => {
+        // The live bug: a Bedrock connection under Claude Code, whose model id names only the model
+        // ("claude-3-sonnet-20240229-v1:0"). Bedrock hosts many vendors, but Claude Code reaches
+        // exactly one family, so the answer is not a guess — and it is the pair the server accepts.
+        expect(
+            vaultPickedProviderFamily(
+                "claude-3-sonnet-20240229-v1:0",
+                "bedrock",
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toBe("anthropic")
+        // A harness reaching several families leaves it undecidable — still null, never a guess.
+        expect(
+            vaultPickedProviderFamily("some-opaque-id", "bedrock", CAPABILITIES, "pi_core"),
+        ).toBeNull()
     })
 
     it("returns null when neither the id nor the metadata provider resolve a family", () => {
