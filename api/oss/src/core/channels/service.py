@@ -383,6 +383,27 @@ class ChannelsService:
             document=document,
         )
 
+    async def get_channel_setup(
+        self,
+        *,
+        channel: str,
+        request_url: str,
+    ) -> ChannelSetup:
+        """The setup declaration reachable before any connection exists --
+        the manifest an operator needs to go build the app in the first
+        place. Same shape as `get_connection_setup`, minus the connection
+        fetch: nothing here depends on a row being in the database."""
+
+        adapter = self.adapter_registry.get(channel)
+        capabilities = await adapter.fetch_capabilities(connection=None)
+        document = await adapter.build_setup_document(request_url=request_url)
+
+        return ChannelSetup(
+            instructions=capabilities.setup.instructions,
+            fields=capabilities.setup.fields,
+            document=document,
+        )
+
     # --- connections: credentials ------------------------------------------ #
 
     def _channel_secret_kind(self, channel: str) -> ChannelSecretKind:

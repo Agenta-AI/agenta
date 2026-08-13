@@ -33,6 +33,7 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelOutboxEventsResponse,
     ChannelPolicyResolveRequest,
     ChannelPolicyResponse,
+    ChannelSetupResponse,
     ChannelSpaceCandidatesResponse,
     ChannelSpaceCreateRequest,
     ChannelSpaceDiscoverRequest,
@@ -124,6 +125,14 @@ class ChannelsRouter:
             methods=["GET"],
             operation_id="fetch_channel_capabilities",
             response_model=ChannelCapabilitiesResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/channels/{channel}/setup/",
+            self.fetch_channel_setup,
+            methods=["GET"],
+            operation_id="fetch_channel_setup",
+            response_model=ChannelSetupResponse,
             response_model_exclude_none=True,
         )
 
@@ -430,6 +439,30 @@ class ChannelsRouter:
             count=1 if capabilities else 0,
             capabilities=capabilities,
         )
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def fetch_channel_setup(
+        self,
+        request: Request,
+        *,
+        channel: str,
+    ) -> ChannelSetupResponse:
+        """Reachable before any connection exists -- the manifest an
+        operator needs to go build the platform app in the first place.
+        `fetch_channel_connection_setup` stays the route for a connection
+        that already exists; this is the one that precedes it."""
+
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        request_url = f"{str(request.base_url).rstrip('/')}/channels/{channel}/events/"
+
+        setup = await self.channels_service.get_channel_setup(
+            channel=channel,
+            request_url=request_url,
+        )
+
+        return ChannelSetupResponse(count=1, setup=setup)
 
     # -----------------------------------------------------------------------
     # Connections

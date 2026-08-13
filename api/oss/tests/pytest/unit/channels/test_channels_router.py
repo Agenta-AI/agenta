@@ -131,6 +131,10 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
             True,
         ),
         (
+            lambda r, req: r.fetch_channel_setup(req, channel="slack"),
+            False,
+        ),
+        (
             lambda r, req: r.query_channel_connections(
                 req, body=ChannelConnectionQueryRequest()
             ),
@@ -336,6 +340,7 @@ async def test_permission_matrix_covers_every_registered_route():
     exercised = {
         "list_channels",
         "fetch_channel_capabilities",
+        "fetch_channel_setup",
         "create_channel_connection",
         "query_channel_connections",
         "edit_channel_connection",
@@ -431,6 +436,46 @@ async def test_set_channel_grant_default_delegates_to_service_one_call():
 
 
 # ---------------------------------------------------------------------------
+# Channel-level setup: reachable with no connection in existence.
+# ---------------------------------------------------------------------------
+
+
+async def test_fetch_channel_setup_delegates_and_builds_the_request_url():
+    from oss.src.core.channels.dtos import ChannelSetup
+
+    service = AsyncMock()
+    service.get_channel_setup.return_value = ChannelSetup()
+    router = _router(service)
+    request = _make_request(uuid4(), uuid4(), method="GET")
+
+    with _patched_access(True):
+        response = await router.fetch_channel_setup(request, channel="slack")
+
+    assert response.count == 1
+    service.get_channel_setup.assert_awaited_once()
+    call_kwargs = service.get_channel_setup.await_args.kwargs
+    assert call_kwargs["channel"] == "slack"
+    assert call_kwargs["request_url"].endswith("/channels/slack/events/")
+    # never touches fetch_connection: this route has no connection to fetch
+    service.fetch_connection.assert_not_awaited()
+
+
+async def test_fetch_channel_setup_404s_on_an_unregistered_channel():
+    from oss.src.core.channels.types import ChannelNotSupported
+
+    service = AsyncMock()
+    service.get_channel_setup.side_effect = ChannelNotSupported(channel="nope")
+    router = _router(service)
+    request = _make_request(uuid4(), uuid4(), method="GET")
+
+    with _patched_access(True):
+        with pytest.raises(HTTPException) as exc_info:
+            await router.fetch_channel_setup(request, channel="nope")
+
+    assert exc_info.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # GET and POST-query are not divergent code paths.
 # ---------------------------------------------------------------------------
 
@@ -506,6 +551,7 @@ def test_trailing_slash_audit():
     # only the bare item routes (.../{id}) are slashless.
     trailing_slash_action_paths = {
         "/catalog/channels/{channel}/capabilities/",
+        "/catalog/channels/{channel}/setup/",
     }
     item_or_action_paths = {
         "/connections/query",

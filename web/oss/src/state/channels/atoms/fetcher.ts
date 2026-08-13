@@ -6,6 +6,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {
+    fetchChannelSetup,
     listChannelAgents,
     listChannelGrants,
     listChannelSpaces,
@@ -27,6 +28,27 @@ export const channelsCatalogQueryAtom = atomWithQuery<AgentaApi.ChannelsCatalogR
     staleTime: 60_000,
     refetchOnWindowFocus: false,
 }))
+
+// the manifest + paste-form declaration for one channel, reachable with no connection in existence
+export const channelSetupQueryAtomFamily = atomFamily((channel: string) =>
+    atomWithQuery<AgentaApi.ChannelSetupResponse>((get) => ({
+        queryKey: ["channels", "setup", channel, get(projectIdAtom)],
+        queryFn: () => fetchChannelSetup(channel),
+        enabled: !!get(projectIdAtom) && !!channel,
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
+    })),
+)
+
+export const useChannelSetupQuery = (channel: string) => {
+    const query = useAtomValue(channelSetupQueryAtomFamily(channel))
+    return {
+        setup: query.data?.setup ?? null,
+        isLoading: query.isPending,
+        error: query.error,
+        refetch: query.refetch,
+    }
+}
 
 // --- connections (own row shape, validated at the boundary — schemas.ts) - //
 

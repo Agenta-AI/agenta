@@ -19,6 +19,10 @@ export const listChannels = () => getChannelsClient().listChannels(scope())
 export const fetchChannelCapabilities = (channel: string) =>
     getChannelsClient().fetchChannelCapabilities({channel}, scope())
 
+// Reachable before any connection exists -- the step that precedes `fetchChannelConnectionSetup`.
+export const fetchChannelSetup = (channel: string) =>
+    getChannelsClient().fetchChannelSetup({channel}, scope())
+
 // --- connections (own row shape — see schemas.ts for why this validates) - //
 
 export const queryChannelConnections = async (
@@ -33,6 +37,9 @@ export const queryChannelConnections = async (
         ) ?? {count: 0, connections: []}
     )
 }
+
+export const createChannelConnection = (connection: AgentaApi.ChannelConnectionCreate) =>
+    getChannelsClient().createChannelConnection({connection}, scope())
 
 // --- agents -------------------------------------------------------------- //
 
