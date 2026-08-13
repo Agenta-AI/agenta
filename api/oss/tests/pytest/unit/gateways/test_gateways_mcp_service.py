@@ -408,6 +408,39 @@ async def test_connection_state_custom_with_no_grant_needs_auth():
     assert state == GatewayConnectionState.NEEDS_AUTH
 
 
+# --- grants: declared, not implemented (WP17/WP18) ------------------------------------ #
+
+
+@pytest.mark.asyncio
+async def test_connect_endpoint_raises_not_implemented():
+    service = _service()
+    with pytest.raises(NotImplementedError):
+        await service.connect_endpoint(
+            project_id=uuid4(), user_id=uuid4(), endpoint_id=uuid4(), scopes=[]
+        )
+
+
+@pytest.mark.asyncio
+async def test_complete_connect_raises_not_implemented():
+    service = _service()
+    with pytest.raises(NotImplementedError):
+        await service.complete_connect(state="x", payload={})
+
+
+@pytest.mark.asyncio
+async def test_revoke_grant_raises_not_implemented():
+    service = _service()
+    with pytest.raises(NotImplementedError):
+        await service.revoke_grant(project_id=uuid4(), grant_id=uuid4())
+
+
+@pytest.mark.asyncio
+async def test_query_grants_raises_not_implemented():
+    service = _service()
+    with pytest.raises(NotImplementedError):
+        await service.query_grants(project_id=uuid4())
+
+
 @pytest.mark.asyncio
 async def test_connection_state_builtin_with_valid_connection_is_ready():
     connection = _connection(is_active=True, is_valid=True)

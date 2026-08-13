@@ -5,7 +5,7 @@ of `relay` that would reach a brokered `builtin` target — D23: no such target 
 reachable yet, and `ComposioMcpAdapter` has no owning package in this wave.
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.gateway.connections.dtos import Connection
@@ -21,6 +21,8 @@ from oss.src.core.gateways.mcps.dtos import (
     McpEndpointData,
     McpEndpointEdit,
     McpEndpointQuery,
+    McpGrant,
+    McpGrantQuery,
 )
 from oss.src.core.gateways.mcps.interfaces import (
     McpEndpointsDAOInterface,
@@ -234,6 +236,47 @@ class McpGatewayService:
         # NEEDS_INPUT is reserved for the api_key scheme, deferred with its kind (D14);
         # unreachable today because no custom endpoint can carry auth_mode=API_KEY yet.
         return GatewayConnectionState.NEEDS_AUTH
+
+    # --- grants (WP17, WP18 wire these; declared now) ------------------------- #
+
+    async def connect_endpoint(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        scopes: List[str],
+    ) -> str:
+        raise NotImplementedError
+
+    async def complete_connect(
+        self,
+        *,
+        state: str,
+        payload: Dict[str, Any],
+    ) -> McpGrant:
+        raise NotImplementedError
+
+    async def revoke_grant(
+        self,
+        *,
+        project_id: UUID,
+        #
+        grant_id: UUID,
+    ) -> bool:
+        raise NotImplementedError
+
+    async def query_grants(
+        self,
+        *,
+        project_id: UUID,
+        #
+        grant: Optional[McpGrantQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[McpGrant]:
+        raise NotImplementedError
 
 
 def _builtin_placeholder_url(*, provider: str, integration: str, slug: str) -> str:
