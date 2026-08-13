@@ -77,7 +77,10 @@ export {
     builderToCron,
     cronToBuilder,
     defaultBuilderState,
-    describeBuilder,
+    describeCadence,
+    formatNextRun,
+    suggestScheduleName,
+    summarizeSchedule,
     timesFormCleanGrid,
     DEFAULT_TIME,
 } from "./core/scheduleBuilder"
@@ -87,6 +90,7 @@ export {
     getScheduleMessagePreview,
     messageContentText,
     parseInputsFields,
+    remapMessageShape,
     setScheduleMessage,
 } from "./core/messageInputs"
 export {
