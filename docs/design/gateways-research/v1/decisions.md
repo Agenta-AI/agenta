@@ -588,6 +588,28 @@ webhook module and there are now four near-copies of it across the API, the SDK 
 gateway imports the API one exactly as EE's organization service already does — a cross-domain
 import with precedent — and `cleanups.md` carries the consolidation.
 
+## D29. No entitlement gate on the gateways; entitlements ship with metering
+
+Every user has both gateways. There is no plan that grants one and withholds the other, so a
+soft entitlement check in wave 1 would ask a question with only one answer.
+
+**What entitlements will really express here is a limit** — calls, tokens, spend — not access.
+And a limit cannot be enforced before anything is measured: the check needs a counter, the
+counter needs a grain, and the grain is the thing `scope-checklist.md` already defers to the
+billing wave because only knowing what will be billed answers it. So the entitlement check moves
+to sit beside usage recording and charging, which already ship together for the same reason.
+
+This closes R5, which asked which entitlement key to gate on. The honest answer is none: no flag
+or counter in the entitlements catalogue fits, the nearest candidate is the legacy credits counter
+D24 forbids reusing, and inventing a key to satisfy a call that always permits would leave a
+placeholder for someone to mistake for enforcement.
+
+**What stays.** `EntitlementDeniedError` remains declared in the seed and mapped to 403 at the
+boundary, on the same reasoning as `McpScopeInsufficientError` (§5): the type costs nothing, and
+having it now means the wave that adds limits changes a body rather than a signature. The
+permission check is untouched and remains wave 1 — permissions and entitlements answer different
+questions, and conflating them is a known trap.
+
 ---
 
 ## Still open

@@ -9,14 +9,8 @@ Depends on nothing else — WP3 can start immediately alongside WP1 and WP2.
 - [ ] Read `core/access/permissions/service.py::check_action_access` and
       `check_project_has_role_or_permission` in full — confirm the parameter types
       (`user_uid: str`, `project_id: Optional[str]`) and the existing `Flag.RBAC`
-      plan-gate behavior folded inside it, so the entitlement soft check this package
-      adds is not confused with that existing gate.
-- [ ] Read `core/events/utils.py`'s L1 soft-check call site (search for
-      `check_entitlements` in that file) — this is the literal pattern `entities.md` §8
-      says to follow for the entitlement half of `authorize()`.
-- [ ] Read `ee/src/core/access/entitlements/types.py`'s `Flag`/`Counter` enums — confirm
-      no existing member fits "gateway call" before writing the placeholder constant (do
-      not skip this check; a member may have been added since this spec was written).
+      plan-gate behavior folded inside it. That gate lives inside the permission call and
+      is not an entitlement check this package adds — WP3 adds none at all (D29).
 
 ## `core/access/permissions/types.py` — Permission enum
 
@@ -47,34 +41,24 @@ Depends on nothing else — WP3 can start immediately alongside WP1 and WP2.
 - [ ] Implement `authorize(self, *, scope: AuthScope, permission: Permission, target:
       GatewayTarget) -> PolicyDecision`: call `check_action_access(user_uid=str(scope.user_id),
       project_id=str(scope.project_id), permission=permission)`. `False` → return
-      `PolicyDecision(allowed=False, permission=permission, reason="permission_denied")`
-      **without** calling the entitlement check.
-- [ ] On permission-allowed, call `self._check_entitlement(scope=scope, target=target)`.
-      `False` → return `PolicyDecision(allowed=False, permission=permission,
-      reason="entitlement_denied")`.
-- [ ] Both checks pass → return `PolicyDecision(allowed=True, permission=permission,
-      reason=None)`.
+      `PolicyDecision(allowed=False, permission=permission, reason="permission_denied")`.
+- [ ] `True` → return `PolicyDecision(allowed=True, permission=permission, reason=None)`.
+      One check, not two (D29).
 - [ ] Confirm no `try/except` around the `check_action_access` call swallows an exception
       into `allowed=True` — permission is fail-closed; let an unexpected exception from
       `check_action_access` propagate (or explicitly convert to `allowed=False` — pick
       one, document the choice in a one-line comment, and make the unit test assert the
       chosen behavior).
 
-## `_check_entitlement()` — the placeholder
+## No `_check_entitlement()` — removed by ruling (D29)
 
-- [ ] Implement `_check_entitlement(self, *, scope: AuthScope, target: GatewayTarget) ->
-      bool`: `if not is_ee(): return True`. Otherwise, deferred `is_ee()`-guarded import
-      of `check_entitlements` from `ee.src.core.access.entitlements.service`, call with
-      `cache=True` and a clearly-named placeholder key constant (e.g.
-      `_GATEWAY_ENTITLEMENT_KEY`, module-level, with a comment pointing at this package's
-      "Missing from the design, needs a ruling" section) and `scope=scope_from(
-      organization_id=scope.organization_id)`.
-- [ ] Add a module-level comment above the placeholder constant stating plainly that it
-      is not a real entitlement key and must be replaced once a ruling lands — do not let
-      this read as a finished decision to a future reader skimming the file.
-- [ ] Do not wrap this call in extra exception handling — `check_entitlements` already
-      fails open on infrastructure errors by its own contract; adding a second layer
-      changes nothing but hides what the real behavior is.
+- [ ] Write **no** entitlement method and **no** placeholder key. Every user has both
+      gateways, so the check would ask a question with one answer; what entitlements will
+      express here are limits, which cannot be enforced before anything is measured. It
+      ships with usage metering and billing (D29, closing R5).
+- [ ] `EntitlementDeniedError` and `reason="entitlement_denied"` stay declared in the seed
+      and mapped at the boundary — nothing in wave 1 raises either. Do not delete them, and
+      do not add a call that always permits: a later reader mistakes it for enforcement.
 
 ## `record()` — the wave-1 stub
 
@@ -96,20 +80,15 @@ Depends on nothing else — WP3 can start immediately alongside WP1 and WP2.
 ## tests — unit (run now)
 
 - [ ] `api/oss/tests/pytest/unit/gateways/test_gateways_policy_service.py`: mock
-      `check_action_access` and `_check_entitlement` (or the underlying
-      `check_entitlements` import) at the module boundary.
-- [ ] `check_action_access` → `True`, entitlement → `True`: `authorize()` returns
+      `check_action_access` at the module boundary. Nothing else to mock — `authorize()`
+      has one dependency.
+- [ ] `check_action_access` → `True`: `authorize()` returns
       `allowed=True, reason=None`.
 - [ ] `check_action_access` → `False`: `authorize()` returns `allowed=False,
-      reason="permission_denied"`; assert the entitlement mock was **never called**.
-- [ ] `check_action_access` → `True`, entitlement → `False`: `authorize()` returns
-      `allowed=False, reason="entitlement_denied"`.
+      reason="permission_denied"`.
 - [ ] `check_action_access` raises: assert the documented behavior (no exception escapes
       `authorize()` — confirm which of "propagates" vs "caught and treated as denied" was
       chosen in the implementation task above, and pin it here).
-- [ ] `is_ee()` patched to `False`: `_check_entitlement` returns `True` without importing
-      anything from `ee.*` (assert via `sys.modules` or a patch that raises if the EE
-      import is attempted).
 - [ ] `record()` called with representative arguments returns `None`, raises nothing, and
       (via a patch on `publish_event` or equivalent) is confirmed to call **no** publish
       path.

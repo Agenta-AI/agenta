@@ -2189,13 +2189,12 @@ class GatewayPolicyService:
 
     async def authorize(self, *, scope, permission, target) -> PolicyDecision: ...
     # scope: AuthScope; target: GatewayTarget. Permission via check_action_access
-    # (core/access/permissions/service.py), then the entitlement soft check
-    # (EE-guarded deferred import, the pattern core/events/utils.py already
-    # uses). Permission is fail-CLOSED; the entitlement soft check follows the
-    # existing two-layer pattern, with the authoritative check on the events
-    # worker's side. Raises nothing — returns the decision; the caller raises
-    # PolicyDeniedError / EntitlementDeniedError so the audit event can record
-    # the denial before the exception leaves the service.
+    # (core/access/permissions/service.py), fail-CLOSED. NO entitlement check:
+    # every user has both gateways, and what entitlements will express here are
+    # limits, which ship with metering (D29). EntitlementDeniedError stays
+    # declared and mapped so that wave changes a body, not a signature. Raises
+    # nothing — returns the decision; the caller raises PolicyDeniedError so the
+    # audit event can record the denial before the exception leaves the service.
 
     # --- audit + usage (WP4, D22, §2.7) ------------------------------------- #
 

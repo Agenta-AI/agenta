@@ -64,10 +64,14 @@ be broken by an audit sink that does not exist yet.
 
 ### Can be settled during wave 1
 
-**R5. The gateway's entitlement key does not exist.** No flag or counter in the entitlements types
-fits, and the nearest candidate is the legacy credits counter that D24 says must not be reused.
-`architecture.md` already marks the exact call open. The call *shape* is specified; the key is a
-placeholder.
+**R5. The gateway's entitlement key does not exist. → It should not. Settled as D29: no entitlement
+gate in wave 1.** Every user has both gateways, so the check would ask a question with one answer.
+What entitlements will express here are *limits*, and a limit cannot be enforced before anything is
+measured — so it ships with usage metering and billing, which `scope-checklist.md` already defers
+together for the same reason. WP3 writes the permission check only; no placeholder key, because a
+placeholder that always permits is something a later reader mistakes for enforcement.
+`EntitlementDeniedError` stays declared and mapped, so the wave that adds limits changes a body
+rather than a signature.
 
 **R6. `PolicyDecision.reason` has no fixed vocabulary** beyond "stable and terse". Three packages
 would otherwise each invent their own strings, and the audit attributes and the boundary's error

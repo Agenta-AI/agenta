@@ -1,7 +1,7 @@
 # WP3 — Policy core
 
-Delivers `GatewayPolicyService.authorize()` — the permission check plus the entitlement
-soft check on a `GatewayTarget`, returning a `PolicyDecision` rather than raising — and
+Delivers `GatewayPolicyService.authorize()` — the permission check on a `GatewayTarget`,
+returning a `PolicyDecision` rather than raising (there is no entitlement check: D29) — and
 the six new `Permission` members (`VIEW_LLM_ENDPOINTS`, `EDIT_LLM_ENDPOINTS`,
 `USE_LLM_ENDPOINTS`, `VIEW_MCP_ENDPOINTS`, `EDIT_MCP_ENDPOINTS`, `USE_MCP_ENDPOINTS`)
 plus their role wiring. Owns `core/gateways/policy/service.py` and one edit to
@@ -73,13 +73,10 @@ class GatewayPolicyService:
 
     async def authorize(self, *, scope, permission, target) -> PolicyDecision: ...
     # scope: AuthScope; target: GatewayTarget. Permission via check_action_access
-    # (core/access/permissions/service.py), then the entitlement soft check
-    # (EE-guarded deferred import, the pattern core/events/utils.py already
-    # uses). Permission is fail-CLOSED; the entitlement soft check follows the
-    # existing two-layer pattern, with the authoritative check on the events
-    # worker's side. Raises nothing — returns the decision; the caller raises
-    # PolicyDeniedError / EntitlementDeniedError so the audit event can record
-    # the denial before the exception leaves the service.
+    # (core/access/permissions/service.py), fail-CLOSED. No entitlement check in
+    # wave 1 (D29). Raises nothing — returns the decision; the caller raises
+    # PolicyDeniedError so the audit event can record the denial before the
+    # exception leaves the service.
 
     # --- audit + usage (WP4, D22, §2.7) ------------------------------------- #
 
@@ -110,12 +107,14 @@ async def authorize(
     if not allowed:
         return PolicyDecision(allowed=False, permission=permission, reason="permission_denied")
 
-    entitled = await self._check_entitlement(scope=scope, target=target)
-    if not entitled:
-        return PolicyDecision(allowed=False, permission=permission, reason="entitlement_denied")
-
     return PolicyDecision(allowed=True, permission=permission, reason=None)
 ```
+
+**There is no entitlement arm, by ruling (D29, closing R5).** Every user has both gateways, so
+the check would ask a question with one answer, and what entitlements will express here are
+*limits* — which cannot be enforced before anything is measured. It ships with usage metering and
+billing. Do not add a placeholder key that always permits: a later reader mistakes it for
+enforcement.
 
 `check_action_access` (`core/access/permissions/service.py`) is the existing, unconditional
 RBAC entry point every domain already calls — it takes `user_uid: str`, `project_id:
@@ -129,53 +128,19 @@ not the entitlement soft check this method performs separately**; it is folded i
 any internal exception it does not itself swallow) must produce `allowed=False`. Do not
 wrap this call in a broad `try/except` that defaults to `True` on error — that inverts
 the fail-closed requirement `entities.md` states explicitly for this half of the check.
-The entitlement soft check is the opposite: `check_entitlements` already fails open on
-any non-`EntitlementsException` error by its own documented contract
-(`ee/src/core/access/entitlements/service.py::check_entitlements`) — do not add a second
-layer of exception handling around it that changes that.
+With the entitlement arm gone (D29), fail-closed is the whole of this
+method's error behaviour — there is no fail-open half left to balance it.
 
-### The entitlement soft check — the part this design leaves open
+### What is deliberately absent: the entitlement soft check
 
-`entities.md` §8 says only "the entitlement soft check (EE-guarded deferred import, the
-pattern `core/events/utils.py` already uses)". `architecture.md` §7 marks "the exact call
-into the entitlement check" as **explicitly unestablished** (*"To establish: the exact
-call into the entitlement check..."*), and no `Flag` or `Counter` member in
-`ee/src/core/access/entitlements/types.py` names anything resembling "gateway call" or
-"gateway endpoint use" — the closest existing counters (`CREDITS_CONSUMED`,
-`EVENTS_INGESTED`, `TRACES_INGESTED`) belong to other domains, and `CREDITS_CONSUMED` is
-explicitly the legacy counter D24 says stays untouched and unreused.
+An earlier draft of this spec carried an EE-guarded soft check with a placeholder key. **D29
+removed it.** `EntitlementDeniedError` and `PolicyDecision.reason == "entitlement_denied"` stay
+declared in the seed and mapped at the boundary, so the wave that adds limits changes a body
+rather than a signature — but nothing in wave 1 raises either.
 
-WP3 still ships the call **shape**, matching `core/events/utils.py`'s L1 soft-check
-pattern exactly (`_check_ingest_quota`-style: `is_ee()`-guarded deferred import,
-`cache=True`, treat any result other than an explicit deny as pass):
-
-```python
-async def _check_entitlement(self, *, scope: AuthScope, target: GatewayTarget) -> bool:
-    if not is_ee():
-        return True
-
-    from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
-        check_entitlements,
-    )
-
-    # NOTE: the entitlement key gating gateway calls is not decided anywhere in
-    # v1/ (architecture.md §7 marks this open). _GATEWAY_ENTITLEMENT_KEY below
-    # is a placeholder — replace it once a ruling lands, do not ship this
-    # constant as-is without flagging it in the PR.
-    allowed, _, _ = await check_entitlements(
-        key=_GATEWAY_ENTITLEMENT_KEY,
-        cache=True,
-        scope=scope_from(organization_id=scope.organization_id),
-    )
-    return allowed
-```
-
-This keeps the mechanism (fail-open on infrastructure error, EE-only, soft/cached check,
-authoritative hard check deferred to a later consumer per the two-layer pattern) proven
-and ready, without inventing a permanent entitlement key that nothing in the design
-names. See "Missing from the design, needs a ruling" below — this is the one item in
-this package that cannot be fully closed without a decision outside this spec's
-authority.
+`check_action_access` still runs the EE plan-gated RBAC bypass internally
+(`check_project_has_role_or_permission`'s `is_ee()`-guarded `Flag.RBAC` check). That is inside the
+permission call and is not an entitlement check this method performs; WP3 does not touch it.
 
 ## `record()` — the wave-1 stub, ruled at kickoff (R4)
 
@@ -359,20 +324,6 @@ combination of permission-allowed/denied × entitlement-allowed/denied.
 
 ## Missing from the design, needs a ruling
 
-- **The entitlement key `authorize()`'s soft check should gate on.** `architecture.md`
-  §7 marks this open explicitly ("*To establish: the exact call into the entitlement
-  check*"), and no existing `Flag` or `Counter` in
-  `ee/src/core/access/entitlements/types.py` names anything for gateway usage — the
-  nearest candidates (`CREDITS_CONSUMED`, a `Counter`) is the legacy counter D24 says
-  must not be reused, and the rest belong to unrelated domains (tracing ingestion, RBAC).
-  WP3 ships the call *shape* (EE-guarded, `cache=True`, fail-open-on-infra-error) with an
-  explicitly flagged placeholder key so Checkpoint A's permission-refusal test is not
-  blocked on this, but the entitlement half of `authorize()` is inert (always permits)
-  until this is ruled on. This should be resolved before Checkpoint B, since
-  `scope-checklist.md` marks the entitlement check as "wave 1, settled, not a
-  suggestion" for the *permission* half only in practice as shipped — the entitlement
-  half needs its key named by someone with authority over the entitlements catalog
-  before it does anything.
 - **The `PolicyDecision.reason` vocabulary.** `entities.md` §4.2 only says "denial cause,
   stable and terse" with no enumerated set of allowed strings. This spec picks
   `"permission_denied"` / `"entitlement_denied"` as the two wave-1 values because they

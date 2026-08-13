@@ -63,7 +63,7 @@ derivable from the provider name and no slug is needed. Only custom endpoints be
 | Wave | Item | Why there |
 |---|---|---|
 | 1 | Permission check on the target | Otherwise any authenticated user reaches any registered target. Without it wave 1 is an open proxy |
-| 1 | Entitlement check | Settled, not a suggestion: permission and entitlement checks are both in for both gateways; only credit checks are postponed |
+| later | Entitlement check | **Moved out of wave 1.** Every user has both gateways — there is nothing to gate on. What entitlements will actually express here are *limits*, and a limit is meaningless before anything is measured, so this ships with usage metering and billing rather than ahead of them (D29) |
 | 1 | Body byte-for-byte, **both gateways** | Not an LLM property. Transparency *is* the MCP gateway — same tool names, same schemas, same errors — and on the model side it is what keeps prompt caching working. One constraint, stated once |
 | 1 | Outbound target guard on user-supplied URLs | The gateway becomes the process that connects to an address a tenant typed. Without it, a custom endpoint pointed at the cloud metadata address makes us fetch credentials on a tenant's behalf. Nothing is written — the repo's existing guard is called at registration and at relay (D28) |
 | 2 | Audit record | One event per call into the existing events domain |
