@@ -333,6 +333,22 @@ export const resolvePreferredWorkspaceId = (userId: string | null, orgs?: Org[])
     return anyOrg?.id ?? null
 }
 
+/**
+ * True only if `id` can currently be resolved to a real organization id — either
+ * directly (it's already a known org), via a cached workspace→org mapping, or via
+ * a projectId we can look up asynchronously. If none apply (e.g. a brand-new
+ * signup where nothing has been cached yet and no project is known), the id is
+ * an unverified workspace id and must not be sent to /api/organizations/{id}.
+ */
+const canResolveOrgId = (id: string, get: (a: any) => any): boolean => {
+    const orgs = get(orgsAtom) as Org[]
+    if (Array.isArray(orgs) && orgs.some((org) => org.id === id)) return true
+    if (Object.values(readWorkspaceOrgMap()).includes(id)) return true
+    if (resolveOrgId(id)) return true
+    const {projectId} = get(appIdentifiersAtom)
+    return Boolean(projectId)
+}
+
 export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
     const snapshot = get(appStateSnapshotAtom)
     const queryOrgId = snapshot.query["organization_id"]
@@ -345,7 +361,9 @@ export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
         snapshot.routeLayer === "project" ||
         snapshot.routeLayer === "app"
     const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
-    const enabled = !!id && get(sessionExistsAtom) && jwtReady && isWorkspaceRoute && !isAcceptRoute
+    const idResolvable = !!id && canResolveOrgId(id, get)
+    const enabled =
+        idResolvable && get(sessionExistsAtom) && jwtReady && isWorkspaceRoute && !isAcceptRoute
 
     return {
         queryKey: ["selectedOrg", id],
