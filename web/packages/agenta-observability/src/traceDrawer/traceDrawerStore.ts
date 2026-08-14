@@ -260,7 +260,8 @@ export const traceDrawerAnnotationsQueryAtom = atomWithQuery((get) => {
     const projectId = get(projectIdAtom)
 
     return {
-        queryKey: ["trace-drawer-annotations", links],
+        // Same reason as the list query: the request is project-scoped, so the key is too.
+        queryKey: ["trace-drawer-annotations", projectId, links],
         enabled: Array.isArray(links) && links.length > 0,
         refetchOnWindowFocus: false,
         queryFn: async () => {
