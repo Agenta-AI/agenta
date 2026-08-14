@@ -54,12 +54,12 @@ def _stamp_lifecycle(dbe):
 
 def test_llm_endpoint_data_serializes_exclude_none():
     data = LLMEndpointData(
-        route=LLMEndpointRoute(base_url="https://api.openai.com/v1"),
+        route=LLMEndpointRoute(base_url="http://mock-llm-gateway:9091/v1"),
         models=LLMModelFilter(allowlist=["gpt-4o"]),
         settings=LLMEndpointSettings(max_output_tokens=4096),
     )
     dumped = data.model_dump(mode="json", exclude_none=True)
-    assert dumped["route"]["base_url"] == "https://api.openai.com/v1"
+    assert dumped["route"]["base_url"] == "http://mock-llm-gateway:9091/v1"
     assert dumped["models"]["allowlist"] == ["gpt-4o"]
     assert "extras" not in dumped
 
@@ -106,7 +106,7 @@ def test_llm_endpoint_create_round_trips_through_dbe():
         deployment_kind=LLMDeploymentKind.AZURE,
         secret_id=secret_id,
         data=LLMEndpointData(
-            route=LLMEndpointRoute(base_url="https://acme.openai.azure.com"),
+            route=LLMEndpointRoute(base_url="http://mock-llm-gateway:9091/azure"),
             models=LLMModelFilter(allowlist=["gpt-4o"]),
             settings=LLMEndpointSettings(max_output_tokens=4096),
         ),

@@ -217,7 +217,7 @@ def test_secret_resolver_interface_is_abstract_with_two_methods():
 
 
 def test_llm_dtos():
-    route = LLMEndpointRoute(base_url="https://api.openai.com/v1")
+    route = LLMEndpointRoute(base_url="http://mock-llm-gateway:9091/v1")
     settings = LLMEndpointSettings(max_output_tokens=4096)
     data = LLMEndpointData(
         route=route, models=LLMModelFilter(allowlist=["gpt-4o"]), settings=settings
@@ -257,7 +257,7 @@ def test_llm_dtos():
         provider_key="azure",
         deployment_kind=LLMDeploymentKind.AZURE,
         model="gpt-4o",
-        base_url="https://acme.openai.azure.com",
+        base_url="http://mock-llm-gateway:9091/azure",
         settings=settings,
     )
     assert resolved.model == "gpt-4o"

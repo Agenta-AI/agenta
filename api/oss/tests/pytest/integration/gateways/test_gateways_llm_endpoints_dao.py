@@ -32,7 +32,7 @@ def _create_dto(*, slug: str) -> LLMEndpointCreate:
         provider_key="azure",
         deployment_kind=LLMDeploymentKind.AZURE,
         data=LLMEndpointData(
-            route=LLMEndpointRoute(base_url="https://acme.openai.azure.com"),
+            route=LLMEndpointRoute(base_url="http://mock-llm-gateway:9091/azure"),
             models=LLMModelFilter(allowlist=["gpt-4o"]),
             settings=LLMEndpointSettings(max_output_tokens=4096),
         ),
@@ -118,7 +118,7 @@ async def test_edit_endpoint_replaces_data_and_flags_wholesale(seeded_project):
     edit = LLMEndpointEdit(
         id=created.id,
         data=LLMEndpointData(
-            route=LLMEndpointRoute(base_url="https://new.openai.azure.com"),
+            route=LLMEndpointRoute(base_url="http://mock-llm-gateway:9092/azure"),
             models=LLMModelFilter(allowlist=["gpt-4o-mini"]),
             # the original's `models` allowlist is gone unless
             # repeated here — this is a PUT, not a PATCH.
@@ -132,7 +132,7 @@ async def test_edit_endpoint_replaces_data_and_flags_wholesale(seeded_project):
         endpoint=edit,
     )
     assert edited is not None
-    assert edited.data.route.base_url == "https://new.openai.azure.com"
+    assert edited.data.route.base_url == "http://mock-llm-gateway:9092/azure"
     assert edited.data.models.allowlist == ["gpt-4o-mini"]
     assert edited.data.settings.max_output_tokens is None
     assert edited.updated_by_id == user_id

@@ -271,8 +271,16 @@ From `plan.md`, unchanged, plus what wave 1's shape now makes checkable:
 ## Rules
 
 The wave-1 rules in [`launch.md`](launch.md) hold unchanged — one package per worktree,
-plain `git`, no cross-package edits, and the seed files nobody edits after. Two additions
+plain `git`, no cross-package edits, and the seed files nobody edits after. Three additions
 specific to this wave:
+
+- **No test ever calls a real LLM or a real MCP server.** Every layer — unit, integration,
+  acceptance — dials a mock: WP5's `mock-llm-gateway` and `mock-mcp-gateway`, the in-process
+  `MockLLMAdapter`, or a new mock variation the package adds. A provider a mock cannot yet
+  imitate is a mock to extend, never a live call to make. A live call makes the suite pay,
+  leak and flake on someone else's uptime, and an `xfail` on the provider's quota is a test
+  that reports green while asserting nothing. This applies to fixture hostnames too: point
+  them at a mock, so no future test can turn a placeholder into a dialled one.
 
 - **The wire is shared.** WP13 and WP15 both touch `services/runner/src/protocol.ts`. The
   binding change belongs to WP13; WP15 consumes it. If they run in parallel, WP15 branches
