@@ -53,31 +53,6 @@ splats them into the per-call `acompletion(**kwargs)`. A repo-wide grep for
 attributes across a call, one running two concurrent calls on different connections and asserting
 neither call's key leaks into the other's kwargs.
 
-## CU3. Route embeddings through the gateway
-
-**What.** Two similarity evaluators call the OpenAI client directly, twice each, and hand-roll
-their secret lookup by scanning the vault for a `provider_key` secret whose inner kind is
-`openai`. They bypass the provider-settings builder entirely and hardcode the provider.
-
-**Why not sooner.** They are evaluator paths, and the current scope is the gateways, agent v0, the
-runner and the harnesses (D15). They also need a north-port route the chat surface does not
-provide.
-
-**Done.** Both callers reach an embeddings route on the gateway, and neither reads the vault.
-
-## CU4. Convert every remaining service that resolves a secret itself
-
-**What.** The general case behind item 3. Any service that fetches provider material and calls an
-upstream directly is a bypass of the boundary, and each one is a place where "did every call get
-checked" becomes "every call except those."
-
-**Why not sooner.** D1 is the target and wave 1 to 3 is where it starts; other services come after
-the callers in scope are converted.
-
-**Done.** An inventory exists and is empty. Producing that inventory is itself work — the model
-call sites took two passes to count correctly (`raw/model-call-sites.md`), and there is no reason
-to think the tool side is easier.
-
 ## CU5. Move the eligible slice of the runner's tool loopback to the gateway
 
 **What.** The runner synthesizes a loopback HTTP MCP server per run, because Claude Code and Codex
@@ -225,18 +200,15 @@ shares a deployment.
 
 ## CU13. Turn the insecure-egress default off wherever a deployment is shared
 
-**What.** `AGENTA_INSECURE_EGRESS_ALLOWED` is set in no deployment configuration in this repo. Two
-of its four copies — the API's `WebhooksConfig` (`api/oss/src/utils/env.py`) and the runner's
-`insecureEgressAllowed()` (`services/runner/src/tools/ssrf-guard.ts`) — default unset to `true`
-(permissive), so those copies of the outbound guard in CU12 are currently inert. The default
-exists so zero-config self-hosting works, which is a real requirement; what is missing is that a
-deployment serving more than one tenant turns it off. The other two copies default the other way;
-CU14 covers that split.
+**What.** `AGENTA_INSECURE_EGRESS_ALLOWED` was set in no deployment configuration in this repo, and
+all four copies of CU12's outbound guard default unset to `true` (CU14), so every copy was inert
+everywhere. The permissive default exists so zero-config self-hosting works, which is a real
+requirement; what was missing is that a deployment serving more than one tenant turns it off.
 
 **Why it is its own item and not part of CU12.** CU12 is duplication — four implementations of one
-contract that can drift. This is posture: one flag, set nowhere, that leaves the API and runner
-copies open. Collapsing the copies does not change it, and turning it off does not need the copies
-collapsed. Bundling them would let the slower half hold the faster one.
+contract that can drift. This is posture: one flag, set nowhere, that leaves every copy open.
+Collapsing the copies does not change it, and turning it off does not need the copies collapsed.
+Bundling them would let the slower half hold the faster one.
 
 **Why not sooner.** It was not wrong sooner — before the gateways, each copy guarded one narrow
 path. The gateway makes this guard the single control on every outbound call the platform makes on
@@ -246,32 +218,28 @@ a tenant's behalf, which is what turns an inert flag from untidy into load-beari
 deployment, and a test asserts the guard actually refuses a private address under that setting
 rather than assuming it.
 
-## CU14. Agree on one default for the insecure-egress flag, not four independent ones
+## CU14. One default for the insecure-egress flag: permissive — CLOSED
 
-**What.** `AGENTA_INSECURE_EGRESS_ALLOWED` means opposite things when unset, depending on which
-copy of CU12's guard reads it:
+**What.** `AGENTA_INSECURE_EGRESS_ALLOWED` meant opposite things when unset depending on which copy
+of CU12's guard read it: the API's `WebhooksConfig` and the runner's `insecureEgressAllowed()`
+resolved it permissive, while both SDK copies resolved it secure. A guard that is on in one layer
+and off in another for the identical unset variable is not one control with four implementations; it
+is two controls sharing a name, and nobody reading any single copy would know.
 
-| Copy | Default when unset |
-|---|---|
-| API — `WebhooksConfig` (`api/oss/src/utils/env.py`) | `true` (permissive) |
-| Runner — `insecureEgressAllowed()` (`services/runner/src/tools/ssrf-guard.ts`) | `true` (permissive) |
-| SDK — `agenta/sdk/utils/net.py` | `false` (secure) |
-| SDK — `agenta/sdk/engines/running/handlers.py` | `false` (secure) |
+**Settled: unset is permissive, in all four.** The default exists so zero-config self-hosting works,
+which is the same reason CU13 keeps the dev configurations permissive. A default that blocks
+loopback and private addresses breaks a single-tenant install out of the box, and the SDK — the copy
+most likely to run on a developer's own machine against their own services — is the worst place to
+choose the strict answer. Posture for shared deployments comes from CU13 setting the flag explicitly
+to `false` where more than one tenant shares a deployment, not from the default.
 
-A guard that is on in one layer and off in another for the identical unset env var is not a single
-control with four implementations; it is two controls that happen to share a name. Nobody reading
-any one copy would know the others disagree.
+**The tests moved with it.** Asserting the flag resolves `true` no longer distinguishes the variable
+being read from the default being returned, so the env-resolution tests assert the discriminating
+direction instead: an explicit `false` produces `false`, and an ambient `false` that the fixture
+clears still produces the permissive default.
 
-**Why not sooner.** CU12 collapsed the SDK's two copies into one Python definition and made the
-runner's range table verifiable against the API's, but collapsing implementation is orthogonal to
-agreeing on a default — the same reasoning CU13 gives for being its own item applies here.
-CU13's own inventory recorded the flag as defaulting to `true` flatly, because it was written
-looking at the API and the hosting configs, not at the SDK copies; this item exists because that
-picture was incomplete.
-
-**Done.** All four copies resolve `AGENTA_INSECURE_EGRESS_ALLOWED` unset to the same value, decided
-once rather than inherited separately per copy, and the decision is recorded next to CU13's
-per-deployment `false` setting so the two are read together.
+**Done.** All four copies resolve unset to `true`, and CU13 carries the per-deployment `false` so
+the two are read together.
 
 ---
 

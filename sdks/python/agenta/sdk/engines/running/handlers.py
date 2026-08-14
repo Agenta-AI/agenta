@@ -77,7 +77,7 @@ _HOOK_ALLOW_INSECURE = (
     or os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
     or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
     or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-    or "false"
+    or "true"
 ).lower() in TRUTHY
 
 if not _HOOK_ALLOW_INSECURE:

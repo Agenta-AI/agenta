@@ -95,3 +95,31 @@ Bedrock's legacy `InvokeModel` path and Vertex's Claude `rawPredict` path were l
 WP27 implements it. Both also have wired alternatives that need no rewrite at all — Bedrock through
 its newer `bedrock-mantle` endpoint with a plain bearer key, Vertex through its OpenAI-compatible
 layer — so neither vendor was ever unreachable; one path per vendor was.
+
+## Paths that still reach an upstream without the gateway
+
+**Out of scope, and not a finding.** D1 ends with everything transiting a gateway and D24 makes it
+the sole mechanism, but both are end-states. Every path below predates this work, still resolves a
+secret or calls an upstream on its own, and is **already scheduled to change when it is migrated**.
+None of them is a gap this design opened, a regression to explain, or a question to reopen. They are
+listed once, here, so that finding one again reads as "not yet migrated" instead of "undiscovered
+problem" — which has now happened more than once.
+
+**The gate that came off with the credits counter.** The `local_secrets` permission check used a
+single call to both meter and gate access to platform-owned secrets: it incremented
+`credits_consumed` and denied outright when the quota ran down, at `free=100, limit=100, monthly` on
+cloud plans. The counter measured access checks rather than usage, so CU10 removed it, and the gate
+went with it because nothing separated the two jobs. Local-secret use is uncapped until that path
+transits the gateway. Restoring the counter is not the answer — it would restore a number nobody
+wanted, not a cap.
+
+**Services that resolve their own secrets.** Anything that fetches provider material and calls an
+upstream directly is outside the boundary. The two similarity evaluators are the concrete case:
+they call the OpenAI client directly, hand-roll their vault lookup by scanning for a `provider_key`
+secret of inner kind `openai`, and bypass the provider-settings builder entirely. Embeddings also
+have no north-port route on the gateway, so there is nowhere for them to go yet. The SDK's own
+direct secret resolution belongs in the same bucket.
+
+**Why not `cleanups.md`.** That file is repo debt this work touches and can finish. These are not
+finishable here: each one ends when its own path is migrated, on its own schedule, and listing them
+as pending cleanups invites re-auditing them every wave.

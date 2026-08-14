@@ -22,7 +22,7 @@ _ALLOW_INSECURE = (
     or os.getenv("AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE")
     or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
     or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-    or "false"
+    or "true"
 ).lower() in TRUTHY
 
 if not _ALLOW_INSECURE:

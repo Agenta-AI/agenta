@@ -673,34 +673,6 @@ needs a denial that fits inside them and still carries the three facts above. Th
 `contract.md`'s open item on expressing a policy denial, and this closes half of it — the content
 is settled even where the envelope is not.
 
-### OD20. What caps local-secret use now that the legacy counter is gone — OPEN
-
-**The question.** CU10 removed `credits_consumed`, the counter the `local_secrets` permission
-check (`GET /access/permissions/check`) used to both meter and gate access to platform-owned
-secrets. The same call was doing two jobs at once: incrementing a usage counter, and denying the
-request outright when `check_entitlements` came back false or the meter had run down. Every cloud
-plan carried it at `free=100, limit=100, period=monthly`; `self_hosted_enterprise` carried it
-unlimited but still strict. Removing the counter (D24: the gateway becomes the sole mechanism)
-removed the gate along with the measurement, because nothing separated the two. As of this
-change, an authorized caller's use of local secrets is uncapped — not "capped elsewhere," genuinely
-unenforced.
-
-**What this is not.** Not a bug in CU10 and not a case for reverting it. `credits_consumed`
-measured access checks, not usage, so restoring it would restore a number nobody wanted, not a
-real cap. The counter was never the right instrument; it was the only instrument on this path
-before the gateway existed.
-
-**What replaces it.** A gateway-side entitlement on local-secret use, evaluated where the gateway
-already sits between a caller and every secret use, not a resurrected counter on the permission
-check. Local secrets in this context means environment-variable-backed secrets consumed outside
-the gateway's own secret-resolution path — until they too transit the gateway (D24's stated
-end-state), a gateway-side entitlement has nothing to attach to for that path specifically, which
-is the open half of this question: not just the shape of the replacement, but the point in time
-at which it can exist at all.
-
-**The window.** Between this change landing and the point where local-secret use actually transits
-the gateway, nothing caps it. This is a real gap, not a theoretical one, and it is the direct
-consequence of D24 being a stated end-state rather than a shipped one at the time this closed.
 ### OD21. OAuth discovery guesses a well-known path instead of reading the 401 that names it
 
 WP17's `MCPOAuthClient.discover()` finds a `custom` server's protected-resource metadata by
