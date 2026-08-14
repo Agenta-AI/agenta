@@ -255,8 +255,10 @@ has (D4).
 *Depends on:* Checkpoint A. *Blocks:* WP13, WP14.
 
 **WP13 — Runner and harnesses.** The runner carries a gateway route rather than provider secrets.
-Per the existing wire this is a resolver-side change; verify the secret arrays collapse and
-the redaction set shrinks.
+Verify the secret arrays collapse and the redaction set shrinks. This is **not** a
+resolver-side change alone: `ModelCredentialBinding.kind` is `"environment"` and nothing
+else, so a model credential cannot be delivered in `X-AG-Credentials` (D31) without a wire
+change. The MCP side already has `{kind: "header", name}` and is the precedent to copy.
 *Depends on:* WP12.
 
 **WP14 — Agent v0.** The remaining caller.
@@ -272,7 +274,8 @@ record of a call that does not happen is worth nothing.
 gateway token rather than upstream secrets.
 *Depends on:* WP12.
 
-**Merge M3 → Checkpoint B.** Deploy. Acceptance tests above.
+**Merge M3 → Checkpoint B.** Deploy. Acceptance tests above. The fan-out, the worktrees and
+the traps are in [`workstreams/launch-2.md`](workstreams/launch-2.md).
 
 ---
 
