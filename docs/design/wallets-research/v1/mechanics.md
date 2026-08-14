@@ -5,6 +5,15 @@ out, how those numbers become money, and how a subscription relates to any of it
 
 This document is a working draft for a decision, not a settled design.
 
+> **Superseded in part.** `entities.md` is canonical for tables, columns and names. Its
+> selections replace §3 below and every schema shape here: value arrives as `wallet_credits`
+> and leaves as `wallet_debits` rather than one `wallet_movement` table; `wallet_balances`
+> carries both the general and per-credit projections; allocation folds into
+> `wallet_debits.wallet_credit_id`; pricing is versioned code, not a `price_book` table; and
+> there is no hold on the non-strict variable-cost path. What remains current is everything
+> else: the three stores, the three resource classes, the enumerated kinds of value in and
+> out, the two money conversions, and what a subscription does to a wallet.
+
 ---
 
 ## 1. Three stores, not one

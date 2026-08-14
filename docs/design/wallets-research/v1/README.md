@@ -5,24 +5,38 @@ never read each other. Nothing here has been implemented.
 
 ## Reading order
 
-1. **[seams.md](seams.md)** — where the four efforts meet, what each already settled, and
-   the questions that are nobody's yet. Read this first; it says what the rest are for.
-2. **[mechanics.md](mechanics.md)** — the working draft: three stores rather than one,
-   the naming, every kind of value in and out enumerated, the two money conversions, what a
-   subscription actually does to a wallet, and the extension numbers nobody has defined.
-3. **[report.md](report.md)** — the decision document. One design, one plan, twelve
-   decisions that are a product owner's rather than an engineer's. Sections 1 and 9 alone
-   are ten minutes.
-4. **[addendum-sandbox-metering.md](addendum-sandbox-metering.md)** — the same design
-   compared, table by table, against the sandbox-metering track, with a recommendation for
-   how the two fit.
-5. **[proposal-a.md](proposal-a.md)** and **[proposal-b.md](proposal-b.md)** — the two
-   complete designs the report compares. Written independently, then compared; their
-   agreement is itself evidence, and `report.md` §6.1 lists where.
-6. **[research/](research/)** — eight reports: the provider and caching, sixteen comparable
-   credit products and what their users complain about, a ledger shortlist, four deep
-   studies of individual projects, and gateway architecture.
-7. **[prior-work/](prior-work/)** — the earlier efforts, verbatim.
+**Canonical for schema and names: [entities.md](entities.md).** Where any other document
+disagrees with it about a table, a column, or a name, it wins.
+
+### Planning the current wave
+
+1. **[waves.md](waves.md)** — the checkpoint-and-wave delivery model, and the node types.
+2. **[wave-1.md](wave-1.md)** — the checkpoint boundary, fixed inputs, the replay invariant,
+   and the completion evidence. Its graph is in [wps-1.md](wps-1.md), [ims-1.md](ims-1.md)
+   and [cus-1.md](cus-1.md), with per-node specifications under [nodes/](nodes/).
+3. **[preflight.md](preflight.md)** — the graph and specification review `waves.md` requires
+   before any node work starts. Read it before forking a worktree.
+4. **[entities.md](entities.md)** — the data model: what each entity is and is not, an example
+   row for each, the stream contracts, and the column rule.
+5. **[open-designs.md](open-designs.md)** — the register of what is still open, one item at a
+   time, each self-contained.
+6. **[out-of-scope.md](out-of-scope.md)** — deferrals, each with the condition that reopens it.
+
+### The reasoning underneath
+
+7. **[seams.md](seams.md)** — where the four efforts meet and what each already settled.
+8. **[mechanics.md](mechanics.md)** — the three classes of resource, every kind of value in
+   and out, the two money conversions, and what a subscription does to a wallet. **Its §3
+   naming table and its schema shapes are superseded by `entities.md`**; its class model,
+   enumerations and conversions are current.
+9. **[report.md](report.md)** — the decision document. Sections 1 and 9 are ten minutes. Its
+   `credit_*` schema is superseded; `entities.md` §1 maps it responsibility by responsibility.
+10. **[addendum-sandbox-metering.md](addendum-sandbox-metering.md)** — compared table by table
+    against the sandbox-metering track.
+11. **[proposal-a.md](proposal-a.md)** and **[proposal-b.md](proposal-b.md)** — the two designs
+    the report compares, written independently.
+12. **[research/](research/)** — eight reports behind all of it.
+13. **[prior-work/](prior-work/)** — the earlier efforts, verbatim.
 
 ## Where each document came from
 
