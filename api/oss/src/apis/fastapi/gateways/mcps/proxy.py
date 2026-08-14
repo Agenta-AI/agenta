@@ -34,8 +34,11 @@ from oss.src.apis.fastapi.gateways.mcps.utils import (
     parse_mcp_call_context,
     split_builtin_path,
 )
-from oss.src.apis.fastapi.gateways.utils import response_headers
-from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_marker
+from oss.src.core.gateways.dtos import (
+    GatewayConnectAffordance,
+    GatewayEndpointNamespace,
+)
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
@@ -102,16 +105,24 @@ def _protocol_error(
     message: str,
     cause: str,
     data: Optional[Dict[str, Any]] = None,
+    marked: bool = True,
 ) -> Response:
     """A JSON-RPC error result. `id` is always `null`: this proxy never parses the
     caller's body, only its headers (§9), so the request id a spec-faithful echo would
     need is simply unavailable — the same situation JSON-RPC 2.0 reserves a null id
-    for (an error raised before the id could be read)."""
+    for (an error raised before the id could be read).
+
+    `message` carries the code marker (WP25, OD18; `gateways/utils.py::with_code_marker`)
+    for every cause except `upstream_error` — same reasoning and same exclusion as the LLM
+    plane's `_openai_error`: `cause` already rides structured in `error.data`, so the marker
+    is redundant here whenever a harness's SDK keeps that structure, and load-bearing only
+    for one that keeps `message` alone and discards everything else (Codex)."""
+    rendered = with_code_marker(message, cause) if marked else message
     error_data = {"cause": cause, **(data or {})}
     payload = {
         "jsonrpc": "2.0",
         "id": None,
-        "error": {"code": code, "message": message, "data": error_data},
+        "error": {"code": code, "message": rendered, "data": error_data},
     }
     return Response(
         content=json.dumps(payload).encode(),
@@ -179,12 +190,23 @@ def _map_gateway_exception(e: BaseException) -> Response:
             data={"requirement": e.requirement.model_dump(mode="json")},
         )
     if isinstance(e, MCPScopeInsufficientError):
+        scope_data: Dict[str, Any] = {"target": e.target, "scopes": e.scopes}
+        if e.endpoint_id is not None:
+            # Step-up reuses the missing-connection interaction (D17): the same
+            # connect route WP18 built, re-run with a wider scope choice. `body: {}`
+            # points at step 1 (discover) so the dialog re-offers the current scope
+            # set rather than this refusal guessing which ones matter (WP25: a
+            # marker-only recovery never carries `e.scopes` this far anyway).
+            scope_data["connect"] = GatewayConnectAffordance(
+                endpoint=f"/gateways/mcps/endpoints/{e.endpoint_id}/connect",
+                body={},
+            ).model_dump(mode="json")
         return _protocol_error(
             status_code=status.HTTP_409_CONFLICT,
             code=_JSONRPC_SERVER_ERROR,
             message=e.message,
             cause="scope_insufficient",
-            data={"target": e.target, "scopes": e.scopes},
+            data=scope_data,
         )
     if isinstance(e, GatewayEndpointInactiveError):
         return _protocol_error(
@@ -219,6 +241,7 @@ def _map_gateway_exception(e: BaseException) -> Response:
             message=e.detail or e.message,
             cause="upstream_error",
             data={"target": e.target},
+            marked=False,
         )
     raise e  # pragma: no cover - unreachable: _MAPPED_EXCEPTIONS stays exhaustive with this
 

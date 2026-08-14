@@ -83,6 +83,30 @@ class CustomSecretDTO(BaseModel):
     secret: CustomSecretSettingsDTO
 
 
+class OAuthProviderSettingsDTO(BaseModel):
+    client_id: str
+    client_secret: str
+    issuer_url: str
+    scopes: List[str]
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+
+class OAuthProviderDTO(BaseModel):
+    provider: OAuthProviderSettingsDTO
+
+
+class OAuthGrantSettingsDTO(BaseModel):
+    server: str
+    access_token: str
+    refresh_token: Optional[str] = None
+    expires_at: Optional[int] = None
+    scopes: List[str]
+
+
+class OAuthGrantDTO(BaseModel):
+    grant: OAuthGrantSettingsDTO
+
+
 class SecretDTO(BaseModel):
     kind: SecretKind
     data: Union[
@@ -91,6 +115,8 @@ class SecretDTO(BaseModel):
         SSOProviderDTO,
         WebhookProviderDTO,
         CustomSecretDTO,
+        OAuthProviderDTO,
+        OAuthGrantDTO,
     ]
 
     @model_validator(mode="before")
@@ -204,6 +230,39 @@ class SecretDTO(BaseModel):
                         )
             else:
                 raise ValueError("A custom_secret format must be 'text' or 'json'")
+        elif kind == SecretKind.OAUTH_PROVIDER.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for OAuthProviderDTO"
+                )
+            provider = data.get("provider")
+            if not isinstance(provider, dict):
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for OAuthProviderSettingsDTO"
+                )
+            required_fields = {"client_id", "client_secret", "issuer_url", "scopes"}
+            if not required_fields.issubset(provider.keys()):
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for OAuthProviderSettingsDTO"
+                )
+            # OAuthProviderDTO and SSOProviderDTO share a shape; the kind must decide, not the union.
+            values["data"] = OAuthProviderDTO.model_validate(data)
+        elif kind == SecretKind.OAUTH_GRANT.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for OAuthGrantDTO"
+                )
+            grant = data.get("grant")
+            if not isinstance(grant, dict):
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for OAuthGrantSettingsDTO"
+                )
+            required_fields = {"server", "access_token", "scopes"}
+            if not required_fields.issubset(grant.keys()):
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for OAuthGrantSettingsDTO"
+                )
+            values["data"] = OAuthGrantDTO.model_validate(data)
         else:
             raise ValueError("The provided kind is not a valid SecretKind enum")
 

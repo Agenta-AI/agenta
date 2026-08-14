@@ -37,6 +37,7 @@ from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.types import (
     MCPEndpointNotFoundError,
+    MCPScopeInsufficientError,
     MCPToolNotAllowedError,
     MCPUpstreamError,
 )
@@ -787,3 +788,144 @@ async def test_relay_tools_list_passes_through_untouched_when_policy_is_all():
     payload = json.loads(result.body)
     names = {t["name"] for t in payload["result"]["tools"]}
     assert names == {"a", "b", "c"}
+
+
+# --- relay: step-up scope challenge (D17, WP19) ----------------------------------------- #
+
+
+async def _oauth_endpoint(dao: "MockMCPEndpointsDAO") -> MCPEndpoint:
+    return await dao.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointCreate(
+            slug="acme-notion",
+            auth_mode=MCPAuthScheme.OAUTH,
+            secret_id=uuid4(),
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://example.com/mcp")
+            ),
+        ),
+    )
+
+
+def _challenge_result(*, www_authenticate: str) -> MCPRelayResult:
+    return MCPRelayResult(
+        status_code=403,
+        headers={"WWW-Authenticate": www_authenticate},
+        body=b"",
+    )
+
+
+@pytest.mark.asyncio
+async def test_relay_scope_challenge_with_scope_param_raises_with_the_requested_scopes():
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _oauth_endpoint(dao)
+    adapter = MockUpstreamAdapter(
+        result=_challenge_result(
+            www_authenticate='Bearer error="insufficient_scope", scope="notion:write"'
+        )
+    )
+    policy = MockPolicyService()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=MockResolver(secret=_resolved_secret()),
+        policy=policy,
+        adapters={"http": adapter},
+    )
+
+    with pytest.raises(MCPScopeInsufficientError) as excinfo:
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
+
+    assert excinfo.value.scopes == ["notion:write"]
+    assert excinfo.value.endpoint_id == endpoint.id
+    assert excinfo.value.target == "custom/acme-notion"
+    # Step-up is an interaction, not a bare failure (D17) — the outcome is still recorded.
+    assert policy.record_calls[-1]["outcome"].status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_relay_scope_challenge_without_scope_param_raises_with_an_empty_list():
+    """No `scope=` on the challenge: the dialog re-discovers the offered set instead of
+    this refusal guessing which scopes matter (WP18's step 1)."""
+    dao = MockMCPEndpointsDAO()
+    await _oauth_endpoint(dao)
+    adapter = MockUpstreamAdapter(
+        result=_challenge_result(www_authenticate='Bearer error="insufficient_scope"')
+    )
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=MockResolver(secret=_resolved_secret()),
+        adapters={"http": adapter},
+    )
+
+    with pytest.raises(MCPScopeInsufficientError) as excinfo:
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
+
+    assert excinfo.value.scopes == []
+
+
+@pytest.mark.asyncio
+async def test_relay_403_without_insufficient_scope_challenge_passes_through_untouched():
+    """D16: a plain auth rejection (`invalid_token`, no scope challenge) is the
+    upstream's own protocol-level result, not a gateway-authored refusal — it must
+    reach the caller byte-for-byte, not be reinterpreted as step-up."""
+    dao = MockMCPEndpointsDAO()
+    await _oauth_endpoint(dao)
+    adapter = MockUpstreamAdapter(
+        result=_challenge_result(www_authenticate='Bearer error="invalid_token"')
+    )
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=MockResolver(secret=_resolved_secret()),
+        adapters={"http": adapter},
+    )
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="write_page"),
+        body=b"{}",
+        headers={},
+    )
+
+    assert result.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_relay_scope_challenge_ignored_for_a_none_scheme_endpoint():
+    """Only an OAuth endpoint can step up — a `none`-scheme endpoint has nothing to
+    grant more of, so a 403 from it (however shaped) is pass-through, not step-up."""
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao)  # auth_mode=NONE
+    adapter = MockUpstreamAdapter(
+        result=_challenge_result(
+            www_authenticate='Bearer error="insufficient_scope", scope="x"'
+        )
+    )
+    service = _relay_service(mcp_endpoints_dao=dao, adapters={"http": adapter})
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="write_page"),
+        body=b"{}",
+        headers={},
+    )
+
+    assert result.status_code == 403

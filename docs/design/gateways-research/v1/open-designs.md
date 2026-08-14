@@ -436,6 +436,137 @@ later, it fails cleanly today (`GET`/`DELETE` refused, `POST` alone is not enoug
 complete a handshake) rather than half-working — the confusing case OD17 flagged did not
 materialize in this set, so re-deciding D8 stays out of scope here as the spec required.
 
+### OD18. Does a harness's SDK preserve the gateway's refusal body in its error text — CLOSED by WP25
+
+OD14 verified that each harness sends OUR credentials header outbound. It said nothing about
+the return trip: whether the JSON body the gateway attaches to a pre-dial refusal
+(`{"error":{"message","type","code",...}}`, `apis/fastapi/gateways/llms/proxy.py`
+`_map_domain_exception`) survives into the text the harness reports, which is the only signal
+`gateway-error.ts`'s `parseGatewayErrorDetail` has to recover the cause from. Verified against
+the same pinned releases OD14 used (`services/runner/package.json`), by reading each harness's
+own error-formatting source rather than by a live call.
+
+1. **Pi (`@earendil-works/pi-ai@0.80.6`, pinned via `pi-coding-agent@0.80.6`). Preserves it.**
+   Two independent paths, both confirmed from source:
+   - The OpenAI-shaped API clients (`api/openai-completions.js`, `api/openai-responses.js`)
+     route every provider error through a shared `normalizeProviderError`/`formatProviderError`
+     pair (`utils/error-body.js`), written explicitly for "endpoints behind a proxy / gateway"
+     (the file's own header comment) — it reads the SDK's parsed body field and
+     `JSON.stringify`s it into the message whenever the SDK's own message does not already
+     carry it.
+   - The Anthropic-shaped client (`api/anthropic-messages.js`) uses `@anthropic-ai/sdk@0.111.0`
+     directly, whose `APIError.makeMessage` (`core/error.js`) falls back to
+     `JSON.stringify(errorResponse)` whenever the parsed body has no top-level `message` key —
+     true for our gateway's `{"error":{...}}` shape, which nests `message` one level down. The
+     full body reaches `error.message` verbatim.
+
+2. **Claude Code (`@agentclientprotocol/claude-agent-acp@0.58.1`, CLI driven by
+   `@anthropic-ai/claude-agent-sdk@0.3.205`). Not independently verifiable from source, and
+   recorded as such rather than assumed.** The ACP bridge itself does not reformat: on a failed
+   turn it forwards the CLI's own `result` string unmodified into `RequestError.internalError`
+   (`dist/acp-agent.js`, the `subtype: "success"` / `is_error` branch). What that string
+   contains is decided inside the Claude Code CLI binary, which `@anthropic-ai/claude-agent-sdk`
+   downloads and runs as a compiled, closed-source executable (`extractFromBunfs.js`) — there is
+   no bundled source to read, matching the limit OD14 hit on the same package for the
+   subscription-login question. Since the CLI is Anthropic's own client against Anthropic's own
+   Messages API, it is a reasonable inference that it shares `@anthropic-ai/sdk`'s
+   body-in-message convention verified above for Pi — but that is an inference, not a reading,
+   and is recorded as unverified per this package's own rule (a harness is a fact, not an
+   assumption). `tests/unit/gateway-error-harness-formats.test.ts` covers the format Pi and the
+   Anthropic SDK are confirmed to produce, exercised as a stand-in for Claude Code's most likely
+   shape, and is flagged in-file as unconfirmed for Claude Code specifically.
+
+3. **Codex (`@openai/codex@0.145.0`, ACP bridge `@agentclientprotocol/codex-acp@1.1.7`). Does
+   NOT preserve the body — confirmed, not inferred.** `codex-rs`'s HTTP error path
+   (`codex-rs/protocol/src/error.rs`, `UnexpectedResponseError::extract_error_message`, read at
+   tag `rust-v0.145.0`, matching the pinned npm version) actively parses the response body as
+   JSON and keeps only `error.message`, discarding `code`, `type`, and every other field before
+   formatting `"unexpected status {status}: {message}"`. The ACP bridge forwards that already-
+   stripped string as-is (`dist/index.js`, `createErrorEvent`, `params.error.message`). No brace
+   survives for `parseGatewayErrorDetail`'s body scan to find. **This is not the end of the
+   story** — see the marker fallback below, which this finding motivated.
+
+**First consequence, then corrected: the marker fallback.** The first cut of this package
+recorded Codex's gap as a known degradation and stopped there. That does not meet WP25's own
+"done when" — WP19's step-up interaction is built on this channel, and a refusal that reaches
+Codex with no `code` is a run that cannot ask the user to fix it. The fix is on our side, and
+Codex's own finding points at it: `error.message` survives on every harness examined, Codex
+included — codex-rs keeps exactly that one field. So the gateway now renders every TYPED
+refusal's `message` with a single machine-readable marker appended
+(`⟦agenta_code:<code>⟧`, `_with_code_marker`, `proxy.py`), and `gateway-error.ts` scans for it
+as a **fallback**, after the JSON-body parse:
+
+- **U+27E6/U+27E7** (MATHEMATICAL LEFT/RIGHT WHITE SQUARE BRACKET) were picked because they
+  never occur in ordinary error prose, a model's own output, JSON delimiters (`{}`/`[]`), or
+  markdown — nothing else can produce this exact byte sequence or be mistaken for it, and it
+  cannot collide with the separate `{...}` body scan (different bracket characters entirely).
+- **The body path stays primary.** It carries `retryable`, `next_step` and `details`, none of
+  which a bare code can express; the marker path recovers `code` only.
+- **Excluded from `upstream_error`.** D16 forwards the upstream's own detail untouched, and
+  this surface must not inject text into a body it promised not to touch.
+- **A real gap surfaced along the way.** Building the marker meant rendering every typed
+  refusal's message, which required enumerating them — and `SecretInvalidError` (the LLM
+  plane's actual "rejected credential": a secret that exists but is revoked or failed refresh,
+  `policy/types.py`) turned out to be raised by the shared resolver but never caught by
+  `_map_domain_exception` OR listed in `_DOMAIN_EXCEPTIONS`. It would have reached the caller
+  as an unhandled 500, not a typed refusal at all. Fixed alongside the marker: `secret_invalid`
+  is now mapped (409, same status family as `secret_missing`) and carries the marker like every
+  other typed code.
+
+**What is still lost on a marker-only harness.** `retryable` and `next_step` and `details` do
+not survive Codex — the marker fallback returns `code` and a (marker-stripped) `message` only,
+never backfilled from `NEXT_STEPS`, so a caller can tell "code only" from "the full envelope."
+WP19 must degrade to a generic step-up prompt when `next_step`/`details` are absent rather than
+assume a specific one exists.
+
+**Claude Code's unknown behavior matters less now.** Item 2's limit (the CLI is a closed-source
+compiled binary) still stands and is not resolved here — but since the marker rides inside the
+one field (`message`) every harness examined keeps, `code` survives on Claude Code whether or
+not its SDK also preserves the full JSON body. The unverified question narrows to
+`retryable`/`next_step`/`details`, which were never load-bearing for WP19's own need (a code to
+act on).
+
+**Consequence for the runner.** `gateway-error.ts` gained the marker fallback described above;
+its body-path parser is otherwise unchanged — already correct for the bodies that do survive.
+`tests/unit/gateway-error-harness-formats.test.ts` pins both paths per refusal: the Pi/Anthropic-
+SDK shape recovering the full envelope via the body, and Codex's stripped shape (with the marker
+still inside `message`) recovering `code` alone via the marker, with `next_step`/`details`
+asserted absent. A future edit that changes either SDK's formatting, or the gateway's marker
+rendering, fails a test instead of degrading silently.
+
+**The MCP plane needed the same marker, and turned out to need it more.** The first pass of
+this section covered the LLM gateway only (`gateways/llms/proxy.py`); WP26 depends on the MCP
+plane's version of this exact channel — an agent that cannot reach an MCP server and asks the
+user to connect it is D35's second consequence, and it is dead on Codex without a code, same as
+the LLM case. `with_code_marker` moved to `gateways/utils.py` (already shared by both proxies
+for `response_headers`) so `gateways/mcps/proxy.py::_protocol_error` could apply it too, rather
+than a second copy drifting from the first (the duplication CU12 spent this wave proving is
+expensive). Same exclusion: `MCPUpstreamError`/`upstream_error` stays unmarked, D16 applying
+identically on this plane.
+
+**The MCP plane's wire shape makes the marker load-bearing for every harness, not only
+Codex's.** The JSON-RPC error result's stable identifier is `error.data.cause` (a string),
+under a numeric JSON-RPC `error.code` (e.g. `-32000`) — not the LLM plane's string `error.code`
+`gateway-error.ts`'s body scan looks for. That scan's `typeof body.code === "string"` check
+fails on an MCP body regardless of whether a harness preserves it whole, so **the marker is the
+only channel that ever recovers an MCP cause**, independent of OD18's per-harness LLM findings.
+Proven in `tests/unit/gateway-error-harness-formats.test.ts` with two MCP fixtures: the full
+JSON-RPC body embedded verbatim (still only the marker recovers `code`, because the body scan
+doesn't recognize the shape), and Codex's stripped-to-`message` shape (the marker survives for
+the same reason it does on the LLM plane).
+
+**The same audit run on the MCP plane, because the LLM plane's version of it found a real
+gap.** Every exception `core/gateways/mcps/service.py` and `core/gateways/mcps/registry.py`
+actually raise (`grep -rn "raise [A-Z]"`) — `MCPEndpointNotFoundError`, `PolicyDeniedError`,
+`GatewayEndpointInactiveError`, `MCPToolNotAllowedError`, `SecretInvalidError`,
+`SecretNotFoundError`, `MCPUpstreamError` — has a branch in `_map_gateway_exception` and is
+listed in `_MAPPED_EXCEPTIONS`. `CeilingExceededError`, `EntitlementDeniedError`,
+`MCPAuthRequiredError` and `MCPScopeInsufficientError` are mapped too but not currently raised
+anywhere on this plane (reserved for the not-yet-built ceiling/entitlement/step-up paths,
+WP16-20) — present defensively, not a gap. **Unlike the LLM plane, this proxy had no hole**:
+`SecretInvalidError` (the one the LLM side had silently dropped) was already both mapped
+(`cause="secret_invalid"`) and in `_MAPPED_EXCEPTIONS` here from the start.
+
 ### OD2. Is a user's own secret the norm or the exception — CLOSED
 
 **Project-level secrets are the model.** User-level secrets are out of scope and recorded as such

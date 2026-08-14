@@ -3,15 +3,30 @@
  *
  * The LLM gateway's data-plane refusals (`apis/fastapi/gateways/llms/proxy.py`
  * `_map_domain_exception`) are OpenAI-shaped: `{"error": {"message", "type", "code", ...}}`.
- * A harness's provider SDK is the thing that actually receives that HTTP body, and most
- * OpenAI/Anthropic-compatible SDKs fold the raw body into their thrown error's message — so by
- * the time the runner sees a harness error string, the JSON is (often, not always) still in
- * there verbatim. This is a best-effort recovery, not a guarantee: a harness whose SDK discards
- * the body before formatting its own message yields `undefined`, and the plain `error` string
- * stays the only signal (unchanged behavior). Verifying which harness release preserves it is
- * the natural follow-up to OD14's matrix; not run here.
+ * A harness's provider SDK is the thing that actually receives that HTTP body. Two recovery
+ * paths, tried in order (OD18, `open-designs.md`):
+ *
+ * 1. The JSON body, verbatim, embedded in the harness's error text (most OpenAI/Anthropic-
+ *    compatible SDKs fold it into their thrown error's message). Recovers everything:
+ *    `code`, `message`, `next_step`, `details`.
+ * 2. A single machine-readable marker (`⟦agenta_code:<code>⟧`) the gateway appends to every
+ *    TYPED refusal's `message` field specifically so `code` survives even when a harness's
+ *    SDK strips the JSON structure and keeps only that one field — confirmed for Codex
+ *    (`codex-rs`'s `extract_error_message` discards everything but `error.message`). Recovers
+ *    `code` only: `retryable`/`next_step`/`details` are lost on a marker-only harness, and a
+ *    caller of this function (WP19's step-up interaction) must degrade to a generic prompt
+ *    when it sees no `details`/`next_step` rather than assume one exists.
+ *
+ * A harness whose SDK discards BOTH — the full body and the marker inside `message` — still
+ * yields `undefined`; no harness examined does this (OD18).
  */
 import type { AgentErrorDetail } from "./protocol.ts";
+
+// U+27E6/U+27E7 (MATHEMATICAL LEFT/RIGHT WHITE SQUARE BRACKET): chosen because they never
+// occur in ordinary error prose, a model's own output, JSON delimiters (`{}`/`[]`), or
+// markdown, so nothing else can produce or be mistaken for this marker. Must match the gateway
+// (`api/oss/src/apis/fastapi/gateways/llms/proxy.py` `_CODE_MARKER_OPEN`/`_CLOSE`).
+const CODE_MARKER_RE = /⟦agenta_code:([a-z_]+)⟧/;
 
 interface GatewayErrorBody {
   message?: unknown;
@@ -28,6 +43,7 @@ const NEXT_STEPS: Record<string, string> = {
   ceiling_exceeded: "reduce the request below the endpoint's ceiling",
   policy_denied: "check the connection's policy",
   secret_missing: "configure the connection's secret",
+  secret_invalid: "reconnect the connection's secret",
   endpoint_not_found: "check the endpoint configuration",
   adapter_not_found: "check the endpoint configuration",
 };
@@ -59,6 +75,13 @@ export function parseGatewayErrorDetail(
   raw: string | undefined,
 ): AgentErrorDetail | undefined {
   if (!raw) return undefined;
+  const fromBody = parseFromBody(raw);
+  if (fromBody) return fromBody;
+  return parseFromMarker(raw);
+}
+
+/** Path 1: the JSON body survived. Recovers the full envelope. */
+function parseFromBody(raw: string): AgentErrorDetail | undefined {
   const parsed = firstJsonObject(raw);
   if (!parsed || typeof parsed !== "object") return undefined;
   const body = (parsed as { error?: GatewayErrorBody }).error;
@@ -81,4 +104,18 @@ export function parseGatewayErrorDetail(
     ...(NEXT_STEPS[code] ? { next_step: NEXT_STEPS[code] } : {}),
     ...(Object.keys(details).length > 0 ? { details } : {}),
   };
+}
+
+/**
+ * Path 2: the body is gone but the marker survived inside whatever text remains (Codex).
+ * Recovers `code` only — `next_step` and `details` need the body, and are omitted rather
+ * than backfilled from `NEXT_STEPS`, so a caller (WP19) can tell "only a code" from "the
+ * full envelope" and degrade to a generic step-up prompt instead of a specific one.
+ */
+function parseFromMarker(raw: string): AgentErrorDetail | undefined {
+  const match = raw.match(CODE_MARKER_RE);
+  if (!match) return undefined;
+  const code = match[1];
+  const message = raw.replace(CODE_MARKER_RE, "").trim() || raw;
+  return { code, message, retryable: false };
 }
