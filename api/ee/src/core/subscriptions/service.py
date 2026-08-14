@@ -430,17 +430,22 @@ class SubscriptionsService:
         reconciliation job — converges safely; this call does not need to be retried
         from here.
 
-        `idempotency_key` is derived from the subscription-change identity available at
-        this boundary: organization, event kind, Stripe subscription id, resulting plan,
-        and anchor. No per-webhook-delivery event id is threaded through from the Stripe
-        handler today, so two genuinely distinct changes that land on the exact same
-        (subscription_id, plan, anchor) tuple would collide and be treated as one replay —
-        an accepted Wave-1 limitation, not a correctness claim for the general case.
+        `idempotency_key` is built from internal identifiers only, in the same
+        one-prefix-one-identifier shape as `measurement:{measurement_id}`
+        (`ee.src.tasks.asyncio.measurements.worker`): the subscription's own identity
+        (`subscription_id`) plus `period_start`, the internal identifier — computed here,
+        not passed in — of WHICH billing period this change lands in. Two calls land in
+        the same period exactly when they are the same occurrence of a mid-period change
+        for that subscription; the plan name and the raw `anchor` day-of-month are not
+        identifiers and do not belong in the key. No per-webhook-delivery event id is
+        threaded through from the Stripe handler today, so two genuinely distinct changes
+        landing in the same billing period for the same subscription would still collide
+        and be treated as one replay — an accepted Wave-1 limitation, not a correctness
+        claim for the general case.
         """
         period_start, period_end = billing_period_bounds(now=now, anchor=anchor)
         idempotency_key = (
-            f"plan_change:{organization_id}:{event.value}:"
-            f"{subscription_id or 'none'}:{incoming_plan}:{anchor}"
+            f"plan_change:{subscription_id or 'none'}:{period_start.isoformat()}"
         )
 
         try:

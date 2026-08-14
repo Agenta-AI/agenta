@@ -12,7 +12,6 @@ from ee.src.dbs.postgres.wallets.dbas import (
     WalletBalanceDBA,
     WalletCreditDBA,
     WalletDebitDBA,
-    WalletPlanChangeDBA,
 )
 
 
@@ -89,34 +88,5 @@ class WalletBalanceDBE(Base, WalletBalanceDBA):
             "wallet_credit_id",
             unique=True,
             postgresql_where=text("wallet_credit_id IS NOT NULL"),
-        ),
-    )
-
-
-class WalletPlanChangeDBE(Base, WalletPlanChangeDBA):
-    __tablename__ = "wallet_plan_changes"
-
-    __table_args__ = (
-        PrimaryKeyConstraint("id"),
-        # The replay guard `apply_plan_change` checks first, before any other write.
-        UniqueConstraint(
-            "organization_id",
-            "idempotency_key",
-            name="uq_wallet_plan_changes_org_idempotency",
-        ),
-        ForeignKeyConstraint(
-            ["outgoing_credit_id"],
-            ["wallet_credits.id"],
-            ondelete="RESTRICT",
-        ),
-        ForeignKeyConstraint(
-            ["outgoing_debit_id"],
-            ["wallet_debits.id"],
-            ondelete="RESTRICT",
-        ),
-        ForeignKeyConstraint(
-            ["incoming_credit_id"],
-            ["wallet_credits.id"],
-            ondelete="RESTRICT",
         ),
     )

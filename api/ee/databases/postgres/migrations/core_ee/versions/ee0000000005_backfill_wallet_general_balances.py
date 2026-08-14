@@ -23,6 +23,14 @@ docstring); `subscriptions.plan` is still read and left in the query so the mirr
 mapping is explicit at the callsite, not silently dropped, for whenever that mapping stops
 being a constant.
 
+Row ids are minted in Python with `uuid_utils.compat.uuid7`, matching this repository's
+id-minting convention (see `oss.src.dbs.postgres.shared.dbas.IdentifierDBA`,
+`oss.src.dbs.postgres.sessions.streams.dao`), not `gen_random_uuid()` (uuid4) — a
+migration has no equivalent of `Column(default=uuid.uuid7)` to fall back on, and there is
+no built-in pure-SQL uuidv7 generator available on the Postgres version this repository
+targets, so the ids are minted here in Python and passed down as literal values, one
+`INSERT` per organization rather than a single `INSERT ... SELECT`.
+
 Idempotent: `ON CONFLICT (organization_id) WHERE wallet_credit_id IS NULL DO NOTHING`
 against the same partial unique index `uq_wallet_balances_org_general` that
 `WalletsDAO.provision_general_balance` relies on — re-running this migration inserts
@@ -39,44 +47,58 @@ reasons other than this migration (organization creation running concurrently, o
 credit/debit having already posted against it). Deleting rows here cannot distinguish
 "created only by this migration, still untouched" from "created here but already carries
 real financial state" — so this downgrade does NOT remove any `wallet_balances` row; it
-only reverses the schema-only migration below it (`ee0000000005`) when downgraded further.
+only reverses the schema-only migration below it (`ee0000000004`, the wallet tables
+themselves) when downgraded further.
 
-Revision ID: ee0000000006
-Revises: ee0000000005
+Revision ID: ee0000000005
+Revises: ee0000000004
 Create Date: 2026-08-14 00:20:00.000000
 """
 
 from typing import Sequence, Union
 
+import uuid_utils.compat as uuid_utils
 from alembic import op
+from sqlalchemy import text
 
-revision: str = "ee0000000006"
-down_revision: Union[str, None] = "ee0000000005"
+revision: str = "ee0000000005"
+down_revision: Union[str, None] = "ee0000000004"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
-        INSERT INTO wallet_balances
-            (id, organization_id, wallet_credit_id, balance_musd, floor_musd)
-        SELECT
-            gen_random_uuid(),
-            o.id,
-            NULL,
-            0,
-            0  -- floor_musd: mirrors ee.src.core.wallets.plans.floor_musd_for_plan,
-               -- currently a constant 0 for every plan (s.plan is read only to make
-               -- that dependency explicit for when the mapping stops being constant).
-        FROM organizations o
-        LEFT JOIN subscriptions s ON s.organization_id = o.id
-        WHERE NOT EXISTS (
-            SELECT 1 FROM wallet_balances wb
-            WHERE wb.organization_id = o.id AND wb.wallet_credit_id IS NULL
+    bind = op.get_bind()
+
+    # subscriptions.plan is read (and left unused below) only to keep the dependency on
+    # the plan->floor mapping explicit at the callsite — see the module docstring.
+    rows = bind.execute(
+        text(
+            """
+            SELECT o.id
+            FROM organizations o
+            LEFT JOIN subscriptions s ON s.organization_id = o.id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM wallet_balances wb
+                WHERE wb.organization_id = o.id AND wb.wallet_credit_id IS NULL
+            )
+            """
         )
-        ON CONFLICT (organization_id) WHERE wallet_credit_id IS NULL DO NOTHING
-        """
+    ).fetchall()
+
+    if not rows:
+        return
+
+    bind.execute(
+        text(
+            """
+            INSERT INTO wallet_balances
+                (id, organization_id, wallet_credit_id, balance_musd, floor_musd)
+            VALUES (:id, :organization_id, NULL, 0, 0)
+            ON CONFLICT (organization_id) WHERE wallet_credit_id IS NULL DO NOTHING
+            """
+        ),
+        [{"id": uuid_utils.uuid7(), "organization_id": row.id} for row in rows],
     )
 
 

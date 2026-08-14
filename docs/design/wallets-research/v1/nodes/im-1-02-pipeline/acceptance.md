@@ -24,7 +24,7 @@ one-line patch. See step 2 and step 8 below for where this surfaces during accep
 > `ee.src.core.organizations.service.provision_signup_subscription` / `provision_user_subscription`
 > now call `WalletsService.provision_general_balance` (via `ee.src.core.wallets.runtime.get_wallets_service`)
 > after subscription provisioning, in its own transaction, idempotently guarded by the partial
-> unique index `uq_wallet_balances_org_general`. Migration `ee0000000006_backfill_wallet_general_balances.py`
+> unique index `uq_wallet_balances_org_general`. Migration `ee0000000005_backfill_wallet_general_balances.py`
 > backfills the row for every organization that predates this change. Manual step 2 below is
 > therefore no longer required on a deployment built from this revision forward, but is left as-is
 > for deployments built from an older revision.
@@ -103,8 +103,7 @@ every start, which in order applies: `core` -> `core_oss` -> `core_ee` -> `traci
 docker compose -p agenta-ee-dev-wallets-im-1-02 exec postgres \
   psql -U username -d agenta_ee_core -c \
   "select version_num from alembic_version_core_ee;"
-# expect: ee0000000006  (add_wallet_tables -> add_wallet_plan_changes_table ->
-#         backfill_wallet_general_balances; WP-1-04)
+# expect: ee0000000005  (add_wallet_tables -> backfill_wallet_general_balances; WP-1-04)
 
 docker compose -p agenta-ee-dev-wallets-im-1-02 exec postgres \
   psql -U username -d agenta_ee_tracing -c \
@@ -148,7 +147,7 @@ likely cause and would itself be a P0 finding.
 
 **CLOSED as of WP-1-04:** organization creation (`provision_signup_subscription` /
 `provision_user_subscription` in `ee/src/core/organizations/service.py`) now provisions the
-general `wallet_balances` row itself, and migration `ee0000000006_backfill_wallet_general_balances.py`
+general `wallet_balances` row itself, and migration `ee0000000005_backfill_wallet_general_balances.py`
 backfills it for organizations created before this revision. On a deployment built from this
 revision forward, every organization created via the admin endpoint already has its general row —
 this step's manual SQL is unnecessary; skip straight to step 3. The rest of this section is kept
@@ -394,7 +393,7 @@ part of the mechanism is unchanged. What closed the gap is upstream of it: organ
 creation now provisions the general balance row itself
 (`ee.src.core.organizations.service._provision_wallet_general_balance`, called from
 `provision_signup_subscription`/`provision_user_subscription`), and migration
-`ee0000000006_backfill_wallet_general_balances.py` backfills it for organizations that
+`ee0000000005_backfill_wallet_general_balances.py` backfills it for organizations that
 predate this change — so on a deployment built from this revision forward, an
 organization used in this procedure already has its row, and this failure mode should not
 occur in practice. It remains possible in principle (a provisioning call that failed and
@@ -430,10 +429,9 @@ uv run --no-sync python -m pytest \
 uv run --no-sync python -m pytest \
   ee/tests/pytest/integration/measurements/test_measurements_integration.py -v
 
-# 5. WP-1-04: the ee0000000005 (wallet_plan_changes ledger) and ee0000000006 (backfill)
-#    migrations, and the real WalletsDAO provisioning/plan-change methods.
+# 5. WP-1-04: the ee0000000005 (backfill) migration, and the real WalletsDAO
+#    provisioning/plan-change methods.
 uv run --no-sync python -m pytest \
-  ee/tests/pytest/integration/wallets/test_wallets_plan_changes_migration_postgres.py \
   ee/tests/pytest/integration/wallets/test_wallets_backfill_migration_postgres.py \
   ee/tests/pytest/integration/wallets/test_wallets_provisioning_postgres.py -v
 ```
@@ -454,12 +452,14 @@ uv run --no-sync python -m pytest \
   or its retry convergence after a transient publish failure, doesn't hold against real
   infrastructure — could mean either double-charging or silently losing a charge, which
   are opposite but equally unacceptable failure modes.
-- (5) failing on the migration tests means `ee0000000005`/`ee0000000006` don't actually
-  enforce/backfill what WP-1-04 claims (the plan-changes ledger's uniqueness/FK, or the
-  backfill's idempotent `ON CONFLICT DO NOTHING`). Failing on the provisioning tests means
-  `WalletsDAO.provision_general_balance`/`apply_plan_change` don't hold against a real
-  engine the way the `FakeWalletsDAO`-backed unit tests assume — check locking/ON CONFLICT
-  behavior first.
+- (5) failing on the migration test means `ee0000000005` doesn't actually backfill what
+  WP-1-04 claims (the idempotent `ON CONFLICT DO NOTHING` guard). Failing on the
+  provisioning tests means `WalletsDAO.provision_general_balance`/`apply_plan_change`
+  don't hold against a real engine the way the `FakeWalletsDAO`-backed unit tests assume —
+  check locking/ON CONFLICT behavior first, and for `apply_plan_change` specifically,
+  check that the replay guard (a `wallet_debits` lookup by `idempotency_key`, plus a
+  `wallet_credits` lookup by the embedded `plan_change_idempotency_key` reference — see
+  `WalletsDAO.apply_plan_change`) actually finds a prior application on redelivery.
 
 ## 10. Unit-only commands (already run and passing during review; safe to re-run any time)
 

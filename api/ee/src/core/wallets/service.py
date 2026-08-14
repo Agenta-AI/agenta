@@ -51,8 +51,8 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         plan: str,
     ) -> None:
         """Idempotent — see `WalletsDAOInterface.provision_general_balance`. Called from
-        the organization-creation flow, after the org-creation transaction has already
-        committed."""
+        the organization-creation flow, after the organization-creation transaction has
+        already committed."""
         await self.wallets_dao.provision_general_balance(
             organization_id=organization_id,
             floor_musd=floor_musd_for_plan(plan=plan),

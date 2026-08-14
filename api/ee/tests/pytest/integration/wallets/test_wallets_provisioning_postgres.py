@@ -23,11 +23,11 @@ from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
-DOWN_REVISION = "ee0000000004"
-# Schema only (wallet tables + the plan-changes ledger) — the ee0000000006 backfill
-# migration is not needed for these DAO-level tests and would otherwise scan the whole
-# shared `organizations` table unnecessarily.
-SCHEMA_REVISION = "ee0000000005"
+DOWN_REVISION = "ee0000000003"
+# Schema only (wallet tables) — the ee0000000005 backfill migration is not needed for
+# these DAO-level tests and would otherwise scan the whole shared `organizations` table
+# unnecessarily.
+SCHEMA_REVISION = "ee0000000004"
 
 PERIOD_START = datetime(2026, 1, 1, tzinfo=timezone.utc)
 PERIOD_END = datetime(2026, 2, 1, tzinfo=timezone.utc)
@@ -55,20 +55,18 @@ async def _cleanup(organization_id: uuid.UUID):
     engine = get_transactions_engine()
     async with engine.session() as session:
         await session.execute(
-            text("DELETE FROM wallet_plan_changes WHERE organization_id = :org"),
-            {"org": organization_id},
+            text("DELETE FROM wallet_debits WHERE organization_id = :organization_id"),
+            {"organization_id": organization_id},
         )
         await session.execute(
-            text("DELETE FROM wallet_debits WHERE organization_id = :org"),
-            {"org": organization_id},
+            text(
+                "DELETE FROM wallet_balances WHERE organization_id = :organization_id"
+            ),
+            {"organization_id": organization_id},
         )
         await session.execute(
-            text("DELETE FROM wallet_balances WHERE organization_id = :org"),
-            {"org": organization_id},
-        )
-        await session.execute(
-            text("DELETE FROM wallet_credits WHERE organization_id = :org"),
-            {"org": organization_id},
+            text("DELETE FROM wallet_credits WHERE organization_id = :organization_id"),
+            {"organization_id": organization_id},
         )
 
 
@@ -99,9 +97,9 @@ async def test_provision_general_balance_is_idempotent_against_real_conflict(
             result = await session.execute(
                 text(
                     "SELECT count(*) FROM wallet_balances "
-                    "WHERE organization_id = :org AND wallet_credit_id IS NULL"
+                    "WHERE organization_id = :organization_id AND wallet_credit_id IS NULL"
                 ),
-                {"org": organization_id},
+                {"organization_id": organization_id},
             )
             assert result.scalar() == 1
     finally:
@@ -126,11 +124,11 @@ async def test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_d
                 text(
                     "INSERT INTO wallet_credits "
                     "(id, organization_id, credit_kind, amount_musd, priority, end_time) "
-                    "VALUES (:id, :org, 'plan_allowance', 310000, 10, :end_time)"
+                    "VALUES (:id, :organization_id, 'plan_allowance', 310000, 10, :end_time)"
                 ),
                 {
                     "id": outgoing_credit_id,
-                    "org": organization_id,
+                    "organization_id": organization_id,
                     "end_time": PERIOD_END,
                 },
             )
@@ -138,11 +136,11 @@ async def test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_d
                 text(
                     "INSERT INTO wallet_balances "
                     "(id, organization_id, wallet_credit_id, balance_musd) "
-                    "VALUES (:id, :org, :credit_id, 310000)"
+                    "VALUES (:id, :organization_id, :credit_id, 310000)"
                 ),
                 {
                     "id": uuid.uuid4(),
-                    "org": organization_id,
+                    "organization_id": organization_id,
                     "credit_id": outgoing_credit_id,
                 },
             )

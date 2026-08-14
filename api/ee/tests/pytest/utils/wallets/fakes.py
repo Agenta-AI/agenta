@@ -77,7 +77,7 @@ class FakeWalletsDAO(WalletsDAOInterface):
         candidates = [
             candidate
             for candidate, _ in self._credits.values()
-            if True  # organization scoping is implicit: fixtures are single-org in tests
+            if True  # organization scoping is implicit: fixtures are single-organization in tests
         ]
         plan = plan_settlement(command=command, candidates=candidates)
 
