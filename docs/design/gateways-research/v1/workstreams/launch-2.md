@@ -33,7 +33,7 @@ all four change what a caller sends.
 
 ## The one gap that reshapes this wave
 
-**A model credential cannot be delivered as a header today.** The runner wire's
+**A model call cannot carry our credentials in a header today.** The runner wire's
 `ModelCredentialBinding.kind` is `"environment"` and nothing else
 (`services/runner/src/protocol.ts`), and the SDK agrees —
 `EnvironmentCredentialBinding.kind` is `Literal["environment"]`
@@ -61,7 +61,7 @@ nothing" — which is D32's subscription pass-through, modelled before the decis
 Wave 2 does not build pass-through, but it should not regress the field either.
 
 **One validator will bite in development.** `ResolvedConnection` requires an `https`
-`endpoint.base_url` whenever a credential is `opaque_http`. A local gateway on `http://`
+`endpoint.base_url` whenever a resolved secret is `opaque_http`. A local gateway on `http://`
 fails that check. Decide deliberately whether the loopback case is exempted or whether dev
 runs over TLS; do not discover it in an acceptance test.
 
@@ -80,8 +80,8 @@ WP12 gates three packages; WP4 is independent of all of them and can start on da
 | `gateways-wp15` | `feat/gateways-wp15` | MCP servers on the wire | the runner's MCP server configs |
 
 **WP12 — SDK connection resolution.** `resolve()` returns a gateway route: provider and
-deployment naming the gateway, `endpoint.base_url` the gateway URL, and one gateway
-credential in place of the provider's. The SDK keeps every capability it has (D4), so this
+deployment naming the gateway, `endpoint.base_url` the gateway URL, and our own credentials in place of
+the provider's secret. The SDK keeps every capability it has (D4), so this
 is a change of *what the resolver returns*, not of what it can express — except for the
 header binding above, which lands here and on the wire together.
 *Depends on:* Checkpoint A. *Blocks:* WP13, WP14, WP15.
@@ -98,7 +98,7 @@ on the refusal paths as well as the success ones.
 
 **WP13 — Runner and harnesses.** The runner carries a gateway route rather than provider
 secrets. Verify the two properties that make this worth doing: the per-server secret arrays
-collapse to one credential, and the redaction set shrinks accordingly.
+collapse to one set of gateway credentials, and the redaction set shrinks accordingly.
 *Depends on:* WP12.
 *Done when:* a run reaches a model with no provider key anywhere in the sandbox, on both
 the local and the Daytona sandbox.
@@ -107,7 +107,7 @@ the local and the Daytona sandbox.
 *Depends on:* WP12.
 
 **WP15 — MCP servers on the wire.** The runner's `McpServerConfig.connection.url` points at
-a gateway MCP route and its `credentials` carry one gateway credential. The binding this
+a gateway MCP route and its `credentials` array carries ours. The binding this
 needs already exists, which is why this is the smaller of the two runner packages.
 *Depends on:* WP12.
 
@@ -132,7 +132,7 @@ From `plan.md`, unchanged, plus what wave 1's shape now makes checkable:
 - A run naming a **model it may not use** fails cleanly — the filter refuses before the
   upstream is dialled, and the failure names the model.
 - A run whose endpoint is **deactivated** fails with the flag named, not with a timeout.
-- The gateway credential reaches the upstream in **neither** header: `Authorization` and
+- Our credentials reach the upstream in **neither** header: `Authorization` and
   `X-AG-Credentials` are both stripped before any relay (D31), and this is worth asserting
   against a mock that echoes what it received rather than trusting the strip list.
 

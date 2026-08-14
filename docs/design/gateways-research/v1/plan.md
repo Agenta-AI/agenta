@@ -257,7 +257,7 @@ has (D4).
 **WP13 — Runner and harnesses.** The runner carries a gateway route rather than provider secrets.
 Verify the secret arrays collapse and the redaction set shrinks. This is **not** a
 resolver-side change alone: `ModelCredentialBinding.kind` is `"environment"` and nothing
-else, so a model credential cannot be delivered in `X-AG-Credentials` (D31) without a wire
+else, so a model call cannot carry our credentials in `X-AG-Credentials` (D31) without a wire
 change. The MCP side already has `{kind: "header", name}` and is the precedent to copy.
 *Depends on:* WP12.
 

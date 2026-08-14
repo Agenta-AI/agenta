@@ -547,30 +547,50 @@ typed configuration goes in `data`. Applied here:
 ### Why the two tables do not carry the same identity columns
 
 `llms_endpoints` has `provider_key` and `deployment_kind` and no `auth_mode`;
-`mcps_endpoints` has `auth_mode` and, on stored rows, neither of the other two. The
-asymmetry is not an oversight, and the reason is the same on both sides: **each table
-stores the axis that varies within it, and omits the one that is fixed by construction.**
+`mcps_endpoints` has `auth_mode` and neither of the other two. The dividing line is not
+LLM versus MCP — it is **generated versus stored**. Every generated endpoint on either
+plane knows its provider, because the code or the connection row that generated it says
+so. A column exists only for what a *stored* row has to carry, and a stored row is always
+`custom` (D20).
 
-**No `auth_mode` on an LLM endpoint, because there is only one mode.** Every model upstream
-authenticates the same way — a key, presented as a header or as a request signature. There
-is no OAuth against an LLM provider and no consent to obtain, so a column recording *how*
-would answer `api_key` on every row that has a secret and `none` on the mocks. `secret_id`
-already carries that distinction: set means authenticated, null means a NONE-scheme target
-(D23). A second column expressing the same bit is a column that can disagree with itself.
+**`provider_key` is a column on the LLM table because a custom LLM endpoint always has a
+provider.** "My Azure deployment", "my Together reseller" — the provider names which secret
+family authenticates it and which adapter answers, so the row cannot be written without
+it, and `query_endpoints` filters on it. A custom MCP endpoint is a URL somebody pasted;
+it has no provider to name, and nothing would filter on the column if it existed.
 
-**No `provider_key` or `deployment_kind` on a stored MCP endpoint, because a stored MCP
-endpoint has no provider.** The MCP plane's protocol is one protocol over one transport:
-a POST to a URL. `deployment_kind` exists on the LLM plane to say *which wire* — Azure's
-dated API, Bedrock's signed region, an OpenAI-compatible reseller — and it selects the
-adapter. On the MCP plane there is nothing to select: `custom` rows all reach
-`HttpMCPAdapter`, and the only endpoints that *do* name a provider are the generated
-`builtin` ones, whose provider comes from the URL segment or the brokered connection row,
-never from storage.
+That is also why the MCP DTO carries `provider_key` and `integration_key` as **optional,
+never persisted** fields. Generated `builtin` entries populate both — `builtin/agenta` and
+`builtin/composio` each name their provider, taken from the URL segment or the brokered
+connection row — and every stored row leaves them null. The DTO is the union of what any
+endpoint can be; the table is only what a `custom` row needs.
 
-That is why the MCP DTO carries `provider_key` and `integration_key` as **optional, never
-persisted** fields: they are populated on generated `builtin` entries and are null on every
-row. The DTO is the union of what any endpoint can be; the table is only what a `custom`
-row needs.
+**`deployment_kind` is LLM-only because only the LLM plane has more than one wire.** It
+says Azure's dated API, Bedrock's signed region, or an OpenAI-compatible reseller, and it
+selects the adapter. The MCP plane is one protocol over one transport — a POST to a URL —
+so every `custom` row reaches `HttpMCPAdapter` and there is nothing to select.
+
+**`auth_mode` is MCP-only for now, and "for now" is doing real work.** Today every model
+upstream authenticates one way: a secret we resolve and inject, as a header or as a request
+signature. There is no OAuth against a model provider and no consent to obtain, so a column
+would answer the same value on every row that has a secret, and `secret_id` already
+distinguishes those from a NONE-scheme target (D23). The MCP plane needs the column because
+`oauth` and `api_key` change what the gateway must *do* to obtain the secret before it can
+inject anything.
+
+**Subscription pass-through is the thing that ends that argument** (D32). In that mode the
+caller's own vendor authentication passes through untouched and the gateway injects
+nothing — a second mode on the LLM plane, and one that cannot be inferred at call time.
+Guessing whether to overwrite `Authorization` is exactly the decision that must be
+configured rather than detected: infer it wrongly in one direction and we forward a user's
+subscription token to a host they did not choose, in the other and we spend our own secret
+on a call the user meant to fund themselves.
+
+So when pass-through lands, `llms_endpoints` gains an auth-mode column, and the two tables'
+auth columns should be designed together at that point rather than separately. There is a
+prior question, and `open-designs.md` OD15 holds it: **a stored row is the only place an
+endpoint can carry a mode, and pass-through's natural targets are `standard` endpoints,
+which are generated and have no row.**
 
 **What the two tables do share** is everything the gateway does with an endpoint rather
 than to it: `slug`, `secret_id`, `data`, `flags`, `status`, and the lifecycle columns. The

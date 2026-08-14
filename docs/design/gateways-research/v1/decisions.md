@@ -719,6 +719,12 @@ untouched — the exact inverse of every path built so far, all of which derive 
 from a resolved secret and overwrite whatever was there. That inversion is why it needs a
 decision before it is built rather than after.
 
+**It adds a mode to the LLM plane, which today has none.** Every model upstream
+authenticates one way — a secret we resolve and inject — which is why `llms_endpoints`
+carries no `auth_mode` column while `mcps_endpoints` does (entities.md §2.4). Pass-through
+is the second mode, it cannot be inferred at call time, and where a generated `standard`
+endpoint would store it is open (`open-designs.md` OD15).
+
 **Explicitly not built here, and not because it is unimportant.** It depends on facts about
 harness releases that no design can assert — whether a given harness will send a second header
 while keeping its vendor login, and whether that login survives a base-URL override. Building
