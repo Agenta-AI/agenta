@@ -32,6 +32,7 @@ class LLMDeploymentKind(str, Enum):
     BEDROCK = "bedrock"
     SAGEMAKER = "sagemaker"
     VERTEX = "vertex_ai"
+    MOCK = "mock"  # the in-process test double (D23) — a deployment kind, not a provider name
 
 
 class LLMEndpointRoute(GatewayEndpointRoute):
@@ -72,7 +73,10 @@ class LLMEndpointFlags(BaseModel):
 
 
 class LLMEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
-    provider_key: str
+    # Nullable (entities.md §2.4): with the passthrough/translated split gone (D34), a
+    # stored row's provider_key decides nothing — it is a label, not a routing input. A
+    # custom row pointed at a self-hosted gateway names no provider that means anything.
+    provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     namespace: GatewayEndpointNamespace = GatewayEndpointNamespace.CUSTOM
     secret_id: Optional[UUID] = None
@@ -83,7 +87,7 @@ class LLMEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
 
 
 class LLMEndpointCreate(Slug, Header, Metadata):
-    provider_key: str
+    provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     secret_id: Optional[UUID] = None
     #
@@ -129,7 +133,7 @@ class LLMResolvedRoute(BaseModel):
     """What the south port receives: the route after selection, with the model
     id already in the routing library's form."""
 
-    provider_key: str
+    provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     model: str
     #

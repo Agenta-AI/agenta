@@ -35,7 +35,9 @@ class LLMEndpointDBA(
 
     __abstract__ = True
 
-    provider_key = Column(String, nullable=False)
+    # Nullable (entities.md §2.4): D34 removed the one branch that read it on a stored row
+    # (select_upstream's `direct` split), so it decides nothing and is a label only.
+    provider_key = Column(String, nullable=True)
     deployment_kind = Column(
         SQLEnum(LLMDeploymentKind, name="llmdeploymentkind_enum"), nullable=False
     )

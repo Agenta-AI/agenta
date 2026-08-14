@@ -281,15 +281,19 @@ class LLMEndpointDBA(
     """One custom LLM endpoint: a provider deployment we reach (D19, D20)."""
     __abstract__ = True
 
-    provider_key = Column(String, nullable=False)
+    provider_key = Column(String, nullable=True)
     # String, not Enum: the provider set grows with the routing library's, and
     # gateway_connections.provider_key is already a String for the same reason.
+    # Nullable (WP24, D34): select_upstream's `direct` branch — the one place a stored
+    # row's provider_key decided anything — is gone, so it decides nothing and is a label
+    # only; a custom row pointed at a self-hosted gateway names no provider at all.
     deployment_kind = Column(
         SQLEnum(LLMDeploymentKind, name="llmdeploymentkind_enum"), nullable=False
     )
     # Enum: the set is ours and closed — direct, custom, azure, bedrock,
-    # sagemaker, vertex_ai — aligned with CustomProviderKind and the runner
-    # wire's own `deployment` axis (services/runner/src/protocol.ts).
+    # sagemaker, vertex_ai, mock — aligned with CustomProviderKind and the runner
+    # wire's own `deployment` axis (services/runner/src/protocol.ts). `mock` is WP24's:
+    # the test double is a deployment kind, not something provider_key selects.
     secret_id = Column(UUID(as_uuid=True), nullable=True)
     # nullable: an endpoint with no secret is legitimate — the mock (D23),
     # an unauthenticated self-hosted server. FK with SET NULL, §2.1.
@@ -554,25 +558,29 @@ plane knows its provider, because the code or the connection row that generated 
 so. A column exists only for what a *stored* row has to carry, and a stored row is always
 `custom` (D20).
 
-**`provider_key` is a column on the LLM table, and it earns less than it looks.** On a
-stored row it is load-bearing in exactly two places: `provider_key == "mock"` selects the
-mock adapter ahead of everything else (D23), and on a `direct` row it decides passthrough
-versus translated, because that is the one deployment where the wire's shape follows from
-the provider rather than from the deployment. On the common `custom` deployment it decides
-nothing — every such row reaches the passthrough adapter whatever it says. It does not
-resolve the secret either: a custom row resolves through `BoundSecretRef(secret_id)`, and
-`ProviderKeyRef` is the `standard` arm alone.
+**`provider_key` is a column on the LLM table, and it earns less than it looks — and after
+WP24 it earns nothing at all.** Before D34 was enforced it was load-bearing in exactly two
+places: `provider_key == "mock"` selected the mock adapter ahead of everything else (D23),
+and on a `direct` row it decided passthrough versus translated, because that was the one
+deployment where the wire's shape followed from the provider rather than from the
+deployment. On the common `custom` deployment it already decided nothing — every such row
+reached the passthrough adapter whatever it said. It never resolved the secret either: a
+custom row resolves through `BoundSecretRef(secret_id)`, and `ProviderKeyRef` is the
+`standard` arm alone.
+
+**Both of those are gone.** `open-designs.md` OD16 cleared nearly every provider that used
+to need translation (the "expected shape" below this table was too pessimistic — see OD16's
+closure), so the `passthrough`/`translated` split collapsed into one relay and `provider_key`
+no longer decides which adapter a `direct` row reaches. The mock's selection moved onto
+`deployment_kind == LLMDeploymentKind.MOCK`, a deployment kind rather than a provider name
+— `provider_key == "mock"` was always a test-double artifact wearing a provider's clothes.
 
 What is left is real but modest: it is what `query_endpoints` filters on, what a listing
 groups by, and what an upstream error names so the message is intelligible. That is enough
-to keep a column, and not enough to call it structural — so **`NOT NULL` is the part worth
-revisiting**, since a `custom` row pointed at a self-hosted gateway is being made to name a
-provider that means nothing to it.
-
-The `direct` split is also the thinner of the two justifications, and D34 removes the
-reason it exists — a relay that may not convert a body has no shape-driven adapter choice to
-make. `open-designs.md` OD16 holds which upstreams that leaves reachable; if it resolves as
-expected, `provider_key` on a stored row decides nothing and becomes a pure label.
+to keep a column, and not enough to call it structural — so **`NOT NULL` is gone**
+(`llms_endpoints.provider_key` is nullable as of migration `oss000000022`), since a
+`custom` row pointed at a self-hosted gateway is no longer made to name a provider that
+means nothing to it.
 
 A custom MCP endpoint is a URL somebody pasted; it has no provider to name, nothing filters
 on it, and no adapter choice follows from it — one protocol, one transport.
@@ -2850,8 +2858,7 @@ llm_gateway_service = LLMGatewayService(
     policy=gateway_policy_service,
     resolver=secret_resolver,
     upstream_registry=LLMUpstreamRegistry(adapters={
-        "passthrough": PassthroughLLMAdapter(),
-        "translated": TranslatedLLMAdapter(),
+        "relay": RelayLLMAdapter(),        # WP24: one relay, no conversion (D34)
         "mock": MockLLMAdapter(),          # registered always; reachable only
     }),                                    # via the mock endpoints the local
 )                                          # stack defines (D23)

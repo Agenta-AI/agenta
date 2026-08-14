@@ -1,4 +1,4 @@
-"""Unit tests for PassthroughLLMAdapter (entities.md §7.1, workstreams/specs-wp6.md).
+"""Unit tests for RelayLLMAdapter (entities.md §7.1, workstreams/specs-wp24.md).
 
 Nothing running: httpx.MockTransport intercepts every request, no real socket.
 """
@@ -16,7 +16,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
-    PassthroughLLMAdapter,
+    RelayLLMAdapter,
 )
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import (
@@ -102,9 +102,9 @@ def _custom_secret(
     )
 
 
-def _adapter(handler) -> PassthroughLLMAdapter:
+def _adapter(handler) -> RelayLLMAdapter:
     transport = httpx.MockTransport(handler)
-    return PassthroughLLMAdapter(client=httpx.AsyncClient(transport=transport))
+    return RelayLLMAdapter(client=httpx.AsyncClient(transport=transport))
 
 
 async def _drain(body):
@@ -409,7 +409,7 @@ async def test_streaming_result_passes_sse_chunks_through_unmodified():
 
 @pytest.mark.asyncio
 async def test_missing_base_url_raises_llm_upstream_error():
-    adapter = PassthroughLLMAdapter()
+    adapter = RelayLLMAdapter()
 
     with pytest.raises(LLMUpstreamError):
         await adapter.relay_chat_completion(

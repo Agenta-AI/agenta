@@ -57,7 +57,7 @@ async def _relay(request: Request, *, protocol: LLMProtocol) -> Response:
     stream = bool(payload.get("stream", False))
     context = LLMCallContext(model=model, stream=stream, protocol=protocol)
     route = LLMResolvedRoute(
-        provider_key="mock", deployment_kind=LLMDeploymentKind.DIRECT, model=model
+        provider_key="mock", deployment_kind=LLMDeploymentKind.MOCK, model=model
     )
 
     try:

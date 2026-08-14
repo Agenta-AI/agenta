@@ -431,7 +431,9 @@ async def test_custom_provider_snake_case_extras_normalize_for_bedrock(
         "AWS_SECRET_ACCESS_KEY": "secret",
         "AWS_SESSION_TOKEN": "token",
     }
-    assert resolved.environment == {"AWS_REGION": "us-east-1"}
+    # Region rides `endpoint.region` (gateways-research/v1 WP24), not `environment` — it
+    # is addressing for the endpoint row, not a credential to recompute downstream.
+    assert resolved.environment == {}
     assert {item.usage for item in resolved.credentials} == {"local_use"}
     assert resolved.endpoint.region == "us-east-1"
 
@@ -492,10 +494,10 @@ async def test_custom_provider_vertex_snake_case_extras(fake_http, connection):
     assert _credential_environment(resolved) == {
         "GOOGLE_APPLICATION_CREDENTIALS": "/adc.json",
     }
-    assert resolved.environment == {
-        "GOOGLE_CLOUD_PROJECT": "proj",
-        "GOOGLE_CLOUD_LOCATION": "us-central1",
-    }
+    # GOOGLE_CLOUD_LOCATION (region) now rides `endpoint.region`; GOOGLE_CLOUD_PROJECT has
+    # no endpoint-row field yet, so it still rides `environment` (gateways-research/v1 WP24).
+    assert resolved.environment == {"GOOGLE_CLOUD_PROJECT": "proj"}
+    assert resolved.endpoint.region == "us-central1"
     assert [item.usage for item in resolved.credentials] == ["local_use"]
 
 

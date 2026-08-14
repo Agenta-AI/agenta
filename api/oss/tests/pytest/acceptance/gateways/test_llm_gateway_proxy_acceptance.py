@@ -22,8 +22,8 @@ from uuid import uuid4
 import pytest
 
 # Compose service name and port WP5 owns (workstreams/specs-wp5.md); the trailing /v1
-# is the upstream's own path segment, appended to by PassthroughLLMAdapter's
-# `route.base_url + "/chat/completions"` (specs-wp6.md, entities.md §9's base_url note).
+# is the upstream's own path segment, appended to by RelayLLMAdapter's per-protocol
+# routing strategy (specs-wp24.md, entities.md §9's base_url note).
 _MOCK_BASE_URL = "http://mock-llm-gateway:9091/v1"
 
 
@@ -40,10 +40,10 @@ def _create_custom_endpoint(authed_api, *, models, timeout_seconds=None):
             "/gateways/llms/endpoints/",
             json={
                 "endpoint": {
-                    # NOT "mock": select_upstream sends that key to the in-process
-                    # MockLLMAdapter, which would never dial base_url. "openai" +
-                    # custom routes to the passthrough adapter, so these cross a real
-                    # socket to the mock-llm-gateway container.
+                    # deployment_kind "custom" (not "mock"): select_upstream sends
+                    # LLMDeploymentKind.MOCK to the in-process MockLLMAdapter, which
+                    # would never dial base_url. "custom" routes to RelayLLMAdapter,
+                    # so these cross a real socket to the mock-llm-gateway container.
                     "slug": slug,
                     "provider_key": "openai",
                     "deployment_kind": "custom",
@@ -190,15 +190,12 @@ class TestLLMGatewayProxyAcceptance:
 
 @pytest.mark.acceptance
 class TestLLMGatewayResponsesAndMessagesDoorsAcceptance:
-    """D33/WP23: the same byte-for-byte relay, over the responses and messages doors.
+    """D33/WP23/WP24: the same byte-for-byte relay, over the responses and messages doors.
 
-    Known limitation (out of scope here, WP24/OD16): `PassthroughLLMAdapter` always
-    composes `base_url + "/chat/completions"` — it is not yet protocol-aware, so these
-    requests still land on the mock's `/v1/chat/completions` handler regardless of which
-    front door sent them. What this proves is the property WP23 owns: each door parses
-    only its own policy fields and relays the caller's bytes unmodified, over a real
-    socket, to whatever upstream the endpoint names — not that the upstream path matches
-    the door's protocol, which is a routing fact WP24 verifies per provider.
+    `RelayLLMAdapter`'s routing strategy is protocol-aware (specs-wp24.md): each door's
+    request lands on the mock's matching handler (`/v1/responses`, `/v1/messages`), not
+    always `/v1/chat/completions` — this proves both WP23's parse-only-the-policy-fields
+    property and WP24's per-protocol URL composition together.
     """
 
     def test_responses_door_relays_request_and_response_bytes(

@@ -325,14 +325,16 @@ async def test_list_models_custom_returns_the_allowlist_exactly():
 
 
 @pytest.mark.asyncio
-async def test_list_models_standard_returns_catalogue_slugs_verbatim():
-    from agenta.sdk.utils.assets import supported_llm_models
-
+async def test_list_models_standard_strips_the_litellm_routing_prefix():
+    """catalog.py bares each id (open-designs.md OD16): the litellm-flavored catalogue
+    entry means nothing to Anthropic's real API, and D34 forbids fixing that at relay
+    time, so the fix is in what the catalogue advertises."""
     slugs = await _service().list_models(
         scope=_scope(), namespace=GatewayEndpointNamespace.STANDARD, name="anthropic"
     )
 
-    assert slugs == supported_llm_models["anthropic"]
+    assert slugs[0] == "claude-fable-5"
+    assert not any(slug.startswith("anthropic/") for slug in slugs)
 
 
 @pytest.mark.asyncio
@@ -524,7 +526,7 @@ async def test_ceiling_at_or_below_the_limit_is_not_rejected(protocol, field):
         status_code=200, headers={}, body=_one_chunk_body(b"{}")
     )
     adapter = _MockAdapter(result=adapter_result)
-    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
     policy = _MockPolicy(allowed=True)
 
     body = json.dumps({"model": "gpt-4o", field: 100}).encode()
@@ -558,7 +560,7 @@ async def test_ceiling_ignores_another_protocols_field_name():
         status_code=200, headers={}, body=_one_chunk_body(b"{}")
     )
     adapter = _MockAdapter(result=adapter_result)
-    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
     policy = _MockPolicy(allowed=True)
 
     body = json.dumps({"model": "gpt-4o", "max_tokens": 999}).encode()
@@ -594,7 +596,7 @@ async def test_successful_non_streaming_call_records_after_relay():
         usage=GatewayUsage(calls=1, input_tokens=3, output_tokens=4, cost=0.01),
     )
     adapter = _MockAdapter(result=adapter_result)
-    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
     policy = _MockPolicy(allowed=True)
 
     body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
@@ -639,7 +641,7 @@ async def test_streaming_call_records_only_after_full_consumption():
 
     adapter_result = LLMRelayResult(status_code=200, headers={}, body=_two_chunks())
     adapter = _MockAdapter(result=adapter_result)
-    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
 
     body = json.dumps({"model": "gpt-4o", "messages": [], "stream": True}).encode()
     result = await _service(

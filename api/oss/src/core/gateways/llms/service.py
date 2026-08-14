@@ -63,7 +63,7 @@ class _ResolvedLlmTarget:
 
     namespace: GatewayEndpointNamespace
     name: str
-    provider_key: str
+    provider_key: Optional[str]
     deployment_kind: LLMDeploymentKind
     models: LLMModelFilter
     route_data: LLMEndpointRoute

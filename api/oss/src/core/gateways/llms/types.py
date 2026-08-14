@@ -41,7 +41,7 @@ class LLMUpstreamError(GatewaysError):
     def __init__(
         self,
         *,
-        provider_key: str,
+        provider_key: Optional[str],
         status_code: Optional[int] = None,
         detail: Optional[str] = None,
     ):

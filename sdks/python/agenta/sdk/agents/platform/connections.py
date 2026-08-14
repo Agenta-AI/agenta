@@ -24,7 +24,7 @@ from ..capabilities import (
     HARNESS_CONNECTION_CAPABILITIES,
     PROVIDER_ENV_VARS,
 )
-from ..connections.endpoints import build_resolved_connection
+from ..connections.endpoints import _REGION_ENV, build_resolved_connection
 from ..connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
@@ -339,7 +339,11 @@ class _ConnectionCandidate:
         )
 
     def resolved_env(self, provider: str) -> Dict[str, str]:
-        env = dict(self.env)
+        # Region (AWS_REGION, GOOGLE_CLOUD_LOCATION) is addressing, not a credential; it
+        # reaches the gateway via `self.endpoint.region` (the endpoint row,
+        # gateways-research/v1 WP24), not by riding along in this dict to be recomputed —
+        # or silently discarded — downstream.
+        env = {k: v for k, v in self.env.items() if k not in _REGION_ENV}
         env_var = _provider_env_var(provider) or _provider_env_var(self.provider)
         # Bedrock's key is a bearer token with its own channel below — never the family's
         # API-key env var (a bedrock key in ANTHROPIC_API_KEY would mis-auth the direct API).
@@ -399,7 +403,11 @@ def _custom_provider_candidate(
         return None
 
     env = _normalized_extra_env(extras)
-    region = env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION")
+    region = (
+        env.get("AWS_REGION")
+        or env.get("AWS_DEFAULT_REGION")
+        or env.get("GOOGLE_CLOUD_LOCATION")
+    )
     raw_url = _stripped(settings.get("url"))
     endpoint_blocked = False
     if raw_url:
