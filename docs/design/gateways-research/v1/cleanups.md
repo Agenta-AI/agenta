@@ -200,6 +200,26 @@ cloud setting it `false` is a deployment action rather than an assumption.
 other rather than transcribed, and the flag explicitly `false` wherever more than one tenant
 shares a deployment.
 
+## CU13. Turn the insecure-egress default off wherever a deployment is shared
+
+**What.** `AGENTA_INSECURE_EGRESS_ALLOWED` defaults to `true` and is set in no deployment
+configuration in this repo, so every copy of the outbound guard in CU12 is currently inert. The
+default exists so zero-config self-hosting works, which is a real requirement; what is missing is
+that a deployment serving more than one tenant turns it off.
+
+**Why it is its own item and not part of CU12.** CU12 is duplication — four implementations of one
+contract that can drift. This is posture: one flag, set nowhere, that disables all four. Collapsing
+the copies does not change it, and turning it off does not need the copies collapsed. Bundling them
+would let the slower half hold the faster one.
+
+**Why not sooner.** It was not wrong sooner — before the gateways, each copy guarded one narrow
+path. The gateway makes this guard the single control on every outbound call the platform makes on
+a tenant's behalf, which is what turns an inert flag from untidy into load-bearing.
+
+**Done.** The flag is explicitly `false` in every configuration where more than one tenant shares a
+deployment, and a test asserts the guard actually refuses a private address under that setting
+rather than assuming it.
+
 ---
 
 ## What is not on this list

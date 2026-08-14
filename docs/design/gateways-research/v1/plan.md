@@ -308,7 +308,7 @@ secrets service; connect callbacks pointed at the dashboard rather than a local 
 
 **WP19 — Step-up interaction.** A scope challenge raises an interaction on the existing
 missing-connection path.
-*Depends on:* WP17, WP18.
+*Depends on:* WP17, WP18, WP25, WP26.
 
 **WP20 — Client registration fallback.** There is no callback-reachability work: the browser
 reaches the redirect in every deployment, because it is the address the user is already on
@@ -319,7 +319,21 @@ fallback automatic rather than a configuration flag.
 *Done when:* a deployment on an internal-only domain completes a full authorization without any
 hosted component of ours in the path.
 
+**WP25 — A refusal arrives as a cause.** The gateway's typed refusals survive the trip back to
+the caller: gateway to harness to runner to agent service. The wire field exists
+(`AgentErrorDetail`); what is missing is per-harness proof that a harness preserves the gateway's
+error body, and the agent service surfacing the field at all.
+*Depends on:* C2. *Blocks:* WP19.
+
+**WP26 — An agent can request a gateway connection.** Extend the reserved `request_connection`
+client tool to cover a gateway endpoint on either plane, not only an external integration. D35
+made registration a precondition for use, so an agent needs a way to ask for it.
+*Depends on:* C2. *Blocks:* WP19.
+
 **Merge IM5 → C3.** Deploy. Acceptance tests above.
+
+**Wave 3 also carries seven cleanups** unblocked by C2 — CU1, CU2, CU6, CU7, CU10, CU12 and CU13.
+See [`workstreams/launch-3.md`](workstreams/launch-3.md).
 
 ---
 
