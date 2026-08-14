@@ -113,10 +113,14 @@ const ColumnVisibilityTrigger = <Row extends object>({
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            {/* Tooltip outside, popover trigger inside: each `asChild` clones down to the same
-                button, so both sets of handlers compose onto it. */}
+            {/* Span keeps the tooltip trigger off the popover trigger's own element (see
+                SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
+            {/* Span keeps the tooltip trigger off the popover trigger's own element (see
+                SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
             <SimpleTooltip title={variant === "icon" ? label : undefined}>
-                <PopoverTrigger asChild>{triggerNode}</PopoverTrigger>
+                <span className="inline-flex">
+                    <PopoverTrigger asChild>{triggerNode}</PopoverTrigger>
+                </span>
             </SimpleTooltip>
             <PopoverContent align="end" className="w-auto p-3">
                 {renderContent ? (

@@ -585,17 +585,21 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     onClick={(e) => e.stopPropagation()}
                 >
                     <DropdownMenu>
+                        {/* Span keeps the tooltip trigger off the menu trigger's own element
+                            (see SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
                         <SimpleTooltip title="Actions">
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    onClick={(e) => e.stopPropagation()}
-                                    variant="ghost"
-                                    size="sm"
-                                    aria-label="Actions"
-                                >
-                                    <MoreOutlined />
-                                </Button>
-                            </DropdownMenuTrigger>
+                            <span className="inline-flex">
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        onClick={(e) => e.stopPropagation()}
+                                        variant="ghost"
+                                        size="sm"
+                                        aria-label="Actions"
+                                    >
+                                        <MoreOutlined />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                            </span>
                         </SimpleTooltip>
                         {/* minWidth (not a fixed width) so long labels like "Switch to this
                             organization" grow the menu instead of wrapping onto two lines. */}

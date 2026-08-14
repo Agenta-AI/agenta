@@ -130,18 +130,22 @@ const TableSettingsDropdown = <RowType extends object>({
                         setDropdownOpen(open)
                     }}
                 >
+                    {/* Span keeps the tooltip trigger off the menu trigger's own element (see
+                        SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
                     <SimpleTooltip title="Table settings">
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                className="rounded-control-round"
-                                size="icon"
-                                variant="ghost"
-                                aria-label="Table settings"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <GearSix size={16} weight="bold" />
-                            </Button>
-                        </DropdownMenuTrigger>
+                        <span className="inline-flex">
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    className="rounded-control-round"
+                                    size="icon"
+                                    variant="ghost"
+                                    aria-label="Table settings"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <GearSix size={16} weight="bold" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                        </span>
                     </SimpleTooltip>
                     <DropdownMenuContent align="end" className="min-w-[180px]">
                         {renderTableMenuItems(menuItems)}
