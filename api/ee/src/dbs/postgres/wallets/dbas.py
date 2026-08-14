@@ -63,25 +63,3 @@ class WalletBalanceDBA(WalletOrgScopeDBA, LifecycleDBA):
 
     balance_musd = Column(BigInteger, nullable=False)
     floor_musd = Column(BigInteger, nullable=True)
-
-
-class WalletPlanChangeDBA(WalletOrgScopeDBA):
-    """Idempotency ledger for `WalletsDAOInterface.apply_plan_change`. Not itself
-    financial history (that remains `wallet_credits`/`wallet_debits`) — a receipt so a
-    replayed plan-change webhook can be detected even on the (today: common, since the
-    plan->allowance mapping is 0) run where neither side wrote a nonzero-amount row."""
-
-    __abstract__ = True
-
-    id = Column(UUID(as_uuid=True), nullable=False)
-
-    idempotency_key = Column(String, nullable=False)
-
-    outgoing_credit_id = Column(UUID(as_uuid=True), nullable=True)
-    outgoing_debit_id = Column(UUID(as_uuid=True), nullable=True)
-    outgoing_debit_amount_musd = Column(BigInteger, nullable=False, default=0)
-
-    incoming_credit_id = Column(UUID(as_uuid=True), nullable=True)
-    incoming_credit_amount_musd = Column(BigInteger, nullable=False, default=0)
-
-    created_at = Column(TIMESTAMP(timezone=True), nullable=True)

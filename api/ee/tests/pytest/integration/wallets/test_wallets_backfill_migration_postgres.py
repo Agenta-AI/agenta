@@ -1,4 +1,4 @@
-"""Real-Postgres coverage for the `ee0000000006` backfill migration: it inserts a general
+"""Real-Postgres coverage for the `ee0000000005` backfill migration: it inserts a general
 `wallet_balances` row for every existing organization that lacks one, is idempotent
 (re-running inserts nothing new), and does not touch organizations that already have one
 (from prior provisioning).
@@ -15,6 +15,7 @@ RUN — see `docs/design/wallets-research/v1/nodes/im-1-02-pipeline/acceptance.m
 import uuid
 
 import pytest
+import uuid_utils.compat as uuid_utils
 from alembic import command
 from sqlalchemy import text
 
@@ -24,10 +25,8 @@ from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
-DOWN_REVISION = (
-    "ee0000000004"  # pre-plan-changes-table, pre-backfill: wallet tables only
-)
-BACKFILL_REVISION = "ee0000000006"
+DOWN_REVISION = "ee0000000004"  # pre-backfill: wallet tables only
+BACKFILL_REVISION = "ee0000000005"
 
 
 @pytest.fixture(autouse=True)
@@ -75,8 +74,10 @@ async def _insert_organization(session) -> uuid.UUID:
 async def _cleanup(session, *, organization_ids, user_ids):
     for organization_id in organization_ids:
         await session.execute(
-            text("DELETE FROM wallet_balances WHERE organization_id = :org"),
-            {"org": organization_id},
+            text(
+                "DELETE FROM wallet_balances WHERE organization_id = :organization_id"
+            ),
+            {"organization_id": organization_id},
         )
         await session.execute(
             text("DELETE FROM organizations WHERE id = :id"), {"id": organization_id}
@@ -89,9 +90,9 @@ async def _general_balance_row_count(session, *, organization_id) -> int:
     result = await session.execute(
         text(
             "SELECT count(*) FROM wallet_balances "
-            "WHERE organization_id = :org AND wallet_credit_id IS NULL"
+            "WHERE organization_id = :organization_id AND wallet_credit_id IS NULL"
         ),
-        {"org": organization_id},
+        {"organization_id": organization_id},
     )
     return result.scalar()
 
@@ -128,9 +129,9 @@ async def test_backfill_inserts_general_balance_for_organization_without_one():
             result = await session.execute(
                 text(
                     "SELECT balance_musd, floor_musd FROM wallet_balances "
-                    "WHERE organization_id = :org AND wallet_credit_id IS NULL"
+                    "WHERE organization_id = :organization_id AND wallet_credit_id IS NULL"
                 ),
-                {"org": organization_id},
+                {"organization_id": organization_id},
             )
             balance_musd, floor_musd = result.one()
             assert balance_musd == 0
@@ -157,28 +158,43 @@ async def test_backfill_is_idempotent_on_rerun():
         command.upgrade(alembic_cfg, BACKFILL_REVISION)
 
         # Alembic itself won't re-apply an already-applied revision, so the idempotency
-        # test is re-executing the migration's own INSERT statement a second time,
-        # verbatim — this is the actual unit under test: the ON CONFLICT DO NOTHING /
+        # test is re-executing the migration's own SELECT-then-INSERT a second time,
+        # verbatim (Python-minted uuid7 id and all — see the migration's module
+        # docstring) — this is the actual unit under test: the ON CONFLICT DO NOTHING /
         # NOT EXISTS guard, not alembic's version bookkeeping.
         async with engine.session() as session:
-            await session.execute(
-                text(
-                    """
-                    INSERT INTO wallet_balances
-                        (id, organization_id, wallet_credit_id, balance_musd, floor_musd)
-                    SELECT
-                        gen_random_uuid(), o.id, NULL, 0, 0
-                    FROM organizations o
-                    LEFT JOIN subscriptions s ON s.organization_id = o.id
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM wallet_balances wb
-                        WHERE wb.organization_id = o.id AND wb.wallet_credit_id IS NULL
+            rows = (
+                await session.execute(
+                    text(
+                        """
+                        SELECT o.id
+                        FROM organizations o
+                        LEFT JOIN subscriptions s ON s.organization_id = o.id
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM wallet_balances wb
+                            WHERE wb.organization_id = o.id
+                            AND wb.wallet_credit_id IS NULL
+                        )
+                        """
                     )
-                    ON CONFLICT (organization_id) WHERE wallet_credit_id IS NULL
-                    DO NOTHING
-                    """
                 )
-            )
+            ).fetchall()
+            if rows:
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO wallet_balances
+                            (id, organization_id, wallet_credit_id, balance_musd, floor_musd)
+                        VALUES (:id, :organization_id, NULL, 0, 0)
+                        ON CONFLICT (organization_id) WHERE wallet_credit_id IS NULL
+                        DO NOTHING
+                        """
+                    ),
+                    [
+                        {"id": uuid_utils.uuid7(), "organization_id": row.id}
+                        for row in rows
+                    ],
+                )
 
         async with engine.session() as session:
             assert (
@@ -214,11 +230,11 @@ async def test_backfill_does_not_touch_an_already_provisioned_organization():
                 text(
                     "INSERT INTO wallet_balances "
                     "(id, organization_id, wallet_credit_id, balance_musd, floor_musd) "
-                    "VALUES (:id, :org, NULL, :balance, :floor)"
+                    "VALUES (:id, :organization_id, NULL, :balance, :floor)"
                 ),
                 {
                     "id": uuid.uuid4(),
-                    "org": organization_id,
+                    "organization_id": organization_id,
                     "balance": 12_345,
                     "floor": -999,
                 },
@@ -237,9 +253,9 @@ async def test_backfill_does_not_touch_an_already_provisioned_organization():
             result = await session.execute(
                 text(
                     "SELECT balance_musd, floor_musd FROM wallet_balances "
-                    "WHERE organization_id = :org AND wallet_credit_id IS NULL"
+                    "WHERE organization_id = :organization_id AND wallet_credit_id IS NULL"
                 ),
-                {"org": organization_id},
+                {"organization_id": organization_id},
             )
             balance_musd, floor_musd = result.one()
             # Untouched — the pre-existing real state, not the backfill's zero defaults.

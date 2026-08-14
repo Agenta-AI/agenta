@@ -27,7 +27,6 @@ from ee.src.dbs.postgres.wallets.dbes import (
     WalletBalanceDBE,
     WalletCreditDBE,
     WalletDebitDBE,
-    WalletPlanChangeDBE,
 )
 from ee.src.dbs.postgres.wallets.mappings import (
     balance_dbe_to_dto,
@@ -236,23 +235,51 @@ class WalletsDAO(WalletsDAOInterface):
             if general is None:
                 raise WalletGeneralBalanceNotFoundError(organization_id)
 
-            # 2. Replay guard — checked BEFORE any amount is applied. A redelivered
-            #    webhook (even one that would now compute a different amount, since
-            #    proration is a function of wall-clock `now`) returns the ORIGINAL
-            #    application's result and writes nothing new.
-            existing_stmt = select(WalletPlanChangeDBE).where(
-                WalletPlanChangeDBE.organization_id == organization_id,
-                WalletPlanChangeDBE.idempotency_key == idempotency_key,
+            # 2. Replay guard — checked BEFORE any amount is applied. No dedicated ledger
+            #    table: the outgoing side rides the exact same (organization_id,
+            #    idempotency_key) mechanism `settle()` uses against `wallet_debits`; the
+            #    incoming side is self-correlating via the `plan_change_idempotency_key`
+            #    reference already stored in the minted `wallet_credits` row's `data`
+            #    (below) — no second guard, just reading the actual financial rows a prior
+            #    application would have written. A redelivered webhook (even one that
+            #    would now compute a different amount, since proration is a function of
+            #    wall-clock `now`) returns the ORIGINAL application's result and writes
+            #    nothing new.
+            existing_debit_stmt = (
+                select(WalletDebitDBE)
+                .where(
+                    WalletDebitDBE.organization_id == organization_id,
+                    WalletDebitDBE.idempotency_key == idempotency_key,
+                )
+                .limit(1)
             )
-            existing = (await session.execute(existing_stmt)).scalar_one_or_none()
-            if existing is not None:
+            existing_debit = (
+                (await session.execute(existing_debit_stmt)).scalars().first()
+            )
+
+            existing_credit_stmt = select(WalletCreditDBE).where(
+                WalletCreditDBE.organization_id == organization_id,
+                WalletCreditDBE.data["references"]["plan_change_idempotency_key"].astext
+                == idempotency_key,
+            )
+            existing_credit = (
+                await session.execute(existing_credit_stmt)
+            ).scalar_one_or_none()
+
+            if existing_debit is not None or existing_credit is not None:
                 return PlanChangeResultDTO(
                     replayed=True,
-                    outgoing_credit_id=existing.outgoing_credit_id,
-                    outgoing_debit_id=existing.outgoing_debit_id,
-                    outgoing_debit_amount_musd=existing.outgoing_debit_amount_musd,
-                    incoming_credit_id=existing.incoming_credit_id,
-                    incoming_credit_amount_musd=existing.incoming_credit_amount_musd,
+                    outgoing_credit_id=(
+                        existing_debit.wallet_credit_id if existing_debit else None
+                    ),
+                    outgoing_debit_id=existing_debit.id if existing_debit else None,
+                    outgoing_debit_amount_musd=(
+                        existing_debit.amount_musd if existing_debit else 0
+                    ),
+                    incoming_credit_id=existing_credit.id if existing_credit else None,
+                    incoming_credit_amount_musd=(
+                        existing_credit.amount_musd if existing_credit else 0
+                    ),
                     general_balance_musd=general.balance_musd,
                     floor_musd=general.floor_musd,
                 )
@@ -327,20 +354,10 @@ class WalletsDAO(WalletsDAOInterface):
             general.balance_musd += applied_incoming_amount - applied_outgoing_amount
             general.floor_musd = floor_musd
 
-            # 4. Ledger row: the replay guard for every future delivery of this key,
-            #    including the all-zero case where nothing else was written above.
-            ledger = WalletPlanChangeDBE(
-                id=uuid_utils.uuid7(),
-                organization_id=organization_id,
-                idempotency_key=idempotency_key,
-                outgoing_credit_id=outgoing_credit_id,
-                outgoing_debit_id=outgoing_debit.id if outgoing_debit else None,
-                outgoing_debit_amount_musd=applied_outgoing_amount,
-                incoming_credit_id=incoming_credit.id if incoming_credit else None,
-                incoming_credit_amount_musd=applied_incoming_amount,
-            )
-            session.add(ledger)
-
+            # No ledger row: when both applied amounts are zero, nothing above was
+            # written — a no-op is a correct outcome for a zero-value change and has
+            # nothing to replay-guard. When either amount is nonzero, the row(s) written
+            # above ARE the replay guard for the next delivery of this key (step 2).
             await session.flush()
 
             return PlanChangeResultDTO(

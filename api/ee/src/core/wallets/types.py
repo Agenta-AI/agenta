@@ -334,7 +334,12 @@ class WalletsDAOInterface(ABC):
         """Apply (or replay) one plan-change proration in a single transaction:
 
         1. Replay guard, keyed on `(organization_id, idempotency_key)` — a redelivered
-           webhook must produce no second financial effect.
+           webhook must produce no second financial effect. There is no dedicated ledger
+           table for this: the outgoing side is guarded by the same mechanism `settle()`
+           uses against `wallet_debits`, and the incoming side by the
+           `plan_change_idempotency_key` reference already stored on the minted
+           `wallet_credits` row (step 3) — reading the actual financial rows a prior
+           application wrote, not a second guard.
         2. If `outgoing_debit_amount_musd > 0` and `outgoing_credit_id` is set: write an
            IMMUTABLE `wallet_debits` row (`debit_kind="adjustment"`) against that credit,
            capped at the credit's current balance (a per-credit balance must never go
@@ -346,7 +351,9 @@ class WalletsDAOInterface(ABC):
 
         Amounts that round to zero are computed but not written — Postgres's
         `amount_musd > 0` check constraint on both `wallet_credits` and `wallet_debits`
-        forbids a zero-amount row, and a zero-value change has nothing to replay-guard by
-        itself.
+        forbids a zero-amount row. When BOTH amounts round to zero, this call writes
+        nothing at all beyond the general balance's floor projection: a no-op is a
+        correct outcome for a zero-value change, and there is no financial effect to
+        replay-guard.
         """
         raise NotImplementedError
