@@ -8,6 +8,13 @@ Fork only from the reviewed `IM-1-00` seed, after its base contains the metering
 `down_revision` is exactly `ee0000000005`. It must not use the parked generic core chain or create an
 OSS wallet table.
 
+**Delivered correction (CU-1-01):** the reserved `ee0000000006`/`ee0000000005` numbers above never
+resolved — those revisions exist only on unmerged sandbox-metering draft branches, and this
+checkpoint's base `core_ee` head was `ee0000000003`. The package shipped as
+`ee0000000004_add_wallet_tables.py` with `down_revision = "ee0000000003"` (approved deviation,
+documented in the migration file itself and in `wave-1.md`/`preflight.md`). This section is kept
+as the historical planning record; do not use its revision numbers for anything downstream.
+
 It owns the transaction behind `WalletCheckPort` and `WalletSettlementPort`; it does not own a Redis
 consumer, measurement persistence, managed-gateway code, provider pricing, or worker registration.
 

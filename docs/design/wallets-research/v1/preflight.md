@@ -12,7 +12,7 @@ node will otherwise have to rediscover.
 | Finding | Disposition |
 | --- | --- |
 | B1 | Resolved: `entities.md` is canonical; item 9 is decided; existing `records`, new `measurements`, existing `meters`, and `wallet_*` are the only Wave 1 vocabulary. |
-| B2 | Resolved: wallet tables are EE-only in `core_ee` revision `ee0000000006` after the already-reserved `ee0000000005`; measurements use `tracing_ee` revision `ee0000000002` after `ee0000000001`. |
+| B2 | Resolved, then corrected post-implementation: wallet tables are EE-only. Planning reserved `core_ee` `ee0000000006` after `ee0000000005`, expecting sandbox-metering Track B/C to occupy `ee0000000004`/`ee0000000005` first; those revisions exist only on unmerged sandbox-metering draft branches and do not resolve on this base's `core_ee` chain (head `ee0000000003`). **Delivered as an approved deviation:** `core_ee` `ee0000000004` (`down_revision = "ee0000000003"`). The sandbox-metering drafts must renumber past `ee0000000004` when they land. Measurements use `tracing_ee` revision `ee0000000002` after `ee0000000001`, unchanged from the plan. |
 | B3 | Resolved: `WP-1-01` implements the non-strict no-hold `check` and its tests. |
 | B4 | Resolved: fake LLM/MCP paths are wallet-owned acceptance-test support under `api/ee/tests/pytest/acceptance/wallets/fakes/`; they do not edit the gateway-wave fake-provider paths. |
 | G1 | Resolved: `WP-1-00` and reviewed `IM-1-00` create the seed DTO/port commit before implementation worktrees fork. |

@@ -590,3 +590,31 @@ for each candidate entity are therefore concrete rather than speculative:
    `value`, and optional `cost_musd`; the parent and all children are inserted together.
 4. The canonical vocabulary is existing `records`, existing `meters`, new `measurements` and
    `measurement_values`, and `wallet_credits`, `wallet_debits`, and `wallet_balances`.
+
+### Delivered (Wave 1)
+
+All four selections above are answered questions, not open ones, as of the merged `IM-1-02`
+pipeline: measurement metrics **are** child rows, not sparse header columns — `measurement_values`
+exists with `UNIQUE (measurement_id, key)` (constraint `uq_measurement_values_measurement_id_key`
+in `ee0000000002_add_measurements.py`), and one measurement-worker transaction inserts the parent
+`measurements` row and every `measurement_values` row together. The measurement header columns in
+selection 2 are exactly the columns the delivered migration creates; nothing further was widened
+into columns.
+
+The delivered migration ids are `core_ee` `ee0000000004` (`down_revision = "ee0000000003"`) for
+`wallet_credits`/`wallet_debits`/`wallet_balances`, and `tracing_ee` `ee0000000002`
+(`down_revision = "ee0000000001"`) for `measurements`/`measurement_values`. This differs from the
+`ee0000000006`/`ee0000000005` numbers named earlier in node planning (`wp-1-01-core-wallet/`,
+`im-1-01-foundations/`): those two revisions exist only on unmerged sandbox-metering draft
+branches and do not resolve on this base's `core_ee` chain, whose head was `ee0000000003`. This is
+an approved deviation, not a drift — see `ee0000000004_add_wallet_tables.py`'s own docstring. The
+sandbox-metering drafts must renumber past `ee0000000004` when they land; `wave-1.md` and
+`preflight.md` record the same correction.
+
+The delivered streams are `streams:measurements` (consumer group `worker-measurements`) and
+`streams:debits` (consumer group `worker-debits`), both `MAXLEN 100_000` (approximate trimming),
+registered in `api/entrypoints/worker_streams.py` and gated into `ALL_STREAMS` only when `is_ee()`.
+The debit idempotency key the measurement worker mints is `"measurement:{measurement_id}"`. Wave 1
+pricing is an explicit fixture (`PRICING_VERSION = "wallet-v1-fake-1"` in
+`ee/src/core/measurements/pricing.py`), chargeable only when `endpoint_kind == "managed"` — it is
+not the versioned production pricing configuration this document describes elsewhere.
