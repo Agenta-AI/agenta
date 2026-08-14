@@ -102,6 +102,13 @@ export const useSessionActions = () => {
             // created by the very call it is passed to.
             const dialog: {current?: ReturnType<typeof modal.confirm>} = {}
 
+            /**
+             * A blank name is not a rename, so neither confirmation path may submit one. Rather
+             * than guarding Enter and the button separately (and letting them drift), the button
+             * is disabled while the field is blank and Enter mirrors that same condition.
+             */
+            const isBlank = () => !next.trim()
+
             dialog.current = modal.confirm({
                 title: "Rename session",
                 content: (
@@ -112,17 +119,19 @@ export const useSessionActions = () => {
                         className="mt-2"
                         onChange={(event) => {
                             next = event.target.value
+                            dialog.current?.update({okButtonProps: {disabled: isBlank()}})
                         }}
                         // A one-field modal has to confirm on Enter; without this the only way out
                         // is the mouse.
                         onPressEnter={() => {
-                            if (!next.trim()) return
+                            if (isBlank()) return
                             dialog.current?.destroy()
                             void submit()
                         }}
                     />
                 ),
                 okText: "Rename",
+                okButtonProps: {disabled: isBlank()},
                 onOk: submit,
             })
         },

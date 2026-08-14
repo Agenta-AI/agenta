@@ -11,8 +11,8 @@
 import {act} from "react"
 
 import {App} from "antd"
-import {createRoot} from "react-dom/client"
-import {beforeEach, describe, expect, it, vi} from "vitest"
+import {createRoot, type Root} from "react-dom/client"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const setSessionHeader = vi.fn(async () => true)
 const invalidateSessionListQueries = vi.fn()
@@ -57,6 +57,9 @@ vi.mock("../state/sessions", () => ({
 
 const {useSessionActions} = await import("./useSessionActions")
 
+let root: Root | null = null
+let container: HTMLDivElement | null = null
+
 /** Mounts the hook and hands back its `rename`, with antd's `App` context in place. */
 const mountRename = async () => {
     let rename:
@@ -68,10 +71,11 @@ const mountRename = async () => {
         return null
     }
 
-    const host = document.createElement("div")
-    document.body.appendChild(host)
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
     await act(async () => {
-        createRoot(host).render(
+        root!.render(
             <App>
                 <Probe />
             </App>,
@@ -83,6 +87,9 @@ const mountRename = async () => {
 
 const renameInput = () =>
     document.querySelector<HTMLInputElement>('input[aria-label="Session name"]')
+
+/** antd renders the confirm buttons as `.ant-btn-primary` (Rename) and a default one (Cancel). */
+const renameButton = () => document.querySelector<HTMLButtonElement>(".ant-btn-primary")
 
 const pressEnter = async (input: HTMLInputElement) => {
     await act(async () => {
@@ -106,6 +113,16 @@ describe("useSessionActions rename", () => {
         ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
         document.body.innerHTML = ""
         setSessionHeader.mockClear()
+    })
+
+    afterEach(async () => {
+        // Leaked roots keep their listeners (and antd's portals) alive across tests.
+        await act(async () => {
+            root?.unmount()
+        })
+        root = null
+        container?.remove()
+        container = null
     })
 
     it("confirms on Enter with the edited name", async () => {
@@ -141,5 +158,21 @@ describe("useSessionActions rename", () => {
 
         expect(setSessionHeader).not.toHaveBeenCalled()
         expect(renameInput()).toBeTruthy()
+    })
+
+    it("disables the Rename button on a blank name, matching Enter", async () => {
+        const rename = await mountRename()
+        await act(async () => {
+            rename({sessionId: "session-1", appId: null, name: "Old name"})
+        })
+
+        const input = renameInput()
+        expect(renameButton()?.disabled).toBe(false)
+
+        await type(input!, "   ")
+        expect(renameButton()?.disabled).toBe(true)
+
+        await type(input!, "New name")
+        expect(renameButton()?.disabled).toBe(false)
     })
 })
