@@ -25,7 +25,7 @@ from oss.src.apis.fastapi.gateways.llms.utils import (
     parse_messages_call_context,
     parse_responses_call_context,
 )
-from oss.src.apis.fastapi.gateways.utils import response_headers
+from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_marker
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
@@ -37,6 +37,7 @@ from oss.src.core.gateways.llms.types import (
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
+    SecretInvalidError,
     SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
@@ -60,9 +61,16 @@ _DOMAIN_EXCEPTIONS = (
     LLMModelNotAllowedError,
     CeilingExceededError,
     SecretNotFoundError,
+    SecretInvalidError,
     LLMEndpointNotFoundError,
     LLMUpstreamError,
 )
+
+
+# The code marker is shared with the MCP plane (`gateways/mcps/proxy.py`) via
+# `gateways/utils.py::with_code_marker` — see that module for why (WP25, OD18) and why this
+# delimiter. Never applied to `upstream_error`: D16 forwards the upstream's own detail
+# untouched, and this surface must not inject text into it.
 
 
 def _openai_error(
@@ -71,9 +79,11 @@ def _openai_error(
     message: str,
     error_type: str,
     code: str,
+    marked: bool = True,
     **extra: Any,
 ) -> JSONResponse:
-    error: Dict[str, Any] = {"message": message, "type": error_type, "code": code}
+    rendered = with_code_marker(message, code) if marked else message
+    error: Dict[str, Any] = {"message": rendered, "type": error_type, "code": code}
     error.update(extra)
     return JSONResponse(status_code=status_code, content={"error": error})
 
@@ -126,6 +136,13 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             error_type="invalid_request_error",
             code="secret_missing",
         )
+    if isinstance(exc, SecretInvalidError):
+        return _openai_error(
+            status_code=409,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code="secret_invalid",
+        )
     if isinstance(exc, LLMAdapterNotFoundError):
         return _openai_error(
             status_code=502,
@@ -148,6 +165,7 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
         message=exc.detail or exc.message,
         error_type="api_error",
         code="upstream_error",
+        marked=False,
     )
 
 
