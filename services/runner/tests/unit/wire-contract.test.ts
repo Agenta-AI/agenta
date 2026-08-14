@@ -369,6 +369,20 @@ describe("wire contract: results (vs Python golden)", () => {
     assert.equal(res.error, "model exploded");
   });
 
+  it("error result with errorDetail: a gateway refusal survives structured (WP13)", () => {
+    const res = loadGolden("run_result.error_detail.json") as AgentRunResult;
+    assert.equal(res.ok, false);
+    assert.equal(res.errorDetail?.code, "model_not_allowed");
+    assert.equal(res.errorDetail?.retryable, false);
+    assert.equal(
+      res.errorDetail?.next_step,
+      "choose a model the connection allows",
+    );
+    assert.deepEqual(res.errorDetail?.details, {
+      type: "invalid_request_error",
+    });
+  });
+
   it("minimal ok result: bare success is valid", () => {
     const res = { ok: true } as AgentRunResult;
     assert.equal(res.ok, true);

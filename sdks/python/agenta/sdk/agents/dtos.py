@@ -1052,8 +1052,14 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         # connection intent so an explicit ``self_managed`` (subscription) is still excluded;
         # everything else defaults to managed, matching the runner's ``isManagedCodexRun``.
         credential_mode: Optional[str] = None
+        gateway_base_url: Optional[str] = None
+        gateway_header: Optional[str] = None
         if self.resolved_connection is not None:
             credential_mode = self.resolved_connection.credential_mode
+            if self.resolved_connection.gateway_credentials is not None:
+                gateway_header = self.resolved_connection.gateway_credentials.header
+                if self.resolved_connection.endpoint is not None:
+                    gateway_base_url = self.resolved_connection.endpoint.base_url
         elif (
             self.model_ref is not None
             and self.model_ref.connection is not None
@@ -1068,6 +1074,8 @@ class CodexAgentTemplate(HarnessAgentTemplate):
             self.tool_specs,
             self.permission_default,
             credential_mode=credential_mode,
+            gateway_base_url=gateway_base_url,
+            gateway_header=gateway_header,
         )
         if not files:
             return {}

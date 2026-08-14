@@ -195,11 +195,21 @@ people actually ask for, not a connector marketplace.
 **Recommendation:** ship a small direct set, for the reason above rather than for coverage. Its
 size is a product call.
 
-### OD14. Which harnesses can carry a second identity signal without losing their vendor login
+### OD14. Which harnesses can carry a second identity signal without losing their vendor login — CLOSED (WP13 phase 0)
 
 D32 settles that subscription pass-through is a real funding shape and why it cannot be a
 namespace. What it cannot settle is whether any given harness can actually be configured for it,
 because that is a fact about releases, not about design.
+
+**Correction to this document's own harness list.** OD14 as originally written named "Codex,
+Claude Code, OpenCode." OpenCode is not a harness this codebase drives — there is no OpenCode
+package, adapter, or ACP bridge anywhere in the tree (`grep -ri opencode` outside this document
+and specs-wp13.md finds nothing). The runner's actual third harness, alongside Claude Code and
+Codex, is **Pi** (`@earendil-works/pi-coding-agent`, ACP agent id `"pi"`, wire harness ids
+`pi_core`/`pi_agenta`) — confirmed against `services/oss/src/agent`'s `HarnessType` enum
+(`sdks/python/agenta/sdk/agents/dtos.py`: `PI`/`CLAUDE`/`AGENTA`/`CODEX`, no `OPENCODE` member)
+and the runner's own `acpAgent` mapping (`run-plan.ts`). The matrix below is run against Pi,
+Claude Code and Codex — the harnesses that exist — not OpenCode.
 
 Two things must be simultaneously true per harness: it sends `X-AG-Credentials` on model
 requests, **and** pointing its base URL at us does not make it abandon its vendor subscription
@@ -207,15 +217,26 @@ login in favour of an API-key path. The second is the one that quietly fails —
 treats a custom base URL as "the user configured a raw API endpoint" will stop sending the
 subscription session entirely, and the symptom is an auth error from the vendor, not from us.
 
-**What settles it:** a matrix run per harness and per release — Codex, Claude Code, OpenCode —
-recording which header mechanism exists, whether the subscription survives a base-URL override,
-and what the vendor returns when it does not. Cheap to run, impossible to reason about in
-advance, and wrong to build against a guess.
+**The matrix, run against the pinned releases in `services/runner/package.json`:**
+
+| Harness | Release | Custom header + base-URL override | Subscription survives base-URL override |
+| --- | --- | --- | --- |
+| Pi | `@earendil-works/pi-coding-agent@0.80.6` (`pi-ai@0.80.6`) | **Yes.** `models.json`'s provider config carries `headers: Record<string,string>` alongside `baseUrl`, first-class (bundled `docs/models.md`/`docs/custom-provider.md`, "Custom Headers" section). Verified directly in the pinned package's own bundled docs, not inferred. | N/A — the header rides a NEW provider entry (named after the connection slug); it does not touch the operator's own OAuth-provider entries, so there is no login to lose. |
+| Claude Code | `@agentclientprotocol/claude-agent-acp@0.58.1` | **Yes.** `ANTHROPIC_CUSTOM_HEADERS` (newline-separated `Name: Value` pairs) alongside `ANTHROPIC_BASE_URL`. Verified by reading the pinned bridge's own compiled source (`dist/acp-agent.js`, `createEnvForGateway`): it sets exactly this pair for its own `"gateway"` ACP method, so this is a mechanism the pinned release already exercises, not a guess. | **No.** The same function sets a placeholder `ANTHROPIC_AUTH_TOKEN` "to bypass claude login requirement" whenever it builds this env — overriding the base URL forces the API-key-shaped path; the underlying Claude Code SDK does not keep sending the subscription session once `ANTHROPIC_BASE_URL` is set. |
+| Codex | `@openai/codex@0.145.0` / `@agentclientprotocol/codex-acp@1.1.7` | **Yes.** A custom `[model_providers.<id>]` table in `config.toml` supports `base_url`, `env_key` (bearer token, indirection via an env var name) and `env_http_headers` (arbitrary header name -> env var name). Cross-checked against this repo's own prior Codex-harness research (`docs/design/codex-harness/decisions.md` D-002: "codex 0.145 supports a custom model provider with `env_key`... the WebSocket-upgrade caveat disappears (custom providers do not attempt it)") and codex-rs's public `ModelProviderInfo` struct. | **No, but moot.** Subscription mode authenticates from the BUILT-IN provider's mounted OAuth login exclusively (this repo's own D-002 ruling: "Subscription mode is unchanged (the operator's own login file via symlink)"); a custom `model_providers` entry with `base_url` is a structurally separate, mutually exclusive provider selection. There is no run that overrides the base URL and also expects the built-in login to answer. |
+
+**Conclusion: no harness fails the matrix for wave 2's own need.** All three carry a custom
+header alongside a base-URL override, which is all `credentialMode: "none"` (the gateway route)
+needs. None of the three lets a base-URL override coexist with a preserved subscription login —
+but wave 2 does not build subscription pass-through (D32, explicitly deferred) and never asks a
+harness to combine the two, so this is not a wave-2 blocker. It IS the exact fact D32's own text
+predicted would be needed before pass-through could be built, and it is now recorded for whoever
+picks that up.
 
 **The fallback if a harness fails the matrix** is the local-agent shape: a small local process
 between harness and gateway that holds the gateway identity and leaves the harness's own vendor
-login untouched. It is more moving parts and is worth building only for a harness that is both
-wanted and incapable, which is exactly what the matrix identifies.
+login untouched. Not needed for wave 2 — no harness failed the matrix for wave 2's actual
+requirement (header + override, no subscription combination attempted).
 
 ### OD15. Pass-through is not a mode at all — it is the default when nothing overwrites
 
