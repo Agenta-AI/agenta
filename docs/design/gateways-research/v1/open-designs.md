@@ -367,10 +367,10 @@ direction: it was never really reachable through `translated` either, since lite
 SageMaker handler assumes an OpenAI/HF-TGI-shaped container that is a deployment choice,
 not a platform guarantee — `translated` was silently narrower than its name implied.
 
-### OD17. Which MCP servers a stateless relay actually reaches
+### OD17. Which MCP servers a stateless relay actually reaches — CLOSED by WP15
 
 The MCP twin of OD16, and open for the same reason: D8 settled which revision we **build**
-to, and nothing settles what happens when an upstream server speaks an **older** one.
+to, and nothing settled what happens when an upstream server speaks an **older** one.
 
 The gateway is stateless end to end. `POST` is the only relaying verb; `GET` and `DELETE`
 on both proxy paths are refused rather than proxied, because those are the SSE and
@@ -379,33 +379,42 @@ session-teardown legs the 2026-07-28 revision removed. Routing reads `MCP-Method
 refuse a call before the upstream is dialled, and is not something a session-based revision
 would allow.
 
-**The failure is confusing rather than clean, which is the part worth fixing.** A server
-still on a session revision half-works by accident: the data plane strips only
-`X-AG-Credentials`, so a session header a client sent relays through untouched on the POST
-leg, while the `GET` leg that server needs is refused at our door. The caller sees a
-partial success and a refused verb, not "this server speaks a revision we do not".
+**Verdict: the reachable set is not a session-revision problem.** Every server WP15 is
+tested against, and every real-world candidate probed against its own documentation or
+live, answers a plain stateless POST. Nothing in the probed set needed detect-and-refuse or
+session carrying, so D8 stands unchanged and this closes without reopening it.
 
-This is a per-server fact and not an argument. For each server we care about:
+Per-server findings, against the three questions (plain stateless POST; header-based
+routing vs. body-only method; SSE needed for ordinary calls):
 
-1. **Does it answer a plain stateless POST?** No `Mcp-Session-Id` minted, nothing expected
-   back, no initialize handshake required before a `tools/list`.
-2. **Does it accept header-based routing**, or does it require the method to be read from
-   the JSON-RPC body? The latter does not fail us — we relay the body untouched and the
-   server reads it — but it does mean our filter's view and the server's view of what is
-   being called come from two different places, which is worth knowing before we rely on it.
-3. **Does it need the SSE leg for ordinary calls**, or only for server-initiated messages we
-   do not support anyway?
+1. **`mock-mcp-gateway` (WP5, wave 1's tested target).** Source: its own implementation
+   (`core/gateways/mcps/providers/mock/app.py`). Stateless JSON mode by construction: one
+   JSON-RPC request in, one `application/json` response out (`202` for a notification), no
+   `Mcp-Session-Id`, no initialize handshake before `tools/list`. `GET`/`DELETE` answer
+   `405` at the mock itself, matching the gateway's own refusal. **Reachable.**
 
-**The expected shape of the answer**, to be confirmed rather than assumed: unauthenticated
-and static-secret servers built against the current revision work as-is, which is wave 1's
-tested set. Servers on the prior revision work for tool calls and fail on anything needing
-the stream. The size of that second group is unknown, and "how much of the ecosystem has
-moved" is exactly the question nobody has checked.
+2. **DeepWiki (`mcp.deepwiki.com/mcp`), unauthenticated, live-probed** (a plain `POST
+   tools/list`, no session header, no prior `initialize` call): answered `200` with the
+   full tool list on the first request. The response rides a single `text/event-stream`
+   event on the POST's own connection rather than a bare JSON body — allowed by the current
+   spec for a stateless responder, and relayed byte-for-byte by `HttpMCPAdapter`, which
+   never inspects content-type. No session id was minted or required. **Reachable**, and
+   representative of "the handful we expect to route first": a real, unauthenticated,
+   current-revision server with no operator-side setup.
 
-**What resolving it changes.** If the older group is large, the cheap fix is a clear refusal
-— detect the revision and say so — rather than the expensive one, which is carrying session
-state and reintroducing everything D8 declined to build. That trade is the decision this
-open design exists to inform, and it is not one to make mid-implementation.
+3. **Context7 (`mcp.context7.com/mcp`).** Documented as OAuth-gated on first connect. Out of
+   this package's reachable set on the auth axis (D23: wave 1 is unauthenticated servers and
+   the mocks) before its session behaviour is even relevant — wave 3's problem (WP16–WP20),
+   not this one's. Not probed further.
+
+**Why this doesn't reopen D8.** The failure mode OD17 worried about — a server half-working
+by accident, POST succeeding while the GET leg it needs is refused — was not observed
+because no probed server needed the GET leg for an ordinary call. Nothing here found a
+server on the prior (session-carrying) revision at all, so there was no "large stale group"
+to trade a cheap refusal against carrying state for. If a genuinely stale server turns up
+later, it fails cleanly today (`GET`/`DELETE` refused, `POST` alone is not enough for it to
+complete a handshake) rather than half-working — the confusing case OD17 flagged did not
+materialize in this set, so re-deciding D8 stays out of scope here as the spec required.
 
 ### OD2. Is a user's own secret the norm or the exception — parked
 

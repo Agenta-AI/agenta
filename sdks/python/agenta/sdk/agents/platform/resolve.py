@@ -45,6 +45,7 @@ from agenta.sdk.agents.tools.interfaces import (
     WorkflowToolResolver,
 )
 
+from .connection import PlatformConnection
 from .connections import VaultConnectionResolver
 from .gateway import AgentaGatewayToolResolver
 from .platform_tools import AgentaPlatformToolResolver
@@ -84,11 +85,21 @@ async def resolve_mcp(
     *,
     secret_provider: Optional[ToolSecretProvider] = None,
     missing_secret_policy: MissingSecretPolicy = MissingSecretPolicy.ERROR,
+    connection: Optional[PlatformConnection] = None,
 ) -> List[ResolvedMCPServer]:
-    """Resolve MCP server declarations (named secrets injected). Caller decides whether to call."""
+    """Resolve MCP server declarations. Caller decides whether to call.
+
+    Routes through the gateway (W1/D30/D31) when a backend is configured: every declared
+    server becomes a `custom/{name}` gateway route carrying OUR credentials, and no named
+    secret is fetched. With no backend configured (the offline/standalone case) it falls
+    back to the direct dial with named secrets injected, unchanged.
+    """
+    platform_connection = connection or PlatformConnection()
     return await MCPResolver(
         secret_provider=secret_provider or AgentaNamedSecretProvider(),
         missing_secret_policy=missing_secret_policy,
+        gateway_base_url=platform_connection.gateway_base_url(),
+        gateway_credentials_value=platform_connection.authorization(),
     ).resolve(parse_mcp_server_configs(mcp_servers))
 
 
