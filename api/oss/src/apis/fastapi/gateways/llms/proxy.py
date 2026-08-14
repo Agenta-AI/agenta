@@ -1,11 +1,13 @@
-"""LLM data-plane proxy (entities.md §9): the OpenAI-compatible surface.
+"""LLM data-plane proxy (entities.md §9): the OpenAI-compatible, Responses and Messages
+surfaces (D33, WP23).
 
-No wire models: the caller's body relays byte for byte (§7.1). This router only parses
-just enough to route (`parse_llm_call_context`) and puts the answer back on the wire
-exactly as it arrived. Endpoint resolution, the allowlist, ceilings, policy authorization
-and secret resolution all live inside `LLMGatewayService.relay_chat_completion`
-(WP7) — this file never decides whether a call is allowed, only how to shape the denial
-once WP7 says no.
+No wire models: the caller's body relays byte for byte (§7.1), on every door. Each door
+only parses just enough to route (`parse_llm_call_context`, `parse_responses_call_context`,
+`parse_messages_call_context`) and puts the answer back on the wire exactly as it arrived.
+Endpoint resolution, the allowlist, ceilings, policy authorization and secret resolution all
+live inside `LLMGatewayService.relay_chat_completion` (WP7) — one method for every door —
+this file never decides whether a call is allowed, only how to shape the denial once WP7
+says no.
 
 Streaming audit timing is not this file's job either: `LLMGatewayService` wraps the
 returned iterator and records in its own `finally` once it is exhausted. This proxy drains
@@ -13,14 +15,19 @@ returned iterator and records in its own `finally` once it is exhausted. This pr
 the constructor below takes only the one service.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from oss.src.apis.fastapi.gateways.llms.utils import parse_llm_call_context
+from oss.src.apis.fastapi.gateways.llms.utils import (
+    parse_llm_call_context,
+    parse_messages_call_context,
+    parse_responses_call_context,
+)
 from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.llms.types import (
     LLMAdapterNotFoundError,
@@ -162,6 +169,30 @@ class LLMGatewayProxy:
             operation_id="llm_gateway_chat_completions_custom",
         )
         self.router.add_api_route(
+            "/standard/{provider}/v1/responses",
+            self.responses_standard,
+            methods=["POST"],
+            operation_id="llm_gateway_responses_standard",
+        )
+        self.router.add_api_route(
+            "/custom/{slug}/v1/responses",
+            self.responses_custom,
+            methods=["POST"],
+            operation_id="llm_gateway_responses_custom",
+        )
+        self.router.add_api_route(
+            "/standard/{provider}/v1/messages",
+            self.messages_standard,
+            methods=["POST"],
+            operation_id="llm_gateway_messages_standard",
+        )
+        self.router.add_api_route(
+            "/custom/{slug}/v1/messages",
+            self.messages_custom,
+            methods=["POST"],
+            operation_id="llm_gateway_messages_custom",
+        )
+        self.router.add_api_route(
             "/standard/{provider}/v1/models",
             self.list_models_standard,
             methods=["GET"],
@@ -179,27 +210,79 @@ class LLMGatewayProxy:
     async def chat_completions_standard(
         self, request: Request, provider: str
     ) -> Response:
-        return await self._chat_completions(
-            request, namespace=GatewayEndpointNamespace.STANDARD, name=provider
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.STANDARD,
+            name=provider,
+            parser=parse_llm_call_context,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
         )
 
     async def chat_completions_custom(self, request: Request, slug: str) -> Response:
-        return await self._chat_completions(
-            request, namespace=GatewayEndpointNamespace.CUSTOM, name=slug
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name=slug,
+            parser=parse_llm_call_context,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
         )
 
-    async def _chat_completions(
+    # --- responses -------------------------------------------------------------- #
+
+    async def responses_standard(self, request: Request, provider: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.STANDARD,
+            name=provider,
+            parser=parse_responses_call_context,
+            protocol=LLMProtocol.RESPONSES,
+        )
+
+    async def responses_custom(self, request: Request, slug: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name=slug,
+            parser=parse_responses_call_context,
+            protocol=LLMProtocol.RESPONSES,
+        )
+
+    # --- messages --------------------------------------------------------------- #
+
+    async def messages_standard(self, request: Request, provider: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.STANDARD,
+            name=provider,
+            parser=parse_messages_call_context,
+            protocol=LLMProtocol.MESSAGES,
+        )
+
+    async def messages_custom(self, request: Request, slug: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name=slug,
+            parser=parse_messages_call_context,
+            protocol=LLMProtocol.MESSAGES,
+        )
+
+    # --- the shared relay, one per door's parser/protocol (D33) ---------------- #
+
+    async def _relay(
         self,
         request: Request,
         *,
         namespace: GatewayEndpointNamespace,
         name: str,
+        parser: Callable[..., LLMCallContext],
+        protocol: LLMProtocol,
     ) -> Response:
         scope = get_auth_scope()
         raw_body = await request.body()
 
         try:
-            context = parse_llm_call_context(body=raw_body)
+            context = parser(body=raw_body)
         except ValueError as exc:
             return _openai_error(
                 status_code=400,
@@ -221,6 +304,7 @@ class LLMGatewayProxy:
                 name=name,
                 body=raw_body,
                 headers=caller_headers,
+                protocol=protocol,
             )
 
             if context.stream:

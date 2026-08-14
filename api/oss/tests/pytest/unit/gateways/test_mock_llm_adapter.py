@@ -11,6 +11,7 @@ import pytest
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
     LLMDeploymentKind,
+    LLMProtocol,
     LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.interfaces import LLMRelayResult
@@ -130,3 +131,85 @@ async def test_usage_populated_after_body_exhausted():
     assert result.usage.cost == 0.0
     assert result.usage.input_tokens is not None
     assert result.usage.output_tokens is not None
+
+
+# --- protocol-shaped bodies (D33, WP23) --------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_responses_non_streaming_body_and_usage():
+    adapter = MockLLMAdapter()
+
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.RESPONSES),
+        body=_body("hello there"),
+        headers={},
+    )
+
+    chunks = await _drain(result.body)
+    payload = json.loads(chunks[0])
+    assert payload["object"] == "response"
+    assert payload["output"][0]["content"][0]["text"] == "hello there"
+    assert payload["usage"]["output_tokens"] == result.usage.output_tokens
+
+
+@pytest.mark.asyncio
+async def test_responses_streaming_ends_with_a_completed_frame_carrying_usage():
+    adapter = MockLLMAdapter()
+
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(
+            model="mock/echo", stream=True, protocol=LLMProtocol.RESPONSES
+        ),
+        body=_body("hi"),
+        headers={},
+    )
+
+    chunks = await _drain(result.body)
+    assert chunks[-1].startswith(b"event: response.completed\n")
+    final = json.loads(chunks[-1].split(b"data: ", 1)[1])
+    assert final["response"]["usage"]["output_tokens"] == result.usage.output_tokens
+
+
+@pytest.mark.asyncio
+async def test_messages_non_streaming_body_and_usage():
+    adapter = MockLLMAdapter()
+
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.MESSAGES),
+        body=_body("hello there"),
+        headers={},
+    )
+
+    chunks = await _drain(result.body)
+    payload = json.loads(chunks[0])
+    assert payload["type"] == "message"
+    assert payload["content"][0]["text"] == "hello there"
+    assert payload["usage"]["output_tokens"] == result.usage.output_tokens
+
+
+@pytest.mark.asyncio
+async def test_messages_streaming_ends_with_message_stop_and_usage_on_message_delta():
+    adapter = MockLLMAdapter()
+
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(
+            model="mock/echo", stream=True, protocol=LLMProtocol.MESSAGES
+        ),
+        body=_body("hi"),
+        headers={},
+    )
+
+    chunks = await _drain(result.body)
+    assert chunks[-1].startswith(b"event: message_stop\n")
+    delta_frame = next(c for c in chunks if c.startswith(b"event: message_delta\n"))
+    payload = json.loads(delta_frame.split(b"data: ", 1)[1])
+    assert payload["usage"]["output_tokens"] == result.usage.output_tokens

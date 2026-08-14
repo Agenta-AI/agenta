@@ -186,3 +186,83 @@ class TestLLMGatewayProxyAcceptance:
         body = _assert_ok(response)
         assert body["object"] == "list"
         assert {m["id"] for m in body["data"]} == {"mock/echo"}
+
+
+@pytest.mark.acceptance
+class TestLLMGatewayResponsesAndMessagesDoorsAcceptance:
+    """D33/WP23: the same byte-for-byte relay, over the responses and messages doors.
+
+    Known limitation (out of scope here, WP24/OD16): `PassthroughLLMAdapter` always
+    composes `base_url + "/chat/completions"` — it is not yet protocol-aware, so these
+    requests still land on the mock's `/v1/chat/completions` handler regardless of which
+    front door sent them. What this proves is the property WP23 owns: each door parses
+    only its own policy fields and relays the caller's bytes unmodified, over a real
+    socket, to whatever upstream the endpoint names — not that the upstream path matches
+    the door's protocol, which is a routing fact WP24 verifies per provider.
+    """
+
+    def test_responses_door_relays_request_and_response_bytes(
+        self, gateway_api, mock_llm_endpoint
+    ):
+        slug = mock_llm_endpoint["slug"]
+
+        response = gateway_api(
+            "POST",
+            f"/gateways/llms/custom/{slug}/v1/responses",
+            json={"model": "mock/echo", "input": [{"role": "user", "content": "hi"}]},
+        )
+
+        assert response.status_code == 200
+
+    def test_messages_door_relays_request_and_response_bytes(
+        self, gateway_api, mock_llm_endpoint
+    ):
+        slug = mock_llm_endpoint["slug"]
+
+        response = gateway_api(
+            "POST",
+            f"/gateways/llms/custom/{slug}/v1/messages",
+            json={
+                "model": "mock/echo",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        )
+
+        assert response.status_code == 200
+
+    def test_responses_door_streams_sse_bytes_unmodified(
+        self, gateway_api, mock_llm_endpoint
+    ):
+        slug = mock_llm_endpoint["slug"]
+
+        response = gateway_api(
+            "POST",
+            f"/gateways/llms/custom/{slug}/v1/responses",
+            json={
+                "model": "mock/echo",
+                "stream": True,
+                "input": [{"role": "user", "content": "hi"}],
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.content.count(b"data: ") >= 1
+
+    def test_model_outside_allowlist_is_refused_on_the_messages_door_too(
+        self, gateway_api, mock_llm_endpoint
+    ):
+        slug = mock_llm_endpoint["slug"]
+
+        response = gateway_api(
+            "POST",
+            f"/gateways/llms/custom/{slug}/v1/messages",
+            json={
+                "model": "mock/not-on-the-allowlist",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "model_not_allowed"

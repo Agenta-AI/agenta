@@ -106,12 +106,23 @@ class LLMEndpointQuery(BaseModel):
     slug: Optional[str] = None
 
 
+class LLMProtocol(str, Enum):
+    """The front door a call arrived through (D33). `model`/`stream` share field
+    names across all three wires; this tag exists so the ceiling check can bind
+    to the right request field without guessing (D34, WP23)."""
+
+    CHAT_COMPLETIONS = "chat_completions"
+    RESPONSES = "responses"
+    MESSAGES = "messages"
+
+
 class LLMCallContext(BaseModel):
     """What policy needs from the request body — parsed minimally, so the body
     itself can relay byte for byte (`scope-checklist.md`)."""
 
     model: str
     stream: bool = False
+    protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS
 
 
 class LLMResolvedRoute(BaseModel):

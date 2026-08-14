@@ -15,6 +15,7 @@ from starlette.requests import Request
 
 from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import LLMProtocol
 from oss.src.core.gateways.llms.interfaces import LLMRelayResult
 from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
@@ -70,6 +71,16 @@ def _body(*, model: str = "gpt-4o", stream: bool = False) -> bytes:
     return json.dumps({"model": model, "stream": stream, "messages": []}).encode()
 
 
+def _responses_body(*, model: str = "gpt-4o", stream: bool = False) -> bytes:
+    return json.dumps({"model": model, "stream": stream, "input": []}).encode()
+
+
+def _messages_body(*, model: str = "claude-3", stream: bool = False) -> bytes:
+    return json.dumps(
+        {"model": model, "stream": stream, "messages": [], "max_tokens": 1024}
+    ).encode()
+
+
 async def _chunks(*items: bytes) -> AsyncIterator[bytes]:
     for item in items:
         yield item
@@ -103,7 +114,7 @@ class _MockLlmGatewayService:
         self.list_models_calls: List[Dict[str, Any]] = []
 
     async def relay_chat_completion(
-        self, *, scope, namespace, name, body, headers
+        self, *, scope, namespace, name, body, headers, protocol=None
     ) -> LLMRelayResult:
         self.relay_calls.append(
             {
@@ -112,6 +123,7 @@ class _MockLlmGatewayService:
                 "name": name,
                 "body": body,
                 "headers": headers,
+                "protocol": protocol,
             }
         )
         if self._relay_exception is not None:
@@ -402,3 +414,158 @@ async def test_list_models_maps_domain_exception_too():
 
     assert response.status_code == 404
     assert json.loads(response.body)["error"]["code"] == "endpoint_not_found"
+
+
+# --- the responses and messages doors (D33, WP23) ------------------------------ #
+#
+# Same behavior as chat_completions above, exercised per door: the route reaches the
+# handler, the context carries the right model/stream/protocol, and the body passes
+# through untouched. Nothing below the handler branches on protocol, so one
+# parametrized set covers all three doors without three copies of the same assertions.
+
+_DOORS = [
+    (
+        "chat_completions_standard",
+        "chat_completions_custom",
+        _body,
+        LLMProtocol.CHAT_COMPLETIONS,
+    ),
+    (
+        "responses_standard",
+        "responses_custom",
+        _responses_body,
+        LLMProtocol.RESPONSES,
+    ),
+    (
+        "messages_standard",
+        "messages_custom",
+        _messages_body,
+        LLMProtocol.MESSAGES,
+    ),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("standard_handler,custom_handler,body_fn,protocol", _DOORS)
+async def test_door_standard_route_passes_namespace_provider_and_protocol(
+    standard_handler, custom_handler, body_fn, protocol
+):
+    service = _MockLlmGatewayService(
+        relay_result=_relay_result(status_code=200, chunks=[b"{}"])
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+    handler = getattr(proxy, standard_handler)
+
+    with _auth_scope():
+        await handler(_request(body=body_fn()), "openai")
+
+    call = service.relay_calls[0]
+    assert call["namespace"] == GatewayEndpointNamespace.STANDARD
+    assert call["name"] == "openai"
+    assert call["protocol"] == protocol
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("standard_handler,custom_handler,body_fn,protocol", _DOORS)
+async def test_door_custom_route_passes_namespace_slug_and_protocol(
+    standard_handler, custom_handler, body_fn, protocol
+):
+    service = _MockLlmGatewayService(
+        relay_result=_relay_result(status_code=200, chunks=[b"{}"])
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+    handler = getattr(proxy, custom_handler)
+
+    with _auth_scope():
+        await handler(_request(body=body_fn()), "my-slug")
+
+    call = service.relay_calls[0]
+    assert call["namespace"] == GatewayEndpointNamespace.CUSTOM
+    assert call["name"] == "my-slug"
+    assert call["protocol"] == protocol
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("standard_handler,custom_handler,body_fn,protocol", _DOORS)
+async def test_door_body_relays_byte_for_byte(
+    standard_handler, custom_handler, body_fn, protocol
+):
+    raw_body = body_fn(stream=False)
+    service = _MockLlmGatewayService(
+        relay_result=_relay_result(status_code=200, chunks=[b"{}"])
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+    handler = getattr(proxy, custom_handler)
+
+    with _auth_scope():
+        await handler(_request(body=raw_body), "my-slug")
+
+    assert service.relay_calls[0]["body"] == raw_body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("standard_handler,custom_handler,body_fn,protocol", _DOORS)
+async def test_door_streaming_flag_drives_the_response_shape(
+    standard_handler, custom_handler, body_fn, protocol
+):
+    frames = [b"data: one\n\n", b"data: [DONE]\n\n"]
+    service = _MockLlmGatewayService(
+        relay_result=_relay_result(status_code=200, chunks=frames)
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+    handler = getattr(proxy, custom_handler)
+
+    with _auth_scope():
+        response = await handler(_request(body=body_fn(stream=True)), "my-slug")
+
+    assert response.media_type == "text/event-stream"
+    assert await _read_body(response) == b"".join(frames)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("standard_handler,custom_handler,body_fn,protocol", _DOORS)
+async def test_door_missing_model_returns_invalid_request_without_calling_service(
+    standard_handler, custom_handler, body_fn, protocol
+):
+    service = _MockLlmGatewayService()
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+    handler = getattr(proxy, custom_handler)
+    body = json.dumps({"stream": False}).encode()
+
+    with _auth_scope():
+        response = await handler(_request(body=body), "my-slug")
+
+    assert response.status_code == 400
+    assert json.loads(response.body)["error"]["code"] == "invalid_request"
+    assert service.relay_calls == []
+
+
+# --- the route table (a door added without a test is a door nobody knows about) --- #
+
+
+def test_route_table_matches_the_design_exactly():
+    proxy = LLMGatewayProxy(llm_gateway_service=_MockLlmGatewayService())
+
+    actual = {}
+    for route in proxy.router.routes:
+        for method in route.methods:
+            if method == "HEAD":
+                continue
+            actual[(route.path, method)] = route.operation_id
+
+    assert actual == {
+        (
+            "/standard/{provider}/v1/chat/completions",
+            "POST",
+        ): "llm_gateway_chat_completions_standard",
+        (
+            "/custom/{slug}/v1/chat/completions",
+            "POST",
+        ): "llm_gateway_chat_completions_custom",
+        ("/standard/{provider}/v1/responses", "POST"): "llm_gateway_responses_standard",
+        ("/custom/{slug}/v1/responses", "POST"): "llm_gateway_responses_custom",
+        ("/standard/{provider}/v1/messages", "POST"): "llm_gateway_messages_standard",
+        ("/custom/{slug}/v1/messages", "POST"): "llm_gateway_messages_custom",
+        ("/standard/{provider}/v1/models", "GET"): "llm_gateway_list_models_standard",
+        ("/custom/{slug}/v1/models", "GET"): "llm_gateway_list_models_custom",
+    }

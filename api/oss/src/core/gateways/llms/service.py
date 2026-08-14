@@ -24,6 +24,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMEndpointEdit,
     LLMEndpointQuery,
     LLMEndpointRoute,
+    LLMProtocol,
     LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.interfaces import (
@@ -106,11 +107,13 @@ class _ResolvedLlmTarget:
         )
 
 
-def _parse_call_context(body: bytes) -> LLMCallContext:
+def _parse_call_context(body: bytes, protocol: LLMProtocol) -> LLMCallContext:
     """The service's own model/stream extraction — a private duplicate of WP6's
     `apis/fastapi/gateways/llms/utils.py::parse_llm_call_context`, not an import of it: core
     must not import the api layer (`api/AGENTS.md`'s layering rule), and this package owns
-    `relay_chat_completion`'s full body, which needs the same two fields internally."""
+    `relay_chat_completion`'s full body, which needs the same two fields internally.
+    `model`/`stream` share field names across every protocol (WP23); `protocol` is stamped
+    from the caller so the ceiling check binds to the right request field."""
     try:
         payload = json.loads(body) if body else {}
     except (json.JSONDecodeError, TypeError):
@@ -118,19 +121,29 @@ def _parse_call_context(body: bytes) -> LLMCallContext:
     model = payload.get("model") if isinstance(payload, dict) else None
     if not model:
         raise ValueError("request body names no model")
-    return LLMCallContext(model=model, stream=bool(payload.get("stream", False)))
+    return LLMCallContext(
+        model=model, stream=bool(payload.get("stream", False)), protocol=protocol
+    )
 
 
-def _requested_max_output_tokens(body: bytes) -> Optional[int]:
+# Per-protocol ceiling field name(s) (D33, D34, specs-wp23.md): Chat Completions names it
+# `max_tokens` or `max_completion_tokens` on reasoning models; Responses `max_output_tokens`;
+# Messages `max_tokens`. The config key stays `settings.max_output_tokens` regardless.
+_CEILING_FIELDS: Dict[LLMProtocol, tuple] = {
+    LLMProtocol.CHAT_COMPLETIONS: ("max_tokens", "max_completion_tokens"),
+    LLMProtocol.RESPONSES: ("max_output_tokens",),
+    LLMProtocol.MESSAGES: ("max_tokens",),
+}
+
+
+def _requested_max_output_tokens(body: bytes, protocol: LLMProtocol) -> Optional[int]:
     try:
         payload = json.loads(body) if body else {}
     except (json.JSONDecodeError, TypeError):
         return None
     if not isinstance(payload, dict):
         return None
-    # Chat Completions names the request field `max_tokens`, `max_completion_tokens` on
-    # reasoning models; `max_output_tokens` is the config key and the Responses API's.
-    for key in ("max_tokens", "max_completion_tokens", "max_output_tokens"):
+    for key in _CEILING_FIELDS[protocol]:
         value = payload.get(key)
         if isinstance(value, int):
             return value
@@ -273,18 +286,22 @@ class LLMGatewayService:
         #
         body: bytes,
         headers: Dict[str, str],
+        protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
     ) -> LLMRelayResult:
+        """One method for every front door (D33, WP23): a door supplies its own
+        `protocol` from its own minimal parse; everything below stays blind to which
+        one it was, except the ceiling field name."""
         target = await self._resolve_target(
             project_id=scope.project_id, namespace=namespace, name=name
         )
         self._check_active(target=target)
-        context = _parse_call_context(body)
+        context = _parse_call_context(body, protocol)
 
         # Allowlist and ceiling before secret (§8): a refused model must not cost a
         # vault read, and the refusal reason must be the allowlist, never a coincidental
         # secret gap.
         self._check_allowlist(target=target, context=context)
-        self._check_ceilings(target=target, body=body)
+        self._check_ceilings(target=target, context=context, body=body)
 
         policy_target = target.as_policy_target(model=context.model)
         decision = await self.policy.authorize(
@@ -407,11 +424,13 @@ class LLMGatewayService:
                 model=context.model, namespace=target.namespace, name=target.name
             )
 
-    def _check_ceilings(self, *, target: _ResolvedLlmTarget, body: bytes) -> None:
+    def _check_ceilings(
+        self, *, target: _ResolvedLlmTarget, context: LLMCallContext, body: bytes
+    ) -> None:
         ceiling = target.settings.max_output_tokens
         if ceiling is None:
             return
-        requested = _requested_max_output_tokens(body)
+        requested = _requested_max_output_tokens(body, context.protocol)
         if requested is None or requested <= ceiling:
             return
         raise CeilingExceededError(
