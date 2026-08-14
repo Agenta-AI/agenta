@@ -112,7 +112,8 @@ async def test_edit_endpoint_replaces_data_and_flags_wholesale(seeded_project):
         #
         endpoint=_create_dto(slug="acme-edit"),
     )
-    assert created.data.extras is None
+    assert created.data.route.extras is None
+    assert created.data.settings.max_output_tokens == 4096
 
     edit = LLMEndpointEdit(
         id=created.id,
@@ -133,6 +134,7 @@ async def test_edit_endpoint_replaces_data_and_flags_wholesale(seeded_project):
     assert edited is not None
     assert edited.data.route.base_url == "https://new.openai.azure.com"
     assert edited.data.models.allowlist == ["gpt-4o-mini"]
+    assert edited.data.settings.max_output_tokens is None
     assert edited.updated_by_id == user_id
     assert edited.updated_at is not None
 
