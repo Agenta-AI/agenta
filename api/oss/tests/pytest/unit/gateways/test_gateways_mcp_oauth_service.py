@@ -139,8 +139,15 @@ def _mock_as_handler(*, token_access_token="tok-xyz"):
     return handler
 
 
+def _private_resolve(_hostname: str) -> List[str]:
+    """WP17's own tests predate the identity-document strategy (specs-wp20.md) and
+    assert the outbound path throughout — pin detection to "internal" so none of them
+    starts resolving `_API_URL` over real DNS."""
+    return ["10.0.0.5"]
+
+
 def _service(
-    *, dao=None, handler=None
+    *, dao=None, handler=None, resolve=_private_resolve
 ) -> Tuple[MCPOAuthConnectService, _FakeSecretsDAO]:
     dao = dao or _FakeSecretsDAO()
     vault = VaultService(secrets_dao=dao)
@@ -148,7 +155,11 @@ def _service(
         transport=httpx.MockTransport(handler or _mock_as_handler())
     )
     service = MCPOAuthConnectService(
-        vault_service=vault, client=client, api_url=_API_URL, secret_key=_SECRET_KEY
+        vault_service=vault,
+        client=client,
+        api_url=_API_URL,
+        secret_key=_SECRET_KEY,
+        resolve=resolve,
     )
     return service, dao
 

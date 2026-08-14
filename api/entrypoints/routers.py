@@ -186,6 +186,7 @@ from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
 from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
 from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
 from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.oauth_router import MCPOAuthClientMetadataRouter
 
 # ComposioMCPAdapter serves the builtin namespace and has no owner in wave 1: no brokered
 # target is reachable yet, so our own servers and the mocks are the whole set (D23).
@@ -1140,6 +1141,7 @@ mcp_gateway_router = MCPGatewayRouter(
     oauth_connect_service=mcp_oauth_connect_service,
 )
 mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)
+mcp_oauth_client_metadata_router = MCPOAuthClientMetadataRouter()
 
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
@@ -1594,6 +1596,11 @@ app.include_router(
 )
 app.include_router(
     router=mcp_gateway_proxy.router,
+    prefix="/gateways/mcps",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_oauth_client_metadata_router.router,
     prefix="/gateways/mcps",
     include_in_schema=False,
 )
