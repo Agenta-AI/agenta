@@ -830,6 +830,50 @@ holds what is left: which upstreams that reclassification actually reaches, veri
 provider rather than argued.
 
 
+## D35. A gateway target must be registered before an agent can use it
+
+Wave 2 made this true in code before it was written down here, so it is recorded now rather
+than left as an implicit consequence.
+
+**The rule.** An agent reaches a model or an MCP server only through a target that already
+exists in the gateway's registry: an endpoint row for a `custom` target, a stored secret for a
+`standard` one, a brokered account for a `builtin` one. The SDK no longer honours a URL and a
+secret declared in agent code. It routes by name and the gateway resolves the rest.
+
+**Why it follows from the wave rather than being a new constraint.** A secret declared in agent
+code is a secret inside the sandbox, which is exactly what Checkpoint B closes. There is no
+version of "the author brings their own URL and token" that also satisfies "no third-party
+secret in a sandbox". So the CRUD registries on both planes are not administrative convenience;
+they are the only place a secret can live once the sandbox cannot hold one.
+
+**What it costs, stated plainly.** An author who used to point at a server URL in code must now
+register that server first. That is a real workflow change and it needs the two affordances
+below, neither of which is built.
+
+**Consequence 1 — a refusal must arrive as a cause, not as a failure.** When a credential is
+missing, expired or rejected, or a named target does not exist, the gateway already raises a
+typed domain error. What is not proven is that the cause survives the whole chain back to the
+agent: gateway to harness to runner to agent service to the caller. WP13 added
+`AgentErrorDetail` (`{code, message, retryable, next_step?, details?}`) to the runner wire and a
+best-effort recovery of the cause from the harness's own error text, and flagged that whether a
+given harness preserves the gateway's response body is unverified per harness. WP14 noted the
+agent service does not yet surface the field onto its own stream. Until both are closed, an
+unregistered target or a dead credential reaches the agent as prose, and an agent that cannot
+read the cause cannot act on it.
+
+**Consequence 2 — an agent must be able to ask for the connection it lacks.** The affordance
+already exists for external integrations: the reserved `request_connection` client tool
+(`core/workflows/static_catalog.py`), which takes `{integration, slug?, mode: oauth|api_key}`
+and carries `render: {kind: "connect"}` so the client renders the connect dialog when the call
+pauses. It does not cover a gateway endpoint on either plane. The symmetric case is an agent
+that names a model or a server it may not reach and asks the user to connect it, rather than
+failing and stopping. Extending the existing tool is the shape to prefer over a second
+mechanism, since the pause, the render hint and the resume path are all already built.
+
+**Both consequences are wave-3 scope.** Neither was in wave 2's checkpoint, and neither should
+be retrofitted into a package that has already merged.
+
+
 ---
 
 ## Still open
