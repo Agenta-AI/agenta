@@ -690,6 +690,20 @@ Reading it the other way round — `Authorization` first, `X-AG-Credentials` as 
 fails precisely in the case the header was introduced for, because both are present and the
 wrong one is ours. One helper, consulted at both of the middleware's existing read sites.
 
+**On the data plane it is not merely preferred — it is the only header we read.** The
+proxies are ours to specify and have no legacy callers: no user traffic passes before
+checkpoint C, and wave 2's callers are the SDK, the runner and agent v0. Requiring it there
+buys a property worth more than the flexibility it costs — **`Authorization` on a data-plane
+request is always the caller's**, never ours, in every request rather than in the ones we
+can prove. The management CRUD routes are ordinary API routes and keep all three schemes.
+
+That property is what makes the outbound rule trivial. The relay strips `X-AG-Credentials`
+and nothing else of the caller's; every other header it forwards. If the endpoint resolves a
+secret, the adapter overwrites that provider's own auth header with it; if it does not,
+whatever the caller sent stands and reaches the upstream. Pass-through then needs no
+detection step and no provider-keyed table of auth headers (OD15) — it is what happens by
+default when we have no secret to overwrite with.
+
 **Both are stripped before any relay.** They authenticate the caller into the gateway; neither
 belongs to an upstream. This is one shared frozen set in the gateways' domain root, applied on
 both planes, and it closes a real leak: the MCP adapter forwarded caller headers wholesale and

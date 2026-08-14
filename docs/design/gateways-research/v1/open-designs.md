@@ -217,47 +217,93 @@ between harness and gateway that holds the gateway identity and leaves the harne
 login untouched. It is more moving parts and is worth building only for a harness that is both
 wanted and incapable, which is exactly what the matrix identifies.
 
-### OD15. Pass-through is detected at the call, not stored on a row — with one edge left
+### OD15. Pass-through is not a mode at all — it is the default when nothing overwrites
 
 The question was where a pass-through target keeps its mode, given that pass-through's
-natural targets are `standard` endpoints, which are generated and have no row (D20). The
-answer is that it keeps it nowhere: **the caller declares it in the request.**
-
-**Why the signal is unambiguous, and only became so with D31.** Our own credentials now ride
-`X-AG-Credentials`. So an `Authorization` header that we did *not* authenticate with is, by
-elimination, the caller's own and meant for the upstream. Before D31 that header was
-overloaded and the same request could not be read two ways.
+natural targets are `standard` endpoints, which are generated and have no row (D20). It
+keeps it nowhere, and there is no mode to keep: **it is what already happens when the
+gateway has no secret to inject.**
 
 **The rule, in full:**
 
-- Authenticate the caller. `X-AG-Credentials` wins when present; otherwise `Authorization`
-  (D31).
-- If the caller also supplied the upstream's own auth header, and it is not the header we
-  just authenticated with, the call is pass-through: resolve no secret, overwrite nothing,
-  forward it.
-- Strip `X-AG-Credentials` always. Strip `Authorization` **only when it was ours** — which
-  is the one line of today's unconditional strip that has to change when this lands.
+- The data plane reads `X-AG-Credentials` and nothing else (D31), so every other header on
+  an inbound request belongs to the caller.
+- The relay strips `X-AG-Credentials` and forwards the rest.
+- If the endpoint resolves a secret, the adapter overwrites that provider's own auth header
+  with it. If it does not, whatever the caller sent stands and reaches the upstream.
 - Everything else is unchanged. The target must still resolve and be active, the model
   filter still applies, the ceiling still applies, and the audit event still fires with
   `secret_origin` recording that no secret of ours paid.
 
-**Why this is a declaration and not an inference.** The objection to detecting a mode is
-that absence is a bad signal — "this endpoint has no secret, so it must be pass-through"
-is silently wrong every time a secret is merely missing. This is the opposite: the caller
-performed a positive act by attaching an upstream token, and we read the act.
+**Nothing has to recognise a provider's auth header on the way in.** Detecting
+pass-through would require knowing that Anthropic reads `x-api-key` while OpenAI reads
+`Authorization: Bearer`, and being wrong in either direction is a leak or a broken call.
+Requiring our own header on the data plane removes the question: there is nothing to
+detect, because there is no branch. A provider's auth header is named only on the
+*injection* side, by the adapter that already knows which secret it holds.
 
-**The edge it does not cover: not every provider authenticates in `Authorization`.**
-Anthropic reads `x-api-key`; OpenAI reads `Authorization: Bearer`. So the signal is not one
-header but "the header this target's provider uses", which the gateway knows because the
-route names the provider. That is a small provider-keyed table, not a design problem — but
-it has to be *right*, because a header we fail to recognise as upstream auth gets forwarded
-as an ordinary header, or stripped, depending on which list it lands in. **OD14's harness
-matrix is what fills the table in**, since it is already recording what each harness sends.
+The passthrough adapter forwards `x-api-key` and every other caller header today. The one
+thing standing between current behaviour and this rule is that `Authorization` is stripped
+unconditionally, which is a line to change when a caller has a reason to send one.
+
+**What this does not decide** is whether an operator may forbid it — a project that does not
+want its spend quietly split across personal subscriptions needs a governance flag, which is
+a policy question rather than a routing one, and nobody has asked for it.
+
+The passthrough adapter already forwards `x-api-key` and every other caller header; the only
+thing standing between today's behaviour and this rule is that `Authorization` is stripped
+unconditionally.
 
 **What a column would still be worth** is the opposite statement: an operator forbidding
 pass-through on a target, so a project cannot quietly split its spend across personal
 subscriptions. That is a policy flag rather than a mode, it belongs with the other
 governance flags, and nobody has asked for it.
+
+### OD16. Translation is doing three jobs, and only one of them is translation
+
+Why is anything translated at all, when byte-for-byte is the property the whole design is
+built to protect? Because `TranslatedLLMAdapter` is currently carrying three unrelated
+jobs under one name, and only the first is genuinely translation:
+
+1. **Body-shape conversion.** A Chat Completions request reaching Anthropic Messages. This
+   is real translation, it is what breaks byte-for-byte, and it exists **only because there
+   is one front door**. Add the `/v1/messages` front door (D33) and a Messages caller
+   reaching Anthropic is a pure relay. Translation shrinks as front doors are added; it is
+   a function of the mismatch, not of the provider.
+2. **URL composition.** Azure's `/openai/deployments/{deployment}/chat/completions` plus an
+   `api-version` query parameter; Bedrock's `/model/{id}/invoke`; Vertex's endpoint path.
+   The adapter builds a URL from route fields. That is routing, and the passthrough adapter
+   already does the simple case of it.
+3. **Auth that is not a static header.** SigV4 signing for Bedrock, a token minted from a
+   service account for Vertex, `api-key` rather than `Authorization` for Azure. That is a
+   step before the request goes out, not a change to the request's meaning.
+
+**Azure is the clearest case that the current table over-translates.** Azure OpenAI takes
+the OpenAI body unchanged; what differs is the URL and the name of the auth header. Both are
+jobs 2 and 3. Routing it through the routing library costs a parse and a re-serialize on
+every call, and with them the upstream's prompt caching — the exact thing byte-for-byte
+exists to keep.
+
+**Bedrock and Vertex are less clear and cut the same way.** Their bodies are the *provider's
+own* shape — a Bedrock Anthropic model takes the Anthropic Messages body — so whether they
+need job 1 depends entirely on which front door the caller used. Through `/v1/messages`
+they would not; through Chat Completions they would.
+
+**The shape this suggests** is a passthrough adapter that can compose a URL and apply a
+signing or token step, with the routing library kept for job 1 alone. That is one adapter
+gaining two capabilities rather than a second adapter existing, and it makes the default
+byte-for-byte instead of the exception.
+
+**What it changes downstream.** `select_upstream`'s `direct` branch is the only place
+`provider_key` decides anything on a stored row (§2.4). Collapse the split and the column
+becomes purely descriptive — a filter and a label, which is a thin justification for
+`NOT NULL`.
+
+**What settles it** is per-provider verification, not argument: for each of Azure, Bedrock,
+Vertex and SageMaker, does the upstream accept the body we would relay, byte for byte, at a
+URL we can compose from route fields? Where the answer is yes, the provider moves to
+passthrough and the design gets simpler. Where it is no, it stays translated and the reason
+is recorded next to it. Nothing here should move on reasoning alone.
 
 ### OD2. Is a user's own secret the norm or the exception — parked
 

@@ -568,6 +568,11 @@ to keep a column, and not enough to call it structural — so **`NOT NULL` is th
 revisiting**, since a `custom` row pointed at a self-hosted gateway is being made to name a
 provider that means nothing to it.
 
+The `direct` split is also the thinner of the two justifications, and it is under review:
+`open-designs.md` OD16 asks whether most of what the translated adapter does is translation
+at all. If that split collapses, `provider_key` on a stored row decides nothing and becomes
+a pure label.
+
 A custom MCP endpoint is a URL somebody pasted; it has no provider to name, nothing filters
 on it, and no adapter choice follows from it — one protocol, one transport.
 
@@ -594,16 +599,16 @@ inject anything.
 caller's own vendor authentication passes through untouched and the gateway injects
 nothing — a second mode on the LLM plane, whatever else is true of it.
 
-**And it is probably still not a column**, because the caller declares it in the request.
-Since D31 moved our own credentials to `X-AG-Credentials`, an `Authorization` header we did
-not authenticate with is unambiguously the caller's, meant for the upstream — a positive
-act, not an inference from something missing. The gateway then resolves no secret,
-overwrites nothing, and forwards it. That works on a generated `standard` endpoint, which
-has no row to put a column on, and it costs no enum and no migration.
+**And it is not a column, because it is not a mode.** The data plane reads
+`X-AG-Credentials` and nothing else (D31), so every other header on an inbound request is
+the caller's. The relay strips ours, forwards the rest, and overwrites the provider's auth
+header only when a secret resolved. Pass-through is then what happens when nothing
+overwrites — no branch, no enum, no column, and it works on a generated `standard` endpoint
+that has no row at all (`open-designs.md` OD15).
 
 What a column would still be good for is the *opposite* statement — an operator forbidding
 pass-through on a target — which is a policy flag rather than a mode, and nobody has asked
-for it. `open-designs.md` OD15 holds the rule and the one edge it does not cover.
+for it.
 
 **What the two tables do share** is everything the gateway does with an endpoint rather
 than to it: `slug`, `secret_id`, `data`, `flags`, `status`, and the lifecycle columns. The
