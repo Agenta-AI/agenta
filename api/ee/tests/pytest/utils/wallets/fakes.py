@@ -44,6 +44,10 @@ class FakeWalletsDAO(WalletsDAOInterface):
         self.settle_calls = 0
         self.provision_calls = 0
         self.plan_changes: Dict[Tuple[UUID, str], PlanChangeResultDTO] = {}
+        # idempotency_key -> awarded credit, keyed same as the real DAO's
+        # `data.references.award_idempotency_key` lookup.
+        self.awards: Dict[str, WalletCreditDTO] = {}
+        self.award_calls = 0
 
     async def get_general_balance(
         self,
@@ -260,6 +264,59 @@ class FakeWalletsDAO(WalletsDAOInterface):
         )
         self.plan_changes[key] = result
         return result
+
+    async def award_credit(
+        self,
+        *,
+        organization_id: UUID,
+        idempotency_key: str,
+        credit_kind: str,
+        amount_musd: int,
+        priority: int,
+        end_time,
+        now: Optional[datetime] = None,
+    ) -> WalletCreditDTO:
+        self.award_calls += 1
+
+        existing = self.awards.get(idempotency_key)
+        if existing is not None:
+            return existing
+
+        if self.general_balance is None:
+            from ee.src.core.wallets.types import WalletGeneralBalanceNotFoundError
+
+            raise WalletGeneralBalanceNotFoundError(organization_id)
+
+        credit_id = uuid_utils.uuid7()
+        credit = WalletCreditDTO(
+            id=credit_id,
+            organization_id=organization_id,
+            credit_kind=credit_kind,
+            amount_musd=amount_musd,
+            priority=priority,
+            start_time=now,
+            end_time=end_time,
+            data={"references": {"award_idempotency_key": idempotency_key}},
+        )
+        candidate = CreditCandidateDTO(
+            wallet_credit_id=credit_id,
+            credit_kind=credit_kind,
+            priority=priority,
+            end_time=end_time,
+            balance_musd=amount_musd,
+        )
+        balance = WalletBalanceDTO(
+            id=uuid_utils.uuid7(),
+            organization_id=organization_id,
+            wallet_credit_id=credit_id,
+            balance_musd=amount_musd,
+        )
+        self._credits[credit_id] = (candidate, balance)
+        self.general_balance = self.general_balance.model_copy(
+            update={"balance_musd": self.general_balance.balance_musd + amount_musd}
+        )
+        self.awards[idempotency_key] = credit
+        return credit
 
 
 class FakeWalletSettlementPort(WalletSettlementPort):

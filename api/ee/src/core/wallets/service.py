@@ -7,11 +7,17 @@ billing boundary". Neither calls `check_entitlements`
 checks the wallet's committed balance against its floor.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
 from ee.src.core.wallets.contracts import DebitCommandV1
+from ee.src.core.wallets.grants import (
+    GrantReferenceRequiredError,
+    UnknownGrantActivityError,
+    compose_award_idempotency_key,
+    get_grant_rule,
+)
 from ee.src.core.wallets.interfaces import WalletCheckPort, WalletSettlementPort
 from ee.src.core.wallets.plans import (
     PLAN_ALLOWANCE_CREDIT_KIND,
@@ -20,7 +26,11 @@ from ee.src.core.wallets.plans import (
     floor_musd_for_plan,
 )
 from ee.src.core.wallets.proration import compute_plan_change_proration
-from ee.src.core.wallets.types import PlanChangeResultDTO, WalletsDAOInterface
+from ee.src.core.wallets.types import (
+    PlanChangeResultDTO,
+    WalletCreditDTO,
+    WalletsDAOInterface,
+)
 
 
 class WalletsService(WalletCheckPort, WalletSettlementPort):
@@ -99,5 +109,46 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
             incoming_priority=PLAN_ALLOWANCE_PRIORITY,
             incoming_end_time=period_end,
             floor_musd=floor_musd_for_plan(plan=incoming_plan),
+            now=now,
+        )
+
+    async def award(
+        self,
+        *,
+        organization_id: UUID,
+        activity_code: str,
+        reference: Optional[str] = None,
+        now: Optional[datetime] = None,
+    ) -> WalletCreditDTO:
+        """Idempotently award a `ee.src.core.wallets.grants.GRANT_CATALOG` activity.
+        Returns the newly minted credit, or the existing one on a repeat call — never
+        raises on a repeat, never double-awards. See
+        `WalletsDAOInterface.award_credit` for the transaction shape."""
+        rule = get_grant_rule(activity_code=activity_code)
+        if rule is None:
+            raise UnknownGrantActivityError(activity_code)
+
+        if rule.repeatable and reference is None:
+            raise GrantReferenceRequiredError(activity_code)
+
+        now = now or datetime.now(timezone.utc)
+        idempotency_key = compose_award_idempotency_key(
+            activity_code=activity_code,
+            organization_id=organization_id,
+            reference=reference if rule.repeatable else None,
+        )
+        end_time = (
+            now + timedelta(days=rule.lifetime_days)
+            if rule.lifetime_days is not None
+            else None
+        )
+
+        return await self.wallets_dao.award_credit(
+            organization_id=organization_id,
+            idempotency_key=idempotency_key,
+            credit_kind=rule.credit_kind,
+            amount_musd=rule.amount_musd,
+            priority=rule.priority,
+            end_time=end_time,
             now=now,
         )

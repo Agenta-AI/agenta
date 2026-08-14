@@ -178,6 +178,55 @@ debit in this procedure settles without needing a `wallet_credits` row too (it l
 **Failure meaning:** a unique-violation on this insert means the row already exists (fine,
 skip). Any other error means the migration in step 0 did not actually apply — go back.
 
+## 2b. Real plan allowances, floors, and the signup grant (WP-1-05)
+
+**PRODUCT DECISION (2026-08-14):** `ee.src.core.wallets.plans` now carries real per-plan
+values instead of the WP-1-04 constant-zero placeholder. Amounts are musd ($1 =
+1_000_000 musd):
+
+| Plan | Allowance/period | Floor |
+| --- | --- | --- |
+| `cloud_v0_hobby` | $0 | $0 |
+| `cloud_v0_pro` | $5 | $0 |
+| `cloud_v0_business` | $50 | $0 |
+| `cloud_v0_agenta_ai` (internal; treated as business-tier) | $50 | $0 |
+| `self_hosted_enterprise` | $0 | $0 |
+
+Every floor is 0 at launch — a hard stop everywhere once the general balance is spent.
+Individual customers get an overdraft (a negative floor) by hand later; `floor_musd_for_plan`
+stays a per-plan function so that stays a data change, not a code change.
+
+WP-1-05 also adds `ee.src.core.wallets.grants`: a catalog of named activities that award
+wallet credit outside the plan-change proration path. One entry exists today —
+`signup` — awarded once per organization, on every plan including free, on the signup
+path only (`provision_signup_subscription`, never `provision_user_subscription` /
+`POST /organizations/`, per `report.md` §9.2). `WalletsService.award()` is idempotent,
+keyed as `award:signup:organization:<organization_id>`.
+
+**To prove a signup grant landed** on a running deployment: create an organization via
+the actual signup flow (not the admin `POST /organizations/` endpoint — that path never
+awards the grant), then:
+
+```sql
+-- agenta_ee_core
+select credit_kind, amount_musd, priority, start_time, end_time, data
+from wallet_credits
+where organization_id = '<organization_id>' and credit_kind = 'award';
+-- expect exactly 1 row: amount_musd = 1000000, priority = 20,
+-- end_time = start_time + 365 days, data->references->>'award_idempotency_key'
+-- = 'award:signup:organization:<organization_id>'
+
+select balance_musd from wallet_balances
+where organization_id = '<organization_id>' and wallet_credit_id is null;
+-- expect balance_musd includes the $1 grant (1000000 musd), on top of any plan_allowance
+```
+
+**Failure meaning:** no `award`-kind credit row means `_award_signup_grant` either was
+not called (check `provision_signup_subscription` wiring) or failed silently — it should
+not fail silently; check `worker`/API logs for `[wallets] Failed to award signup grant`.
+A second `award`-kind row for the same organization means the idempotency guard
+(`award_credit`'s `data.references.award_idempotency_key` lookup) is broken — a P0.
+
 ## 3. Trigger the fake LLM path
 
 The fake LLM/MCP calls are wallet-owned test support
@@ -434,6 +483,11 @@ uv run --no-sync python -m pytest \
 uv run --no-sync python -m pytest \
   ee/tests/pytest/integration/wallets/test_wallets_backfill_migration_postgres.py \
   ee/tests/pytest/integration/wallets/test_wallets_provisioning_postgres.py -v
+
+# 6. WP-1-05: the real WalletsDAO.award_credit method, and the organizations-service
+#    signup-grant hooks end to end.
+uv run --no-sync python -m pytest \
+  ee/tests/pytest/integration/wallets/test_wallets_grants_postgres.py -v
 ```
 
 **Failure meaning, per suite:**
@@ -460,6 +514,11 @@ uv run --no-sync python -m pytest \
   check that the replay guard (a `wallet_debits` lookup by `idempotency_key`, plus a
   `wallet_credits` lookup by the embedded `plan_change_idempotency_key` reference — see
   `WalletsDAO.apply_plan_change`) actually finds a prior application on redelivery.
+- (6) failing means `WalletsDAO.award_credit`'s replay guard (a `wallet_credits` lookup
+  by `data.references.award_idempotency_key`) doesn't hold against a real engine, or the
+  `_provision_wallet_general_balance` → `_award_signup_grant` ordering the
+  organizations-service hooks rely on is broken — either a double-award or a credit
+  minted before its balance row exists.
 
 ## 10. Unit-only commands (already run and passing during review; safe to re-run any time)
 
@@ -467,6 +526,7 @@ uv run --no-sync python -m pytest \
 cd api && uv run --no-sync python -m pytest ee/tests/pytest/unit/wallets/ ee/tests/pytest/unit/measurements/ -q
 # review result (IM-1-02): 80 passed, 0 failed, 0 skipped
 # review result (WP-1-04, adds the check-is-async and B1/B2/B3 unit tests): 103 passed, 0 failed, 0 skipped
+# review result (WP-1-05, adds real allowance/floor proration tests + the grant-catalog/award tests): 122 passed, 0 failed, 0 skipped
 
 cd api && uv run --no-sync ruff format --check . && uv run --no-sync ruff check .
 # review result: both clean

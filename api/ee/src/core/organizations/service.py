@@ -957,6 +957,32 @@ async def _provision_wallet_general_balance(
         raise
 
 
+async def _award_signup_grant(*, organization_id: UUID) -> None:
+    """Idempotent — `WalletsDAOInterface.award_credit`'s replay guard (keyed on the
+    minted credit's `data.references.award_idempotency_key`) is the actual guard against
+    a duplicate award, so calling this twice (retry, concurrent creation) is safe. Runs
+    AFTER `_provision_wallet_general_balance` so the general balance row it funds already
+    exists — a credit with no balance row to project into is a bug. Signup-path only
+    (report.md §9.2: never on explicit organization creation, or the grant is farmable) —
+    this helper is called from `provision_signup_subscription` only, never from
+    `provision_user_subscription`. A grant failure must not roll back an
+    organization/subscription/balance row that already exist; it is safe to retry alone
+    later precisely because it is idempotent.
+    """
+    try:
+        await get_wallets_service().award(
+            organization_id=organization_id,
+            activity_code="signup",
+        )
+    except Exception as exc:
+        log.error(
+            "[wallets] Failed to award signup grant for organization [%s]: %s",
+            organization_id,
+            exc,
+        )
+        raise
+
+
 async def provision_signup_subscription(
     organization: OrganizationDB,
     *,
@@ -990,6 +1016,7 @@ async def provision_signup_subscription(
 
     plan = subscription.plan if subscription is not None else get_default_plan()
     await _provision_wallet_general_balance(organization_id=organization.id, plan=plan)
+    await _award_signup_grant(organization_id=organization.id)
 
 
 async def provision_user_subscription(organization: OrganizationDB) -> None:

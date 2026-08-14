@@ -370,3 +370,69 @@ class WalletsDAO(WalletsDAOInterface):
                 general_balance_musd=general.balance_musd,
                 floor_musd=general.floor_musd,
             )
+
+    async def award_credit(
+        self,
+        *,
+        organization_id: UUID,
+        idempotency_key: str,
+        credit_kind: str,
+        amount_musd: int,
+        priority: int,
+        end_time: Optional[datetime],
+        now: Optional[datetime] = None,
+    ) -> WalletCreditDTO:
+        async with self.engine.session() as session:
+            # 1. Lock the general balance first — same reason as `apply_plan_change`:
+            #    every write below touches it, and this serializes concurrent awards for
+            #    the same organization.
+            general_stmt = (
+                select(WalletBalanceDBE)
+                .where(
+                    WalletBalanceDBE.organization_id == organization_id,
+                    WalletBalanceDBE.wallet_credit_id.is_(None),
+                )
+                .with_for_update()
+            )
+            general = (await session.execute(general_stmt)).scalar_one_or_none()
+            if general is None:
+                raise WalletGeneralBalanceNotFoundError(organization_id)
+
+            # 2. Replay guard: an existing credit already carrying this idempotency key
+            #    is this exact award, already applied — return it, write nothing new.
+            existing_stmt = select(WalletCreditDBE).where(
+                WalletCreditDBE.organization_id == organization_id,
+                WalletCreditDBE.data["references"]["award_idempotency_key"].astext
+                == idempotency_key,
+            )
+            existing = (await session.execute(existing_stmt)).scalar_one_or_none()
+            if existing is not None:
+                return credit_dbe_to_dto(existing)
+
+            # 3. First delivery: mint the credit and its balance row, and fund the
+            #    general balance projection by the full amount.
+            credit = WalletCreditDBE(
+                id=uuid_utils.uuid7(),
+                organization_id=organization_id,
+                credit_kind=credit_kind,
+                amount_musd=amount_musd,
+                priority=priority,
+                start_time=now,
+                end_time=end_time,
+                data={"references": {"award_idempotency_key": idempotency_key}},
+            )
+            session.add(credit)
+            session.add(
+                WalletBalanceDBE(
+                    id=uuid_utils.uuid7(),
+                    organization_id=organization_id,
+                    wallet_credit_id=credit.id,
+                    balance_musd=amount_musd,
+                    floor_musd=None,
+                )
+            )
+            general.balance_musd += amount_musd
+
+            await session.flush()
+
+            return credit_dbe_to_dto(credit)
