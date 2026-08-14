@@ -118,50 +118,67 @@ def test_vertex_with_no_project_raises():
         build_url(route, LLMProtocol.CHAT_COMPLETIONS)
 
 
-def test_bedrock_messages_door_composes_invoke_model_path():
+def test_bedrock_messages_door_composes_mantle_anthropic_path():
+    """OD19: Bedrock's Messages door moved to bedrock-mantle. No model in the URL — it
+    stays in the body untouched (static_fields.py has no BEDROCK entry any more)."""
     route = _route(
         deployment_kind=LLMDeploymentKind.BEDROCK,
         base_url="https://bedrock.example",
         model="anthropic.claude-3-5-sonnet",
     )
     assert build_url(route, LLMProtocol.MESSAGES) == (
-        "https://bedrock.example/model/anthropic.claude-3-5-sonnet/invoke"
+        "https://bedrock.example/anthropic/v1/messages"
     )
 
 
-def test_bedrock_messages_door_streaming_uses_the_stream_action():
-    route = _route(
-        deployment_kind=LLMDeploymentKind.BEDROCK,
-        base_url="https://bedrock.example",
-        model="anthropic.claude-3-5-sonnet",
-    )
-    assert build_url(route, LLMProtocol.MESSAGES, stream=True) == (
-        "https://bedrock.example/model/anthropic.claude-3-5-sonnet/invoke-with-response-stream"
-    )
-
-
-def test_bedrock_messages_door_derives_bedrock_runtime_host_from_region():
+def test_bedrock_messages_door_derives_mantle_host_from_region():
     route = _route(
         deployment_kind=LLMDeploymentKind.BEDROCK,
         region="eu-central-1",
         model="anthropic.claude-3-5-sonnet",
     )
     assert build_url(route, LLMProtocol.MESSAGES) == (
-        "https://bedrock-runtime.eu-central-1.amazonaws.com"
-        "/model/anthropic.claude-3-5-sonnet/invoke"
+        "https://bedrock-mantle.eu-central-1.api.aws/anthropic/v1/messages"
     )
 
 
-def test_bedrock_messages_door_with_no_model_raises_naming_bedrock():
+def test_bedrock_messages_door_stream_flag_does_not_change_the_url():
+    """Mantle's Anthropic surface streams via the body's own `stream` flag, not a
+    separate operation the way legacy InvokeModel named it."""
     route = _route(
-        deployment_kind=LLMDeploymentKind.BEDROCK, base_url="https://b.example"
+        deployment_kind=LLMDeploymentKind.BEDROCK,
+        base_url="https://bedrock.example",
+        model="anthropic.claude-3-5-sonnet",
     )
-    route.model = ""
+    assert build_url(route, LLMProtocol.MESSAGES, stream=True) == build_url(
+        route, LLMProtocol.MESSAGES, stream=False
+    )
+
+
+def test_bedrock_messages_door_with_no_region_or_base_url_raises():
+    route = _route(deployment_kind=LLMDeploymentKind.BEDROCK, region=None)
     with pytest.raises(LLMUpstreamError):
         build_url(route, LLMProtocol.MESSAGES)
 
 
-def test_bedrock_chat_completions_door_is_unaffected_by_the_messages_strategy():
+def test_bedrock_base_url_is_a_host_override_shared_by_every_door():
+    """OD19: base_url on a BEDROCK row is a pure host override; each door appends its own
+    tail on top of it, and one stored value composes correctly on all three."""
+    route = _route(
+        deployment_kind=LLMDeploymentKind.BEDROCK, base_url="https://vpce.example"
+    )
+    assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
+        "https://vpce.example/v1/chat/completions"
+    )
+    assert (
+        build_url(route, LLMProtocol.RESPONSES) == "https://vpce.example/v1/responses"
+    )
+    assert build_url(route, LLMProtocol.MESSAGES) == (
+        "https://vpce.example/anthropic/v1/messages"
+    )
+
+
+def test_bedrock_chat_completions_door_is_unaffected_by_the_messages_door():
     route = _route(deployment_kind=LLMDeploymentKind.BEDROCK, region="eu-central-1")
     assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
         "https://bedrock-mantle.eu-central-1.api.aws/v1/chat/completions"
@@ -222,6 +239,25 @@ def test_vertex_chat_completions_door_is_unaffected_by_the_messages_strategy():
     assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
         "https://europe-west4-aiplatform.googleapis.com/v1/projects/acme-prod"
         "/locations/europe-west4/endpoints/openapi/chat/completions"
+    )
+
+
+def test_vertex_base_url_is_host_plus_shared_prefix_serving_both_doors():
+    """OD19: base_url on a VERTEX row is the host plus the shared
+    /v1/projects/{project}/locations/{region} prefix; each door appends only its own tail,
+    so one stored value serves both."""
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        base_url="https://priv.example/v1/projects/acme-prod/locations/europe-west4",
+        model="claude-3-5-sonnet",
+    )
+    assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
+        "https://priv.example/v1/projects/acme-prod/locations/europe-west4"
+        "/endpoints/openapi/chat/completions"
+    )
+    assert build_url(route, LLMProtocol.MESSAGES) == (
+        "https://priv.example/v1/projects/acme-prod/locations/europe-west4"
+        "/publishers/anthropic/models/claude-3-5-sonnet:rawPredict"
     )
 
 

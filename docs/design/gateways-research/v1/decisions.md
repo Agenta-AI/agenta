@@ -890,22 +890,31 @@ workstream and never restarts per wave.
 ## D40. A named, static field rewrite is allowed where a resold wire demands it. Amends D34
 
 D34 forbids the gateway converting a body, and that stands. This carves out one bounded exception,
-because two vendors resell Anthropic's Messages wire with a fixed structural difference that no
+because one vendor resells Anthropic's Messages wire with a fixed structural difference that no
 caller-side workaround reaches without giving up the front door entirely.
 
-**The facts, from the vendors' own documentation.**
+**One entry, not two.** The table held a Bedrock entry until OD19 found it was an artefact of a
+routing choice rather than a fact about the vendor's wire. Bedrock's Messages door was originally
+composed against `InvokeModel` on `bedrock-runtime`, which needs exactly this rewrite —
+`anthropic_version` added to the body, `model` moved out of it into the URL. But Bedrock also
+publishes `bedrock-mantle.{region}.api.aws`, a second endpoint that serves the Anthropic Messages
+API natively: the model stays in the body exactly as a native Anthropic client sends it, and the
+version travels as the `anthropic-version` header a native client already sets — no body rewrite at
+all. Routing Bedrock's Messages door there instead (OD19) made the entry unnecessary and it comes
+out of the table. Vertex has no equivalent second door; its Anthropic path is `rawPredict` only, so
+its entry stands.
 
-| | Bedrock `InvokeModel` | Vertex `rawPredict` |
-| --- | --- | --- |
-| Body must contain | `anthropic_version: "bedrock-2023-05-31"` | `anthropic_version: "vertex-2023-10-16"` |
-| Model id | in the URL, not the body | in the URL, not the body |
+**The fact, from the vendor's own documentation.**
 
-Anthropic states it directly for Vertex: "`model` is not passed in the request body. Instead, it is
-specified in the Google Cloud endpoint URL", and "`anthropic_version` is passed in the request body
-(rather than as a header), and must be set to the value `vertex-2023-10-16`". Bedrock's own
-parameter reference requires `anthropic_version` with the value `bedrock-2023-05-31`, and takes the
-model id as a separate `InvokeModel` parameter. Note the asymmetry with the native API, where
-`anthropic-version` is a **header**.
+| | Vertex `rawPredict` |
+| --- | --- |
+| Body must contain | `anthropic_version: "vertex-2023-10-16"` |
+| Model id | in the URL, not the body |
+
+Anthropic states it directly: "`model` is not passed in the request body. Instead, it is specified
+in the Google Cloud endpoint URL", and "`anthropic_version` is passed in the request body (rather
+than as a header), and must be set to the value `vertex-2023-10-16`". Note the asymmetry with the
+native API, where `anthropic-version` is a **header**.
 
 **So the rewrite is two operations, not one.** Add a constant field; remove `model`. It was
 described as additive when first proposed and that was wrong. Both operations are still static: the
@@ -924,27 +933,18 @@ addressing that the vendor happened to put in the body instead of the URL or a h
 exactly where the same value lives on the native API. The bound is the table's literalness, and it
 is checkable by reading the table.
 
-**What it costs, stated so nobody discovers it in a test.** For these two deployments the relay is
-no longer byte-identical: adding and removing a key means re-serializing, and `content-length`
-changes. Byte-for-byte relay stays the rule and the acceptance criterion everywhere else, with these
-two deployments named as the exemption rather than the assertion quietly weakened.
+**What it costs, stated so nobody discovers it in a test.** For Vertex the relay is no longer
+byte-identical: adding and removing a key means re-serializing, and `content-length` changes.
+Byte-for-byte relay stays the rule and the acceptance criterion everywhere else, with Vertex named
+as the one exemption rather than the assertion quietly weakened. Bedrock is not exempt from
+anything — its Messages door relays byte-for-byte like every other deployment now.
 
-**Whether `model` in the body is rejected or ignored: settled, and it is rejected.** The question
-was whether the removal half is necessary. On Bedrock it is: the Anthropic body there is validated
-against a closed schema, and an unknown key fails the call with
-`Malformed input request: #: extraneous key [model] is not permitted`. That is the same validator
-that produces the widely-reported `extraneous key [stop_sequences]` and `[max_tokens_to_sample]`
-failures, and `model` is attested in it — a client that serialized the native Anthropic body
-straight to `InvokeModel` got exactly that error. Bedrock's own Messages parameter reference lists
-no `model` field in the body.
-
-On Vertex no equivalent rejection is attested either way. The removal happens there regardless,
-because it is the same table entry and removing a field the endpoint does not read costs nothing.
-
-This was established from documentation and attested failures rather than from a live call, which
-is a weaker instrument than OD16's. It is sufficient here because the answer only decided whether
-the package could *shrink*, and it cannot: the removal half is required for at least one of the two
-deployments, so both operations ship.
+**Whether `model` in the body is rejected or ignored, on Vertex: unattested either way.** The
+removal happens regardless, because it is the same table entry and removing a field the endpoint
+does not read costs nothing. (Bedrock's `InvokeModel` validator was attested to reject an unknown
+`model` key with `Malformed input request: #: extraneous key [model] is not permitted` — the
+finding that first established the removal half was necessary — but that operation is no longer
+what this package routes to, so it no longer bears on the table.)
 
 
 ---

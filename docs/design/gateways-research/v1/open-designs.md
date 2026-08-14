@@ -566,56 +566,60 @@ anywhere on this plane (reserved for the not-yet-built ceiling/entitlement/step-
 WP16-20) — present defensively, not a gap. **Unlike the LLM plane, this proxy had no hole**:
 `SecretInvalidError` (the one the LLM side had silently dropped) was already both mapped
 (`cause="secret_invalid"`) and in `_MAPPED_EXCEPTIONS` here from the start.
-### OD19. What does `base_url` mean on a Bedrock or Vertex endpoint row — OPEN
+### OD19. What does `base_url` mean on a Bedrock or Vertex endpoint row — CLOSED
 
-A row stores one `base_url`. Bedrock and Vertex each have more than one door, and the question was
-whether one string can serve them all. **The two vendors answer differently**, and Bedrock's answer
-also bears on D40.
+**One field, host-only, shared by every door a kind serves.** `base_url` is never a full per-door
+URL; it overrides the host (and, on Vertex, the shared project/location prefix), and each door
+appends its own tail on top of it.
 
-**Vertex: one host, different paths — so `base_url` is simply an optional host override.** Its
-OpenAI-compatible door and its Anthropic door are the same host and the same
-`/v1/projects/{project}/locations/{region}` prefix; only the tail differs
-(`/endpoints/openapi/chat/completions` versus
-`/publishers/anthropic/models/{model}:rawPredict`). A stored `base_url` that means *host plus that
-common prefix*, with each door appending its own tail, serves both correctly. There is no conflict
-to resolve here — only a definition to write down.
+- **Bedrock: one host, all three doors.** The Messages door was reassigned from `InvokeModel` on
+  `bedrock-runtime` to `bedrock-mantle.{region}.api.aws` — the same host the OpenAI-compatible
+  doors already use, and AWS's current-generation endpoint for exactly this purpose. Mantle
+  serves the Anthropic Messages API natively: the model stays in the body, unchanged, and
+  `anthropic-version` travels as the same HTTP header a native Anthropic client already sends —
+  no body field, nothing to add or remove. `base_url` on a Bedrock row is the host alone; the
+  three tails are `/v1/chat/completions`, `/v1/responses`, `/anthropic/v1/messages`.
+- **Vertex: one host, two doors.** Its OpenAI-compatible door and its Anthropic door share the
+  host and the `/v1/projects/{project}/locations/{region}` prefix; only the tail differs
+  (`/endpoints/openapi/chat/completions` versus `/publishers/anthropic/models/{model}
+  :rawPredict`). `base_url` on a Vertex row is *host plus that common prefix*; each door appends
+  only its own tail beyond it.
 
-**Bedrock: genuinely two hosts.** `bedrock-runtime.{region}.amazonaws.com` carries `InvokeModel`,
-`Converse`, Chat Completions and the Messages API. `bedrock-mantle.{region}.api.aws` carries the
-Responses API, Chat Completions and **also the Messages API**. They are separate services, not
-paths on one host, so one string cannot address both.
+**The consequence for D40.** Bedrock's rewrite came out of the table entirely — it was an
+artefact of routing the Messages door to `InvokeModel`, not a fact about the vendor. Vertex has
+no equivalent second door (`rawPredict` is the only way to reach Claude models on Vertex), so its
+entry is unchanged. D40's table now has exactly one entry.
 
-**That last fact reopens a WP27 assumption.** D40 exists because the Messages wire on Bedrock was
-taken to mean `InvokeModel` on `bedrock-runtime`, which requires adding `anthropic_version` and
-removing `model`. But the Messages API is also served by `bedrock-mantle` — the same host the
-OpenAI-compatible doors already use. Routing the Messages door there instead would give Bedrock one
-host for all three doors, make `base_url` a plain optional override exactly as on Vertex, and
-possibly remove the need for the field rewrite on this vendor at all. Whether `bedrock-mantle`'s
-Messages surface takes the model in the body or the URL is not yet established and must be checked
-before acting on this.
+**The version and auth headers were verified to survive, not assumed.** `RelayLLMAdapter`'s
+stripped-header set never named `anthropic-version`, so a caller's header already passed through
+untouched — nothing needed fixing there. Bedrock's auth strategy already presented a bearer token
+rather than SigV4 (written when the OpenAI-compatible doors moved to mantle), which is exactly
+what mantle's Messages surface accepts too.
 
-The trade is not free, and AWS states it: `bedrock-mantle` does not support structured outputs on
-Messages (`output_config.format` is rejected with a 400), cross-region inference profiles,
-guardrails, or intelligent prompt routing. `bedrock-runtime` remains the endpoint for those.
+**The trade AWS's own documentation disagrees on, recorded rather than resolved.** AWS's Bedrock
+endpoint-comparison page says `bedrock-mantle` rejects structured outputs on Messages
+(`output_config.format`, 400), cross-region inference profiles, guardrails, and intelligent
+prompt routing; the separate Messages API reference page lists structured outputs as supported
+with no endpoint carve-out. Both pages are AWS's own and they disagree; this design does not pick
+a side. What is settled regardless: `bedrock-runtime` remains the endpoint for the other three
+capabilities, and no fallback between the two Bedrock endpoints is built — an endpoint is fixed
+by `deployment_kind` and door, never switched per request. That is a later decision if a caller
+needs those capabilities on a Messages-shaped Bedrock call.
 
 **An override has real uses, so the field is not decoration.** Both vendors publish private-access
 addresses that replace the host and nothing else: Bedrock through VPC interface endpoints
 (`https://vpce-{id}.bedrock-runtime.{region}.vpce.amazonaws.com`), Vertex through Private Service
 Connect, which answers on a user-defined internal address or an assigned name such as
-`aiplatform-genai1.p.googleapis.com`. Forbidding `base_url` on these two kinds would make the
-gateway unusable from a VPC-only deployment, which is exactly the deployment most likely to insist
-every provider call stay on a private network.
-
-**So the shape follows from that.** `base_url` overrides the host (and, on Vertex, the shared
-project/location prefix) and each door composes its own tail — never a full per-door URL. The
-per-door variant is only needed if Bedrock keeps two hosts; if the Messages door moves to
-`bedrock-mantle`, one field is enough for both vendors.
+`aiplatform-genai1.p.googleapis.com`. With `base_url` defined as a host override shared by every
+door, one stored string makes both vendors usable from a VPC-only deployment on every door at
+once, not only the one a row happened to be tested against.
 
 **Still latent.** Nothing in this codebase registers a Bedrock or Vertex endpoint with an explicit
 `base_url` — no seed, no fixture, no test. `LLMEndpointCreate` accepts the field with no
 per-`deployment_kind` validation, so nothing stops a future caller, but no path does today. What
-this entry now waits on is the `bedrock-mantle` Messages check above, since that decides whether one
-field or two is being specified.
+was open — whether one field or two — is answered: one, because it is defined as a host (plus, on
+Vertex, a shared prefix) rather than a per-door address. See `workstreams/specs-wp27.md` for the
+full routing-table detail.
 
 
 ### OD2. Is a user's own secret the norm or the exception — CLOSED

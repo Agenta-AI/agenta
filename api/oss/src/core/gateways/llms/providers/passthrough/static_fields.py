@@ -1,10 +1,13 @@
-"""Static field rewrite for resold Anthropic wires (D40, amends D34).
+"""Static field rewrite for the one resold Anthropic wire that still needs it (D40, amends
+D34; OD19).
 
-Bedrock's `InvokeModel` and Vertex's `rawPredict` resell the Anthropic Messages wire with one
-fixed structural difference: `anthropic_version` must be in the body, `model` must not (it
-rides the URL). The table below is literal — fixed keys, fixed constant values, nothing
-computed from the request — and `apply_static_fields` never branches on what those keys or
-values mean, only on `deployment_kind` and `protocol`.
+Vertex's `rawPredict` resells the Anthropic Messages wire with one fixed structural
+difference: `anthropic_version` must be in the body, `model` must not (it rides the URL).
+Bedrock needed the same shape when its Messages door was `InvokeModel`; it no longer does —
+the door moved to `bedrock-mantle`, which takes the native Anthropic body untouched (OD19).
+The table below is literal — fixed keys, fixed constant values, nothing computed from the
+request — and `apply_static_fields` never branches on what those keys or values mean, only on
+`deployment_kind` and `protocol`.
 """
 
 import json
@@ -20,13 +23,10 @@ class LLMStaticFieldRewrite(BaseModel):
     fields_removed: List[str] = []
 
 
-# D40: one literal entry per deployment. Both lists are constants — nothing here is derived
-# from a request's content, size, or another field's value.
+# D40: one literal entry. Both lists are constants — nothing here is derived from a
+# request's content, size, or another field's value. Bedrock had an entry here until OD19
+# moved its Messages door to bedrock-mantle, which needs no rewrite at all.
 STATIC_FIELD_REWRITES: Dict[LLMDeploymentKind, LLMStaticFieldRewrite] = {
-    LLMDeploymentKind.BEDROCK: LLMStaticFieldRewrite(
-        fields_added={"anthropic_version": "bedrock-2023-05-31"},
-        fields_removed=["model"],
-    ),
     LLMDeploymentKind.VERTEX: LLMStaticFieldRewrite(
         fields_added={"anthropic_version": "vertex-2023-10-16"},
         fields_removed=["model"],

@@ -83,33 +83,49 @@ def _azure_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
     return url
 
 
+# OD19: bedrock-mantle serves all three doors on one host, so `base_url` on a BEDROCK row is
+# the host alone — each door's tail is looked up here, not in the generic _PROTOCOL_PATHS
+# table (which assumes base_url already ends where the tail begins).
+_BEDROCK_PROTOCOL_PATHS: Dict[LLMProtocol, str] = {
+    LLMProtocol.CHAT_COMPLETIONS: "/v1/chat/completions",
+    LLMProtocol.RESPONSES: "/v1/responses",
+    LLMProtocol.MESSAGES: "/anthropic/v1/messages",
+}
+
+
 def _bedrock_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
     base_url = route.base_url or (
-        f"https://bedrock-mantle.{route.region}.api.aws/v1" if route.region else None
+        f"https://bedrock-mantle.{route.region}.api.aws" if route.region else None
     )
     if not base_url:
         raise _no_route(
             provider_key=route.provider_key,
             detail="bedrock endpoint has no region or base_url",
         )
-    return base_url.rstrip("/") + _PROTOCOL_PATHS[protocol]
+    return base_url.rstrip("/") + _BEDROCK_PROTOCOL_PATHS[protocol]
+
+
+# OD19: base_url on a VERTEX row is the host plus the shared
+# /v1/projects/{project}/locations/{region} prefix — common to both Vertex doors, which then
+# append only their own tail (/endpoints/openapi/... here, /publishers/anthropic/... below).
+def _vertex_base_prefix(route: LLMResolvedRoute) -> str:
+    if route.base_url:
+        return route.base_url.rstrip("/")
+    project = (route.extras or {}).get("vertex_project")
+    if not (route.region and project):
+        raise _no_route(
+            provider_key=route.provider_key,
+            detail="vertex endpoint needs region and extras.vertex_project (or a base_url)",
+        )
+    return (
+        f"https://{route.region}-aiplatform.googleapis.com/v1/projects/{project}"
+        f"/locations/{route.region}"
+    )
 
 
 def _vertex_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
-    if route.base_url:
-        base_url = route.base_url
-    else:
-        project = (route.extras or {}).get("vertex_project")
-        if not (route.region and project):
-            raise _no_route(
-                provider_key=route.provider_key,
-                detail="vertex endpoint needs region and extras.vertex_project (or a base_url)",
-            )
-        base_url = (
-            f"https://{route.region}-aiplatform.googleapis.com/v1/projects/{project}"
-            f"/locations/{route.region}/endpoints/openapi"
-        )
-    return base_url.rstrip("/") + _PROTOCOL_PATHS[protocol]
+    prefix = _vertex_base_prefix(route)
+    return f"{prefix}/endpoints/openapi{_PROTOCOL_PATHS[protocol]}"
 
 
 def _sagemaker_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:  # noqa: ARG001
@@ -131,54 +147,22 @@ _ROUTING: Dict[LLMDeploymentKind, Callable[[LLMResolvedRoute, LLMProtocol], str]
 }
 
 
-# D40: the Messages door reaches Bedrock/Vertex through the real resold-Anthropic
-# operation (InvokeModel, rawPredict), not the OpenAI-compatible door `_bedrock_url` and
-# `_vertex_url` above compose — those two stay exactly as they are for the other doors.
-def _bedrock_messages_url(route: LLMResolvedRoute, *, stream: bool) -> str:
-    if not route.model:
-        raise _no_route(
-            provider_key=route.provider_key,
-            detail="bedrock messages endpoint has no model",
-        )
-    base_url = route.base_url or (
-        f"https://bedrock-runtime.{route.region}.amazonaws.com"
-        if route.region
-        else None
-    )
-    if not base_url:
-        raise _no_route(
-            provider_key=route.provider_key,
-            detail="bedrock endpoint has no region or base_url",
-        )
-    action = "invoke-with-response-stream" if stream else "invoke"
-    return f"{base_url.rstrip('/')}/model/{route.model}/{action}"
-
-
+# D40/OD19: Vertex's Messages door reaches the real resold-Anthropic operation
+# (rawPredict) — the OpenAI-compatible `_vertex_url` above composes a different wire and
+# stays exactly as it is. Bedrock needs no equivalent: `_bedrock_url` above already covers
+# its Messages door (bedrock-mantle takes the model in the body, not the URL).
 def _vertex_messages_url(route: LLMResolvedRoute, *, stream: bool) -> str:
     if not route.model:
         raise _no_route(
             provider_key=route.provider_key,
             detail="vertex messages endpoint has no model",
         )
-    if route.base_url:
-        base_url = route.base_url
-    else:
-        project = (route.extras or {}).get("vertex_project")
-        if not (route.region and project):
-            raise _no_route(
-                provider_key=route.provider_key,
-                detail="vertex endpoint needs region and extras.vertex_project (or a base_url)",
-            )
-        base_url = (
-            f"https://{route.region}-aiplatform.googleapis.com/v1/projects/{project}"
-            f"/locations/{route.region}"
-        )
+    prefix = _vertex_base_prefix(route)
     action = "streamRawPredict" if stream else "rawPredict"
-    return f"{base_url.rstrip('/')}/publishers/anthropic/models/{route.model}:{action}"
+    return f"{prefix}/publishers/anthropic/models/{route.model}:{action}"
 
 
 _MESSAGES_ROUTING: Dict[LLMDeploymentKind, Callable[[LLMResolvedRoute, bool], str]] = {
-    LLMDeploymentKind.BEDROCK: _bedrock_messages_url,
     LLMDeploymentKind.VERTEX: _vertex_messages_url,
 }
 
