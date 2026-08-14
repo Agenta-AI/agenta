@@ -25,6 +25,24 @@ export const AVT = {
 
 export type AvtClass = (typeof AVT)[keyof typeof AVT]
 
+/**
+ * The selectors to query, AVT first.
+ *
+ * Since the antd `<Table>` branch was deleted the rendered DOM carries only `avt-*`, so the
+ * `.ant-table-*` half of each pair now matches nothing here. It stays as the second half
+ * because a host may still mount an antd table through the legacy column adapter, and because
+ * a selector that silently resolves to `null` is exactly how the scroll container quietly
+ * fell back to the wrong element.
+ */
+export const DOM_SELECTOR = {
+    container: `.${AVT.container}, .ant-table-container`,
+    body: `.${AVT.body}, .ant-table-tbody-virtual-holder, .ant-table-body`,
+    header: `.${AVT.header}, .ant-table-thead`,
+    headerCellWithKey: `.${AVT.header} th[data-column-key], .ant-table-thead th[data-column-key]`,
+    selectionCol: `colgroup col.${AVT.selectionCol}, colgroup col.ant-table-selection-col`,
+    headerSelectionCell: `.${AVT.header} th.${AVT.selectionCol}, .ant-table-thead th.ant-table-selection-column`,
+} as const
+
 export const ANTD_SELECTOR = {
     container: ".ant-table-container",
     body: ".ant-table-body",

@@ -36,7 +36,7 @@ import {useTypeChipColumns} from "../hooks/useTypeChipColumns"
 import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
 import useVirtualTableRowSelection from "../hooks/useVirtualTableRowSelection"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
-import {ANTD_SELECTOR, AVT, stampTableDom} from "../tableDom"
+import {AVT, DOM_SELECTOR, stampTableDom} from "../tableDom"
 import type {InfiniteVirtualTableProps} from "../types"
 import {
     buildColumnDescendantMap,
@@ -188,7 +188,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             return
         }
         const headerCells = Array.from(
-            container.querySelectorAll<HTMLTableCellElement>(ANTD_SELECTOR.headerCellWithKey),
+            container.querySelectorAll<HTMLTableCellElement>(DOM_SELECTOR.headerCellWithKey),
         ).filter((cell) => Number(cell.getAttribute("colspan") ?? "1") === 1)
         if (!headerCells.length) {
             columnDomRefs.current = new Map()
@@ -324,9 +324,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
 
         const tables = container.querySelectorAll<HTMLTableElement>(".ant-table table")
         tables.forEach((table) => {
-            const selectionCol = table.querySelector<HTMLTableColElement>(
-                ANTD_SELECTOR.selectionCol,
-            )
+            const selectionCol = table.querySelector<HTMLTableColElement>(DOM_SELECTOR.selectionCol)
             if (selectionCol) {
                 selectionCol.style.width = widthPx
                 selectionCol.style.minWidth = widthPx
@@ -335,7 +333,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         })
 
         const headerCells = container.querySelectorAll<HTMLTableCellElement>(
-            ANTD_SELECTOR.headerSelectionCell,
+            DOM_SELECTOR.headerSelectionCell,
         )
         headerCells.forEach((cell) => {
             cell.style.width = widthPx
@@ -380,7 +378,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             return
         }
         const headerEl =
-            container.querySelector<HTMLElement>(ANTD_SELECTOR.header) ??
+            container.querySelector<HTMLElement>(DOM_SELECTOR.header) ??
             container.querySelector<HTMLElement>("table thead")
         if (!headerEl) {
             setTableHeaderHeight(null)
@@ -425,7 +423,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         const headerHeight =
             (typeof tableHeaderHeight === "number" && Number.isFinite(tableHeaderHeight)
                 ? tableHeaderHeight
-                : (containerRef.current?.querySelector(ANTD_SELECTOR.header) as HTMLElement | null)
+                : (containerRef.current?.querySelector(DOM_SELECTOR.header) as HTMLElement | null)
                       ?.offsetHeight) ?? null
 
         const computedY = Math.max((scrollY ?? 0) - (headerHeight ?? 0), 0)
