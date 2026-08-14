@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from ee.src.core.wallets.types import (
     DEFICIT_SOURCE,
+    GENERAL_CREDIT_KINDS,
     compose_debit_key,
     is_resource_eligible,
     plan_settlement,
@@ -51,6 +52,38 @@ def test_is_resource_eligible_unconfigured_kind_fails_closed():
     assert not is_resource_eligible(
         credit_kind="mystery_kind", resource_key="llm:google:x"
     )
+
+
+def test_general_credit_kinds_is_exactly_the_eight_delivered_kinds():
+    """The catch-all `"award"` kind is gone; these eight (mechanics.md §4) are the whole
+    delivered set — a signup grant and a contribution award are now distinct values."""
+    assert GENERAL_CREDIT_KINDS == frozenset(
+        {
+            "signup_grant",
+            "plan_allowance",
+            "purchase",
+            "promotion",
+            "contribution_award",
+            "referral_bonus",
+            "goodwill",
+            "correction",
+        }
+    )
+    assert "award" not in GENERAL_CREDIT_KINDS
+
+
+def test_each_of_the_eight_general_credit_kinds_validates():
+    for kind in GENERAL_CREDIT_KINDS:
+        assert is_resource_eligible(credit_kind=kind, resource_key="llm:openai:gpt-4")
+        assert is_resource_eligible(credit_kind=kind, resource_key="mcp:anything")
+
+
+def test_signup_grant_and_contribution_award_are_distinguishable_kinds():
+    """The whole point of this wave: a signup grant and a contribution award used to
+    both be recorded as `"award"`. They are now separate, unambiguous values."""
+    assert "signup_grant" in GENERAL_CREDIT_KINDS
+    assert "contribution_award" in GENERAL_CREDIT_KINDS
+    assert "signup_grant" != "contribution_award"
 
 
 def test_single_general_credit_fully_funds_debit():

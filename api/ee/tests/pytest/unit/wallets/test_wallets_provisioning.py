@@ -115,6 +115,8 @@ async def test_apply_plan_change_upgrade_hobby_to_pro_moves_real_value():
         result.incoming_credit_amount_musd == 2_580_645
     )  # 5_000_000 * 1382400 // 2678400
     assert result.incoming_credit_id is not None
+    incoming_candidate, _ = dao._credits[result.incoming_credit_id]
+    assert incoming_candidate.credit_kind == "plan_allowance"
     assert dao.general_balance.balance_musd == 2_580_645
 
 

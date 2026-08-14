@@ -33,7 +33,7 @@ def test_signup_grant_catalog_entry_shape():
     assert rule is not None
     assert rule.code == "signup"
     assert rule.amount_musd == 1_000_000  # $1
-    assert rule.credit_kind == "award"
+    assert rule.credit_kind == "signup_grant"
     assert rule.lifetime_days == 365  # twelve months, report.md 9.5/9.6
     assert rule.repeatable is False
 
@@ -106,7 +106,7 @@ async def test_award_signup_grants_one_musd_and_updates_general_balance():
     )
 
     assert credit.amount_musd == 1_000_000
-    assert credit.credit_kind == "award"
+    assert credit.credit_kind == "signup_grant"
     assert dao.general_balance.balance_musd == 1_000_000
 
 
@@ -190,8 +190,8 @@ async def test_award_repeatable_rule_without_reference_raises(monkeypatch):
     repeatable_rule = GrantRule(
         code="referral_bonus",
         amount_musd=1,
-        credit_kind="award",
-        priority=20,
+        credit_kind="referral_bonus",
+        priority=40,
         lifetime_days=365,
         repeatable=True,
     )
@@ -221,8 +221,8 @@ async def test_award_repeatable_rule_with_reference_includes_it_in_the_key(monke
     repeatable_rule = GrantRule(
         code="referral_bonus",
         amount_musd=250_000,
-        credit_kind="award",
-        priority=20,
+        credit_kind="referral_bonus",
+        priority=40,
         lifetime_days=365,
         repeatable=True,
     )

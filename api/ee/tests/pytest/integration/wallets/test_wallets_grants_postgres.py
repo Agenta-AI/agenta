@@ -95,7 +95,7 @@ async def test_award_credit_is_idempotent_against_real_conflict(wallet_schema):
         first = await dao.award_credit(
             organization_id=organization_id,
             idempotency_key=idempotency_key,
-            credit_kind="award",
+            credit_kind="signup_grant",
             amount_musd=1_000_000,
             priority=20,
             end_time=end_time,
@@ -103,7 +103,7 @@ async def test_award_credit_is_idempotent_against_real_conflict(wallet_schema):
         )
 
         assert first.amount_musd == 1_000_000
-        assert first.credit_kind == "award"
+        assert first.credit_kind == "signup_grant"
         assert first.end_time == end_time
 
         general = await dao.get_general_balance(organization_id=organization_id)
@@ -114,7 +114,7 @@ async def test_award_credit_is_idempotent_against_real_conflict(wallet_schema):
         second = await dao.award_credit(
             organization_id=organization_id,
             idempotency_key=idempotency_key,
-            credit_kind="award",
+            credit_kind="signup_grant",
             amount_musd=999_999,
             priority=99,
             end_time=now,
@@ -185,7 +185,7 @@ async def test_award_signup_grant_via_organizations_service_hooks_against_real_d
             result = await session.execute(
                 text(
                     "SELECT count(*) FROM wallet_credits "
-                    "WHERE organization_id = :organization_id AND credit_kind = 'award'"
+                    "WHERE organization_id = :organization_id AND credit_kind = 'signup_grant'"
                 ),
                 {"organization_id": organization_id},
             )

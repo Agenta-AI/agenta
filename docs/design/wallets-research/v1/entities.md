@@ -50,7 +50,7 @@ new entities, separated by the question each answers.
 | `measurement_values` | selected, new | Immutable optional metric values belonging to one measurement, each with a stable metric key and optional provider cost. | Not a meter aggregate or a widened sparse measurement header. |
 | `records` | existing | An internal coding-agent/ACP session fact. | Not a gateway measurement or a monetary debit. |
 | `wallet_balances` | selected, new | Mutable organization-general and per-credit available-value projections in one table. | Not the wallet domain itself, financial history, or an allocation table. |
-| `wallet_credits` | selected, new | One immutable incoming, spendable credit: allowance, purchase, award, provider credit, or positive correction. | Not a debit, the displayed balance, or a mutable “remaining credits” counter. |
+| `wallet_credits` | selected, new | One immutable incoming, spendable credit: signup grant, plan allowance, purchase, promotion, contribution award, referral bonus, goodwill, or correction. | Not a debit, the displayed balance, or a mutable “remaining credits” counter. |
 | `wallet_debits` | selected, new | One immutable outgoing value: usage, expiry, clawback, refund, or negative correction. | Not raw provider usage; it says value left the general balance, not how it was measured. |
 
 ### Candidate store placement
@@ -93,7 +93,7 @@ A **measurement** is the raw collector fact: LLM/MCP/SBX measured quantities and
 costs. The request path emits its observation asynchronously; a gateway worker builds the measurement
 and decides whether it emits a wallet posting and its amount. A **wallet debit** is the immutable outgoing value created from that posting, or from an
 accounting reason such as expiry, clawback, refund, or adjustment. A **wallet credit** is the immutable
-incoming, spendable value: allowance, purchase, award, provider credit, or adjustment.
+incoming, spendable value — see `credit_kind` below for the enumerated kinds.
 
 Credits carry their spendability rules: source, priority, start/end time, and any resource
 applicability. A debit points directly to the credit it consumes. This is why a restricted Gemini
@@ -362,11 +362,36 @@ overdraft by hand later.
 that award wallet credit outside the plan-change path — `WalletsService.award()` is the idempotent
 entry point, keyed `award:{activity_code}:organization:{organization_id}` (once-per-organization)
 or `...:reference:{reference}` (repeatable). One entry exists today: `signup` — $1
-(`credit_kind="award"`, the closest existing `GENERAL_CREDIT_KINDS` entry to `mechanics.md`'s
-`signup_grant`), awarded once per organization on every plan including free, twelve-month expiry
+(`credit_kind="signup_grant"`, its own `GENERAL_CREDIT_KINDS` entry, matching `mechanics.md` §4's
+name exactly), awarded once per organization on every plan including free, twelve-month expiry
 (`report.md` §9.5/§9.6), wired into the signup organization-creation path only
 (`provision_signup_subscription`, never `provision_user_subscription`/explicit `POST
 /organizations/`, per `report.md` §9.2), after the general balance row already exists.
+
+**`credit_kind` (delivered set, `WP-1-04`).** `GENERAL_CREDIT_KINDS` in `ee.src.core.wallets.types`
+carries eight of `mechanics.md` §4's thirteen inbound kinds — enough to distinguish a signup grant
+from a contribution award from the row alone, which a single catch-all `"award"` value could not
+do. Only `signup_grant` and `plan_allowance` are wired to a real code path today; the rest are
+valid, validated values with no producer yet.
+
+| `credit_kind` | Spend priority | Wired? |
+| --- | --- | --- |
+| `plan_allowance` | 10 | yes — `ee.src.core.wallets.plans` / plan-change proration |
+| `signup_grant` | 20 | yes — `ee.src.core.wallets.grants.GRANT_CATALOG["signup"]` |
+| `promotion` | 30 | no — catalog row not yet added |
+| `referral_bonus` | 40 | no — catalog row not yet added |
+| `contribution_award` | 50 | no — catalog row not yet added |
+| `goodwill` | 60 | no — catalog row not yet added |
+| `purchase` | 70 | no — checkout path not yet built |
+| `correction` | 80 | no — operator tooling not yet built |
+
+`credit_kind` is a `sa.String()` column with no CHECK constraint (`ee0000000004_add_wallet_tables`
+— validation is application-level via `GENERAL_CREDIT_KINDS`/`is_resource_eligible`), so adding a
+kind is a Python-only change; no migration is needed for the eight above.
+
+Deliberately deferred (`mechanics.md` §4 names these; do not reuse one of the eight above for
+them when they land): `auto_recharge`, `charge_refund`, `chargeback_reversal`,
+`opening_balance`, `partner_allocation`.
 
 ### `measurements`
 
