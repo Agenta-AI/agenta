@@ -553,11 +553,23 @@ plane knows its provider, because the code or the connection row that generated 
 so. A column exists only for what a *stored* row has to carry, and a stored row is always
 `custom` (D20).
 
-**`provider_key` is a column on the LLM table because a custom LLM endpoint always has a
-provider.** "My Azure deployment", "my Together reseller" — the provider names which secret
-family authenticates it and which adapter answers, so the row cannot be written without
-it, and `query_endpoints` filters on it. A custom MCP endpoint is a URL somebody pasted;
-it has no provider to name, and nothing would filter on the column if it existed.
+**`provider_key` is a column on the LLM table, and it earns less than it looks.** On a
+stored row it is load-bearing in exactly two places: `provider_key == "mock"` selects the
+mock adapter ahead of everything else (D23), and on a `direct` row it decides passthrough
+versus translated, because that is the one deployment where the wire's shape follows from
+the provider rather than from the deployment. On the common `custom` deployment it decides
+nothing — every such row reaches the passthrough adapter whatever it says. It does not
+resolve the secret either: a custom row resolves through `BoundSecretRef(secret_id)`, and
+`ProviderKeyRef` is the `standard` arm alone.
+
+What is left is real but modest: it is what `query_endpoints` filters on, what a listing
+groups by, and what an upstream error names so the message is intelligible. That is enough
+to keep a column, and not enough to call it structural — so **`NOT NULL` is the part worth
+revisiting**, since a `custom` row pointed at a self-hosted gateway is being made to name a
+provider that means nothing to it.
+
+A custom MCP endpoint is a URL somebody pasted; it has no provider to name, nothing filters
+on it, and no adapter choice follows from it — one protocol, one transport.
 
 That is also why the MCP DTO carries `provider_key` and `integration_key` as **optional,
 never persisted** fields. Generated `builtin` entries populate both — `builtin/agenta` and
@@ -580,17 +592,18 @@ inject anything.
 
 **Subscription pass-through is the thing that ends that argument** (D32). In that mode the
 caller's own vendor authentication passes through untouched and the gateway injects
-nothing — a second mode on the LLM plane, and one that cannot be inferred at call time.
-Guessing whether to overwrite `Authorization` is exactly the decision that must be
-configured rather than detected: infer it wrongly in one direction and we forward a user's
-subscription token to a host they did not choose, in the other and we spend our own secret
-on a call the user meant to fund themselves.
+nothing — a second mode on the LLM plane, whatever else is true of it.
 
-So when pass-through lands, `llms_endpoints` gains an auth-mode column, and the two tables'
-auth columns should be designed together at that point rather than separately. There is a
-prior question, and `open-designs.md` OD15 holds it: **a stored row is the only place an
-endpoint can carry a mode, and pass-through's natural targets are `standard` endpoints,
-which are generated and have no row.**
+**And it is probably still not a column**, because the caller declares it in the request.
+Since D31 moved our own credentials to `X-AG-Credentials`, an `Authorization` header we did
+not authenticate with is unambiguously the caller's, meant for the upstream — a positive
+act, not an inference from something missing. The gateway then resolves no secret,
+overwrites nothing, and forwards it. That works on a generated `standard` endpoint, which
+has no row to put a column on, and it costs no enum and no migration.
+
+What a column would still be good for is the *opposite* statement — an operator forbidding
+pass-through on a target — which is a policy flag rather than a mode, and nobody has asked
+for it. `open-designs.md` OD15 holds the rule and the one edge it does not cover.
 
 **What the two tables do share** is everything the gateway does with an endpoint rather
 than to it: `slug`, `secret_id`, `data`, `flags`, `status`, and the lifecycle columns. The

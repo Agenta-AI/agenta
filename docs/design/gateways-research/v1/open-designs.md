@@ -217,43 +217,47 @@ between harness and gateway that holds the gateway identity and leaves the harne
 login untouched. It is more moving parts and is worth building only for a harness that is both
 wanted and incapable, which is exactly what the matrix identifies.
 
-### OD15. Where a pass-through target's mode lives, when generated endpoints have no row
+### OD15. Pass-through is detected at the call, not stored on a row — with one edge left
 
-D32 settles that subscription pass-through is a real funding shape. This is the question it
-leaves for the entity layer, and it has to be answered before the column is designed, not
-after.
+The question was where a pass-through target keeps its mode, given that pass-through's
+natural targets are `standard` endpoints, which are generated and have no row (D20). The
+answer is that it keeps it nowhere: **the caller declares it in the request.**
 
-**The mode cannot be inferred, so it has to be stored.** In pass-through the gateway injects
-nothing and forwards the caller's own `Authorization` untouched. Every other path derives
-`Authorization` from a resolved secret and overwrites whatever was there. Getting that
-backwards fails in both directions — forwarding a user's subscription token to a host they
-did not choose, or spending our secret on a call they meant to fund themselves — so it is a
-configured property, never a detected one.
+**Why the signal is unambiguous, and only became so with D31.** Our own credentials now ride
+`X-AG-Credentials`. So an `Authorization` header that we did *not* authenticate with is, by
+elimination, the caller's own and meant for the upstream. Before D31 that header was
+overloaded and the same request could not be read two ways.
 
-**But its natural targets have nowhere to store it.** Pass-through addresses a known vendor:
-Anthropic, OpenAI. On the LLM plane those are `standard` endpoints, which are **generated
-from the SDK catalogue and never stored** (D20). There is no row to put a column on.
+**The rule, in full:**
 
-Three shapes, none obviously right:
+- Authenticate the caller. `X-AG-Credentials` wins when present; otherwise `Authorization`
+  (D31).
+- If the caller also supplied the upstream's own auth header, and it is not the header we
+  just authenticated with, the call is pass-through: resolve no secret, overwrite nothing,
+  forward it.
+- Strip `X-AG-Credentials` always. Strip `Authorization` **only when it was ours** — which
+  is the one line of today's unconditional strip that has to change when this lands.
+- Everything else is unchanged. The target must still resolve and be active, the model
+  filter still applies, the ceiling still applies, and the audit event still fires with
+  `secret_origin` recording that no secret of ours paid.
 
-- **Pass-through targets are `custom` rows.** The user registers "my Claude subscription"
-  as a custom endpoint whose provider is anthropic and whose mode is pass-through. Costs
-  nothing structurally — the column lands on the one table that has rows — but it makes the
-  most common case the one requiring manual registration, and a `custom` row pointed at
-  `api.anthropic.com` duplicates what `standard/anthropic` already generates.
-- **The generated catalogue carries the mode.** A `standard` endpoint exists when the
-  project has a provider key *or* when a member has a subscription — so existence stops
-  being one question with one answer, and per-user existence is exactly what
-  `out-of-scope.md` keeps out of scope.
-- **The mode is a route property, not an endpoint property.** A fourth namespace, or a
-  route segment, saying "this call funds itself". D32 argues against the fourth namespace
-  because pass-through answers "who authenticates" and a namespace answers "which backend,
-  whose key" — but a segment that is explicitly *not* a namespace has not been examined.
+**Why this is a declaration and not an inference.** The objection to detecting a mode is
+that absence is a bad signal — "this endpoint has no secret, so it must be pass-through"
+is silently wrong every time a secret is merely missing. This is the opposite: the caller
+performed a positive act by attaching an upstream token, and we read the act.
 
-**What settles it** is OD14's harness matrix, in one specific respect: whether a harness in
-pass-through mode still sends `X-AG-Credentials`. If it does, we know the caller and can key
-the mode to the principal. If it does not, the mode must be legible from the route alone,
-which rules out the first two shapes immediately.
+**The edge it does not cover: not every provider authenticates in `Authorization`.**
+Anthropic reads `x-api-key`; OpenAI reads `Authorization: Bearer`. So the signal is not one
+header but "the header this target's provider uses", which the gateway knows because the
+route names the provider. That is a small provider-keyed table, not a design problem — but
+it has to be *right*, because a header we fail to recognise as upstream auth gets forwarded
+as an ordinary header, or stripped, depending on which list it lands in. **OD14's harness
+matrix is what fills the table in**, since it is already recording what each harness sends.
+
+**What a column would still be worth** is the opposite statement: an operator forbidding
+pass-through on a target, so a project cannot quietly split its spend across personal
+subscriptions. That is a policy flag rather than a mode, it belongs with the other
+governance flags, and nobody has asked for it.
 
 ### OD2. Is a user's own secret the norm or the exception — parked
 

@@ -722,8 +722,10 @@ decision before it is built rather than after.
 **It adds a mode to the LLM plane, which today has none.** Every model upstream
 authenticates one way — a secret we resolve and inject — which is why `llms_endpoints`
 carries no `auth_mode` column while `mcps_endpoints` does (entities.md §2.4). Pass-through
-is the second mode, it cannot be inferred at call time, and where a generated `standard`
-endpoint would store it is open (`open-designs.md` OD15).
+is the second mode, and it needs no column: since this decision's sibling D31 moved our own
+credentials to `X-AG-Credentials`, an upstream auth header we did not authenticate with is
+the caller declaring pass-through, which works on a generated `standard` endpoint that has
+no row at all (`open-designs.md` OD15).
 
 **Explicitly not built here, and not because it is unimportant.** It depends on facts about
 harness releases that no design can assert — whether a given harness will send a second header

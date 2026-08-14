@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 
 # Inbound headers that authenticate the caller INTO the gateway (D13, D31). They are
 # ours, never the upstream's, and are stripped on both planes before any relay.
+# Authorization becomes conditional when pass-through lands: stripped only when it is
+# the header we authenticated with (open-designs.md OD15).
 GATEWAY_ONLY_HEADERS = frozenset({"x-ag-credentials", "authorization"})
 
 
