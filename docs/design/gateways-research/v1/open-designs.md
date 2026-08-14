@@ -534,6 +534,39 @@ still inside `message`) recovering `code` alone via the marker, with `next_step`
 asserted absent. A future edit that changes either SDK's formatting, or the gateway's marker
 rendering, fails a test instead of degrading silently.
 
+**The MCP plane needed the same marker, and turned out to need it more.** The first pass of
+this section covered the LLM gateway only (`gateways/llms/proxy.py`); WP26 depends on the MCP
+plane's version of this exact channel — an agent that cannot reach an MCP server and asks the
+user to connect it is D35's second consequence, and it is dead on Codex without a code, same as
+the LLM case. `with_code_marker` moved to `gateways/utils.py` (already shared by both proxies
+for `response_headers`) so `gateways/mcps/proxy.py::_protocol_error` could apply it too, rather
+than a second copy drifting from the first (the duplication CU12 spent this wave proving is
+expensive). Same exclusion: `MCPUpstreamError`/`upstream_error` stays unmarked, D16 applying
+identically on this plane.
+
+**The MCP plane's wire shape makes the marker load-bearing for every harness, not only
+Codex's.** The JSON-RPC error result's stable identifier is `error.data.cause` (a string),
+under a numeric JSON-RPC `error.code` (e.g. `-32000`) — not the LLM plane's string `error.code`
+`gateway-error.ts`'s body scan looks for. That scan's `typeof body.code === "string"` check
+fails on an MCP body regardless of whether a harness preserves it whole, so **the marker is the
+only channel that ever recovers an MCP cause**, independent of OD18's per-harness LLM findings.
+Proven in `tests/unit/gateway-error-harness-formats.test.ts` with two MCP fixtures: the full
+JSON-RPC body embedded verbatim (still only the marker recovers `code`, because the body scan
+doesn't recognize the shape), and Codex's stripped-to-`message` shape (the marker survives for
+the same reason it does on the LLM plane).
+
+**The same audit run on the MCP plane, because the LLM plane's version of it found a real
+gap.** Every exception `core/gateways/mcps/service.py` and `core/gateways/mcps/registry.py`
+actually raise (`grep -rn "raise [A-Z]"`) — `MCPEndpointNotFoundError`, `PolicyDeniedError`,
+`GatewayEndpointInactiveError`, `MCPToolNotAllowedError`, `SecretInvalidError`,
+`SecretNotFoundError`, `MCPUpstreamError` — has a branch in `_map_gateway_exception` and is
+listed in `_MAPPED_EXCEPTIONS`. `CeilingExceededError`, `EntitlementDeniedError`,
+`MCPAuthRequiredError` and `MCPScopeInsufficientError` are mapped too but not currently raised
+anywhere on this plane (reserved for the not-yet-built ceiling/entitlement/step-up paths,
+WP16-20) — present defensively, not a gap. **Unlike the LLM plane, this proxy had no hole**:
+`SecretInvalidError` (the one the LLM side had silently dropped) was already both mapped
+(`cause="secret_invalid"`) and in `_MAPPED_EXCEPTIONS` here from the start.
+
 ### OD2. Is a user's own secret the norm or the exception — CLOSED
 
 **Project-level secrets are the model.** User-level secrets are out of scope and recorded as such

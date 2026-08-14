@@ -1,14 +1,21 @@
 /**
- * Pins OD18's per-harness findings (open-designs.md): does a harness's SDK preserve the
+ * Pins OD18's per-harness findings (open-designs.md): does a harness's SDK preserve the LLM
  * gateway's `{"error":{...}}` refusal body in the text `parseGatewayErrorDetail` scans, and —
  * when it does not — does the `⟦agenta_code:...⟧` marker the gateway now embeds in every typed
- * refusal's `message` (`api/oss/src/apis/fastapi/gateways/llms/proxy.py`) survive instead?
+ * refusal's `message` (`gateways/utils.py::with_code_marker`, shared by both
+ * `gateways/llms/proxy.py` and `gateways/mcps/proxy.py`) survive instead?
  *
  * Pi (`utils/error-body.js`) and the Anthropic SDK (`core/error.js`'s `JSON.stringify`
- * fallback) both fold the full body into the reported message — the body path wins for them,
- * recovering the full `AgentErrorDetail`. Codex (`codex-rs`'s `extract_error_message`) strips
- * everything but `error.message` — but the marker rides INSIDE that one surviving field, so the
- * marker fallback recovers `code` (and only `code`) for Codex.
+ * fallback) both fold the full LLM-plane body into the reported message — the body path wins
+ * for them, recovering the full `AgentErrorDetail`. Codex (`codex-rs`'s
+ * `extract_error_message`) strips everything but `error.message` — but the marker rides
+ * INSIDE that one surviving field, so the marker fallback recovers `code` (and only `code`)
+ * for Codex.
+ *
+ * The MCP plane's wire shape (JSON-RPC) never matches the LLM-plane body scan at all (its
+ * stable cause lives at `error.data.cause`, under a numeric `error.code` the scan doesn't
+ * recognize as ours) — so for that plane the marker is not a fallback for one harness, it is
+ * the only channel, on every harness, proven separately below.
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
@@ -128,4 +135,78 @@ describe("upstream_error: no marker, by design (D16 passthrough)", () => {
     const detail = parseGatewayErrorDetail("unexpected status 401: invalid api key");
     assert.equal(detail, undefined);
   });
+});
+
+// The MCP plane (`gateways/mcps/proxy.py::_map_gateway_exception`) shares the same
+// `with_code_marker` helper (`gateways/utils.py`) but a DIFFERENT wire shape: a JSON-RPC
+// error result whose stable identifier is `error.data.cause` (a string) under a numeric
+// `error.code` (JSON-RPC's own reserved code, e.g. -32000) -- not the LLM plane's
+// `error.code` string `parseFromBody` looks for. So the body path never recognizes an MCP
+// refusal at all, marker or not; the marker fallback is the ONLY channel that reaches an
+// MCP cause, on every harness, not just the ones that fail the LLM plane's body scan.
+const MCP_REFUSALS: Refusal[] = [
+  {
+    name: "missing credential",
+    status: 409,
+    code: "secret_missing",
+    message: "No project secret for acme-notion under mode standard",
+    type: "invalid_request_error",
+  },
+  {
+    name: "rejected credential",
+    status: 409,
+    code: "secret_invalid",
+    message: "Secret for custom/acme-notion is invalid",
+    type: "invalid_request_error",
+  },
+  {
+    name: "unregistered target",
+    status: 404,
+    code: "endpoint_not_found",
+    message: "No endpoint named 'acme-notion'",
+    type: "invalid_request_error",
+  },
+  {
+    name: "deactivated endpoint",
+    status: 403,
+    code: "endpoint_inactive",
+    message: "Endpoint 'acme-notion' is inactive",
+    type: "invalid_request_error",
+  },
+];
+
+function mcpJsonRpcBody(r: Refusal): string {
+  return JSON.stringify({
+    jsonrpc: "2.0",
+    id: null,
+    error: { code: -32000, message: markedMessage(r), data: { cause: r.code } },
+  });
+}
+
+describe("MCP plane, JSON-RPC shape embedded verbatim (body scan doesn't recognize it -> marker still recovers code)", () => {
+  for (const r of MCP_REFUSALS) {
+    it(`recovers ${r.code} (${r.name}) even with the full JSON-RPC body intact`, () => {
+      // The JSON-RPC body's own `error.code` is a NUMBER (-32000), not our string cause, so
+      // parseFromBody's `typeof body.code === "string"` check fails here even when a harness
+      // preserves the whole body verbatim -- this proves the marker is not merely a Codex
+      // fallback, it is the only channel for this plane's shape, full body or not.
+      const harnessText = `MCP tool call failed: ${mcpJsonRpcBody(r)}`;
+      const detail = parseGatewayErrorDetail(harnessText);
+      assert.equal(detail?.code, r.code);
+      assert.equal(detail?.retryable, false);
+    });
+  }
+});
+
+describe("MCP plane, Codex-stripped shape (message only, marker still recovers code)", () => {
+  for (const r of MCP_REFUSALS) {
+    it(`recovers ${r.code} (${r.name}) from an MCP refusal reduced to its bare message`, () => {
+      const harnessText = `MCP error: ${markedMessage(r)}`;
+      const detail = parseGatewayErrorDetail(harnessText);
+      assert.equal(detail?.code, r.code);
+      assert.equal(detail?.message, `MCP error: ${r.message}`);
+      assert.equal(detail?.next_step, undefined);
+      assert.equal(detail?.details, undefined);
+    });
+  }
 });
