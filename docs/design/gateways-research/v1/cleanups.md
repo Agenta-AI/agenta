@@ -202,15 +202,18 @@ shares a deployment.
 
 ## CU13. Turn the insecure-egress default off wherever a deployment is shared
 
-**What.** `AGENTA_INSECURE_EGRESS_ALLOWED` defaults to `true` and is set in no deployment
-configuration in this repo, so every copy of the outbound guard in CU12 is currently inert. The
-default exists so zero-config self-hosting works, which is a real requirement; what is missing is
-that a deployment serving more than one tenant turns it off.
+**What.** `AGENTA_INSECURE_EGRESS_ALLOWED` is set in no deployment configuration in this repo. Two
+of its four copies — the API's `WebhooksConfig` (`api/oss/src/utils/env.py`) and the runner's
+`insecureEgressAllowed()` (`services/runner/src/tools/ssrf-guard.ts`) — default unset to `true`
+(permissive), so those copies of the outbound guard in CU12 are currently inert. The default
+exists so zero-config self-hosting works, which is a real requirement; what is missing is that a
+deployment serving more than one tenant turns it off. The other two copies default the other way;
+CU14 covers that split.
 
 **Why it is its own item and not part of CU12.** CU12 is duplication — four implementations of one
-contract that can drift. This is posture: one flag, set nowhere, that disables all four. Collapsing
-the copies does not change it, and turning it off does not need the copies collapsed. Bundling them
-would let the slower half hold the faster one.
+contract that can drift. This is posture: one flag, set nowhere, that leaves the API and runner
+copies open. Collapsing the copies does not change it, and turning it off does not need the copies
+collapsed. Bundling them would let the slower half hold the faster one.
 
 **Why not sooner.** It was not wrong sooner — before the gateways, each copy guarded one narrow
 path. The gateway makes this guard the single control on every outbound call the platform makes on
@@ -219,6 +222,33 @@ a tenant's behalf, which is what turns an inert flag from untidy into load-beari
 **Done.** The flag is explicitly `false` in every configuration where more than one tenant shares a
 deployment, and a test asserts the guard actually refuses a private address under that setting
 rather than assuming it.
+
+## CU14. Agree on one default for the insecure-egress flag, not four independent ones
+
+**What.** `AGENTA_INSECURE_EGRESS_ALLOWED` means opposite things when unset, depending on which
+copy of CU12's guard reads it:
+
+| Copy | Default when unset |
+|---|---|
+| API — `WebhooksConfig` (`api/oss/src/utils/env.py`) | `true` (permissive) |
+| Runner — `insecureEgressAllowed()` (`services/runner/src/tools/ssrf-guard.ts`) | `true` (permissive) |
+| SDK — `agenta/sdk/utils/net.py` | `false` (secure) |
+| SDK — `agenta/sdk/engines/running/handlers.py` | `false` (secure) |
+
+A guard that is on in one layer and off in another for the identical unset env var is not a single
+control with four implementations; it is two controls that happen to share a name. Nobody reading
+any one copy would know the others disagree.
+
+**Why not sooner.** CU12 collapsed the SDK's two copies into one Python definition and made the
+runner's range table verifiable against the API's, but collapsing implementation is orthogonal to
+agreeing on a default — the same reasoning CU13 gives for being its own item applies here.
+CU13's own inventory recorded the flag as defaulting to `true` flatly, because it was written
+looking at the API and the hosting configs, not at the SDK copies; this item exists because that
+picture was incomplete.
+
+**Done.** All four copies resolve `AGENTA_INSECURE_EGRESS_ALLOWED` unset to the same value, decided
+once rather than inherited separately per copy, and the decision is recorded next to CU13's
+per-deployment `false` setting so the two are read together.
 
 ---
 
