@@ -1,11 +1,11 @@
 import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
-import {annotationEvaluatorSlugsAtom} from "@agenta/observability"
 import {AUTO_REFRESH_INTERVAL} from "@agenta/observability-ui"
 import {
     getDefaultHiddenObservabilityColumnKeys,
     getObservabilityColumns,
     ObservabilityTracesTable,
+    useEvaluatorSlugs,
     type ObservabilityTraceRow as TraceRow,
 } from "@agenta/observability-ui"
 import type {TableScopeConfig} from "@agenta/ui/table"
@@ -28,33 +28,6 @@ const TestsetDrawer = dynamic(
         ssr: false,
     },
 )
-
-const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
-    const slugs = new Set<string>()
-
-    const visit = (node?: TraceSpanNode) => {
-        if (!node) return
-
-        const metrics = (node as TraceSpanNode & {aggregatedEvaluatorMetrics?: Record<string, any>})
-            ?.aggregatedEvaluatorMetrics
-        if (metrics && typeof metrics === "object") {
-            Object.keys(metrics).forEach((slug) => {
-                if (slug) {
-                    slugs.add(slug)
-                }
-            })
-        }
-
-        const children = (node as TraceSpanNode & {children?: TraceSpanNode[]})?.children
-        if (Array.isArray(children)) {
-            children.forEach((child) => visit(child as TraceSpanNode))
-        }
-    }
-
-    traces.forEach((trace) => visit(trace))
-
-    return Array.from(slugs)
-}
 
 const ObservabilityTable = () => {
     const store = useStore()
@@ -83,7 +56,6 @@ const ObservabilityTable = () => {
     const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
     const hasReceivedTraces = useAtomValue(hasReceivedTracesAtom)
     const setHasReceivedTraces = useSetAtom(hasReceivedTracesAtom)
-    const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
 
     const [traceParamValue, setTraceParam] = useQueryParamState("trace")
     const traceParam = Array.isArray(traceParamValue)
@@ -96,24 +68,8 @@ const ObservabilityTable = () => {
         : ((spanParamValue as string | undefined) ?? "")
 
     const [refreshTrigger, setRefreshTrigger] = useState(0)
-    const traceEvaluatorSlugs = useMemo(() => collectEvaluatorSlugsFromTraces(traces), [traces])
-
-    const evaluatorSlugs = useMemo(() => {
-        if (!annotationEvaluatorSlugs.length && !traceEvaluatorSlugs.length) return []
-
-        const present = new Set(traceEvaluatorSlugs)
-        const ordered: string[] = []
-
-        annotationEvaluatorSlugs.forEach((slug) => {
-            if (present.has(slug)) {
-                ordered.push(slug)
-                present.delete(slug)
-            }
-        })
-
-        const remaining = Array.from(present).sort()
-        return [...ordered, ...remaining]
-    }, [annotationEvaluatorSlugs, traceEvaluatorSlugs])
+    // One derivation, in the package, so /m gets the same columns.
+    const evaluatorSlugs = useEvaluatorSlugs()
 
     const columns = useMemo(() => getObservabilityColumns({evaluatorSlugs}), [evaluatorSlugs])
     const defaultHiddenColumnKeys = useMemo(

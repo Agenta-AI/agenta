@@ -15,6 +15,7 @@ import {
     getObservabilityColumns,
 } from "../columns/getObservabilityColumns"
 import type {TraceRow} from "../columns/getObservabilityColumns"
+import {useEvaluatorSlugs} from "../columns/useEvaluatorSlugs"
 
 /**
  * The traces table both surfaces render.
@@ -32,7 +33,11 @@ export interface ObservabilityTracesTableProps extends Omit<
     InfiniteVirtualTableFeatureProps<TraceRow>,
     "columns" | "rowKey" | "tableScope" | "pagination"
 > {
-    /** Evaluator columns to append, when the surface shows annotations. */
+    /**
+     * Evaluator columns to append. Derived from the loaded traces when omitted, so a surface
+     * gets them without knowing how: `/m` passing nothing is what left it silently without
+     * evaluator columns before.
+     */
     evaluatorSlugs?: string[]
     /** Replaces the table while the first page is in flight. */
     loadingState?: ReactNode
@@ -69,7 +74,9 @@ export const ObservabilityTracesTable = ({
     // The cells read page-level atoms; an isolated store leaves them empty.
     const ambientStore = useStore()
 
-    const slugs = useMemo(() => evaluatorSlugs ?? [], [evaluatorSlugs])
+    // Derived here so neither host has to; an explicit prop still wins.
+    const derivedSlugs = useEvaluatorSlugs()
+    const slugs = useMemo(() => evaluatorSlugs ?? derivedSlugs, [evaluatorSlugs, derivedSlugs])
     const columns = useMemo(() => getObservabilityColumns({evaluatorSlugs: slugs}), [slugs])
 
     const scope = useMemo<TableScopeConfig>(
