@@ -49,6 +49,22 @@ _ALLOWED_TOKENS = (
     _SECRET_TOKEN_PREFIX,
 )
 
+# The gateways' own credentials header (D31). It wins over `Authorization` whenever
+# present, because on a pass-through route `Authorization` carries the caller's upstream
+# vendor auth and is not ours to read.
+_CREDENTIALS_HEADER = "X-AG-Credentials"
+
+
+def _credentials_header(request: Request) -> Optional[str]:
+    return (
+        request.headers.get(_CREDENTIALS_HEADER)
+        or request.headers.get(_CREDENTIALS_HEADER.lower())
+        or request.headers.get("Authorization")
+        or request.headers.get("authorization")
+        or None
+    )
+
+
 _PUBLIC_ENDPOINTS = (
     # AGENTA
     "/health",
@@ -263,11 +279,7 @@ async def _check_authentication_token(request: Request):
             return
 
         if _ADMIN_ENDPOINT_IDENTIFIER in request.url.path:
-            auth_header = (
-                request.headers.get("Authorization")
-                or request.headers.get("authorization")
-                or None
-            )
+            auth_header = _credentials_header(request)
 
             if not auth_header:
                 raise UnauthorizedException()
@@ -282,11 +294,7 @@ async def _check_authentication_token(request: Request):
                 access_token=access_token,
             )
 
-        auth_header = (
-            request.headers.get("Authorization")
-            or request.headers.get("authorization")
-            or None
-        )
+        auth_header = _credentials_header(request)
         supertokens_access_token = request.cookies.get("sAccessToken")
 
         query_project_id = request.query_params.get("project_id")
