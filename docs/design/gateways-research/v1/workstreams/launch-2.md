@@ -31,6 +31,23 @@ all four change what a caller sends.
 
 ---
 
+## Still on paper, and where each piece goes
+
+Nothing in this list is built. Each line is either a package below or an owner it does not
+have yet — no third category.
+
+| Decided | State | Lands in |
+| --- | --- | --- |
+| D33 — protocol front doors | not built; one door exists | **WP23** |
+| D34 — no body conversion | **not enforced**; `TranslatedLLMAdapter` still converts | **WP24** |
+| OD16 — which upstreams a relay-only gateway reaches | not verified | **WP24**, first task |
+| `provider_key` `NOT NULL` | unchanged | **WP24**, with the migration |
+| OD14 — the harness matrix | not run | **unowned** — W3 needs it, nobody has it |
+| Mock upstreams echoing headers | not built | **unowned** — W4 |
+
+D31's data-plane rule and D32's pass-through mechanics are built and tested; they are not
+in this table because there is nothing left of them to do.
+
 ## The one gap that reshapes this wave
 
 **A model call cannot carry our credentials in a header today.** The runner wire's
@@ -64,6 +81,81 @@ Wave 2 does not build pass-through, but it should not regress the field either.
 `endpoint.base_url` whenever a resolved secret is `opaque_http`. A local gateway on `http://`
 fails that check. Decide deliberately whether the loopback case is exempted or whether dev
 runs over TLS; do not discover it in an acceptance test.
+
+---
+
+## Before anything starts
+
+Wave 1's seed was a new domain's declarations. Wave 2's is smaller and has the same
+property: **it changes a signature that several worktrees inherit, so it cannot be written
+inside one of them.** One agent writes it on the base branch and everything else waits.
+
+- [ ] **Base branch from the current upstream release branch**, as in wave 1. Re-read the
+      branch name; it advances.
+- [ ] **Settle the four rulings below.** Each changes a shape more than one package depends
+      on, so none can be deferred into a worktree.
+- [ ] **Write the wire change** the rulings settle: the credential binding on the runner
+      wire (`services/runner/src/protocol.ts`) and in the SDK
+      (`sdks/python/agenta/sdk/agents/connections/models.py`), plus its materialization
+      point. Declarations and validators only; no caller changes.
+- [ ] **Verify**: a header-bound credential round-trips SDK → wire → runner and is
+      materialized, with a test that fails if any leg drops it. This is the specific failure
+      the shape invites, so it is the specific test the seed owes.
+- [ ] **Commit, and record the SHA.** Every wave-2 worktree branches from it.
+
+### W1 — What shape the header binding takes, and where it materializes
+
+`ResolvedCredential.binding` is `EnvironmentCredentialBinding` — a single type, not a union
+— and `ModelCredentialBinding.kind` is `"environment"` on the wire. The MCP side already
+carries `{kind: "header", name}`, so the obvious move is to widen the model side to the same
+union.
+
+**The trap that makes this a ruling rather than an edit.** `ResolvedConnection.
+plaintext_environment()` is the single materialization point today, and every consumer calls
+it (`agents/interfaces.py`). A header-bound credential has no environment variable, so it
+would validate, serialize, cross the wire, and **silently vanish** at the boundary — the
+same class of failure as a field a model ignores because it does not recognise it. Widening
+the union without moving the materialization point is the wrong half of the change.
+
+Two shapes, and the choice belongs in the seed:
+
+- **Widen the union, split materialization.** `plaintext_environment()` gains a sibling for
+  headers, and every consumer must call both. Symmetric with MCP; the cost is that
+  "materialize this connection" stops being one call, and a consumer that forgets the second
+  one fails silently.
+- **Keep the binding env-only; carry our credentials as their own field.** The gateway's
+  credentials are not the provider's secret and never were — a separate field says so, and
+  the harness configuration writer reads exactly one place for the header it must set. The
+  cost is that the two planes stop looking alike.
+
+**Recommendation: the second**, on the grounds that these are our credentials rather than an
+upstream's secret (the vocabulary is not decoration here), and a single field cannot be half
+materialized. Whichever is chosen, the validator must make the silent-drop case impossible.
+
+### W2 — Whether a loopback gateway is exempt from the https requirement
+
+`ResolvedConnection` refuses an `opaque_http` credential unless `endpoint.base_url` is
+https. A gateway on `http://localhost` fails that check, which is every development run.
+Exempt loopback explicitly in the validator, or require TLS in development. WP12 owns the
+file; WP13 and WP14 are the ones that would be blocked by it. Not settling it means every
+wave-2 worktree discovers it separately.
+
+### W3 — Which front doors WP23 ships, and in which order
+
+WP24's scope is a function of this answer: an upstream is reachable only through a door that
+speaks its protocol (D34), so OD16's per-provider verification cannot be scoped until the
+door set is fixed. `/v1/messages` first is the likely answer — it is what unblocks Anthropic,
+and the Bedrock and Vertex models that take that body — but it is a product call about which
+upstreams matter, not a technical one.
+
+### W4 — Who owns the mock upstreams' header echo
+
+Two Checkpoint B assertions need a mock that reports the headers it received: that
+`X-AG-Credentials` never reaches an upstream, and that a caller's `Authorization` does when
+no secret resolved. WP5's mocks do not do this and WP5 is closed. Either it reopens for one
+endpoint, or a wave-2 package takes it. It is half a day of work and it is the difference
+between those two rules being pinned by unit tests and being pinned end to end. **Unowned,
+it will not happen.**
 
 ---
 
