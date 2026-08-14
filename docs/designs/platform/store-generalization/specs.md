@@ -51,6 +51,9 @@ not a store-credential var. It reads as "the tunnel API used by the mounts runne
 stays `AGENTA_MOUNTS_TUNNEL_API`. Renaming it to `AGENTA_STORE_TUNNEL_API` would imply the
 store knows about tunnels, which it does not.
 
+**Superseded:** the variable was later removed outright. It was never set anywhere, and the
+compose service name it defaulted to already resolves.
+
 ## Decision 2 — move the adapter and signing helper to `core/store/`
 
 `api/oss/src/core/mounts/storage.py` contains `MountStorage` (S3-compatible adapter,
@@ -149,7 +152,7 @@ PR) before their env blocks are correct.
 
 - **Break clean** — no dual-read, no legacy alias, no deprecation fallback.
 - **`AGENTA_MOUNTS_TUNNEL_API` stays** — it is the runner-side tunnel-discovery URL, not a
-  store credential var.
+  store credential var. (Superseded: later removed outright, never having been set.)
 - **`seaweedfs.enabled` stays** — it is the bundle-or-external service toggle, not a store
   var.
 - **`MountStorage` → `ObjectStore`** (class rename, moved to `core/store/storage.py`).

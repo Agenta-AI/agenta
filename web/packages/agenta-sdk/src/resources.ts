@@ -9,6 +9,7 @@
  * constructors, so they are equivalent to `getAgentaSdkClient().traces` etc.
  */
 import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
+import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
@@ -119,4 +120,9 @@ let _mountsLowPriority: MountsClient | undefined
  * background mount file listing that must yield to render-critical traffic. */
 export function getLowPriorityMountsClient(): MountsClient {
     return (_mountsLowPriority ??= new MountsClient(withLowPriorityFetch(buildClientOptions())))
+}
+
+let _channels: ChannelsClient | undefined
+export function getChannelsClient(): ChannelsClient {
+    return (_channels ??= new ChannelsClient(buildClientOptions()))
 }
