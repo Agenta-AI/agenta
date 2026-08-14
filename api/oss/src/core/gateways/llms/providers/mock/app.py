@@ -34,6 +34,17 @@ async def health() -> Response:
     return Response(status_code=200)
 
 
+@app.post("/__echo/v1/chat/completions")
+async def echo_headers(request: Request) -> Response:
+    """Report the headers this process received (launch-2.md W4).
+
+    On the completions path rather than a bare route so it is reachable THROUGH the gateway:
+    an endpoint whose `base_url` ends in `/__echo` relays here, and the answer is the only
+    proof that `X-AG-Credentials` was stripped and a passed-through `Authorization` arrived.
+    """
+    return JSONResponse(content={"headers": dict(request.headers)})
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> Response:
     body = await request.body()

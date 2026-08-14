@@ -529,6 +529,20 @@ export interface ModelCredential {
 }
 
 /**
+ * OUR credentials for the gateway, bound to the header that carries them.
+ *
+ * Deliberately NOT a `ModelCredential` with a widened binding. A `ModelCredential` is a
+ * provider's secret and authenticates the gateway to that provider; this authenticates the
+ * caller as us, into the gateway. A header-bound value also has no environment variable to
+ * materialize into, so folding it into the credential union would produce a value that
+ * validates, crosses the wire, and then vanishes at `materializeModelEnvironment`.
+ */
+export interface GatewayCredentials {
+  header: string;
+  value: string;
+}
+
+/**
  * Everything the runner needs to reach the model, grouped under the consumer that owns it.
  *
  * The organization mirrors `ResolvedConnection` in the Python SDK
@@ -575,6 +589,9 @@ export interface ModelConnection {
   credentialMode: "env" | "runtime_provided" | "none";
   environment?: Record<string, string>;
   credentials: ModelCredential[];
+  /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the
+   * provider's secret. Omitted when the model is not reached through a gateway. */
+  gatewayCredentials?: GatewayCredentials;
 }
 
 export interface AgentRunRequest {

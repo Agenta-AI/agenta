@@ -13,7 +13,7 @@ implementation of the control convention.
 import json
 
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from oss.src.core.gateways.mcps.dtos import (
     MCPCallContext,
@@ -32,6 +32,16 @@ _auth = MCPDirectAuth(secret=None)
 @app.get("/health")
 async def health() -> Response:
     return Response(status_code=200)
+
+
+@app.post("/__echo")
+async def echo_headers(request: Request) -> Response:
+    """Report the headers this process received (launch-2.md W4).
+
+    Reachable through the gateway by pointing an endpoint's `base_url` at `/__echo`: the MCP
+    relay POSTs to `base_url` directly, so the answer is what the upstream really saw.
+    """
+    return JSONResponse(content={"headers": dict(request.headers)})
 
 
 @app.post("/")

@@ -34,6 +34,13 @@ ConnectionMode = Literal["agenta", "self_managed"]
 CredentialMode = Literal["env", "runtime_provided", "none"]
 CredentialUsage = Literal["opaque_http", "local_use"]
 
+_LOOPBACK_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def _is_loopback(hostname: Optional[str]) -> bool:
+    return (hostname or "").strip("[]").lower() in _LOOPBACK_HOSTNAMES
+
+
 # Which deployment surface a provider is reached through. ``direct`` is the provider's own
 # API; custom-provider deployments preserve the vault ``data.kind`` value (for example
 # ``custom``, ``azure``, ``bedrock``, or ``vertex_ai``).
@@ -152,6 +159,36 @@ class ResolvedCredential(BaseModel):
         }
 
 
+class GatewayCredentials(BaseModel):
+    """OUR credentials for the gateway, bound to the header that carries them.
+
+    Deliberately not a member of the credential union above. A :class:`ResolvedCredential`
+    carries a *provider's* secret and authenticates the gateway to that provider; this
+    authenticates the caller as us, into the gateway. The two are never interchangeable, and
+    a header-bound value has no environment variable to materialize into — widening the union
+    would give a value that validates, crosses the wire and vanishes at the materialization
+    boundary.
+    """
+
+    header: str = "X-AG-Credentials"
+    value: str = Field(repr=False)
+
+    @model_validator(mode="after")
+    def _require_header_and_value(self) -> "GatewayCredentials":
+        if not self.header.strip():
+            raise ValueError("gateway credentials require a non-empty header name")
+        if not self.value:
+            raise ValueError("gateway credentials require a non-empty value")
+        return self
+
+    @field_serializer("value", when_used="always")
+    def _mask_value(self, value: str) -> str:
+        return "**********"
+
+    def to_wire(self) -> Dict[str, str]:
+        return {"header": self.header, "value": self.value}
+
+
 class ModelRef(BaseModel):
     """Model intent plus the credential connection, carried in the agent config.
 
@@ -227,6 +264,18 @@ class ResolvedConnection(BaseModel):
     environment: Dict[str, str] = Field(default_factory=dict)
     endpoint: Optional[Endpoint] = None  # NON-secret connection config only
     input_modalities: Optional[List[str]] = None
+    gateway_credentials: Optional[GatewayCredentials] = Field(default=None, repr=False)
+
+    def _require_effective_https(self, subject: str) -> None:
+        base_url = self.endpoint.base_url if self.endpoint else None
+        parsed = urlparse(base_url or "")
+        scheme = parsed.scheme.lower()
+        if scheme == "https" and parsed.hostname:
+            return
+        # A plaintext hop to a loopback host has no remote to leak the value to.
+        if scheme == "http" and _is_loopback(parsed.hostname):
+            return
+        raise ValueError(f"{subject} require an effective HTTPS endpoint")
 
     @model_validator(mode="after")
     def _validate_credential_route(self) -> "ResolvedConnection":
@@ -240,12 +289,9 @@ class ResolvedConnection(BaseModel):
         if self.credential_mode != "env" and self.credentials:
             raise ValueError("resolved credentials require credential_mode 'env'")
         if any(item.usage == "opaque_http" for item in self.credentials):
-            base_url = self.endpoint.base_url if self.endpoint else None
-            parsed = urlparse(base_url or "")
-            if parsed.scheme.lower() != "https" or not parsed.hostname:
-                raise ValueError(
-                    "opaque_http model credentials require an effective HTTPS endpoint"
-                )
+            self._require_effective_https("opaque_http model credentials")
+        if self.gateway_credentials is not None:
+            self._require_effective_https("gateway credentials")
         return self
 
     def plaintext_environment(self) -> Dict[str, str]:
@@ -254,6 +300,16 @@ class ResolvedConnection(BaseModel):
         for credential in self.credentials:
             values[credential.binding.name] = credential.value
         return values
+
+    def plaintext_headers(self) -> Dict[str, str]:
+        """Materialize the gateway credentials at a local execution boundary.
+
+        The header counterpart of :meth:`plaintext_environment`, and the reason the gateway
+        credentials are their own field: they have no environment variable to land in.
+        """
+        if self.gateway_credentials is None:
+            return {}
+        return {self.gateway_credentials.header: self.gateway_credentials.value}
 
     def to_wire(self) -> Dict[str, Any]:
         """Serialize the consumer-owned model connection onto the trusted internal wire."""
@@ -271,6 +327,8 @@ class ResolvedConnection(BaseModel):
                 wire["endpoint"] = endpoint_wire
         if self.input_modalities is not None:
             wire["modelCapabilities"] = {"inputModalities": list(self.input_modalities)}
+        if self.gateway_credentials is not None:
+            wire["gatewayCredentials"] = self.gateway_credentials.to_wire()
         return wire
 
 
