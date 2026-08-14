@@ -2,6 +2,10 @@
 
 **Status:** planned; not yet started. Wave 1 takes the application from checkpoint 0 to checkpoint 1.
 
+**Fork point:** `IM-1-00` reviewed and merged `WP-1-00` (contract seed) at commit `659e7ac5db1e0d0987acdc1beb654ea2becfc14b`
+(merging `WP-1-00` commit `676a96e054940b166461a43217de81214aaf8cff`) on `wallets/im-1-00-seed`. `WP-1-01`
+and `WP-1-02` fork from this commit; neither may fork before it exists.
+
 ## Checkpoint boundary
 
 Checkpoint 0 is the current foundation: the wallet design exists, but no managed gateway path creates a
