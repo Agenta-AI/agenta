@@ -20,6 +20,7 @@ overrides:
   next@<15.5.18: '>=15.5.18 <16.0.0'
   vite: ^8.0.16
   '@tanstack/query-core': 5.100.9
+  immer: ^10.2.0
 
 patchedDependencies:
   '@agentaai/nextstepjs@2.1.3-agenta.2': 9d43b8144d7ca4a0b1dfe79073b70fe8a8fa3b52db9a5d88053d4927fab1b251
@@ -243,7 +244,7 @@ importers:
         specifier: ^3.1.3
         version: 3.1.3
       immer:
-        specifier: ^10.1.3
+        specifier: ^10.2.0
         version: 10.2.0
       jotai:
         specifier: ^2.16.1
@@ -770,7 +771,7 @@ importers:
         specifier: ^3.1.3
         version: 3.1.3
       immer:
-        specifier: ^10.1.3
+        specifier: ^10.2.0
         version: 10.2.0
       jotai:
         specifier: ^2.16.1
@@ -1199,7 +1200,7 @@ importers:
         specifier: ^3.1.3
         version: 3.1.3
       immer:
-        specifier: '>=10.0.0'
+        specifier: ^10.2.0
         version: 10.2.0
       jotai-scheduler:
         specifier: ^0.0.5
@@ -1365,7 +1366,7 @@ importers:
         specifier: 0.4.8
         version: 0.4.8
       immer:
-        specifier: '>=10.0.0'
+        specifier: ^10.2.0
         version: 10.2.0
       jotai:
         specifier: '>=2.0.0'
@@ -1629,6 +1630,9 @@ importers:
       dayjs:
         specifier: ^1.11.20
         version: 1.11.20
+      jotai-immer:
+        specifier: '>=0.4.0'
+        version: 0.4.3(immer@10.2.0)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
       papaparse:
         specifier: ^5.5.3
         version: 5.5.3
@@ -1696,16 +1700,31 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.3.0
+      json5:
+        specifier: ^2.2.3
+        version: 2.2.3
+      lucide-react:
+        specifier: ^0.479.0
+        version: 0.479.0(react@19.2.6)
       motion:
         specifier: ^12.0.0
         version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       papaparse:
         specifier: ^5.5.3
         version: 5.5.3
+      usehooks-ts:
+        specifier: ^3.1.1
+        version: 3.1.1(react@19.2.6)
     devDependencies:
       '@tanstack/react-query':
         specifier: 5.100.9
         version: 5.100.9(react@19.2.6)
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
       '@types/node':
         specifier: ^20.19.20
         version: 20.19.39
@@ -1715,6 +1734,9 @@ importers:
       '@types/react':
         specifier: ^19.0.10
         version: 19.2.14
+      '@vitejs/plugin-react-swc':
+        specifier: ^4.3.2
+        version: 4.3.2(@swc/helpers@0.5.21)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
       jotai:
         specifier: ^2.15.0
         version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
@@ -1724,6 +1746,9 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
 
   packages/agenta-playground:
     dependencies:
@@ -2212,6 +2237,9 @@ importers:
       fast-deep-equal:
         specifier: ^3.1.3
         version: 3.1.3
+      immer:
+        specifier: ^10.2.0
+        version: 10.2.0
       jotai:
         specifier: ^2.16.1
         version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
@@ -2220,7 +2248,7 @@ importers:
         version: 1.0.1(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
       jotai-immer:
         specifier: ^0.4.3
-        version: 0.4.3(immer@11.1.7)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
+        version: 0.4.3(immer@10.2.0)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
       jotai-scheduler:
         specifier: ^0.0.5
         version: 0.0.5(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
@@ -8484,9 +8512,6 @@ packages:
   immer@10.2.0:
     resolution: {integrity: sha512-d/+XTN3zfODyjr89gM3mPq1WNX2B8pYsu7eORitdwyA2sBubnTl3laYlBk4sXY5FUa5qTZGBDPJICVbvqzjlbw==}
 
-  immer@11.1.7:
-    resolution: {integrity: sha512-LFVFtAROHcDy1er5UI6nodRFnZ2SgdCXhfNSI+DpObO8N7Pur/muBGsjzH5wpnFHCYhYVQxZskCkV4koQ//3/Q==}
-
   import-fresh@3.3.1:
     resolution: {integrity: sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==}
     engines: {node: '>=6'}
@@ -8764,7 +8789,7 @@ packages:
   jotai-immer@0.4.3:
     resolution: {integrity: sha512-sJWiSweR294aDA/jeH6bKSKYVxRqgfxnLWaZmKw0/Hd6iGKLN4TSB3AHpFWQFDf0W+P3sEIkROr0ALlWQfCSeA==}
     peerDependencies:
-      immer: '>=9.0.0'
+      immer: ^10.2.0
       jotai: '>=2.0.0'
 
   jotai-scheduler@0.0.5:
@@ -12780,7 +12805,7 @@ snapshots:
       globals: 13.24.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: 4.2.0
+      js-yaml: 4.3.0
       minimatch: 3.1.5
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -14720,7 +14745,7 @@ snapshots:
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@standard-schema/utils': 0.3.0
-      immer: 11.1.7
+      immer: 10.2.0
       redux: 5.0.1
       redux-thunk: 3.1.0(redux@5.0.1)
       reselect: 5.1.1
@@ -17576,7 +17601,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       is-path-inside: 3.0.3
-      js-yaml: 4.2.0
+      js-yaml: 4.3.0
       json-stable-stringify-without-jsonify: 1.0.1
       levn: 0.4.1
       lodash.merge: 4.6.2
@@ -18249,8 +18274,6 @@ snapshots:
 
   immer@10.2.0: {}
 
-  immer@11.1.7: {}
-
   import-fresh@3.3.1:
     dependencies:
       parent-module: 1.0.1
@@ -18511,11 +18534,6 @@ snapshots:
   jotai-immer@0.4.3(immer@10.2.0)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)):
     dependencies:
       immer: 10.2.0
-      jotai: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
-
-  jotai-immer@0.4.3(immer@11.1.7)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)):
-    dependencies:
-      immer: 11.1.7
       jotai: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
 
   jotai-scheduler@0.0.5(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6):
