@@ -118,6 +118,113 @@ def test_vertex_with_no_project_raises():
         build_url(route, LLMProtocol.CHAT_COMPLETIONS)
 
 
+def test_bedrock_messages_door_composes_invoke_model_path():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.BEDROCK,
+        base_url="https://bedrock.example",
+        model="anthropic.claude-3-5-sonnet",
+    )
+    assert build_url(route, LLMProtocol.MESSAGES) == (
+        "https://bedrock.example/model/anthropic.claude-3-5-sonnet/invoke"
+    )
+
+
+def test_bedrock_messages_door_streaming_uses_the_stream_action():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.BEDROCK,
+        base_url="https://bedrock.example",
+        model="anthropic.claude-3-5-sonnet",
+    )
+    assert build_url(route, LLMProtocol.MESSAGES, stream=True) == (
+        "https://bedrock.example/model/anthropic.claude-3-5-sonnet/invoke-with-response-stream"
+    )
+
+
+def test_bedrock_messages_door_derives_bedrock_runtime_host_from_region():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.BEDROCK,
+        region="eu-central-1",
+        model="anthropic.claude-3-5-sonnet",
+    )
+    assert build_url(route, LLMProtocol.MESSAGES) == (
+        "https://bedrock-runtime.eu-central-1.amazonaws.com"
+        "/model/anthropic.claude-3-5-sonnet/invoke"
+    )
+
+
+def test_bedrock_messages_door_with_no_model_raises_naming_bedrock():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.BEDROCK, base_url="https://b.example"
+    )
+    route.model = ""
+    with pytest.raises(LLMUpstreamError):
+        build_url(route, LLMProtocol.MESSAGES)
+
+
+def test_bedrock_chat_completions_door_is_unaffected_by_the_messages_strategy():
+    route = _route(deployment_kind=LLMDeploymentKind.BEDROCK, region="eu-central-1")
+    assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
+        "https://bedrock-mantle.eu-central-1.api.aws/v1/chat/completions"
+    )
+
+
+def test_vertex_messages_door_composes_raw_predict_path():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        base_url="https://vertex.example",
+        model="claude-3-5-sonnet",
+    )
+    assert build_url(route, LLMProtocol.MESSAGES) == (
+        "https://vertex.example/publishers/anthropic/models/claude-3-5-sonnet:rawPredict"
+    )
+
+
+def test_vertex_messages_door_streaming_uses_stream_raw_predict():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        base_url="https://vertex.example",
+        model="claude-3-5-sonnet",
+    )
+    assert build_url(route, LLMProtocol.MESSAGES, stream=True) == (
+        "https://vertex.example/publishers/anthropic/models"
+        "/claude-3-5-sonnet:streamRawPredict"
+    )
+
+
+def test_vertex_messages_door_derives_project_host_from_region_and_project():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        region="europe-west4",
+        extras={"vertex_project": "acme-prod"},
+        model="claude-3-5-sonnet",
+    )
+    assert build_url(route, LLMProtocol.MESSAGES) == (
+        "https://europe-west4-aiplatform.googleapis.com/v1/projects/acme-prod"
+        "/locations/europe-west4/publishers/anthropic/models/claude-3-5-sonnet:rawPredict"
+    )
+
+
+def test_vertex_messages_door_with_no_model_raises_naming_vertex():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX, base_url="https://v.example"
+    )
+    route.model = ""
+    with pytest.raises(LLMUpstreamError):
+        build_url(route, LLMProtocol.MESSAGES)
+
+
+def test_vertex_chat_completions_door_is_unaffected_by_the_messages_strategy():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        region="europe-west4",
+        extras={"vertex_project": "acme-prod"},
+    )
+    assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
+        "https://europe-west4-aiplatform.googleapis.com/v1/projects/acme-prod"
+        "/locations/europe-west4/endpoints/openapi/chat/completions"
+    )
+
+
 def test_sagemaker_always_raises_naming_the_reason():
     route = _route(deployment_kind=LLMDeploymentKind.SAGEMAKER, region="us-east-1")
     with pytest.raises(LLMUpstreamError) as excinfo:

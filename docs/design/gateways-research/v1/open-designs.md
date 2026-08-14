@@ -566,6 +566,40 @@ anywhere on this plane (reserved for the not-yet-built ceiling/entitlement/step-
 WP16-20) — present defensively, not a gap. **Unlike the LLM plane, this proxy had no hole**:
 `SecretInvalidError` (the one the LLM side had silently dropped) was already both mapped
 (`cause="secret_invalid"`) and in `_MAPPED_EXCEPTIONS` here from the start.
+### OD19. What does `base_url` mean on a Bedrock or Vertex endpoint row — OPEN
+
+D40 gives Bedrock and Vertex a second address on the Messages door — the real `InvokeModel`
+and `rawPredict` operations — beside the OpenAI-compatible one they already had on Chat
+Completions and Responses. The two doors reach different hosts: Bedrock's OpenAI-compatible
+door is the `bedrock-mantle` proxy, its Messages door is `bedrock-runtime.{region}
+.amazonaws.com`; Vertex's OpenAI-compatible door ends in `.../locations/{region}/endpoints
+/openapi`, its Messages door in `.../locations/{region}/publishers/anthropic/models`. A row's
+`base_url` is one stored string. **What does it mean, given that the two doors it might serve
+disagree about what it addresses?**
+
+**The derived path — no `base_url` set — has no version of this problem.** Each door computes
+its own host independently from `region` (and, for Vertex, `extras.vertex_project`), so a row
+that leaves `base_url` empty composes the right address on whichever door it is called
+through. The question only exists for a row that sets one.
+
+Two candidate answers, neither built:
+
+1. **One `base_url` per door.** The row carries two fields (or a small per-protocol map)
+   instead of one, and each routing strategy reads its own. Correct for an operator who
+   genuinely needs to override both, at the cost of a wider row shape for two deployment
+   kinds only.
+2. **Disallow `base_url` on `BEDROCK`/`VERTEX` rows and always derive the host from `region`
+   (and `vertex_project`).** Simpler, and consistent with the fact that both real hosts are
+   fixed per-region addresses with no operator-meaningful variation — but forecloses whatever
+   an override was for (a proxy, a private network path) that the `region`-only fallback
+   cannot express.
+
+**Latent, not active.** Nothing in this codebase registers a `BEDROCK` or `VERTEX` endpoint
+with an explicit `base_url` today — no seed, no fixture, no acceptance test. `LLMEndpointCreate`
+accepts the field with no per-`deployment_kind` validation, so nothing currently stops a future
+caller from setting one, but no code path does. This is a registration-shape decision for
+whichever package first lets an operator register a Bedrock or Vertex endpoint with a custom
+`base_url` — not something the relay itself needs to resolve until that exists.
 
 ### OD2. Is a user's own secret the norm or the exception — CLOSED
 

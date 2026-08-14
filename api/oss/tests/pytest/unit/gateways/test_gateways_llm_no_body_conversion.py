@@ -22,6 +22,9 @@ _ALLOWED = {
     # parsing its own input to fabricate a reply is not the conversion D34 forbids.
     "providers/mock/adapter.py",
     "providers/mock/app.py",
+    # D40's carve-out: a literal per-deployment table (Bedrock, Vertex only), applied only
+    # on the Messages door. Not conversion — nothing here is read to decide anything.
+    "providers/passthrough/static_fields.py",
 }
 
 _JSON_LOADS = re.compile(r"\bjson\.loads\(")

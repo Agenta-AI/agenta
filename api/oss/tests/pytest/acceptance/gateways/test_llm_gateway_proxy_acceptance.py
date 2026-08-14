@@ -263,3 +263,13 @@ class TestLLMGatewayResponsesAndMessagesDoorsAcceptance:
 
         assert response.status_code == 403
         assert response.json()["error"]["code"] == "model_not_allowed"
+
+
+# D40 (specs-wp27.md): Bedrock/Vertex on the Messages door are the named byte-for-byte
+# exemption above, and they compose the real InvokeModel/rawPredict paths (routing.py),
+# which the mock upstream does not mount (`providers/mock/app.py` only serves
+# `/v1/{chat/completions,responses,messages}`). Proving the URL+body pair therefore stays
+# a unit test against RelayLLMAdapter directly
+# (test_gateways_llm_relay_adapter.py::test_{bedrock,vertex}_messages_request_moves_model_
+# from_body_to_url) rather than an acceptance test here — there is no upstream in this
+# suite's reach that speaks either real wire.

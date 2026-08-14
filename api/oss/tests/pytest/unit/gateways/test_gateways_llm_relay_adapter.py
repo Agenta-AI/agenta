@@ -5,6 +5,7 @@ Nothing running: httpx.MockTransport intercepts every request, no real socket.
 
 import json
 from typing import Optional
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -13,6 +14,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
     LLMDeploymentKind,
     LLMEndpointSettings,
+    LLMProtocol,
     LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
@@ -439,6 +441,216 @@ async def test_configured_timeout_overrides_default():
     )
 
     assert captured["request"].extensions["timeout"]["connect"] == 5.0
+
+
+@pytest.mark.asyncio
+async def test_bedrock_messages_request_moves_model_from_body_to_url():
+    """D40: the pair. `model` leaves the body (it would be rejected there, decisions.md
+    D40) AND lands in the URL (InvokeModel takes it as a path segment) — both assertions
+    live in one test so the two halves cannot drift apart again."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["content"] = request.content
+        captured["url"] = str(request.url)
+        return httpx.Response(200, json={"id": "x", "content": []})
+
+    adapter = _adapter(handler)
+    route = LLMResolvedRoute(
+        provider_key=None,
+        deployment_kind=LLMDeploymentKind.BEDROCK,
+        model="anthropic.claude-3-5-sonnet",
+        base_url="https://bedrock.example",
+    )
+    context = LLMCallContext(
+        model="anthropic.claude-3-5-sonnet", stream=False, protocol=LLMProtocol.MESSAGES
+    )
+    body = json.dumps(
+        {
+            "model": "anthropic.claude-3-5-sonnet",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+    ).encode()
+
+    await adapter.relay_chat_completion(
+        route=route,
+        secret=_custom_secret(extras={"aws_bearer_token_bedrock": "bedrock-token"}),
+        context=context,
+        body=body,
+        headers={},
+    )
+
+    assert captured["url"] == (
+        "https://bedrock.example/model/anthropic.claude-3-5-sonnet/invoke"
+    )
+    sent = json.loads(captured["content"])
+    assert sent["anthropic_version"] == "bedrock-2023-05-31"
+    assert "model" not in sent
+    assert captured["content"] != body
+
+
+@pytest.mark.asyncio
+async def test_bedrock_streaming_messages_request_uses_the_stream_action():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        return httpx.Response(200, json={"id": "x", "content": []})
+
+    adapter = _adapter(handler)
+    route = LLMResolvedRoute(
+        provider_key=None,
+        deployment_kind=LLMDeploymentKind.BEDROCK,
+        model="anthropic.claude-3-5-sonnet",
+        base_url="https://bedrock.example",
+    )
+    context = LLMCallContext(
+        model="anthropic.claude-3-5-sonnet", stream=True, protocol=LLMProtocol.MESSAGES
+    )
+    body = json.dumps(
+        {
+            "model": "anthropic.claude-3-5-sonnet",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+    ).encode()
+
+    await adapter.relay_chat_completion(
+        route=route,
+        secret=_custom_secret(extras={"aws_bearer_token_bedrock": "bedrock-token"}),
+        context=context,
+        body=body,
+        headers={},
+    )
+
+    assert captured["url"] == (
+        "https://bedrock.example/model/anthropic.claude-3-5-sonnet/invoke-with-response-stream"
+    )
+
+
+@pytest.mark.asyncio
+async def test_vertex_messages_request_moves_model_from_body_to_url():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["content"] = request.content
+        captured["url"] = str(request.url)
+        return httpx.Response(200, json={"id": "x", "content": []})
+
+    adapter = _adapter(handler)
+    route = LLMResolvedRoute(
+        provider_key=None,
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        model="claude-3-5-sonnet",
+        base_url="https://vertex.example",
+        extras={"vertex_project": "acme"},
+    )
+    context = LLMCallContext(
+        model="claude-3-5-sonnet", stream=False, protocol=LLMProtocol.MESSAGES
+    )
+    body = json.dumps(
+        {
+            "model": "claude-3-5-sonnet",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+    ).encode()
+
+    with patch(
+        "litellm.llms.vertex_ai.vertex_llm_base.VertexBase.get_access_token_async",
+        new_callable=AsyncMock,
+        return_value=("minted-token", "acme"),
+    ):
+        await adapter.relay_chat_completion(
+            route=route,
+            secret=_custom_secret(
+                extras={"vertex_ai_credentials": '{"type": "service_account"}'}
+            ),
+            context=context,
+            body=body,
+            headers={},
+        )
+
+    assert captured["url"] == (
+        "https://vertex.example/publishers/anthropic/models/claude-3-5-sonnet:rawPredict"
+    )
+    sent = json.loads(captured["content"])
+    assert sent["anthropic_version"] == "vertex-2023-10-16"
+    assert "model" not in sent
+    assert captured["content"] != body
+
+
+@pytest.mark.asyncio
+async def test_vertex_streaming_messages_request_uses_the_stream_action():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        return httpx.Response(200, json={"id": "x", "content": []})
+
+    adapter = _adapter(handler)
+    route = LLMResolvedRoute(
+        provider_key=None,
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        model="claude-3-5-sonnet",
+        base_url="https://vertex.example",
+        extras={"vertex_project": "acme"},
+    )
+    context = LLMCallContext(
+        model="claude-3-5-sonnet", stream=True, protocol=LLMProtocol.MESSAGES
+    )
+    body = json.dumps(
+        {
+            "model": "claude-3-5-sonnet",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+    ).encode()
+
+    with patch(
+        "litellm.llms.vertex_ai.vertex_llm_base.VertexBase.get_access_token_async",
+        new_callable=AsyncMock,
+        return_value=("minted-token", "acme"),
+    ):
+        await adapter.relay_chat_completion(
+            route=route,
+            secret=_custom_secret(
+                extras={"vertex_ai_credentials": '{"type": "service_account"}'}
+            ),
+            context=context,
+            body=body,
+            headers={},
+        )
+
+    assert captured["url"] == (
+        "https://vertex.example/publishers/anthropic/models/claude-3-5-sonnet:streamRawPredict"
+    )
+
+
+@pytest.mark.asyncio
+async def test_every_deployment_kind_other_than_bedrock_vertex_stays_byte_for_byte_on_messages():
+    """Names the exemption (specs-wp27.md) rather than weakening this file's other
+    byte-for-byte assertions: every non-Bedrock/Vertex kind is untouched, even on the
+    Messages door where the rewrite is gated to apply."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["content"] = request.content
+        return httpx.Response(200, json={"id": "x", "content": []})
+
+    adapter = _adapter(handler)
+    route = _route()  # CUSTOM
+    context = LLMCallContext(
+        model="gpt-4o", stream=False, protocol=LLMProtocol.MESSAGES
+    )
+    body = _body()
+
+    await adapter.relay_chat_completion(
+        route=route, secret=None, context=context, body=body, headers={}
+    )
+
+    assert captured["content"] == body
 
 
 @pytest.mark.asyncio
