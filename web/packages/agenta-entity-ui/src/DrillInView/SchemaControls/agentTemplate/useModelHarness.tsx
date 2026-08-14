@@ -49,7 +49,7 @@ import {HarnessSelectControl} from "../HarnessSelectControl"
 import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
-import {enumLabel} from "./agentTemplateUtils"
+import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
 import ProviderCredentialsSection from "./ProviderCredentialsSection"
@@ -165,7 +165,7 @@ export function useModelHarness({
     // carries through extra keys (e.g. `extras`) so a form edit never silently drops them. The picker
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
-    const harnessValue = typeof harness.kind === "string" ? (harness.kind as string) : null
+    const harnessValue = effectiveHarnessValue(harness)
     const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
