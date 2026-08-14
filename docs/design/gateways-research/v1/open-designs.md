@@ -152,7 +152,12 @@ actually OAuth-protected.
 
 ## Open
 
-### OD10. What is in the first increment of each gateway
+### OD10. What is in the first increment of each gateway — CLOSED, overtaken
+
+Answered by two shipped waves rather than by argument. C1 stood both gateways up; C2 made them the
+only way out. The work-package list this design said it blocked exists, has been executed twice,
+and is now planned a third time in `workstreams/launch-3.md`. The original question, for the
+record:
 
 Both gateways are being built. What is open is what each one does first, and the checklist in
 `scope-checklist.md` is where that gets marked.
