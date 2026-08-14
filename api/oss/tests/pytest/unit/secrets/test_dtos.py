@@ -7,11 +7,13 @@ from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     CustomProviderDTO,
     CustomSecretDTO,
+    OAuthGrantDTO,
+    OAuthProviderDTO,
     SecretResponseDTO,
     StandardProviderDTO,
     UpdateSecretDTO,
 )
-from oss.src.core.secrets.enums import StandardProviderKind
+from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
 
 
 def test_create_secret_normalizes_mistralai_standard_provider_payload():
@@ -330,6 +332,33 @@ def _payload_without_a_header(kind):
                 "data": {"provider": {"key": "whsec"}},
             },
         },
+        "oauth_provider": {
+            "header": {},
+            "secret": {
+                "kind": "oauth_provider",
+                "data": {
+                    "provider": {
+                        "client_id": "id",
+                        "client_secret": "secret",
+                        "issuer_url": "https://issuer.example",
+                        "scopes": ["openid"],
+                    }
+                },
+            },
+        },
+        "oauth_grant": {
+            "header": {},
+            "secret": {
+                "kind": "oauth_grant",
+                "data": {
+                    "grant": {
+                        "server": "https://issuer.example",
+                        "access_token": "at-123",
+                        "scopes": ["openid"],
+                    }
+                },
+            },
+        },
     }
     payload = payloads[kind]
     payload["header"] = {}
@@ -337,7 +366,15 @@ def _payload_without_a_header(kind):
 
 
 @pytest.mark.parametrize(
-    "kind", ["custom_provider", "custom_secret", "sso_provider", "webhook_provider"]
+    "kind",
+    [
+        "custom_provider",
+        "custom_secret",
+        "sso_provider",
+        "webhook_provider",
+        "oauth_provider",
+        "oauth_grant",
+    ],
 )
 def test_create_secret_rejects_an_empty_header(kind):
     with pytest.raises(ValidationError, match="Header cannot be empty"):
@@ -357,3 +394,111 @@ def test_create_secret_allows_an_empty_header_for_a_provider_key():
     )
 
     assert secret.header.name is None
+
+
+def _oauth_provider_payload(**provider):
+    return {
+        "header": {"name": "GitHub OAuth", "description": ""},
+        "secret": {
+            "kind": "oauth_provider",
+            "data": {
+                "provider": {
+                    "client_id": "id",
+                    "client_secret": "secret",
+                    "issuer_url": "https://issuer.example",
+                    "scopes": ["openid"],
+                    **provider,
+                }
+            },
+        },
+    }
+
+
+def test_create_oauth_provider_secret():
+    secret = CreateSecretDTO.model_validate(_oauth_provider_payload())
+
+    assert isinstance(secret.secret.data, OAuthProviderDTO)
+    assert secret.secret.data.provider.client_id == "id"
+    assert secret.secret.data.provider.issuer_url == "https://issuer.example"
+    assert secret.secret.data.provider.scopes == ["openid"]
+
+
+def test_oauth_provider_kind_decides_shape_though_sso_provider_shares_it():
+    # OAuthProviderDTO and SSOProviderDTO have an identical shape; the kind, not the union,
+    # must decide which class the data resolves to.
+    secret = CreateSecretDTO.model_validate(_oauth_provider_payload())
+
+    assert type(secret.secret.data) is OAuthProviderDTO
+
+
+@pytest.mark.parametrize(
+    "missing", ["client_id", "client_secret", "issuer_url", "scopes"]
+)
+def test_create_oauth_provider_rejects_missing_field(missing):
+    payload = _oauth_provider_payload()
+    del payload["secret"]["data"]["provider"][missing]
+
+    with pytest.raises(ValidationError, match="OAuthProviderSettingsDTO"):
+        CreateSecretDTO.model_validate(payload)
+
+
+def _oauth_grant_payload(**grant):
+    return {
+        "header": {"name": "GitHub grant", "description": ""},
+        "secret": {
+            "kind": "oauth_grant",
+            "data": {
+                "grant": {
+                    "server": "https://issuer.example",
+                    "access_token": "at-123",
+                    "scopes": ["openid"],
+                    **grant,
+                }
+            },
+        },
+    }
+
+
+def test_create_oauth_grant_secret():
+    secret = CreateSecretDTO.model_validate(
+        _oauth_grant_payload(refresh_token="rt-456", expires_at=1893456000)
+    )
+
+    assert isinstance(secret.secret.data, OAuthGrantDTO)
+    assert secret.secret.data.grant.server == "https://issuer.example"
+    assert secret.secret.data.grant.access_token == "at-123"
+    assert secret.secret.data.grant.refresh_token == "rt-456"
+    assert secret.secret.data.grant.expires_at == 1893456000
+
+
+def test_create_oauth_grant_without_refresh_token_defaults_to_none():
+    secret = CreateSecretDTO.model_validate(_oauth_grant_payload())
+
+    assert secret.secret.data.grant.refresh_token is None
+    assert secret.secret.data.grant.expires_at is None
+
+
+@pytest.mark.parametrize("missing", ["server", "access_token", "scopes"])
+def test_create_oauth_grant_rejects_missing_field(missing):
+    payload = _oauth_grant_payload()
+    del payload["secret"]["data"]["grant"][missing]
+
+    with pytest.raises(ValidationError, match="OAuthGrantSettingsDTO"):
+        CreateSecretDTO.model_validate(payload)
+
+
+def test_secret_kind_enum_keeps_existing_members_appended_only():
+    # Regression guard: new kinds must append, never renumber or reorder the existing set,
+    # so parallel work adding kinds to this same enum merges cleanly.
+    expected_prefix = [
+        "provider_key",
+        "custom_provider",
+        "sso_provider",
+        "webhook_provider",
+        "custom_secret",
+    ]
+    actual_prefix = [member.value for member in SecretKind][: len(expected_prefix)]
+
+    assert actual_prefix == expected_prefix
+    assert "oauth_provider" in [member.value for member in SecretKind]
+    assert "oauth_grant" in [member.value for member in SecretKind]

@@ -7,6 +7,8 @@ class SecretKind(str, Enum):
     SSO_PROVIDER = "sso_provider"
     WEBHOOK_PROVIDER = "webhook_provider"
     CUSTOM_SECRET = "custom_secret"
+    OAUTH_PROVIDER = "oauth_provider"
+    OAUTH_GRANT = "oauth_grant"
 
 
 class CustomSecretFormat(str, Enum):
