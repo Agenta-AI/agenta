@@ -10,7 +10,7 @@
  */
 import {act} from "react"
 
-import {App} from "antd"
+import {App, Modal} from "antd"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -116,8 +116,11 @@ describe("useSessionActions rename", () => {
     })
 
     afterEach(async () => {
-        // Leaked roots keep their listeners (and antd's portals) alive across tests.
+        // `modal.confirm` instances outlive their root: closing them is a separate
+        // imperative call, so a test that leaves the dialog open (the blank-name cases)
+        // would otherwise keep it registered in antd's global destroy registry.
         await act(async () => {
+            Modal.destroyAll()
             root?.unmount()
         })
         root = null
