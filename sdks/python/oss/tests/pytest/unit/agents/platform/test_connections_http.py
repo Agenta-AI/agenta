@@ -19,8 +19,8 @@ from agenta.sdk.agents.connections import (
 from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolver
 from agenta.sdk.agents.platform import connections
 
-# The `connection` fixture pins base_url to this host with no AGENTA_GATEWAY_URL override,
-# so every routed resolution composes its gateway route against it (D30).
+# The `connection` fixture pins base_url to this host; the gateways mount under it, so every
+# routed resolution composes its gateway route against it (D30).
 _GATEWAY_BASE = "https://api.x/api"
 
 

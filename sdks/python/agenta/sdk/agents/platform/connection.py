@@ -69,19 +69,6 @@ def _derive_base_url() -> Optional[str]:
     return None
 
 
-def _derive_gateway_base_url(api_base: Optional[str]) -> Optional[str]:
-    """Resolve the base URL that fronts the gateways' data plane (D30).
-
-    ``AGENTA_GATEWAY_URL`` wins when set (a gateway deployed separately from the API);
-    otherwise the gateways are mounted on the same backend as everything else, so this
-    falls back to the already-resolved API base URL.
-    """
-    gateway_url = os.getenv("AGENTA_GATEWAY_URL")
-    if gateway_url:
-        return gateway_url.rstrip("/")
-    return api_base
-
-
 def _derive_authorization() -> Optional[str]:
     """The project-scoped credential to call the Agenta backend, per request.
 
@@ -143,10 +130,11 @@ class PlatformConnection:
     def gateway_base_url(self) -> Optional[str]:
         """The base URL the gateway route is composed against (D30's ``{gateway_base}``).
 
-        ``AGENTA_GATEWAY_URL`` overrides; otherwise it is this connection's own
-        :meth:`base_url` (the gateway is mounted on the same backend).
+        The gateways mount inside the API app under ``/gateways/...``, so this IS the API
+        base. It stays a named accessor rather than a concatenation at each call site: a
+        gateway hosted separately would change this body and nothing else.
         """
-        return _derive_gateway_base_url(self.base_url())
+        return self.base_url()
 
     def authorization(self) -> Optional[str]:
         """The caller's Authorization: explicit, else the per-request context, else env key."""
