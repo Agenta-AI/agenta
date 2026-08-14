@@ -91,22 +91,43 @@ Wave 1's seed was a new domain's declarations. Wave 2's is smaller and has the s
 property: **it changes a signature that several worktrees inherit, so it cannot be written
 inside one of them.** One agent writes it on the base branch and everything else waits.
 
-- [ ] **Base branch from the current upstream release branch**, as in wave 1. Re-read the
-      branch name; it advances.
+- [x] **Base branch from the current upstream release branch**, as in wave 1. Re-read the
+      branch name; it advances. — `release/v0.112.1` merged into `feat/gateways`.
 - [x] **The four rulings below are settled.** Each changed a shape more than one package
       depends on, so none could be deferred into a worktree.
-- [ ] **Write the gateway-credentials field** (W1) on the runner wire
+- [x] **Write the gateway-credentials field** (W1) on the runner wire
       (`services/runner/src/protocol.ts`) and in the SDK
       (`sdks/python/agenta/sdk/agents/connections/models.py`), with its validator and its
       materialization. Declarations only; no caller changes.
-- [ ] **Exempt loopback from the https requirement** (W2), as an explicit branch in
+- [x] **Exempt loopback from the https requirement** (W2), as an explicit branch in
       `ResolvedConnection`'s validator with the reason written on it.
-- [ ] **Add the header echo to both mock upstreams** (W4): one endpoint returning the
+- [x] **Add the header echo to both mock upstreams** (W4): one endpoint returning the
       headers of the request it received, in `core/gateways/{llms,mcps}/providers/mock/app.py`.
-- [ ] **Verify**: the credentials field round-trips SDK → wire → runner and is materialized,
+- [x] **Verify**: the credentials field round-trips SDK → wire → runner and is materialized,
       with a test that fails if any leg drops it. This is the specific failure the shape
       invites, so it is the specific test the seed owes.
-- [ ] **Commit, and record the SHA.** Every wave-2 worktree branches from it.
+- [x] **Commit, and record the SHA.** Every wave-2 worktree branches from it.
+
+**The seed is `643c76bda2` on `feat/gateways`.** What it gives a package, concretely:
+
+- `ResolvedConnection.gateway_credentials` (SDK) and `ModelConnection.gatewayCredentials`
+  (wire), each `{header, value}` with `X-AG-Credentials` as the header default. The value is
+  masked from every dump and repr.
+- `ResolvedConnection.plaintext_headers()` and the runner's `materializeGatewayHeaders()` —
+  the header counterparts of `plaintext_environment()`. A harness-config writer reads exactly
+  one of them for the header it must set.
+- The loopback exemption on **both** sides, applied to the provider secret as well as to the
+  gateway credentials. It is loopback only: a compose-internal hostname over plain http is
+  still refused, so a dev gateway a package reaches by service name needs TLS or a loopback
+  route. Do not widen the check inside a package; it is a shared shape.
+- The value seeds the runner's redaction deny-set, so it cannot be echoed back out of a run.
+- `POST /__echo/v1/chat/completions` on the mock LLM upstream and `POST /__echo` on the mock
+  MCP one, both returning the headers they received. Reachable **through** the gateway by
+  pointing an endpoint's `base_url` at `/__echo`, which is what makes the `X-AG-Credentials`
+  and pass-through assertions acceptance-level rather than unit-level.
+- The shared golden `model_connection.gateway.json`, asserted from both legs
+  (`test_gateway_credentials.py`, `gateway-credentials.test.ts`). A package that changes the
+  field changes the golden and both tests, deliberately.
 
 ### W1 — SETTLED: our credentials are their own field, not a widened binding
 
