@@ -8,14 +8,20 @@ from ee.src.core.wallets.contracts import DebitCommandV1
 
 
 class WalletCheckPort:
-    """A synchronous, non-strict pre-dispatch admission read.
+    """An async, non-strict pre-dispatch admission read.
 
     May reject an organization already at/below its floor. Must never write a debit,
     reservation, hold, or allocation — `check` is a read, and settlement happens later,
     post-hoc, through `WalletSettlementPort.settle`.
+
+    No `amount_musd` parameter: at pre-dispatch the request's cost is not knowable — that
+    is the variable-cost premise of this design (actual cost is priced after the fact, at
+    `settle()`) — so a delta argument here cannot be honoured, and a signature advertising
+    one would be misleading. A future L1 exposure-estimate check would reintroduce an
+    amount deliberately, with reservation semantics behind it.
     """
 
-    def check(self, *, organization_id: UUID, amount_musd: int) -> bool:
+    async def check(self, *, organization_id: UUID) -> bool:
         raise NotImplementedError
 
 

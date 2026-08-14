@@ -1,5 +1,5 @@
 from typing import Optional
-from uuid import getnode
+from uuid import UUID, getnode
 from datetime import datetime, timezone, timedelta
 
 from oss.src.utils.logging import get_module_logger
@@ -21,6 +21,8 @@ from ee.src.core.subscriptions.settings import (
     trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
+from ee.src.core.wallets.proration import billing_period_bounds
+from ee.src.core.wallets.runtime import get_wallets_service
 
 log = get_module_logger(__name__)
 
@@ -299,6 +301,7 @@ class SubscriptionsService:
                 "Subscription not found for organization ID: {organization_id}"
             )
 
+        previous_plan = subscription.plan
         free_plan = get_free_plan()
 
         if event == Event.SUBSCRIPTION_CREATED:
@@ -393,4 +396,69 @@ class SubscriptionsService:
             key={"organization_id": organization_id},
         )
 
+        if subscription.plan != previous_plan:
+            await self._apply_wallet_plan_change(
+                organization_id=organization_id,
+                event=event,
+                subscription_id=subscription.subscription_id,
+                outgoing_plan=previous_plan,
+                incoming_plan=subscription.plan,
+                anchor=subscription.anchor,
+                now=now,
+            )
+
         return subscription
+
+    async def _apply_wallet_plan_change(
+        self,
+        *,
+        organization_id: str,
+        event: Event,
+        subscription_id: Optional[str],
+        outgoing_plan: str,
+        incoming_plan: str,
+        anchor: Optional[int],
+        now: datetime,
+    ) -> None:
+        """Prorate the wallet's plan-allowance credit for a mid-period plan change.
+
+        Best-effort: logged and swallowed, never raised into the billing-webhook
+        boundary. A wallet-side bug here must not block Stripe event acknowledgement
+        (which would only cause Stripe to retry indefinitely) or roll back a subscription
+        change that already committed. `apply_plan_change` is itself idempotent
+        (`idempotency_key` below), so a later retry — of the webhook, or of a manual
+        reconciliation job — converges safely; this call does not need to be retried
+        from here.
+
+        `idempotency_key` is derived from the subscription-change identity available at
+        this boundary: organization, event kind, Stripe subscription id, resulting plan,
+        and anchor. No per-webhook-delivery event id is threaded through from the Stripe
+        handler today, so two genuinely distinct changes that land on the exact same
+        (subscription_id, plan, anchor) tuple would collide and be treated as one replay —
+        an accepted Wave-1 limitation, not a correctness claim for the general case.
+        """
+        period_start, period_end = billing_period_bounds(now=now, anchor=anchor)
+        idempotency_key = (
+            f"plan_change:{organization_id}:{event.value}:"
+            f"{subscription_id or 'none'}:{incoming_plan}:{anchor}"
+        )
+
+        try:
+            await get_wallets_service().apply_plan_change(
+                organization_id=UUID(organization_id),
+                idempotency_key=idempotency_key,
+                outgoing_plan=outgoing_plan,
+                incoming_plan=incoming_plan,
+                period_start=period_start,
+                period_end=period_end,
+                now=now,
+            )
+        except Exception as exc:
+            log.error(
+                "[wallets] Failed to apply plan-change proration for organization "
+                "[%s] (%s -> %s): %s",
+                organization_id,
+                outgoing_plan,
+                incoming_plan,
+                exc,
+            )

@@ -4,11 +4,11 @@ Run this on a LOCAL DEPLOYMENT you own (not the shared EE dev stack on `localhos
 used by other worktrees — pick a distinct `COMPOSE_PROJECT_NAME` / env file per
 `hosting/AGENTS.md`). Every step is self-contained; no other document is required.
 
-## HANDOFF: three unresolved items IM-1-02 conditioned its approval on
+## HANDOFF: three unresolved items IM-1-02 conditioned its approval on — ALL THREE CLOSED (WP-1-04)
 
 IM-1-02 was approved to merge on the condition that these three items carry forward, verbatim and
-unmissable, to whoever runs this deployment or picks up the next wave. None of them is a one-line
-patch; do not close any of them opportunistically inside an unrelated PR.
+unmissable, to whoever runs this deployment or picks up the next wave. WP-1-04 (`wallets/wp-1-04-provisioning`)
+closed all three; the original text is kept below for the record, with a CLOSED note on each.
 
 **(i) Wallet general-balance provisioning is a poison-message gap.** NOTHING in this repository
 provisions a `wallet_balances` general row (`wallet_credit_id IS NULL`) for any organization, and
@@ -20,6 +20,15 @@ organization creation, or (b) reclassifying `WalletGeneralBalanceNotFoundError` 
 instead of infinite silent retry. That is a provisioning-design decision for a later wave, not a
 one-line patch. See step 2 and step 8 below for where this surfaces during acceptance.
 
+> **CLOSED (remedy a, plus a backfill for pre-existing organizations).**
+> `ee.src.core.organizations.service.provision_signup_subscription` / `provision_user_subscription`
+> now call `WalletsService.provision_general_balance` (via `ee.src.core.wallets.runtime.get_wallets_service`)
+> after subscription provisioning, in its own transaction, idempotently guarded by the partial
+> unique index `uq_wallet_balances_org_general`. Migration `ee0000000006_backfill_wallet_general_balances.py`
+> backfills the row for every organization that predates this change. Manual step 2 below is
+> therefore no longer required on a deployment built from this revision forward, but is left as-is
+> for deployments built from an older revision.
+
 **(ii) `WalletCheckPort.check` accepts `amount_musd` and never reads it.** The non-strict admission
 predicate (`ee/src/core/wallets/service.py`) rejects only on already-committed balance versus floor;
 the request's own `amount_musd` argument is dead — deliberately, per the non-strict design (variable
@@ -27,12 +36,22 @@ cost is priced after the fact, at `settle()`), but the signature still advertise
 implementation ignores. Flagged here so a caller does not assume passing a larger `amount_musd`
 changes the admission outcome.
 
+> **CLOSED (parameter dropped, not just unused).** `WalletCheckPort.check` / `WalletsService.check`
+> no longer take `amount_musd` at all — the signature is now `check(*, organization_id) -> bool`. A
+> future L1 exposure-estimate check would reintroduce an amount deliberately, with reservation
+> semantics behind it; until then no signature advertises a parameter nothing honours.
+
 **(iii) `WalletsService._run_blocking` spins a fresh thread pool and event loop per call.** When
 called from a running event loop, it submits `asyncio.run(coro)` to a brand-new
 single-worker `ThreadPoolExecutor` on every invocation rather than reusing one loop/pool across
 calls. The running-loop branch is untested against a real engine, and asyncpg loop-affinity (a
 connection/pool bound to the loop that created it) may be unsafe across that thread boundary. This
 has not been exercised against `TransactionsEngine` under load.
+
+> **CLOSED (deleted, not fixed).** `check` is now `async def` end to end — it directly `await`s the
+> DAO, matching every other streams: worker/service in the repo. `_run_blocking` (and its
+> `ThreadPoolExecutor`/`asyncio.run` bridge) no longer exists; there is nothing left to be unsafe
+> across a thread boundary.
 
 **All integration tests in this wave are WRITTEN BUT NOT RUN.** The review worktree is not allowed
 to touch the shared EE dev stack, so every suite below needs a real Postgres + Redis run on the
@@ -84,7 +103,8 @@ every start, which in order applies: `core` -> `core_oss` -> `core_ee` -> `traci
 docker compose -p agenta-ee-dev-wallets-im-1-02 exec postgres \
   psql -U username -d agenta_ee_core -c \
   "select version_num from alembic_version_core_ee;"
-# expect: ee0000000004  (add_wallet_tables)
+# expect: ee0000000006  (add_wallet_tables -> add_wallet_plan_changes_table ->
+#         backfill_wallet_general_balances; WP-1-04)
 
 docker compose -p agenta-ee-dev-wallets-im-1-02 exec postgres \
   psql -U username -d agenta_ee_tracing -c \
@@ -124,15 +144,24 @@ is wrong or the container is not on the EE image (`is_ee()` false). If the conta
 crash-loops, read the traceback — a missing `ee.*` import in an OSS-built image is the most
 likely cause and would itself be a P0 finding.
 
-## 2. Provision a general wallet balance row (manual — no code path does this yet)
+## 2. Provision a general wallet balance row (automatic as of WP-1-04; manual fallback kept below)
 
-**Known gap, stated plainly:** nothing in this codebase inserts a `wallet_balances`
+**CLOSED as of WP-1-04:** organization creation (`provision_signup_subscription` /
+`provision_user_subscription` in `ee/src/core/organizations/service.py`) now provisions the
+general `wallet_balances` row itself, and migration `ee0000000006_backfill_wallet_general_balances.py`
+backfills it for organizations created before this revision. On a deployment built from this
+revision forward, every organization created via the admin endpoint already has its general row —
+this step's manual SQL is unnecessary; skip straight to step 3. The rest of this section is kept
+for a deployment built from an older revision (before WP-1-04), where the gap still applies as
+originally documented:
+
+**Known gap (pre-WP-1-04 deployments only):** nothing in that revision inserts a `wallet_balances`
 general row (`wallet_credit_id IS NULL`) for an organization. `WalletGeneralBalanceNotFoundError`
 is documented in `ee/src/core/wallets/types.py` as an explicit out-of-scope provisioning
-job. Until a later wave adds that provisioning, every organization used in this procedure
-needs its general row inserted by hand. Skipping this step means the debit worker will
-retry the debit message forever (see the poison-message finding in the node report) — the
-message never ACKs and the stream entry never leaves pending, but nothing else breaks.
+job. Every organization used in this procedure needs its general row inserted by hand. Skipping
+this step means the debit worker will retry the debit message forever (see the poison-message
+finding in the node report) — the message never ACKs and the stream entry never leaves pending,
+but nothing else breaks.
 
 Get (or create) an organization/project via the admin endpoint per `AGENTS.md` §"Local dev
 loop", then:
@@ -358,21 +387,20 @@ retry`, and includes the message id in `processed_ids`, so `ack_and_delete` remo
 malformed-envelope handling regressed from terminal to retryable — this wedges the
 consumer group behind it and is a P0.
 
-**Known, adjudicated gap — NOT what this step tests:** a debit for an organization with no
-general balance row (skipped step 2) raises `WalletGeneralBalanceNotFoundError`, which is
-NOT a `WalletTerminalError` and is caught by `DebitWorker`'s broad `except Exception`
-in the settle stage — it is treated as retryable and left pending forever. That message
-never gets ACKed and never leaves the stream; it does not corrupt anything, but it wedges
-redelivery attempts for that specific message indefinitely (other messages in later
-batches are unaffected, since Redis Streams delivers per-message, not head-of-line). This
-is acceptable for Wave 1's local-deployment checkpoint (organizations are manually
-provisioned per step 2 before any debit is sent), but it is NOT production-ready:
-before any real traffic reaches this pipeline, either (a) organization creation must
-provision the general balance row automatically, or (b) `WalletGeneralBalanceNotFoundError`
-must be reclassified as terminal (or routed to alerting) instead of infinite silent retry.
-Do not close this gap by fixing it opportunistically in a later PR without deciding which
-of (a)/(b) — both are legitimate, and the choice affects the general-balance provisioning
-design, not just this worker.
+**CLOSED as of WP-1-04 (remedy a):** a debit for an organization with no general balance
+row raises `WalletGeneralBalanceNotFoundError`, which is NOT a `WalletTerminalError` and
+is still caught by `DebitWorker`'s broad `except Exception` in the settle stage — that
+part of the mechanism is unchanged. What closed the gap is upstream of it: organization
+creation now provisions the general balance row itself
+(`ee.src.core.organizations.service._provision_wallet_general_balance`, called from
+`provision_signup_subscription`/`provision_user_subscription`), and migration
+`ee0000000006_backfill_wallet_general_balances.py` backfills it for organizations that
+predate this change — so on a deployment built from this revision forward, an
+organization used in this procedure already has its row, and this failure mode should not
+occur in practice. It remains possible in principle (a provisioning call that failed and
+was never retried, or an organization created through a path this wave did not find) —
+remedy (b), reclassifying `WalletGeneralBalanceNotFoundError` as terminal/alerted, was not
+taken and remains open for a future wave if that residual risk needs closing too.
 
 ## 9. Pytest commands for the suites that could not be run in the review worktree
 
@@ -401,6 +429,13 @@ uv run --no-sync python -m pytest \
 #    chain, and convergence after a transient debit-publish failure.
 uv run --no-sync python -m pytest \
   ee/tests/pytest/integration/measurements/test_measurements_integration.py -v
+
+# 5. WP-1-04: the ee0000000005 (wallet_plan_changes ledger) and ee0000000006 (backfill)
+#    migrations, and the real WalletsDAO provisioning/plan-change methods.
+uv run --no-sync python -m pytest \
+  ee/tests/pytest/integration/wallets/test_wallets_plan_changes_migration_postgres.py \
+  ee/tests/pytest/integration/wallets/test_wallets_backfill_migration_postgres.py \
+  ee/tests/pytest/integration/wallets/test_wallets_provisioning_postgres.py -v
 ```
 
 **Failure meaning, per suite:**
@@ -419,12 +454,19 @@ uv run --no-sync python -m pytest \
   or its retry convergence after a transient publish failure, doesn't hold against real
   infrastructure — could mean either double-charging or silently losing a charge, which
   are opposite but equally unacceptable failure modes.
+- (5) failing on the migration tests means `ee0000000005`/`ee0000000006` don't actually
+  enforce/backfill what WP-1-04 claims (the plan-changes ledger's uniqueness/FK, or the
+  backfill's idempotent `ON CONFLICT DO NOTHING`). Failing on the provisioning tests means
+  `WalletsDAO.provision_general_balance`/`apply_plan_change` don't hold against a real
+  engine the way the `FakeWalletsDAO`-backed unit tests assume — check locking/ON CONFLICT
+  behavior first.
 
 ## 10. Unit-only commands (already run and passing during review; safe to re-run any time)
 
 ```bash
 cd api && uv run --no-sync python -m pytest ee/tests/pytest/unit/wallets/ ee/tests/pytest/unit/measurements/ -q
-# review result: 80 passed, 0 failed, 0 skipped
+# review result (IM-1-02): 80 passed, 0 failed, 0 skipped
+# review result (WP-1-04, adds the check-is-async and B1/B2/B3 unit tests): 103 passed, 0 failed, 0 skipped
 
 cd api && uv run --no-sync ruff format --check . && uv run --no-sync ruff check .
 # review result: both clean

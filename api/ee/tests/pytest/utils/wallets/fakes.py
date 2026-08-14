@@ -6,6 +6,7 @@ so `WalletsService.check()`/`settle()` and the runtime factory wiring are testab
 isolation from `ee.src.dbs.postgres.wallets.dao.WalletsDAO`.
 """
 
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -15,9 +16,12 @@ from ee.src.core.wallets.contracts import DebitCommandV1
 from ee.src.core.wallets.interfaces import WalletSettlementPort
 from ee.src.core.wallets.types import (
     CreditCandidateDTO,
+    PlanChangeResultDTO,
     WalletBalanceDTO,
+    WalletCreditDTO,
     WalletDebitDTO,
     WalletsDAOInterface,
+    compose_debit_key,
     plan_settlement,
 )
 
@@ -38,6 +42,8 @@ class FakeWalletsDAO(WalletsDAOInterface):
         self.debits: List[WalletDebitDTO] = []
         self.get_general_balance_calls = 0
         self.settle_calls = 0
+        self.provision_calls = 0
+        self.plan_changes: Dict[Tuple[UUID, str], PlanChangeResultDTO] = {}
 
     async def get_general_balance(
         self,
@@ -113,6 +119,147 @@ class FakeWalletsDAO(WalletsDAOInterface):
             )
 
         return created
+
+    async def provision_general_balance(
+        self,
+        *,
+        organization_id: UUID,
+        floor_musd: int = 0,
+    ) -> None:
+        self.provision_calls += 1
+
+        if (
+            self.general_balance is not None
+            and self.general_balance.organization_id == organization_id
+        ):
+            return  # already provisioned — idempotent no-op, mirrors ON CONFLICT DO NOTHING
+
+        self.general_balance = WalletBalanceDTO(
+            id=uuid_utils.uuid7(),
+            organization_id=organization_id,
+            wallet_credit_id=None,
+            balance_musd=0,
+            floor_musd=floor_musd,
+        )
+
+    async def get_active_plan_allowance_credit(
+        self,
+        *,
+        organization_id: UUID,
+    ) -> Optional[WalletCreditDTO]:
+        for candidate, _ in self._credits.values():
+            if candidate.credit_kind == "plan_allowance":
+                return WalletCreditDTO(
+                    id=candidate.wallet_credit_id,
+                    organization_id=organization_id,
+                    credit_kind=candidate.credit_kind,
+                    amount_musd=candidate.balance_musd,
+                    priority=candidate.priority,
+                    end_time=candidate.end_time,
+                )
+        return None
+
+    async def apply_plan_change(
+        self,
+        *,
+        organization_id: UUID,
+        idempotency_key: str,
+        outgoing_credit_id: Optional[UUID],
+        outgoing_debit_amount_musd: int,
+        incoming_credit_kind: str,
+        incoming_credit_amount_musd: int,
+        incoming_priority: int,
+        incoming_end_time,
+        floor_musd: int,
+        now: Optional[datetime] = None,
+    ) -> PlanChangeResultDTO:
+        key = (organization_id, idempotency_key)
+        if key in self.plan_changes:
+            return self.plan_changes[key].model_copy(update={"replayed": True})
+
+        if self.general_balance is None:
+            from ee.src.core.wallets.types import WalletGeneralBalanceNotFoundError
+
+            raise WalletGeneralBalanceNotFoundError(organization_id)
+
+        applied_outgoing = 0
+        outgoing_debit_id = None
+        if outgoing_credit_id is not None and outgoing_debit_amount_musd > 0:
+            candidate, balance = self._credits.get(outgoing_credit_id, (None, None))
+            if balance is not None:
+                applied_outgoing = min(outgoing_debit_amount_musd, balance.balance_musd)
+                if applied_outgoing > 0:
+                    outgoing_debit_id = uuid_utils.uuid7()
+                    updated_candidate = candidate.model_copy(
+                        update={
+                            "balance_musd": candidate.balance_musd - applied_outgoing
+                        }
+                    )
+                    updated_balance = balance.model_copy(
+                        update={"balance_musd": balance.balance_musd - applied_outgoing}
+                    )
+                    self._credits[outgoing_credit_id] = (
+                        updated_candidate,
+                        updated_balance,
+                    )
+                    self.debits.append(
+                        WalletDebitDTO(
+                            id=outgoing_debit_id,
+                            organization_id=organization_id,
+                            debit_kind="adjustment",
+                            amount_musd=applied_outgoing,
+                            wallet_credit_id=outgoing_credit_id,
+                            idempotency_key=idempotency_key,
+                            debit_key=compose_debit_key(
+                                idempotency_key=idempotency_key,
+                                source=str(outgoing_credit_id),
+                            ),
+                            resource_key="wallet:plan_change",
+                            pricing_version="plan-change-proration-v1",
+                        )
+                    )
+
+        applied_incoming = 0
+        incoming_credit_id = None
+        if incoming_credit_amount_musd > 0:
+            applied_incoming = incoming_credit_amount_musd
+            incoming_credit_id = uuid_utils.uuid7()
+            new_candidate = CreditCandidateDTO(
+                wallet_credit_id=incoming_credit_id,
+                credit_kind=incoming_credit_kind,
+                priority=incoming_priority,
+                end_time=incoming_end_time,
+                balance_musd=applied_incoming,
+            )
+            new_balance = WalletBalanceDTO(
+                id=uuid_utils.uuid7(),
+                organization_id=organization_id,
+                wallet_credit_id=incoming_credit_id,
+                balance_musd=applied_incoming,
+            )
+            self._credits[incoming_credit_id] = (new_candidate, new_balance)
+
+        self.general_balance = self.general_balance.model_copy(
+            update={
+                "balance_musd": self.general_balance.balance_musd
+                + applied_incoming
+                - applied_outgoing,
+                "floor_musd": floor_musd,
+            }
+        )
+
+        result = PlanChangeResultDTO(
+            replayed=False,
+            outgoing_credit_id=outgoing_credit_id,
+            outgoing_debit_id=outgoing_debit_id,
+            outgoing_debit_amount_musd=applied_outgoing,
+            incoming_credit_id=incoming_credit_id,
+            incoming_credit_amount_musd=applied_incoming,
+            general_balance_musd=self.general_balance.balance_musd,
+            floor_musd=self.general_balance.floor_musd,
+        )
+        self.plan_changes[key] = result
+        return result
 
 
 class FakeWalletSettlementPort(WalletSettlementPort):

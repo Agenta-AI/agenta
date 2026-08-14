@@ -93,6 +93,24 @@ class WalletBalanceDTO(BaseModel):
     deleted_at: Optional[datetime] = None
 
 
+class PlanChangeResultDTO(BaseModel):
+    """Result of `WalletsDAOInterface.apply_plan_change`. `replayed=True` means this exact
+    `idempotency_key` had already been applied — the returned ids/amounts are the
+    ORIGINAL application's, and no new row was written on this call."""
+
+    replayed: bool
+
+    outgoing_credit_id: Optional[UUID] = None
+    outgoing_debit_id: Optional[UUID] = None
+    outgoing_debit_amount_musd: int = 0
+
+    incoming_credit_id: Optional[UUID] = None
+    incoming_credit_amount_musd: int = 0
+
+    general_balance_musd: int
+    floor_musd: Optional[int] = None
+
+
 class CreditCandidateDTO(BaseModel):
     """One credit + its current balance. `plan_settlement` re-derives both expiry and
     ordering itself (below) — the caller does not need to pre-filter or pre-sort, though
@@ -271,4 +289,64 @@ class WalletsDAOInterface(ABC):
         """Apply (or replay) one debit posting in a single transaction. Returns the debit
         rows for that posting — freshly created on a first delivery, or the original rows
         unchanged on replay."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def provision_general_balance(
+        self,
+        *,
+        organization_id: UUID,
+        floor_musd: int = 0,
+    ) -> None:
+        """Idempotently insert the organization's general (`wallet_credit_id IS NULL`)
+        balance row at `balance_musd=0`. Calling this twice (retry, concurrent creation)
+        must insert nothing on the second call — implementations rely on the partial
+        unique index `uq_wallet_balances_org_general` as the actual guard, not on an
+        application-level check-then-insert."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_active_plan_allowance_credit(
+        self,
+        *,
+        organization_id: UUID,
+    ) -> Optional[WalletCreditDTO]:
+        """The organization's current, unexpired `plan_allowance`-kind credit, if any —
+        the "outgoing" credit a plan change prorates a remainder out of. Wave 1 assumes
+        at most one such credit is active at a time."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def apply_plan_change(
+        self,
+        *,
+        organization_id: UUID,
+        idempotency_key: str,
+        outgoing_credit_id: Optional[UUID],
+        outgoing_debit_amount_musd: int,
+        incoming_credit_kind: str,
+        incoming_credit_amount_musd: int,
+        incoming_priority: int,
+        incoming_end_time: datetime,
+        floor_musd: int,
+        now: Optional[datetime] = None,
+    ) -> "PlanChangeResultDTO":
+        """Apply (or replay) one plan-change proration in a single transaction:
+
+        1. Replay guard, keyed on `(organization_id, idempotency_key)` — a redelivered
+           webhook must produce no second financial effect.
+        2. If `outgoing_debit_amount_musd > 0` and `outgoing_credit_id` is set: write an
+           IMMUTABLE `wallet_debits` row (`debit_kind="adjustment"`) against that credit,
+           capped at the credit's current balance (a per-credit balance must never go
+           negative), and decrement that credit's balance row by the same amount.
+        3. If `incoming_credit_amount_musd > 0`: mint a NEW immutable `wallet_credits` row
+           (never mutate an existing one) plus its balance row.
+        4. Update the general balance projection by `(applied incoming - applied
+           outgoing)`, and set its `floor_musd` to the incoming plan's floor.
+
+        Amounts that round to zero are computed but not written — Postgres's
+        `amount_musd > 0` check constraint on both `wallet_credits` and `wallet_debits`
+        forbids a zero-amount row, and a zero-value change has nothing to replay-guard by
+        itself.
+        """
         raise NotImplementedError
