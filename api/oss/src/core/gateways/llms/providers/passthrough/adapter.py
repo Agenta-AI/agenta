@@ -2,11 +2,13 @@
 
 D34 forbids body conversion, so there is one relay for every deployment kind — the
 `passthrough`/`translated` split it replaces. `routing.py` composes the URL from route
-fields; `auth.py` presents the secret. Neither ever parses `body`: it travels to the
-upstream untouched (no `json.loads`/`json.dumps` round trip on it anywhere in this file),
-which is what keeps upstream prompt caching working (`scope-checklist.md`). The response
-body is read only to lift `usage` for the audit record; the bytes handed back to the caller
-are never reconstructed from that parse.
+fields; `auth.py` presents the secret. Neither ever parses `body`. The response body is read
+only to lift `usage` for the audit record; the bytes handed back to the caller are never
+reconstructed from that parse.
+
+D40 amends D34 with one bounded exception: `static_fields.py`'s literal per-deployment table,
+applied to the request body immediately before it is sent, for Bedrock and Vertex only. Every
+other deployment's request body still travels untouched.
 """
 
 import json
@@ -23,6 +25,9 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
 from oss.src.core.gateways.llms.providers.passthrough.auth import build_auth_headers
 from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
+from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
+    apply_static_fields,
+)
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
@@ -147,6 +152,11 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         headers: Dict[str, str],
     ) -> LLMRelayResult:
         url = build_url(route, context.protocol)
+        body = apply_static_fields(
+            deployment_kind=route.deployment_kind,
+            protocol=context.protocol,
+            body=body,
+        )
         outbound_headers = await _outbound_headers(
             headers=headers, route=route, secret=secret
         )
