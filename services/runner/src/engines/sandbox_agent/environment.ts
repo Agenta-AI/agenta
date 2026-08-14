@@ -84,6 +84,7 @@ import {
   uploadSystemPromptToSandbox,
   writeSystemPromptLocal,
 } from "./pi-assets.ts";
+import { piModelsJsonProviderId } from "./pi-model-config.ts";
 import {
   AGENT_MOUNT_ENV_VAR,
   agentMountPath,
@@ -1042,9 +1043,14 @@ export async function acquireEnvironment(
     // openai provider live) would be selected ahead of the custom `<slug>/<model>` when both share
     // the model id. That would silently route to api.openai.com instead of the user's endpoint.
     // The qualified id is an EXACT match, so it always wins over any bare-suffix collision.
+    //
+    // A model-registration plan reaches the same qualified id from the other direction: it was
+    // DERIVED by splitting the wire model on its provider prefix, so re-joining reproduces
+    // `request.model` exactly. Going through the plan either way keeps one rule — ask for the id
+    // that was registered.
     const wantedModel =
       piModelConfig && piModelConfig.models.length > 0
-        ? `${piModelConfig.providerId}/${piModelConfig.models[0].id}`
+        ? `${piModelsJsonProviderId(piModelConfig)}/${piModelConfig.models[0].id}`
         : request.model;
     environment.model = await (deps.applyModel ?? applyModel)(
       environment.session,

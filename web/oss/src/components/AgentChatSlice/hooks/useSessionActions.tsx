@@ -8,6 +8,7 @@ import {
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
+import {useAltKey} from "@agenta/shared/hooks"
 import {useQueryClient} from "@tanstack/react-query"
 import {App, Input} from "antd"
 import type {MenuProps} from "antd"
@@ -168,20 +169,42 @@ export const useSessionActions = () => {
     )
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
+    const altKey = useAltKey()
 
-    /** The one menu both surfaces render. `onOpen` is omitted where the session is already open. */
+    /**
+     * The one menu both surfaces render. `onOpen` is omitted where the session is already open;
+     * `shortcuts` is opt-in because only the playground's tab strip has the keyboard bindings —
+     * the sidebar and the sessions page render the same menu without them.
+     */
     const menuItems = useCallback(
-        (target: SessionActionTarget, options?: {onOpen?: () => void}): MenuProps["items"] => [
-            ...(options?.onOpen
-                ? [{key: "open", label: "Open in playground", disabled: !target.appId}]
-                : []),
-            {key: "rename", label: "Rename"},
-            {key: "pin", label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin"},
-            {type: "divider" as const},
-            {key: "archive", label: target.archived ? "Unarchive" : "Archive"},
-            {key: "delete", label: "Delete", danger: true},
-        ],
-        [pinnedSet],
+        (
+            target: SessionActionTarget,
+            options?: {onOpen?: () => void; shortcuts?: boolean},
+        ): MenuProps["items"] => {
+            const withShortcut = (label: string, keys: string) =>
+                options?.shortcuts ? (
+                    <span className="flex items-center justify-between gap-6">
+                        {label}
+                        <span className="text-colorTextDescription">{keys}</span>
+                    </span>
+                ) : (
+                    label
+                )
+            return [
+                ...(options?.onOpen
+                    ? [{key: "open", label: "Open in playground", disabled: !target.appId}]
+                    : []),
+                {key: "rename", label: withShortcut("Rename", `${altKey}R`)},
+                {key: "pin", label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin"},
+                {type: "divider" as const},
+                {
+                    key: "archive",
+                    label: target.archived ? "Unarchive" : withShortcut("Archive", `${altKey}A`),
+                },
+                {key: "delete", label: "Delete", danger: true},
+            ]
+        },
+        [altKey, pinnedSet],
     )
 
     const onMenuClick = useCallback(

@@ -176,7 +176,6 @@ export function RunVersionField({
     revisionPlaceholder,
     onRevisionSelect,
     revisionHint = "Runs one exact variant + revision.",
-    hideEnvironment = false,
     envOptions,
     envLoading,
     environmentSlug,
@@ -191,9 +190,6 @@ export function RunVersionField({
     revisionPlaceholder?: string
     onRevisionSelect: (selection: WorkflowRevisionSelectionResult) => void
     revisionHint?: string
-    /** TEMPORARY: drop the Deployed option, leaving a Pinned-only rail. Set by the trigger
-     *  drawers; the tool "Reference by" control still offers both. */
-    hideEnvironment?: boolean
     envOptions?: {value: string; label: string}[]
     envLoading?: boolean
     environmentSlug?: string | null
@@ -203,29 +199,33 @@ export function RunVersionField({
     /** Left-rail width (Tailwind class). Override to align with a sibling section's rail. */
     railWidth?: string
 }) {
+    const revisionPicker = (
+        <>
+            <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
+                {revisionHint}
+            </span>
+            <EntityPicker<WorkflowRevisionSelectionResult>
+                variant="popover-cascader"
+                adapter={revisionAdapter}
+                onSelect={onRevisionSelect}
+                className="!flex w-full max-w-prose !justify-between"
+                placeholder={revisionPlaceholder}
+            />
+        </>
+    )
+
     return (
         <SectionRail
             items={[
                 {value: "revision", label: "Pinned"},
-                ...(hideEnvironment ? [] : [{value: "environment", label: "Deployed"}]),
+                {value: "environment", label: "Deployed"},
             ]}
             value={bindMode}
             onChange={(v) => onBindModeChange(v as RunVersionBindMode)}
             railWidth={railWidth}
         >
-            {bindMode === "revision" || hideEnvironment ? (
-                <>
-                    <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
-                        {revisionHint}
-                    </span>
-                    <EntityPicker<WorkflowRevisionSelectionResult>
-                        variant="popover-cascader"
-                        adapter={revisionAdapter}
-                        onSelect={onRevisionSelect}
-                        className="!flex w-full max-w-prose !justify-between"
-                        placeholder={revisionPlaceholder}
-                    />
-                </>
+            {bindMode === "revision" ? (
+                revisionPicker
             ) : (
                 <>
                     <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">

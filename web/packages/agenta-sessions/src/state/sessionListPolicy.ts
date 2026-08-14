@@ -1,5 +1,8 @@
 import type {SessionExpansion, SessionListFilters, SessionStream} from "@agenta/entities/session"
 
+import {sessionAgentId} from "../row/sessionAgent"
+import {isAutomationSession} from "../row/sessionTrigger"
+
 export type SessionOriginPolicy = "all" | "exclude-trigger" | "trigger-only"
 
 export interface SessionListRequestPolicy {
@@ -43,6 +46,42 @@ export const isStartedSession = (row: SessionStream): boolean =>
 
 export const startedSessions = <T extends SessionStream>(rows: readonly T[]): T[] =>
     rows.filter(isStartedSession)
+
+/**
+ * Can this row be opened? Its destination is the agent id its references name (`sessionAgentId`),
+ * and a row that names none renders inert: the title button disables and the click does nothing.
+ *
+ * Display-only, like `isStartedSession`.
+ */
+export const isOpenableSession = (row: SessionStream): boolean => sessionAgentId(row) !== null
+
+/**
+ * Drops rows that would render inert — the browsing rule, for rows nobody asked for by name.
+ *
+ * Automation rows stay whether or not they can be opened, the same exemption `isStartedSession`
+ * gives them. A trigger row IS its schedule: it has a name, an identity and its own menu before
+ * its first turn ever lands, and the automations list must never blank.
+ */
+export const openableSessions = <T extends SessionStream>(rows: readonly T[]): T[] =>
+    rows.filter((row) => isOpenableSession(row) || hasAutomationIdentity(row))
+
+/** The automation carve-out, on the same two signals `isStartedSession` accepts. */
+const hasAutomationIdentity = (row: SessionStream): boolean =>
+    isAutomationSession(row) || Boolean(row.trigger)
+
+/**
+ * Which display rules each list group applies. `main` is browsing, so it hides chats nobody
+ * started and rows with nowhere to open.
+ *
+ * `pinned` and `waiting` apply neither: both hold rows someone asked for by name, where a missing
+ * row reads as a fault rather than as tidiness. A pin that silently vanishes reads as data loss,
+ * and hiding an approval-gated row asks its owner to approve a tool call they cannot see. An inert
+ * row is the lesser harm in both.
+ */
+export const sessionGroupRows = <T extends SessionStream>(
+    group: "main" | "pinned" | "waiting",
+    rows: readonly T[],
+): T[] => (group === "main" ? openableSessions(startedSessions(rows)) : [...rows])
 
 /**
  * Is the list still waiting on a top-up? A page is 30 rows and unstarted ones are the NEWEST, so a

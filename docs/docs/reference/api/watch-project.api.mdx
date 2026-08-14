@@ -1,0 +1,72 @@
+---
+id: watch-project
+title: "Watch Project"
+description: "Relay low-frequency entity changes for the authorized project."
+sidebar_label: "Watch Project"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVcGO2zYQ/RViLm0A1t4setKpRhs0RlrU2N0mh10jGFNjiQlFMuTIG9XQvwekJMvezRbosSdJnMfH4Zs3oyMwVhGKe7ilGLWzEeT8upVQUlRBe9bOQgE3ZLATxj3+tA/0pSWrOkGWNXdC1WgrimLvguCaBLZcu6D/oVL44D6R4sWDfbArodAYCuJRcy2cNZ1wlkRi04FKcdD0KDyFRucchEJrHQvnyQqudRSRA2Ej0JZij8ZEsUP1WbB7sOlUoyPHH4R3xmhbiR3VeNAuLECC8xQw3WNdQgGPyKr+OGYGEjwGbIgpJDGOYLEhKGCMf9QlSNBJgS8thQ4kTAlDwaElCVHV1CAUR+DOp62Rg7YVSNi70CBDAW2baVizSYDNwC3WJfT9NjFG72ykmEiur67S41L921YpinHfGnEzgkGCcpbJcoKj90arfMnlp5j2HOfE+r7vJfx8ff2c+D0aXeZt4k0ILvwH1iSRp8B6yLskRm3Sm2Zq4nOAceoiirb7a58lv9Stl6cVbZkqCtBvezmtYQjYnYn5hxsShF5CE6vv1WGC/kkxYkVwInsZmsUQdynap/r7Ngsyhdd5oZeg+OsZjduNnppwvyYtvzL0c/4nzOyj+6zNkP6I284cc4mGCr0sxW9DCb532AR5e3e3eUY4+KMhrl1qkIqGtuAaCljGcSQsc9+AhEjhMDVLG0zCoNe5bMNnzexjsVxSu1DGteUCK7KMC9QDcJs4VBs0d5lktVm/o+4tYUkBivvtOeA2uW3wzyXspDl6/Y6SCmPjrsbpM5hi7N162NXnWu7deSlXOTmx2qzh6cy7CKW2QJVdMJ2UwyCfXHu+LUigJjcFMGHzyymSapg0HI65WrxeXKUl7yI3aM+O+JA0F5vTrLrI7zi36v96PI+FTI2y9AZ1buWs6XF04T3E+R81+HAroXaRU+x43GGkv4Pp+7Q8zOlkrFJH3JnUYXs0kf5Fvh9vxmu+Ei8l9Jm6p7+FA5o2AbOlDxh0Oi07WE6OS2kMO1dKkeezXc+Ga2I5NeHvb+6g778BnqCkLA==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Watch Project"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/sessions/watch"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Relay low-frequency entity changes for the authorized project.
+
+A caller with only one required view permission cannot open this stream and falls back to
+the lists' polling behavior.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./watch-project.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./watch-project.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./watch-project.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

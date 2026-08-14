@@ -3,7 +3,7 @@ import {type RefObject, Suspense, lazy, useCallback, useEffect, useRef} from "re
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
+import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {ArrowRight, Code, Paperclip} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Tooltip} from "antd"
@@ -37,7 +37,6 @@ import QueuedMessages from "./QueuedMessages"
 import RecordingBar from "./RecordingBar"
 import RevealCollapse from "./RevealCollapse"
 import RunningElsewhereStrip from "./RunningElsewhereStrip"
-import HarnessPickerPanel from "./SlashCommand/HarnessPickerPanel"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 import VoiceInputButton from "./VoiceInputButton"
 
@@ -93,7 +92,8 @@ const AgentComposerDock = ({
         removeQueued: (id: string) => void
         clearQueue: () => void
     }
-    modelKey: React.ComponentProps<typeof ConnectModelBanner>
+    // The dock supplies `entityId` (it already has it) and `suppressed`; the parent passes status.
+    modelKey: Omit<React.ComponentProps<typeof ConnectModelBanner>, "entityId" | "suppressed">
     modelBlocked: boolean
     contextMaxTokens: number | null
     showContextBudget: boolean
@@ -273,7 +273,11 @@ const AgentComposerDock = ({
                     onboarding SUPPRESSES it — the provider-key check is deferred until the agent is
                     committed (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
                 <div className={CHAT_COLUMN}>
-                    <ConnectModelBanner {...modelKey} suppressed={chromeHidden} />
+                    <ConnectModelBanner
+                        {...modelKey}
+                        entityId={entityId}
+                        suppressed={chromeHidden}
+                    />
                 </div>
                 {/* Sits with the other docked strips so a session running in another browser reads
                     as busy instead of frozen (#5530). */}
@@ -321,26 +325,6 @@ const AgentComposerDock = ({
                 <div className="relative mb-3" ref={composerBoxRef}>
                     {/* Drilled into from the palette: same anchor, so the panel replaces the menu
                         in place rather than opening somewhere else on screen. */}
-                    {slash.picker === "harness" ? (
-                        // `origin-bottom`: the panel is docked to the composer's top edge, so it
-                        // grows out of that edge rather than from its own middle.
-                        <div
-                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
-                        >
-                            <HarnessPickerPanel
-                                harnessIds={slash.harnessIds}
-                                capabilities={slash.capabilities}
-                                currentHarness={slash.currentHarness}
-                                currentModel={slash.currentModel}
-                                customSecrets={slash.customSecrets}
-                                currentConnectionSlug={slash.currentConnectionSlug}
-                                onApply={slash.applyHarness}
-                                onDismiss={dismissPicker}
-                                onBackToCommands={backToCommands}
-                                onOpenConfig={openModelHarnessConfig}
-                            />
-                        </div>
-                    ) : null}
                     {slash.picker === "permissions" ? (
                         <div
                             className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
@@ -369,6 +353,8 @@ const AgentComposerDock = ({
                         hideTrigger
                         showGroup
                         showSearch
+                        searchPlaceholder="Search models"
+                        sectionTooltip={<HarnessTooltip />}
                         options={slash.modelGroups}
                         value={slash.currentModel}
                         // The option carries a vault pick's connection slug + kind; `applyModel`

@@ -1,13 +1,25 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {customSecretsAtom} from "@agenta/entities/secret"
-import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
+    customSecretsAtom,
+    providerConnectionsAtom,
+    subscriptionPairModelsAtom,
+    subscriptionPairsFrom,
+} from "@agenta/entities/secret"
+import {
+    harnessCapabilitiesAtomFamily,
+    SUBSCRIPTION_STATUS_QUERY_HARNESS,
+    subscriptionStatusQueryAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
+import {
+    buildConnectionPickerRows,
     buildModelOptionGroups,
+    buildPickerGroupsWithSections,
+    pickerSelectionFrom,
     describeMcp,
     describeSkill,
     describeTool,
-    harnessAllowsModel,
     harnessMetaFor,
     modelLabel,
     permissionPolicyLabel,
@@ -37,15 +49,7 @@ import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 // Same icons the config panel gives these sections (AgentTemplateControl / itemKinds).
-import {
-    ChatCircleDots,
-    Cpu,
-    Cube,
-    GraduationCap,
-    Plugs,
-    ShieldCheck,
-    Wrench,
-} from "@phosphor-icons/react"
+import {ChatCircleDots, Cpu, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
@@ -54,12 +58,12 @@ import {useChatScopeKey} from "../state/scope"
 import {addSessionAtomFamily} from "../state/sessions"
 
 /** Which picker the palette drilled into, or null when the palette is just a list. */
-export type SlashPicker = "model" | "harness" | "permissions" | null
+export type SlashPicker = "model" | "permissions" | null
 
 /**
  * The `/` palette for the agent chat composer.
  *
- * `/model` and `/harness` drill into pickers whose apply writes the DRAFT agent config through
+ * `/model` drills into a picker whose apply writes the DRAFT agent config through
  * `updateConfiguration` — the same write-through `useAlwaysAllowTool` uses, so the change takes
  * effect on the next send with no commit. Tools and skills insert their slug as plain text: the
  * request carries text and file parts only, so an inserted name is a hint the agent usually
@@ -131,27 +135,54 @@ export function useChatSlashCommands({
         (!parametersSchema || permissionPolicySchema(parametersSchema) !== null) &&
         permissionOptions.length > 0
 
-    /**
-     * The same model source the config drawer uses: the harness-filtered inspect catalog PLUS the
-     * vault's custom_provider models, so a configured Bedrock/custom connection is selectable here
-     * too. Built from one recipe with `useModelHarness` so the two pickers cannot list different
-     * models for the same agent.
-     */
-    const modelGroups = useMemo(
-        () => [
-            ...buildModelOptionGroups(capabilities, currentHarness),
-            ...vaultModelGroups(customSecrets, capabilities, currentHarness),
-        ],
-        [capabilities, currentHarness, customSecrets],
-    )
-    // With neither source the drawer falls back to a schema-driven picker, which this palette does
-    // not host — so offer no `/model` at all rather than a command that opens an empty panel.
-    const modelAvailable = modelGroups.length > 0
-
     const harnessIds = useMemo(
         () => selectableHarnesses(capabilities ? Object.keys(capabilities) : []),
         [capabilities],
     )
+
+    /**
+     * The same model source the config drawer uses: one group per stored connection (and per
+     * subscription), each listing its models crossed with the harnesses that may drive them.
+     * Built from one recipe with `useModelHarness` so the two pickers cannot list different models
+     * for the same agent. A project with no connections falls back to the pre-connections menu —
+     * the harness catalog plus the vault's custom-provider models.
+     */
+    const connections = useAtomValue(providerConnectionsAtom)
+    // Same live pairs the config picker and the drawer read, under the same query key — one poll
+    // for the deployment, not one per surface.
+    const subscriptionStatus = useAtomValue(
+        subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS),
+    )
+    const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
+    const subscriptionPairs = useMemo(
+        () => subscriptionPairsFrom(subscriptionStatus.data?.harnesses),
+        [subscriptionStatus.data?.harnesses],
+    )
+    const modelGroups = useMemo(() => {
+        const rows = buildConnectionPickerRows({
+            connections,
+            capabilities,
+            harnessIds,
+            subscriptionPairs,
+            pairModelSelection,
+        })
+        if (rows.length) return buildPickerGroupsWithSections(rows)
+        return [
+            ...buildModelOptionGroups(capabilities, currentHarness),
+            ...vaultModelGroups(customSecrets, capabilities, currentHarness),
+        ]
+    }, [
+        connections,
+        capabilities,
+        harnessIds,
+        currentHarness,
+        customSecrets,
+        subscriptionPairs,
+        pairModelSelection,
+    ])
+    // With neither source the drawer falls back to a schema-driven picker, which this palette does
+    // not host — so offer no `/model` at all rather than a command that opens an empty panel.
+    const modelAvailable = modelGroups.length > 0
 
     const write = useCallback(
         (
@@ -175,84 +206,44 @@ export function useChatSlashCommands({
     )
 
     /**
-     * Apply a picked model. A vault-hosted option carries its own connection slug and deployment
-     * kind in `metadata` (put there by `vaultModelGroups`); a catalog option carries neither. Read
-     * them off the PICKED option rather than re-deriving from the model id — duplicate ids exist
-     * across providers/connections — and mirror the drawer's provider rule: a vault pick resolves
-     * to the model FAMILY, since a connection's own kind (bedrock/…) would fail the harness check.
+     * Apply a picked model. A connection row's option carries its connection slug, mode, provider
+     * family and harness in `metadata`; a fallback catalog option carries only what
+     * `vaultModelGroups` put there. Read them off the PICKED option rather than re-deriving from
+     * the model id — duplicate ids exist across providers/connections — and mirror the drawer's
+     * provider rule: a vault pick resolves to the model FAMILY, since a connection's own kind
+     * (bedrock/…) would fail the harness check.
+     *
+     * A row names a model AND the harness that runs it, so both are written in one patch chain.
      */
     const applyModel = useCallback(
         (modelId: string, option?: {metadata?: Record<string, unknown>}) => {
-            const metadata = option?.metadata
-            const connectionSlug =
-                typeof metadata?.connectionSlug === "string" ? metadata.connectionSlug : null
-            const metadataProvider =
-                typeof metadata?.provider === "string" ? metadata.provider : null
-            const provider = connectionSlug
-                ? (vaultPickedProviderFamily(modelId, metadataProvider, capabilities) ??
-                  providerForModel(capabilities, currentHarness, modelId))
-                : providerForModel(capabilities, currentHarness, modelId)
-            const label = modelLabel(capabilities, currentHarness, modelId) ?? modelId
+            const selection = pickerSelectionFrom(modelId, option?.metadata)
+            const harness = selection.harness ?? currentHarness
+            const provider =
+                selection.provider ??
+                (selection.slug
+                    ? (vaultPickedProviderFamily(modelId, null, capabilities, harness) ??
+                      providerForModel(capabilities, harness, modelId))
+                    : providerForModel(capabilities, harness, modelId))
+            const label = modelLabel(capabilities, harness, modelId) ?? modelId
+            const base =
+                selection.harness && selection.harness !== currentHarness
+                    ? (withHarnessKind(config, selection.harness) ?? config)
+                    : config
             write(
-                withModel(config, {modelId, provider, slug: connectionSlug}),
-                `Model set to ${label}`,
+                withModel(base, {
+                    modelId,
+                    provider,
+                    mode: selection.mode,
+                    slug: selection.slug,
+                }),
+                selection.harness && selection.harness !== currentHarness
+                    ? `Model set to ${label} · ${harnessMetaFor(selection.harness).label}`
+                    : `Model set to ${label}`,
             )
             setPicker(null)
         },
         [capabilities, config, currentHarness, write],
-    )
-
-    /**
-     * The model a harness falls back to when it cannot reach the current one: the first entry of
-     * its first published provider group. The capability catalog publishes no explicit default, and
-     * leaving an unreachable model behind (what the drawer does) reads as a silent failure in chat.
-     */
-    const fallbackModelFor = useCallback(
-        (harness: string) => {
-            const groups = buildModelOptionGroups(capabilities, harness)
-            const first = groups[0]?.options[0]
-            return first ? {id: first.value, label: first.label} : null
-        },
-        [capabilities],
-    )
-
-    const applyHarness = useCallback(
-        (kind: string) => {
-            const meta = harnessMetaFor(kind)
-            const keepsModel = harnessAllowsModel(
-                capabilities,
-                kind,
-                currentModel,
-                customSecrets,
-                currentConnectionSlug,
-            )
-            const fallback = keepsModel ? null : fallbackModelFor(kind)
-            const switched = withHarnessKind(config, kind)
-            const next =
-                fallback && switched
-                    ? withModel(switched, {
-                          modelId: fallback.id,
-                          provider: providerForModel(capabilities, kind, fallback.id),
-                      })
-                    : switched
-            // The panel already warned which model a stranded switch moves to, before applying.
-            write(
-                next,
-                fallback
-                    ? `Harness set to ${meta.label} · model moved to ${fallback.label}`
-                    : `Harness set to ${meta.label}`,
-            )
-            setPicker(null)
-        },
-        [
-            capabilities,
-            config,
-            currentConnectionSlug,
-            currentModel,
-            customSecrets,
-            fallbackModelFor,
-            write,
-        ],
     )
 
     const applyPermission = useCallback(
@@ -346,15 +337,6 @@ export function useChatSlashCommands({
                       onSelect: () => openPicker("model"),
                   }
                 : null,
-            {
-                key: "harness",
-                label: "/harness",
-                description: "Switch the runtime that executes this agent",
-                tail: currentHarness ? `${harnessMetaFor(currentHarness).label} ›` : "›",
-                icon: <Cube size={14} />,
-                kind: "open" as const,
-                onSelect: () => openPicker("harness"),
-            },
             permissionsAvailable
                 ? {
                       key: "permissions",
@@ -447,7 +429,6 @@ export function useChatSlashCommands({
         harnessIds,
         capabilities,
         applyModel,
-        applyHarness,
         applyPermission,
     }
 }

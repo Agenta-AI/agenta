@@ -17,6 +17,28 @@ export type InteractionResolution = {
 type Reference = { id?: string; slug?: string; version?: string };
 
 /**
+ * Which of the three workflow entities a reference names. Spelled `key`, matching the
+ * reference lists evaluation runs already store.
+ */
+export type ReferenceKey =
+  | "workflow"
+  | "workflow_variant"
+  | "workflow_revision";
+
+/**
+ * A reference that still says which entity it names after it leaves the keyed map. Stored
+ * reference lists are flat, so without this a reader can only guess which id is the workflow.
+ */
+export type TypedReference = Reference & { key: ReferenceKey };
+
+/** The run's workflow identity: the artifact (the workflow), its variant, and its revision. */
+type WorkflowIdentity = {
+  artifact?: Reference;
+  variant?: Reference;
+  revision?: Reference;
+};
+
+/**
  * The gated call a durable interaction row describes.
  *
  * `tool_call_id` is the HARNESS's id for the call, which the interaction `token` is not — the
@@ -47,13 +69,7 @@ export type InteractionData = {
 
 /** Build the invoke `references` from the runner's run-context workflow identity. */
 export function buildWorkflowReferences(
-  workflow:
-    | {
-        artifact?: Reference;
-        variant?: Reference;
-        revision?: Reference;
-      }
-    | undefined,
+  workflow: WorkflowIdentity | undefined,
 ): Record<string, Reference> | undefined {
   if (!workflow) return undefined;
   const refs: Record<string, Reference> = {};
@@ -64,19 +80,30 @@ export function buildWorkflowReferences(
 }
 
 /**
+ * The same identity as the flat list every PERSISTED shape uses (the turn-ledger append, the
+ * session heartbeat), each element carrying the family key it was stored under. That key is the
+ * only place the family lives, so serializing the map's values alone strands the reader with
+ * bare uuids and no way to tell the workflow from its variant.
+ */
+export function buildWorkflowReferenceList(
+  workflow: WorkflowIdentity | undefined,
+): TypedReference[] | undefined {
+  const refs = buildWorkflowReferences(workflow);
+  if (!refs) return undefined;
+  return Object.entries(refs).map(([key, reference]) => ({
+    ...reference,
+    key: key as ReferenceKey,
+  }));
+}
+
+/**
  * The durable `data` for one gate: what was asked, who to attribute it to, and what config the
  * turn ran under. The two attribution fields are omitted (not null, not `{}`) when the request
  * carries neither, so a legacy row's shape is exactly what it was before this field existed.
  */
 export function buildInteractionData(
   request: {
-    runContext?: {
-      workflow?: {
-        artifact?: Reference;
-        variant?: Reference;
-        revision?: Reference;
-      };
-    };
+    runContext?: { workflow?: WorkflowIdentity };
     effectiveParameters?: Record<string, unknown>;
   },
   tool: string,

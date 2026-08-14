@@ -39,6 +39,9 @@ const ITEM_ROW_CLASS = "shrink-0"
 const CAPTION_CLASS =
     "px-2 pt-1.5 pb-1 text-xs font-medium text-[var(--ag-colorTextTertiary)] truncate"
 
+/** px-[3px] + the card's 1px border + ROW_CLASS's px-2 = 12px, the nav rows' icon column. */
+const PANEL_CLASS = "flex flex-col px-[3px] py-1"
+
 /** Capped scroll list (3 h-8 rows) with the scrollbar hidden. */
 const SCROLL_LIST_CLASS =
     "flex max-h-24 flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
@@ -168,7 +171,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
 
     const projectPanel = useMemo(
         () => (
-            <div className="flex flex-col p-1">
+            <div className={PANEL_CLASS}>
                 <div className={CAPTION_CLASS}>Projects in {orgLabel}</div>
                 <div className={SCROLL_LIST_CLASS}>
                     {projectsForOrg.map((proj) => {
@@ -231,7 +234,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
 
     const orgPanel = useMemo(
         () => (
-            <div className="flex flex-col p-1">
+            <div className={PANEL_CLASS}>
                 <div className="flex items-center justify-between">
                     <Row
                         className="!w-auto flex-1 font-medium"
@@ -316,8 +319,16 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                 destroyOnHidden
                 styles={{root: {zIndex: 2000}}}
                 popupRender={() => (
-                    // Fixed width matching the expanded trigger (sidebar 236px − 14px wrapper padding).
-                    <div className="w-[220px] overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-md">
+                    // antd pins the popup root's min-width to the trigger width, so w-full makes the
+                    // panel exactly as wide as the trigger at any rail width — never wider. Collapsed
+                    // the trigger is icon-sized, so the panel falls back to a readable fixed width.
+                    // box-border because preflight is off: w-full + a border would otherwise overflow 2px.
+                    <div
+                        className={clsx(
+                            "box-border overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-md",
+                            collapsed ? "w-[220px]" : "w-full",
+                        )}
+                    >
                         {panel === "projects" ? projectPanel : orgPanel}
                     </div>
                 )}
@@ -328,7 +339,8 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     className={clsx(
                         // Borderless at rest; the hover fill is the affordance.
                         "flex items-center rounded-md border-0 bg-transparent cursor-pointer transition-colors hover:bg-[var(--ag-colorFillTertiary)]",
-                        collapsed ? "h-8 w-8 justify-center p-1" : "w-full gap-2 px-1.5 py-1.5",
+                        // px-3 puts the avatar on the nav rows' icon column instead of 6px inside it.
+                        collapsed ? "h-8 w-8 justify-center p-1" : "w-full gap-2 px-3 py-1.5",
                     )}
                     title={`${projectLabel} · ${orgLabel}`}
                 >

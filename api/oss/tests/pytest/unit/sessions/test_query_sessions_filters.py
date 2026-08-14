@@ -161,10 +161,18 @@ def _stream(session_id: str) -> SessionStream:
 
 
 class _FakeStreamsService:
-    def __init__(self, streams: Optional[List[SessionStream]] = None):
+    def __init__(
+        self,
+        streams: Optional[List[SessionStream]] = None,
+        reference_session_ids: Optional[List[str]] = None,
+    ):
         self.streams = streams if streams is not None else []
         self.captured: Dict[str, object] = {}
         self.count_captured: Dict[str, object] = {}
+        self.reference_session_ids = reference_session_ids or []
+
+    async def query_session_ids_by_references(self, *, project_id, references, limit):
+        return self.reference_session_ids[:limit]
 
     async def query_streams(
         self,

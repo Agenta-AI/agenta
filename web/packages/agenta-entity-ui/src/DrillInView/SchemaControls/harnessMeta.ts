@@ -1,6 +1,6 @@
 /**
  * Harness display identity, shared by every surface that lists harnesses — the config drawer's
- * select and rail, and the chat composer's `/harness` palette. One home so a harness can't be
+ * select and rail, and the chat composer's model palette. One home so a harness can't be
  * hidden in one picker and offered in another.
  */
 import {formatEnumLabel} from "@agenta/shared/utils"

@@ -143,6 +143,10 @@ services:
                 "*.pyc",
                 "--reload-exclude",
                 "__pycache__",
+                # Without a graceful-shutdown bound, --reload waits forever for open SSE
+                # streams (/sessions/watch) and the api deadlocks on every code change.
+                "--timeout-graceful-shutdown",
+                "5",
                 "--root-path",
                 "/api",
                 "--loop",
