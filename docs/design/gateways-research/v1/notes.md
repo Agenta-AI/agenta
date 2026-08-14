@@ -301,6 +301,20 @@ The channels design needed a wire contract because third parties would implement
 equivalent need has been established here, and inventing one would create a compatibility
 surface with no consumer.
 
+### An override that nothing exercised was wrong, and stayed wrong quietly
+
+Closing OD19 turned up a defect in Vertex routing that had shipped and was invisible: a row with
+an explicit `base_url` skipped the `/endpoints/openapi` segment on the Chat Completions and
+Responses doors, so an operator who set one — the VPC-only case the field exists for — would have
+got a wrong URL on two doors out of three. Nothing caught it because nothing registers a Vertex
+`base_url`: no seed, no fixture, no test. The fallback path everything does exercise composed the
+segment correctly, so the tests were green and the feature was broken.
+
+The general shape, worth recognising again: **an optional field with no caller is not covered by
+"the tests pass."** The same reasoning produced OD19 itself, where two doors disagreed about what
+one stored string addressed and nothing revealed it. When a field is accepted but never supplied,
+its correctness is a claim nobody has checked rather than one the suite is defending.
+
 ---
 
 ## Watch list
