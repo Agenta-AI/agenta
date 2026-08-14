@@ -887,6 +887,54 @@ CU cleanups, IM intermediate merges, C checkpoints, W waves. Numbering is absolu
 workstream and never restarts per wave.
 
 
+## D40. A named, static field rewrite is allowed where a resold wire demands it. Amends D34
+
+D34 forbids the gateway converting a body, and that stands. This carves out one bounded exception,
+because two vendors resell Anthropic's Messages wire with a fixed structural difference that no
+caller-side workaround reaches without giving up the front door entirely.
+
+**The facts, from the vendors' own documentation.**
+
+| | Bedrock `InvokeModel` | Vertex `rawPredict` |
+| --- | --- | --- |
+| Body must contain | `anthropic_version: "bedrock-2023-05-31"` | `anthropic_version: "vertex-2023-10-16"` |
+| Model id | in the URL, not the body | in the URL, not the body |
+
+Anthropic states it directly for Vertex: "`model` is not passed in the request body. Instead, it is
+specified in the Google Cloud endpoint URL", and "`anthropic_version` is passed in the request body
+(rather than as a header), and must be set to the value `vertex-2023-10-16`". Bedrock's own
+parameter reference requires `anthropic_version` with the value `bedrock-2023-05-31`, and takes the
+model id as a separate `InvokeModel` parameter. Note the asymmetry with the native API, where
+`anthropic-version` is a **header**.
+
+**So the rewrite is two operations, not one.** Add a constant field; remove `model`. It was
+described as additive when first proposed and that was wrong. Both operations are still static: the
+key names are fixed, the added value is a per-deployment constant, and nothing is read from the body
+to decide either one.
+
+**The rule this carves out.** A deployment may declare a static table entry of the form
+`{fields_added: {name: constant}, fields_removed: [name]}`. Both lists are literal. **Nothing in the
+table may be computed from the request** — not from its content, not from its size, not from another
+field's value. An entry that needs to look at the body to decide is conversion, and is refused.
+
+**Why this is not D34 by another name.** D34 exists because conversion is unbounded: once the
+gateway rewrites a body by understanding it, it owns every provider's schema forever, and every
+schema change becomes our outage. A fixed key with a fixed value is not understanding — it is
+addressing that the vendor happened to put in the body instead of the URL or a header, which is
+exactly where the same value lives on the native API. The bound is the table's literalness, and it
+is checkable by reading the table.
+
+**What it costs, stated so nobody discovers it in a test.** For these two deployments the relay is
+no longer byte-identical: adding and removing a key means re-serializing, and `content-length`
+changes. Byte-for-byte relay stays the rule and the acceptance criterion everywhere else, with these
+two deployments named as the exemption rather than the assertion quietly weakened.
+
+**One thing to probe before implementing, not assume.** Whether these endpoints *reject* a body that
+still carries `model`, or merely ignore it, is not stated in either vendor's documentation. If it is
+ignored, the removal half is unnecessary and the exception shrinks to an injection. Establish it the
+way OD16 established the rest — against the real endpoint — before writing the removal.
+
+
 ---
 
 ## Still open

@@ -330,6 +330,12 @@ client tool to cover a gateway endpoint on either plane, not only an external in
 made registration a precondition for use, so an agent needs a way to ask for it.
 *Depends on:* C2. *Blocks:* WP19.
 
+**WP27 — The static field rewrite for resold Anthropic wires (D40).** Bedrock's `InvokeModel` and
+Vertex's `rawPredict` need `anthropic_version` in the body and `model` absent from it. A static
+per-deployment table of literal added/removed fields, nothing computed from the request. Leads with
+a probe: whether a body still carrying `model` is rejected or ignored is undocumented.
+*Depends on:* C2.
+
 **Merge IM5 → C3.** Deploy. Acceptance tests above.
 
 **Wave 3 also carries seven cleanups** unblocked by C2 — CU1, CU2, CU6, CU7, CU10, CU12 and CU13.

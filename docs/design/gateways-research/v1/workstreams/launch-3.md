@@ -113,6 +113,26 @@ registration first.
 *Done when:* an agent refused for a missing connection can raise a request that lands the user on
 the right registration surface for that plane, and the run resumes on completion.
 
+
+**WP27 — The static field rewrite for resold Anthropic wires (D40).** Bedrock's `InvokeModel` and
+Vertex's `rawPredict` both resell Anthropic's Messages wire with one fixed structural difference:
+`anthropic_version` must be in the body (`bedrock-2023-05-31` / `vertex-2023-10-16`), and `model`
+must not be — it rides the URL. D40 permits a static per-deployment table of literal fields added
+and literal fields removed, with nothing computed from the request.
+
+**Phase 0, before any code:** probe both endpoints to establish whether a body that still carries
+`model` is *rejected* or merely *ignored*. Neither vendor's documentation says. If it is ignored,
+the removal half is unnecessary and this package shrinks to an injection. Record the answer beside
+D40. This is the same discipline OD16 used and for the same reason — the alternative is a rewrite
+built on a guess.
+
+The relay stops being byte-identical for these two deployments only. Name them as the exemption in
+the acceptance test rather than weakening the byte-for-byte assertion everywhere.
+*Depends on:* C2. *Blocks:* nothing.
+*Done when:* a Messages request reaches both deployments and returns a completion, the table is
+literal with a test proving no entry reads the request, and every other deployment still relays
+byte for byte.
+
 ---
 
 ## The cleanups this wave carries
