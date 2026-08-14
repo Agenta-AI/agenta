@@ -15,7 +15,7 @@ what done looks like. Sequencing comes later.
 
 ---
 
-## 1. Close the plaintext secrets read surface
+## CU1. Close the plaintext secrets read surface
 
 **What.** The vault's read routes return decrypted material to any caller holding the view
 permission: both `GET /secrets/` and `GET /secrets/{id_or_slug}` return the full payload, and the
@@ -29,7 +29,7 @@ Restricting it before they have another way simply breaks them.
 removed. Parallel bring-your-own-secrets work wants the same outcome, so ownership has to be
 agreed rather than assumed. Tracked as OR14 in `open-reviews.md`.
 
-## 2. Remove module-level provider keys from the workflow handler
+## CU2. Remove module-level provider keys from the workflow handler
 
 **What.** One handler assigns provider keys to module-level attributes on the routing library
 before each call, rather than passing them per call. That is process-wide state; in a shared
@@ -42,7 +42,7 @@ connection. Dependency injection through the gateway is what removes the reason 
 reported unused and may be deleted outright, which would close this without any work. Tracked as
 OR13.
 
-## 3. Route embeddings through the gateway
+## CU3. Route embeddings through the gateway
 
 **What.** Two similarity evaluators call the OpenAI client directly, twice each, and hand-roll
 their secret lookup by scanning the vault for a `provider_key` secret whose inner kind is
@@ -54,7 +54,7 @@ provide.
 
 **Done.** Both callers reach an embeddings route on the gateway, and neither reads the vault.
 
-## 4. Convert every remaining service that resolves a secret itself
+## CU4. Convert every remaining service that resolves a secret itself
 
 **What.** The general case behind item 3. Any service that fetches provider material and calls an
 upstream directly is a bypass of the boundary, and each one is a place where "did every call get
@@ -67,7 +67,7 @@ the callers in scope are converted.
 call sites took two passes to count correctly (`raw/model-call-sites.md`), and there is no reason
 to think the tool side is easier.
 
-## 5. Move the eligible slice of the runner's tool loopback to the gateway
+## CU5. Move the eligible slice of the runner's tool loopback to the gateway
 
 **What.** The runner synthesizes a loopback HTTP MCP server per run, because Claude Code and Codex
 accept tools only over MCP while Pi receives them through a bundled extension. Calls relay back to
@@ -95,7 +95,7 @@ runner change inside the wave whose job is standing the gateways up would confus
 **Done.** The eligible slice is served by the gateway, the ineligible slice is still served by the
 runner, and the boundary between them is written down rather than folklore.
 
-## 6. Collapse the wire's secret arrays
+## CU6. Collapse the wire's secret arrays
 
 **What.** The runner's request carries per-server secret arrays for MCP and a secret array
 for the model. If the gateway holds every upstream secret, those collapse to a single minted
@@ -108,7 +108,7 @@ delivered to a sandbox.
 re-examined — it exists for cloud-reseller request signing that happens inside the sandbox, which
 moves behind the gateway. Tracked as OR6.
 
-## 7. Simplify the redaction deny-set
+## CU7. Simplify the redaction deny-set
 
 **What.** The runner builds a per-run deny-set from every secret value on the wire, so no
 secret can reach a log.
@@ -118,7 +118,7 @@ secret can reach a log.
 **Done.** Once item 6 leaves one short-lived token, the deny-set's construction is re-assessed
 rather than inherited. Tracked as OR7.
 
-## 8. Widen the hard-coded provider couplings, together
+## CU8. Widen the hard-coded provider couplings, together
 
 **What.** Provider names are pinned in more places than a reader expects: the static model
 catalogue and the two maps derived from it; two secret-kind enums naming providers; the harness
@@ -134,7 +134,7 @@ cheaper and verifiable.
 **Done.** Adding a provider touches a declared set of places, and the two copies of the
 environment-variable map either agree by construction or become one. Tracked as OR8.
 
-## 9. Converge the duplicated auth-scheme and connection-state definitions
+## CU9. Converge the duplicated auth-scheme and connection-state definitions
 
 **What.** The `oauth | api_key` scheme enum and the ready / needs-auth / needs-input state machine
 each exist in three parallel copies across the catalog, tool and trigger domains, and the gateways
@@ -147,7 +147,7 @@ through the back door — worse than a fourth copy.
 **Done.** All four resolve to one definition in the shared DTO module that already holds the
 identifier, slug and header types. Tracked as OR4.
 
-## 10. Remove the legacy credits counter
+## CU10. Remove the legacy credits counter
 
 **What.** A credits counter increments today whenever a caller checks access to platform-owned
 secrets — once per access check rather than per usage. It measures nothing anybody wants.
@@ -156,7 +156,7 @@ secrets — once per access check rather than per usage. It measures nothing any
 
 **Done.** Removed, once the gateway is the sole mechanism the whole system uses (D24).
 
-## 11. Fix the callback path hardcoded to one consumer
+## CU11. Fix the callback path hardcoded to one consumer
 
 **What.** The connections service builds its OAuth callback URL against the tool domain's mount,
 `/tools/connections/callback`, although the trigger domain creates connections through the same
@@ -169,7 +169,7 @@ already registered it.
 **Done.** The callback path is a property of the connections domain rather than of one consumer,
 and a third consumer needs no new special case.
 
-## 12. Collapse the four copies of the outbound SSRF guard
+## CU12. Collapse the four copies of the outbound SSRF guard
 
 **What.** The same guard — block private, loopback, link-local, reserved, multicast and
 unspecified addresses, refuse plain `http`, resolve once and pin the literal IP — now exists four

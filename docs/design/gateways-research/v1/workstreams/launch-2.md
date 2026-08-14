@@ -260,13 +260,13 @@ build to and nothing settled what an older upstream does.
 
 ## Merges
 
-**IM4 — after WP12.** Not deployed. It exists so WP13, WP14 and WP15 branch from one
+**IM3 — after WP12.** Not deployed. It exists so WP13, WP14 and WP15 branch from one
 resolver rather than three copies of an unmerged one.
 
-**WP15 branches from WP13's wire commit, not from IM4.** The two share `protocol.ts`, and a
+**WP15 branches from WP13's wire commit, not from IM3.** The two share `protocol.ts`, and a
 shared file edited in parallel is how a stack scrambles.
 
-**IM5 → C2.** Deploy. All seven packages.
+**IM4 → C2.** Deploy. All seven packages.
 
 WP23 and WP24 are a pair and land in that order. They are in this wave rather than a later
 one because D34 is a constraint on what the relay may do, and a constraint that is written

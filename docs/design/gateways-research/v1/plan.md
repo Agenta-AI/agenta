@@ -288,7 +288,7 @@ OD16's per-provider verification, and `provider_key`'s `NOT NULL` with it.
 *Depends on:* WP23 — removing conversion first would make Anthropic, Gemini, Bedrock and
 Vertex unreachable rather than reachable another way.
 
-**Merge IM3 → C2.** Deploy. Acceptance tests above. The fan-out, the worktrees and
+**Merge IM4 → C2.** Deploy. Acceptance tests above. The fan-out, the worktrees and
 the traps are in [`workstreams/launch-2.md`](workstreams/launch-2.md).
 
 ---
@@ -319,7 +319,7 @@ fallback automatic rather than a configuration flag.
 *Done when:* a deployment on an internal-only domain completes a full authorization without any
 hosted component of ours in the path.
 
-**Merge IM4 → C3.** Deploy. Acceptance tests above.
+**Merge IM5 → C3.** Deploy. Acceptance tests above.
 
 ---
 
