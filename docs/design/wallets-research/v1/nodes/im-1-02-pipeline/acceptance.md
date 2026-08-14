@@ -4,14 +4,73 @@ Run this on a LOCAL DEPLOYMENT you own (not the shared EE dev stack on `localhos
 used by other worktrees — pick a distinct `COMPOSE_PROJECT_NAME` / env file per
 `hosting/AGENTS.md`). Every step is self-contained; no other document is required.
 
+## HANDOFF: three unresolved items IM-1-02 conditioned its approval on
+
+IM-1-02 was approved to merge on the condition that these three items carry forward, verbatim and
+unmissable, to whoever runs this deployment or picks up the next wave. None of them is a one-line
+patch; do not close any of them opportunistically inside an unrelated PR.
+
+**(i) Wallet general-balance provisioning is a poison-message gap.** NOTHING in this repository
+provisions a `wallet_balances` general row (`wallet_credit_id IS NULL`) for any organization, and
+`WalletGeneralBalanceNotFoundError` is treated as retryable (caught by `DebitWorker`'s broad
+`except Exception`), so a debit for an unprovisioned organization redelivers indefinitely — a
+poison message that wedges redelivery for that message without corrupting anything or blocking
+other messages. The two legitimate remedies are (a) auto-provisioning the general balance row at
+organization creation, or (b) reclassifying `WalletGeneralBalanceNotFoundError` as terminal/alerted
+instead of infinite silent retry. That is a provisioning-design decision for a later wave, not a
+one-line patch. See step 2 and step 8 below for where this surfaces during acceptance.
+
+**(ii) `WalletCheckPort.check` accepts `amount_musd` and never reads it.** The non-strict admission
+predicate (`ee/src/core/wallets/service.py`) rejects only on already-committed balance versus floor;
+the request's own `amount_musd` argument is dead — deliberately, per the non-strict design (variable
+cost is priced after the fact, at `settle()`), but the signature still advertises a parameter the
+implementation ignores. Flagged here so a caller does not assume passing a larger `amount_musd`
+changes the admission outcome.
+
+**(iii) `WalletsService._run_blocking` spins a fresh thread pool and event loop per call.** When
+called from a running event loop, it submits `asyncio.run(coro)` to a brand-new
+single-worker `ThreadPoolExecutor` on every invocation rather than reusing one loop/pool across
+calls. The running-loop branch is untested against a real engine, and asyncpg loop-affinity (a
+connection/pool bound to the loop that created it) may be unsafe across that thread boundary. This
+has not been exercised against `TransactionsEngine` under load.
+
+**All integration tests in this wave are WRITTEN BUT NOT RUN.** The review worktree is not allowed
+to touch the shared EE dev stack, so every suite below needs a real Postgres + Redis run on the
+deployment this procedure stands up. Run them in this order — the first is the one that matters
+most:
+
+1. `ee/tests/pytest/integration/wallets/test_wallets_settlement_concurrency_postgres.py::test_competing_deliveries_cannot_overspend_one_credit`
+   — **run this first.** It is the concurrency guarantee itself: proves competing deliveries cannot
+   overspend one credit. Sufficient on its own to catch a broken locking strategy.
+2. `ee/tests/pytest/integration/wallets/test_wallets_migration_postgres.py` — FK restrict behavior,
+   check constraints, partial unique indexes, all-or-nothing rollback.
+3. `ee/tests/pytest/integration/wallets/test_wallets_debit_worker_integration.py::test_duplicate_debit_command_produces_one_financial_effect`
+   — debit worker against real Postgres: duplicate delivery produces one financial effect.
+4. `ee/tests/pytest/integration/measurements/test_measurements_integration.py` — measurement worker
+   against real Postgres/tracing + Redis: full consume-persist-publish chain, and convergence after a
+   transient debit-publish failure.
+
+Exact commands, and the failure meaning of each, are in step 9 below.
+
 ## 0. Bring up the EE dev stack
 
+`run.sh` resolves a bare (no-slash) `--env-file` name relative to the edition directory
+(`./hosting/docker-compose/<license>/<name>`, see `hosting/docker-compose/run.sh`), so the copy
+must land inside `hosting/docker-compose/ee/`, not the repo root — copying it to the repo root
+and passing the same bare name silently makes `run.sh` fall through to its committed default
+env file instead of this one. Load the same file into the shell with `load-env` (a user-profile
+shell function per root `AGENTS.md` "Local dev loop") before running the pytest commands in step
+9, so `POSTGRES_URI`/`REDIS_URI_DURABLE`/etc. are set for the test process.
+
 ```bash
-cp hosting/docker-compose/ee/env.ee.dev.example .env.ee.dev.wallets-im-1-02
+cp hosting/docker-compose/ee/env.ee.dev.example \
+   hosting/docker-compose/ee/.env.ee.dev.wallets-im-1-02
 # edit the copy only if a port/project-name collides with another running instance
 
+load-env hosting/docker-compose/ee/.env.ee.dev.wallets-im-1-02
+
 COMPOSE_PROJECT_NAME=agenta-ee-dev-wallets-im-1-02 \
-  ./hosting/docker-compose/run.sh --license ee --dev \
+  ./hosting/docker-compose/run.sh --ee --dev \
   --env-file .env.ee.dev.wallets-im-1-02 --build
 ```
 

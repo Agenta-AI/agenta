@@ -3,6 +3,11 @@
 Fork point: the reviewed `IM-1-00` seed, on a base containing the metering revisions through
 `ee0000000005`.
 
+**Delivered correction (CU-1-01):** `ee0000000005` never resolved on this base (it exists only on
+unmerged sandbox-metering drafts); the migration below shipped as `ee0000000004_add_wallet_tables.py`
+with `down_revision = "ee0000000003"` instead. See `wave-1.md` for the full explanation. The task
+list below is kept as the historical planning record.
+
 ## Read first
 
 1. `api/ee/databases/postgres/migrations/core_ee/versions/ee0000000003_add_records_ingested_meter.py`

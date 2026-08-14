@@ -27,13 +27,23 @@ safe.
 ## Fixed inputs
 
 - Existing ACP `records` keeps its name. Gateway usage facts are new tracing `measurements`.
-- The streams are `streams:measurements` and `streams:debits`; both use the current compressed JSON
-  `data` envelope and bounded approximate `MAXLEN` mechanism.
+- The streams are `streams:measurements` (consumer group `worker-measurements`) and `streams:debits`
+  (consumer group `worker-debits`); both use the current compressed JSON `data` envelope and bounded
+  approximate `MAXLEN` trimming, delivered at `MAXLEN 100_000` for each stream
+  (`ee/src/core/wallets/streaming.py`). Both are registered in `api/entrypoints/worker_streams.py`,
+  included in `ALL_STREAMS` only when `is_ee()` is true.
 - `measurements` live in tracing. Authoritative `wallet_credits`, `wallet_debits`, and
   `wallet_balances` live together in core.
-- Tables are EE-only. `WP-1-01` owns `core_ee` revision `ee0000000006`, based on the already
-  reserved meter chain through `ee0000000005`; it must not fork until that dependency is present in
-  its base. `WP-1-02` owns `tracing_ee` revision `ee0000000002`, based on `ee0000000001`.
+- Tables are EE-only. **Delivered migration ids** (superseding the reserved numbers below): `core_ee`
+  `ee0000000004` (`down_revision = "ee0000000003"`), `tracing_ee` `ee0000000002`
+  (`down_revision = "ee0000000001"`, unchanged from the original plan).
+
+  Node planning reserved `core_ee` `ee0000000006` after `ee0000000005`, expecting the sandbox-metering
+  Track B/C migrations to occupy `ee0000000004`/`ee0000000005` first. Those two revisions exist only
+  on unmerged sandbox-metering draft branches and do not resolve on this checkpoint's base, whose
+  `core_ee` head was `ee0000000003`. This is an **approved deviation**: `WP-1-01` shipped as
+  `ee0000000004` with `down_revision = "ee0000000003"` instead. The sandbox-metering drafts must
+  renumber past `ee0000000004` when they land, since that slot is now occupied.
 - Only fake built-in LLM and fake built-in MCP are in this checkpoint. Custom/standard credentials,
   SBX, live providers, Stripe, rollups, L1 exposure estimates, and concurrency-cap enforcement are
   not.

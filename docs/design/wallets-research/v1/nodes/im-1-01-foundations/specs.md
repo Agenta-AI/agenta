@@ -7,7 +7,7 @@ that has to catch a divergence between two worktrees that could not see each oth
 
 | Check | How to verify |
 | --- | --- |
-| Migrations do not conflict | `core_ee` is `ee0000000006` after `ee0000000005`; `tracing_ee` is `ee0000000002` after `ee0000000001`; neither touches a parked `core/` or `tracing/` chain |
+| Migrations do not conflict | **Delivered correction (CU-1-01):** `core_ee` is `ee0000000004` after `ee0000000003` (not the `ee0000000006`/`ee0000000005` reserved at planning time — those revisions exist only on unmerged sandbox-metering drafts and never resolved on this base; approved deviation, see `wave-1.md`); `tracing_ee` is `ee0000000002` after `ee0000000001` as planned; neither touches a parked `core/` or `tracing/` chain |
 | Both migrations reverse | `upgrade` → `downgrade` → `upgrade` by hand against a local EE Postgres, both chains |
 | Ownership held | the two diffs are disjoint except for seed imports; only `WP-1-02` touched `api/entrypoints/worker_streams.py` |
 | Engines are right | wallet DAO on `TransactionsEngine`, measurements DAO on `AnalyticsEngine` |
