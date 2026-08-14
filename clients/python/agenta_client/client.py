@@ -13,6 +13,7 @@ if typing.TYPE_CHECKING:
     from .annotations.client import AnnotationsClient, AsyncAnnotationsClient
     from .applications.client import ApplicationsClient, AsyncApplicationsClient
     from .billing.client import AsyncBillingClient, BillingClient
+    from .channels.client import AsyncChannelsClient, ChannelsClient
     from .environments.client import AsyncEnvironmentsClient, EnvironmentsClient
     from .evaluations.client import AsyncEvaluationsClient, EvaluationsClient
     from .evaluators.client import AsyncEvaluatorsClient, EvaluatorsClient
@@ -102,6 +103,7 @@ class AgentaApi:
         self._environments: typing.Optional[EnvironmentsClient] = None
         self._tools: typing.Optional[ToolsClient] = None
         self._triggers: typing.Optional[TriggersClient] = None
+        self._channels: typing.Optional[ChannelsClient] = None
         self._evaluations: typing.Optional[EvaluationsClient] = None
         self._mounts: typing.Optional[MountsClient] = None
         self._status: typing.Optional[StatusClient] = None
@@ -258,6 +260,13 @@ class AgentaApi:
         return self._triggers
     
     @property
+    def channels(self):
+        if self._channels is None:
+            from .channels.client import ChannelsClient  # noqa: E402
+            self._channels = ChannelsClient(client_wrapper=self._client_wrapper)
+        return self._channels
+    
+    @property
     def evaluations(self):
         if self._evaluations is None:
             from .evaluations.client import EvaluationsClient  # noqa: E402
@@ -370,6 +379,7 @@ class AsyncAgentaApi:
         self._environments: typing.Optional[AsyncEnvironmentsClient] = None
         self._tools: typing.Optional[AsyncToolsClient] = None
         self._triggers: typing.Optional[AsyncTriggersClient] = None
+        self._channels: typing.Optional[AsyncChannelsClient] = None
         self._evaluations: typing.Optional[AsyncEvaluationsClient] = None
         self._mounts: typing.Optional[AsyncMountsClient] = None
         self._status: typing.Optional[AsyncStatusClient] = None
@@ -524,6 +534,13 @@ class AsyncAgentaApi:
             from .triggers.client import AsyncTriggersClient  # noqa: E402
             self._triggers = AsyncTriggersClient(client_wrapper=self._client_wrapper)
         return self._triggers
+    
+    @property
+    def channels(self):
+        if self._channels is None:
+            from .channels.client import AsyncChannelsClient  # noqa: E402
+            self._channels = AsyncChannelsClient(client_wrapper=self._client_wrapper)
+        return self._channels
     
     @property
     def evaluations(self):

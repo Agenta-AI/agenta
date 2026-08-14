@@ -6,6 +6,7 @@ export type SettingsTabKey =
     | "llms"
     | "tools"
     | "triggers"
+    | "channels"
     | "webhooks"
     | "workspace"
     | "projects"
@@ -80,6 +81,11 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "project",
         description: "Run agents automatically from schedules or events.",
         docs: {label: "About automations", href: `${DOCS_BASE}/concepts/automations`},
+    },
+    {
+        key: "channels",
+        scope: "project",
+        description: "Let agents answer in Slack and other messaging platforms.",
     },
     {
         key: "webhooks",
@@ -163,6 +169,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     llms: "AI providers",
     tools: "Tools",
     triggers: "Triggers",
+    channels: "Channels",
     webhooks: "Webhooks",
     workspace: "Members",
     projects: "Projects",

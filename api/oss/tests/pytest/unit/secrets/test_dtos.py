@@ -357,3 +357,47 @@ def test_create_secret_allows_an_empty_header_for_a_provider_key():
     )
 
     assert secret.header.name is None
+
+
+def _channel_secret_payload(inner_kind, channel):
+    return {
+        "header": {"name": "slack-bot", "description": ""},
+        "secret": {
+            "kind": "channel_secret",
+            "data": {"kind": inner_kind, "channel": channel},
+        },
+    }
+
+
+def test_create_channel_secret_slack():
+    secret = CreateSecretDTO.model_validate(
+        _channel_secret_payload(
+            "slack", {"bot_token": "xoxb-abc", "signing_secret": "sec"}
+        )
+    )
+
+    assert secret.secret.data.kind == "slack"
+    assert secret.secret.data.channel.bot_token == "xoxb-abc"
+    assert secret.secret.data.channel.signing_secret == "sec"
+
+
+def test_create_channel_secret_agenta_body_is_empty():
+    secret = CreateSecretDTO.model_validate(_channel_secret_payload("agenta", {}))
+
+    assert secret.secret.data.kind == "agenta"
+    assert secret.secret.data.channel.bot_token is None
+
+
+def test_create_channel_secret_rejects_unknown_inner_kind():
+    with pytest.raises(ValidationError, match="ChannelSecretKind"):
+        CreateSecretDTO.model_validate(_channel_secret_payload("telegram", {}))
+
+
+def test_create_channel_secret_rejects_missing_channel_body():
+    payload = {
+        "header": {"name": "slack-bot", "description": ""},
+        "secret": {"kind": "channel_secret", "data": {"kind": "slack"}},
+    }
+
+    with pytest.raises(ValidationError, match="ChannelSecretSettingsDTO"):
+        CreateSecretDTO.model_validate(payload)

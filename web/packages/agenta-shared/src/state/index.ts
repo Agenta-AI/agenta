@@ -7,6 +7,7 @@ export {sessionAtom, setSessionAtom} from "./session"
 export {userAtom, setUserAtom} from "./user"
 export {
     activeUserIdAtom,
+    agentaChannelSurfaceEnabledAtom,
     agentVoiceInputEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "./featureFlags"

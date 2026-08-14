@@ -117,7 +117,7 @@ def test_claude_consumes_custom_gateway_bedrock_and_vertex():
 
 def test_capabilities_document_shape():
     doc = harness_capabilities_document()
-    assert set(doc) == {"pi_core", "pi_agenta", "claude", "codex"}
+    assert set(doc) == {"pi_core", "pi_agenta", "claude", "codex", "mock"}
     assert doc["claude"]["providers"] == ["anthropic"]
     assert doc["claude"]["model_selection"] == "alias"
     assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS) + list(

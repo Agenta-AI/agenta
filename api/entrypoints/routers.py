@@ -164,6 +164,17 @@ from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
+
+from oss.src.dbs.postgres.channels.dao import ChannelsDAO
+from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
+from entrypoints.channel_adapters import build_channel_adapter_registry
+from oss.src.core.channels.identity import ChannelIdentityService
+from oss.src.core.channels.service import ChannelsService
+from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
+from oss.src.apis.fastapi.channels.router import ChannelsRouter
+from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
+from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
+
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.store.storage import ObjectStore
@@ -265,6 +276,7 @@ async def lifespan(*args, **kwargs):
     validate_required_env_vars()
 
     await _triggers_broker.startup()
+    await _channels_inbox_broker.startup()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).
@@ -311,6 +323,7 @@ async def lifespan(*args, **kwargs):
     )
 
     await _triggers_broker.shutdown()
+    await _channels_inbox_broker.shutdown()
 
     for adapter in _composio_adapters.values():
         await adapter.close()
@@ -417,6 +430,11 @@ _OPENAPI_TAGS = [
     {
         "name": "Triggers",
         "description": "Inbound provider event triggers and their watchable event catalog.",
+    },
+    # --
+    {
+        "name": "Channels",
+        "description": "Chat platform channels — connections, agents, spaces, grants, and the inbound event log.",
     },
     # --
     {
@@ -1063,6 +1081,55 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
+channels_adapter_registry = build_channel_adapter_registry()
+
+channels_dao = ChannelsDAO(engine=_transactions_engine)
+
+channels_service = ChannelsService(
+    channels_dao=channels_dao,
+    adapter_registry=channels_adapter_registry,
+    vault_service=vault_service,
+)
+
+channels_identity_dao = ChannelIdentityDAO(engine=_transactions_engine)
+
+channels_identity_service = ChannelIdentityService(
+    identity_dao=channels_identity_dao,
+)
+
+# Producer side of the inbound chain: the ingress route enqueues
+# `channels.inbox.dispatch` here; entrypoints/worker_queues.py consumes it.
+_channels_inbox_broker = ProducerOnlyRedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:channels-inbox",
+    consumer_group_name="api-channels-inbox-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_channels_inbox_dispatcher = InboxDispatcher(
+    channels_service=channels_service,
+    workflows_service=workflows_service,
+    identity_service=channels_identity_service,
+    streams_service=session_streams_service,
+)
+
+_channels_inbox_worker = ChannelsInboxWorker(
+    broker=_channels_inbox_broker,
+    dispatcher=_channels_inbox_dispatcher,
+)
+
+channels_ingress = ChannelsIngressRouter(
+    channels_service=channels_service,
+    adapter_registry=channels_adapter_registry,
+    dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
+)
+
+channels = ChannelsRouter(
+    channels_service=channels_service,
+    adapter_registry=channels_adapter_registry,
+)
+
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
 )
@@ -1489,6 +1556,36 @@ app.include_router(
     router=triggers.router,
     prefix="/preview/triggers",
     tags=["Triggers"],
+    include_in_schema=False,
+)
+
+# --- channels ---
+# Ingress paths are literal per channel (/channels/slack/events/), never a path
+# parameter: _PUBLIC_ENDPOINTS matches by prefix. The configuration router
+# mounts under the same prefix and stays authenticated.
+app.include_router(
+    router=channels_ingress.router,
+    prefix="/channels",
+    tags=["Channels"],
+)
+
+app.include_router(
+    router=channels_ingress.router,
+    prefix="/preview/channels",
+    tags=["Channels"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=channels.router,
+    prefix="/channels",
+    tags=["Channels"],
+)
+
+app.include_router(
+    router=channels.router,
+    prefix="/preview/channels",
+    tags=["Channels"],
     include_in_schema=False,
 )
 
