@@ -14,6 +14,11 @@ from ee.src.core.wallets.contracts import (
     MeasurementCommandV1,
     MeasurementComponentV1,
 )
+from ee.src.core.wallets.types import (
+    CreditCandidateDTO,
+    WalletBalanceDTO,
+    WalletCreditDTO,
+)
 
 DEFAULT_CREATED_AT = datetime(2026, 8, 13, 16, 13, 4, tzinfo=timezone.utc)
 DEFAULT_START_TIME = datetime(2026, 8, 13, 16, 12, 57, tzinfo=timezone.utc)
@@ -84,3 +89,60 @@ def build_debit_command(**overrides) -> DebitCommandV1:
     )
     defaults.update(overrides)
     return DebitCommandV1(**defaults)
+
+
+DEFAULT_ORGANIZATION_ID = UUID("00000000-0000-0000-0000-00000000007a")
+
+
+def build_credit_candidate(**overrides) -> CreditCandidateDTO:
+    defaults = dict(
+        wallet_credit_id=uuid4(),
+        credit_kind="plan_allowance",
+        priority=10,
+        end_time=None,
+        balance_musd=500_000,
+    )
+    defaults.update(overrides)
+    return CreditCandidateDTO(**defaults)
+
+
+def build_wallet_credit_dto(**overrides) -> WalletCreditDTO:
+    defaults = dict(
+        id=uuid4(),
+        organization_id=DEFAULT_ORGANIZATION_ID,
+        credit_kind="plan_allowance",
+        amount_musd=500_000,
+        priority=10,
+        start_time=DEFAULT_START_TIME,
+        end_time=None,
+        data={},
+        created_at=DEFAULT_CREATED_AT,
+    )
+    defaults.update(overrides)
+    return WalletCreditDTO(**defaults)
+
+
+def build_general_wallet_balance(**overrides) -> WalletBalanceDTO:
+    defaults = dict(
+        id=uuid4(),
+        organization_id=DEFAULT_ORGANIZATION_ID,
+        wallet_credit_id=None,
+        balance_musd=480_000,
+        floor_musd=0,
+        created_at=DEFAULT_CREATED_AT,
+    )
+    defaults.update(overrides)
+    return WalletBalanceDTO(**defaults)
+
+
+def build_credit_wallet_balance(**overrides) -> WalletBalanceDTO:
+    defaults = dict(
+        id=uuid4(),
+        organization_id=DEFAULT_ORGANIZATION_ID,
+        wallet_credit_id=uuid4(),
+        balance_musd=315_000,
+        floor_musd=None,
+        created_at=DEFAULT_CREATED_AT,
+    )
+    defaults.update(overrides)
+    return WalletBalanceDTO(**defaults)
