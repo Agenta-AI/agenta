@@ -93,9 +93,7 @@ const renameButton = () => document.querySelector<HTMLButtonElement>(".ant-btn-p
 
 const pressEnter = async (input: HTMLInputElement) => {
     await act(async () => {
-        input.dispatchEvent(
-            new KeyboardEvent("keydown", {key: "Enter", keyCode: 13, bubbles: true} as never),
-        )
+        input.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
     })
 }
 
@@ -161,6 +159,35 @@ describe("useSessionActions rename", () => {
 
         expect(setSessionHeader).not.toHaveBeenCalled()
         expect(renameInput()).toBeTruthy()
+    })
+
+    it("holds the dialog open in its loading state while Enter's rename is in flight", async () => {
+        let settle: (() => void) | null = null
+        setSessionHeader.mockImplementationOnce(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    settle = () => resolve(true)
+                }),
+        )
+
+        const rename = await mountRename()
+        await act(async () => {
+            rename({sessionId: "session-1", appId: null, name: "Old name"})
+        })
+
+        const input = renameInput()
+        await type(input!, "New name")
+        await pressEnter(input!)
+
+        // Same lifecycle as clicking Rename: the dialog stays up, showing progress.
+        expect(renameInput()).toBeTruthy()
+        expect(renameButton()?.classList.contains("ant-btn-loading")).toBe(true)
+
+        await act(async () => {
+            settle?.()
+        })
+
+        expect(renameInput()).toBeNull()
     })
 
     it("disables the Rename button on a blank name, matching Enter", async () => {

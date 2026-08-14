@@ -109,6 +109,28 @@ export const useSessionActions = () => {
              */
             const isBlank = () => !next.trim()
 
+            /**
+             * Enter has to run the same lifecycle as the button, not just the same handler:
+             * `onOk` keeps the dialog open with the button in its loading state until the
+             * returned promise settles, and leaves it open to retry when the rename fails.
+             */
+            const confirm = async () => {
+                if (isBlank()) return
+                dialog.current?.update({
+                    okButtonProps: {loading: true},
+                    cancelButtonProps: {disabled: true},
+                })
+                try {
+                    await submit()
+                    dialog.current?.destroy()
+                } catch {
+                    dialog.current?.update({
+                        okButtonProps: {loading: false, disabled: isBlank()},
+                        cancelButtonProps: {disabled: false},
+                    })
+                }
+            }
+
             dialog.current = modal.confirm({
                 title: "Rename session",
                 content: (
@@ -123,11 +145,7 @@ export const useSessionActions = () => {
                         }}
                         // A one-field modal has to confirm on Enter; without this the only way out
                         // is the mouse.
-                        onPressEnter={() => {
-                            if (isBlank()) return
-                            dialog.current?.destroy()
-                            void submit()
-                        }}
+                        onPressEnter={() => void confirm()}
                     />
                 ),
                 okText: "Rename",
