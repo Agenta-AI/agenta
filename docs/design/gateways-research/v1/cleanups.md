@@ -95,7 +95,7 @@ runner change inside the wave whose job is standing the gateways up would confus
 **Done.** The eligible slice is served by the gateway, the ineligible slice is still served by the
 runner, and the boundary between them is written down rather than folklore.
 
-## CU6. Collapse the wire's secret arrays
+## CU6. Collapse the wire's secret arrays — CLOSED
 
 **What.** The runner's request carries per-server secret arrays for MCP and a secret array
 for the model. If the gateway holds every upstream secret, those collapse to a single minted
@@ -104,9 +104,21 @@ token.
 **Why not sooner.** They cannot collapse while anything still needs a real upstream secret
 delivered to a sandbox.
 
-**Done.** Both arrays carry one gateway token, and the wire's `local_use` secret category is
-re-examined — it exists for cloud-reseller request signing that happens inside the sandbox, which
-moves behind the gateway. Tracked as OR6.
+**Closed, already an outcome of WP12/WP13/WP15.** Both arrays carry one gateway token on the
+connected path: the model's `credentials` stays empty and its one token rides the separate
+`gatewayCredentials` field (D36); each MCP server's `credentials` array holds exactly one entry,
+`X-AG-Credentials`, regardless of how many named secret refs the author declared. Verified with a
+new regression test proving the collapse holds across more than one server at once, not only the
+single-server case the existing tests covered.
+
+`local_use` survives, and the reason is narrow: `_resolve_from_secrets` (the connected `agenta`-
+mode path) never emits it any more — `build_gateway_resolved_connection` returns `credentials: []`
+for every deployment, bedrock and vertex included, so cloud-reseller signing has already moved
+behind the gateway there. The category is still reachable from the two offline, standalone-SDK
+resolvers (`EnvConnectionResolver`, `StaticConnectionResolver` in `connections/resolver.py`),
+which exist for SDK usage with no Agenta backend and therefore no gateway to hold a reseller
+secret for — the sandbox has nobody else's account to sign with, so the value has to be real.
+`daytona-secret-plan.ts`'s allowlist already carries this exact reasoning inline. Tracked as OR6.
 
 ## CU7. Simplify the redaction deny-set
 

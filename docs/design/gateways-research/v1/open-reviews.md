@@ -72,12 +72,29 @@ Every connections DAO verb is keyed by project. Review each against OD2's outcom
 adding a user dimension, and check whether `create_connection`'s `user_id` parameter is
 authorship only, as it currently appears to be.
 
-### OR6. Wire secret arrays
+### OR6. Wire secret arrays — CLOSED
 
 If the gateway holds all upstream secrets, the runner wire's per-server secret
 arrays and the model secret array should collapse to a single gateway token. Review
 what still populates them, and whether the `local_use` secret category can be removed
 outright once cloud-reseller signing moves to the gateway.
+
+**Nothing populates them with a real upstream secret on the connected path.** The model's
+`ModelConnection.credentials` stays empty (`build_gateway_resolved_connection` in
+`connections/endpoints.py`) and its one token rides `gatewayCredentials`; each MCP server's
+`connection.credentials` (`mcp/resolver.py`'s `_resolve_gateway`) holds exactly one entry, our
+own `X-AG-Credentials`, whatever secret refs the author named. Both are covered by the shared
+golden (`model_connection.gateway.json`, asserted by both `test_gateway_credentials.py` and
+`gateway-credentials.test.ts`) and by `mcp/test_resolver.py`, which now also proves the
+per-server collapse across more than one server.
+
+**`local_use` is not removable, and does not need to be.** It is dead on the connected path —
+`_resolve_from_secrets` routes every deployment, including bedrock and vertex, through the
+gateway with `credentials: []` — but stays reachable from the two offline, standalone-SDK
+resolvers (`EnvConnectionResolver`, `StaticConnectionResolver`), which run with no Agenta backend
+and so have no gateway to hold a cloud-reseller secret on their behalf; the sandbox in that mode
+signs with a real value because there is no other account to sign with. `daytona-secret-plan.ts`
+already scopes its `local_use` allowlist to exactly that reasoning.
 
 ### OR7. Redaction deny-set
 

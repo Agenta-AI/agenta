@@ -235,6 +235,48 @@ async def test_gateway_routes_through_custom_namespace_with_our_credentials():
     assert "Access tok" not in resolved[0].model_dump_json()
 
 
+async def test_gateway_collapses_every_servers_array_to_one_credential_each():
+    # CU6: N servers, each with its own author-declared secret refs, still resolve to
+    # exactly one gateway credential PER server -- the per-server array shrinks to one
+    # entry everywhere, not just when there is a single server to resolve.
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                name="memory",
+                connection=MCPConnection(
+                    type="http",
+                    url=PUBLIC_MCP_URL,
+                    credentials=MCPHeaderSecretRefs(
+                        headers={"Authorization": "memory_token"}
+                    ),
+                ),
+            ),
+            server(
+                name="notion",
+                connection=MCPConnection(
+                    type="http",
+                    url=PUBLIC_MCP_URL,
+                    credentials=MCPHeaderSecretRefs(
+                        headers={
+                            "Authorization": "notion_token",
+                            "X-Api-Key": "notion_key",
+                        }
+                    ),
+                ),
+            ),
+        ]
+    )
+    assert [server_.name for server_ in resolved] == ["memory", "notion"]
+    for server_, name in zip(resolved, ["memory", "notion"]):
+        assert server_.url == _gateway_route(name)
+        assert [c.binding.name for c in server_.credentials] == ["X-AG-Credentials"]
+        assert [c.value for c in server_.credentials] == ["Access tok"]
+
+
 async def test_gateway_route_ignores_the_authors_url_and_needs_no_secret_lookup():
     # The upstream secret is the gateway's problem now (its own stored endpoint holds it),
     # so a missing named secret never blocks resolution once a gateway is configured.
