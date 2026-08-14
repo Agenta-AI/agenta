@@ -26,6 +26,13 @@ from oss.src.core.gateways.mcps.types import (
     MCPToolNotAllowedError,
     MCPUpstreamError,
 )
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthClientNotRegisteredError,
+    MCPOAuthDiscoveryError,
+    MCPOAuthRegistrationError,
+    MCPOAuthStateInvalidError,
+    MCPOAuthTokenExchangeError,
+)
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
     SecretInvalidError,
@@ -114,6 +121,27 @@ def handle_gateway_exceptions():
                         else status.HTTP_424_FAILED_DEPENDENCY
                     ),
                     detail=e.detail or e.message,
+                ) from e
+            except (
+                MCPOAuthDiscoveryError,
+                MCPOAuthRegistrationError,
+                MCPOAuthTokenExchangeError,
+            ) as e:
+                # The upstream authorization server, not our own dependency —
+                # the message carries the cause verbatim (OD21: never generic).
+                raise HTTPException(
+                    status_code=status.HTTP_424_FAILED_DEPENDENCY,
+                    detail=e.message,
+                ) from e
+            except MCPOAuthStateInvalidError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=e.message,
+                ) from e
+            except MCPOAuthClientNotRegisteredError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=e.message,
                 ) from e
 
         return wrapper

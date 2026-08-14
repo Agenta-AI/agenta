@@ -104,11 +104,13 @@ def test_mcp_connect_request_instantiates():
     assert request.scopes == ["read", "write"]
 
 
-def test_mcp_connect_request_default_scopes_is_not_shared():
-    first = MCPConnectRequest()
-    second = MCPConnectRequest()
-    first.scopes.append("read")
-    assert second.scopes == []
+def test_mcp_connect_request_default_scopes_is_none():
+    """`scopes: None` (absent) is the discover step, not an empty-list default
+    (specs-wp18.md) — WP17's own scaffold used a shared-list default; WP18 changes
+    the semantics on purpose so a caller can distinguish "haven't chosen yet" from
+    "chose nothing"."""
+    request = MCPConnectRequest()
+    assert request.scopes is None
 
 
 def test_mcp_connect_response_instantiates():

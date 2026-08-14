@@ -41,13 +41,14 @@ class MCPEndpointsResponse(BaseModel):
 
 
 class MCPConnectRequest(BaseModel):
-    """Begin the consent flow on one endpoint (WP18). Scopes are SELECTED, not
-    inherited from everything the server advertises (D17). Declared here for the
-    wire shape; the route is wired by WP18, not this package."""
+    """Drives the two-step consent flow (specs-wp18.md). `scopes: None` (absent)
+    is the discover step — nothing chosen yet, the response carries the checklist.
+    `scopes` present (an empty list is a legal "no scopes") is the begin step."""
 
-    scopes: List[str] = Field(default_factory=list)
+    scopes: Optional[List[str]] = None
 
 
 class MCPConnectResponse(BaseModel):
     count: int = 0
     redirect_url: Optional[str] = None
+    scopes_offered: List[str] = Field(default_factory=list)

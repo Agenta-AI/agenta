@@ -62,7 +62,9 @@ class _NullMcpService:
 
 @pytest.fixture
 def mcp_client(monkeypatch):
-    router = MCPGatewayRouter(mcp_gateway_service=_NullMcpService())
+    router = MCPGatewayRouter(
+        mcp_gateway_service=_NullMcpService(), oauth_connect_service=None
+    )
     app = FastAPI()
     app.include_router(router.router)
     monkeypatch.setattr(

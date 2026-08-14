@@ -180,6 +180,8 @@ from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
+from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
 from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
 from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
 from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
@@ -1124,9 +1126,19 @@ mcp_gateway_service = MCPGatewayService(
     ),
 )
 
+mcp_oauth_connect_service = MCPOAuthConnectService(
+    vault_service=vault_service,
+    client=MCPOAuthClient(),
+    api_url=env.agenta.api_url,
+    secret_key=env.agenta.crypt_key,
+)
+
 llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
 llm_gateway_proxy = LLMGatewayProxy(llm_gateway_service=llm_gateway_service)
-mcp_gateway_router = MCPGatewayRouter(mcp_gateway_service=mcp_gateway_service)
+mcp_gateway_router = MCPGatewayRouter(
+    mcp_gateway_service=mcp_gateway_service,
+    oauth_connect_service=mcp_oauth_connect_service,
+)
 mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)
 
 simple_traces = SimpleTracesRouter(
