@@ -26,6 +26,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
+    SecretInvalidError,
     SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
@@ -298,6 +299,11 @@ _DENIAL_CASES = [
         "secret_missing",
     ),
     (
+        SecretInvalidError(target="t", detail="revoked"),
+        409,
+        "secret_invalid",
+    ),
+    (
         LLMEndpointNotFoundError(
             namespace=GatewayEndpointNamespace.CUSTOM, name="my-slug"
         ),
@@ -340,6 +346,30 @@ async def test_domain_exception_maps_to_openai_shaped_denial(
     assert set(payload.keys()) == {"error"}
     assert payload["error"]["code"] == expected_code
     assert "count" not in payload  # the house envelope never leaks onto this surface
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("exc,expected_status,expected_code", _DENIAL_CASES)
+async def test_typed_denials_carry_the_code_marker_in_message_except_upstream_error(
+    exc, expected_status, expected_code
+):
+    """WP25/OD18: `code` must survive in `message` alone, because Codex's own SDK
+    (codex-rs's `extract_error_message`) discards every other field. `upstream_error`
+    is excluded — D16 forwards the upstream's own detail untouched."""
+    service = _MockLlmGatewayService(relay_exception=exc)
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body()), "my-slug"
+        )
+
+    message = json.loads(response.body)["error"]["message"]
+    marker = f"⟦agenta_code:{expected_code}⟧"
+    if expected_code == "upstream_error":
+        assert marker not in message
+    else:
+        assert message.endswith(marker)
 
 
 @pytest.mark.asyncio

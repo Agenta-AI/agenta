@@ -477,25 +477,62 @@ own error-formatting source rather than by a live call.
    shape, and is flagged in-file as unconfirmed for Claude Code specifically.
 
 3. **Codex (`@openai/codex@0.145.0`, ACP bridge `@agentclientprotocol/codex-acp@1.1.7`). Does
-   NOT preserve it — confirmed, not inferred.** `codex-rs`'s HTTP error path
+   NOT preserve the body — confirmed, not inferred.** `codex-rs`'s HTTP error path
    (`codex-rs/protocol/src/error.rs`, `UnexpectedResponseError::extract_error_message`, read at
    tag `rust-v0.145.0`, matching the pinned npm version) actively parses the response body as
    JSON and keeps only `error.message`, discarding `code`, `type`, and every other field before
    formatting `"unexpected status {status}: {message}"`. The ACP bridge forwards that already-
    stripped string as-is (`dist/index.js`, `createErrorEvent`, `params.error.message`). No brace
-   survives for `parseGatewayErrorDetail`'s scan to find, so `code`/`next_step`/`details` are
-   unrecoverable for this harness by construction, not by a parsing gap. This is the "cannot
-   preserve it" case the wave asked to be recorded rather than silently degraded to: Codex still
-   gets `error` (the plain string, unchanged, and it does contain the human-readable message),
-   it just never gets `errorDetail`.
+   survives for `parseGatewayErrorDetail`'s body scan to find. **This is not the end of the
+   story** — see the marker fallback below, which this finding motivated.
 
-**Consequence for the runner.** No code changes to `gateway-error.ts`'s parser — it was already
-correct for the bodies that do survive, and there is nothing to parse for the one that does not.
-`tests/unit/gateway-error-harness-formats.test.ts` pins all three findings as tests: two that
-recover a full `AgentErrorDetail` from the Pi/Anthropic-SDK shape, and one that asserts Codex's
-stripped shape yields `undefined` (with a comment pointing here), so a future edit that changes
-either SDK's formatting — or that quietly starts assuming Codex works — fails a test instead of
-degrading silently.
+**First consequence, then corrected: the marker fallback.** The first cut of this package
+recorded Codex's gap as a known degradation and stopped there. That does not meet WP25's own
+"done when" — WP19's step-up interaction is built on this channel, and a refusal that reaches
+Codex with no `code` is a run that cannot ask the user to fix it. The fix is on our side, and
+Codex's own finding points at it: `error.message` survives on every harness examined, Codex
+included — codex-rs keeps exactly that one field. So the gateway now renders every TYPED
+refusal's `message` with a single machine-readable marker appended
+(`⟦agenta_code:<code>⟧`, `_with_code_marker`, `proxy.py`), and `gateway-error.ts` scans for it
+as a **fallback**, after the JSON-body parse:
+
+- **U+27E6/U+27E7** (MATHEMATICAL LEFT/RIGHT WHITE SQUARE BRACKET) were picked because they
+  never occur in ordinary error prose, a model's own output, JSON delimiters (`{}`/`[]`), or
+  markdown — nothing else can produce this exact byte sequence or be mistaken for it, and it
+  cannot collide with the separate `{...}` body scan (different bracket characters entirely).
+- **The body path stays primary.** It carries `retryable`, `next_step` and `details`, none of
+  which a bare code can express; the marker path recovers `code` only.
+- **Excluded from `upstream_error`.** D16 forwards the upstream's own detail untouched, and
+  this surface must not inject text into a body it promised not to touch.
+- **A real gap surfaced along the way.** Building the marker meant rendering every typed
+  refusal's message, which required enumerating them — and `SecretInvalidError` (the LLM
+  plane's actual "rejected credential": a secret that exists but is revoked or failed refresh,
+  `policy/types.py`) turned out to be raised by the shared resolver but never caught by
+  `_map_domain_exception` OR listed in `_DOMAIN_EXCEPTIONS`. It would have reached the caller
+  as an unhandled 500, not a typed refusal at all. Fixed alongside the marker: `secret_invalid`
+  is now mapped (409, same status family as `secret_missing`) and carries the marker like every
+  other typed code.
+
+**What is still lost on a marker-only harness.** `retryable` and `next_step` and `details` do
+not survive Codex — the marker fallback returns `code` and a (marker-stripped) `message` only,
+never backfilled from `NEXT_STEPS`, so a caller can tell "code only" from "the full envelope."
+WP19 must degrade to a generic step-up prompt when `next_step`/`details` are absent rather than
+assume a specific one exists.
+
+**Claude Code's unknown behavior matters less now.** Item 2's limit (the CLI is a closed-source
+compiled binary) still stands and is not resolved here — but since the marker rides inside the
+one field (`message`) every harness examined keeps, `code` survives on Claude Code whether or
+not its SDK also preserves the full JSON body. The unverified question narrows to
+`retryable`/`next_step`/`details`, which were never load-bearing for WP19's own need (a code to
+act on).
+
+**Consequence for the runner.** `gateway-error.ts` gained the marker fallback described above;
+its body-path parser is otherwise unchanged — already correct for the bodies that do survive.
+`tests/unit/gateway-error-harness-formats.test.ts` pins both paths per refusal: the Pi/Anthropic-
+SDK shape recovering the full envelope via the body, and Codex's stripped shape (with the marker
+still inside `message`) recovering `code` alone via the marker, with `next_step`/`details`
+asserted absent. A future edit that changes either SDK's formatting, or the gateway's marker
+rendering, fails a test instead of degrading silently.
 
 ### OD2. Is a user's own secret the norm or the exception — CLOSED
 

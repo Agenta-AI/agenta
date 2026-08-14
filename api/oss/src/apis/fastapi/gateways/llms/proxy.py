@@ -37,6 +37,7 @@ from oss.src.core.gateways.llms.types import (
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
+    SecretInvalidError,
     SecretNotFoundError,
     EntitlementDeniedError,
     PolicyDeniedError,
@@ -60,9 +61,27 @@ _DOMAIN_EXCEPTIONS = (
     LLMModelNotAllowedError,
     CeilingExceededError,
     SecretNotFoundError,
+    SecretInvalidError,
     LLMEndpointNotFoundError,
     LLMUpstreamError,
 )
+
+
+# A single unambiguous machine-readable marker, embedded in every TYPED refusal's `message`
+# (WP25, OD18) so `code` survives even when a harness's SDK discards everything else the body
+# carries — codex-rs's `extract_error_message` keeps only `error.message` before reformatting,
+# so a marker inside that one surviving field is the only channel left. U+27E6/U+27E7
+# (MATHEMATICAL LEFT/RIGHT WHITE SQUARE BRACKET) never occur in ordinary error prose, a model's
+# own output, JSON delimiters (`{}`/`[]`), or markdown, so nothing else can produce or be
+# mistaken for this marker, and it cannot collide with `parseGatewayErrorDetail`'s separate
+# `{...}` body scan. Never applied to `upstream_error`: D16 forwards the upstream's own detail
+# untouched, and this surface must not inject text into it.
+_CODE_MARKER_OPEN = "⟦agenta_code:"
+_CODE_MARKER_CLOSE = "⟧"
+
+
+def _with_code_marker(message: str, code: str) -> str:
+    return f"{message} {_CODE_MARKER_OPEN}{code}{_CODE_MARKER_CLOSE}"
 
 
 def _openai_error(
@@ -71,9 +90,11 @@ def _openai_error(
     message: str,
     error_type: str,
     code: str,
+    marked: bool = True,
     **extra: Any,
 ) -> JSONResponse:
-    error: Dict[str, Any] = {"message": message, "type": error_type, "code": code}
+    rendered = _with_code_marker(message, code) if marked else message
+    error: Dict[str, Any] = {"message": rendered, "type": error_type, "code": code}
     error.update(extra)
     return JSONResponse(status_code=status_code, content={"error": error})
 
@@ -126,6 +147,13 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             error_type="invalid_request_error",
             code="secret_missing",
         )
+    if isinstance(exc, SecretInvalidError):
+        return _openai_error(
+            status_code=409,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code="secret_invalid",
+        )
     if isinstance(exc, LLMAdapterNotFoundError):
         return _openai_error(
             status_code=502,
@@ -148,6 +176,7 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
         message=exc.detail or exc.message,
         error_type="api_error",
         code="upstream_error",
+        marked=False,
     )
 
 
