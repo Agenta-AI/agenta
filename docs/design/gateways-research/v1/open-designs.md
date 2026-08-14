@@ -21,7 +21,7 @@ the CRUD routers need `handle_gateway_exceptions()`, so no single package can. I
 seed like the DTOs, because shared infrastructure with three consumers is exactly what the seed is
 for. The ownership table says so.
 
-**R2. `LlmGatewayService`'s frozen constructor takes no vault dependency**, yet `list_endpoints`
+**R2. `LLMGatewayService`'s frozen constructor takes no vault dependency**, yet `list_endpoints`
 must decide which generated endpoints exist, which under D20 means "those a key exists for".
 **→ The resolver port gains one method; the service gains no dependency.**
 
@@ -41,12 +41,12 @@ Three packages gain a line: **WP2** implements it in `resolution.py`, **WP5** im
 mock resolver from its dict, **WP7** calls it from `list_endpoints`.
 
 **R3. `GET /v1/models` has no backing service method. → `list_models`, on the data-plane half of
-`LlmGatewayService`, returning the allowlist.**
+`LLMGatewayService`, returning the allowlist.**
 
 ```python
 async def list_models(self, *, scope, namespace, name) -> List[str]: ...
 # Resolves the target, authorizes with USE_LLM_ENDPOINTS, and returns what
-# policy will allow: the static catalogue's slugs for builtin, model_slugs for
+# policy will allow: the static catalogue's slugs for builtin, the allowlist for
 # custom. No new DTO — the proxy shapes the OpenAI list body inline, as it has
 # no wire models (§6).
 ```
@@ -104,7 +104,7 @@ reads as intent rather than omission.
 If routing runs in the API process, that service declares it (`raw/model-call-sites.md` notes the
 same thing).
 
-**R12. `McpGatewayService`'s frozen constructor omitted `connections_service`** — surfaced by
+**R12. `MCPGatewayService`'s frozen constructor omitted `connections_service`** — surfaced by
 building it. §8 mandates that `list_endpoints` resolve a builtin entry's state *"through the
 existing connections service"*, and `relay` resolve a builtin target the same way, so the
 behaviour the document requires cannot be written from the listed dependencies. **Settled: the
@@ -129,12 +129,12 @@ packages that own `registry.py` were still writing when it was found.
 
 **R11. §9's exception-mapping table is narrower than §5's exception set** — surfaced by writing
 the seed. The table names six categories; `SecretNotFoundError`, `SecretInvalidError` and
-`McpScopeInsufficientError` are not among them, and a fall-through would answer a project with no
+`MCPScopeInsufficientError` are not among them, and a fall-through would answer a project with no
 provider key with a 500, on checkpoint A's hot path.
 
 **Mapped to 409 in the seed, on §5's own words** rather than on invention: "the second says *you
 could, once someone connects* … maps to the needs-auth / needs-input interaction path (D17)", which
-is the same interaction status `McpAuthRequiredError` already takes. `SecretInvalidError`
+is the same interaction status `MCPAuthRequiredError` already takes. `SecretInvalidError`
 follows D18 identically. Confirm before checkpoint A; a different status is a one-file change.
 
 **SETTLED at 409, on all three surfaces.** The CRUD decorator and the MCP proxy already agreed;
@@ -194,6 +194,28 @@ people actually ask for, not a connector marketplace.
 
 **Recommendation:** ship a small direct set, for the reason above rather than for coverage. Its
 size is a product call.
+
+### OD14. Which harnesses can carry a second identity signal without losing their vendor login
+
+D32 settles that subscription pass-through is a real funding shape and why it cannot be a
+namespace. What it cannot settle is whether any given harness can actually be configured for it,
+because that is a fact about releases, not about design.
+
+Two things must be simultaneously true per harness: it sends `X-AG-Credentials` on model
+requests, **and** pointing its base URL at us does not make it abandon its vendor subscription
+login in favour of an API-key path. The second is the one that quietly fails — a harness that
+treats a custom base URL as "the user configured a raw API endpoint" will stop sending the
+subscription session entirely, and the symptom is an auth error from the vendor, not from us.
+
+**What settles it:** a matrix run per harness and per release — Codex, Claude Code, OpenCode —
+recording which header mechanism exists, whether the subscription survives a base-URL override,
+and what the vendor returns when it does not. Cheap to run, impossible to reason about in
+advance, and wrong to build against a guess.
+
+**The fallback if a harness fails the matrix** is the local-agent shape: a small local process
+between harness and gateway that holds the gateway identity and leaves the harness's own vendor
+login untouched. It is more moving parts and is worth building only for a harness that is both
+wanted and incapable, which is exactly what the matrix identifies.
 
 ### OD2. Is a user's own secret the norm or the exception — parked
 
@@ -271,8 +293,8 @@ is settled even where the envelope is not.
   already do not fail.
 - **Dead secrets** — tools stay listed and the call fails (D18). Hiding tools was rejected.
 - **New secret kinds** — `oauth_provider` and `oauth_grant`, two kinds rather than sub-kinds of
-  one (D14). No static MCP kind in this scope, and no kind at all for the inbound secret.
-- **The inbound secret** — minted, ephemeral, never stored, using the signer that already
+  one (D14). No static MCP kind in this scope, and no kind at all for the inbound credentials.
+- **The inbound credentials** — minted, ephemeral, never stored, using the signer that already
   exists (D13).
 - **Embeddings in the model registry** — deferred with the whole evaluator path, which is out of
   the current scope (D15).

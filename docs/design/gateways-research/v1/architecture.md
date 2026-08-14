@@ -93,7 +93,7 @@ path.
 
 ## 8. Security posture
 
-The gateway's central claim is that provider credentials stop at our boundary.
+The gateway's central claim is that provider secrets stop at our boundary.
 
 Established: signing for cloud resellers moves to the gateway, so the secret category
 that today must be held in an agent-controlled sandbox stops existing for gateway-routed

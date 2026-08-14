@@ -8,13 +8,13 @@ acceptance-tested without this package.
 
 Two deliverables per plane, and `entities.md` is explicit that only one of them is its concern:
 
-- **The adapter-level mock** — `MockLlmAdapter` / `MockMcpAdapter`, in-process classes
-  implementing the south port (`LlmUpstreamInterface` / `McpUpstreamInterface`), registered under
+- **The adapter-level mock** — `MockLLMAdapter` / `MockMCPAdapter`, in-process classes
+  implementing the south port (`LLMUpstreamInterface` / `MCPUpstreamInterface`), registered under
   the `"mock"` adapter key alongside `passthrough`/`translated` and `http`/`composio`
   (`entities.md` §9, the wiring block). No network call, no process. This is what `entities.md`
   draws in the file tree (§0, `providers/mock/adapter.py`) and what satisfies **unit and contract
   tests**: a test constructs a service with `upstream_registry=...Registry(adapters={"mock":
-  MockLlmAdapter()})` and calls it directly — nothing running.
+  MockLLMAdapter()})` and calls it directly — nothing running.
 - **The deployable mock** — a standalone process speaking the real upstream protocol (OpenAI-
   compatible HTTP for the model plane, MCP Streamable HTTP for the tool plane), run as its own
   docker-compose service. `entities.md` §0 says outright: *"Not shown: the deployable mocks...
@@ -39,12 +39,12 @@ wire either into an endpoint.
 ## Files
 
 New, all inside this package's owned paths (`workstreams/README.md`):
-- `core/gateways/llms/providers/mock/adapter.py` — `MockLlmAdapter(LlmUpstreamInterface)`
+- `core/gateways/llms/providers/mock/adapter.py` — `MockLLMAdapter(LLMUpstreamInterface)`
 - `core/gateways/llms/providers/mock/app.py` — the deployable OpenAI-compatible mock server
   (not in `entities.md`'s tree — it is the "deployable mock" the document explicitly disclaims;
   see "Missing from the design" below for the naming call this makes)
 - `core/gateways/llms/providers/mock/__init__.py`
-- `core/gateways/mcps/providers/mock/adapter.py` — `MockMcpAdapter(McpUpstreamInterface)`
+- `core/gateways/mcps/providers/mock/adapter.py` — `MockMCPAdapter(MCPUpstreamInterface)`
 - `core/gateways/mcps/providers/mock/app.py` — the deployable MCP Streamable HTTP mock server
 - `core/gateways/mcps/providers/mock/__init__.py`
 
@@ -69,52 +69,52 @@ not rename, do not add parameters not listed here.
 # core/gateways/llms/interfaces.py (seed-owned; read, not edited, by WP5)
 
 @dataclass
-class LlmRelayResult:
+class LLMRelayResult:
     status_code: int
     headers: Dict[str, str]
     body: AsyncIterator[bytes]
     usage: Optional[GatewayUsage] = None
 
-class LlmUpstreamInterface(ABC):
+class LLMUpstreamInterface(ABC):
     @abstractmethod
     async def relay_chat_completion(
-        self, *, route: LlmResolvedRoute, secret: Optional[ResolvedSecret],
-        context: LlmCallContext, body: bytes, headers: Dict[str, str],
-    ) -> LlmRelayResult: ...
+        self, *, route: LLMResolvedRoute, secret: Optional[ResolvedSecret],
+        context: LLMCallContext, body: bytes, headers: Dict[str, str],
+    ) -> LLMRelayResult: ...
 ```
 
 ```python
 # core/gateways/mcps/interfaces.py (seed-owned; read, not edited, by WP5)
 
 @dataclass
-class McpRelayResult:
+class MCPRelayResult:
     status_code: int
     headers: Dict[str, str]
     body: bytes
 
-class McpUpstreamInterface(ABC):
+class MCPUpstreamInterface(ABC):
     @abstractmethod
     async def relay(
-        self, *, route: McpResolvedRoute, auth: McpRelayAuth,
-        context: McpCallContext, body: bytes, headers: Dict[str, str],
-    ) -> McpRelayResult: ...
+        self, *, route: MCPResolvedRoute, auth: MCPRelayAuth,
+        context: MCPCallContext, body: bytes, headers: Dict[str, str],
+    ) -> MCPRelayResult: ...
 ```
 
 Exceptions to raise, from `entities.md` §5 (`core/gateways/llms/types.py`,
 `core/gateways/mcps/types.py`) — verbatim, do not add fields:
 
 ```python
-class LlmUpstreamError(GatewaysError):
+class LLMUpstreamError(GatewaysError):
     def __init__(self, *, provider_key: str, status_code: Optional[int] = None,
                  detail: Optional[str] = None): ...
 
-class McpUpstreamError(GatewaysError):
+class MCPUpstreamError(GatewaysError):
     def __init__(self, *, target: str, status_code: Optional[int] = None,
                  detail: Optional[str] = None): ...
 ```
 
-`GatewayUsage` (§4.2, `core/gateways/policy/dtos.py`), populated by `MockLlmAdapter` once `body`
-is exhausted, per `LlmRelayResult`'s own docstring ("usage is populated by the adapter once body
+`GatewayUsage` (§4.2, `core/gateways/policy/dtos.py`), populated by `MockLLMAdapter` once `body`
+is exhausted, per `LLMRelayResult`'s own docstring ("usage is populated by the adapter once body
 is exhausted"):
 
 ```python
@@ -125,52 +125,52 @@ class GatewayUsage(BaseModel):
     cost: Optional[float] = None
 ```
 
-## `MockLlmAdapter`
+## `MockLLMAdapter`
 
 ```python
 # core/gateways/llms/providers/mock/adapter.py
 
-class MockLlmAdapter(LlmUpstreamInterface):
+class MockLLMAdapter(LLMUpstreamInterface):
     async def relay_chat_completion(
         self, *, route, secret, context, body, headers,
-    ) -> LlmRelayResult: ...
+    ) -> LLMRelayResult: ...
 ```
 
 No constructor arguments beyond what the interface needs — registered once, statically, in
-`api/entrypoints/routers.py` per the wiring snippet (§9): `"mock": MockLlmAdapter()`. It never
+`api/entrypoints/routers.py` per the wiring snippet (§9): `"mock": MockLLMAdapter()`. It never
 opens a socket; `secret` may be `None` (targets with `GatewayAuthScheme.NONE` are the
 intended callers, per §2's "an endpoint with no secret is legitimate — the mock (D23)") and
 the adapter does not require one either way.
 
-**Controllable behavior, keyed by `context.model`** (a field `LlmCallContext` already carries —
+**Controllable behavior, keyed by `context.model`** (a field `LLMCallContext` already carries —
 no new DTO field). Three model-name suffixes, checked as a prefix match so the base model name
 stays free-form:
 
 | `context.model` | Behavior |
 |---|---|
 | `mock/echo` (default; any name not matching a suffix below) | Returns a well-formed chat-completion response echoing the request's last message content; if `context.stream` is set, streams it as 2–3 SSE chunks ending `data: [DONE]\n\n`, matching the OpenAI streaming shape |
-| `mock/error` | Raises `LlmUpstreamError(provider_key="mock", status_code=500, detail="forced by mock/error")` |
+| `mock/error` | Raises `LLMUpstreamError(provider_key="mock", status_code=500, detail="forced by mock/error")` |
 | `mock/slow-{seconds}` | `await asyncio.sleep(seconds)` before returning the `mock/echo` response — this is what WP6's relay-side timeout must fire against; `{seconds}` is a plain integer, e.g. `mock/slow-30` |
 
 `GatewayUsage` on a successful call: `calls=1`, `input_tokens`/`output_tokens` counted off the
 request/response body length (word count is enough — this is a mock, not a tokenizer), `cost=0.0`
 (the mock spends nothing).
 
-## `MockMcpAdapter`
+## `MockMCPAdapter`
 
 ```python
 # core/gateways/mcps/providers/mock/adapter.py
 
-class MockMcpAdapter(McpUpstreamInterface):
+class MockMCPAdapter(MCPUpstreamInterface):
     async def relay(
         self, *, route, auth, context, body, headers,
-    ) -> McpRelayResult: ...
+    ) -> MCPRelayResult: ...
 ```
 
 Unlike the real `http`/`composio` adapters, this one *is* the upstream — it parses `body` (the
 caller's JSON-RPC payload) itself, because there is nothing behind it to relay to, and returns a
 JSON-RPC response built in-process. This does not violate D16's transparency rule: D16 constrains
-the **gateway**, which still passes `body` through this port untouched (§7.1, `McpUpstreamInterface`
+the **gateway**, which still passes `body` through this port untouched (§7.1, `MCPUpstreamInterface`
 docstring — "same method, same body, same response"); a mock *server* interpreting its own
 JSON-RPC input is exactly what any real MCP server does.
 
@@ -179,14 +179,14 @@ Three tools, advertised by `tools/list` and dispatched by `tools/call`'s `params
 | Tool | Behavior on `tools/call` |
 |---|---|
 | `echo` | Echoes `params.arguments` back as the tool result content |
-| `fail` | Returns a JSON-RPC **result** carrying an MCP tool error (`isError: true`), not a transport failure — matching the pass-through rule that a server's own failure reason is not an exception (`api/AGENTS.md`'s error-envelope scope, and `McpUpstreamInterface`'s docstring: "protocol-level errors from the server are NOT exceptions") |
+| `fail` | Returns a JSON-RPC **result** carrying an MCP tool error (`isError: true`), not a transport failure — matching the pass-through rule that a server's own failure reason is not an exception (`api/AGENTS.md`'s error-envelope scope, and `MCPUpstreamInterface`'s docstring: "protocol-level errors from the server are NOT exceptions") |
 | `slow` | `await asyncio.sleep(seconds)` first, `seconds` from `params.arguments.seconds` (default 5) |
 
-A transport-level failure (`McpUpstreamError`) is reserved for a distinct control path: a
+A transport-level failure (`MCPUpstreamError`) is reserved for a distinct control path: a
 `method` other than `initialize` / `tools/list` / `tools/call` / `notifications/*` raises
-`McpUpstreamError(target="agenta/<slug>", status_code=501)` — there is no fourth method to mock.
+`MCPUpstreamError(target="agenta/<slug>", status_code=501)` — there is no fourth method to mock.
 
-**Forced scope challenges (D23's "later"): explicitly not built.** `McpScopeInsufficientError`
+**Forced scope challenges (D23's "later"): explicitly not built.** `MCPScopeInsufficientError`
 exists in `entities.md` §5 as a declared-but-unreachable type until the OAuth checkpoint (wave 3).
 Adding a `scope-challenge` tool now would exercise a code path (`403` handling in the OAuth
 client) that does not exist yet. Note the extension point in a comment; do not implement it.
@@ -196,7 +196,7 @@ client) that does not exist yet. Note the extension point in a comment; do not i
 Two standalone ASGI apps, each importable and runnable independently of the main API process
 (`uvicorn core.gateways.llms.providers.mock.app:app`). They implement the **same control
 convention** as the adapters above, because the whole point is that a test written against the
-in-process `MockLlmAdapter` and a test written against the compose service see identical
+in-process `MockLLMAdapter` and a test written against the compose service see identical
 behavior for the same input:
 
 - `core/gateways/llms/providers/mock/app.py` — a FastAPI (matching the API's own framework)
@@ -204,12 +204,12 @@ behavior for the same input:
   `text/event-stream` SSE when `"stream": true`, dispatching on the request body's `"model"`
   field with the identical `mock/echo` / `mock/error` / `mock/slow-{n}` convention. No
   `/v1/models` route is required — the gateway's own `/v1/models` handler (WP6) answers from the
-  endpoint's `model_slugs`, never by asking the upstream.
+  endpoint's model allowlist, never by asking the upstream.
 - `core/gateways/mcps/providers/mock/app.py` — a stateless-JSON-mode MCP Streamable HTTP server:
   `POST` carries JSON-RPC, `GET`/`DELETE` answer `405`, `202` for a notification — the exact shape
   `entities.md` §7.1 cites as precedent (`services/runner/src/tools/tool-mcp-http.ts`, read in
   full: stateless, no session id, no SSE leg, `application/json` responses). Same three tools as
-  `MockMcpAdapter`.
+  `MockMCPAdapter`.
 
 Both apps expose `GET /health` for the compose healthcheck.
 
@@ -278,12 +278,12 @@ Two import lines, added wherever the file's existing gateway-adapter imports lan
 `ComposioConnectionsAdapter` import block, `routers.py` lines 142–150):
 
 ```diff
-+from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
-+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
++from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
++from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
 ```
 
-WP7 and WP9 add the corresponding `"mock": MockLlmAdapter()` / `"mock": MockMcpAdapter()` entries
-inside their own `LlmUpstreamRegistry(...)` / `McpUpstreamRegistry(...)` construction blocks
+WP7 and WP9 add the corresponding `"mock": MockLLMAdapter()` / `"mock": MockMCPAdapter()` entries
+inside their own `LLMUpstreamRegistry(...)` / `MCPUpstreamRegistry(...)` construction blocks
 (`entities.md` §9's wiring snippet) — this package does not touch those blocks.
 
 ## Contracts this package must honour
@@ -292,14 +292,14 @@ inside their own `LlmUpstreamRegistry(...)` / `McpUpstreamRegistry(...)` constru
   what the API already ships (`fastapi`, `httpx`/`uvicorn` if needed) — D23 exists specifically so
   Checkpoint A needs nothing external.
 - **Registered always, reachable conditionally.** The wiring snippet's own comment: `"mock":
-  MockLlmAdapter(), # registered always; reachable only via the mock endpoints the local stack
+  MockLLMAdapter(), # registered always; reachable only via the mock endpoints the local stack
   defines`. The adapter class is present in every deploy (nothing branches on environment inside
   `core/`); only the compose services and the seed data that points an endpoint at them are
   dev/gh-local concerns.
 - **Same control convention on both tiers.** A test that passes on the in-process adapter and
   fails against the compose service (or vice versa) is a WP5 bug, not a caller bug.
-- **Transparent-relay discipline still applies to the adapter's exceptions.** `LlmUpstreamError`
-  / `McpUpstreamError` are for transport-level failures the mock is asked to simulate
+- **Transparent-relay discipline still applies to the adapter's exceptions.** `LLMUpstreamError`
+  / `MCPUpstreamError` are for transport-level failures the mock is asked to simulate
   (`mock/error`); a tool's own business failure (`fail`) is a JSON-RPC result, never an exception
   — this is D16 and `api/AGENTS.md`'s pass-through rule, and the mock exists partly to prove the
   distinction is testable.
@@ -310,27 +310,27 @@ inside their own `LlmUpstreamRegistry(...)` / `McpUpstreamRegistry(...)` constru
 ## Tests
 
 Unit — nothing running, both adapters exercised as plain Python objects:
-- `MockLlmAdapter().relay_chat_completion(..., context=LlmCallContext(model="mock/echo", ...))`
-  returns a well-formed `LlmRelayResult`, `status_code=200`, non-empty `body`.
-- `context.model="mock/error"` raises `LlmUpstreamError` with `provider_key="mock"`.
+- `MockLLMAdapter().relay_chat_completion(..., context=LLMCallContext(model="mock/echo", ...))`
+  returns a well-formed `LLMRelayResult`, `status_code=200`, non-empty `body`.
+- `context.model="mock/error"` raises `LLMUpstreamError` with `provider_key="mock"`.
 - `context.model="mock/slow-1"` takes ≥1s wall-clock (use a short value, not the eventual
   timeout-test duration) and then returns normally.
 - Streaming: `context.stream=True` yields more than one chunk over `body`, terminated by `data:
   [DONE]`.
-- `MockMcpAdapter().relay(...)` with a `tools/list` body returns all three tools;
+- `MockMCPAdapter().relay(...)` with a `tools/list` body returns all three tools;
   `tools/call` with `name="echo"` echoes arguments; `name="fail"` returns `isError: true` in the
   JSON-RPC **result**, not a raised exception; `name="slow"` with `arguments={"seconds": 1}` takes
   ≥1s.
-- An unrecognized `method` raises `McpUpstreamError(status_code=501)`.
+- An unrecognized `method` raises `MCPUpstreamError(status_code=501)`.
 - `GatewayUsage` is populated (non-`None`) after a successful `relay_chat_completion` call and its
   `body` iterator is exhausted.
 
 Contract — the same fixture both a mock and (once it exists) a real adapter must pass, run against
-`MockLlmAdapter`/`MockMcpAdapter` now and reused by WP6/WP7/WP8/WP9's own adapters later. Still
+`MockLLMAdapter`/`MockMCPAdapter` now and reused by WP6/WP7/WP8/WP9's own adapters later. Still
 nothing running:
-- `relay_chat_completion`'s return type is `LlmRelayResult` for every `context.model`, never a
+- `relay_chat_completion`'s return type is `LLMRelayResult` for every `context.model`, never a
   raw dict or a bare exception escaping unwrapped.
-- `relay`'s return type is `McpRelayResult` for every method in `{initialize, tools/list,
+- `relay`'s return type is `MCPRelayResult` for every method in `{initialize, tools/list,
   tools/call}`.
 
 Acceptance — needs the compose stack (`hosting/docker-compose/oss/docker-compose.dev.yml`) up:
@@ -374,14 +374,14 @@ be driven to fail on demand."*
 
 ## Out of scope
 
-- `select_upstream` and the `LlmUpstreamRegistry`/`McpUpstreamRegistry` classes — WP7 / WP9.
+- `select_upstream` and the `LLMUpstreamRegistry`/`MCPUpstreamRegistry` classes — WP7 / WP9.
 - The `agenta`-namespace code that turns the mock MCP server's URL into a listed endpoint — WP9's
   `service.py`.
 - The custom LLM endpoint row that turns the mock LLM server's URL into a reachable
   `custom/{slug}` — WP1's DAO, seeded by whichever package owns local-stack fixtures (WP10 is the
   natural owner once Endpoint CRUD exists; until then a raw `INSERT` against the migration WP1
   ships is an acceptable interim seed, not this package's job to write).
-- `McpScopeInsufficientError`-driven behavior (forced scope challenges) — deferred to wave 3
+- `MCPScopeInsufficientError`-driven behavior (forced scope challenges) — deferred to wave 3
   alongside the OAuth checkpoint; the type exists, the mock does not yet exercise it.
 - Any change to `passthrough`/`translated`/`http`/`composio` adapters — WP6, WP7, WP8.
 

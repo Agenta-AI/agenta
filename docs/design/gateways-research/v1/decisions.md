@@ -46,8 +46,8 @@ it at use time. This is the pattern webhook subscriptions and SSO providers alre
 one place instead of gaining a second. It also removes what looked like the design's one new
 component — there is no token store, only new secret kinds (D14).
 
-This is about *secrets* — customer provider material. The secret that authenticates a
-caller into a gateway is a different thing and is not stored at all (D13).
+This is about *secrets* — customer provider material. The credentials that authenticate a
+caller into a gateway are a different thing and are not stored at all (D13).
 
 ## D4. Ports and adapters everywhere, including inside the SDK
 
@@ -99,12 +99,12 @@ Owning the wrong half is the expensive mistake in either direction.
 
 ## D10. Take the secret owner as a parameter now
 
-User-level credentials are designed and not scheduled. The lookup must still take the owner
+User-level secrets are designed and not scheduled. The lookup must still take the owner
 from the outset and answer "the project" for now.
 
 **Why now:** the signature is the expensive part to retrofit. A lookup assuming the project
 spreads that assumption to every call site; a lookup taking an owner absorbs user-level
-credentials as a storage change. The caller side needs nothing either way, since the principal
+secrets as a storage change. The caller side needs nothing either way, since the principal
 already carries the user.
 
 ## D11. This design owns the gateway
@@ -144,10 +144,10 @@ same move on the billing side.
 **What this rules out:** a second request path for any concern. If billing needs something the
 gateway does not expose, the gateway grows it. Billing does not route around it.
 
-## D13. The inbound secret is minted, ephemeral, and never stored
+## D13. The inbound credentials are minted, ephemeral, and never stored
 
-The secret that authenticates a caller **into** a gateway is not a new kind of thing and
-does not live in the vault. By the established vocabulary it is a *secret* — Agenta's own
+The credentials that authenticate a caller **into** a gateway are not a new kind of thing and
+do not live in the vault. By the established vocabulary they are *credentials* — Agenta's own
 auth — not a *secret*, which is customer provider material.
 
 **It is minted per use and expires, and the mechanism already exists.** `sign_secret_token`
@@ -206,7 +206,7 @@ authorization server versus one per user per server), in lifetime, in rotation f
 in owner. A single kind would need a union inside it, and every query for a user's grants would
 filter on an inner field instead of on the kind.
 
-**No new kind for static MCP credentials in this scope.** Under D15 the targets are Agenta's own
+**No new kind for static MCP secrets in this scope.** Under D15 the targets are Agenta's own
 MCP gateway and OAuth-protected servers. A third-party server authenticating with a static token
 would need one, and that is deferred rather than designed away.
 
@@ -401,7 +401,7 @@ version segment today. `contract.md` keeps it open.
 stable name so a provider swap would not change URLs. That is the wrong instinct twice over. The
 provider is part of a connection's identity rather than an implementation detail — the existing
 connection table already keys on `(project, provider_key, integration_key, slug)` — and two
-connections to the same vendor through different brokers carry different credentials, different
+connections to the same vendor through different brokers carry different secrets, different
 consent and different tokens. A URL that survived a backend swap would keep resolving while the
 user's tokens did not migrate, which hides a real breakage instead of showing it. Naming the
 broker also lets a brokered server and a direct one to the same vendor coexist.
@@ -564,7 +564,7 @@ records the evidence.
 
 A custom endpoint's URL is typed by a user, and the gateway is the process that connects to it.
 That is a server-side request forgery sink: without a guard, a tenant can point an endpoint at
-`http://169.254.169.254/` and have us fetch cloud credentials for them, with our own network
+`http://169.254.169.254/` and have us fetch a cloud provider's instance secrets for them, with our own network
 position and our own outbound allowances.
 
 **Nothing new gets written.** `api/oss/src/core/webhooks/utils.py` already implements exactly this
@@ -631,7 +631,7 @@ D24 forbids reusing, and inventing a key to satisfy a call that always permits w
 placeholder for someone to mistake for enforcement.
 
 **What stays.** `EntitlementDeniedError` remains declared in the seed and mapped to 403 at the
-boundary, on the same reasoning as `McpScopeInsufficientError` (§5): the type costs nothing, and
+boundary, on the same reasoning as `MCPScopeInsufficientError` (§5): the type costs nothing, and
 having it now means the wave that adds limits changes a body rather than a signature. The
 permission check is untouched and remains wave 1 — permissions and entitlements answer different
 questions, and conflating them is a known trap.
@@ -671,6 +671,94 @@ now, discovering later that something else took it costs a migration of live URL
 
 **No migration.** `namespace` was never a column — every stored row is `custom` and the other two
 are derived. The change is the enum, the route grammar and the catalogue's naming.
+
+## D31. The inbound credentials travel in `X-AG-Credentials`, which outranks `Authorization`
+
+D13 settled *what* authenticates a caller into the gateway — minted, ephemeral, never stored.
+It put that token in `Authorization: Secret <jwt>`, one of the three schemes the middleware
+already accepts. That placement is wrong for one route shape, and the fix is a header.
+
+**Why `Authorization` cannot be the only door.** On a subscription pass-through route (D32)
+`Authorization` carries the caller's own vendor authentication, forwarded unchanged to the
+vendor. It is not ours to read and not ours to replace. A gateway that insists on
+`Authorization` for its own identity has no way to accept both, which is exactly the
+configuration pass-through requires.
+
+**The rule is precedence, not fallback.** `X-AG-Credentials` wins whenever it is present;
+`Authorization` remains for every existing caller and every harness that has only one slot.
+Reading it the other way round — `Authorization` first, `X-AG-Credentials` as a fallback —
+fails precisely in the case the header was introduced for, because both are present and the
+wrong one is ours. One helper, consulted at both of the middleware's existing read sites.
+
+**Both are stripped before any relay.** They authenticate the caller into the gateway; neither
+belongs to an upstream. This is one shared frozen set in the gateways' domain root, applied on
+both planes, and it closes a real leak: the MCP adapter forwarded caller headers wholesale and
+dropped `Authorization` only when it had a secret of its own to substitute — so a NONE-scheme
+tool server received the caller's platform token.
+
+**What this does not change.** The token itself, its signer, its expiry, its claims, or the
+three accepted schemes. D13 stands entirely; the value is the same string, and only where it
+is read changes. Nothing needs a new secret kind, and the value stays out of any session
+fingerprint (D13's known failure mode) for the same reason.
+
+## D32. Subscription pass-through is a fourth funding shape, orthogonal to the namespace
+
+D30 splits namespaces by whose *secret* pays: `builtin` is ours and bills through us,
+`standard` and `custom` are the user's. Pass-through is none of those. The vendor authenticates
+and bills the user's own **subscription**; the authentication stays in the harness; the gateway
+holds no secret at all and contributes identity, policy, audit and attribution.
+
+**It is a separate axis, not a fourth namespace.** A namespace answers "which backend, and
+whose key". Pass-through answers "who authenticates" — and the same target could in principle
+be reached either way. Modelling it as a namespace would force a false choice between the two
+questions and take a fourth URL keyword for an answer that is not about routing.
+
+**What it demands that nothing else does.** The gateway must *not* inject an upstream secret,
+must not overwrite `Authorization`, and must forward the caller's vendor authentication
+untouched — the exact inverse of every path built so far, all of which derive `Authorization`
+from a resolved secret and overwrite whatever was there. That inversion is why it needs a
+decision before it is built rather than after.
+
+**Explicitly not built here, and not because it is unimportant.** It depends on facts about
+harness releases that no design can assert — whether a given harness will send a second header
+while keeping its vendor login, and whether that login survives a base-URL override. Building
+against a guess is what makes this expensive. The prerequisite is a matrix test per harness,
+tracked in `open-designs.md`.
+
+**What is refused outright, and stays refused.** Centralising or replaying vendor subscription
+session files as a substitute for per-user vendor auth. They are the user's own secrets, often
+device-bound and renewable, and holding them would make us the custodian of exactly the thing
+this design exists to avoid holding. If the gateway user and the subscription principal must be
+proven to be the same person, that needs a provider-supported identity claim or an explicit
+account-pairing flow — never token parsing.
+
+## D33. The protocol front door is a route dimension; one today, more later
+
+The gateway relays a protocol; it does not translate between protocols. Each native protocol is
+its own front door under the plane, and a request never crosses from one to another:
+
+```text
+/v1/chat/completions   ->  OpenAI Chat Completions      (built)
+/v1/responses          ->  OpenAI Responses             (later)
+/v1/messages           ->  Anthropic Messages           (later)
+```
+
+**Why front doors rather than one normalised entry.** Translating one provider's tool-use,
+reasoning, cache and structured-output semantics into another's is a permanent maintenance
+liability that grows with every provider release, and it breaks upstream prompt caching, which
+is the thing the byte-for-byte relay exists to protect. Adding a front door is additive: a
+parser for that protocol's model field, a route, and the same policy pipeline behind it.
+
+**`TranslatedLLMAdapter` is not the thing this refuses.** It translates *provider shape* behind
+a single front door — a Chat Completions request reaching Bedrock, whose wire is not OpenAI's
+and whose auth is request signing. It never turns a Messages request into a Responses one. The
+two are easy to conflate and the distinction is what keeps D33 and D9 from contradicting each
+other.
+
+**What each new front door needs.** Its own minimal body parse for the policy fields (the model
+id, the stream flag), its own usage extraction, and its own ceiling binding — Chat Completions
+names the ceiling `max_tokens`, Responses names it `max_output_tokens`. Nothing else in the
+pipeline changes: resolution, filters, ceilings, secrets and audit are all protocol-blind.
 
 ---
 

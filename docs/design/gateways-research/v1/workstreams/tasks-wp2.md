@@ -3,8 +3,7 @@
 Ordered so each item is one reviewable commit. Depends on the seed commit
 (`core/gateways/policy/{dtos,types,interfaces}.py`) already existing on the base branch.
 Depends on nothing else — WP2 can start immediately alongside WP1 and WP3, since it
-consumes `McpGrantsDAOInterface` (seed-declared) rather than WP1's concrete
-implementation, and a mock of it for tests.
+consumes only `VaultService` (already landed) and a mock of it for tests.
 
 ## Setup
 
@@ -20,12 +19,11 @@ implementation, and a mock of it for tests.
 ## resolution.py — skeleton
 
 - [x] `core/gateways/policy/resolution.py`: `SecretsResolver.__init__(self, *,
-      vault_service: VaultService, mcp_grants_dao: McpGrantsDAOInterface) -> None`,
-      implementing `SecretsResolverInterface`.
+      vault_service: VaultService) -> None`, implementing `SecretsResolverInterface`.
 - [x] `async def resolve(self, *, scope: AuthScope, ref: SecretRef, mode:
       SecretMode) -> ResolvedSecret`: dispatch on `type(ref)` /
       `isinstance(ref, ...)` to one private method per arm
-      (`_resolve_provider_key`, `_resolve_bound_secret`, `_resolve_grant`). Every branch
+      (`_resolve_provider_key`, `_resolve_bound_secret`). Every branch
       raises `SecretNotFoundError` or `SecretInvalidError` on failure — no bare
       `return None` anywhere in this file, and no branch that falls through without
       either returning a `ResolvedSecret` or raising.
@@ -42,6 +40,9 @@ implementation, and a mock of it for tests.
       currently produce identical behavior (per specs-wp2.md's "mode table" section) —
       do not collapse into one code path with a comment saying "modes are equivalent for
       now."
+- [x] No endpoint- or OAuth-specific branch needed: an OAuth MCP endpoint resolves
+      through this same arm, called with `BoundSecretRef(secret_id=endpoint.secret_id)`
+      at `mode=PROJECT_ONLY` by WP9 — this package does not need to know that.
 
 ## resolution.py — ProviderKeyRef
 
@@ -68,33 +69,6 @@ implementation, and a mock of it for tests.
       `custom_provider` returns exactly `{"openai", "azure"}`; a project with no
       secrets returns an empty set without raising.
 
-## resolution.py — GrantRef
-
-- [x] Implement `_resolve_grant`, writing out the full three-way `mode` table from
-      `specs-wp2.md` rather than an abbreviated chain:
-      - `PROJECT_ONLY`: `mcp_grants_dao.fetch_grant(project_id=scope.project_id,
-        endpoint_id=ref.endpoint_id, user_id=None)` only. Miss →
-        `SecretNotFoundError(mode=PROJECT_ONLY, missing=PROJECT, target=...)`.
-      - `USER_REQUIRED`: `fetch_grant(..., user_id=scope.user_id)` only, **never**
-        followed by a `user_id=None` lookup. Miss → `SecretNotFoundError(mode=
-        USER_REQUIRED, missing=USER, target=...)`.
-      - `USER_OPTIONAL`: `fetch_grant(..., user_id=scope.user_id)` first; if `None`,
-        `fetch_grant(..., user_id=None)`. Both miss → `SecretNotFoundError(mode=
-        USER_OPTIONAL, missing=USER, target=...)` — `missing` is `USER` (the narrower
-        owner) even though the project lookup was also attempted.
-- [x] Once a grant row is found (any mode): if `not grant.flags.is_valid`, raise
-      `SecretInvalidError(target=f"endpoint:{ref.endpoint_id}")` **before** touching
-      the vault — do not call `vault_service.get_secret_by_id` for an invalid grant.
-- [x] Otherwise call `vault_service.get_secret_by_id(grant.secret_id,
-      project_id=scope.project_id)`; `None` (dangling FK defensive case) →
-      `SecretInvalidError(target=..., detail="secret missing")` — **not**
-      `SecretNotFoundError`, since a grant row genuinely exists.
-- [x] Build `owner=SecretOwner(kind=USER, user_id=grant.user_id)` when the resolved
-      grant's `user_id` is set, `SecretOwner(kind=PROJECT)` when it is `None` — the
-      owner reflects **which grant row answered**, not `scope.user_id` directly (in
-      `USER_OPTIONAL`'s fallback case these differ: the caller is `scope.user_id`, the
-      secret's owner is the project).
-
 ## Ruff
 
 - [x] Ruff format then ruff check `resolution.py`; fix all errors.
@@ -105,42 +79,26 @@ implementation, and a mock of it for tests.
 - [x] `api/oss/tests/pytest/unit/gateways/test_gateways_resolution.py`: build a minimal
       mock `VaultService` (in-memory dict of `secret_id -> SecretResponseDTO`, a mock
       `list_secrets`/`get_secret_by_id` pair — do not subclass the real `VaultService`,
-      implement only what `SecretsResolver` calls) and a mock
-      `McpGrantsDAOInterface` (in-memory dict keyed on `(endpoint_id, user_id)`).
+      implement only what `SecretsResolver` calls).
 - [x] `BoundSecretRef`: secret exists → resolves with `owner.kind == PROJECT`.
 - [x] `BoundSecretRef`: secret missing → `SecretNotFoundError(missing=PROJECT)`.
+- [x] `BoundSecretRef` at each of the three `SecretMode` values, secret exists → resolves
+      it with `owner.kind == PROJECT` in every case (no ref arm has a live per-user
+      secret in this scope) — the test that catches a mode dispatch collapsed into one
+      code path.
 - [x] `ProviderKeyRef`: `provider_key`-kind match → resolves it.
 - [x] `ProviderKeyRef`: no `provider_key`-kind match, `custom_provider`-kind match
       exists → resolves the `custom_provider` one.
 - [x] `ProviderKeyRef`: both kinds match → resolves the `provider_key`-kind one.
 - [x] `ProviderKeyRef`: no match → `SecretNotFoundError(missing=PROJECT)`.
-- [x] `GrantRef`, `PROJECT_ONLY`, only a user-owned grant exists → `SecretNotFoundError`
-      (must NOT fall through to the user's grant — this is the test most likely to catch
-      a `PROJECT_ONLY` that accidentally behaves like `USER_OPTIONAL`).
-- [x] `GrantRef`, `USER_REQUIRED`, only a project-owned grant exists → `SecretNotFoundError(missing=USER)`
-      (must NOT fall back to the project's — the single most important assertion in this
-      package).
-- [x] `GrantRef`, `USER_REQUIRED`, a user-owned grant exists → resolves it,
-      `owner.kind == USER`, `owner.user_id == scope.user_id`.
-- [x] `GrantRef`, `USER_OPTIONAL`, both a user grant and a project grant exist →
-      resolves the user's.
-- [x] `GrantRef`, `USER_OPTIONAL`, only a project grant exists → resolves it,
-      `owner.kind == PROJECT`.
-- [x] `GrantRef`, `USER_OPTIONAL`, neither exists → `SecretNotFoundError(missing=USER)`.
-- [x] `GrantRef`, grant exists with `is_valid=False` → `SecretInvalidError`,
-      regardless of mode; assert the mock vault's `get_secret_by_id` was never called.
-- [x] `GrantRef`, grant exists and valid, `secret_id` resolves to nothing in the mock
-      vault → `SecretInvalidError` (not `SecretNotFoundError`).
 - [x] Every raised `SecretNotFoundError`/`SecretInvalidError` across the above:
       assert `target` is non-empty and format-stable for a given input `ref`.
 - [x] Ruff format + check; commit.
 
 ## routers.py diff (hand off at merge, do not commit directly)
 
-- [x] Write the `SecretsResolver(vault_service=vault_service,
-      mcp_grants_dao=mcp_grants_dao)` construction line from `specs-wp2.md` into this
-      package's PR description for the M1 merge — ordered after WP1's `mcp_grants_dao`
-      construction line.
+- [x] Write the `SecretsResolver(vault_service=vault_service)` construction line from
+      `specs-wp2.md` into this package's PR description for the M1 merge.
 
 ## Definition of done
 
@@ -150,6 +108,6 @@ specified and no path silently returns no secret."*
 
 WP2 is done when: every unit test above passes; grep over `resolution.py` confirms no
 `return None` and no unreachable branch that neither returns a `ResolvedSecret` nor
-raises; and the `USER_REQUIRED` no-fallback assertion passes for `GrantRef` (real
-behavior today) with the same dispatch structure visibly present (by code inspection) on
-the other two ref arms.
+raises; and the `USER_REQUIRED` no-fallback dispatch structure is visibly present (by
+code inspection) on both ref arms, even though neither has a live per-user secret in this
+scope.

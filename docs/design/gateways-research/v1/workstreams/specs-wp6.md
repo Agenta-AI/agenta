@@ -6,14 +6,14 @@ gateway — the ingress package, per `workstreams/README.md`'s central cut: "on 
 transport and domain are different packages... WP6 and WP8 own the HTTP surface, streaming,
 timeouts and the byte-for-byte relay. WP7 and WP9 own the service, the registry, the catalogue
 and the allowlists." WP6 therefore never decides *which* endpoint a call reaches or *whether* it
-is allowed — it parses the caller's request, calls `LlmGatewayService.relay_chat_completion`
+is allowed — it parses the caller's request, calls `LLMGatewayService.relay_chat_completion`
 (WP7's method, called through the seed-frozen signature), and relays the answer back exactly as
 it arrived.
 
 **Explicitly not built here, and who owns it instead:**
 - Endpoint resolution, the allowlist check, the ceiling check, policy authorization, secret
   resolution, and the choice of south-port adapter (`select_upstream`) — all inside
-  `LlmGatewayService.relay_chat_completion`, owned by **WP7**.
+  `LLMGatewayService.relay_chat_completion`, owned by **WP7**.
 - The adapter that translates through the routing library for non-OpenAI-shaped upstreams
   (Anthropic direct, Azure, Bedrock, SageMaker, Vertex) — `providers/translated/adapter.py`,
   **WP7**.
@@ -25,12 +25,12 @@ it arrived.
 ## Files
 
 New:
-- `apis/fastapi/gateways/llms/proxy.py` — `LlmGatewayProxy`
+- `apis/fastapi/gateways/llms/proxy.py` — `LLMGatewayProxy`
 - `apis/fastapi/gateways/llms/utils.py` — `parse_llm_call_context`
-- `core/gateways/llms/providers/passthrough/adapter.py` — `PassthroughLlmAdapter`
+- `core/gateways/llms/providers/passthrough/adapter.py` — `PassthroughLLMAdapter`
 - `core/gateways/llms/providers/passthrough/__init__.py`
 
-Edited: `api/entrypoints/routers.py` — proxy router mount + `PassthroughLlmAdapter` import and
+Edited: `api/entrypoints/routers.py` — proxy router mount + `PassthroughLLMAdapter` import and
 registry entry (diff below). No other file; WP6 does not touch `core/gateways/llms/service.py`,
 `registry.py`, or `catalog.py` (all WP7).
 
@@ -45,31 +45,31 @@ listed here.
 # core/gateways/llms/interfaces.py (seed-owned)
 
 @dataclass
-class LlmRelayResult:
+class LLMRelayResult:
     status_code: int
     headers: Dict[str, str]
     body: AsyncIterator[bytes]
     usage: Optional[GatewayUsage] = None
 
-class LlmUpstreamInterface(ABC):
+class LLMUpstreamInterface(ABC):
     @abstractmethod
     async def relay_chat_completion(
-        self, *, route: LlmResolvedRoute, secret: Optional[ResolvedSecret],
-        context: LlmCallContext, body: bytes, headers: Dict[str, str],
-    ) -> LlmRelayResult:
+        self, *, route: LLMResolvedRoute, secret: Optional[ResolvedSecret],
+        context: LLMCallContext, body: bytes, headers: Dict[str, str],
+    ) -> LLMRelayResult:
         """Relay one completion call. `body` is the caller's payload untouched;
         `headers` are the caller's headers already stripped of authorization.
         `secret` is None only for targets whose auth scheme is NONE (the
-        mocks). Raises LlmUpstreamError on upstream failure."""
+        mocks). Raises LLMUpstreamError on upstream failure."""
 ```
 
 ```python
 # core/gateways/llms/providers/passthrough/adapter.py
 
-class PassthroughLlmAdapter(LlmUpstreamInterface):
+class PassthroughLLMAdapter(LLMUpstreamInterface):
     async def relay_chat_completion(
         self, *, route, secret, context, body, headers,
-    ) -> LlmRelayResult: ...
+    ) -> LLMRelayResult: ...
 ```
 
 Which providers land here versus `translated` is `select_upstream`'s decision (WP7,
@@ -78,21 +78,21 @@ caller's protocol (OpenAI-compatible: `deployment=custom`, and direct providers 
 OpenAI-shaped)." WP6 builds an adapter correct for that whole class, without needing the
 provider list itself.
 
-### `LlmResolvedRoute` (input, seed-owned, `core/gateways/llms/dtos.py` §4.3)
+### `LLMResolvedRoute` (input, seed-owned, `core/gateways/llms/dtos.py` §4.3)
 
 ```python
-class LlmResolvedRoute(BaseModel):
+class LLMResolvedRoute(BaseModel):
     provider_key: str
-    deployment: LlmDeploymentKind
+    deployment_kind: LLMDeploymentKind
     model: str
     base_url: Optional[str] = None
     api_version: Optional[str] = None
     region: Optional[str] = None
     headers: Optional[Dict[str, str]] = None
-    config: LlmEndpointConfig = Field(default_factory=LlmEndpointConfig)
+    settings: LLMEndpointSettings = Field(default_factory=LLMEndpointSettings)
 ```
 
-`config.timeout_seconds` (inherited from `GatewayEndpointConfig`, §4.1) is the per-call timeout;
+`settings.timeout_seconds` (inherited from `GatewayEndpointSettings`, §4.1) is the per-call timeout;
 `None` on every generated endpoint (§2.4: "generated endpoints take the code defaults") — this
 package supplies that default, since timeouts are WP6's stated scope in `plan.md`.
 
@@ -143,14 +143,14 @@ sent at all.
 ### `apis/fastapi/gateways/llms/utils.py`
 
 ```python
-def parse_llm_call_context(*, body: bytes) -> LlmCallContext:
+def parse_llm_call_context(*, body: bytes) -> LLMCallContext:
     """Extract model and stream from the JSON body without materializing a
     parsed copy for relay — the body itself stays byte-for-byte (§7.1).
     Raises ValueError when the body names no model; the proxy translates that
     into the surface's own invalid-request error shape."""
 ```
 
-`LlmCallContext` (seed-owned, §4.3): `model: str`, `stream: bool = False`. This function reads
+`LLMCallContext` (seed-owned, §4.3): `model: str`, `stream: bool = False`. This function reads
 just enough of the body (`json.loads`, two keys) to route and to pick a timeout; it must not
 construct a new serialized body anywhere in the relay path — `body: bytes` stays the same object
 handed to the adapter.
@@ -160,8 +160,8 @@ handed to the adapter.
 Route declarations verbatim from `entities.md` §9:
 
 ```python
-class LlmGatewayProxy:
-    def __init__(self, *, llm_gateway_service: LlmGatewayService):
+class LLMGatewayProxy:
+    def __init__(self, *, llm_gateway_service: LLMGatewayService):
         self.service = llm_gateway_service
         self.router = APIRouter()
 
@@ -212,7 +212,7 @@ return Response(content=chunk, status_code=result.status_code, headers=result.he
 ```
 
 `list_models_builtin` / `list_models_custom`: answer from the endpoint's allowlist — "the static
-catalogue for builtin, `model_slugs` for custom" (§9's comment on the route declarations). **R3
+catalogue for builtin, the allowlist for custom" (§9's comment on the route declarations). **R3
 named the backing method at kickoff**: `await self.service.list_models(scope=..., namespace=...,
 name=...) -> List[str]`, owned by WP7. It authorizes and resolves the target itself; this handler
 shapes the OpenAI list body inline —
@@ -225,13 +225,13 @@ return {"object": "list", "data": [{"id": s, "object": "model"} for s in slugs]}
 — because the data plane has no wire models (§6).
 
 **Audit timing is not this package's problem.** §9: "Streaming rides `StreamingResponse` over
-`LlmRelayResult.body`, with the audit record written in the handler's finally after the iterator
+`LLMRelayResult.body`, with the audit record written in the handler's finally after the iterator
 is exhausted (§8)." Read together with §8's own note — "for a streamed body the outcome's usage
-is read off the `LlmRelayResult` after exhaustion... the surface drains, the service records in a
-finally" — the wrapping that fires `policy.record(...)` on exhaustion is `LlmGatewayService`'s own
+is read off the `LLMRelayResult` after exhaustion... the surface drains, the service records in a
+finally" — the wrapping that fires `policy.record(...)` on exhaustion is `LLMGatewayService`'s own
 `finally` around the iterator it returns (WP7's job). WP6's handler only has to drain
 `result.body` through `StreamingResponse`; it must **not** add its own `try/finally` calling into
-policy, because `LlmGatewayProxy` never holds a `GatewayPolicyService` reference (its constructor
+policy, because `LLMGatewayProxy` never holds a `GatewayPolicyService` reference (its constructor
 takes only `llm_gateway_service`) — if this reading is wrong, it is a WP7 spec bug, not a WP6 one.
 
 ### Error shape
@@ -247,23 +247,23 @@ reconcile with WP10's shared decorator at the M2 merge rather than blocking on i
 merge-point conversation per `workstreams/README.md` rule 1, not a WP6 commit that waits.
 
 What must never happen: leaking the house envelope (`count`, entity-wrapped) onto this surface,
-or rewriting the upstream's own error body once a call reaches `PassthroughLlmAdapter` — a
-`LlmUpstreamError` raised there passes its `detail` through untouched (D16's pass-through rule,
+or rewriting the upstream's own error body once a call reaches `PassthroughLLMAdapter` — a
+`LLMUpstreamError` raised there passes its `detail` through untouched (D16's pass-through rule,
 `api/AGENTS.md`'s error-envelope scope).
 
 ## `api/entrypoints/routers.py` diff
 
 ```diff
-+from oss.src.core.gateways.llms.providers.passthrough.adapter import PassthroughLlmAdapter
-+from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy
++from oss.src.core.gateways.llms.providers.passthrough.adapter import PassthroughLLMAdapter
++from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
 ...
-+llm_gateway_proxy = LlmGatewayProxy(llm_gateway_service=llm_gateway_service)
++llm_gateway_proxy = LLMGatewayProxy(llm_gateway_service=llm_gateway_service)
 ...
  app.include_router(router=llm_gateway.router,  prefix="/gateways/llms", tags=["Gateway: LLM"])
 +app.include_router(router=llm_gateway_proxy.router, prefix="/gateways/llms", include_in_schema=False)
 ```
 
-The `upstream_registry=LlmUpstreamRegistry(adapters={"passthrough": PassthroughLlmAdapter(), ...})`
+The `upstream_registry=LLMUpstreamRegistry(adapters={"passthrough": PassthroughLLMAdapter(), ...})`
 dict entry is WP7's edit inside its own service-construction block (`entities.md` §9's wiring
 snippet) — WP6 contributes the import and the proxy mount only.
 
@@ -271,23 +271,23 @@ snippet) — WP6 contributes the import and the proxy mount only.
 
 - **Byte-for-byte, no exceptions inside this adapter's reach.** `scope-checklist.md`: "Body
   byte-for-byte, **both gateways**... on the model side it is what keeps prompt caching working."
-  `PassthroughLlmAdapter` never deserializes and re-serializes `body`; it forwards the exact bytes
+  `PassthroughLLMAdapter` never deserializes and re-serializes `body`; it forwards the exact bytes
   it received, adding only transport-level auth (a header, never a body mutation).
 - **The proxy carries no wire models** (§6) — house-style `models.py` request/response classes
   never appear on `proxy.py`'s routes.
 - **`AuthScope` via `get_auth_scope()`, never `request.state`** (§9) — the design's explicit
   correction of the existing gateway/tools/triggers habit.
 - **Timeout is enforced here, not assumed away.** `plan.md` WP6's own done condition: "a hung
-  upstream times out rather than hanging the gateway." `PassthroughLlmAdapter` wraps its upstream
+  upstream times out rather than hanging the gateway." `PassthroughLLMAdapter` wraps its upstream
   call in `asyncio.wait_for`/an `httpx` client timeout keyed on `route.config.timeout_seconds`
   (falling back to this package's own default when `None`), and on expiry raises
-  `LlmUpstreamError(provider_key=route.provider_key, status_code=None, detail="upstream timed
+  `LLMUpstreamError(provider_key=route.provider_key, status_code=None, detail="upstream timed
   out")` — never lets the coroutine hang the request indefinitely.
 - **Streaming preserves ordering and framing.** SSE chunk boundaries from the upstream are not
   recombined or re-chunked; `StreamingResponse` receives the adapter's `AsyncIterator[bytes]`
   directly.
 - **No secret ever appears in a log or an exception message.** `secret.secret` never
-  crosses into `LlmUpstreamError.detail` or any log line this package writes.
+  crosses into `LLMUpstreamError.detail` or any log line this package writes.
 
 ## Tests
 
@@ -295,19 +295,19 @@ Unit — nothing running:
 - `parse_llm_call_context`: extracts `model`/`stream` from representative bodies; raises
   `ValueError` when `model` is absent; does not mutate or copy the input bytes object
   observably (assert the returned context, not a re-encoded body).
-- `PassthroughLlmAdapter.relay_chat_completion` against a stubbed `httpx` transport
+- `PassthroughLLMAdapter.relay_chat_completion` against a stubbed `httpx` transport
   (`httpx.MockTransport`, no real socket): a `StandardProviderDTO` secret produces a
   `Authorization: Bearer {key}` header; a `CustomProviderDTO` secret produces the same header
   from `provider.key`; `secret=None` sends no `Authorization` header at all.
 - The same stub, but the transport raises/times out: `relay_chat_completion` raises
-  `LlmUpstreamError`, never lets the exception surface as something else.
+  `LLMUpstreamError`, never lets the exception surface as something else.
 - The outbound URL is `route.base_url` + `/chat/completions` with `route.headers` merged in
   (non-secret routing headers) — assert against `httpx.MockTransport`'s captured request, not by
   reading the module's internals.
 
 Contract — reuses WP5's fixture (`test_mock_adapters_contract.py`, extended once this adapter
-exists): `PassthroughLlmAdapter` is added to the parametrized fixture asserting
-`relay_chat_completion` returns `LlmRelayResult` for every input. Still nothing running (the
+exists): `PassthroughLLMAdapter` is added to the parametrized fixture asserting
+`relay_chat_completion` returns `LLMRelayResult` for every input. Still nothing running (the
 `httpx.MockTransport` stub, not a real mock).
 
 Acceptance — needs the compose stack, WP5's `mock-llm-gateway` reachable, and WP7's service/
@@ -320,7 +320,7 @@ catalog/registry wired (i.e., this suite only runs post-M2, at Checkpoint A):
   set below 30: the gateway responds with a timeout error inside that window, not after 30s —
   the gateway's own request does not hang even though the upstream does.
 - An unauthenticated request (no `Secret <token>`) is refused before reaching WP5's mock at all.
-- A request naming a model outside the endpoint's `model_slugs` is refused with `model_not_allowed`
+- A request naming a model outside the endpoint's allowlist is refused with `model_not_allowed`
   — proves WP7's allowlist check runs before WP6's relay is ever invoked.
 
 ## Done test
@@ -353,7 +353,7 @@ times out rather than hanging the gateway."*
 
 ## Settled at kickoff — was "needs a ruling"
 
-- **`GET /v1/models` has no backing service method → `LlmGatewayService.list_models`, R3.** It
+- **`GET /v1/models` has no backing service method → `LLMGatewayService.list_models`, R3.** It
   resolves one target by `(namespace, name)`, authorizes with `USE_LLM_ENDPOINTS`, and returns
   the allowlist as `List[str]`. WP7 owns it, this package calls it. The alternative considered
   and rejected — filtering `list_endpoints` client-side — pulls full entities for a listing use

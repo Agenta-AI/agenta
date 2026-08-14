@@ -1,25 +1,25 @@
 # WP8 — MCP ingress and proxy
 
 Delivers the MCP gateway's data-plane HTTP surface: one router class,
-`McpGatewayProxy`, declaring the three namespaced relay routes over the
+`MCPGatewayProxy`, declaring the three namespaced relay routes over the
 route grammar D27 settles, plus the one south-port adapter that turns a
 resolved route and a resolved secret into a real Streamable HTTP call
 against a `custom` server. Owns the transport and the byte-for-byte relay;
 does **not** own routing decisions, allowlist enforcement, secret
-resolution or the builtin/agenta merge — those are `McpGatewayService`
+resolution or the builtin/agenta merge — those are `MCPGatewayService`
 (WP9). This is the cut `workstreams/README.md` names: "on each plane,
 transport and domain are different packages."
 
 ## Files
 
 New:
-- `api/oss/src/apis/fastapi/gateways/mcps/proxy.py` — `McpGatewayProxy`
+- `api/oss/src/apis/fastapi/gateways/mcps/proxy.py` — `MCPGatewayProxy`
   (§9): three POST routes plus the shared 405 handler for the stream
   verbs.
 - `api/oss/src/apis/fastapi/gateways/mcps/utils.py` — `parse_mcp_call_context`
   (§9): the one pure function that reads the caller's request for routing.
-- `api/oss/src/core/gateways/mcps/providers/http/adapter.py` — `HttpMcpAdapter`,
-  the `McpUpstreamInterface` implementation for remote Streamable HTTP
+- `api/oss/src/core/gateways/mcps/providers/http/adapter.py` — `HttpMCPAdapter`,
+  the `MCPUpstreamInterface` implementation for remote Streamable HTTP
   servers (`custom`, per the wiring block in §9: registered under the
   `"http"` key).
 
@@ -51,18 +51,18 @@ add routes or parameters not listed here.
   integration_key, slug)`, §2.3). No catch-all: none of the three segments
   is ever nested.
 - **`custom/{slug}`** — **one fixed path component**. The slug is unique
-  per project (`uq_mcp_gateway_endpoints_project_slug`), never nested.
+  per project (`uq_mcps_endpoints_project_slug`), never nested.
 
 The three routes cannot collide with the CRUD router's paths sharing the
-same `/gateways/mcps` prefix (`router.py`, WP10) because the CRUD paths
-start with `endpoints` or `grants`, and none of `agenta | builtin | custom`
-can spell either (§9).
+same `/gateways/mcps` prefix (`router.py`, WP10) because every CRUD path
+starts with `endpoints`, and none of `builtin | standard | custom` can
+spell it (§9).
 
-### `McpGatewayProxy` (§9)
+### `MCPGatewayProxy` (§9)
 
 ```python
-class McpGatewayProxy:
-    def __init__(self, *, mcp_gateway_service: McpGatewayService):
+class MCPGatewayProxy:
+    def __init__(self, *, mcp_gateway_service: MCPGatewayService):
         self.service = mcp_gateway_service
         self.router = APIRouter()
 
@@ -108,16 +108,16 @@ not implement (`services/runner/src/tools/tool-mcp-http.ts`, lines 367–371:
 
 ```python
 # apis/fastapi/gateways/mcps/utils.py
-def parse_mcp_call_context(*, headers: Dict[str, str]) -> McpCallContext:
+def parse_mcp_call_context(*, headers: Dict[str, str]) -> MCPCallContext:
     """Read the protocol's method and target headers (`mcp.md`, header-based
     routing) — the body is never parsed for routing. Header names are pinned
     against the 2026-07-28 revision at implementation time, in this one file."""
 ```
 
-`McpCallContext` (seed, `core/gateways/mcps/dtos.py`, §4.4):
+`MCPCallContext` (seed, `core/gateways/mcps/dtos.py`, §4.4):
 
 ```python
-class McpCallContext(BaseModel):
+class MCPCallContext(BaseModel):
     method: str
     target: Optional[str] = None
 ```
@@ -129,13 +129,13 @@ only establishes that the revision moved method and target routing onto
 required HTTP headers (§"Three changes that are explicitly about
 intermediaries" — "Header-based routing").
 
-### The south port: `McpUpstreamInterface` and `HttpMcpAdapter` (§7.1)
+### The south port: `MCPUpstreamInterface` and `HttpMCPAdapter` (§7.1)
 
 ```python
 # core/gateways/mcps/interfaces.py (seed, frozen — read only)
 
 @dataclass
-class McpRelayResult:
+class MCPRelayResult:
     """A single JSON answer. The gateway targets the stateless revision in JSON
     mode — one request, one `application/json` response, 202 for notifications
     (`mcp.md`; the in-tree precedent is the runner's internal tool server,
@@ -145,23 +145,23 @@ class McpRelayResult:
     body: bytes
 
 
-class McpUpstreamInterface(ABC):
+class MCPUpstreamInterface(ABC):
     @abstractmethod
     async def relay(
         self,
         *,
-        route: McpResolvedRoute,
-        auth: McpRelayAuth,
+        route: MCPResolvedRoute,
+        auth: MCPRelayAuth,
         #
-        context: McpCallContext,
+        context: MCPCallContext,
         body: bytes,
         headers: Dict[str, str],
-    ) -> McpRelayResult:
+    ) -> MCPRelayResult:
         """Transparent per-server relay (D16): same method, same body, same
         response, with only the route and the authorization changed. `auth` is
-        the discriminated union from §4.4 — McpDirectAuth for agenta and custom,
-        McpBrokeredAuth for builtin — so the two secret mechanisms cannot be
-        conflated by an adapter (D27). Raises McpUpstreamError on transport
+        the discriminated union from §4.4 — MCPDirectAuth for agenta and custom,
+        MCPBrokeredAuth for builtin — so the two secret mechanisms cannot be
+        conflated by an adapter (D27). Raises MCPUpstreamError on transport
         failure; protocol-level errors from the server are NOT exceptions — they
         are the response body, relayed, because the server's own failure reason
         is what lets the model correct itself (the pass-through rule in
@@ -169,37 +169,37 @@ class McpUpstreamInterface(ABC):
         ...
 ```
 
-`McpResolvedRoute` (seed, §4.4):
+`MCPResolvedRoute` (seed, §4.4):
 
 ```python
-class McpResolvedRoute(BaseModel):
+class MCPResolvedRoute(BaseModel):
     url: str
     headers: Dict[str, str] = Field(default_factory=dict)
-    config: McpEndpointConfig = Field(default_factory=McpEndpointConfig)
+    settings: MCPEndpointSettings = Field(default_factory=MCPEndpointSettings)
 ```
 
-`McpDirectAuth` / `McpRelayAuth` (seed, §4.4 — reproduced so the adapter's
+`MCPDirectAuth` / `MCPRelayAuth` (seed, §4.4 — reproduced so the adapter's
 input shape is unambiguous):
 
 ```python
-class McpDirectAuth(BaseModel):
+class MCPDirectAuth(BaseModel):
     """agenta + custom: the secret is ours to present — an oauth_grant
     resolved from the vault (§7.2), or nothing for a NONE-scheme target."""
     secret: Optional[ResolvedSecret] = None
 
-class McpBrokeredAuth(BaseModel):
+class MCPBrokeredAuth(BaseModel):
     """builtin: the integrations domain brokered the authorization and holds the
     secret upstream; what we carry is its connection row."""
     connection: Connection
 
-McpRelayAuth = Union[McpDirectAuth, McpBrokeredAuth]
+MCPRelayAuth = Union[MCPDirectAuth, MCPBrokeredAuth]
 ```
 
-`HttpMcpAdapter(McpUpstreamInterface)` implements `relay()` against
-`McpDirectAuth` only — it is registered under the `"http"` key and is only
+`HttpMCPAdapter(MCPUpstreamInterface)` implements `relay()` against
+`MCPDirectAuth` only — it is registered under the `"http"` key and is only
 ever reached via the `custom` namespace (§4.4: "builtin and custom are two
 secret mechanisms ... the fork is real behaviour ... at the south
-port"). It never receives `McpBrokeredAuth`; that arm is `ComposioMcpAdapter`
+port"). It never receives `MCPBrokeredAuth`; that arm is `ComposioMCPAdapter`
 (a separate provider, out of this package's ownership per
 `workstreams/README.md`'s file table, and out of scope entirely — no work
 package in wave 1 owns it, since `builtin` MCP servers are not called in
@@ -216,17 +216,17 @@ the only populated shape reachable in this wave, and it maps to
 `Authorization: {token_type} {access_token}`. **In Checkpoint A this branch
 is unreachable in practice**: D23 restricts wave 1's reachable MCP targets
 to unauthenticated servers (`auth_mode = NONE`) and the mocks, and OAuth
-grants do not exist until WP16/WP17 (wave 3). Implement the secret
-branch so the type-checks against `entities.md`'s frozen shapes, but do not
-build integration tests that depend on a real grant existing — there is
-nothing to grant yet.
+`oauth_grant` secrets do not exist until WP16/WP17 (wave 3). Implement the
+secret branch so it type-checks against `entities.md`'s frozen shapes, but do
+not build integration tests that depend on a real one existing — there is
+nothing to resolve yet.
 
-No JSON-RPC parsing happens in the adapter. `McpRelayResult` carries
+No JSON-RPC parsing happens in the adapter. `MCPRelayResult` carries
 whatever `status_code`, `headers` and `body` the upstream returned,
 untouched — the pass-through discipline in `api/AGENTS.md`'s error-envelope
 scope ("the gateway and workflow-tool arms carry their upstream's shape").
 Any tool-list filtering by policy happens one layer up, in
-`McpGatewayService.relay` (WP9) — that requires inspecting the JSON body,
+`MCPGatewayService.relay` (WP9) — that requires inspecting the JSON body,
 which is a service-level concern, not this adapter's.
 
 ## Contracts this package must honour
@@ -245,25 +245,25 @@ which is a service-level concern, not this adapter's.
   lives in `apis/fastapi/gateways/exceptions.py`, which the **seed** owns (R1) —
   three packages need the decorator, so no one package can. It is already on the
   branch when this package starts; import it, do not write it.
-- **`McpAuthRequiredError` maps to 409, carrying `GatewayConnectionRequirement`**
+- **`MCPAuthRequiredError` maps to 409, carrying `GatewayConnectionRequirement`**
   — an interaction, not a failure (D17). Unreachable in wave 1 (no OAuth
   targets exist yet), but the mapping must exist so nothing breaks when
   wave 3 lands.
 - **Streaming is not this plane's concern.** Unlike the LLM proxy
-  (`StreamingResponse` over an `AsyncIterator[bytes]`), `McpRelayResult.body`
+  (`StreamingResponse` over an `AsyncIterator[bytes]`), `MCPRelayResult.body`
   is `bytes` — one JSON answer, no SSE leg (§7.1). Do not adapt LLM-plane
   streaming code into this adapter.
 - **The allowlist check happens before secret resolution, in the
   service, not here** (§8: "Allowlist before secret. A refused model or
   tool must not cost a vault read"). WP8's adapter must not be the place
   that decides whether a tool is allowed — it relays whatever
-  `McpGatewayService.relay` hands it after that decision already passed.
+  `MCPGatewayService.relay` hands it after that decision already passed.
 
 ## The SSRF guard at relay time (D28) — this package owns the relay half
 
 A `custom` endpoint's URL was typed by a user and **this adapter is the process that
 connects to it**. Without the guard, a tenant can point an endpoint at
-`http://169.254.169.254/` and have the gateway fetch cloud credentials with our network
+`http://169.254.169.254/` and have the gateway fetch cloud secrets with our network
 position. WP10 gates the URL at registration; that is not sufficient on its own, because
 a hostname's DNS answer can change between the row being saved and this relay running.
 
@@ -277,10 +277,10 @@ address), reserved, multicast or unspecified, plus plain `http`.
 from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
 ```
 
-In `HttpMcpAdapter.relay`, before the outbound POST:
+In `HttpMCPAdapter.relay`, before the outbound POST:
 
 1. `resolved_ip = resolve_validated_webhook_ip(route.url)` — raises `ValueError` on a
-   blocked target. Translate it into `McpUpstreamError`; it is a transport-layer refusal,
+   blocked target. Translate it into `MCPUpstreamError`; it is a transport-layer refusal,
    not a protocol error, so it must not be relayed as an upstream body.
 2. **Connect to the returned IP, not the hostname.** This is the part that is easy to drop
    and is the only reason the function returns a value. Copy the pinning from
@@ -326,19 +326,19 @@ anything needing Postgres, Redis or the API is integration or acceptance.
 
 - `parse_mcp_call_context` — **unit**. Pure function; feed representative
   header dicts (both routing headers present, one missing, malformed
-  values) and assert the parsed `McpCallContext` or the raised error.
-- `HttpMcpAdapter.relay()` — **unit**. Run against an in-process mock HTTP
+  values) and assert the parsed `MCPCallContext` or the raised error.
+- `HttpMCPAdapter.relay()` — **unit**. Run against an in-process mock HTTP
   server (or an `httpx` mock transport) standing in for the upstream — no
   real network, no real MCP server. Assert: body passed through
   byte-for-byte; `route.headers` merged under caller headers; no
   `Authorization` header added when `auth.secret is None`; the derived
   `Authorization` header is correct when a secret is present; a
-  connection failure raises `McpUpstreamError`; a non-2xx JSON-RPC error
-  body from the mock upstream is returned as `McpRelayResult`, not raised.
-- `McpGatewayProxy` routing (which handler each path reaches, the 405s) —
+  connection failure raises `MCPUpstreamError`; a non-2xx JSON-RPC error
+  body from the mock upstream is returned as `MCPRelayResult`, not raised.
+- `MCPGatewayProxy` routing (which handler each path reaches, the 405s) —
   **unit**. Mount the router in a bare `FastAPI()` app with `TestClient`,
-  a mock `McpGatewayService` (a stub whose `relay()` returns a canned
-  `McpRelayResult` and records its call arguments), and a mock
+  a mock `MCPGatewayService` (a stub whose `relay()` returns a canned
+  `MCPRelayResult` and records its call arguments), and a mock
   `get_auth_scope()`. Assert: `POST /agenta/tools/search` reaches
   `relay_agenta` with `name="tools/search"` (proving the catch-all nests
   correctly); `POST /builtin/composio/notion/my-notion` reaches
@@ -351,7 +351,7 @@ anything needing Postgres, Redis or the API is integration or acceptance.
 - Byte-for-byte relay end to end, and the tool-outside-allowlist refusal —
   **acceptance**, part of Checkpoint A. Needs the deployed stack: real
   Postgres (WP1's tables), the mock MCP server running as a compose
-  service (WP5, D23), and WP9's real `McpGatewayService`. WP8 does not own
+  service (WP5, D23), and WP9's real `MCPGatewayService`. WP8 does not own
   writing this test alone — it is the shared Checkpoint A suite
   (`plan.md`) — but WP8's own "done" claim rests on it passing.
 
@@ -369,7 +369,7 @@ POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/call","tool":"
   -> 200, body identical to the mock server's own tool result
 
 POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/call","tool":"<not-in-policy>", ...}
-  -> 403, McpToolNotAllowedError mapped through handle_gateway_exceptions
+  -> 403, MCPToolNotAllowedError mapped through handle_gateway_exceptions
 ```
 
 ## Out of scope
@@ -378,13 +378,13 @@ POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/call","tool":"
   resolution, the allowlist check, secret resolution, the
   three-namespace `list_endpoints` merge, tool-list filtering by policy —
   **WP9**.
-- `ComposioMcpAdapter` (the `builtin` south-port adapter) and anything
-  touching `McpBrokeredAuth` — not owned by any wave-1 package; `builtin`
+- `ComposioMCPAdapter` (the `builtin` south-port adapter) and anything
+  touching `MCPBrokeredAuth` — not owned by any wave-1 package; `builtin`
   MCP servers are not reachable under D23 in Checkpoint A.
 - The management CRUD router (`apis/fastapi/gateways/mcps/{router,models}.py`)
   — **WP10**. `apis/fastapi/gateways/exceptions.py` — **the seed** (R1),
   already present; import it.
-- OAuth, grants, step-up — wave 3 (WP16–WP20). `McpAuthRequiredError`'s 409
+- OAuth, consent, step-up — wave 3 (WP16–WP20). `MCPAuthRequiredError`'s 409
   mapping must exist (it is part of the frozen exceptions table) but is
   unreachable until then.
 - Endpoint configuration (timeouts, ceilings, extra headers) — WP21, after
@@ -397,24 +397,24 @@ contributes two fragments, applied together with WP6's, WP7's, WP9's and
 WP10's fragments at the M2 merge (the merge that follows wave 1's second
 fan-out, per `plan.md`).
 
-Adapter registration (into the `McpUpstreamRegistry` construction WP9
+Adapter registration (into the `MCPUpstreamRegistry` construction WP9
 owns — see `specs-wp9.md`'s diff for the surrounding block; this package
 contributes only the `"http"` entry):
 
 ```diff
-     upstream_registry=McpUpstreamRegistry(adapters={
+     upstream_registry=MCPUpstreamRegistry(adapters={
 -        # WP9 constructs this dict; WP8, WP5 and (later) the Composio
 -        # adapter each contribute one entry, combined at the M2 merge.
-+        "http": HttpMcpAdapter(),          # custom: McpDirectAuth
++        "http": HttpMCPAdapter(),          # custom: MCPDirectAuth
      }),
 ```
 
 Proxy construction and mount:
 
 ```diff
-+from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy
++from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
 +
-+mcp_gateway_proxy = McpGatewayProxy(mcp_gateway_service=mcp_gateway_service)
++mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)
 ```
 
 ```diff
@@ -427,6 +427,6 @@ Proxy construction and mount:
 
 (`mcp_gateway_service` here is the shared instance WP9 constructs; the
 exact local variable names above are wiring convenience, not symbols
-`entities.md` names — the class name `McpGatewayProxy`, its constructor
+`entities.md` names — the class name `MCPGatewayProxy`, its constructor
 signature, and the mount's `prefix`/`include_in_schema` kwargs are the load-
 bearing parts, taken verbatim from §9.)

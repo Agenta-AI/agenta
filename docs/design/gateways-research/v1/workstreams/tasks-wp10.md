@@ -17,7 +17,7 @@ members) having landed.
 
 - [ ] `from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip`
       — the **no-DNS** variant. Write no new guard.
-- [ ] Call it on the URL in `McpEndpointCreateRequest` / `McpEndpointEditRequest`
+- [ ] Call it on the URL in `MCPEndpointCreateRequest` / `MCPEndpointEditRequest`
       for the `custom` namespace only. `agenta` and `builtin` URLs are not
       user-supplied. The precedent to copy exactly is
       `api/oss/src/core/secrets/dtos.py:140`, which gates `custom_provider.url`
@@ -39,9 +39,9 @@ members) having landed.
 ## llms/models.py
 
 - [ ] `apis/fastapi/gateways/llms/models.py`: add
-      `LlmEndpointCreateRequest`, `LlmEndpointEditRequest`,
-      `LlmEndpointQueryRequest`, `LlmEndpointResponse`,
-      `LlmEndpointsResponse` — field names, types and defaults exactly as
+      `LLMEndpointCreateRequest`, `LLMEndpointEditRequest`,
+      `LLMEndpointQueryRequest`, `LLMEndpointResponse`,
+      `LLMEndpointsResponse` — field names, types and defaults exactly as
       `entities.md` §6. `Field(default_factory=list)` for the list default,
       not bare `[]`.
 - [ ] Unit test: instantiate every class above with representative values.
@@ -50,22 +50,18 @@ members) having landed.
 
 ## mcps/models.py
 
-- [ ] `apis/fastapi/gateways/mcps/models.py`: add `McpEndpointCreateRequest`,
-      `McpEndpointEditRequest`, `McpEndpointQueryRequest`,
-      `McpEndpointResponse`, `McpEndpointsResponse`, `McpGrantQueryRequest`,
-      `McpGrantResponse`, `McpGrantsResponse`, `McpConnectRequest`,
-      `McpConnectResponse` — exactly as `entities.md` §6.
-- [ ] Confirm no `McpGrantCreateRequest`/`McpGrantEditRequest` exist
-      anywhere in this file or are imported elsewhere — grants have no
-      create/edit wire model by design (§6).
+- [ ] `apis/fastapi/gateways/mcps/models.py`: add `MCPEndpointCreateRequest`,
+      `MCPEndpointEditRequest`, `MCPEndpointQueryRequest`,
+      `MCPEndpointResponse`, `MCPEndpointsResponse`, `MCPConnectRequest`,
+      `MCPConnectResponse` — exactly as `entities.md` §6.
 - [ ] Unit test: instantiate every class above with representative values.
 - [ ] `ruff format` && `ruff check --fix`; run tests; fix failures.
-- [ ] Commit: "gateways(mcp): CRUD + grant wire models".
+- [ ] Commit: "gateways(mcp): CRUD + connect wire models".
 
 ## llms/router.py
 
-- [ ] `apis/fastapi/gateways/llms/router.py`: `LlmGatewayRouter.__init__(self,
-      *, llm_gateway_service: LlmGatewayService)`, `self.router = APIRouter()`.
+- [ ] `apis/fastapi/gateways/llms/router.py`: `LLMGatewayRouter.__init__(self,
+      *, llm_gateway_service: LLMGatewayService)`, `self.router = APIRouter()`.
 - [ ] Add `async def _check(self, scope: AuthScope, permission: Permission) ->
       None`, factored (following `TriggersRouter._check`, adapted to take
       `scope` not `request`), calling `check_action_access(user_uid=str(scope.user_id),
@@ -82,16 +78,16 @@ members) having landed.
       returns no body per the tools/triggers delete precedent).
 - [ ] Implement each handler: `get_auth_scope()`, `self._check(...)`,
       service call, envelope. `fetch_endpoint`/`edit_endpoint` raise
-      `LlmEndpointNotFoundError` on a `None` service return;
+      `LLMEndpointNotFoundError` on a `None` service return;
       `delete_endpoint` raises it on `False`.
 - [ ] Decorate every handler `@intercept_exceptions()` then
       `@handle_gateway_exceptions()`.
 - [ ] `ruff format` && `ruff check --fix`; fix all errors.
-- [ ] Commit: "gateways(llm): LlmGatewayRouter CRUD".
+- [ ] Commit: "gateways(llm): LLMGatewayRouter CRUD".
 
 ## llms/router.py tests (unit)
 
-- [ ] TestClient + mock `LlmGatewayService` + mockd `get_auth_scope()` /
+- [ ] TestClient + mock `LLMGatewayService` + mockd `get_auth_scope()` /
       `check_action_access()`: each of the six routes reaches the right
       handler with the right operation_id/method/path.
 - [ ] A denied `_check` short-circuits before the mock service is called —
@@ -99,49 +95,40 @@ members) having landed.
 - [ ] `None` from `fetch_endpoint`/`edit_endpoint` → 404; `False` from
       `delete_endpoint` → 404.
 - [ ] `ruff format` && `ruff check --fix`; run tests; fix failures.
-- [ ] Commit: "gateways(llm): LlmGatewayRouter tests".
+- [ ] Commit: "gateways(llm): LLMGatewayRouter tests".
 
 ## mcps/router.py
 
-- [ ] `apis/fastapi/gateways/mcps/router.py`: `McpGatewayRouter.__init__(self,
-      *, mcp_gateway_service: McpGatewayService)`, `self.router = APIRouter()`,
+- [ ] `apis/fastapi/gateways/mcps/router.py`: `MCPGatewayRouter.__init__(self,
+      *, mcp_gateway_service: MCPGatewayService)`, `self.router = APIRouter()`,
       its own `_check(self, scope, permission)` helper (do not share one
       instance between the two router classes).
 - [ ] Register the same six endpoint-CRUD routes as the LLM router, with
       `VIEW_MCP_ENDPOINTS`/`EDIT_MCP_ENDPOINTS`.
-- [ ] Register `POST /grants/query` (`query_mcp_grants`, `VIEW_MCP_ENDPOINTS`)
-      and `DELETE /grants/{grant_id}` (`revoke_mcp_grant`,
-      `EDIT_MCP_ENDPOINTS`) — both untagged in `entities.md`'s route table,
-      both this package's to wire even though the service bodies they call
-      raise `NotImplementedError` until wave 3.
 - [ ] Do NOT register `POST /endpoints/{endpoint_id}/connect` or
       `GET /connect/callback` — tagged `(WP18)`, out of scope for this
       package.
 - [ ] Decorate every handler `@intercept_exceptions()` then
       `@handle_gateway_exceptions()`.
 - [ ] `ruff format` && `ruff check --fix`; fix all errors.
-- [ ] Commit: "gateways(mcp): McpGatewayRouter CRUD + grant reads".
+- [ ] Commit: "gateways(mcp): MCPGatewayRouter CRUD".
 
 ## mcps/router.py tests (unit)
 
-- [ ] TestClient + mock `McpGatewayService`: each of the eight routes
-      (six CRUD + two grant) reaches the right handler.
+- [ ] TestClient + mock `MCPGatewayService`: each of the six routes reaches
+      the right handler.
 - [ ] Confirm `POST /endpoints/{id}/connect` and `GET /connect/callback`
       are NOT registered on this router (a 404 from FastAPI's own routing,
       not a handled response) — a deliberate absence test, not just an
       omission.
 - [ ] A denied `_check` short-circuits before the mock service is called.
-- [ ] Calling `query_mcp_grants`/`revoke_mcp_grant` against a mock service
-      whose methods raise `NotImplementedError` propagates as an unhandled
-      500 (confirms the mapping table correctly does NOT catch it — this
-      is expected wave-1 behavior, not a bug to fix here).
 - [ ] `ruff format` && `ruff check --fix`; run tests; fix failures.
-- [ ] Commit: "gateways(mcp): McpGatewayRouter tests".
+- [ ] Commit: "gateways(mcp): MCPGatewayRouter tests".
 
 ## entrypoint wiring (coordinate at M2)
 
-- [ ] Add `llm_gateway_router = LlmGatewayRouter(llm_gateway_service=llm_gateway_service)`
-      and `mcp_gateway_router = McpGatewayRouter(mcp_gateway_service=mcp_gateway_service)`
+- [ ] Add `llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)`
+      and `mcp_gateway_router = MCPGatewayRouter(mcp_gateway_service=mcp_gateway_service)`
       to `api/entrypoints/routers.py` as a diff fragment — coordinate with
       WP7's and WP9's service-construction fragments landing first, or
       raise at the merge if they have not.
@@ -169,7 +156,7 @@ members) having landed.
 - [ ] `DELETE /gateways/mcps/endpoints/{that id}` removes the row; a
       subsequent `GET` on it returns 404.
 - [ ] `PUT /gateways/mcps/endpoints/{any UUID not present in
-      mcp_gateway_endpoints}` returns 404 — confirming no request can
+      mcps_endpoints}` returns 404 — confirming no request can
       reach a generated (builtin/agenta) entry through this router.
 - [ ] Repeat the create/delete/edit-404 sequence for the LLM router against
       `/gateways/llms/endpoints/`.

@@ -7,13 +7,13 @@ WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
 
 ## south port
 
-- [x] `core/gateways/mcps/providers/http/adapter.py`: add `HttpMcpAdapter(McpUpstreamInterface)`
-      with `async def relay(self, *, route: McpResolvedRoute, auth: McpRelayAuth,
-      context: McpCallContext, body: bytes, headers: Dict[str, str]) -> McpRelayResult`,
+- [x] `core/gateways/mcps/providers/http/adapter.py`: add `HttpMCPAdapter(MCPUpstreamInterface)`
+      with `async def relay(self, *, route: MCPResolvedRoute, auth: MCPRelayAuth,
+      context: MCPCallContext, body: bytes, headers: Dict[str, str]) -> MCPRelayResult`,
       signature copied verbatim from `entities.md` §7.1. Added a keyword-only
       `__init__(self, *, transport: Optional[httpx.BaseTransport] = None)` beyond the
       interface's bare signature — an injectable seam for `httpx.MockTransport` in unit
-      tests; `HttpMcpAdapter()` (zero-arg, per the wiring diff below) is unaffected.
+      tests; `HttpMCPAdapter()` (zero-arg, per the wiring diff below) is unaffected.
 - [x] Implement the POST: send `body` untouched to `route.url`; merge
       `route.headers` under the caller's forwarded `headers`. Judgment call: "merged
       under" is implemented as `{**route.headers, **headers}` — the caller's header wins
@@ -21,7 +21,7 @@ WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
       `test_caller_header_wins_on_collision_with_route_header`, docstring states the
       choice). The caller's own `Host` header is always dropped (it named this gateway,
       not the upstream); a fresh `Host` is set only when the guard pins to a literal IP.
-- [x] Implement the `auth` branch: `isinstance(auth, McpBrokeredAuth)` — raises
+- [x] Implement the `auth` branch: `isinstance(auth, MCPBrokeredAuth)` — raises
       `TypeError` (this adapter is only ever reached via `custom`, by construction of
       WP9's registry routing, not by a namespace check inside this class). When
       `auth.secret` is `None`, no authorization header is added. When present,
@@ -30,17 +30,17 @@ WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
       `OAuthGrantSettingsDTO` (entities.md §4.5) is WP16 seed / wave 3 and does not exist
       in this codebase yet; this needs no change once it lands.
 - [x] Map a transport failure (connection refused, timeout, DNS failure) to
-      `McpUpstreamError`; do NOT raise on a non-2xx HTTP status or a
-      JSON-RPC error body — return it as `McpRelayResult` untouched (D16
+      `MCPUpstreamError`; do NOT raise on a non-2xx HTTP status or a
+      JSON-RPC error body — return it as `MCPRelayResult` untouched (D16
       pass-through rule).
 - [x] **SSRF guard, before the POST (D28).** `from oss.src.core.webhooks.utils
       import resolve_validated_webhook_ip`; call it on `route.url` for `custom`
       targets only. Write no new guard — that module is the one three other
-      call sites already use. Implemented as unconditional inside `HttpMcpAdapter.relay`
+      call sites already use. Implemented as unconditional inside `HttpMCPAdapter.relay`
       (no namespace parameter exists on the port to branch on — see §7.1's frozen
       signature); correctness rests on WP9's registry routing only `custom` to the
       `"http"` adapter key, per specs-wp8.md's own framing of this adapter.
-- [x] Translate its `ValueError` into `McpUpstreamError`, keeping the two
+- [x] Translate its `ValueError` into `MCPUpstreamError`, keeping the two
       messages distinct: a "could not be resolved" DNS failure must not read as
       a security rejection (the runner's guard makes the same distinction,
       `services/runner/src/engines/sandbox_agent/mcp.ts:191`).
@@ -55,14 +55,14 @@ WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
       it through the shared `env` object — never `os.getenv` in feature code
       (`api/AGENTS.md`). Mirrors the runner's `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`,
       so a self-hoster can permit one internal server without disabling the
-      guard globally. Landed as `McpGatewayConfig.host_allowlist` (env var
+      guard globally. Landed as `MCPGatewayConfig.host_allowlist` (env var
       `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST`, comma-separated), field `mcp_gateway` on
       `EnvironSettings` — alphabetically between `loops` and `mounts`, per the file's
       ordering. A listed host bypasses the guard entirely (both the range block and the
       literal-IP pin), mirroring the runner's `if (allowed) return undefined;`.
 - [x] `ruff format` && `ruff check --fix` from the repo root; fix all
       errors.
-- [x] Commit: "gateways(mcp): HttpMcpAdapter south-port implementation".
+- [x] Commit: "gateways(mcp): HttpMCPAdapter south-port implementation".
 
 ## south port tests (unit)
 
@@ -78,11 +78,11 @@ WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
       (or the configured `token_type`) sent. Since `OAuthGrantSettingsDTO` doesn't exist
       yet, the mock secret is a `types.SimpleNamespace` shaped like its future
       `.secret.data.grant.{access_token,token_type}`, injected via
-      `McpDirectAuth.model_construct(secret=...)` to bypass pydantic validation.
-- [x] Unit test: mock upstream refuses the connection → `McpUpstreamError`
+      `MCPDirectAuth.model_construct(secret=...)` to bypass pydantic validation.
+- [x] Unit test: mock upstream refuses the connection → `MCPUpstreamError`
       raised, carrying `target` and no false `status_code`.
 - [x] Unit test: mock upstream returns HTTP 200 with a JSON-RPC `error`
-      object in the body → `McpRelayResult` returned with that body intact,
+      object in the body → `MCPRelayResult` returned with that body intact,
       no exception.
 - [x] **SSRF unit tests, all with `AGENTA_INSECURE_EGRESS_ALLOWED=false` set
       explicitly** — it defaults to `true`, so a test that omits it passes while
@@ -103,23 +103,23 @@ WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
       header carries the hostname.
 - [x] Unit test: an `agenta` route to a private address is NOT refused — the
       guard is namespace-scoped, and WP5's mocks live on a compose host. Implemented
-      against `MockMcpAdapter` (WP5, read-only import) directly, since `agenta` routes to
-      that adapter, not to `HttpMcpAdapter` — the guard lives only on the latter, so the
+      against `MockMCPAdapter` (WP5, read-only import) directly, since `agenta` routes to
+      that adapter, not to `HttpMCPAdapter` — the guard lives only on the latter, so the
       former never runs it regardless of `route.url`.
 - [x] `ruff format` && `ruff check --fix`; run the new unit tests; fix
       failures.
-- [x] Commit: "gateways(mcp): HttpMcpAdapter unit tests".
+- [x] Commit: "gateways(mcp): HttpMCPAdapter unit tests".
 
 **Finding, not fixed here (out of WP8's file ownership):** the pre-existing WP5 contract
-test `oss/tests/pytest/unit/gateways/test_mock_adapters_contract.py::test_relay_returns_mcp_relay_result[*-HttpMcpAdapter]`
-now fails now that `HttpMcpAdapter` exists. It builds a zero-arg `HttpMcpAdapter()` (no
-`MockTransport`) and calls `.relay()` against `route=McpResolvedRoute(url="http://mock-mcp-gateway:9092/")`
+test `oss/tests/pytest/unit/gateways/test_mock_adapters_contract.py::test_relay_returns_mcp_relay_result[*-HttpMCPAdapter]`
+now fails now that `HttpMCPAdapter` exists. It builds a zero-arg `HttpMCPAdapter()` (no
+`MockTransport`) and calls `.relay()` against `route=MCPResolvedRoute(url="http://mock-mcp-gateway:9092/")`
 — plain `http`, a compose-only hostname. This repo's test suite pins
 `AGENTA_INSECURE_EGRESS_ALLOWED` secure-by-default for every test
 (`oss/tests/pytest/utils/egress.py`'s autouse `secure_egress_by_default` fixture, opt out
 via `@pytest.mark.allow_insecure_env`), so the guard now correctly rejects the bare-`http`
 URL with "must use https" before any DNS lookup — this is D28's guard working as
-designed, not a defect in `HttpMcpAdapter`. Any conforming implementation of the guard
+designed, not a defect in `HttpMCPAdapter`. Any conforming implementation of the guard
 would reject this exact call under this suite's default posture. The contract test needs
 one of: the `allow_insecure_env` marker plus an actually-reachable `https` mock-gateway
 target, an injected `MockTransport`, or a host-allowlist entry — a call for whoever owns
@@ -128,12 +128,12 @@ that file (WP5) or the M2 merge coordinator, not WP8.
 ## utils.py
 
 - [x] `apis/fastapi/gateways/mcps/utils.py`: implement
-      `parse_mcp_call_context(*, headers: Dict[str, str]) -> McpCallContext`,
+      `parse_mcp_call_context(*, headers: Dict[str, str]) -> MCPCallContext`,
       reading the method and target routing headers per the 2026-07-28
       MCP revision (`mcp.md`). Pin the exact header names in this file's
       module docstring, since `entities.md` explicitly defers the choice
       here. Pinned against `docs/design/gateways-research/v1/raw/mcp-2026-07-28.md`
-      ("Header-based routing"): `Mcp-Method` (required) and `Mcp-Name` (target for
+      ("Header-based routing"): `MCP-Method` (required) and `MCP-Name` (target for
       `tools/call`/`resources/read`/`prompts/get`; absent for target-less methods).
       Lookup is case-insensitive.
 - [x] Raise a typed, documented error (do not invent a new exception class
@@ -145,15 +145,15 @@ that file (WP5) or the M2 merge coordinator, not WP8.
       and mustn't be extended for a non-domain, request-shape error.
 - [x] Unit test: representative header sets (both present; target absent
       for a method that does not need one; method missing entirely) each
-      produce the expected `McpCallContext` or the expected raise.
+      produce the expected `MCPCallContext` or the expected raise.
 - [x] `ruff format` && `ruff check --fix`; run tests; fix failures.
 - [x] Commit: "gateways(mcp): parse_mcp_call_context".
 
 ## proxy.py
 
-- [x] `apis/fastapi/gateways/mcps/proxy.py`: `McpGatewayProxy.__init__(self,
-      *, mcp_gateway_service: McpGatewayService)`, `self.router = APIRouter()`.
-      `McpGatewayService` is not on this branch yet (WP9 unmerged) — imported only under
+- [x] `apis/fastapi/gateways/mcps/proxy.py`: `MCPGatewayProxy.__init__(self,
+      *, mcp_gateway_service: MCPGatewayService)`, `self.router = APIRouter()`.
+      `MCPGatewayService` is not on this branch yet (WP9 unmerged) — imported only under
       `TYPE_CHECKING` with `from __future__ import annotations`, so the module loads with
       no runtime dependency on WP9 and picks up the real type the moment it lands.
 - [x] Register the three POST routes exactly as in `entities.md` §9:
@@ -178,7 +178,7 @@ that file (WP5) or the M2 merge coordinator, not WP8.
       `interfaces.py`'s docstring says `headers` arrive at the adapter "already stripped
       of authorization" but does not say which layer strips them, and the proxy is the
       first code to hold the raw `request.headers`.
-- [x] Translate the returned `McpRelayResult` into a raw `Response` with the
+- [x] Translate the returned `MCPRelayResult` into a raw `Response` with the
       relayed `status_code`, `headers`, and `body` — no wrapping envelope
       (§6: the data plane has no wire models).
 - [x] **Correction, applied after the coordinator caught it mid-package:**
@@ -187,7 +187,7 @@ that file (WP5) or the M2 merge coordinator, not WP8.
       is right for WP10's CRUD routers, which speak the house wire, and wrong for a
       proxy: it raises a plain `HTTPException(status, detail=str)`, which collapses
       every cause sharing a status into one indistinguishable message —
-      `McpEndpointNotFoundError` and `SecretNotFoundError` both become an opaque
+      `MCPEndpointNotFoundError` and `SecretNotFoundError` both become an opaque
       `HTTPException` a caller cannot tell apart. §9 requires the opposite: *"the MCP
       proxy answers protocol-shaped errors at the transport status the relay produced,
       and gateway-authored refusals as the protocol's error result with the same
@@ -199,17 +199,17 @@ that file (WP5) or the M2 merge coordinator, not WP8.
       The HTTP status per cause is unchanged from `handle_gateway_exceptions()`'s
       table (404 not-found, 403 policy/entitlement/tool-denied, 400
       ceiling-exceeded/invalid-request, 409 auth-required/scope-insufficient/
-      secret-missing/invalid, 424-or-502 upstream). The missing-`Mcp-Method`
+      secret-missing/invalid, 424-or-502 upstream). The missing-`MCP-Method`
       `ValueError` folds into the same mapping (`cause: "invalid_request"`) rather
       than being a bespoke `HTTPException(400)` special case — `handle_gateway_exceptions`
       is not imported into this file at all. `apis/fastapi/gateways/exceptions.py`
       itself is untouched — not copied, not edited — and stays what WP10 uses.
 - [x] `ruff format` && `ruff check --fix`; fix all errors.
-- [x] Commit: "gateways(mcp): McpGatewayProxy routes".
+- [x] Commit: "gateways(mcp): MCPGatewayProxy routes".
 
 ## proxy.py tests (unit)
 
-- [x] Unit test (TestClient + mock `McpGatewayService` + mockd
+- [x] Unit test (TestClient + mock `MCPGatewayService` + mockd
       `get_auth_scope()`): `POST /agenta/tools/search` reaches
       `relay_agenta` with `name="tools/search"` — proves the catch-all
       nests.
@@ -227,20 +227,20 @@ that file (WP5) or the M2 merge coordinator, not WP8.
       `error.data.cause` string in the JSON-RPC error body — asserting the status
       alone would also have passed under the old `HTTPException` behaviour and proved
       nothing about the cause surviving. A second test confirms
-      `McpAuthRequiredError`'s `GatewayConnectionRequirement` rides in `error.data`.
+      `MCPAuthRequiredError`'s `GatewayConnectionRequirement` rides in `error.data`.
       The missing-header 400 test now also asserts `cause == "invalid_request"` and
       the `{jsonrpc, id: null, error}` shape, not just the status.
 - [x] `ruff format` && `ruff check --fix`; run tests; fix failures.
-- [x] Commit: "gateways(mcp): McpGatewayProxy routing tests".
+- [x] Commit: "gateways(mcp): MCPGatewayProxy routing tests".
 
 ## entrypoint wiring (coordinate at M2)
 
-- [x] Add the `"http": HttpMcpAdapter()` entry to the `McpUpstreamRegistry`
+- [x] Add the `"http": HttpMCPAdapter()` entry to the `MCPUpstreamRegistry`
       adapters dict in `api/entrypoints/routers.py`, as a diff fragment —
       do not edit the file directly if WP9's surrounding construction
       block has not landed; raise it at the merge instead (per
       `workstreams/README.md` rule 1: own your paths).
-- [x] Add `mcp_gateway_proxy = McpGatewayProxy(mcp_gateway_service=mcp_gateway_service)`
+- [x] Add `mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)`
       and `app.include_router(router=mcp_gateway_proxy.router,
       prefix="/gateways/mcps", include_in_schema=False)` as a second diff
       fragment.
@@ -258,27 +258,27 @@ package; current placeholders read at commit time are quoted for context).**
 Fragment 1 — the import (currently commented at `api/entrypoints/routers.py:181`):
 
 ```diff
--# from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy     # WP8
-+from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy
-+from oss.src.core.gateways.mcps.providers.http.adapter import HttpMcpAdapter
+-# from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy     # WP8
++from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
++from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
 ```
 
-Fragment 2 — the adapter registry entry, into WP9's `McpUpstreamRegistry` construction
+Fragment 2 — the adapter registry entry, into WP9's `MCPUpstreamRegistry` construction
 (the block does not exist on this branch yet; shown relative to its shape in
 `specs-wp9.md` / `entities.md` §9's wiring block):
 
 ```diff
-     upstream_registry=McpUpstreamRegistry(adapters={
+     upstream_registry=MCPUpstreamRegistry(adapters={
 -        # WP9 constructs this dict; WP8, WP5 and (later) the Composio
 -        # adapter each contribute one entry, combined at the M2 merge.
-+        "http": HttpMcpAdapter(),          # custom: McpDirectAuth
++        "http": HttpMCPAdapter(),          # custom: MCPDirectAuth
      }),
 ```
 
 Fragment 3 — the proxy construction, next to WP9's `mcp_gateway_service` construction:
 
 ```diff
-+mcp_gateway_proxy = McpGatewayProxy(mcp_gateway_service=mcp_gateway_service)
++mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)
 ```
 
 Fragment 4 — the mount (currently commented at `api/entrypoints/routers.py:1519`,
@@ -302,7 +302,7 @@ alongside WP10's `mcp_gateway.router` line on 1518, which this package does not 
 - [ ] The same call, `tools/call` on an in-policy tool, returns the mock
       server's own result unchanged.
 - [ ] The same call, `tools/call` on a tool outside the mock endpoint's
-      `tool_policy`, returns 403 (`McpToolNotAllowedError`).
+      `tools` filter, returns 403 (`MCPToolNotAllowedError`).
 - [ ] `GET`/`DELETE` on any of the three relay paths returns 405.
 - [ ] File any acceptance-test failure as a finding, not a silent fix —
       this suite is shared with WP9; a failure may belong to either
@@ -312,7 +312,7 @@ alongside WP10's `mcp_gateway.router` line on 1518, which this package does not 
 
 Feeds **Checkpoint A**. Plan.md's stated done condition, verbatim: *"list
 and call both relay unchanged and a tool outside the allowlist is
-refused."* WP8 is done when: `parse_mcp_call_context` and `HttpMcpAdapter`
+refused."* WP8 is done when: `parse_mcp_call_context` and `HttpMCPAdapter`
 pass their unit tests with no real network or database; the three proxy
 routes dispatch to the right handler with the right parsed segments,
 verified against a mock service; the two `routers.py` diff fragments are

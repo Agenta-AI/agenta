@@ -7,11 +7,11 @@ commit and fix all errors, per `api/AGENTS.md`.
 ## Phase 1 — `catalog.py`
 
 - [x] `core/gateways/llms/catalog.py`: implement `standard_llm_endpoint(*, provider_key: str) ->
-      Optional[LlmEndpoint]` reading `sdks/python/agenta/sdk/utils/assets.py::supported_llm_models`
-      — `namespace=BUILTIN`, `slug=provider_key`, `deployment=DIRECT`, `data.model_slugs` from
+      Optional[LLMEndpoint]` reading `sdks/python/agenta/sdk/utils/assets.py::supported_llm_models`
+      — `namespace=BUILTIN`, `slug=provider_key`, `deployment=DIRECT`, `data.models.allowlist` from
       the map, `data.config` at code defaults, no `id`, no `Lifecycle`. Return `None` for a
       provider absent from the map.
-- [x] Implement `standard_llm_endpoints() -> List[LlmEndpoint]`: all eleven, calling
+- [x] Implement `standard_llm_endpoints() -> List[LLMEndpoint]`: all eleven, calling
       `standard_llm_endpoint` per key in `supported_llm_models`, unfiltered by existence.
 - [x] Ruff format + check; run and fix.
 - [x] Unit tests: `standard_llm_endpoint("openai")` matches the catalogue's `openai` model list
@@ -22,41 +22,41 @@ commit and fix all errors, per `api/AGENTS.md`.
 
 ## Phase 2 — `registry.py`
 
-- [x] `core/gateways/llms/registry.py`: `LlmUpstreamRegistry.__init__(self, *, adapters:
-      Dict[str, LlmUpstreamInterface])`, `.get(key) -> LlmUpstreamInterface` (raises on a miss —
+- [x] `core/gateways/llms/registry.py`: `LLMUpstreamRegistry.__init__(self, *, adapters:
+      Dict[str, LLMUpstreamInterface])`, `.get(key) -> LLMUpstreamInterface` (raises on a miss —
       define and raise a typed exception, following `ProviderNotFoundError`'s shape from
       `core/gateway/connections/exceptions.py`, but in this domain's own `types.py` — do not
       import the integrations domain's exception), `.keys() -> list[str]`.
-- [x] Implement `select_upstream(provider_key: str, deployment: LlmDeploymentKind) -> str` per
+- [x] Implement `select_upstream(provider_key: str, deployment: LLMDeploymentKind) -> str` per
       the classification table in `specs-wp7.md`: `AZURE`/`BEDROCK`/`SAGEMAKER`/`VERTEX` →
       `"translated"`; `CUSTOM` → `"passthrough"`; `DIRECT` split by the six-vs-six provider table.
       Pure function — no DAO, no vault, no I/O.
 - [x] Ruff format + check; run and fix.
 - [x] Unit tests: every `(provider, deployment)` pair in the classification table returns the
       documented key; `.get` on an unregistered key raises; `select_upstream` never imports
-      anything beyond `LlmDeploymentKind` (grep-check: no `httpx`/`litellm`/DAO import in
+      anything beyond `LLMDeploymentKind` (grep-check: no `httpx`/`litellm`/DAO import in
       `registry.py`).
-- [x] Commit: "wp7: registry.py — LlmUpstreamRegistry + select_upstream".
+- [x] Commit: "wp7: registry.py — LLMUpstreamRegistry + select_upstream".
 
 **Deviation, disclosed:** `select_upstream` also special-cases `provider_key == "mock"` →
 `"mock"`, ahead of the deployment split. Neither `specs-wp7.md`'s table nor this phase's own
 bullets state that branch; it was added mid-implementation after the coordinator flagged that
-WP5's `MockLlmAdapter` import is WP7's to uncomment and register at the composition root (see the
+WP5's `MockLLMAdapter` import is WP7's to uncomment and register at the composition root (see the
 Phase 7 diff below) — without it, nothing in the documented `select_upstream` table ever routes to
 the `"mock"` registry key, which would make the mocks unreachable through the relay path in every
 environment, not just contradict "registered always; reachable only via a seeded endpoint" from
 `entities.md` §9's wiring comment. `core/gateways/llms/types.py` also gained one new exception,
-`LlmAdapterNotFoundError` (`registry.get`'s miss) — additive only, but it is a `types.py` edit,
+`LLMAdapterNotFoundError` (`registry.get`'s miss) — additive only, but it is a `types.py` edit,
 which rule 1 of the top-level brief lists as off-limits; this phase's own bullet explicitly
 directs adding it there ("but in this domain's own `types.py`"), so the more specific instruction
 was followed and the tension is flagged here rather than resolved silently.
 
-## Phase 3 — `TranslatedLlmAdapter`
+## Phase 3 — `TranslatedLLMAdapter`
 
 - [x] `core/gateways/llms/providers/translated/__init__.py`.
-- [x] `core/gateways/llms/providers/translated/adapter.py`: `TranslatedLlmAdapter(
-      LlmUpstreamInterface)`, implementing `relay_chat_completion` per the exact interface
-      signature (same as WP6's `PassthroughLlmAdapter`).
+- [x] `core/gateways/llms/providers/translated/adapter.py`: `TranslatedLLMAdapter(
+      LLMUpstreamInterface)`, implementing `relay_chat_completion` per the exact interface
+      signature (same as WP6's `PassthroughLLMAdapter`).
 - [x] Model-string prefixing per `route.deployment`: `"azure/{model}"`, `"bedrock/{model}"`,
       `"sagemaker/{model}"`, `"vertex_ai/{model}"`; `DIRECT` non-OpenAI-shaped providers use
       `route.model` as-is (already prefixed by the catalogue).
@@ -68,17 +68,17 @@ was followed and the tension is flagged here rather than resolved silently.
       the secret.
 - [x] Call `litellm.acompletion(model=..., **kwargs, stream=context.stream)`; wrap the response
       (or async stream) into an `AsyncIterator[bytes]` of OpenAI-shaped SSE-framed chunks for
-      `LlmRelayResult.body`.
+      `LLMRelayResult.body`.
 - [x] Populate `GatewayUsage` from `response.usage` and a cost figure (`litellm.cost_calculator`
       or the response's own hidden cost param) — never leave `cost=None` on a successful call.
-- [x] Catch litellm's exceptions and re-raise `LlmUpstreamError(provider_key=...,
+- [x] Catch litellm's exceptions and re-raise `LLMUpstreamError(provider_key=...,
       status_code=<if present>, detail=str(exc))`.
 - [x] Ruff format + check; run and fix.
 - [x] Unit tests, `litellm.acompletion` monkeypatched (no real network): `StandardProviderDTO`
       secret passes `api_key`; `CustomProviderDTO` secret merges `extras`; `AZURE` prefix
       + `api_version` passed; `BEDROCK`/`VERTEX` pass `region`; a raised exception from the mock
-      becomes `LlmUpstreamError`; usage/cost populated on a successful mocked response.
-- [x] Commit: "wp7: TranslatedLlmAdapter".
+      becomes `LLMUpstreamError`; usage/cost populated on a successful mocked response.
+- [x] Commit: "wp7: TranslatedLLMAdapter".
 
 **Judgment calls:** litellm kwarg names for region are not specified anywhere in the design set —
 used `aws_region_name` (Bedrock) and `vertex_location` (Vertex), litellm's own parameter names.
@@ -89,12 +89,12 @@ docstring's "the translated adapter reports the library's count" only holds with
 
 ## Phase 4 — Contract test extension
 
-- [x] Extend WP5's `test_mock_adapters_contract.py` fixture to include `TranslatedLlmAdapter`
-      (litellm mocked), asserting `relay_chat_completion` returns `LlmRelayResult`.
+- [x] Extend WP5's `test_mock_adapters_contract.py` fixture to include `TranslatedLLMAdapter`
+      (litellm mocked), asserting `relay_chat_completion` returns `LLMRelayResult`.
 - [x] Ruff format + check; run and fix.
 - [x] Commit: "wp7: translated adapter joins the south-port contract suite".
 
-**Note:** the fixture already parametrized `TranslatedLlmAdapter` in via `_optional_instance`
+**Note:** the fixture already parametrized `TranslatedLLMAdapter` in via `_optional_instance`
 (WP5 wrote it that way so this package's landing needs no edit to the parametrize list itself).
 The only gap was that the shared `test_relay_chat_completion_returns_llm_relay_result` body calls
 `relay_chat_completion` unconditionally for every adapter in the list, and once
@@ -103,9 +103,9 @@ The only gap was that the shared `test_relay_chat_completion_returns_llm_relay_r
 `litellm.acompletion` at `translated.adapter`'s own import site (a no-op for every other adapter
 since none of them import litellm).
 
-## Phase 5 — `LlmGatewayService` management surface
+## Phase 5 — `LLMGatewayService` management surface
 
-- [x] `core/gateways/llms/service.py`: `LlmGatewayService.__init__(self, *, llm_endpoints_dao,
+- [x] `core/gateways/llms/service.py`: `LLMGatewayService.__init__(self, *, llm_endpoints_dao,
       policy, resolver, upstream_registry)` — **exactly this, unchanged**. R2 settled the
       vault-access gap by adding `available_provider_keys` to the resolver port instead of a
       dependency here; do not add `vault_service`.
@@ -124,7 +124,7 @@ since none of them import litellm).
       stubbed DAO with the arguments unchanged.
 - [x] The resolver test double in this package's tests must implement **both** port methods —
       `resolve` and `available_provider_keys`.
-- [x] Commit: "wp7: LlmGatewayService management surface".
+- [x] Commit: "wp7: LLMGatewayService management surface".
 
 **Judgment call — `list_endpoints`'s missing scope.** `available_provider_keys(*, scope:
 AuthScope)` needs a full `AuthScope` (org/workspace/project/user, all required, frozen), but
@@ -139,27 +139,27 @@ signature to add `scope`, which the checklist's own "exactly this, unchanged" li
 
 - [x] Implement `async def list_models(self, *, scope, namespace, name) -> List[str]`:
       `_resolve_target` as the relay does, `policy.authorize` with
-      `Permission.USE_LLM_ENDPOINTS`, then return the target's `model_slugs` — the static
+      `Permission.USE_LLM_ENDPOINTS`, then return the target's allowlist — the static
       catalogue's for `builtin`, the row's for `custom`.
 - [x] Resolve no secret and call no upstream. It answers from the allowlist, so a harness
       that lists before calling sees exactly what policy will allow.
 - [x] Return `List[str]`; invent no response DTO — WP6's proxy shapes the OpenAI body inline
       because the data plane has no wire models (§6).
-- [x] Unit tests: a `custom` endpoint with `model_slugs: ["a", "b"]` returns exactly those; a
+- [x] Unit tests: a `custom` endpoint with `models.allowlist: ["a", "b"]` returns exactly those; a
       `builtin` provider returns the catalogue's slugs verbatim (litellm prefixes intact, not
-      re-derived); an unknown name raises `LlmEndpointNotFoundError`; a denied decision raises
+      re-derived); an unknown name raises `LLMEndpointNotFoundError`; a denied decision raises
       `PolicyDeniedError` before any slug is read.
-- [x] Commit: "wp7: LlmGatewayService.list_models".
+- [x] Commit: "wp7: LLMGatewayService.list_models".
 
-## Phase 6 — `LlmGatewayService.relay_chat_completion`
+## Phase 6 — `LLMGatewayService.relay_chat_completion`
 
 - [x] Implement `_resolve_target`: look up a row via `fetch_endpoint_by_slug` for `CUSTOM`, or
-      `catalog.standard_llm_endpoint` for `BUILTIN`; raise `LlmEndpointNotFoundError` when
+      `catalog.standard_llm_endpoint` for `BUILTIN`; raise `LLMEndpointNotFoundError` when
       neither answers.
 - [x] Implement the allowlist check (`_check_allowlist`): a `CUSTOM` target refuses a `model` not
-      in `data.model_slugs` (including the empty-list-refuses-everything case, D20); a `BUILTIN`
-      target refuses a `model` not in the catalogue's `model_slugs` for that provider. Raise
-      `LlmModelNotAllowedError` before any secret lookup.
+      in `data.models.allowlist` (including the explicit-empty-list-refuses case, D20); a `BUILTIN`
+      target refuses a `model` not in the catalogue's allowlist for that provider. Raise
+      `LLMModelNotAllowedError` before any secret lookup.
 - [x] Implement the ceiling check (`_check_ceilings`): compare the request's
       `max_output_tokens` (if present in the body) against `target.config.max_output_tokens`;
       raise `CeilingExceededError(ceiling="max_output_tokens", requested=..., allowed=...,
@@ -172,7 +172,7 @@ signature to add `scope`, which the checklist's own "exactly this, unchanged" li
       mocks).
 - [x] Wire adapter selection: `self.upstream_registry.get(select_upstream(target.provider_key,
       target.deployment)).relay_chat_completion(...)`.
-- [x] Implement the streaming-aware audit wrapper: wrap a streaming `LlmRelayResult.body` in a
+- [x] Implement the streaming-aware audit wrapper: wrap a streaming `LLMRelayResult.body` in a
       generator whose `finally` calls `self.policy.record(...)` with the usage read off the
       exhausted adapter result; call `policy.record` directly (not wrapped) for a non-streaming
       result.
@@ -183,7 +183,7 @@ signature to add `scope`, which the checklist's own "exactly this, unchanged" li
       once before the exception propagates; a ceiling breach names all three values; a
       successful streaming call's `policy.record` fires only once the returned iterator is fully
       consumed (assert via a spy with an interleaved partial read).
-- [x] Commit: "wp7: LlmGatewayService.relay_chat_completion".
+- [x] Commit: "wp7: LLMGatewayService.relay_chat_completion".
 
 **Consolidation, disclosed.** Phases 5, 5b and 6 landed as **one commit** covering the whole of
 `service.py` plus one test file (`test_gateways_llm_service.py`) exercising all three surfaces,
@@ -197,7 +197,7 @@ individually so the mapping from item to code is traceable in one diff.
 
 **Two more judgment calls, in `relay_chat_completion`:**
 - `_check_ceilings` reads `body: bytes` directly (via a private `json.loads`), not `context:
-  LlmCallContext` as `entities.md`'s illustrative pseudocode signature shows — `LlmCallContext`
+  LLMCallContext` as `entities.md`'s illustrative pseudocode signature shows — `LLMCallContext`
   only carries `model`/`stream` (§4.3), so there is no way to read `max_output_tokens` off it. This
   package's own task bullet above already says "compare the request's `max_output_tokens` (if
   present in **the body**)", which only body access satisfies; treated as the more specific,
@@ -211,7 +211,7 @@ individually so the mapping from item to code is traceable in one diff.
 
 ## Phase 7 — Wiring
 
-- [x] `api/entrypoints/routers.py`: construct `llm_gateway_service = LlmGatewayService(...)` per
+- [x] `api/entrypoints/routers.py`: construct `llm_gateway_service = LLMGatewayService(...)` per
       the diff in `specs-wp7.md`, with the `upstream_registry` dict entries for `"passthrough"`,
       `"translated"`, `"mock"` — coordinate with WP5's and WP6's import lines landing in the same
       block at the M1→M2 merge.
@@ -219,7 +219,7 @@ individually so the mapping from item to code is traceable in one diff.
       resolved in favor of adding it: `api/pyproject.toml` gets the `litellm` line, matching the
       SDK's own pin (`litellm>=1,<2`).
 - [x] Ruff format + check; run and fix.
-- [x] Commit: "wp7: wire LlmGatewayService into the entrypoint".
+- [x] Commit: "wp7: wire LLMGatewayService into the entrypoint".
 
 **`api/pyproject.toml` — already done, no action needed (R9).** `litellm>=1.92,<2` is already a
 direct dependency on this branch (line 38) — someone resolved the "missing from the design"
@@ -228,9 +228,9 @@ by `providers/translated/adapter.py` since Phase 3).
 
 **`api/entrypoints/routers.py` — diff only, not applied here.** Per rule 6 of the top-level brief,
 this file is nobody's to edit directly mid-wave; the diff below is what should land at the
-M1→M2 merge, once WP6's `PassthroughLlmAdapter` exists on the integration branch (it does not
+M1→M2 merge, once WP6's `PassthroughLLMAdapter` exists on the integration branch (it does not
 exist on this worktree, so applying this diff here would break the import). Two things beyond
-`specs-wp7.md`'s own diff, both flagged by the coordinator mid-task: the `MockLlmAdapter` import
+`specs-wp7.md`'s own diff, both flagged by the coordinator mid-task: the `MockLLMAdapter` import
 uncomments (WP5 left it commented, deliberately, for whichever of WP7/WP9 builds the first plane
 registry — that is WP7 here), and it is registered under `"mock"`, the key `select_upstream`
 returns for `provider_key == "mock"` (see Phase 2's disclosed deviation above) — without both
@@ -241,38 +241,38 @@ compose stack, since nothing in the documented classification table itself ever 
 --- a/api/entrypoints/routers.py
 +++ b/api/entrypoints/routers.py
 @@
- from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
- from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
+ from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
+ from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
  from oss.src.core.gateways.policy.resolution import SecretsResolver
  from oss.src.core.gateways.policy.service import GatewayPolicyService
 
 -# The mock adapters (WP5) are registered into the plane registries, which WP7 and WP9
 -# own and which do not exist yet — so their imports land with those, not here.
--# from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
-+from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
-+from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLlmAdapter
-+from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry
-+from oss.src.core.gateways.llms.service import LlmGatewayService
-+# from oss.src.core.gateways.llms.providers.passthrough.adapter import PassthroughLlmAdapter  # WP6
- # from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
--# from oss.src.core.gateways.llms.service import LlmGatewayService
- # from oss.src.core.gateways.mcps.service import McpGatewayService
- # from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter   # WP10
- # from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy     # WP6
- # from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter   # WP10
- # from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy     # WP8
+-# from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
++from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
++from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLLMAdapter
++from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
++from oss.src.core.gateways.llms.service import LLMGatewayService
++# from oss.src.core.gateways.llms.providers.passthrough.adapter import PassthroughLLMAdapter  # WP6
+ # from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+-# from oss.src.core.gateways.llms.service import LLMGatewayService
+ # from oss.src.core.gateways.mcps.service import MCPGatewayService
+ # from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter   # WP10
+ # from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy     # WP6
+ # from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter   # WP10
+ # from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy     # WP8
 @@
  gateway_policy_service = GatewayPolicyService(resolver=secret_resolver)
 
-+llm_gateway_service = LlmGatewayService(
++llm_gateway_service = LLMGatewayService(
 +    llm_endpoints_dao=llm_endpoints_dao,
 +    policy=gateway_policy_service,
 +    resolver=secret_resolver,
-+    upstream_registry=LlmUpstreamRegistry(
++    upstream_registry=LLMUpstreamRegistry(
 +        adapters={
-+            "passthrough": PassthroughLlmAdapter(),  # WP6's import, added at that merge
-+            "translated": TranslatedLlmAdapter(),
-+            "mock": MockLlmAdapter(),
++            "passthrough": PassthroughLLMAdapter(),  # WP6's import, added at that merge
++            "translated": TranslatedLLMAdapter(),
++            "mock": MockLLMAdapter(),
 +        }
 +    ),
 +)
@@ -282,12 +282,12 @@ compose stack, since nothing in the documented classification table itself ever 
  )
 ```
 
-The `# from ... import PassthroughLlmAdapter  # WP6` line stays commented in this diff — WP6
+The `# from ... import PassthroughLLMAdapter  # WP6` line stays commented in this diff — WP6
 uncomments it (and drops the comment marker) at the same merge, per `specs-wp7.md`'s own note
 that "WP6 contributes the import and the proxy mount only." Until then this diff, applied alone,
-does not import-error: the construction block references `PassthroughLlmAdapter` by name, so it
+does not import-error: the construction block references `PassthroughLLMAdapter` by name, so it
 must land together with WP6's uncomment, not before — same ordering constraint the seed's own
-comment block already documented for `MockLlmAdapter`.
+comment block already documented for `MockLLMAdapter`.
 
 ## Phase 8 — Acceptance (post-M2, once WP1/WP5/WP6 are merged)
 
@@ -295,7 +295,7 @@ comment block already documented for `MockLlmAdapter`.
       worktree has no compose deployment and only WP1/WP2/WP3/WP5 are merged onto this branch
       (no WP6); per the top-level brief's rule 5, integration/acceptance needing a deployment are
       written, not run, by this package.
-- [ ] Seed a custom endpoint with a narrow `model_slugs` list; confirm a request for a model
+- [ ] Seed a custom endpoint with a narrow `models.allowlist`; confirm a request for a model
       outside it is refused `model_not_allowed` with no upstream call made (verifiable against
       WP5's mock — the mock sees no inbound request at all). **Not run** — needs the deployment
       above. The `curl` procedure in `specs-wp7.md`'s "Done test" section is the script to run
@@ -313,8 +313,8 @@ comment block already documented for `MockLlmAdapter`.
 
 Matches `plan.md` WP7 verbatim: *"every provider and deployment pair reachable today is reachable
 through the gateway, including the cloud-reseller shapes, and a model outside a custom endpoint's
-list is refused."* Concretely: `catalog.py`, `registry.py`, `TranslatedLlmAdapter` and
-`LlmGatewayService.relay_chat_completion` all pass their unit and contract tests with nothing
+list is refused."* Concretely: `catalog.py`, `registry.py`, `TranslatedLLMAdapter` and
+`LLMGatewayService.relay_chat_completion` all pass their unit and contract tests with nothing
 running; `select_upstream` classifies every provider/deployment pair in the design's known set;
-and, once WP1/WP5/WP6 are available, a request outside a custom endpoint's `model_slugs` is
+and, once WP1/WP5/WP6 are available, a request outside a custom endpoint's allowlist is
 refused before any secret is resolved or any upstream call is attempted.

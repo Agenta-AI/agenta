@@ -11,7 +11,7 @@ or a seam to inspect, not a decision. Close an entry by recording what was found
 
 The official MCP Python SDK defines a `TokenStorage` protocol and its `OAuthClientProvider`
 handles everything above it. **Implement the protocol as a thin adapter over the secrets
-service; do not write an OAuth client and do not add a second place credentials live.**
+service; do not write an OAuth client and do not add a second place secrets live.**
 
 Verify the adapter stores only a `secret_id` on the gateway's own rows and resolves through
 `get_secret_by_id`, matching the webhook dispatcher and SSO provider precedent, and that no
@@ -74,7 +74,7 @@ authorship only, as it currently appears to be.
 
 ### OR6. Wire secret arrays
 
-If the gateway holds all upstream credentials, the runner wire's per-server secret
+If the gateway holds all upstream secrets, the runner wire's per-server secret
 arrays and the model secret array should collapse to a single gateway token. Review
 what still populates them, and whether the `local_use` secret category can be removed
 outright once cloud-reseller signing moves to the gateway.

@@ -3,12 +3,6 @@
 The data model and its full stack, following the codebase's existing layering.
 Column lists are the proposal, not migrations.
 
-> **Namespaces are `builtin` / `standard` / `custom` (D30**, superseding D27's set).
-> `builtin` is the namespace whose upstream *we* pay for and is the only one metering will
-> attach to; `standard` and `custom` both spend the user's own key. `agenta` is no longer a
-> namespace — it is a provider inside `builtin`, next to `composio`, so the builtin path
-> carries a provider segment. Nothing migrates: `namespace` was never a column.
-
 The gateways have no sibling domain to mirror, and — despite the name — the existing
 `core/gateway/` is not it. That domain is an integrations surface ("connect my project to
 GitHub"); this one is traffic transiting a boundary. §1 makes the argument. The gateways
@@ -35,11 +29,11 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
   llms/               the model plane (WP1, WP6, WP7)
     dtos.py           enums + core DTOs
     types.py          domain exceptions
-    interfaces.py     LlmEndpointsDAOInterface + LlmUpstreamInterface (south port)
-    registry.py       adapter key -> LlmUpstreamInterface
+    interfaces.py     LLMEndpointsDAOInterface + LLMUpstreamInterface (south port)
+    registry.py       adapter key -> LLMUpstreamInterface
     catalog.py        the standard set, generated from the SDK's static provider
                       map and its direct base URLs (D20, D30)
-    service.py        LlmGatewayService: management + the data-plane relay
+    service.py        LLMGatewayService: management + the data-plane relay
     providers/
       passthrough/adapter.py   OpenAI-compatible upstreams, byte-for-byte relay
       translated/adapter.py    the routing library in-process: shape + reseller signing
@@ -47,10 +41,10 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
   mcps/               the tool plane (WP1, WP8, WP9)
     dtos.py
     types.py
-    interfaces.py     McpEndpointsDAOInterface + McpGrantsDAOInterface + McpUpstreamInterface
-    registry.py       upstream kind -> McpUpstreamInterface
+    interfaces.py     MCPEndpointsDAOInterface + MCPUpstreamInterface
+    registry.py       upstream kind -> MCPUpstreamInterface
     token_storage.py  the MCP SDK's TokenStorage protocol over the vault (WP17, OR1)
-    service.py        McpGatewayService: management + the transparent proxy
+    service.py        MCPGatewayService: management + the transparent proxy
     providers/
       http/adapter.py          remote Streamable HTTP servers (custom)
       composio/adapter.py      the builtin/composio relay — reuses the brokered connection (D30)
@@ -84,21 +78,20 @@ of this document's scope.
 
 ## 1. The tables
 
-Three new, two reused, one deliberately left alone.
+Two new, two reused, one deliberately left alone.
 
 | table | what it is | what it is not |
 | --- | --- | --- |
-| `llm_gateway_endpoints` | one **custom** LLM endpoint: a reachable provider deployment, its route, its model allowlist, its configuration | not a model, and not the catalogue — standard endpoints are generated, never stored (D20, D30) |
-| `mcp_gateway_endpoints` | one **custom** MCP server: its URL, auth mode, tool policy, configuration | not a catalog of tools — the server owns its tool list (D19) |
-| `mcp_gateway_grants` | one owner's authorization on one server, pointing at the vault row that holds the tokens | not a token store — the `oauth_grant` secret is (D3, D14) |
-| `secrets` *(reused)* | gains two kinds, `oauth_provider` and `oauth_grant`; the payload is one encrypted blob, so **no schema change** | not gaining the owner column yet — ownership is designed, not scheduled (`secrets.md`) |
+| `llms_endpoints` | one **custom** LLM endpoint: a reachable provider deployment, its route, its model allowlist, its configuration | not a model, and not the catalogue — standard endpoints are generated, never stored (D20, D30) |
+| `mcps_endpoints` | one **custom** MCP server: its URL, auth mode, tool policy, configuration, and — when OAuth-protected — the `secret_id` pointing at its tokens | not a catalog of tools — the server owns its tool list (D19); not a token store — the `oauth_grant` secret is (D3, D14) |
+| `secrets` *(reused)* | gains two kinds, `oauth_provider` and `oauth_grant`; the payload is one encrypted blob, so **no schema change** | not gaining an owner column — every gateway secret is project-owned, full stop (`out-of-scope.md`) |
 | events stream *(reused)* | one audit record per call, carrying decision, principal, owner, payer and usage | not a new table and not a second pipeline (D22) |
 | `gateway_connections` *(existing)* | untouched; a Composio-brokered MCP endpoint will reference a row here | not the endpoint registry, and not our domain — see below |
 
-Reading it as a sentence: *a project registers custom endpoints on either plane; a standard
-endpoint exists the moment a key exists for it; a builtin endpoint exists because we run or
-broker it; an OAuth-protected server accumulates one grant row per owner, each pointing at
-one vault secret; and every call, allowed or denied, becomes one event.*
+Reading it as a sentence: *a project registers custom endpoints on either plane, each
+naming its own secret directly; a standard endpoint exists the moment a key exists for it;
+a builtin endpoint exists because we run or broker it; and every call, allowed or denied,
+becomes one event.*
 
 ### Why the planes are a separate domain, not members of `core/gateway/`
 
@@ -126,30 +119,38 @@ where three loose top-level siblings would leave the policy core homeless and ma
 
 **The one genuine connection between the two domains, stated so nobody re-litigates it:**
 a Composio-brokered MCP server will point at a `gateway_connections` row — the Composio
-account that fronts it lives there, and our `mcp_gateway_endpoints` registry references
+account that fronts it lives there, and our `mcps_endpoints` registry references
 it the way any domain references another's entities. A registry referencing a
 neighbouring domain's rows is normal, and it is not a reason to live in that neighbour's
 folder.
 
-**Why `llms/`, not `models/`.** The skeleton proposed `models/` for the model plane.
-Renamed: a folder called `models` whose API layer contains a `models.py` holding wire
-models is self-parody, and the product noun throughout `v1/` is "the LLM gateway". `llms/`
+**Why `llms/`, not `models/`.** A folder called `models` whose API layer contains a
+`models.py` holding wire models is self-parody, and the product noun throughout `v1/` is
+"the LLM gateway". `llms/`
 and `mcps/` are also symmetric, which D19 says the two gateways are.
 
-### Why the table names do not mirror the folder path
+### Why the table names compact the domain to its plane
 
-The tables are `llm_gateway_endpoints`, `mcp_gateway_endpoints` and `mcp_gateway_grants` —
-**not** `gateways_*`, although `core/gateway/connections/` ↔ `gateway_connections` sets a
-mirror-the-path precedent. On purpose: a `gateways_*` prefix would sort directly beside
+The tables are `llms_endpoints` and `mcps_endpoints` — the plane, then the
+entity, both plural, and **no `gateway` anywhere in the name**.
+
+Two things are being avoided. A `gateways_*` prefix would sort directly beside
 `gateway_connections` in every schema listing and read as kin to a domain this design just
-argued its way out of. Table names are read far more often in isolation — in `psql`, in
-migrations, in an incident — than folder paths are, so the name leads with the plane,
-which is the part someone scanning a schema actually needs, and carries `gateway` as the
-qualifier. The naming rule, stated once so nobody re-derives it wrongly: **directory and
-URL segments are plural** (`gateways/`, `llms/`, `mcps/`, `/gateways/llms/...`);
-**symbols, tables, constraints and operation ids are not** (`LlmGatewayService`,
-`llm_gateway_endpoints`, `llm_gateway_chat_completions_builtin`) — there the plural already lives
-in `endpoints` and `grants`, and `llm_`/`mcp_` is an adjective, not a collection.
+argued its way out of, even though `core/gateway/connections/` ↔ `gateway_connections` sets
+a mirror-the-path precedent. And a `llm_gateway_*` infix spends a word on a qualifier that
+earns nothing: within this schema the plane already says which gateway it is, and outside
+it nobody is looking for these tables under `g`.
+
+What is left is the domain compacted to the part that identifies it. Table names are read
+far more often in isolation — in `psql`, in a migration, in an incident — than folder paths
+are, so the name leads with the plane, which is what someone scanning a schema actually
+needs.
+
+The naming rule, stated once so nobody re-derives it wrongly: **directories, URL segments
+and tables are plural** (`gateways/`, `llms/`, `mcps/`, `/gateways/llms/...`,
+`llms_endpoints`); **symbols and operation ids keep the singular adjective and the
+qualifier** (`LLMGatewayService`, `llm_gateway_chat_completions_standard`), because a class
+name has no schema around it to supply the context a table name gets for free.
 
 ### The API folder, and why the data plane and the CRUD do not share a router object
 
@@ -177,36 +178,40 @@ driven by provider callbacks. An endpoint is a **route plus policy** — a URL, 
 allowlist, a configuration — with a vault reference where a secret exists. Different
 domain, different noun, different lifecycle; reuse would put our semantics on a table
 tools and triggers read, and would leave `provider_key`/`integration_key` meaningless on
-our rows. The connection an OAuth flow eventually produces on the MCP side is a
-**grant**, and grants get their own table because their key is the owner, which
-connections do not have. The reuse that *is* correct is the reference stated above: a
+our rows. The tokens an OAuth flow eventually produces on the MCP side are named by the
+endpoint's own `secret_id` (§2.1) — a project-owned server has exactly one secret to point
+at, so the pointer lives on the row itself rather than in a table keyed by an owner nobody
+stores (`out-of-scope.md`). The reuse that *is* correct is the reference stated above: a
 Composio-brokered MCP endpoint points at its connection row; it does not become one.
 
-### Why grants are a row when the tokens are a secret
+### Why the endpoint names its secret directly
 
 The vault holds the tokens (`oauth_grant`, D14); the gateway holds no secret material (D3).
 But the vault payload is a `PGPString` blob — encrypted at rest, invisible to SQL — so
-*"the grant for this owner on this server"* cannot be answered by querying inside secrets.
-Something unencrypted must carry the lookup key `(project, endpoint, owner)` and point at
-the vault row. That is precisely the webhook-subscription / SSO-provider shape: a domain
-row carrying a `secret_id`. The row also gives the operational facts a home the payload
-cannot serve — `is_valid` after a failed refresh (D18), the refresh attempt's outcome in
-`status` — without decrypting anything.
+resolving a secret can never be a query inside `secrets`. Something unencrypted must point
+at the vault row, and because every gateway secret is project-owned (`out-of-scope.md`),
+that pointer needs no owner key of its own — it is one column, `secret_id`, on the endpoint
+that uses it (§2.1). The row also gives the operational facts a home the payload cannot
+serve — `is_valid` after a failed refresh (D18), the refresh attempt's outcome in `status`
+— without decrypting anything. User-level secrets, should they ever ship, are a pure
+add-on to this shape rather than a rework of it: a second table per plane narrowing the
+answer for one member, with nothing here moving (`out-of-scope.md`).
 
-### Why the LLM plane has no grants table
+### Why a provider key is a scan, not a stored binding
 
 The asymmetry is deliberate and follows from what each secret *is*. An OAuth token is
-**audience-bound**: minted for one server, by that server's authorization server, per
-owner — so the binding `(owner, endpoint) → secret` is a fact that must be stored, and
-`mcp_gateway_grants` stores it. A provider key is bound to nothing but its provider:
-today it is a freestanding vault secret discovered by scanning the project's secrets for
-the provider (the SDK's settings builder does exactly this, `models.md`), and when
-user-owned secrets arrive the same scan runs over the vault's own owner columns
-(`secrets.md`). There is no per-endpoint fact to record — a key backs every endpoint of
-its provider at once — so a binding table would assert pairs nobody configures, the same
-cross-product mistake the channels design refused for agents and spaces. The one place an
-LLM endpoint does bind a specific secret, a custom endpoint, the binding is one column on
-the endpoint row itself (§2.1).
+**audience-bound**: minted for one server, by that server's authorization server — so the
+binding `endpoint → secret` is a fact the row must carry, and `mcps_endpoints.secret_id`
+carries it directly (§2.1). A provider key is bound to nothing but its provider: today it
+is a freestanding vault secret discovered by scanning the project's secrets for the
+provider (the SDK's settings builder does exactly this, `models.md`), and when user-owned
+secrets arrive the same scan runs over the vault's own owner columns (`secrets.md`). A
+generated `standard` endpoint has no row to hang a `secret_id` on in the first place —
+existence itself is derived from the scan (D20) — so there is no per-endpoint fact to
+record, and storing one would assert a pair nobody configures, the same cross-product
+mistake the channels design refused for agents and spaces. The one place an LLM endpoint
+does bind a specific secret, a custom endpoint, the binding is the same one column every
+custom endpoint on either plane uses (§2.1).
 
 ### What is deliberately not a table
 
@@ -233,11 +238,12 @@ existing query surface in front. Usage measures ride the same event's `attribute
 than a second write — the gateway is the only point that sees all of both planes, and
 recording real usage from day one is the requirement that cannot be backfilled
 (`policy.md`); the meters are a later consumer of the stream, not a schema this design
-owns. §2.7 works through the shape.
+owns. §2.6 works through the shape.
 
 **`gateway_connections` gains nothing.** The skeleton reserved "whatever the owner
 dimension implies for lookup". The owner dimension lands in the resolution *signature* now
-and in storage later (`secrets.md`, D10); no column changes in this scope.
+and nowhere in storage — user-level secrets are out of scope entirely, not deferred
+(`out-of-scope.md`, D10); no column changes in this scope, here or anywhere else.
 
 ---
 
@@ -245,8 +251,8 @@ and in storage later (`secrets.md`, D10); no column changes in this scope.
 
 Abstract mixins declaring columns, composed from `dbs/postgres/shared/dbas.py`. The existing
 gateway domain skips the `dbas.py` file entirely — `ConnectionDBE` composes the shared mixins
-directly — but that works only while a domain has one table. These domains have two and
-three, so each gets a `dbas.py`, per the house rule that the file exists "when needed"
+directly — but that works only while a domain has one table. These domains have two each,
+so each gets a `dbas.py`, per the house rule that the file exists "when needed"
 (`api/AGENTS.md`).
 
 `ProjectScopeDBA`, `LifecycleDBA`, `IdentifierDBA`, `FlagsDBA`, `TagsDBA` and `MetaDBA` go
@@ -254,19 +260,20 @@ on every table, matching `gateway_connections`. The rest are answers to question
 
 | mixin | add it when | in these domains |
 | --- | --- | --- |
-| `SlugDBA` | the entity is addressed by a stable name someone types or routes on | both endpoint tables — the slug is the URL identifier (§2.3); not grants |
-| `HeaderDBA` (`name`, `description`) | a human labels it in the UI | both endpoint tables; not grants — nobody names a grant, exactly as nobody names a delivery |
-| `DataDBA` | there is a typed payload the columns should not fragment | both endpoint tables; not grants — the payload is in the vault, the row is a pointer |
-| `StatusDBA` | an attempt against the outside world can fail | endpoints (last relay/probe failure) and grants (last refresh outcome) |
+| `SlugDBA` | the entity is addressed by a stable name someone types or routes on | both endpoint tables — the slug is the URL identifier (§2.3) |
+| `HeaderDBA` (`name`, `description`) | a human labels it in the UI | both endpoint tables |
+| `DataDBA` | there is a typed payload the columns should not fragment | both endpoint tables |
+| `StatusDBA` | an attempt against the outside world can fail | both endpoint tables — the last relay/probe failure, and on an MCP endpoint the last refresh outcome too (§2.5) |
 
 There is no `UserScopeDBA` on the endpoint tables: custom endpoints are project-owned
-configuration, and user-owned *endpoints* are not designed anywhere in `v1/`. The user
-dimension enters exactly once, on grants, where it is the owner key (§2.2).
+configuration, and there is no owner dimension anywhere in this schema — every gateway
+secret is project-owned, and user-owned *endpoints* are not designed anywhere in `v1/`
+(`out-of-scope.md`).
 
 ```python
 # dbs/postgres/gateways/llms/dbas.py
 
-class LlmEndpointDBA(
+class LLMEndpointDBA(
     ProjectScopeDBA, IdentifierDBA, SlugDBA, LifecycleDBA,
     HeaderDBA, DataDBA, StatusDBA, FlagsDBA, TagsDBA, MetaDBA,
 ):
@@ -276,21 +283,21 @@ class LlmEndpointDBA(
     provider_key = Column(String, nullable=False)
     # String, not Enum: the provider set grows with the routing library's, and
     # gateway_connections.provider_key is already a String for the same reason.
-    deployment = Column(
-        SQLEnum(LlmDeploymentKind, name="llmdeploymentkind_enum"), nullable=False
+    deployment_kind = Column(
+        SQLEnum(LLMDeploymentKind, name="llmdeploymentkind_enum"), nullable=False
     )
-    # Enum: the deployment set is ours and closed — direct, custom, azure,
-    # bedrock, sagemaker, vertex_ai — aligned with CustomProviderKind and the
-    # runner wire's `deployment` axis (services/runner/src/protocol.ts).
+    # Enum: the set is ours and closed — direct, custom, azure, bedrock,
+    # sagemaker, vertex_ai — aligned with CustomProviderKind and the runner
+    # wire's own `deployment` axis (services/runner/src/protocol.ts).
     secret_id = Column(UUID(as_uuid=True), nullable=True)
     # nullable: an endpoint with no secret is legitimate — the mock (D23),
     # an unauthenticated self-hosted server. FK with SET NULL, §2.1.
-    # data: { route: {...}, model_slugs: [...], config: {...}, extras: {...} } — §2.4
+    # data: { route: {...}, models: {...}, settings: {...} } — §2.4
 
 
 # dbs/postgres/gateways/mcps/dbas.py
 
-class McpEndpointDBA(
+class MCPEndpointDBA(
     ProjectScopeDBA, IdentifierDBA, SlugDBA, LifecycleDBA,
     HeaderDBA, DataDBA, StatusDBA, FlagsDBA, TagsDBA, MetaDBA,
 ):
@@ -304,33 +311,11 @@ class McpEndpointDBA(
     # `api_key` is declared but rejected by the service until the static secret
     # kind exists (D14) — the enum member costs nothing, a later migration would.
     secret_id = Column(UUID(as_uuid=True), nullable=True)
-    # the `oauth_provider` client registration when auth_mode is oauth; NULL for
-    # `none`. FK with SET NULL, §2.1.
-    # data: { url, headers: {...}, tool_policy: {...}, config: {...}, oauth: {...} } — §2.4
-
-
-class McpGrantDBA(
-    ProjectScopeDBA, IdentifierDBA, LifecycleDBA,
-    StatusDBA, FlagsDBA, TagsDBA, MetaDBA,
-):
-    """One owner's authorization on one server — a pointer at the vault, plus the
-    operational facts the encrypted payload cannot serve (D18, §1)."""
-    __abstract__ = True
-
-    endpoint_id = Column(UUID(as_uuid=True), nullable=False)
-    user_id = Column(UUID(as_uuid=True), nullable=True)
-    # NULL means the grant is project-owned; a UUID means it belongs to that
-    # member in this project. This is the (project, user) owner key from
-    # `secrets.md`, present from the first migration because the grant is the
-    # one entity whose owner already varies (§2.2).
-    secret_id = Column(UUID(as_uuid=True), nullable=False)
-    # NOT NULL: a grant row without its tokens is meaningless. FK CASCADE, §2.1.
-    # expires_at = Column(TIMESTAMP(timezone=True), nullable=True)   # see below
-    # No DataDBA and no expires_at: the scopes, tokens and expiry live in the
-    #   `oauth_grant` payload. Refresh is lazy — the OAuth client refreshes at
-    #   use time when the token is stale — so nothing queries "grants expiring
-    #   soon" and expiry fails the column test (§2.4). A proactive refresh
-    #   sweep, if one is ever built, promotes expires_at to a column then.
+    # the `oauth_grant` secret when auth_mode is oauth — one column, because a
+    # token is minted for exactly this server (D19, D3). NULL for `none`, and
+    # until someone connects. FK with SET NULL, §2.1; a failed refresh flips
+    # flags.is_valid and records the cause in status, never this column (§2.5).
+    # data: { route: {...}, tools: {...}, settings: {...}, oauth: {...} } — §2.4
 ```
 
 ### 2.1 The secret reference and its constraint
@@ -342,29 +327,24 @@ ondelete="CASCADE")` (`api/ee/src/dbs/postgres/organizations/dbes.py`). The webh
 is the older and weaker one: a dangling `secret_id` there degrades to a `log.warning` at
 dispatch time, which is tolerable for a signing key and not for a gateway secret.
 
-All three new tables take the constraint, with the delete behaviour chosen per table:
-
-- **Endpoints: `ondelete="SET NULL"`.** Deleting a vault secret must not silently delete an
-  endpoint's configuration — the tool policy, the model allowlist, the timeouts survive,
-  and calls fail visibly with the needs-auth / needs-input state until someone rebinds.
-  This is D18's posture (a dead secret does not hide tools) applied to the row itself:
-  secret death never erases configuration. `CASCADE` here would let a vault cleanup
-  quietly unregister servers.
-- **Grants: `ondelete="CASCADE"`.** The grant row is nothing but a pointer plus scope;
-  when the `oauth_grant` secret is deleted — revocation, member removal — a surviving row
-  would point at nothing and mean nothing. The service deletes vault-first exactly as the
-  SSO delete path does (`api/ee/src/core/organizations/service.py`); the constraint covers
-  the direction where the vault row dies first.
+Both tables take the constraint, and both choose the same delete behaviour:
+`ondelete="SET NULL"`. Deleting a vault secret must not silently delete an endpoint's
+configuration — the tool policy, the model allowlist, the timeouts survive, and calls fail
+visibly with the needs-auth / needs-input state until someone rebinds. This is D18's
+posture (a dead secret does not hide tools) applied to the row itself: secret death never
+erases configuration. `CASCADE` here would let a vault cleanup — or a revocation — quietly
+unregister a server, which is exactly the moment a caller needs the endpoint to stay
+visible while reconnecting.
 
 **Why the constraint at all, given the house rule that child-to-child references are
-validated in the application layer.** That rule (followed by channels, stated in its entities document) is
-about *domain* children — a grant's `endpoint_id` has no FK to `mcp_gateway_endpoints`,
-because composite-scoped references across domain tables are validated in the service. The
-secrets table is not a domain sibling; it is the platform vault, `secrets.id` is a plain
-unique primary key, and the reference is load-bearing for a security claim. The database
-keeping it honest costs one constraint.
+validated in the application layer.** That rule (followed by channels, stated in its
+entities document) is about *domain* children — composite-scoped references across
+sibling domain tables, validated in the service rather than FK'd. The secrets table is not
+a domain sibling; it is the platform vault, `secrets.id` is a plain unique primary key, and
+the reference is load-bearing for a security claim. The database keeping it honest costs
+one constraint.
 
-### 2.2 The owner dimension: in every signature now, in one table now, in storage later
+### 2.2 The owner dimension: in the signature now, nowhere in storage
 
 D10 is a signature rule: every secret lookup takes the owner from the outset, even
 while the only answer is the project. What that means layer by layer, so nobody
@@ -374,18 +354,19 @@ over-applies it:
   the full `AuthScope` and a `SecretMode`, and the mode logic consults
   `scope.user_id` (§7.2). This is the signature that is expensive to retrofit, and it is
   the one thing `plan.md` says the seed must get right.
-- **The grants DAO takes the owner as a key.** `fetch_grant(project_id=..., endpoint_id=...,
-  user_id=...)` with `user_id: Optional[UUID]` — `None` selects the project-owned grant.
-  Grants are the one entity whose owner varies from the first migration, because an OAuth
-  token belongs to whoever consented (`secrets.md`: one per owner per server).
+- **No table takes the owner as a key.** An endpoint's `secret_id` names one
+  project-owned secret and nothing here is keyed by a user — user-level secrets are out of
+  scope entirely, not merely unscheduled (`out-of-scope.md`). The extension, if it ever
+  ships, is additive: a second table per plane narrowing the answer for one member, with
+  no change to either endpoint table.
 - **The endpoint DAOs do not grow a user key.** Custom endpoints are project configuration;
   their verbs take `project_id` first and `user_id` only on writes, as authorship for
   `LifecycleDBA` — the house convention. Reading D10 as "every DAO verb keys on a user"
   would put a dead column on two tables.
-- **The secrets table itself changes later.** `secrets.md` designs the `(project, user)`
-  owner for vault rows and explicitly does not schedule it. When it lands it is a default
-  column value, not a data migration, and no gateway signature moves — that is the point
-  of taking the owner now.
+- **The secrets table itself is untouched.** `out-of-scope.md` keeps the `(project, user)`
+  owner for vault rows on the table as a possible extension without putting it on any
+  schedule. Landing it later is a default column value, not a data migration, and no
+  gateway signature moves — that is the point of taking the owner now.
 
 ### 2.3 The slug is the namespaced identifier
 
@@ -432,11 +413,11 @@ vocabulary for one set of values (D27).
   — the provider's own key is the whole identifier (`standard/openai`), the set is the
   static catalogue (`core/gateways/llms/catalog.py`), and an endpoint exists when a
   provider key exists for it. On the MCP plane: **reserved, empty today**. The word is
-  the secrets domain's own — a *standard* provider there is a standard target here, and
-  the two-line mapping an earlier draft defended is gone rather than defended.
+  the secrets domain's own — a *standard* provider there is a standard target here, one
+  word meaning one thing on both sides with no mapping between them.
 - **`custom`** — stored endpoints, the only rows: a customer's own deployment or reseller
   on the LLM plane, a server the user brought by URL on the MCP plane. The name is the
-  row's `slug`, one slug, unique per project (`uq_llm_gateway_endpoints_project_slug`,
+  row's `slug`, one slug, unique per project (`uq_llms_endpoints_project_slug`,
   §3), validated by the shared `Slug` DTO's `URL_SAFE_SLUG` rule.
 
 **Identifiers are slugs or keys, never display names — and an agenta slug may be nested.**
@@ -450,11 +431,11 @@ never pass through it, because nobody types them.
 **All three are reserved on both planes, even where one is empty.** LLM's `builtin` and
 MCP's `standard` have no members today; they exist anyway, because taking a keyword costs
 nothing now, while discovering later that something else claimed the segment costs a
-migration of live URLs (D27, kept by D30).
+migration of live URLs (D30).
 
-**The broker is named in the path, and that is deliberate** (D27). An earlier instinct hid
-it behind a stable name so a provider swap would not change URLs, and it was wrong twice
-over: the provider is part of a connection's identity, not an implementation detail —
+**The broker is named in the path, and that is deliberate** (D27). Hiding it behind a
+stable name so a provider swap would not change URLs is wrong twice over: the provider is
+part of a connection's identity, not an implementation detail —
 that unique key above is *theirs plus ours together* — and a URL that survived a backend
 swap would keep resolving while the user's tokens did not migrate, hiding a real breakage
 instead of showing it. Naming the broker also lets a brokered server and a direct one to
@@ -545,72 +526,274 @@ The test is the channels one, unchanged: a field is a column when the database m
 it — a key, a constraint, an index, a worker's `WHERE` clause. Everything else that is
 typed configuration goes in `data`. Applied here:
 
-- **`provider_key`, `deployment`, `auth_mode` are columns.** The management UI filters on
+- **`provider_key`, `deployment_kind`, `auth_mode` are columns.** The management UI filters on
   them (`query_endpoints`), and `auth_mode` decides which service paths are even legal.
-- **`url` is `data`.** Nothing queries it: the route lookup is by slug (§2.3), and two
-  endpoints pointing at one URL with different tool policies is legitimate, so there is no
+- **`route` is `data`.** Nothing queries it: the route lookup is by slug (§2.3), and two
+  endpoints pointing at one URL with different filters is legitimate, so there is no
   uniqueness to enforce. It is read back whole and handed to the adapter — the exact
   profile of `external_locator` in the channels design.
-- **`tool_policy` is `data`.** Enforcement loads the endpoint row it already has; the
-  policy is never a query predicate. Its shape mirrors the runner wire's `McpToolPolicy`
-  (`services/runner/src/protocol.ts`) field for field, so the same document means the same
-  thing on both sides of the gateway (§4).
-- **`config` is `data`.** Timeouts, ceilings and extra headers (D21) are read at call time
-  off the row in hand. Per-endpoint, only on custom endpoints — generated endpoints take
-  the code defaults, which is what "ours to define" means concretely.
-- **`model_slugs` is `data`.** The allowlist check happens in the service with the row
-  loaded; `custom_provider` secrets already carry their model list inside the payload the
-  same way.
+- **`tools` / `models` are `data`.** The filter check happens in the service with the row
+  already loaded; a filter is never a query predicate.
+- **`settings` is `data`.** Timeouts and ceilings (D21) are read at call time off the row
+  in hand. Per-endpoint, only on custom endpoints — generated endpoints take the code
+  defaults, which is what "ours to define" means concretely.
 - **`secret_id` is a column** — the FK acts on it (§2.1).
-- **`expires_at` is not a column** until something queries it (§2, grants).
+- **`expires_at` is not a column.** It lives inside the `oauth_grant` payload (§4.5), and
+  nothing queries it: refresh is lazy, at use time when the token is stale, so there is no
+  "expiring soon" worker to feed. A proactive refresh sweep, if one is ever built, promotes
+  it to a column then.
 
-### 2.5 Grant uniqueness under a nullable owner
+### The shape both planes share
 
-"One grant per owner per server" (`secrets.md`) with `user_id NULL` meaning the project
-cannot be one unique constraint: Postgres treats NULLs as distinct, so
-`UNIQUE (project_id, endpoint_id, user_id)` would admit unlimited project-owned duplicates.
-Two partial unique indexes state it exactly, the idiom `trigger_subscriptions` already
-uses (`dbs/postgres/triggers/dbes.py`):
+`data` is the same three keys on both tables, plus one key each plane needs alone. The
+names are the same words because they mean the same thing — a reader who has read one
+endpoint document can read the other:
 
-```python
-Index("uq_mcp_gateway_grants_user", "project_id", "endpoint_id", "user_id",
-      unique=True, postgresql_where=text("user_id IS NOT NULL")),
-Index("uq_mcp_gateway_grants_project", "project_id", "endpoint_id",
-      unique=True, postgresql_where=text("user_id IS NULL")),
+| key | LLM | MCP |
+| --- | --- | --- |
+| `route` | `base_url`, `headers`, plus `api_version`, `region`, `extras` | `base_url`, `headers` |
+| the filter | `models` — `{allowlist, denylist}` | `tools` — `{allowlist, denylist}` |
+| `settings` | `timeout_seconds`, `max_output_tokens` | `timeout_seconds` |
+| plane-only | — | `oauth`: discovered authorization facts, cached (wave 3) |
+
+Four rules hold across both, and they are the whole contract:
+
+**One filter shape, one precedence.** An absent list is no constraint from that side;
+`allowlist: []` refuses everything; `denylist` always wins over `allowlist`. Names are
+matched exactly — a glob syntax would need its own decision, on both planes at once.
+Nothing is filtered by default, and the `None`-versus-`[]` distinction is what keeps a
+field nobody filled in from reading as *refuse everything*. Governance is expressed by
+writing a filter, never by forgetting to.
+
+**One header slot.** `route.headers` is the only place a header can be typed. It is
+addressing — the upstream will not route without it — and it is merged under the caller's
+own headers so a caller cannot forge it. **It may never carry a secret**: `Authorization`
+is derived from the resolved secret and overwrites whatever it sets (§7.2). The caller's own
+`Authorization` and `X-AG-Credentials` are stripped before any relay on both planes — they
+authenticate the caller into the gateway and belong to no upstream (D31).
+
+**One escape hatch, and it sits in `route`.** `route.extras` carries what a deployment needs
+and no named field expresses: `vertex_project`, `aws_bedrock_runtime_endpoint`,
+`aws_role_name`. It follows the header rule exactly — addressing, never secret material —
+and that is what makes it safe to have. See "Why extras belongs to the route" below for why
+there is no `settings.extras` and no top-level one.
+
+**Listing and enforcement are not the same question.** The filter says what is *allowed*;
+what can be *listed* is only ever the allowlist minus the denylist, because with no
+allowlist the gateway does not know the upstream's catalogue. On the MCP plane the two
+never diverge in practice — the upstream answers `tools/list` and the same filter trims the
+response on the way back, which is the one place the gateway rewrites a body. On the LLM
+plane a `standard` endpoint's allowlist *is* the SDK catalogue, so it lists in full; a
+`custom` endpoint with no allowlist relays anything and lists nothing, which is honest
+rather than convenient.
+
+### What `llms_endpoints.data` actually holds
+
+`route` mirrors the runner wire's `endpoint` object field for field, so one document means
+the same thing on both sides of the gateway. Which of its fields matter is decided by
+`deployment_kind`, not by the field being present — an `api_version` on a Bedrock endpoint
+is ignored, not an error.
+
+**A direct OpenAI-compatible reseller** — the common custom case. `base_url` is the whole
+route; the adapter appends `/chat/completions`:
+
+```json
+{
+  "route": { "base_url": "https://api.together.xyz/v1" },
+  "models": { "allowlist": ["meta-llama/Llama-3-70b-chat-hf"] },
+  "settings": { "timeout_seconds": 30.0 }
+}
 ```
 
-A second consent by the same owner is therefore an **update to the vault secret plus a
-touch of the row**, never a second row — which is also what keeps refresh cheap: rewritten
-on every refresh means the `oauth_grant` payload is updated in place (`secrets.md`), and
-the row's identity never moves.
+**Azure**, where the deployment lives at a per-resource host and the API is dated:
 
-### 2.6 Flags and status: policy state versus secret state versus attempt outcome
+```json
+{
+  "route": {
+    "base_url": "https://acme.openai.azure.com",
+    "api_version": "2024-10-21"
+  },
+  "models": { "allowlist": ["gpt-4o", "gpt-4o-mini"] },
+  "settings": { "max_output_tokens": 4096 }
+}
+```
 
-Three different facts, three different homes, following the house pattern:
+**Bedrock**, where there is no URL to type — the region *is* the route, and the adapter
+composes the host from it:
 
-- **`flags.is_active`** — an operator's switch, on endpoints and grants. Server-set default
+```json
+{
+  "route": { "region": "eu-central-1" },
+  "models": { "allowlist": ["anthropic.claude-3-5-sonnet-20241022-v2:0"] }
+}
+```
+
+**Vertex**, the case that earns `extras`. `vertex_location` comes from `region`, but
+`vertex_project` is a GCP project id with no named field — routing, not secret material, so
+it belongs here and not in the vault beside the service-account key:
+
+```json
+{
+  "route": {
+    "region": "europe-west4",
+    "extras": { "vertex_project": "acme-prod" }
+  },
+  "models": { "allowlist": ["gemini-2.0-flash"] }
+}
+```
+
+**A self-hosted gateway behind a routing header**, blocking one model without enumerating
+the rest — the case the denylist exists for:
+
+```json
+{
+  "route": {
+    "base_url": "https://llm.internal.acme.io/v1",
+    "headers": { "X-Acme-Tenant": "research" }
+  },
+  "models": { "denylist": ["gpt-4o"] }
+}
+```
+
+**A generated `standard` endpoint has data too**, though nobody typed it — the catalogue
+builds it (§8), and `base_url` is filled only for providers the passthrough adapter dials,
+because it refuses without one. A translated provider keeps `route` empty and lets litellm
+supply its own default:
+
+```json
+{
+  "route": { "base_url": "https://api.openai.com/v1" },
+  "models": { "allowlist": ["gpt-4o", "gpt-4o-mini", "o1", "..."] }
+}
+```
+
+### What `mcps_endpoints.data` actually holds
+
+The same document with one fewer route field and one more key. `route.base_url` is the
+server's own endpoint — one URL per server (D16), and unlike the LLM plane nothing is
+appended to it: the protocol is a POST to exactly that URL.
+
+**A plain server needing no authentication** — `auth_mode` is `none` and `secret_id` is
+null; the mocks are exactly this (D23):
+
+```json
+{ "route": { "base_url": "https://mcp.acme.io/" } }
+```
+
+**A server whose tools are restricted.** The allowlist does two jobs: it refuses a call to
+an unlisted tool *before* the upstream is dialled, and it filters `tools/list` on the way
+back:
+
+```json
+{
+  "route": { "base_url": "https://mcp.acme.io/" },
+  "tools": { "allowlist": ["search", "fetch"] },
+  "settings": { "timeout_seconds": 15.0 }
+}
+```
+
+**A server with one tool withdrawn**, which is the same trim expressed the other way —
+everything the server offers except the destructive one, without pinning the list to what
+it offers today:
+
+```json
+{
+  "route": {
+    "base_url": "https://mcp.internal.acme.io/",
+    "headers": { "X-Acme-Tenant": "research" }
+  },
+  "tools": { "denylist": ["delete_page"] }
+}
+```
+
+**An OAuth-protected server**, once the connect flow has run. `oauth` is discovery
+metadata cached on the row, never secret material — the token itself is an `oauth_grant`
+in the vault, pointed at by the `secret_id` column (D3):
+
+```json
+{
+  "route": { "base_url": "https://mcp.notion.so/mcp" },
+  "oauth": {
+    "resource": "https://mcp.notion.so",
+    "authorization_server": "https://auth.notion.so",
+    "scopes_offered": ["read", "write"]
+  }
+}
+```
+
+**A generated endpoint's data is composed, not stored.** A `builtin/agenta` entry takes its
+URL from configuration; a `builtin/composio` entry has no URL of its own at all — the
+broker owns the route, and the endpoint carries a placeholder until `ComposioMCPAdapter`
+lands (§8).
+
+### Why `extras` belongs to the route, and only there
+
+There are two `extras` in play and they are not the same field. The **secret's** extras
+already exists (`CustomProviderSettingsDTO.extras`) and already flows: it is what carries
+`aws_access_key_id`, `aws_secret_access_key`, `vertex_credentials`, `azure_ad_token` — the
+material that authenticates us to a cloud. It lives in the vault, encrypted, and the adapter
+merges it verbatim.
+
+What has no home is the **non-secret** half of the same story. A Vertex call needs
+`vertex_project`; a Bedrock call may need `aws_bedrock_runtime_endpoint` or `aws_role_name`.
+None of those are secrets, none has a named route field, and today the only way to deliver
+one is to smuggle it into the vault alongside real secret material. That is the conflation
+this design refuses: `api_version` and `region` come from the route and never from the
+secret, though the legacy SDK path packs both into the secret's extras.
+
+So `extras` goes on `route`, for the same reason `headers` does:
+
+- **`route.extras` is addressing.** It answers "where and how do we dial", which is what
+  `route` means. It is never secret material, and the same sentence that governs
+  `route.headers` governs it.
+- **`settings` stays ours.** `timeout_seconds` and `max_output_tokens` are governance knobs
+  *we* define and *we* enforce. A provider passthrough dict there would make settings half
+  ours and half theirs, and the category stops meaning anything.
+- **A top-level `data.extras` says nothing.** A reader could not tell whether a key addresses
+  or configures, which is the whole reason `data` has named sub-objects at all. On a JSON
+  column a forward-compat bag earns nothing either — adding a named field costs no migration.
+
+**Precedence, which is the part that matters for safety.** The translated adapter merges in
+this order: the caller's body, then `route.extras`, then the secret, then the explicit route
+fields. So an endpoint can override what a caller asked for, and **the vault always outranks
+the route** — a route field can never re-point authentication at a different secret.
+
+**The passthrough adapter ignores `extras`.** It speaks raw HTTP: a URL, headers, and a
+derived `Authorization`. Provider kwargs are a routing-library concept, so there is nothing
+for it to do with them.
+
+**Nothing equivalent on the MCP plane.** One protocol, one transport, one URL — there is no
+per-provider dialect to accommodate, so `MCPEndpointRoute` stays at the shared pair. If that
+ever changes it is a DTO change with no migration.
+
+### 2.5 Flags and status: policy state versus secret state versus attempt outcome
+
+Two different facts, two different homes, following the house pattern:
+
+- **`flags.is_active`** — an operator's switch, on both endpoint tables. Server-set default
   `True`; a deactivated endpoint refuses calls with a reason that names the flag —
   `GatewayEndpointInactiveError`, one type for both planes, since the flag, the refusal and
   the reason are identical and only the endpoint named differs. The check sits immediately
   after resolution, before the allowlist: a deactivated endpoint should not report what it
   would have allowed.
-- **`flags.is_valid`** — secret health, on grants only. Server-set, never
+- **`flags.is_valid`** — secret health, on the MCP endpoint only. Server-set, never
   client-writable (the connections service already enforces exactly this: "always
   server-set in flags"). A failed refresh flips it `False`; D18 then holds — the server's
-  tools stay listed, the call fails, the existing escalation paths offer reconnection.
-  Endpoints have no `is_valid` because an endpoint does not authenticate; its secret's
-  health lives with the secret.
+  tools stay listed, the call fails, the existing escalation paths offer reconnection. The
+  LLM endpoint carries no `is_valid`: a provider key is discovered by scanning for
+  existence, not bound to one row (the asymmetry above), so there is nothing per-endpoint
+  for a refresh to invalidate.
 - **`status` (`StatusDBA`)** — the outcome of the last attempt, the shared
-  `{timestamp, type, code, message, stacktrace}` shape. On a grant: the refresh failure
-  that explains *why* `is_valid` is false. On an endpoint: the last relay or probe failure,
-  which is diagnosis, not policy input.
+  `{timestamp, type, code, message, stacktrace}` shape, on both tables. On an MCP endpoint
+  whose refresh failed: the failure that explains *why* `is_valid` is false. Otherwise: the
+  last relay or probe failure, which is diagnosis, not policy input.
 
-No lifecycle enum column exists on any of the three tables. Nothing here is a state
-machine: an endpoint is configuration, a grant is a pointer, and the
-ready / needs-auth / needs-input states are **derived** per caller at read time — `ready`
-requires a valid grant *for that owner*, so it cannot be a row fact (§4).
+No lifecycle enum column exists on either table. Nothing here is a state machine: an
+endpoint is configuration, and the ready / needs-auth / needs-input states are **derived**
+per caller at read time — `ready` requires a valid secret for the endpoint, so it cannot be
+a row fact (§4).
 
-### 2.7 Why usage and audit write no rows here
+### 2.6 Why usage and audit write no rows here
 
 D22 settles audit: one event per call into the existing events domain. Concretely, the
 gateway emits through `publish_event`
@@ -648,47 +831,31 @@ triggers tables already do; the
 ```python
 # dbs/postgres/gateways/llms/dbes.py
 
-class LlmEndpointDBE(Base, LlmEndpointDBA):
-    __tablename__ = "llm_gateway_endpoints"
+class LLMEndpointDBE(Base, LLMEndpointDBA):
+    __tablename__ = "llms_endpoints"
     __table_args__ = (
         PrimaryKeyConstraint("project_id", "id"),
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         ForeignKeyConstraint(["secret_id"], ["secrets.id"], ondelete="SET NULL"),
         UniqueConstraint("project_id", "slug",
-                         name="uq_llm_gateway_endpoints_project_slug"),
-        Index("ix_llm_gateway_endpoints_project_provider",
+                         name="uq_llms_endpoints_project_slug"),
+        Index("ix_llms_endpoints_project_provider",
               "project_id", "provider_key"),
-        Index("ix_llm_gateway_endpoints_flags", "flags", postgresql_using="gin"),
+        Index("ix_llms_endpoints_flags", "flags", postgresql_using="gin"),
     )
 
 
 # dbs/postgres/gateways/mcps/dbes.py
 
-class McpEndpointDBE(Base, McpEndpointDBA):
-    __tablename__ = "mcp_gateway_endpoints"
+class MCPEndpointDBE(Base, MCPEndpointDBA):
+    __tablename__ = "mcps_endpoints"
     __table_args__ = (
         PrimaryKeyConstraint("project_id", "id"),
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         ForeignKeyConstraint(["secret_id"], ["secrets.id"], ondelete="SET NULL"),
         UniqueConstraint("project_id", "slug",
-                         name="uq_mcp_gateway_endpoints_project_slug"),
-        Index("ix_mcp_gateway_endpoints_flags", "flags", postgresql_using="gin"),
-    )
-
-
-class McpGrantDBE(Base, McpGrantDBA):
-    __tablename__ = "mcp_gateway_grants"
-    __table_args__ = (
-        PrimaryKeyConstraint("project_id", "id"),
-        ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        ForeignKeyConstraint(["secret_id"], ["secrets.id"], ondelete="CASCADE"),
-        # one grant per owner per server, under a nullable owner — §2.5
-        Index("uq_mcp_gateway_grants_user", "project_id", "endpoint_id", "user_id",
-              unique=True, postgresql_where=text("user_id IS NOT NULL")),
-        Index("uq_mcp_gateway_grants_project", "project_id", "endpoint_id",
-              unique=True, postgresql_where=text("user_id IS NULL")),
-        # the resolution read: all grants for one endpoint, then filter by owner
-        Index("ix_mcp_gateway_grants_endpoint", "project_id", "endpoint_id"),
+                         name="uq_mcps_endpoints_project_slug"),
+        Index("ix_mcps_endpoints_flags", "flags", postgresql_using="gin"),
     )
 ```
 
@@ -707,8 +874,6 @@ Deduplication and races, in the constraint-not-logic style the triggers tables s
 | mechanism | absorbs | protects |
 | --- | --- | --- |
 | `(project_id, slug)` on both endpoint tables | a double-submitted create | the route grammar — one name, one endpoint |
-| the two partial indexes on grants | two concurrent consent flows by one owner | the vault — one secret per grant, no orphaned twin |
-| `ON CONFLICT` on grant create (§7) | a re-entered OAuth callback | the caller, who gets the surviving row |
 
 ---
 
@@ -750,9 +915,9 @@ class GatewayAuthScheme(str, Enum):
 
 
 class GatewayConnectionState(str, Enum):
-    """Derived per caller at read time — never stored (§2.6)."""
-    READY = "ready"            # a usable secret exists for this owner
-    NEEDS_AUTH = "needs_auth"  # OAuth target with no grant for this owner; connect
+    """Derived per caller at read time — never stored (§2.5)."""
+    READY = "ready"            # a usable secret exists for this endpoint
+    NEEDS_AUTH = "needs_auth"  # OAuth target with no valid secret; connect
     NEEDS_INPUT = "needs_input"  # a secret must be supplied before use
 
 
@@ -783,11 +948,29 @@ class GatewayEndpointNamespace(str, Enum):
     CUSTOM = "custom"       # a row; configurable, the user's key
 
 
-class GatewayEndpointConfig(BaseModel):
-    """Per-endpoint configuration, one concern for both planes (D21). Custom
+class GatewayEndpointRoute(BaseModel):
+    """Where and how to dial an upstream — the two fields both planes share (§2.4).
+    `headers` is addressing, never a secret: Authorization is derived from the
+    resolved secret and overwrites whatever is set here (§7.2)."""
+    base_url: Optional[str] = None
+    headers: Optional[Dict[str, str]] = None
+
+
+class GatewayEndpointFilter(BaseModel):
+    """One name filter, the same shape for LLM models and MCP tools (§2.4).
+    Absent list = no constraint; allowlist: [] refuses everything; denylist
+    always wins. Exact names only."""
+    allowlist: Optional[List[str]] = None
+    denylist: Optional[List[str]] = None
+
+    def allows(self, name: str) -> bool: ...      # denylist first, then allowlist
+    def enumerate(self) -> List[str]: ...         # allowlist minus denylist
+
+
+class GatewayEndpointSettings(BaseModel):
+    """Per-endpoint settings, one concern for both planes (D21). Custom
     endpoints only; generated endpoints take the code defaults."""
     timeout_seconds: Optional[float] = None
-    extra_headers: Optional[Dict[str, str]] = None
 ```
 
 **One namespace enum, shared by both planes.** D30 keeps the value set identical on
@@ -797,10 +980,8 @@ type is the honest one, and it lives here at the domain root because the policy 
 
 **The split that matters is billing, not backend.** `builtin` is the one namespace whose
 upstream we pay for, so it is the only one metering will ever attach to; `standard` and
-`custom` both spend the user's own key and need no charging path at all. An earlier draft
-made `builtin` an alias of the secrets domain's *standard* and put that boundary inside a
-single namespace. The vocabulary mismatch that alias created is now gone too — the secrets
-domain says *standard* and so does the URL.
+`custom` both spend the user's own key and need no charging path at all. The vocabulary
+agrees end to end: the secrets domain says *standard*, and so does the URL.
 
 ### 4.2 The policy core's DTOs
 
@@ -848,14 +1029,11 @@ class ProviderKeyRef(BaseModel):
     provider_key: str
 
 class BoundSecretRef(BaseModel):
-    """A custom endpoint: the row already names its secret (§2.1)."""
+    """A custom endpoint on either plane, or an OAuth-protected MCP endpoint:
+    the row already names its secret directly (§2.1)."""
     secret_id: UUID
 
-class GrantRef(BaseModel):
-    """An OAuth-protected MCP endpoint: find this owner's grant (§2.5)."""
-    endpoint_id: UUID
-
-SecretRef = Union[ProviderKeyRef, BoundSecretRef, GrantRef]
+SecretRef = Union[ProviderKeyRef, BoundSecretRef]
 
 
 class ResolvedSecret(BaseModel):
@@ -901,7 +1079,7 @@ class GatewayUsage(BaseModel):
 
 
 class GatewayOutcome(BaseModel):
-    """How the call ended, for the audit event (§2.7)."""
+    """How the call ended, for the audit event (§2.6)."""
     status_code: Optional[int] = None
     duration_ms: Optional[int] = None
     #
@@ -918,17 +1096,17 @@ per-kind switch in exactly the layer that must stay kind-agnostic. The containme
 behavioural, not structural: the DTO never crosses the north port, and `redaction` of it in
 logs follows the runner's existing deny-set discipline.
 
-**Why the ref is a union and not three resolver methods.** `secrets.md` specifies *one*
+**Why the ref is a union and not two resolver methods.** `secrets.md` specifies *one*
 function called by both planes, and the mode logic — the part that must not fork — is
-identical across all three lookups. Three methods would triplicate it; one method with a
-typed ref keeps the owner/mode semantics in one body and makes the lookup shape data.
+identical across both lookups. Two methods would duplicate it; one method with a typed ref
+keeps the owner/mode semantics in one body and makes the lookup shape data.
 
 ### 4.3 The LLM plane
 
 ```python
 # core/gateways/llms/dtos.py
 
-class LlmDeploymentKind(str, Enum):
+class LLMDeploymentKind(str, Enum):
     """How a provider is reached — the wire's `deployment` axis, aligned with
     CustomProviderKind in core/secrets/enums.py (`models.md`: keep both axes)."""
     DIRECT = "direct"
@@ -939,17 +1117,22 @@ class LlmDeploymentKind(str, Enum):
     VERTEX = "vertex_ai"
 
 
-class LlmEndpointRoute(BaseModel):
+class LLMEndpointRoute(BaseModel):
     """The route, mirroring the runner wire's `endpoint` object field for field
-    (services/runner/src/protocol.ts): baseUrl for OpenAI-compatible, apiVersion
-    for Azure, region for AWS and Vertex, headers for non-secret routing."""
-    base_url: Optional[str] = None
+    (services/runner/src/protocol.ts): apiVersion for Azure, region for AWS and
+    Vertex, on top of the shared base_url + headers."""
     api_version: Optional[str] = None
     region: Optional[str] = None
-    headers: Optional[Dict[str, str]] = None
+    extras: Optional[Dict[str, Any]] = None   # non-secret provider knobs with no named
+                                              # field (vertex_project and friends). Same
+                                              # rule as headers: addressing, never secret;
+                                              # the secret's own extras outranks it.
 
 
-class LlmEndpointConfig(GatewayEndpointConfig):
+LLMModelFilter = GatewayEndpointFilter   # the plane's own name for the shared shape
+
+
+class LLMEndpointSettings(GatewayEndpointSettings):
     max_output_tokens: Optional[int] = None   # the ceiling (D21). A call above it
                                               # is REJECTED, never silently
                                               # clamped (D25) — CeilingExceededError, §5.
@@ -960,68 +1143,69 @@ class LlmEndpointConfig(GatewayEndpointConfig):
                                               # key off the body would never engage.
 
 
-class LlmEndpointData(BaseModel):
-    route: LlmEndpointRoute = Field(default_factory=LlmEndpointRoute)
-    model_slugs: List[str] = Field(default_factory=list)   # the allowlist; empty means
-                                                           # refuse everything, not allow all
-    config: LlmEndpointConfig = Field(default_factory=LlmEndpointConfig)
-    extras: Optional[Dict[str, Any]] = None
+class LLMEndpointData(BaseModel):
+    route: LLMEndpointRoute = Field(default_factory=LLMEndpointRoute)
+    models: LLMModelFilter = Field(default_factory=LLMModelFilter)
+    settings: LLMEndpointSettings = Field(default_factory=LLMEndpointSettings)
 
 
-class LlmEndpointFlags(BaseModel):
+class LLMEndpointFlags(BaseModel):
     is_active: bool = True
-    # no is_valid: an endpoint does not authenticate; secret health lives
-    # with the secret (§2.6)
+    # no is_valid: a provider key is discovered by scanning for existence, not
+    # bound to one row, so there is nothing per-endpoint for a refresh to
+    # invalidate (§1, "Why a provider key is a scan, not a stored binding").
+    # The MCP endpoint's secret_id IS bound to one row, which is why its flags
+    # carry is_valid and this one does not (§2.5).
 
 
-class LlmEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
+class LLMEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
     provider_key: str
-    deployment: LlmDeploymentKind
+    deployment_kind: LLMDeploymentKind
     namespace: GatewayEndpointNamespace = GatewayEndpointNamespace.CUSTOM
     secret_id: Optional[UUID] = None
     #
-    data: LlmEndpointData = Field(default_factory=LlmEndpointData)
-    flags: LlmEndpointFlags = Field(default_factory=LlmEndpointFlags)
+    data: LLMEndpointData = Field(default_factory=LLMEndpointData)
+    flags: LLMEndpointFlags = Field(default_factory=LLMEndpointFlags)
     status: Optional[Status] = None
 
 
-class LlmEndpointCreate(Slug, Header, Metadata):
+class LLMEndpointCreate(Slug, Header, Metadata):
     provider_key: str
-    deployment: LlmDeploymentKind
+    deployment_kind: LLMDeploymentKind
     secret_id: Optional[UUID] = None
     #
-    data: LlmEndpointData = Field(default_factory=LlmEndpointData)
-    flags: LlmEndpointFlags = Field(default_factory=LlmEndpointFlags)
+    data: LLMEndpointData = Field(default_factory=LLMEndpointData)
+    flags: LLMEndpointFlags = Field(default_factory=LLMEndpointFlags)
 
 
-class LlmEndpointEdit(Identifier, Header, Metadata):
-    # no provider_key, no deployment: repointing an endpoint at a different
+class LLMEndpointEdit(Identifier, Header, Metadata):
+    # no provider_key, no deployment_kind: repointing an endpoint at a different
     # provider family is a different endpoint, not an edit — absence makes it
     # unexpressible, the channels rule
     secret_id: Optional[UUID] = None
     #
-    data: LlmEndpointData = Field(default_factory=LlmEndpointData)
-    flags: LlmEndpointFlags = Field(default_factory=LlmEndpointFlags)
+    data: LLMEndpointData = Field(default_factory=LLMEndpointData)
+    flags: LLMEndpointFlags = Field(default_factory=LLMEndpointFlags)
 
 
-class LlmEndpointQuery(BaseModel):
+class LLMEndpointQuery(BaseModel):
     provider_key: Optional[str] = None
-    deployment: Optional[LlmDeploymentKind] = None
+    deployment_kind: Optional[LLMDeploymentKind] = None
     slug: Optional[str] = None
 
 
-class LlmCallContext(BaseModel):
+class LLMCallContext(BaseModel):
     """What policy needs from the request body — parsed minimally, so the body
     itself can relay byte for byte (`scope-checklist.md`)."""
     model: str
     stream: bool = False
 
 
-class LlmResolvedRoute(BaseModel):
+class LLMResolvedRoute(BaseModel):
     """What the south port receives: the route after selection, with the model
     id already in the routing library's form."""
     provider_key: str
-    deployment: LlmDeploymentKind
+    deployment_kind: LLMDeploymentKind
     model: str
     #
     base_url: Optional[str] = None
@@ -1029,7 +1213,7 @@ class LlmResolvedRoute(BaseModel):
     region: Optional[str] = None
     headers: Optional[Dict[str, str]] = None
     #
-    config: LlmEndpointConfig = Field(default_factory=LlmEndpointConfig)
+    settings: LLMEndpointSettings = Field(default_factory=LLMEndpointSettings)
 ```
 
 ### 4.4 The MCP plane
@@ -1037,25 +1221,21 @@ class LlmResolvedRoute(BaseModel):
 ```python
 # core/gateways/mcps/dtos.py
 
-class McpToolPolicyMode(str, Enum):
-    ALL = "all"
-    INCLUDE = "include"
+class MCPEndpointRoute(GatewayEndpointRoute):
+    """Nothing beyond the shared pair: an MCP server is one URL (D16) and the
+    protocol POSTs to it directly — unlike the LLM plane's base_url, no path is
+    appended."""
 
 
-class McpToolPolicy(BaseModel):
-    """Field-for-field mirror of the runner wire's McpToolPolicy
-    (services/runner/src/protocol.ts), so the same document means the same
-    thing on both sides of the gateway."""
-    mode: McpToolPolicyMode = McpToolPolicyMode.ALL
-    names: Optional[List[str]] = None   # required by the service when mode is INCLUDE
+MCPToolFilter = GatewayEndpointFilter   # the plane's own name for the shared shape
 
 
-class McpEndpointConfig(GatewayEndpointConfig):
-    """Nothing beyond the shared pair yet; the subclass exists so a first
+class MCPEndpointSettings(GatewayEndpointSettings):
+    """Nothing beyond the shared field yet; the subclass exists so a first
     MCP-only knob is a DTO change, symmetric with the LLM side."""
 
 
-class McpOAuthData(BaseModel):
+class MCPOAuthData(BaseModel):
     """Discovered authorization facts, cached on the row. Written by the OAuth
     checkpoint (WP17); absent until then. Not secret material — discovery
     metadata only (D3 holds: tokens live in the vault)."""
@@ -1064,19 +1244,21 @@ class McpOAuthData(BaseModel):
     scopes_offered: List[str] = Field(default_factory=list)
 
 
-class McpEndpointData(BaseModel):
-    url: str
-    headers: Optional[Dict[str, str]] = None     # non-secret routing headers only
-    tool_policy: McpToolPolicy = Field(default_factory=McpToolPolicy)
-    config: McpEndpointConfig = Field(default_factory=McpEndpointConfig)
-    oauth: Optional[McpOAuthData] = None
+class MCPEndpointData(BaseModel):
+    route: MCPEndpointRoute = Field(default_factory=MCPEndpointRoute)
+    tools: MCPToolFilter = Field(default_factory=MCPToolFilter)
+    settings: MCPEndpointSettings = Field(default_factory=MCPEndpointSettings)
+    oauth: Optional[MCPOAuthData] = None
 
 
-class McpEndpointFlags(BaseModel):
+class MCPEndpointFlags(BaseModel):
     is_active: bool = True
+    is_valid: bool = True     # server-set; flipped False by a failed refresh (§2.5).
+                              # No LLM counterpart: a provider key is discovered by
+                              # existence, not bound to one row (§1).
 
 
-class McpEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
+class MCPEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
     auth_mode: GatewayAuthScheme
     namespace: GatewayEndpointNamespace = GatewayEndpointNamespace.CUSTOM
     secret_id: Optional[UUID] = None
@@ -1092,65 +1274,34 @@ class McpEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
     # segments (§2.3) — the brokered connection's own unique key, so a listing
     # renders the route without a second lookup
     #
-    data: McpEndpointData
-    flags: McpEndpointFlags = Field(default_factory=McpEndpointFlags)
+    data: MCPEndpointData
+    flags: MCPEndpointFlags = Field(default_factory=MCPEndpointFlags)
     status: Optional[Status] = None
 
 
-class McpEndpointCreate(Slug, Header, Metadata):
+class MCPEndpointCreate(Slug, Header, Metadata):
     auth_mode: GatewayAuthScheme
     secret_id: Optional[UUID] = None
     #
-    data: McpEndpointData
-    flags: McpEndpointFlags = Field(default_factory=McpEndpointFlags)
+    data: MCPEndpointData
+    flags: MCPEndpointFlags = Field(default_factory=MCPEndpointFlags)
 
 
-class McpEndpointEdit(Identifier, Header, Metadata):
+class MCPEndpointEdit(Identifier, Header, Metadata):
     auth_mode: GatewayAuthScheme       # editable: a server can move from none to
                                        # oauth; the service revalidates secret_id
     secret_id: Optional[UUID] = None
     #
-    data: McpEndpointData
-    flags: McpEndpointFlags = Field(default_factory=McpEndpointFlags)
+    data: MCPEndpointData
+    flags: MCPEndpointFlags = Field(default_factory=MCPEndpointFlags)
 
 
-class McpEndpointQuery(BaseModel):
+class MCPEndpointQuery(BaseModel):
     auth_mode: Optional[GatewayAuthScheme] = None
     slug: Optional[str] = None
 
 
-# --- grants ----------------------------------------------------------------- #
-
-class McpGrantFlags(BaseModel):
-    is_active: bool = True
-    is_valid: bool = True     # server-set; flipped False by a failed refresh (§2.6)
-
-
-class McpGrant(Identifier, Lifecycle):
-    endpoint_id: UUID
-    user_id: Optional[UUID] = None     # None: project-owned (§2.5)
-    secret_id: UUID
-    #
-    flags: McpGrantFlags = Field(default_factory=McpGrantFlags)
-    status: Optional[Status] = None
-
-
-class McpGrantCreate(BaseModel):
-    """Service-authored only: the OAuth flow writes the vault secret first, then
-    this. No wire model wraps it (§6)."""
-    endpoint_id: UUID
-    user_id: Optional[UUID] = None
-    secret_id: UUID
-    #
-    flags: McpGrantFlags = Field(default_factory=McpGrantFlags)
-
-
-class McpGrantQuery(BaseModel):
-    endpoint_id: Optional[UUID] = None
-    user_id: Optional[UUID] = None
-
-
-class McpCallContext(BaseModel):
+class MCPCallContext(BaseModel):
     """What routing reads from the protocol's method and target headers — the
     body is never parsed for routing (`mcp.md`, header-based routing). The
     exact header names are pinned against the 2026-07-28 revision at
@@ -1159,21 +1310,21 @@ class McpCallContext(BaseModel):
     target: Optional[str] = None
 
 
-class McpResolvedRoute(BaseModel):
+class MCPResolvedRoute(BaseModel):
     url: str
     headers: Dict[str, str] = Field(default_factory=dict)
-    config: McpEndpointConfig = Field(default_factory=McpEndpointConfig)
+    settings: MCPEndpointSettings = Field(default_factory=MCPEndpointSettings)
 
 
 # --- the two secret mechanisms, made legible (D27) ----------------------- #
 
-class McpDirectAuth(BaseModel):
+class MCPDirectAuth(BaseModel):
     """builtin/agenta + custom: the secret is ours to present — an oauth_grant
     resolved from the vault (§7.2), or nothing for a NONE-scheme target."""
     secret: Optional[ResolvedSecret] = None
 
 
-class McpBrokeredAuth(BaseModel):
+class MCPBrokeredAuth(BaseModel):
     """builtin: the integrations domain brokered the authorization and holds the
     secret upstream; what we carry is its connection row. `Connection` is
     that domain's own DTO (core/gateway/connections/dtos.py), imported by
@@ -1181,7 +1332,7 @@ class McpBrokeredAuth(BaseModel):
     connection: Connection
 
 
-McpRelayAuth = Union[McpDirectAuth, McpBrokeredAuth]
+MCPRelayAuth = Union[MCPDirectAuth, MCPBrokeredAuth]
 ```
 
 **`secret_id` is on the entity DTOs, and that is a recorded divergence from `secrets.md`.**
@@ -1199,11 +1350,11 @@ document, in either direction.
 at the layer where it matters** (D27). At the *entity* layer the answer is a nullable
 reference, not a discriminated endpoint type: `connection_id` and `integration_key` are
 stamped by the service when it generates a `builtin` entry, and a split into
-`McpBuiltinEndpoint` / `McpCustomEndpoint` was rejected because the endpoint's identity,
+`MCPBuiltinEndpoint` / `MCPCustomEndpoint` was rejected because the endpoint's identity,
 config and listing shape are one — only the secret path forks, and forking every DAO
 and service signature for a difference that appears at secret time would spread the
 fork everywhere it does not matter. At the *south port*, where the fork is real behaviour,
-the shape **is** discriminated: `McpRelayAuth` above, one arm per mechanism, so an adapter
+the shape **is** discriminated: `MCPRelayAuth` above, one arm per mechanism, so an adapter
 cannot quietly treat a brokered connection as a vault secret or vice versa
 (§7.1).
 
@@ -1219,11 +1370,13 @@ stays listed and derives `NEEDS_AUTH` (§8), and a relay attempt refuses with
 the existing integrations flow: D18's posture, secret death never hides
 configuration.
 
-**The empty allowlist refuses.** `model_slugs: []` on a custom endpoint means no model may
-be called, not "everything" — the permissive reading would make the dangerous state the
-default state. Standard endpoints expose their provider's whole catalogue (the static map
-is the allowlist, `scope-checklist.md`), which is the deliberate asymmetry: ours are known,
-customs are declared.
+**An explicit empty allowlist refuses; an absent one does not.** `models: {"allowlist": []}`
+means no model may be called — the list was written, and it is empty. `models: {}` is a
+different statement: nothing was written, so nothing is constrained. The distinction is the
+whole reason the filter uses `None` rather than a default-empty list, and it is what stops
+"I forgot to fill this in" from reading as "refuse everything". Standard endpoints expose
+their provider's whole catalogue (the static map is the allowlist, `scope-checklist.md`);
+custom endpoints declare their own or declare nothing.
 
 ### 4.5 The two secret kinds (WP16 seed)
 
@@ -1257,8 +1410,8 @@ class OAuthProviderDTO(BaseModel):
 
 
 class OAuthGrantSettingsDTO(BaseModel):
-    """One owner's tokens for one server. Rewritten in place on every refresh
-    (`secrets.md`); the grant row points here (§2.5)."""
+    """One server's tokens. Rewritten in place on every refresh (`secrets.md`);
+    the endpoint's `secret_id` points here directly (§2.1)."""
     access_token: str
     refresh_token: Optional[str] = None
     token_type: str = "Bearer"
@@ -1294,7 +1447,7 @@ above: the two share not a single field, and the sub-kind pattern in this enum
 discriminates the same shape across vendors, which this is not. **The inner field is named
 per kind** (`provider` for the registration, following the SSO precedent; `grant` for the
 tokens, following the custom kind's freedom to pick its own noun), because calling a
-user's token bundle a "provider" would be a lie the resolver pays for later.
+token bundle a "provider" would be a lie the resolver pays for later.
 
 **Coordination, restated as an instruction:** the parallel bring-your-own-secrets work is
 adding kinds to this same enum for sandbox providers and the tool gateway key. The enum
@@ -1332,7 +1485,7 @@ def build_gateway_call_attributes(
 ) -> Dict[str, Any]:
     """Flatten the three documents into the event's attributes map. `user_id`
     goes in explicitly because the stream envelope discards top-level user ids
-    (§2.7); `outcome.owner` and `outcome.origin` are the two fields audit
+    (§2.6); `outcome.owner` and `outcome.origin` are the two fields audit
     cannot reconstruct later (`policy.md`)."""
     ...
 
@@ -1438,16 +1591,16 @@ class CeilingExceededError(GatewaysError):
 
 # core/gateways/llms/types.py
 
-class LlmEndpointNotFoundError(GatewaysError):
+class LLMEndpointNotFoundError(GatewaysError):
     def __init__(self, *, namespace: GatewayEndpointNamespace, name: str):
         self.namespace = namespace
         self.name = name
         super().__init__(f"LLM endpoint not found: {namespace.value}/{name}")
 
 
-class LlmModelNotAllowedError(GatewaysError):
+class LLMModelNotAllowedError(GatewaysError):
     """The model is outside the endpoint's allowlist — a custom endpoint's
-    declared model_slugs, or a builtin provider's catalogue (§4.3)."""
+    declared model allowlist, or a builtin provider's catalogue (§4.3)."""
 
     def __init__(self, *, model: str, namespace: GatewayEndpointNamespace, name: str):
         self.model = model
@@ -1456,7 +1609,7 @@ class LlmModelNotAllowedError(GatewaysError):
         super().__init__(f"Model {model} not allowed on {namespace.value}/{name}")
 
 
-class LlmUpstreamError(GatewaysError):
+class LLMUpstreamError(GatewaysError):
     """The upstream failed after policy allowed. Carries the upstream status so
     the proxy can relay a faithful OpenAI-shaped error (§9)."""
 
@@ -1470,7 +1623,7 @@ class LlmUpstreamError(GatewaysError):
 
 # core/gateways/mcps/types.py
 
-class McpEndpointNotFoundError(GatewaysError):
+class MCPEndpointNotFoundError(GatewaysError):
     def __init__(self, *, namespace: GatewayEndpointNamespace, name: str,
                  provider: Optional[str] = None, integration: Optional[str] = None):
         self.namespace = namespace
@@ -1481,7 +1634,7 @@ class McpEndpointNotFoundError(GatewaysError):
         super().__init__(f"MCP endpoint not found: {target}")
 
 
-class McpToolNotAllowedError(GatewaysError):
+class MCPToolNotAllowedError(GatewaysError):
     """The named tool is outside the endpoint's tool policy (§2.4)."""
 
     def __init__(self, *, tool: str, namespace: GatewayEndpointNamespace, name: str,
@@ -1495,17 +1648,16 @@ class McpToolNotAllowedError(GatewaysError):
         super().__init__(f"Tool {tool} not allowed on {target}")
 
 
-class McpAuthRequiredError(GatewaysError):
-    """No usable grant for this owner on an OAuth endpoint. Carries the
-    requirement so the boundary can return the connect affordance instead of a
-    bare failure (D17)."""
+class MCPAuthRequiredError(GatewaysError):
+    """No usable secret on an OAuth endpoint. Carries the requirement so the
+    boundary can return the connect affordance instead of a bare failure (D17)."""
 
     def __init__(self, *, requirement: GatewayConnectionRequirement):
         self.requirement = requirement
         super().__init__(f"Authorization required for {requirement.target}")
 
 
-class McpScopeInsufficientError(GatewaysError):
+class MCPScopeInsufficientError(GatewaysError):
     """A step-up scope challenge from the upstream (D17; `mcp.md`). Raised by
     the OAuth checkpoint's client; until then unreachable. Declared now so the
     interaction path can be typed against it."""
@@ -1516,7 +1668,7 @@ class McpScopeInsufficientError(GatewaysError):
         super().__init__(f"Additional scopes required for {target}: {scopes}")
 
 
-class McpUpstreamError(GatewaysError):
+class MCPUpstreamError(GatewaysError):
     def __init__(self, *, target: str, status_code: Optional[int] = None,
                  detail: Optional[str] = None):
         self.target = target
@@ -1539,7 +1691,7 @@ distinction D25 draws is preserved in *where* this raises: it guards **our** cei
 the per-endpoint config (D21) — and never second-guesses a physical limit like a model's
 context window, which is the upstream's to clamp or refuse in its own shape.
 
-**`McpScopeInsufficientError` is declared, not deferred.** Step-up is out of the first
+**`MCPScopeInsufficientError` is declared, not deferred.** Step-up is out of the first
 increments (`scope-checklist.md` marks it detect-and-fail-visibly), but the *type* costs
 nothing and lets WP8's proxy write its handler arm now, so wave 3 changes behaviour
 without touching signatures.
@@ -1561,78 +1713,69 @@ the entity:
 ```python
 # apis/fastapi/gateways/llms/models.py
 
-class LlmEndpointCreateRequest(BaseModel):
-    endpoint: LlmEndpointCreate
+class LLMEndpointCreateRequest(BaseModel):
+    endpoint: LLMEndpointCreate
 
-class LlmEndpointEditRequest(BaseModel):
-    endpoint: LlmEndpointEdit
+class LLMEndpointEditRequest(BaseModel):
+    endpoint: LLMEndpointEdit
 
-class LlmEndpointQueryRequest(BaseModel):
-    endpoint: Optional[LlmEndpointQuery] = None
+class LLMEndpointQueryRequest(BaseModel):
+    endpoint: Optional[LLMEndpointQuery] = None
     windowing: Optional[Windowing] = None
 
-class LlmEndpointResponse(BaseModel):
+class LLMEndpointResponse(BaseModel):
     count: int = 0
-    endpoint: Optional[LlmEndpoint] = None
+    endpoint: Optional[LLMEndpoint] = None
 
-class LlmEndpointsResponse(BaseModel):
+class LLMEndpointsResponse(BaseModel):
     count: int = 0
-    endpoints: List[LlmEndpoint] = Field(default_factory=list)
+    endpoints: List[LLMEndpoint] = Field(default_factory=list)
 
 
 # apis/fastapi/gateways/mcps/models.py
 
-class McpEndpointCreateRequest(BaseModel):
-    endpoint: McpEndpointCreate
+class MCPEndpointCreateRequest(BaseModel):
+    endpoint: MCPEndpointCreate
 
-class McpEndpointEditRequest(BaseModel):
-    endpoint: McpEndpointEdit
+class MCPEndpointEditRequest(BaseModel):
+    endpoint: MCPEndpointEdit
 
-class McpEndpointQueryRequest(BaseModel):
-    endpoint: Optional[McpEndpointQuery] = None
+class MCPEndpointQueryRequest(BaseModel):
+    endpoint: Optional[MCPEndpointQuery] = None
     windowing: Optional[Windowing] = None
 
-class McpEndpointResponse(BaseModel):
+class MCPEndpointResponse(BaseModel):
     count: int = 0
-    endpoint: Optional[McpEndpoint] = None
+    endpoint: Optional[MCPEndpoint] = None
 
-class McpEndpointsResponse(BaseModel):
+class MCPEndpointsResponse(BaseModel):
     count: int = 0
-    endpoints: List[McpEndpoint] = Field(default_factory=list)
+    endpoints: List[MCPEndpoint] = Field(default_factory=list)
 
-class McpGrantQueryRequest(BaseModel):
-    grant: Optional[McpGrantQuery] = None
-    windowing: Optional[Windowing] = None
 
-class McpGrantResponse(BaseModel):
-    count: int = 0
-    grant: Optional[McpGrant] = None
+# --- connect: declared now, routed in wave 3 (WP18) -------------------------- #
 
-class McpGrantsResponse(BaseModel):
-    count: int = 0
-    grants: List[McpGrant] = Field(default_factory=list)
-
-class McpConnectRequest(BaseModel):
-    """Begin the consent flow on one endpoint (WP18). Scopes are SELECTED, not
-    inherited from everything the server advertises (D17)."""
+class MCPConnectRequest(BaseModel):
+    """Scopes the user ticked, chosen at connect time from the server's own
+    published metadata rather than from a stored list (D17)."""
     scopes: List[str] = Field(default_factory=list)
 
-class McpConnectResponse(BaseModel):
-    count: int = 0
-    redirect_url: Optional[str] = None
+
+class MCPConnectResponse(BaseModel):
+    """The authorization URL to open. The callback completes the exchange."""
+    authorization_url: str
 ```
 
-**Grants get no create or edit request, and that is the interesting absence.** A grant
-comes into being because a consent flow completed — the service writes the vault secret
-and then the row — never because someone POSTed a grant document. A create model would
-advertise forging an authorization; an edit model would advertise rewriting one. The wire
-surface for grants is read (`query`), start (`connect`), and destroy (`revoke`, a DELETE —
-§9). This is the same reasoning that denies channels' ledgers their create routes.
+**The connect pair is declared and unrouted**, which is the shape wave 3 lands into rather
+than a placeholder. What it does when it arrives: the callback writes one `oauth_grant`
+secret and PUTs its id onto the endpoint. There is no
+grant row to create, because the endpoint names its secret directly — the same door
+`edit_endpoint` uses for every other field.
 
-**`McpConnectResponse.redirect_url` mirrors `ConnectionStatus.redirect_url`** on the
-existing connections flow — the dashboard already knows how to open a hosted redirect and
-close the popup on callback; the OAuth checkpoint reuses that muscle rather than growing a
-second consent UI shape.
+**No create or edit request for a secret.** An OAuth endpoint's `secret_id` is written by
+`edit_endpoint`, the same full PUT every other field on the row goes through — there is no
+separate authorization document to forge, and the consent flow that eventually populates it
+is WP17/WP18's to design against this same shape rather than a document of its own.
 
 ---
 
@@ -1648,8 +1791,8 @@ Conventions, each load-bearing:
   entity → modifiers — how every DAO in the codebase reads.
 - **`project_id: UUID` first on every method.** Tenant scope is structural.
 - **`user_id` on writes only**, feeding `created_by_id` / `updated_by_id`; `Optional`
-  where the writer is a flow rather than a person (grant creation, whose author is the
-  consent callback).
+  where the writer is a flow rather than a person (an OAuth callback's `edit_endpoint`
+  call, setting `secret_id` with nobody in the loop).
 - **Verb naming is `create_/fetch_/edit_/delete_/query_`**, the newer house style
   (`core/workflows/`), not the connections DAO's `get_/update_`. That domain's older names
   stay where they are; a new domain follows the current convention, and the divergence is
@@ -1662,7 +1805,7 @@ Conventions, each load-bearing:
 ```python
 # core/gateways/llms/interfaces.py
 
-class LlmEndpointsDAOInterface(ABC):
+class LLMEndpointsDAOInterface(ABC):
     """Persistence contract for custom LLM endpoints. Standard endpoints are
     generated (D20) and never pass through this interface — the service merges
     them in from catalog.py, which is why nothing here has a namespace
@@ -1675,8 +1818,8 @@ class LlmEndpointsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         #
-        endpoint: LlmEndpointCreate,
-    ) -> Optional[LlmEndpoint]:
+        endpoint: LLMEndpointCreate,
+    ) -> Optional[LLMEndpoint]:
         """Insert. Raises EntityCreationConflict on a slug collision — the one
         exception a create surfaces, per the connections DAO discipline."""
         ...
@@ -1688,7 +1831,7 @@ class LlmEndpointsDAOInterface(ABC):
         project_id: UUID,
         #
         endpoint_id: UUID,
-    ) -> Optional[LlmEndpoint]: ...
+    ) -> Optional[LLMEndpoint]: ...
 
     @abstractmethod
     async def fetch_endpoint_by_slug(
@@ -1697,9 +1840,9 @@ class LlmEndpointsDAOInterface(ABC):
         project_id: UUID,
         #
         slug: str,
-    ) -> Optional[LlmEndpoint]:
+    ) -> Optional[LLMEndpoint]:
         """The data-plane route lookup (§2.3). Backed by
-        uq_llm_gateway_endpoints_project_slug, so at most one row by
+        uq_llms_endpoints_project_slug, so at most one row by
         construction. None means the custom namespace has no such name — the
         proxy 404s in the surface's own error shape (§9)."""
         ...
@@ -1711,10 +1854,10 @@ class LlmEndpointsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         #
-        endpoint: LlmEndpointEdit,
-    ) -> Optional[LlmEndpoint]:
+        endpoint: LLMEndpointEdit,
+    ) -> Optional[LLMEndpoint]:
         """Full PUT over the editable surface (§4.3): data, flags, header,
-        secret_id. provider_key and deployment are absent from the Edit DTO and
+        secret_id. provider_key and deployment_kind are absent from the Edit DTO and
         therefore untouchable here."""
         ...
 
@@ -1733,16 +1876,16 @@ class LlmEndpointsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        endpoint: Optional[LlmEndpointQuery] = None,
+        endpoint: Optional[LLMEndpointQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[LlmEndpoint]: ...
+    ) -> List[LLMEndpoint]: ...
 
 
 # core/gateways/mcps/interfaces.py
 
-class McpEndpointsDAOInterface(ABC):
-    """Same six verbs, same semantics, over mcp_gateway_endpoints."""
+class MCPEndpointsDAOInterface(ABC):
+    """Same six verbs, same semantics, over mcps_endpoints."""
 
     @abstractmethod
     async def create_endpoint(
@@ -1751,8 +1894,8 @@ class McpEndpointsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         #
-        endpoint: McpEndpointCreate,
-    ) -> Optional[McpEndpoint]: ...
+        endpoint: MCPEndpointCreate,
+    ) -> Optional[MCPEndpoint]: ...
 
     @abstractmethod
     async def fetch_endpoint(
@@ -1761,7 +1904,7 @@ class McpEndpointsDAOInterface(ABC):
         project_id: UUID,
         #
         endpoint_id: UUID,
-    ) -> Optional[McpEndpoint]: ...
+    ) -> Optional[MCPEndpoint]: ...
 
     @abstractmethod
     async def fetch_endpoint_by_slug(
@@ -1770,7 +1913,7 @@ class McpEndpointsDAOInterface(ABC):
         project_id: UUID,
         #
         slug: str,
-    ) -> Optional[McpEndpoint]: ...
+    ) -> Optional[MCPEndpoint]: ...
 
     @abstractmethod
     async def edit_endpoint(
@@ -1779,8 +1922,8 @@ class McpEndpointsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         #
-        endpoint: McpEndpointEdit,
-    ) -> Optional[McpEndpoint]: ...
+        endpoint: MCPEndpointEdit,
+    ) -> Optional[MCPEndpoint]: ...
 
     @abstractmethod
     async def delete_endpoint(
@@ -1797,98 +1940,10 @@ class McpEndpointsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        endpoint: Optional[McpEndpointQuery] = None,
+        endpoint: Optional[MCPEndpointQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[McpEndpoint]: ...
-
-
-class McpGrantsDAOInterface(ABC):
-    """Persistence contract for grant rows. The owner is a key here, not
-    authorship — this is where D10 is storage, not just signature (§2.2)."""
-
-    @abstractmethod
-    async def create_grant(
-        self,
-        *,
-        project_id: UUID,
-        user_id: Optional[UUID],
-        #
-        grant: McpGrantCreate,
-    ) -> Optional[McpGrant]:
-        """Insert, idempotent on the owner: `ON CONFLICT DO NOTHING ...
-        RETURNING`, falling back to a fetch — a re-entered OAuth callback
-        returns the EXISTING row rather than None, because the caller still
-        needs the row either way (the outbox rule from channels, same reason).
-        The partial unique indexes in §2.5 carry the conflict.
-
-        `user_id` here is the OWNER (grant.user_id mirrors it); authorship
-        lands in created_by_id from the same value when present."""
-        ...
-
-    @abstractmethod
-    async def fetch_grant(
-        self,
-        *,
-        project_id: UUID,
-        #
-        endpoint_id: UUID,
-        user_id: Optional[UUID],
-    ) -> Optional[McpGrant]:
-        """The resolution read: THIS owner's grant on THIS endpoint.
-        user_id=None selects the project-owned grant — it does not mean "any".
-        The fallback walk (user's, else project's, per SecretMode) belongs
-        to the resolver, which calls this at most twice; putting the fallback
-        in SQL would hide the mode logic where it cannot be unit-tested."""
-        ...
-
-    @abstractmethod
-    async def fetch_grant_by_id(
-        self,
-        *,
-        project_id: UUID,
-        #
-        grant_id: UUID,
-    ) -> Optional[McpGrant]: ...
-
-    @abstractmethod
-    async def update_grant(
-        self,
-        *,
-        project_id: UUID,
-        #
-        grant_id: UUID,
-        is_valid: Optional[bool] = None,
-        status: Optional[Status] = None,
-    ) -> Optional[McpGrant]:
-        """Server-set operational state only (§2.6): flip is_valid, record the
-        refresh outcome. Deliberately NOT an edit_grant taking a document —
-        there is no grant document to edit (§6), and this update must not be
-        able to move endpoint_id, user_id or secret_id."""
-        ...
-
-    @abstractmethod
-    async def delete_grant(
-        self,
-        *,
-        project_id: UUID,
-        #
-        grant_id: UUID,
-    ) -> bool:
-        """Row only. The service deletes the vault secret FIRST, then this —
-        the SSO delete order (§2.1); the CASCADE covers the reverse arrival."""
-        ...
-
-    @abstractmethod
-    async def query_grants(
-        self,
-        *,
-        project_id: UUID,
-        #
-        grant: Optional[McpGrantQuery] = None,
-        #
-        windowing: Optional[Windowing] = None,
-    ) -> List[McpGrant]: ...
+    ) -> List[MCPEndpoint]: ...
 ```
 
 `None` is overloaded across these returns; the disambiguation, stated once:
@@ -1896,9 +1951,7 @@ class McpGrantsDAOInterface(ABC):
 | method | `None` means | caller does |
 | --- | --- | --- |
 | `fetch_endpoint_by_slug` | no such custom endpoint | the proxy answers not-found in the surface's own shape |
-| `fetch_grant` | this owner has not connected | the resolver applies the mode: fall back, or raise `SecretNotFoundError` |
-| `create_grant` | never — conflict returns the existing row | proceed with the row |
-| `edit_endpoint` / `update_grant` | the row does not exist | 404 at the boundary |
+| `edit_endpoint` | the row does not exist | 404 at the boundary |
 
 ### 7.1 The south ports
 
@@ -1917,7 +1970,7 @@ validated, stored or serialized.
 # core/gateways/llms/interfaces.py
 
 @dataclass
-class LlmRelayResult:
+class LLMRelayResult:
     """One upstream answer, streaming or not. `body` yields exactly one chunk
     for a non-streaming call. `usage` is populated by the adapter once `body`
     is exhausted, when the upstream exposed it (the OpenAI stream carries a
@@ -1929,7 +1982,7 @@ class LlmRelayResult:
     usage: Optional[GatewayUsage] = None
 
 
-class LlmUpstreamInterface(ABC):
+class LLMUpstreamInterface(ABC):
     """Turns a resolved route plus a resolved secret into an upstream call.
     The core never imports an implementation; wiring happens at the entrypoint."""
 
@@ -1937,20 +1990,20 @@ class LlmUpstreamInterface(ABC):
     async def relay_chat_completion(
         self,
         *,
-        route: LlmResolvedRoute,
+        route: LLMResolvedRoute,
         secret: Optional[ResolvedSecret],
         #
-        context: LlmCallContext,
+        context: LLMCallContext,
         body: bytes,
         headers: Dict[str, str],
-    ) -> LlmRelayResult:
+    ) -> LLMRelayResult:
         """Relay one completion call. `body` is the caller's payload untouched;
         `headers` are the caller's headers already stripped of authorization.
         `secret` is None only for targets whose auth scheme is NONE (the
-        mocks). Raises LlmUpstreamError on upstream failure."""
+        mocks). Raises LLMUpstreamError on upstream failure."""
         ...
 
-    # async def relay_embedding(...) -> LlmRelayResult
+    # async def relay_embedding(...) -> LLMRelayResult
     # Deferred with the whole evaluator path (D15). Declared here as the seam it
     # will occupy so nothing in the surface design forecloses it.
 
@@ -1958,7 +2011,7 @@ class LlmUpstreamInterface(ABC):
 # core/gateways/mcps/interfaces.py
 
 @dataclass
-class McpRelayResult:
+class MCPRelayResult:
     """A single JSON answer. The gateway targets the stateless revision in JSON
     mode — one request, one `application/json` response, 202 for notifications
     (`mcp.md`; the in-tree precedent is the runner's internal tool server,
@@ -1968,23 +2021,23 @@ class McpRelayResult:
     body: bytes
 
 
-class McpUpstreamInterface(ABC):
+class MCPUpstreamInterface(ABC):
     @abstractmethod
     async def relay(
         self,
         *,
-        route: McpResolvedRoute,
-        auth: McpRelayAuth,
+        route: MCPResolvedRoute,
+        auth: MCPRelayAuth,
         #
-        context: McpCallContext,
+        context: MCPCallContext,
         body: bytes,
         headers: Dict[str, str],
-    ) -> McpRelayResult:
+    ) -> MCPRelayResult:
         """Transparent per-server relay (D16): same method, same body, same
         response, with only the route and the authorization changed. `auth` is
-        the discriminated union from §4.4 — McpDirectAuth for builtin/agenta and
-        custom, McpBrokeredAuth for builtin/composio — so the two secret
-        mechanisms cannot be conflated by an adapter (D30). Raises McpUpstreamError on transport
+        the discriminated union from §4.4 — MCPDirectAuth for builtin/agenta and
+        custom, MCPBrokeredAuth for builtin/composio — so the two secret
+        mechanisms cannot be conflated by an adapter (D30). Raises MCPUpstreamError on transport
         failure; protocol-level errors from the server are NOT exceptions — they
         are the response body, relayed, because the server's own failure reason
         is what lets the model correct itself (the pass-through rule in
@@ -1994,7 +2047,7 @@ class McpUpstreamInterface(ABC):
         connects to it, so the outbound guard runs here before the POST: the
         resolving variant in core/webhooks/utils.py, connecting to the literal
         IP it returns rather than re-resolving the hostname (D28). A blocked
-        target is McpUpstreamError — a transport refusal, never relayed as an
+        target is MCPUpstreamError — a transport refusal, never relayed as an
         upstream body. Only `custom` strictly needs it — agenta targets are ours
         and composio's are the broker's — but the adapter is reached only by
         `custom`, so it runs unconditionally rather than branching on a namespace
@@ -2022,23 +2075,25 @@ classes already exist in catalog, connections, tools and triggers; these are the
 and sixth, the same shape borrowed rather than shared:
 
 ```python
-class LlmUpstreamRegistry:
-    def __init__(self, *, adapters: Dict[str, LlmUpstreamInterface]): ...
-    def get(self, key: str) -> LlmUpstreamInterface: ...   # raises on a miss
+class LLMUpstreamRegistry:
+    def __init__(self, *, adapters: Dict[str, LLMUpstreamInterface]): ...
+    def get(self, key: str) -> LLMUpstreamInterface: ...   # raises on a miss
     def keys(self) -> list[str]: ...
 
-class McpUpstreamRegistry:
-    def __init__(self, *, adapters: Dict[str, McpUpstreamInterface]): ...
-    def get(self, key: str) -> McpUpstreamInterface: ...
+class MCPUpstreamRegistry:
+    def __init__(self, *, adapters: Dict[str, MCPUpstreamInterface]): ...
+    def get(self, key: str) -> MCPUpstreamInterface: ...
     def keys(self) -> list[str]: ...
 ```
 
 ### 7.2 The secret resolver port
 
 The third port, in `core/gateways/policy/interfaces.py`, implemented by
-`policy/resolution.py` over `VaultService` and the grants DAO (WP2). This is the signature
-the seed must get right (D10, `plan.md`): the owner is in it from the first commit, while
-the only answer is the project.
+`policy/resolution.py` over `VaultService` alone (WP2) — every `SecretRef` arm resolves
+through the vault directly, because the caller already has the row that names its secret
+before it ever reaches the resolver (§2.1). This is the signature the seed must get right
+(D10, `plan.md`): the owner is in it from the first commit, while the only answer is the
+project.
 
 ```python
 # core/gateways/policy/interfaces.py
@@ -2075,9 +2130,10 @@ class SecretsResolverInterface(ABC):
                             secrets for the provider, as the SDK's settings
                             builder does today (`models.md`).
           BoundSecretRef -> VaultService.get_secret_by_id, scoped to the project.
-          GrantRef       -> the grants DAO's owner-keyed fetch (§7), then
-                            get_secret_by_id; SecretInvalidError when the
-                            grant's is_valid is False (D18).
+                            On an OAuth MCP endpoint this is the row's own
+                            secret_id; SecretInvalidError when the endpoint's
+                            flags.is_valid is False (D18), before the vault is
+                            even read.
 
         Raises, never returns None: no path silently yields "no secret"
         (`secrets.md`), and the exceptions carry which owner is missing so the
@@ -2098,7 +2154,7 @@ class SecretsResolverInterface(ABC):
 ```
 
 **Why the existence question is on this port** (R2). D20 makes a generated `builtin` endpoint
-exist for a project exactly when a provider key exists for it, so `LlmGatewayService.list_endpoints`
+exist for a project exactly when a provider key exists for it, so `LLMGatewayService.list_endpoints`
 (§8) has to ask — and its constructor has no vault dependency, deliberately. Handing it a
 `VaultService` would give one service two secret seams and defeat the port; calling `resolve()`
 once per provider to catch `SecretNotFoundError` is control flow by exception plus eleven vault
@@ -2107,7 +2163,7 @@ secret layer.
 
 **`builtin` deliberately never passes through this port.** Its secret lives at the
 broker and never enters our vault, so there is nothing here to resolve — the MCP service
-takes the brokered path instead, carrying the connection row in `McpBrokeredAuth` (§4.4).
+takes the brokered path instead, carrying the connection row in `MCPBrokeredAuth` (§4.4).
 Routing that path through the resolver anyway, with a fourth ref arm, was rejected: it
 would force `ResolvedSecret` to sometimes hold no secret, which un-types every
 consumer to accommodate the one caller that has a different mechanism, not a different
@@ -2119,12 +2175,12 @@ interesting cases — without a vault. A port gives the mocks a seam (D23) and k
 `VaultService`'s encryption-context requirement (`set_data_encryption_key`, without which
 the DAO raises) inside one adapter instead of in every caller.
 
-**Default modes are stated here and applied in the services** (§8): the LLM plane resolves
-with `PROJECT_ONLY`, the MCP plane with `USER_OPTIONAL` — the deliberate asymmetry from
-`secrets.md`: one billing identity for models, personal authority for tools. Neither is
-hardcoded in the resolver; both are arguments at the call site, which is what makes the
-open question (whether an administrator sets the mode per upstream) a data change later
-rather than a signature change.
+**Both planes resolve with `PROJECT_ONLY` today, applied in the services** (§8): every
+gateway secret is project-owned, so there is no user arm to prefer (`out-of-scope.md`).
+The mode is not hardcoded in the resolver — it is an argument at the call site — which is
+what keeps this a data change rather than a signature change if user-level secrets ever
+ship: a call site moves to `USER_REQUIRED` or `USER_OPTIONAL` on a signature that already
+accepts them.
 
 ### 7.3 The TokenStorage adapter (WP17)
 
@@ -2132,7 +2188,7 @@ The OAuth client is not written here — the official MCP SDK's `OAuthClientProv
 adopted whole (`libraries.md`), persisting through a `TokenStorage` protocol we implement.
 The adapter is `core/gateways/mcps/token_storage.py`, and it is deliberately thin: **it is
 the resolve-and-store glue between the SDK's protocol and the shapes this document already
-defined**, not a fourth place credentials live.
+defined**, not a fourth place secrets live.
 
 ```python
 # core/gateways/mcps/token_storage.py
@@ -2140,12 +2196,13 @@ defined**, not a fourth place credentials live.
 class VaultTokenStorage:
     """Implements the pinned MCP SDK's TokenStorage protocol over the vault.
 
-    One instance per (scope, endpoint): reads resolve through the grants DAO's
-    owner-keyed fetch and VaultService.get_secret_by_id; writes update the
-    oauth_grant secret IN PLACE and touch the grant row (§2.5). The exact method
-    set and value types come from the pinned SDK version and are verified at
-    implementation time (OR1) — this class's constructor is the contract wave 0
-    owns."""
+    One instance per (scope, endpoint): reads resolve through the endpoint's
+    own secret_id and VaultService.get_secret_by_id; writes update the
+    oauth_grant secret IN PLACE and, the first time, edit the endpoint row to
+    point secret_id at it (§2.1) — there is no separate row to touch. The
+    exact method set and value types come from the pinned SDK version and are
+    verified at implementation time (OR1) — this class's constructor is the
+    contract wave 0 owns."""
 
     def __init__(
         self,
@@ -2154,8 +2211,8 @@ class VaultTokenStorage:
         endpoint_id: UUID,
         #
         vault_service: VaultService,
-        mcp_grants_dao: McpGrantsDAOInterface,
-        mode: SecretMode = SecretMode.USER_OPTIONAL,
+        mcp_endpoints_dao: MCPEndpointsDAOInterface,
+        mode: SecretMode = SecretMode.PROJECT_ONLY,
     ) -> None: ...
 ```
 
@@ -2183,26 +2240,25 @@ class GatewayPolicyService:
         resolver: SecretsResolverInterface,
     ) -> None: ...
 
-class LlmGatewayService:
+class LLMGatewayService:
     def __init__(
         self,
         *,
-        llm_endpoints_dao: LlmEndpointsDAOInterface,
+        llm_endpoints_dao: LLMEndpointsDAOInterface,
         policy: GatewayPolicyService,
         resolver: SecretsResolverInterface,
-        upstream_registry: LlmUpstreamRegistry,
+        upstream_registry: LLMUpstreamRegistry,
     ) -> None: ...
 
-class McpGatewayService:
+class MCPGatewayService:
     def __init__(
         self,
         *,
-        mcp_endpoints_dao: McpEndpointsDAOInterface,
-        mcp_grants_dao: McpGrantsDAOInterface,
+        mcp_endpoints_dao: MCPEndpointsDAOInterface,
         policy: GatewayPolicyService,
         resolver: SecretsResolverInterface,
         connections_service: ConnectionsService,
-        upstream_registry: McpUpstreamRegistry,
+        upstream_registry: MCPUpstreamRegistry,
     ) -> None: ...
     # connections_service is required and was missing from this list until R12.
     # list_endpoints resolves a builtin entry's state "through the existing
@@ -2228,7 +2284,7 @@ class GatewayPolicyService:
     # nothing — returns the decision; the caller raises PolicyDeniedError so the
     # audit event can record the denial before the exception leaves the service.
 
-    # --- audit + usage (WP4, D22, §2.7) ------------------------------------- #
+    # --- audit + usage (WP4, D22, §2.6) ------------------------------------- #
 
     async def record(self, *, scope, target, decision, outcome) -> None: ...
     # One event per call, allowed or denied, built by policy/audit.py and
@@ -2236,15 +2292,15 @@ class GatewayPolicyService:
     # must not depend on the stream (the _safe_publish discipline).
 
 
-class LlmGatewayService:
+class LLMGatewayService:
     # --- management: thin over the DAO, plus the generated merge ------------ #
 
-    async def create_endpoint(self, *, project_id, user_id, endpoint) -> Optional[LlmEndpoint]: ...
-    async def fetch_endpoint(self, *, project_id, endpoint_id) -> Optional[LlmEndpoint]: ...
-    async def edit_endpoint(self, *, project_id, user_id, endpoint) -> Optional[LlmEndpoint]: ...
+    async def create_endpoint(self, *, project_id, user_id, endpoint) -> Optional[LLMEndpoint]: ...
+    async def fetch_endpoint(self, *, project_id, endpoint_id) -> Optional[LLMEndpoint]: ...
+    async def edit_endpoint(self, *, project_id, user_id, endpoint) -> Optional[LLMEndpoint]: ...
     async def delete_endpoint(self, *, project_id, endpoint_id) -> bool: ...
-    async def query_endpoints(self, *, project_id, endpoint=None, windowing=None) -> List[LlmEndpoint]: ...
-    async def list_endpoints(self, *, project_id) -> List[LlmEndpoint]: ...
+    async def query_endpoints(self, *, project_id, endpoint=None, windowing=None) -> List[LLMEndpoint]: ...
+    async def list_endpoints(self, *, project_id) -> List[LLMEndpoint]: ...
     # list_endpoints is the merge: generated standard endpoints (catalog.py,
     # existing iff a provider_key secret exists for the provider — D20) plus the
     # custom rows; builtin joins when it has members (D30). The only read that
@@ -2256,16 +2312,16 @@ class LlmGatewayService:
     # (sdks/python/agenta/sdk/utils/assets.py::supported_llm_models), imported
     # the way core/workflows/static_catalog.py already imports the SDK:
     #
-    #   def standard_llm_endpoint(*, provider_key: str) -> Optional[LlmEndpoint]:
+    #   def standard_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
     #       """The generated endpoint for one provider: namespace=BUILTIN,
-    #       slug=provider_key, deployment=DIRECT, model_slugs from the map,
+    #       slug=provider_key, deployment_kind=DIRECT, models.allowlist from the map,
     #       config at code defaults, no id and no lifecycle — it is not a row.
     #       None for an unknown provider. base_url comes from the SDK's direct
     #       endpoint map for passthrough-routed providers, which the adapter
     #       refuses without; translated ones keep litellm's own default.
     #       Secrets domain and URL now say the same word (D30, §2.3)."""
     #
-    #   def standard_llm_endpoints() -> List[LlmEndpoint]:
+    #   def standard_llm_endpoints() -> List[LLMEndpoint]:
     #       """All eleven, existence-unfiltered. The service intersects with
     #       the vault's provider keys, because existence is a fact about the
     #       project (a key exists), not about the catalogue (D20)."""
@@ -2274,58 +2330,46 @@ class LlmGatewayService:
 
     async def relay_chat_completion(
         self, *, scope, namespace, name, body, headers,
-    ) -> LlmRelayResult: ...
+    ) -> LLMRelayResult: ...
 
     async def list_models(self, *, scope, namespace, name) -> List[str]: ...
     # What backs GET /v1/models (§9, R3). Per endpoint, not global: resolve the
     # target as the relay does, authorize with USE_LLM_ENDPOINTS — it is a
     # data-plane read that reveals configuration — and return the allowlist: the
-    # static catalogue's slugs for builtin, model_slugs for custom. No secret
+    # static catalogue's slugs for builtin, the allowlist for custom. No secret
     # resolved, no upstream called, and no new DTO: the proxy shapes the OpenAI
     # list body inline, because the data plane has no wire models (§6).
 
 
-class McpGatewayService:
+class MCPGatewayService:
     # --- management --------------------------------------------------------- #
 
-    async def create_endpoint(self, *, project_id, user_id, endpoint) -> Optional[McpEndpoint]: ...
-    async def fetch_endpoint(self, *, project_id, endpoint_id) -> Optional[McpEndpoint]: ...
-    async def edit_endpoint(self, *, project_id, user_id, endpoint) -> Optional[McpEndpoint]: ...
+    async def create_endpoint(self, *, project_id, user_id, endpoint) -> Optional[MCPEndpoint]: ...
+    async def fetch_endpoint(self, *, project_id, endpoint_id) -> Optional[MCPEndpoint]: ...
+    async def edit_endpoint(self, *, project_id, user_id, endpoint) -> Optional[MCPEndpoint]: ...
     async def delete_endpoint(self, *, project_id, endpoint_id) -> bool: ...
-    async def query_endpoints(self, *, project_id, endpoint=None, windowing=None) -> List[McpEndpoint]: ...
-    async def list_endpoints(self, *, project_id) -> List[McpEndpoint]: ...
+    async def query_endpoints(self, *, project_id, endpoint=None, windowing=None) -> List[MCPEndpoint]: ...
+    async def list_endpoints(self, *, project_id) -> List[MCPEndpoint]: ...
     # The three-namespace merge (D30): builtin/agenta entries from code,
     # builtin/composio entries generated from the Composio catalog with their
     # connection state resolved through the existing connections service, custom
     # rows from the DAO. A revoked composio connection stays listed, in
     # NEEDS_AUTH — the query passes is_active=None, per D18.
 
-    # --- grants (WP17, WP18 wire these; declared now) ----------------------- #
-
-    async def connect_endpoint(self, *, project_id, user_id, endpoint_id, scopes) -> str: ...
-    # CUSTOM OAuth endpoints only (D30): composio servers connect through the
-    # existing integrations connect flow, whose state machine and redirect
-    # Composio already drives — this verb never fronts it.
-    # Begins consent: builds the authorization redirect via the OAuth client,
-    # signed state via make_oauth_state (core/gateway/connections/utils.py —
-    # already server-owned, HMAC, carries project and user). Returns the
-    # redirect URL. Scope SELECTION is the caller's, not everything advertised
-    # (D17).
-    async def complete_connect(self, *, state, payload) -> McpGrant: ...
-    # The callback half: decode_oauth_state recovers (project, user), the OAuth
-    # client redeems the code, the vault secret is written FIRST, then the
-    # grant row (§7). Idempotent via create_grant's conflict contract.
-    async def revoke_grant(self, *, project_id, grant_id) -> bool: ...
-    # Vault secret first, then the row (§2.1). Tools stay listed; subsequent
-    # calls fail with the connect affordance (D18).
-    async def query_grants(self, *, project_id, grant=None, windowing=None) -> List[McpGrant]: ...
+    # No connect/consent verbs here. CUSTOM OAuth endpoints only (D30):
+    # composio servers connect through the existing integrations connect flow,
+    # whose state machine and redirect Composio already drives. Whatever the
+    # OAuth checkpoint (WP17, WP18) ends up wiring for a custom server writes
+    # the vault secret, then calls edit_endpoint to point secret_id at it
+    # (§2.1) — the same full PUT every other field on the row goes through,
+    # not a document of its own.
 
     # --- the data plane (WP8) ----------------------------------------------- #
 
     async def relay(
         self, *, scope, namespace, name, provider=None, integration=None,
         context, body, headers,
-    ) -> McpRelayResult: ...
+    ) -> MCPRelayResult: ...
     # name is what follows the provider segment (§2.3): the agenta slug
     # (possibly nested), the custom slug, or composio's connection slug — in
     # which case provider and integration carry the other two segments
@@ -2340,13 +2384,13 @@ crosses a layer, so it is not a DTO in §4:
 async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
     target = await self._resolve_target(project_id=scope.project_id,
                                         namespace=namespace, name=name)
-    # generated or row; LlmEndpointNotFoundError / McpEndpointNotFoundError
+    # generated or row; LLMEndpointNotFoundError / MCPEndpointNotFoundError
     self._check_active(target)                    # GatewayEndpointInactiveError:
-                                                  # the operator's switch, §2.6
+                                                  # the operator's switch, §2.5
 
     context = parse_call_context(body)            # model + stream; MCP reads headers
-    self._check_allowlist(target, context)        # LlmModelNotAllowedError /
-                                                  # McpToolNotAllowedError — before
+    self._check_allowlist(target, context)        # LLMModelNotAllowedError /
+                                                  # MCPToolNotAllowedError — before
                                                   # any secret is touched
     self._check_ceilings(target, context)         # CeilingExceededError: reject,
                                                   # never clamp (D25)
@@ -2362,18 +2406,18 @@ async def relay_chat_completion(self, *, scope, namespace, name, body, headers):
 
     secret = await self.resolver.resolve(
         scope=scope, ref=target.secret_ref(), mode=SecretMode.PROJECT_ONLY,
-    )   # MCP: USER_OPTIONAL (§7.2); NONE-scheme targets skip this step;
+    )   # both planes (§7.2); NONE-scheme targets skip this step;
         # builtin/composio takes the brokered path instead — the connection row
-        # in McpBrokeredAuth, never the resolver (§4.4, D30) — and refuses with
+        # in MCPBrokeredAuth, never the resolver (§4.4, D30) — and refuses with
         # SecretInvalidError when that connection is revoked, before dispatch
 
     result = await asyncio.wait_for(
         self.upstream_registry.get(
-            select_upstream(target.provider_key, target.deployment)
+            select_upstream(target.provider_key, target.deployment_kind)
         ).relay_chat_completion(route=target.route(context), secret=secret,
                                 context=context, body=body, headers=headers),
         timeout=target.config.timeout_seconds,
-    )   # LlmUpstreamError on expiry
+    )   # LLMUpstreamError on expiry
 
     result.body = self._drain_and_record(body=result.body, scope=scope, ...)
     return result
@@ -2396,28 +2440,28 @@ Four things in that body are deliberate:
   exact failure D1 names.
 - **Usage is recorded even when the stream broke.** The record call sits after the relay
   returns, but for a streamed body the outcome's usage is read off the
-  `LlmRelayResult` after exhaustion — the surface drains, the service records in a
+  `LLMRelayResult` after exhaustion — the surface drains, the service records in a
   `finally`. A crashed stream records what is known (`usage=None`, the status), never
   nothing.
 
 **`list_tools`-shaped reads need no service verb.** Listing an MCP server's tools *is* a
 relay (`context.method` is the list method), transparently passed through with one
-asymmetry: an `INCLUDE` tool policy filters the list result — entries dropped whole, never
-renamed — while secret death does not filter anything (D18). Policy hides what may
+asymmetry: a tool filter trims the list result — entries dropped whole, never renamed —
+while secret death does not filter anything (D18). Policy hides what may
 never be called; secret state never hides what policy allows. The per-caller list
 question from `contract.md` (shared-intermediary caching vs per-caller allowlists) is
 thereby scoped: list results are cacheable per (endpoint, policy-hash), and caching is out
 of the first increment anyway (`scope-checklist.md`).
 
 **Where the state machine is computed.** `GatewayConnectionState` (§4.1) is derived in
-`McpGatewayService` per owner and per namespace: `READY` iff the endpoint's scheme is NONE
-(every `builtin/agenta` entry), or — `custom` — a valid grant exists for this owner, or —
-`builtin/composio` — the referenced connection row is active and valid, read through the
-existing connections service; `NEEDS_AUTH` otherwise for an OAuth or brokered endpoint —
-with the connect affordance pointing at `connect_endpoint`'s route for `custom` and at the
-existing integrations connect flow for composio; `NEEDS_INPUT` reserved for the api_key scheme
-(deferred with its kind, D14). The LLM side derives the same states from key
-presence (`NEEDS_INPUT` when no provider secret exists). Nothing stores these (§2.6).
+`MCPGatewayService` per namespace: `READY` iff the endpoint's scheme is NONE (every
+`builtin/agenta` entry), or — `custom` — `secret_id` is set and `flags.is_valid` is true,
+or — `builtin/composio` — the referenced connection row is active and valid, read through
+the existing connections service; `NEEDS_AUTH` otherwise for an OAuth or brokered endpoint
+— with the connect affordance naming the custom endpoint directly (WP17, WP18's to wire)
+and the existing integrations connect flow for composio; `NEEDS_INPUT` reserved for the
+api_key scheme (deferred with its kind, D14). The LLM side derives the same states from key
+presence (`NEEDS_INPUT` when no provider secret exists). Nothing stores these (§2.5).
 
 ---
 
@@ -2438,7 +2482,7 @@ app.include_router(router=mcp_gateway.proxy,   prefix="/gateways/mcps", include_
 The proxies share the plane prefix with the CRUD without collision because their first
 path segment is the shared namespace enum (`builtin | standard | custom`, typed as the
 path parameter so a wrong segment 422s at the router before any handler runs), and none
-of those values can spell `endpoints` or `grants`.
+of those values can spell `endpoints`.
 
 ### Permissions — the new subjects
 
@@ -2470,24 +2514,24 @@ needs to be expressible at all. **Every member is checked by a named route below
 
 Routes declared imperatively with `add_api_route`, every route with an `operation_id` and
 `response_model_exclude_none=True`; collection routes keep their trailing slash. The LLM
-block in full; the MCP block is the same seven shapes and is elided to its table:
+block in full; the MCP block is the same shapes, one-for-one, and is elided to its table:
 
 ```python
-class LlmGatewayRouter:
-    def __init__(self, *, llm_gateway_service: LlmGatewayService):
+class LLMGatewayRouter:
+    def __init__(self, *, llm_gateway_service: LLMGatewayService):
         self.service = llm_gateway_service
         self.router = APIRouter()
 
         self.router.add_api_route(
             "/endpoints/", self.create_endpoint, methods=["POST"],
             operation_id="create_llm_endpoint",
-            response_model=LlmEndpointResponse,
+            response_model=LLMEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/endpoints/", self.list_endpoints, methods=["GET"],
             operation_id="list_llm_endpoints",
-            response_model=LlmEndpointsResponse,
+            response_model=LLMEndpointsResponse,
             response_model_exclude_none=True,
         )
         # GET /endpoints/ is the merged listing — generated + custom (§8);
@@ -2496,19 +2540,19 @@ class LlmGatewayRouter:
         self.router.add_api_route(
             "/endpoints/query", self.query_endpoints, methods=["POST"],
             operation_id="query_llm_endpoints",
-            response_model=LlmEndpointsResponse,
+            response_model=LLMEndpointsResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/endpoints/{endpoint_id}", self.fetch_endpoint, methods=["GET"],
             operation_id="fetch_llm_endpoint",
-            response_model=LlmEndpointResponse,
+            response_model=LLMEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/endpoints/{endpoint_id}", self.edit_endpoint, methods=["PUT"],
             operation_id="edit_llm_endpoint",
-            response_model=LlmEndpointResponse,
+            response_model=LLMEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -2516,15 +2560,18 @@ class LlmGatewayRouter:
             operation_id="delete_llm_endpoint",
         )
 
-        # --- MCP management (McpGatewayRouter) — same shapes ---
+        # --- MCP management (MCPGatewayRouter) — same shapes, three paths total ---
         #   POST/GET   /endpoints/                 create_mcp_endpoint / list_mcp_endpoints
         #   POST       /endpoints/query            query_mcp_endpoints
         #   GET/PUT    /endpoints/{endpoint_id}    fetch_mcp_endpoint / edit_mcp_endpoint
         #   DELETE     /endpoints/{endpoint_id}    delete_mcp_endpoint
-        #   POST       /endpoints/{endpoint_id}/connect   connect_mcp_endpoint  (WP18)
-        #   GET        /connect/callback                  mcp_connect_callback  (WP18)
-        #   POST       /grants/query                query_mcp_grants
-        #   DELETE     /grants/{grant_id}           revoke_mcp_grant
+        #
+        #   POST       /endpoints/{endpoint_id}/connect   (WP18, wave 3)
+        #   GET        /connect/callback                  (WP18, wave 3)
+        #
+        # Both are declared in §6 and NOT wired here. The callback writes the
+        # oauth_grant secret and PUTs secret_id through edit_endpoint above —
+        # the same door every other field uses.
 ```
 
 One handler in full, house body — decorators, scope, permission, service, envelope. The
@@ -2537,8 +2584,8 @@ async def create_endpoint(
     self,
     request: Request,
     *,
-    body: LlmEndpointCreateRequest,
-) -> LlmEndpointResponse:
+    body: LLMEndpointCreateRequest,
+) -> LLMEndpointResponse:
     scope = get_auth_scope()
     await self._check(scope, Permission.EDIT_LLM_ENDPOINTS)
 
@@ -2549,7 +2596,7 @@ async def create_endpoint(
         endpoint=body.endpoint,
     )
 
-    return LlmEndpointResponse(count=1 if endpoint else 0, endpoint=endpoint)
+    return LLMEndpointResponse(count=1 if endpoint else 0, endpoint=endpoint)
 ```
 
 **`AuthScope` over `request.state`.** The
@@ -2567,10 +2614,10 @@ converge when touched.
 `apis/fastapi/gateways/exceptions.py`, not duplicated per router — tools and
 triggers currently duplicate `handle_adapter_exceptions()` verbatim, and those domains
 are out of scope to fix (D15); ours is simply written once. Mapping: `*NotFoundError` → 404,
-`GatewayEndpointInactiveError` → 403 naming the flag (§2.6),
+`GatewayEndpointInactiveError` → 403 naming the flag (§2.5),
 `PolicyDeniedError` / `EntitlementDeniedError` → 403, `*NotAllowedError` → 403,
 `CeilingExceededError` → 400, its body naming the ceiling, the requested and the allowed
-values (D25), `McpAuthRequiredError` → 409 carrying the `GatewayConnectionRequirement`
+values (D25), `MCPAuthRequiredError` → 409 carrying the `GatewayConnectionRequirement`
 (an interaction, not a failure — D17), `SecretNotFoundError` / `SecretInvalidError` → 409
 on the same reading — *you could, once someone connects* — `*UpstreamError` → 424, or 502
 when the upstream answered ≥500 (the 424/502 split tools and triggers already use).
@@ -2580,21 +2627,15 @@ when the upstream answered ≥500 (the 424/502 split tools and triggers already 
 real difference between the surfaces — but a caller branching on status gets one answer
 per cause, not one per plane.
 
-**The connect callback is the one route with no permission check**, authenticated by the
-signed state token instead — precisely the `GET /tools/connections/callback` shape,
-reusing `make_oauth_state` / `decode_oauth_state`, and it needs its own
-`_PUBLIC_ENDPOINTS` entry with a literal path. It returns the same popup-closing
-`HTMLResponse` card. (The hardcoded `_CALLBACK_PATH` in
-`core/gateway/connections/service.py` is the flaw not to repeat — `cleanups.md` item 11
-owns fixing it at the source; the MCP callback path is a constant in the MCP domain, not
-borrowed from tools.)
-
 ### The data planes
 
 The proxies declare externally-fixed paths and **no wire models** (§6). Authentication is
 the platform's own: the minted secret token travels as `Secret <token>`, one of the three
 schemes the middleware already verifies by decode alone (D13) — so the proxy handlers see
-a full `AuthScope` like any other route, and nothing here is public.
+a full `AuthScope` like any other route, and nothing here is public. It arrives in
+`X-AG-Credentials` when the caller sends that header, and in `Authorization` otherwise; the
+dedicated header wins because on a pass-through route `Authorization` is the caller's vendor
+auth and not ours to read (D31). Both are stripped before any relay, on both planes.
 
 **Both proxies strip the upstream's framing headers before answering** — `content-length`,
 `content-encoding`, `transfer-encoding`, `connection`, `keep-alive` — through one shared
@@ -2605,8 +2646,8 @@ routinely — an INCLUDE tool policy filters `tools/list` — and `content-encod
 would describe bytes httpx already decoded on our behalf.
 
 ```python
-class LlmGatewayProxy:
-    def __init__(self, *, llm_gateway_service: LlmGatewayService):
+class LLMGatewayProxy:
+    def __init__(self, *, llm_gateway_service: LLMGatewayService):
         self.service = llm_gateway_service
         self.router = APIRouter()
 
@@ -2637,9 +2678,9 @@ class LlmGatewayProxy:
             operation_id="llm_gateway_list_models_custom",
         )
         # /v1/models answers from the allowlist — the static catalogue for
-        # standard, model_slugs for custom — so a harness that lists before
+        # standard, the allowlist for custom — so a harness that lists before
         # calling sees exactly what policy will allow. Backed by
-        # LlmGatewayService.list_models (§8, R3); the handler shapes the
+        # LLMGatewayService.list_models (§8, R3); the handler shapes the
         # OpenAI list body inline, since the data plane has no wire models.
         #
         # "/builtin/{provider}/{rest:path}/v1/chat/completions"
@@ -2650,8 +2691,8 @@ class LlmGatewayProxy:
         # Deferred with the evaluator path (D15). The shape is reserved by this
         # comment so nothing else claims it.
 
-class McpGatewayProxy:
-    def __init__(self, *, mcp_gateway_service: McpGatewayService):
+class MCPGatewayProxy:
+    def __init__(self, *, mcp_gateway_service: MCPGatewayService):
         self.service = mcp_gateway_service
         self.router = APIRouter()
 
@@ -2677,7 +2718,7 @@ class McpGatewayProxy:
         # self.reject_stream_verbs, include_in_schema=False — elided
 ```
 
-The three thin MCP handlers all delegate to `McpGatewayService.relay` (§8), each passing
+The three thin MCP handlers all delegate to `MCPGatewayService.relay` (§8), each passing
 its namespace and segments; they exist because the routes carry different path
 parameters, not because the behaviour differs.
 
@@ -2686,14 +2727,14 @@ routing, and nothing else — both are fully unit-testable and both fail typed:
 
 ```python
 # apis/fastapi/gateways/llms/utils.py
-def parse_llm_call_context(*, body: bytes) -> LlmCallContext:
+def parse_llm_call_context(*, body: bytes) -> LLMCallContext:
     """Extract model and stream from the JSON body without materializing a
     parsed copy for relay — the body itself stays byte-for-byte (§7.1).
     Raises ValueError when the body names no model; the proxy translates that
     into the surface's own invalid-request error shape."""
 
 # apis/fastapi/gateways/mcps/utils.py
-def parse_mcp_call_context(*, headers: Dict[str, str]) -> McpCallContext:
+def parse_mcp_call_context(*, headers: Dict[str, str]) -> MCPCallContext:
     """Read the protocol's method and target headers (`mcp.md`, header-based
     routing) — the body is never parsed for routing. Header names are pinned
     against the 2026-07-28 revision at implementation time, in this one file."""
@@ -2713,7 +2754,7 @@ with the same stable causes in the error data. What it must never do is leak the
 envelope onto either surface, or swallow the upstream's own error, which passes through
 untouched (D16; the pass-through scope rule in `api/AGENTS.md`).
 
-**Streaming rides `StreamingResponse` over `LlmRelayResult.body`**, with the audit record
+**Streaming rides `StreamingResponse` over `LLMRelayResult.body`**, with the audit record
 written in the handler's `finally` after the iterator is exhausted (§8). A policy decision
 is always made before the first upstream byte; what happens to a decision that expires
 mid-stream is an open item in `architecture.md` §5 and is not silently decided here — the
@@ -2725,34 +2766,31 @@ stream, once begun, completes.
 # api/entrypoints/routers.py — construction, conditional on nothing:
 # the gateways have no third-party dependency to gate on (D23)
 
-llm_endpoints_dao = LlmEndpointsDAO(engine=_transactions_engine)
-mcp_endpoints_dao = McpEndpointsDAO(engine=_transactions_engine)
-mcp_grants_dao = McpGrantsDAO(engine=_transactions_engine)
+llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
+mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
 
-secret_resolver = SecretsResolver(vault_service=vault_service,
-                                         mcp_grants_dao=mcp_grants_dao)
+secret_resolver = SecretsResolver(vault_service=vault_service)
 gateway_policy_service = GatewayPolicyService(resolver=secret_resolver)
 
-llm_gateway_service = LlmGatewayService(
+llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
     policy=gateway_policy_service,
     resolver=secret_resolver,
-    upstream_registry=LlmUpstreamRegistry(adapters={
-        "passthrough": PassthroughLlmAdapter(),
-        "translated": TranslatedLlmAdapter(),
-        "mock": MockLlmAdapter(),          # registered always; reachable only
+    upstream_registry=LLMUpstreamRegistry(adapters={
+        "passthrough": PassthroughLLMAdapter(),
+        "translated": TranslatedLLMAdapter(),
+        "mock": MockLLMAdapter(),          # registered always; reachable only
     }),                                    # via the mock endpoints the local
 )                                          # stack defines (D23)
 
-mcp_gateway_service = McpGatewayService(
+mcp_gateway_service = MCPGatewayService(
     mcp_endpoints_dao=mcp_endpoints_dao,
-    mcp_grants_dao=mcp_grants_dao,
     policy=gateway_policy_service,
     resolver=secret_resolver,
-    upstream_registry=McpUpstreamRegistry(adapters={
-        "http": HttpMcpAdapter(),          # custom: McpDirectAuth
-        "composio": ComposioMcpAdapter(),  # builtin/composio: McpBrokeredAuth (D30)
-        "mock": MockMcpAdapter(),          # serves the builtin/agenta mocks (D23)
+    upstream_registry=MCPUpstreamRegistry(adapters={
+        "http": HttpMCPAdapter(),          # custom: MCPDirectAuth
+        "composio": ComposioMCPAdapter(),  # builtin/composio: MCPBrokeredAuth (D30)
+        "mock": MockMCPAdapter(),          # serves the builtin/agenta mocks (D23)
     }),
 )
 ```
@@ -2766,21 +2804,19 @@ inherited it. The gateways must not inherit it **for secret material**, and most
 not need to, because the lifetimes fall out of the shapes above:
 
 - **Tokens do not accumulate.** An `oauth_grant` secret is rewritten in place on every
-  refresh (`secrets.md`), and a second consent updates rather than inserts (§2.5) — there
-  is no token history and no graveyard. Deletion is event-driven, not scheduled: a
-  **revoked grant** deletes the vault secret then the row (§7); a **removed member's**
-  user-owned grants are deleted when the membership is — the `(project, user)` owner key
-  exists so this sweep has a predicate, and wiring it into the member-removal path is part
-  of the ownership work `secrets.md` schedules; a **deleted project** takes everything
-  with it through the `CASCADE` chain — grant rows, endpoint rows, and the vault secrets
-  themselves, whose table already cascades on project. The inbound secret retains
-  nothing by construction: minted, fifteen-minute expiry, never stored (D13).
+  refresh (`secrets.md`) — there is no token history and no graveyard. Deletion is
+  event-driven, not scheduled: revoking access deletes the vault secret, and the
+  endpoint's `secret_id` follows it to NULL automatically (`ondelete="SET NULL"`, §2.1)
+  rather than through a second write; a **deleted project** takes everything with it
+  through the `CASCADE` chain — endpoint rows and the vault secrets themselves, whose
+  table already cascades on project. The inbound credentials retain nothing by construction:
+  minted, fifteen-minute expiry, never stored (D13).
 - **Audit and usage records outlive what they describe, and die with the project.** They
   ride the events domain (D22) and inherit its retention posture wholesale — including
-  the per-organization quota at ingest. Deleting an endpoint or revoking a grant does
+  the per-organization quota at ingest. Deleting an endpoint or clearing its secret does
   **not** delete the events that transited it; that is what makes them an audit trail
   rather than a cache, and it is why the event carries the owner and payer inline instead
-  of referencing rows that may be gone (§2.7).
+  of referencing rows that may be gone (§2.6).
 - **Configuration is cheap and keeps itself.** Endpoint rows are small, project-scoped,
   and hard-deleted by their DELETE routes; nothing here needs archival semantics, and
   none is designed.

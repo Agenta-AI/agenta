@@ -7,18 +7,18 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
 
 ## registry.py
 
-- [x] `core/gateways/mcps/registry.py`: add `McpUpstreamRegistry.__init__(self,
-      *, adapters: Dict[str, McpUpstreamInterface])`, `get(self, key: str) ->
-      McpUpstreamInterface` (raises on a miss), `keys(self) -> list[str]` —
+- [x] `core/gateways/mcps/registry.py`: add `MCPUpstreamRegistry.__init__(self,
+      *, adapters: Dict[str, MCPUpstreamInterface])`, `get(self, key: str) ->
+      MCPUpstreamInterface` (raises on a miss), `keys(self) -> list[str]` —
       shape copied from `ConnectionsGatewayRegistry`
       (`api/oss/src/core/gateway/connections/registry.py`).
 - [x] Pick the raise for a missing key: an already-declared
-      `core/gateways/mcps/types.py` exception (e.g. `McpUpstreamError` with
+      `core/gateways/mcps/types.py` exception (e.g. `MCPUpstreamError` with
       a message naming the key), not a new public exception name and not a
       cross-domain import — see "Missing from the design" in `specs-wp9.md`.
-      Done: `McpUpstreamError(target=key, detail=...)`. Note:
+      Done: `MCPUpstreamError(target=key, detail=...)`. Note:
       `core/gateways/mcps/interfaces.py` (frozen) declares a same-named
-      `McpUpstreamRegistry` stub class raising `NotImplementedError` on every
+      `MCPUpstreamRegistry` stub class raising `NotImplementedError` on every
       method — left untouched per the "own your paths" rule; the real class
       built here lives only in `registry.py` and is what the composition
       root and all callers import. Nothing in the codebase imported the
@@ -27,47 +27,47 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
 - [x] Unit test: `get()` on a registered key returns that adapter; `get()`
       on a missing key raises; `keys()` returns exactly the registered set.
 - [x] `ruff format` && `ruff check --fix`; fix all errors.
-- [x] Commit: "gateways(mcp): McpUpstreamRegistry".
+- [x] Commit: "gateways(mcp): MCPUpstreamRegistry".
 
 ## service.py — management CRUD
 
-- [x] `core/gateways/mcps/service.py`: `McpGatewayService.__init__(self, *,
-      mcp_endpoints_dao, mcp_grants_dao, policy, resolver, upstream_registry)`.
-      Done with one addition beyond this signature: `connections_service:
-      ConnectionsService` — required for real (see the three-namespace-merge
-      section below); entities.md §8's abbreviated constructor pseudocode
-      omits it, which is a gap in the design, not an instruction to mock the
-      integration. Flagged for the M2 merge review.
+- [x] `core/gateways/mcps/service.py`: `MCPGatewayService.__init__(self, *,
+      mcp_endpoints_dao, policy, resolver, upstream_registry,
+      connections_service)`. `connections_service: ConnectionsService` is
+      required for real (see the three-namespace-merge section below);
+      entities.md §8's abbreviated constructor pseudocode omits it, which is a
+      gap in the design, not an instruction to mock the integration. Flagged
+      for the M2 merge review.
 - [x] Implement `create_endpoint`, `fetch_endpoint`, `edit_endpoint`,
       `delete_endpoint`, `query_endpoints` as thin delegations to
-      `McpEndpointsDAOInterface`.
+      `MCPEndpointsDAOInterface`.
 - [x] Unit test each, with a mock DAO (in-memory dict), asserting the right
       DAO verb is called with the right arguments and the return value is
       passed through unchanged.
 - [x] `ruff format` && `ruff check --fix`; run tests; fix failures.
-- [x] Commit: "gateways(mcp): McpGatewayService CRUD delegation".
+- [x] Commit: "gateways(mcp): MCPGatewayService CRUD delegation".
 
 ## service.py — the three-namespace merge
 
-- [x] Implement `list_endpoints(*, project_id) -> List[McpEndpoint]`:
+- [x] Implement `list_endpoints(*, project_id) -> List[MCPEndpoint]`:
       `custom` branch maps `query_endpoints()` rows 1:1.
 - [x] `agenta` branch: a private, service-internal enumeration (not a
       public symbol `entities.md` does not name) of the code-defined
       agenta entries — in wave 1, the mocks WP5 registers. Implemented as
       `_agenta_endpoints()`: one entry, slug "tools" (matching D27's own
-      route-grammar example `agenta/tools`), `data.url=env.mock_gateways.mcp_url`.
+      route-grammar example `agenta/tools`), `data.route.base_url=env.mock_gateways.mcp_url`.
 - [x] `builtin` branch: call `ConnectionsService.query_connections(
       project_id=project_id, provider_key="composio")`, map each
-      `Connection` into an `McpEndpoint` with `namespace=BUILTIN`,
+      `Connection` into an `MCPEndpoint` with `namespace=BUILTIN`,
       `connection_id`, `provider_key`, `integration_key`, `slug` stamped
-      from the connection row. `data.url` is a non-dialable placeholder
+      from the connection row. `data.route.base_url` is a non-dialable placeholder
       (`composio://{provider}/{integration}/{slug}`) — no document fixes a
       real Composio MCP base URL, and D23 keeps every builtin target
       unreachable this wave anyway.
 - [x] Implement `GatewayConnectionState` derivation per owner/namespace,
       exactly as specified in `entities.md` §8: NONE-scheme → `READY`;
-      `custom` with a valid grant for this owner → `READY`; `builtin` with
-      an active+valid connection → `READY`; otherwise `NEEDS_AUTH` for an
+      `custom` whose `secret_id` is set and whose `flags.is_valid` holds →
+      `READY`; `builtin` with an active+valid connection → `READY`; otherwise `NEEDS_AUTH` for an
       OAuth/builtin target; `NEEDS_INPUT` reserved (unreachable, `api_key`
       deferred with D14). Implemented as `_connection_state(project_id,
       user_id, endpoint)`. Note: NOT called from `list_endpoints` — that
@@ -82,21 +82,9 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
       generated entry is ever passed to a DAO write (assert the mock DAO's
       write methods were never called for agenta/builtin entries).
 - [x] Unit test: connection-state derivation for each of the four cases
-      above (NONE, custom+grant, builtin+valid-connection, custom+no-grant).
+      above (NONE, custom+secret, builtin+valid-connection, custom+no-secret).
 - [x] `ruff format` && `ruff check --fix`; run tests; fix failures.
 - [x] Commit: "gateways(mcp): list_endpoints three-namespace merge".
-
-## service.py — grants (declared, not implemented)
-
-- [x] Declare `connect_endpoint`, `complete_connect`, `revoke_grant`,
-      `query_grants` with the exact signatures from `entities.md` §8, each
-      body raising `NotImplementedError`.
-- [x] Unit test: calling each raises `NotImplementedError` (a guard so a
-      future accidental partial implementation is caught by a failing
-      test, forcing a deliberate update to this task file when WP17/WP18
-      fill them in).
-- [x] `ruff format` && `ruff check --fix`; fix all errors.
-- [x] Commit: "gateways(mcp): declare grants surface for WP17/WP18".
 
 ## service.py — relay orchestration
 
@@ -104,26 +92,26 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
       lookup by `name`; `builtin` → `ConnectionsService` lookup by
       `(provider, integration, name)`; `custom` →
       `fetch_endpoint_by_slug(project_id, slug=name)`. Raise
-      `McpEndpointNotFoundError` (with `namespace`, `provider`,
+      `MCPEndpointNotFoundError` (with `namespace`, `provider`,
       `integration`, `name`) when nothing resolves.
 - [x] Implement `_check_allowlist` (step 2): refuse a named tool outside an
-      `INCLUDE` tool_policy with `McpToolNotAllowedError`, called BEFORE
+      `tools` allowlist with `MCPToolNotAllowedError`, called BEFORE
       any resolver or adapter call.
 - [x] Implement the authorize step (step 3): `self.policy.authorize(scope=,
       permission=Permission.USE_MCP_ENDPOINTS, target=)`; on denial, call
       `self.policy.record(...)` before raising `PolicyDeniedError`.
 - [x] Implement secret resolution (step 4): `agenta`/`custom` via
       `self.resolver.resolve(scope=, ref=, mode=SecretMode.USER_OPTIONAL)`
-      wrapped in `McpDirectAuth`, skipped (`secret=None`) for
+      wrapped in `MCPDirectAuth`, skipped (`secret=None`) for
       NONE-scheme targets; `builtin` via `ConnectionsService` directly,
-      wrapped in `McpBrokeredAuth` — never through the resolver.
+      wrapped in `MCPBrokeredAuth` — never through the resolver.
 - [x] Implement dispatch (step 5): a private namespace→adapter-key mapping
       (`agenta`→`"mock"`, `builtin`→`"composio"`, `custom`→`"http"` in wave
       1), then `self.upstream_registry.get(key).relay(route=, auth=,
       context=, body=, headers=)`.
 - [x] Implement record + list-filter (step 6): `self.policy.record(...)`
       with the real outcome; when `context.method` is a list operation,
-      filter the JSON response body by `tool_policy` (`INCLUDE` drops
+      filter the JSON response body by the `tools` filter (an allowlist drops
       entries whole; `ALL` passes everything). Scoped strictly to
       `context.method == "tools/list"` — not any `*/list` method, since a
       tool allowlist says nothing about resources/prompts entries.
@@ -146,7 +134,7 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
       auto-coerce a bare-string namespace the way `GatewayTarget` would —
       without this, a caller passing a plain string (the FastAPI path-param
       case) would crash on the first `.value` access downstream
-      (`McpEndpointNotFoundError`, `_ADAPTER_KEYS[namespace]`). Covered
+      (`MCPEndpointNotFoundError`, `_ADAPTER_KEYS[namespace]`). Covered
       implicitly by every relay test, which passes plain strings.
 
 ## entrypoint wiring (coordinate at M2)
@@ -154,38 +142,37 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
 **Not applied to `routers.py` by this package** — recorded here per the six rules'
 "own your paths", for whoever runs the M2 merge.
 
-- [ ] Add the `McpGatewayService` + `McpUpstreamRegistry` construction
+- [ ] Add the `MCPGatewayService` + `MCPUpstreamRegistry` construction
       block to `api/entrypoints/routers.py` as a diff fragment. **Updated**
       from `specs-wp9.md`'s own diff (which omits `connections_service` and
       the mock-adapter import/registration — both required, see below):
 
       ```diff
-      -# from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
-      +from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
-      +from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
-      +from oss.src.core.gateways.mcps.service import McpGatewayService
+      -# from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+      +from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+      +from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
+      +from oss.src.core.gateways.mcps.service import MCPGatewayService
       +
-      +mcp_gateway_service = McpGatewayService(
+      +mcp_gateway_service = MCPGatewayService(
       +    mcp_endpoints_dao=mcp_endpoints_dao,
-      +    mcp_grants_dao=mcp_grants_dao,
       +    policy=gateway_policy_service,
       +    resolver=secret_resolver,
       +    connections_service=connections_service,
-      +    upstream_registry=McpUpstreamRegistry(adapters={
-      +        # "http": HttpMcpAdapter(),          # custom: McpDirectAuth (WP8)
-      +        # "composio": ComposioMcpAdapter(),  # builtin: McpBrokeredAuth (no owner in wave 1)
-      +        "mock": MockMcpAdapter(),  # serves the agenta-namespace mocks (D23, WP5)
+      +    upstream_registry=MCPUpstreamRegistry(adapters={
+      +        # "http": HttpMCPAdapter(),          # custom: MCPDirectAuth (WP8)
+      +        # "composio": ComposioMCPAdapter(),  # builtin: MCPBrokeredAuth (no owner in wave 1)
+      +        "mock": MockMCPAdapter(),  # serves the agenta-namespace mocks (D23, WP5)
       +    }),
       +)
       ```
 
       Two deltas from the spec's literal text, both load-bearing:
       1. **`connections_service=connections_service`** — without it,
-         `McpGatewayService.__init__` (as built) raises `TypeError` for a
+         `MCPGatewayService.__init__` (as built) raises `TypeError` for a
          missing required keyword argument; `list_endpoints`'s builtin
          branch and `relay`'s builtin target resolution both call through
          it for real (see the three-namespace-merge section above).
-      2. **The `MockMcpAdapter` import is uncommented and the adapter is
+      2. **The `MockMCPAdapter` import is uncommented and the adapter is
          registered under `"mock"`.** Per the coordinator's note on this
          package's landed foundation: WP5's import was left commented with
          "their imports land with those [WP7/WP9's registries], not here."
@@ -193,10 +180,10 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
          WP5's or a later merge step — without it the mocks are unreachable
          and Checkpoint A has nothing to relay to (D23: the mocks are the
          entire reachable target set in wave 1, no brokered target exists).
-- [ ] `"http": HttpMcpAdapter()` and `"composio": ComposioMcpAdapter()` are
+- [ ] `"http": HttpMCPAdapter()` and `"composio": ComposioMCPAdapter()` are
       left commented above, not omitted outright, so the shape of the final
-      dict is visible at the merge site. `HttpMcpAdapter` is WP8's; landing
-      it uncomments that line. `ComposioMcpAdapter` has no owning package in
+      dict is visible at the merge site. `HttpMCPAdapter` is WP8's; landing
+      it uncomments that line. `ComposioMCPAdapter` has no owning package in
       wave 1 (flagged already by specs-wp9.md) — decide with the merge
       reviewers whether it stays commented indefinitely or gets a raising
       stub. Do not silently invent an implementation here.
@@ -219,7 +206,7 @@ may run" rule, so this section stays a checklist for whoever runs the M2 deploy.
       under `namespace=CUSTOM`.
 - [ ] With at least one active composio connection seeded, confirm
       `list_endpoints` includes a `namespace=BUILTIN` entry with no
-      corresponding `mcp_gateway_endpoints` row.
+      corresponding `mcps_endpoints` row.
 - [ ] Confirm the shared Checkpoint A relay/allowlist assertions from
       `tasks-wp8.md` pass (this package's `relay` implementation is what
       makes them true).

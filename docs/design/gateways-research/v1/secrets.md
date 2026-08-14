@@ -34,8 +34,7 @@ The gateways store **no secret material**. A domain row carries a `secret_id`, t
 secrets service holds the encrypted value, and the consumer resolves it at use time through
 the vault service, reading the value off the returned DTO.
 
-**Domain responses exclude the secret material. They do not exclude the id.** An earlier draft
-here said they exclude both; the code says otherwise, and the code is right. The webhook
+**Domain responses exclude the secret material. They do not exclude the id.** The webhook
 subscription response carries its `secret_id` and withholds only the value — which it has to,
 because edits in this codebase are a full PUT sourced from the freshly fetched entity, so a
 response that dropped the id would make every edit silently unbind the secret. The id is a
@@ -119,7 +118,7 @@ A secret is owned by exactly one of:
 
 - **project** — what exists today; everyone in the project uses it.
 - **user** — one member's own secret, keyed by **(project, user)** rather than user
-  alone, because the same person may legitimately use different credentials in different
+  alone, because the same person may legitimately use different secrets in different
   projects, and a deleted project should take its secrets with it.
 
 An account-wide secret — one identity across every project — would be a third owner keyed
@@ -128,7 +127,7 @@ by (organization, user), not a variant of the second. Out of scope until somethi
 ### Why design it before building it
 
 The lookup signature is the expensive part to change later. A lookup that takes an owner and
-currently always answers "the project" costs nothing today and absorbs user-level credentials
+currently always answers "the project" costs nothing today and absorbs user-level secrets
 as a storage change. A lookup that assumes the project spreads that assumption to every call
 site.
 
@@ -144,14 +143,14 @@ organization sometimes has a legitimate interest in which secret is used:
 |---|---|---|
 | `user_optional` | the user's if present, else the project's | the default |
 | `user_required` | the user's, or fail — never fall back | upstreams holding personal data |
-| `project_only` | always the project's; ignore user secrets | mandated credentials, spend control |
+| `project_only` | always the project's; ignore user secrets | mandated secrets, spend control |
 
 The two non-default modes earn the design. `user_required` stops an agent quietly acting as
 someone else's account when it reaches a personal mailbox. `project_only` stops a user's own
 key being used where the organization pays and wants one billing identity.
 
-This produces a deliberate asymmetry: **model credentials will usually be `project_only`;
-tool and MCP credentials usually `user_optional` or `user_required`.**
+This produces a deliberate asymmetry: **model secrets will usually be `project_only`;
+tool and MCP secrets usually `user_optional` or `user_required`.**
 
 ## Resolution
 
@@ -188,7 +187,7 @@ A default column value, not a data migration.
 ## Open
 
 - The product default: is `user_optional` the norm and `project_only` the exception, or the
-  reverse? This decides how much existing configuration is revisited when user credentials
+  reverse? This decides how much existing configuration is revisited when user secrets
   ship.
 - Whether an administrator sets the mode per upstream, or whether it is a property of the
   upstream itself.

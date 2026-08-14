@@ -25,7 +25,7 @@ distinction is load-bearing.
 holds an observability callback handler. The actual routing is a single provider-settings
 builder in the SDK's secrets manager: it reads vault secrets, decides whether the model is a
 direct or custom provider, normalizes the model name into the library's form, and assembles
-the credentials — including the cloud-reseller shapes, which each differ.
+the secrets — including the cloud-reseller shapes, which each differ.
 
 It also guards the custom endpoint against server-side request forgery before using it.
 
@@ -46,7 +46,7 @@ The split helps us. The proxy is the half that competes with our policy plane: i
 keys occupy the same role as our gateway token, and its per-team secret routing the same
 role as our resolution modes. We take the router and own the policy, per decision D9.
 
-Per-request credentials are the supported in-process pattern — the key and base URL travel as
+Per-request secrets are the supported in-process pattern — the key and base URL travel as
 call arguments. The provider-settings builder already produces that shape.
 
 **One call site does not follow it.** The `llm_v0` handler assigns provider keys to

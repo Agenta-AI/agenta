@@ -1,7 +1,7 @@
 # WP10 — Endpoint CRUD API
 
-Delivers the management CRUD surface for both gateways: `LlmGatewayRouter`,
-`McpGatewayRouter`, their request/response models, and the one shared
+Delivers the management CRUD surface for both gateways: `LLMGatewayRouter`,
+`MCPGatewayRouter`, their request/response models, and the one shared
 exception-mapping decorator both these routers and the two data-plane
 proxies (WP6, WP8) use. **Creation and deletion only** — per-endpoint
 configuration (timeouts, ceilings, extra headers, D21) is WP21, scheduled
@@ -11,9 +11,9 @@ after checkpoint C, not this package.
 
 New:
 - `api/oss/src/apis/fastapi/gateways/exceptions.py` — `handle_gateway_exceptions()` (§9).
-- `api/oss/src/apis/fastapi/gateways/llms/router.py` — `LlmGatewayRouter` (§9).
+- `api/oss/src/apis/fastapi/gateways/llms/router.py` — `LLMGatewayRouter` (§9).
 - `api/oss/src/apis/fastapi/gateways/llms/models.py` — the LLM management wire models (§6).
-- `api/oss/src/apis/fastapi/gateways/mcps/router.py` — `McpGatewayRouter` (§9).
+- `api/oss/src/apis/fastapi/gateways/mcps/router.py` — `MCPGatewayRouter` (§9).
 - `api/oss/src/apis/fastapi/gateways/mcps/models.py` — the MCP management wire models (§6).
 
 Edited: none. `core/gateways/{llms,mcps}/service.py` are WP7's and WP9's,
@@ -24,68 +24,56 @@ already landed by M1 (this package depends on M1 and WP1, per `plan.md`).
 Reproduced verbatim from `entities.md` §6 and §9. Do not rename, do not add
 routes, fields or parameters not listed here.
 
-### Wire models (§6) — the house triple, plus grants
+### Wire models (§6) — the house triple, plus connect
 
 ```python
 # apis/fastapi/gateways/llms/models.py
 
-class LlmEndpointCreateRequest(BaseModel):
-    endpoint: LlmEndpointCreate
+class LLMEndpointCreateRequest(BaseModel):
+    endpoint: LLMEndpointCreate
 
-class LlmEndpointEditRequest(BaseModel):
-    endpoint: LlmEndpointEdit
+class LLMEndpointEditRequest(BaseModel):
+    endpoint: LLMEndpointEdit
 
-class LlmEndpointQueryRequest(BaseModel):
-    endpoint: Optional[LlmEndpointQuery] = None
+class LLMEndpointQueryRequest(BaseModel):
+    endpoint: Optional[LLMEndpointQuery] = None
     windowing: Optional[Windowing] = None
 
-class LlmEndpointResponse(BaseModel):
+class LLMEndpointResponse(BaseModel):
     count: int = 0
-    endpoint: Optional[LlmEndpoint] = None
+    endpoint: Optional[LLMEndpoint] = None
 
-class LlmEndpointsResponse(BaseModel):
+class LLMEndpointsResponse(BaseModel):
     count: int = 0
-    endpoints: List[LlmEndpoint] = Field(default_factory=list)
+    endpoints: List[LLMEndpoint] = Field(default_factory=list)
 
 
 # apis/fastapi/gateways/mcps/models.py
 
-class McpEndpointCreateRequest(BaseModel):
-    endpoint: McpEndpointCreate
+class MCPEndpointCreateRequest(BaseModel):
+    endpoint: MCPEndpointCreate
 
-class McpEndpointEditRequest(BaseModel):
-    endpoint: McpEndpointEdit
+class MCPEndpointEditRequest(BaseModel):
+    endpoint: MCPEndpointEdit
 
-class McpEndpointQueryRequest(BaseModel):
-    endpoint: Optional[McpEndpointQuery] = None
+class MCPEndpointQueryRequest(BaseModel):
+    endpoint: Optional[MCPEndpointQuery] = None
     windowing: Optional[Windowing] = None
 
-class McpEndpointResponse(BaseModel):
+class MCPEndpointResponse(BaseModel):
     count: int = 0
-    endpoint: Optional[McpEndpoint] = None
+    endpoint: Optional[MCPEndpoint] = None
 
-class McpEndpointsResponse(BaseModel):
+class MCPEndpointsResponse(BaseModel):
     count: int = 0
-    endpoints: List[McpEndpoint] = Field(default_factory=list)
+    endpoints: List[MCPEndpoint] = Field(default_factory=list)
 
-class McpGrantQueryRequest(BaseModel):
-    grant: Optional[McpGrantQuery] = None
-    windowing: Optional[Windowing] = None
-
-class McpGrantResponse(BaseModel):
-    count: int = 0
-    grant: Optional[McpGrant] = None
-
-class McpGrantsResponse(BaseModel):
-    count: int = 0
-    grants: List[McpGrant] = Field(default_factory=list)
-
-class McpConnectRequest(BaseModel):
+class MCPConnectRequest(BaseModel):
     """Begin the consent flow on one endpoint (WP18). Scopes are SELECTED, not
     inherited from everything the server advertises (D17)."""
     scopes: List[str] = Field(default_factory=list)
 
-class McpConnectResponse(BaseModel):
+class MCPConnectResponse(BaseModel):
     count: int = 0
     redirect_url: Optional[str] = None
 ```
@@ -100,13 +88,8 @@ defaults, not bare `[]`, matching `triggers/models.py`'s convention (not
 a bare mutable default is a latent bug even though Pydantic normally copies
 it; `triggers/models.py` is the more recently written file of the two).
 
-**`McpConnectRequest`/`McpConnectResponse` are declared in `models.py` but
+**`MCPConnectRequest`/`MCPConnectResponse` are declared in `models.py` but
 their route is not wired by this package** — see "Out of scope" below.
-
-**Grants get no create or edit request** (§6): "A grant comes into being
-because a consent flow completed ... never because someone POSTed a grant
-document." Do not add `McpGrantCreateRequest` or `McpGrantEditRequest` —
-they do not exist in `entities.md` and must not be invented.
 
 ### `handle_gateway_exceptions()` (§9) — **seed-owned, read only**
 
@@ -126,7 +109,7 @@ def handle_gateway_exceptions():
     - CeilingExceededError               -> 400, body naming the ceiling,
                                              the requested and the allowed
                                              values (D25)
-    - McpAuthRequiredError               -> 409, carrying the
+    - MCPAuthRequiredError               -> 409, carrying the
                                              GatewayConnectionRequirement
                                              (an interaction, not a
                                              failure — D17)
@@ -183,24 +166,24 @@ A rejection is a 400 through the domain-exception path (`api/AGENTS.md`), never 
 `true` (`api/oss/src/utils/env.py`), so a unit test that does not set it `false` passes
 while proving nothing. Set it explicitly in the test.
 
-### `LlmGatewayRouter` (§9), in full
+### `LLMGatewayRouter` (§9), in full
 
 ```python
-class LlmGatewayRouter:
-    def __init__(self, *, llm_gateway_service: LlmGatewayService):
+class LLMGatewayRouter:
+    def __init__(self, *, llm_gateway_service: LLMGatewayService):
         self.service = llm_gateway_service
         self.router = APIRouter()
 
         self.router.add_api_route(
             "/endpoints/", self.create_endpoint, methods=["POST"],
             operation_id="create_llm_endpoint",
-            response_model=LlmEndpointResponse,
+            response_model=LLMEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/endpoints/", self.list_endpoints, methods=["GET"],
             operation_id="list_llm_endpoints",
-            response_model=LlmEndpointsResponse,
+            response_model=LLMEndpointsResponse,
             response_model_exclude_none=True,
         )
         # GET /endpoints/ is the merged listing — generated + custom (§8);
@@ -209,19 +192,19 @@ class LlmGatewayRouter:
         self.router.add_api_route(
             "/endpoints/query", self.query_endpoints, methods=["POST"],
             operation_id="query_llm_endpoints",
-            response_model=LlmEndpointsResponse,
+            response_model=LLMEndpointsResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/endpoints/{endpoint_id}", self.fetch_endpoint, methods=["GET"],
             operation_id="fetch_llm_endpoint",
-            response_model=LlmEndpointResponse,
+            response_model=LLMEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/endpoints/{endpoint_id}", self.edit_endpoint, methods=["PUT"],
             operation_id="edit_llm_endpoint",
-            response_model=LlmEndpointResponse,
+            response_model=LLMEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -240,8 +223,8 @@ async def create_endpoint(
     self,
     request: Request,
     *,
-    body: LlmEndpointCreateRequest,
-) -> LlmEndpointResponse:
+    body: LLMEndpointCreateRequest,
+) -> LLMEndpointResponse:
     scope = get_auth_scope()
     await self._check(scope, Permission.EDIT_LLM_ENDPOINTS)
 
@@ -252,7 +235,7 @@ async def create_endpoint(
         endpoint=body.endpoint,
     )
 
-    return LlmEndpointResponse(count=1 if endpoint else 0, endpoint=endpoint)
+    return LLMEndpointResponse(count=1 if endpoint else 0, endpoint=endpoint)
 ```
 
 The other four LLM handlers (`list_endpoints`, `query_endpoints`,
@@ -260,43 +243,31 @@ The other four LLM handlers (`list_endpoints`, `query_endpoints`,
 shape: `get_auth_scope()`, one `self._check(scope, Permission.*)` call
 (`VIEW_LLM_ENDPOINTS` for reads, `EDIT_LLM_ENDPOINTS` for writes), one
 service call, one envelope. `fetch_endpoint`/`edit_endpoint`/`delete_endpoint`
-404 (raise the domain `LlmEndpointNotFoundError`, mapped by
+404 (raise the domain `LLMEndpointNotFoundError`, mapped by
 `handle_gateway_exceptions`) when the service returns `None`/`False` — the
 service already returns `None` for "no such row" per §7's disambiguation
 table (`edit_endpoint` → "the row does not exist" → "404 at the boundary").
 
-### `McpGatewayRouter` — same seven shapes, plus grants (§9)
+### `MCPGatewayRouter` — same seven shapes (§9)
 
 ```python
-# --- MCP management (McpGatewayRouter) — same shapes ---
+# --- MCP management (MCPGatewayRouter) — same shapes ---
 #   POST/GET   /endpoints/                 create_mcp_endpoint / list_mcp_endpoints
 #   POST       /endpoints/query            query_mcp_endpoints
 #   GET/PUT    /endpoints/{endpoint_id}    fetch_mcp_endpoint / edit_mcp_endpoint
 #   DELETE     /endpoints/{endpoint_id}    delete_mcp_endpoint
 #   POST       /endpoints/{endpoint_id}/connect   connect_mcp_endpoint  (WP18)
 #   GET        /connect/callback                  mcp_connect_callback  (WP18)
-#   POST       /grants/query                query_mcp_grants
-#   DELETE     /grants/{grant_id}           revoke_mcp_grant
 ```
 
 **This package wires every route in that table except the two tagged
 `(WP18)`.** `entities.md` tags `connect_mcp_endpoint` and
-`mcp_connect_callback` explicitly with the package that owns them; it does
-not tag `query_mcp_grants`/`revoke_mcp_grant`, so those two are this
-package's to declare — even though the `McpGatewayService` methods they
-call (`query_grants`, `revoke_grant`) are themselves declared-but-
-`NotImplementedError` until WP17/WP18 (per `specs-wp9.md`). Route wiring
-and method implementation are separate concerns, exactly as the seed
-pattern establishes everywhere else in this design (`plan.md`'s wave 0
-section: "every symbol ... raising not-implemented"). A call to either
-grant route in wave 1 will surface an unhandled `NotImplementedError`
-(uncaught by `handle_gateway_exceptions`'s mapping table, which does not
-list it) — that is expected and untested until wave 3; do not add a
-mapping for it speculatively.
+`mcp_connect_callback` explicitly with the package that owns them — this
+package declares neither route, matching "Out of scope" below.
 
 Permission checks: `VIEW_MCP_ENDPOINTS` for `list_endpoints`,
-`query_endpoints`, `fetch_endpoint`, `query_grants`; `EDIT_MCP_ENDPOINTS`
-for `create_endpoint`, `edit_endpoint`, `delete_endpoint`, `revoke_grant`.
+`query_endpoints`, `fetch_endpoint`; `EDIT_MCP_ENDPOINTS`
+for `create_endpoint`, `edit_endpoint`, `delete_endpoint`.
 
 ### The permission-check helper — factored, following `triggers/router.py`
 
@@ -340,8 +311,8 @@ async def _check(self, scope: AuthScope, permission: Permission) -> None:
         raise FORBIDDEN_EXCEPTION
 ```
 
-One `_check` per router class (`LlmGatewayRouter._check`,
-`McpGatewayRouter._check`), not shared across the two — matching
+One `_check` per router class (`LLMGatewayRouter._check`,
+`MCPGatewayRouter._check`), not shared across the two — matching
 `TriggersRouter._check`'s scope (one router, one helper), and keeping each
 router's file self-contained per `workstreams/README.md`'s one-owner-per-file
 rule.
@@ -356,7 +327,7 @@ rule.
   routes").
 - **`AuthScope` over `request.state`**, unconditionally, in every new
   handler (§9, D2).
-- **Edits are full PUTs.** `LlmEndpointEdit`/`McpEndpointEdit` require
+- **Edits are full PUTs.** `LLMEndpointEdit`/`MCPEndpointEdit` require
   `data`/`flags` (no partial patch semantics) — the channels-design rule
   `entities.md` §4.3/§4.4 already encodes into the DTOs themselves; this
   package does not add partial-update logic on top.
@@ -374,7 +345,7 @@ rule.
   (`RequestValidationError`'s `input` field). The gateway CRUD payloads
   never carry secret material directly — `secret_id` is a UUID pointer
   (§4.4: "the id is a pointer; reading the material it points at still
-  takes `VIEW_SECRET` through the vault") and `McpEndpointData.headers` is
+  takes `VIEW_SECRET` through the vault") and `MCPEndpointData.headers` is
   explicitly documented as "non-secret routing headers only" (§4.4). A
   validation error on these routes has nothing sensitive to leak, so the
   extra route class is not warranted here — noted as a deliberate
@@ -398,11 +369,11 @@ rule.
   exception in the table, raise it from a dummy decorated function and
   assert the resulting `HTTPException`'s status code and body shape (the
   `CeilingExceededError` case additionally asserts the body names the
-  ceiling, requested and allowed values; the `McpAuthRequiredError` case
+  ceiling, requested and allowed values; the `MCPAuthRequiredError` case
   asserts the body carries the `GatewayConnectionRequirement`).
 - Router wiring (which handler each route reaches, the `_check` calls) —
   **unit**, via `TestClient` against a bare `APIRouter` mounted with a mock
-  `LlmGatewayService`/`McpGatewayService` and a mockd `get_auth_scope()` /
+  `LLMGatewayService`/`MCPGatewayService` and a mockd `get_auth_scope()` /
   `check_action_access()`. Assert: each route's operation_id, method and
   path match the table above; a denied `_check` short-circuits before the
   service is called (assert the mock service's call count is zero); a
@@ -416,7 +387,7 @@ rule.
   DAO and WP9's real `list_endpoints` merge behind a real Postgres.
 - CRUD round trip (create → fetch → edit → delete, and query filtering) —
   **integration**, needs Postgres (WP1's tables) and the real
-  `LlmGatewayService`/`McpGatewayService` (WP7/WP9).
+  `LLMGatewayService`/`MCPGatewayService` (WP7/WP9).
 
 ## Executable done test
 
@@ -434,7 +405,7 @@ GET /gateways/mcps/endpoints/{a builtin entry's synthetic identity, if one
     could even be constructed — it cannot, because builtin entries carry no
     id}
   -> there is no request that reaches a builtin entry through this router;
-     PUT against any UUID not present in mcp_gateway_endpoints returns 404
+     PUT against any UUID not present in mcps_endpoints returns 404
 ```
 
 ## Out of scope
@@ -465,11 +436,11 @@ proxy mounts (and WP7's/WP9's service-construction fragments, which these
 constructors depend on) at the M2 merge:
 
 ```diff
-+from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter
-+from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter
++from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
++from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
 +
-+llm_gateway_router = LlmGatewayRouter(llm_gateway_service=llm_gateway_service)
-+mcp_gateway_router = McpGatewayRouter(mcp_gateway_service=mcp_gateway_service)
++llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
++mcp_gateway_router = MCPGatewayRouter(mcp_gateway_service=mcp_gateway_service)
 ```
 
 ```diff

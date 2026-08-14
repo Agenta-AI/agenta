@@ -4,35 +4,35 @@ Ordered so each item is one reviewable commit. Depends on nothing — branches f
 commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` then `ruff check
 --fix` (from the repo root) before every commit and fix all errors, per `api/AGENTS.md`.
 
-## Phase 1 — `MockLlmAdapter` (in-process)
+## Phase 1 — `MockLLMAdapter` (in-process)
 
 - [x] `core/gateways/llms/providers/mock/__init__.py`.
-- [x] `core/gateways/llms/providers/mock/adapter.py`: `MockLlmAdapter(LlmUpstreamInterface)`,
+- [x] `core/gateways/llms/providers/mock/adapter.py`: `MockLLMAdapter(LLMUpstreamInterface)`,
       no constructor arguments, implementing `relay_chat_completion(self, *, route, secret,
-      context, body, headers) -> LlmRelayResult` per `entities.md` §7.1 exactly.
+      context, body, headers) -> LLMRelayResult` per `entities.md` §7.1 exactly.
 - [x] Implement the `mock/echo` default path: build an OpenAI-shaped chat-completion response
       echoing the last message in the parsed request body; non-streaming returns one `body`
       chunk.
 - [x] Implement `context.stream=True` for `mock/echo`: yield 2–3 SSE-framed chunks over `body`,
       terminated by `data: [DONE]\n\n`.
-- [x] Implement `mock/error`: raise `LlmUpstreamError(provider_key="mock", status_code=500,
+- [x] Implement `mock/error`: raise `LLMUpstreamError(provider_key="mock", status_code=500,
       detail="forced by mock/error")` before producing any `body`.
 - [x] Implement `mock/slow-{seconds}`: parse the integer suffix, `await asyncio.sleep(seconds)`,
       then return the `mock/echo` response.
 - [x] Populate `GatewayUsage` (`calls=1`, `input_tokens`/`output_tokens` from a word-count
-      approximation, `cost=0.0`) on `LlmRelayResult.usage`, set once `body` is exhausted per the
+      approximation, `cost=0.0`) on `LLMRelayResult.usage`, set once `body` is exhausted per the
       dataclass's own docstring.
 - [x] Ruff format + check; run and fix.
 - [x] Unit tests (`test_mock_llm_adapter.py`): `mock/echo` returns a well-formed
-      `LlmRelayResult`; `mock/error` raises `LlmUpstreamError`; `mock/slow-1` takes ≥1s wall
+      `LLMRelayResult`; `mock/error` raises `LLMUpstreamError`; `mock/slow-1` takes ≥1s wall
       clock; streaming yields >1 chunk ending `[DONE]`; `usage` is non-`None` after exhaustion.
 - [x] Commit: "wp5: mock LLM adapter (in-process)". — `46f6466ea5`
 
-## Phase 2 — `MockMcpAdapter` (in-process)
+## Phase 2 — `MockMCPAdapter` (in-process)
 
 - [x] `core/gateways/mcps/providers/mock/__init__.py`.
-- [x] `core/gateways/mcps/providers/mock/adapter.py`: `MockMcpAdapter(McpUpstreamInterface)`,
-      implementing `relay(self, *, route, auth, context, body, headers) -> McpRelayResult` per
+- [x] `core/gateways/mcps/providers/mock/adapter.py`: `MockMCPAdapter(MCPUpstreamInterface)`,
+      implementing `relay(self, *, route, auth, context, body, headers) -> MCPRelayResult` per
       `entities.md` §7.1 exactly.
 - [x] Implement `initialize` and `tools/list`, returning the three tools (`echo`, `fail`, `slow`)
       with their input schemas.
@@ -42,11 +42,11 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
 - [x] Implement the notification path: any `notifications/*` method returns `status_code=202`
       with an empty `body`, matching the runner's internal MCP server's own 202-for-notification
       shape (`services/runner/src/tools/tool-mcp-http.ts`).
-- [x] Implement the fallback: any other `method` raises `McpUpstreamError(target=..., status_code=501)`.
+- [x] Implement the fallback: any other `method` raises `MCPUpstreamError(target=..., status_code=501)`.
 - [x] Ruff format + check; run and fix.
 - [x] Unit tests (`test_mock_mcp_adapter.py`): `tools/list` returns all three tools; `echo`
       echoes; `fail` returns `isError: true` without raising; `slow` with `seconds=1` takes ≥1s;
-      an unknown method raises `McpUpstreamError(status_code=501)`.
+      an unknown method raises `MCPUpstreamError(status_code=501)`.
 - [x] Commit: "wp5: mock MCP adapter (in-process)". — `9064436bcd`
 
   Judgment call: `tools/call` with a `name` outside the three declared tools returns a JSON-RPC
@@ -57,16 +57,16 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
 ## Phase 3 — Contract tests
 
 - [x] `api/oss/tests/pytest/unit/gateways/test_mock_adapters_contract.py`: a parametrized
-      fixture that both `MockLlmAdapter` and (via an import guard, skipped until it exists)
-      `PassthroughLlmAdapter`/`TranslatedLlmAdapter` must pass — asserts
-      `relay_chat_completion` always returns `LlmRelayResult`, never a raw dict, for
+      fixture that both `MockLLMAdapter` and (via an import guard, skipped until it exists)
+      `PassthroughLLMAdapter`/`TranslatedLLMAdapter` must pass — asserts
+      `relay_chat_completion` always returns `LLMRelayResult`, never a raw dict, for
       `mock/echo`.
-- [x] Same shape for `relay` returning `McpRelayResult` across `{initialize, tools/list,
+- [x] Same shape for `relay` returning `MCPRelayResult` across `{initialize, tools/list,
       tools/call}`.
 - [x] Ruff format + check; run and fix.
 - [x] Commit: "wp5: adapter interface contract tests". — `83807511c8`
 
-  Also parametrized in `HttpMcpAdapter`/`ComposioMcpAdapter` (skip-until-exists) on the MCP
+  Also parametrized in `HttpMCPAdapter`/`ComposioMCPAdapter` (skip-until-exists) on the MCP
   side, since the spec text only names the LLM pair explicitly but the MCP plane has the
   same two-real-adapters shape (`http`/`composio`, entities.md §0) — extending the guard to
   both keeps the file from needing an edit when either lands.
@@ -76,7 +76,7 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
 - [x] `core/gateways/llms/providers/mock/app.py`: a FastAPI app, `GET /health` returning 200.
 - [x] `POST /v1/chat/completions`: parse the OpenAI-shaped request body, dispatch on `"model"`
       using the identical `mock/echo` / `mock/error` / `mock/slow-{n}` convention as
-      `MockLlmAdapter` — same behavior, standalone process.
+      `MockLLMAdapter` — same behavior, standalone process.
 - [x] Streaming: `"stream": true` returns `Content-Type: text/event-stream` with real SSE framing
       over the wire.
 - [x] Verify by hand (`uvicorn core.gateways.llms.providers.mock.app:app --port 9091` locally,
@@ -90,8 +90,8 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
 - [x] Ruff format + check; run and fix.
 - [x] Commit: "wp5: deployable mock LLM server". — `ab9ecab033`
 
-  Implementation delegates every request to `MockLlmAdapter` directly (constructs
-  `LlmCallContext`/`LlmResolvedRoute`, calls `relay_chat_completion`) rather than
+  Implementation delegates every request to `MockLLMAdapter` directly (constructs
+  `LLMCallContext`/`LLMResolvedRoute`, calls `relay_chat_completion`) rather than
   reimplementing the echo/streaming/error logic a second time — this is what makes "same
   control convention on both tiers" true by construction instead of by discipline.
 
@@ -102,7 +102,7 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
       `application/json` response out, `202` with empty body for a notification, matching
       `tool-mcp-http.ts`'s framing.
 - [x] `GET /` and `DELETE /`: `405`.
-- [x] Same three tools (`echo`, `fail`, `slow`) as `MockMcpAdapter`, same dispatch convention.
+- [x] Same three tools (`echo`, `fail`, `slow`) as `MockMCPAdapter`, same dispatch convention.
 - [x] Verify by hand (`uvicorn ... --port 9092`, `curl -X POST` with a `tools/list` body) before
       wiring into compose. Ran locally on port 19092: `/health` 200; `tools/list` returned all
       three tools; `tools/call name=echo` echoed `{"a": 1}`; `name=fail` returned `isError:
@@ -113,7 +113,7 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
 - [x] Commit: "wp5: deployable mock MCP server". — `406c0aa6d8`
 
   Same delegation choice as Phase 4: the app parses only enough of the body to build
-  `McpCallContext.method` for the DTO, then hands the raw body to `MockMcpAdapter.relay`,
+  `MCPCallContext.method` for the DTO, then hands the raw body to `MockMCPAdapter.relay`,
   which does the real parsing. `GET`/`DELETE` handlers are explicit rather than relying on
   Starlette's automatic 405-on-path-match-wrong-method behavior, so the 405 is asserted by an
   actual handler rather than a framework default a future refactor could silently change.
@@ -157,8 +157,8 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
       edits in the same wiring block:
 
       ```diff
-      +from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
-      +from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
+      +from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
+      +from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
       ```
 
       Landing spot: alongside the other gateway-adapter imports at the block currently reading
@@ -167,18 +167,18 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
       ```python
       # GATEWAYS: core/gateways/ (entities.md). DAOs, services and routers land with
       # their owning work packages (WP1 dbs; WP6/WP7 llms; WP8/WP9 mcps).
-      # from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
-      # from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
+      # from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
+      # from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
       # from oss.src.core.gateways.policy.resolution import SecretsResolver
       # from oss.src.core.gateways.policy.service import GatewayPolicyService
-      # from oss.src.core.gateways.llms.service import LlmGatewayService
-      # from oss.src.core.gateways.mcps.service import McpGatewayService
-      # from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter   # WP10
-      # from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy     # WP6
-      # from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter   # WP10
+      # from oss.src.core.gateways.llms.service import LLMGatewayService
+      # from oss.src.core.gateways.mcps.service import MCPGatewayService
+      # from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter   # WP10
+      # from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy     # WP6
+      # from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter   # WP10
       ```
 
-      The two new `MockLlmAdapter`/`MockMcpAdapter` import lines are additive to this comment
+      The two new `MockLLMAdapter`/`MockMCPAdapter` import lines are additive to this comment
       block (uncommented, live imports), not a replacement of it — the rest stays commented
       until its owning package lands.
 - [x] Acceptance verification: needs the compose stack up, so **written, not run** here
@@ -208,7 +208,7 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
 ## Definition of done
 
 Matches `plan.md` WP5 verbatim: *"both mocks run in the local stack and can be driven to fail on
-demand."* Concretely: `MockLlmAdapter`/`MockMcpAdapter` pass their unit and contract tests with
+demand."* Concretely: `MockLLMAdapter`/`MockMCPAdapter` pass their unit and contract tests with
 nothing running; `mock-llm-gateway`/`mock-mcp-gateway` are healthy in the local docker-compose
 stack; each can be made to return a 500 (LLM) / `isError: true` (MCP) and to hang past a short
 client timeout, on demand, from outside the process (a real HTTP client, not a mocked one).

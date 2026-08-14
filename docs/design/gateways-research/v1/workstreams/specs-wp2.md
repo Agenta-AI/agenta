@@ -1,8 +1,8 @@
 # WP2 — Secret resolution
 
 Delivers `SecretsResolver`, the one class both gateways call to turn a `SecretRef`
-into a `(secret, owner, payer)` triple. Pure logic wrapped around two existing services —
-`VaultService` and the grants DAO — so nothing here talks to Postgres directly. Owns
+into a `(secret, owner, payer)` triple. Pure logic wrapped around one existing service —
+`VaultService` — so nothing here talks to Postgres directly. Owns
 `core/gateways/policy/resolution.py` only.
 
 This is the signature `plan.md` calls out as the one thing the seed had to get right:
@@ -12,24 +12,24 @@ seed commit in `core/gateways/policy/interfaces.py`.
 
 ## What this is NOT
 
-- **Not the vault, not the grants table.** `VaultService` (`core/secrets/services.py`)
-  and `McpGrantsDAOInterface` (implemented by WP1) already exist; WP2 composes them, never
-  reimplements encryption, storage, or the grants schema.
+- **Not the vault.** `VaultService` (`core/secrets/services.py`) already exists; WP2
+  composes it, never reimplements encryption or storage.
 - **Not the permission or entitlement check.** `authorize()` on
   `GatewayPolicyService` is WP3's; WP2's `resolve()` is called only *after* WP3 (or a
   caller mimicking it) has already decided the call is allowed. `resolve()` never checks
   a permission and never raises `PolicyDeniedError`.
 - **Not the brokered (`builtin`, MCP) path.** A Composio-backed MCP endpoint's secret
-  lives at the broker and never enters the vault — `McpBrokeredAuth` carries the
+  lives at the broker and never enters the vault — `MCPBrokeredAuth` carries the
   `gateway_connections` row directly, never `ResolvedSecret`. `resolve()` is never
-  called for that namespace; routing around it with a fourth `SecretRef` arm was
+  called for that namespace; routing around it with a third `SecretRef` arm was
   rejected in `entities.md` §7.2 and must not be reintroduced here.
-- **Not the OAuth client.** `resolve()`'s `GrantRef` arm reads an existing grant row and
-  its vault secret; it never mints, refreshes, or exchanges a token. That is WP17.
+- **Not the OAuth client.** An OAuth MCP endpoint's secret is a `BoundSecretRef` like any
+  other — `resolve()` only reads it; it never mints, refreshes, or exchanges a token. That
+  is WP17.
 - **Not the two new secret kinds.** `oauth_provider`/`oauth_grant` (WP16) do not exist yet
-  when this package lands (wave 1, before Checkpoint B). `resolve()`'s `GrantRef` branch
-  is written against the DAO/vault shapes now; it becomes reachable once WP16+WP17 land
-  real grant rows. Nothing in WP2 blocks on WP16.
+  when this package lands (wave 1, before Checkpoint B). Once WP16+WP17 land, an
+  `oauth_grant` secret is just another vault row a `BoundSecretRef` can point at —
+  `resolve()` needs no change to reach it. Nothing in WP2 blocks on WP16.
 
 ## Files
 
@@ -78,9 +78,9 @@ class SecretsResolverInterface(ABC):
                             secrets for the provider, as the SDK's settings
                             builder does today (models.md).
           BoundSecretRef -> VaultService.get_secret_by_id, scoped to the project.
-          GrantRef       -> the grants DAO's owner-keyed fetch, then
-                            get_secret_by_id; SecretInvalidError when the
-                            grant's is_valid is False (D18).
+                            Also how an OAuth MCP endpoint resolves its secret:
+                            the caller passes BoundSecretRef(secret_id=
+                            endpoint.secret_id) at mode=PROJECT_ONLY.
 
         Raises, never returns None: no path silently yields "no secret",
         and the exceptions carry which owner is missing so the boundary can
@@ -96,7 +96,7 @@ class SecretsResolverInterface(ABC):
 
 **The second method is R2's ruling, added at kickoff.** D20 makes a generated `builtin`
 endpoint exist for a project exactly when a provider key exists for it, so
-`LlmGatewayService.list_endpoints` (WP7) needs to ask that question — and it has no vault
+`LLMGatewayService.list_endpoints` (WP7) needs to ask that question — and it has no vault
 dependency, by design. Handing the service a `VaultService` would give it two secret
 seams and defeat the port; calling `resolve()` once per provider and catching
 `SecretNotFoundError` is control flow by exception plus eleven vault reads per list.
@@ -135,10 +135,7 @@ class ProviderKeyRef(BaseModel):
 class BoundSecretRef(BaseModel):
     secret_id: UUID
 
-class GrantRef(BaseModel):
-    endpoint_id: UUID
-
-SecretRef = Union[ProviderKeyRef, BoundSecretRef, GrantRef]
+SecretRef = Union[ProviderKeyRef, BoundSecretRef]
 
 class ResolvedSecret(BaseModel):
     secret: SecretResponseDTO         # decrypted, from VaultService
@@ -165,13 +162,13 @@ class SecretInvalidError(GatewaysError):
 `target` is a caller-supplied string identifying what was being resolved for — WP2 does
 not have a `GatewayTarget` in `resolve()`'s signature, so it builds this string itself
 from the `SecretRef` it was given (e.g. `f"provider:{ref.provider_key}"`,
-`f"secret:{ref.secret_id}"`, `f"endpoint:{ref.endpoint_id}"`). This is not named anywhere
+`f"secret:{ref.secret_id}"`). This is not named anywhere
 in `entities.md` beyond "target" as a parameter name on the exception constructors — pick
-a stable, greppable format per ref arm and keep it consistent across all three.
+a stable, greppable format per ref arm and keep it consistent across both.
 
 ## Implementation, by ref arm
 
-### `BoundSecretRef` — custom endpoints
+### `BoundSecretRef` — custom endpoints, and OAuth MCP endpoints
 
 The simple case. `mode` still governs owner selection even though a bound secret has no
 owner axis of its own today — `VaultService.get_secret_by_id` takes only
@@ -198,6 +195,11 @@ project_id: UUID | None = None, organization_id: UUID | None = None)` —
 `secret_id` is positional in `VaultService`, not keyword-only. Call it positionally; do
 not assume `VaultService`'s own convention matches the gateways domain's keyword-only
 house rule, because it predates it.
+
+An OAuth MCP endpoint resolves through this same branch: WP9 builds
+`BoundSecretRef(secret_id=endpoint.secret_id)` and calls `resolve()` at
+`mode=SecretMode.PROJECT_ONLY` — the endpoint's `secret_id` column is the project-level
+answer, so there is nothing endpoint- or OAuth-specific for this package to know.
 
 **Every call into `VaultService` must be wrapped in `set_data_encryption_key`
 (`core/secrets/context.py`)** — the underlying DAO raises `ValueError` without it
@@ -248,40 +250,6 @@ picks by list order); do not invent a tie-break rule beyond "first match" — fl
 reviewer wants one, do not silently add priority logic not present in the cited
 precedent.
 
-### `GrantRef` — OAuth MCP endpoints
-
-```python
-grant = await self.mcp_grants_dao.fetch_grant(
-    project_id=scope.project_id, endpoint_id=ref.endpoint_id, user_id=scope.user_id,
-)
-if grant is None and mode is not SecretMode.PROJECT_ONLY:
-    # USER_OPTIONAL falls back; USER_REQUIRED does not attempt this branch at all
-    ...
-if grant is None:
-    grant = await self.mcp_grants_dao.fetch_grant(
-        project_id=scope.project_id, endpoint_id=ref.endpoint_id, user_id=None,
-    )
-if grant is None:
-    raise SecretNotFoundError(mode=mode, missing=..., target=f"endpoint:{ref.endpoint_id}")
-if not grant.flags.is_valid:
-    raise SecretInvalidError(target=f"endpoint:{ref.endpoint_id}")
-secret = await self.vault_service.get_secret_by_id(grant.secret_id, project_id=scope.project_id)
-if secret is None:
-    # a dangling secret_id despite the FK — the constraint prevents this at
-    # steady state, but a resolver must not trust an invariant it cannot see
-    raise SecretInvalidError(target=f"endpoint:{ref.endpoint_id}", detail="secret missing")
-return ResolvedSecret(
-    secret=secret, owner=SecretOwner(kind=..., user_id=...), origin=SecretOrigin.VAULT,
-)
-```
-
-The pseudocode above is illustrative of the branch order, not a literal transcription —
-write the full mode table (§ below) explicitly rather than the abbreviated `if` chain
-shown. `SecretInvalidError` (grant exists but `is_valid` is `False`) is a different
-failure from `SecretNotFoundError` (no grant row at all) — D18's distinction, and the
-one the boundary needs to build the right connect affordance later. Do not collapse them
-into one exception.
-
 ## The mode table, written out in full (do not abbreviate in code)
 
 For **every** ref arm, the same three-way branch on `mode` (`secrets.md`, `entities.md`
@@ -293,19 +261,15 @@ For **every** ref arm, the same three-way branch on `mode` (`secrets.md`, `entit
 | `USER_REQUIRED` | look up `(project, scope.user_id)` only; **never** fall back to the project's | `SecretNotFoundError(mode=USER_REQUIRED, missing=USER, target=...)` |
 | `USER_OPTIONAL` | look up `(project, scope.user_id)`; if absent, look up the project's | `SecretNotFoundError(mode=USER_OPTIONAL, missing=USER, target=...)` — names the **narrower** owner even though the project lookup was also tried |
 
-For `BoundSecretRef` and `ProviderKeyRef` in this scope there is no `(project, user)`
+For `BoundSecretRef` and `ProviderKeyRef` there is no `(project, user)`
 lookup to perform yet — no owner column exists on a bound-secret or provider-key lookup
-until user-owned secrets ship (`secrets.md`). So for these two ref arms all three modes
+until user-owned secrets ship (`../out-of-scope.md`). So for both ref arms all three modes
 currently degrade to the same project-only lookup **behaviorally**, but the branch must
 still be written for all three modes explicitly (not collapsed into a single code path)
 so the day a user-owned vault row exists, only the per-arm lookup changes and the mode
 dispatch does not move. This is D10's entire point, applied at the one seam that will
 actually change: write the `if mode == SecretMode.USER_REQUIRED: ...` branches now
 even though today they read from a table with no user-owned rows.
-
-For `GrantRef`, the owner axis is real today (`McpGrantDBA.user_id` is nullable and
-populated from the first migration, §2.2) — this is the one ref arm where the three modes
-already produce different observable behavior in wave 1.
 
 ## Contracts this package must honour
 
@@ -323,21 +287,20 @@ already produce different observable behavior in wave 1.
   message for "the project has no key." Getting this backwards silently degrades the UX
   without failing any test that only checks "an exception was raised."
 - **`builtin`-namespace MCP targets never call `resolve()`.** If a future caller passes a
-  `GrantRef` for a builtin endpoint, that is a caller bug (§4.4, D27) — `resolve()` has no
-  way to detect this from the ref alone (a `GrantRef` only carries `endpoint_id`) and is
-  not expected to; the namespace check is the caller's responsibility (WP9's service),
-  not this package's.
-- **Constructor takes `vault_service` and `mcp_grants_dao` by keyword**, matching the
-  entrypoint wiring in `entities.md` §9: `SecretsResolver(vault_service=vault_service,
-  mcp_grants_dao=mcp_grants_dao)`. This exact call is the only place this constructor's
-  shape is written down in the design; treat it as authoritative.
+  `BoundSecretRef` for a builtin (brokered) endpoint, that is a caller bug (§4.4, D27) —
+  `resolve()` has no endpoint-namespace context in any ref arm and is not expected to
+  detect this; the namespace check is the caller's responsibility (WP9's service), not
+  this package's.
+- **Constructor takes `vault_service` by keyword**, matching the
+  entrypoint wiring in `entities.md` §9: `SecretsResolver(vault_service=vault_service)`.
+  This exact call is the only place this constructor's shape is written down in the
+  design; treat it as authoritative.
 
 ## Tests
 
 **Unit (no services running, run now).** This is the point of the spec's framing —
-`resolve()` is pure orchestration over two ports, both trivially mockable, so every case
-below runs with a dict-backed mock `VaultService` and a dict-backed mock
-`McpGrantsDAOInterface`, no Postgres, no encryption key:
+`resolve()` is pure orchestration over one port, trivially mockable, so every case
+below runs with a dict-backed mock `VaultService`, no Postgres, no encryption key:
 
 `api/oss/tests/pytest/unit/gateways/test_gateways_resolution.py`
 
@@ -352,40 +315,18 @@ below runs with a dict-backed mock `VaultService` and a dict-backed mock
   one (priority order).
 - `ProviderKeyRef`, no match of either kind → `SecretNotFoundError` with
   `missing == PROJECT`.
-- `GrantRef`, `mode=PROJECT_ONLY`, only a `user_id=None` grant exists → resolves it with
-  `owner.kind == PROJECT`.
-- `GrantRef`, `mode=PROJECT_ONLY`, only a `user_id=<scope.user_id>` grant exists (no
-  project grant) → `SecretNotFoundError` — **must not** fall through to the user's
-  grant; this is the test that catches a `PROJECT_ONLY` implementation that accidentally
-  behaves like `USER_OPTIONAL`.
-- `GrantRef`, `mode=USER_REQUIRED`, only a project grant exists (no user grant) →
-  `SecretNotFoundError` with `missing == USER` — **must not** fall back to the
-  project's, the single most important assertion in this suite.
-- `GrantRef`, `mode=USER_REQUIRED`, a user grant exists → resolves it, `owner.kind ==
-  USER`, `owner.user_id == scope.user_id`.
-- `GrantRef`, `mode=USER_OPTIONAL`, both a user grant and a project grant exist →
-  resolves the **user's**, never the project's.
-- `GrantRef`, `mode=USER_OPTIONAL`, only a project grant exists → resolves it,
-  `owner.kind == PROJECT`.
-- `GrantRef`, `mode=USER_OPTIONAL`, neither exists → `SecretNotFoundError` with
-  `missing == USER` (the narrower owner, per the mode table above — not `PROJECT`, even
-  though the project lookup was also attempted).
-- `GrantRef`, a grant exists with `flags.is_valid == False` → `SecretInvalidError`,
-  regardless of mode, **before** any vault lookup is attempted (assert the mock
-  `VaultService.get_secret_by_id` was never called in this case — the invalid-grant
-  check must short-circuit).
-- `GrantRef`, a grant exists and is valid but its `secret_id` resolves to nothing in the
-  vault → `SecretInvalidError` (the dangling-FK defensive case) — not
-  `SecretNotFoundError`, since a grant genuinely exists.
+- `BoundSecretRef` at each of the three `SecretMode` values, secret exists → resolves it
+  with `owner.kind == PROJECT` in every case (no ref arm has a live per-user secret in
+  this scope, §"mode table" above) — the test that catches a mode dispatch that was
+  collapsed into a single code path instead of written out per §"mode table".
 - Every `SecretNotFoundError` raised across the cases above carries a `target` string
   that is non-empty and reproducible from the input `ref` (assert the format is stable,
   not just present).
 
-**Integration:** none required for this package specifically — `VaultService` and
-`McpGrantsDAOInterface` are both fully mock in the unit suite above, and there is no
-direct database or Redis touch anywhere in `resolution.py`. If a reviewer wants one
-end-to-end sanity check against a real `VaultService` + Postgres-backed grants DAO, it
-belongs in a cross-package integration suite once WP1's DAO exists, not in this package's
+**Integration:** none required for this package specifically — `VaultService` is fully
+mock in the unit suite above, and there is no direct database or Redis touch anywhere in
+`resolution.py`. If a reviewer wants one end-to-end sanity check against a real
+`VaultService`, it belongs in a cross-package integration suite, not in this package's
 own test file.
 
 ## `api/entrypoints/routers.py` diff (apply at the M1 merge)
@@ -393,13 +334,10 @@ own test file.
 ```python
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 
-secret_resolver = SecretsResolver(
-    vault_service=vault_service, mcp_grants_dao=mcp_grants_dao,
-)
+secret_resolver = SecretsResolver(vault_service=vault_service)
 ```
 
-(`entities.md` §9; depends on WP1's `mcp_grants_dao` construction landing in the same
-merge — order WP1's DAO lines before this one.)
+(`entities.md` §9 wiring block.)
 
 ## Checkpoint
 
@@ -412,17 +350,19 @@ no path silently returns no secret."*
 WP2 is done when: every case in the Tests section above passes; grep over
 `resolution.py` confirms every `return` statement either returns a `ResolvedSecret`
 or is unreachable, and every early-exit path is a `raise`; and a `USER_REQUIRED` lookup
-with only a project-owned secret present raises rather than resolving, on both
-`GrantRef` (has real behavior today) and by code-path inspection on the other two arms
-(behaviorally inert today, but present).
+with only a project-owned secret present raises rather than resolving, verified by
+code-path inspection on both ref arms (behaviorally inert today, but present, since
+neither arm has a live per-user secret in this scope).
 
 ## Out of scope
 
 - `core/gateways/policy/service.py` (`GatewayPolicyService.authorize`, `.record`) — WP3.
-- `McpGrantsDAO`'s implementation — WP1; WP2 only calls the interface.
-- The OAuth client, token refresh, and anything that writes a grant row — WP17.
+- The OAuth client and token refresh that mint the `oauth_grant` secret an MCP endpoint's
+  `secret_id` eventually points at — WP17.
 - `VaultService` itself and the two new secret kinds — WP16 adds the kinds; `services.py`
   is pre-existing and not touched.
+- A third `SecretRef` arm narrowing resolution to a per-user row — removed from scope,
+  see `../out-of-scope.md`.
 
 ## Missing from the design, needs a ruling
 
@@ -434,10 +374,3 @@ with only a project-owned secret present raises rather than resolving, on both
   it is not written down anywhere as a deliberate choice, and a future admin UI that lets
   a project hold two `provider_key` secrets for one provider would need this resolved
   properly rather than inherited by accident.
-- **Whether `resolve()` should validate that a `GrantRef`'s `endpoint_id` actually names
-  an MCP endpoint with `auth_mode == GatewayAuthScheme.OAUTH`.** Nothing in `entities.md`
-  §7.2 asks for this check, and `resolve()` has no endpoint DAO dependency to perform it
-  with (its constructor takes only `vault_service` and `mcp_grants_dao` — no
-  `McpEndpointsDAOInterface`). Treated here as intentionally the caller's (WP9's)
-  responsibility, consistent with the constructor signature `entities.md` §9 gives; flagged
-  in case that omission was accidental rather than deliberate.

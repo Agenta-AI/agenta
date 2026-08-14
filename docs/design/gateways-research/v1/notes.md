@@ -21,7 +21,7 @@ missing. **Which stored secret we then use** is a different lookup. The first wa
 question.
 
 The correction matters beyond the one point: it is why `secrets.md` treats attribution and
-secret ownership as independent, and why user-level credentials need no caller-side
+secret ownership as independent, and why user-level secrets need no caller-side
 change.
 
 ### Dual-mode adoption was wrong
@@ -94,11 +94,36 @@ The resolution is that no static kind is needed *in the current scope*, because 
 Agenta's own gateway and OAuth-protected servers. It returns when a third-party server
 authenticating with a static token does.
 
-### The inbound secret was confused with the upstream secret
+### An empty allowlist was the default, which made refusal the default
 
-An early draft treated the secret authenticating a caller *into* the gateway as a thing
-needing a vault kind. It is not a secret at all — by the vocabulary the tree already uses, it is
-a *secret*, Agenta's own auth. It is minted, ephemeral and never stored (D13).
+The model allowlist was a plain list defaulting to empty, and an empty list refused every
+call. The reasoning was fail-closed, and the effect was that an endpoint created without one
+was dead on arrival — the dangerous state reachable by forgetting a field rather than by
+writing one.
+
+The resolution is a filter whose lists are absent by default: `None` constrains nothing,
+`[]` refuses everything, and the two are different statements. Governance is what someone
+wrote, never what someone omitted. The same shape then covered the MCP tool policy, which
+had the opposite default and a mode enum to express it.
+
+### Three escape hatches were collapsed to one, and one of the three was needed
+
+The endpoint document carried `route.headers`, `config.extra_headers` and a top-level
+`extras`. The first two were the same thing: both adapters merged them into one outbound
+dict, so the distinction was editorial. The third was read by nothing.
+
+Collapsing all three was right for two of them and wrong for the third. What the top-level
+bag had been standing in for is real — a Vertex call needs `vertex_project`, which is
+addressing, is not secret material, and has no named field. Removing the bag exposed that
+the only surviving home for such a value was inside the vault, beside the service-account
+key, which is exactly the secret-versus-route conflation the design rejects elsewhere. It
+came back as `route.extras`, in the half of the document that means addressing.
+
+### The inbound credentials were confused with the upstream secret
+
+An early draft treated the credentials authenticating a caller *into* the gateway as a thing
+needing a vault kind. They are not a secret at all — by the vocabulary the tree already uses,
+they are *credentials*, Agenta's own auth. They are minted, ephemeral and never stored (D13).
 
 The mechanism already existed on both ends and neither was found before proposing a new one: the
 access router already re-mints short-lived signed scope-carrying tokens rather than echoing an

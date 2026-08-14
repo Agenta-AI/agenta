@@ -48,10 +48,10 @@ waits. It is small — declarations only — and it is the reason nothing waits 
         need `handle_gateway_exceptions()` and they are siblings in the dependency graph, so no
         one of them could own it.
       - **R2** — the resolver port gains `available_provider_keys(*, scope) -> Set[str]`;
-        `LlmGatewayService`'s constructor is **unchanged**. Existence of a secret is a
+        `LLMGatewayService`'s constructor is **unchanged**. Existence of a secret is a
         secret-layer question, and a vault dependency on the service would give it two
         secret seams.
-      - **R3** — `GET /v1/models` is backed by `LlmGatewayService.list_models(*, scope,
+      - **R3** — `GET /v1/models` is backed by `LLMGatewayService.list_models(*, scope,
         namespace, name) -> List[str]`, per endpoint, answering from the allowlist. No new DTO.
       - **R4** — `GatewayPolicyService.record()` ships as a no-op returning `None` that never
         raises. It is WP3's file, not a seed file; what the seed freezes is the call, so wave 2
