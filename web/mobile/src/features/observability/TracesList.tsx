@@ -1,5 +1,7 @@
 import {useObservability} from "@agenta/observability"
+import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {ObservabilityList, TraceRow} from "@agenta/observability-ui"
+import {useSetAtom} from "jotai"
 
 import {
     ObservabilityEmpty,
@@ -16,6 +18,7 @@ import {
  * the same time.
  */
 export const TracesList = () => {
+    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const {
         traces,
         isLoading,
@@ -36,7 +39,28 @@ export const TracesList = () => {
             items={traces}
             keyOf={(span, index) => span.span_id ?? String(index)}
             renderItem={(span) => (
-                <div className="border-0 border-b border-solid border-border px-4 py-3">
+                // The phone list had no way into a trace at all; this is the same drawer the
+                // table opens, so both widths reach the same detail view.
+                <div
+                    role="button"
+                    tabIndex={0}
+                    className="border-0 border-b border-solid border-border px-4 py-3 cursor-pointer"
+                    onClick={() =>
+                        openTraceDrawer({
+                            traceId: span.trace_id || span.span_id || "",
+                            activeSpanId: span.span_id ?? null,
+                        })
+                    }
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault()
+                            openTraceDrawer({
+                                traceId: span.trace_id || span.span_id || "",
+                                activeSpanId: span.span_id ?? null,
+                            })
+                        }
+                    }}
+                >
                     <TraceRow span={span} />
                 </div>
             )}
