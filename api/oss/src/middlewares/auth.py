@@ -103,6 +103,10 @@ _PUBLIC_ENDPOINTS = (
     "/api/triggers/composio/events/",
     "/preview/triggers/composio/events/",
     "/api/preview/triggers/composio/events/",
+    # GATEWAYS — the MCP OAuth client identity document, fetched by an authorization
+    # server with no auth token (specs-wp20.md)
+    "/gateways/mcps/oauth/client-metadata.json",
+    "/api/gateways/mcps/oauth/client-metadata.json",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
