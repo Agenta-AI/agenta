@@ -89,6 +89,127 @@ async def test_discover_raises_when_every_well_known_url_404s():
         await client.discover(server_url="https://mcp.acme.io/")
 
 
+def _mock_hidden_prm_handler():
+    """PRM lives only at `/secret/prm`, named by the 401's `WWW-Authenticate` header.
+
+    Every well-known path 404s. A well-known-only client cannot discover this server;
+    that is the OD21 gap this handler exists to prove.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/" and "Authorization" not in request.headers:
+            return httpx.Response(
+                401,
+                headers={
+                    "WWW-Authenticate": (
+                        'Bearer resource_metadata="https://mcp.acme.io/secret/prm"'
+                    )
+                },
+            )
+        if path == "/secret/prm":
+            return httpx.Response(200, json=_PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
+        return httpx.Response(404)
+
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_discover_reads_resource_metadata_from_the_401_www_authenticate_header():
+    """The gap OD21 closes: PRM at an unguessable path, found only via the 401 header."""
+    client = MCPOAuthClient(transport=httpx.MockTransport(_mock_hidden_prm_handler()))
+
+    discovery = await client.discover(server_url="https://mcp.acme.io/")
+
+    assert discovery.resource == "https://mcp.acme.io/"
+    assert discovery.authorization_server == "https://auth.acme.io/"
+
+
+@pytest.mark.asyncio
+async def test_discover_falls_back_to_well_known_when_401_has_no_www_authenticate():
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/" and "Authorization" not in request.headers:
+            return httpx.Response(401)
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, json=_PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
+        return httpx.Response(404)
+
+    client = MCPOAuthClient(transport=httpx.MockTransport(handler))
+
+    discovery = await client.discover(server_url="https://mcp.acme.io/")
+
+    assert discovery.resource == "https://mcp.acme.io/"
+
+
+@pytest.mark.asyncio
+async def test_discover_falls_back_to_well_known_when_header_has_no_resource_metadata():
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/" and "Authorization" not in request.headers:
+            return httpx.Response(401, headers={"WWW-Authenticate": "Bearer"})
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, json=_PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
+        return httpx.Response(404)
+
+    client = MCPOAuthClient(transport=httpx.MockTransport(handler))
+
+    discovery = await client.discover(server_url="https://mcp.acme.io/")
+
+    assert discovery.resource == "https://mcp.acme.io/"
+
+
+@pytest.mark.asyncio
+async def test_discover_falls_back_to_well_known_when_header_url_404s():
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/" and "Authorization" not in request.headers:
+            return httpx.Response(
+                401,
+                headers={
+                    "WWW-Authenticate": 'Bearer resource_metadata="https://mcp.acme.io/gone"'
+                },
+            )
+        if path == "/gone":
+            return httpx.Response(404)
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, json=_PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
+        return httpx.Response(404)
+
+    client = MCPOAuthClient(transport=httpx.MockTransport(handler))
+
+    discovery = await client.discover(server_url="https://mcp.acme.io/")
+
+    assert discovery.resource == "https://mcp.acme.io/"
+
+
+@pytest.mark.asyncio
+async def test_discover_raises_a_discovery_error_not_a_registration_error_when_header_url_404s_and_no_fallback():
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/" and "Authorization" not in request.headers:
+            return httpx.Response(
+                401,
+                headers={
+                    "WWW-Authenticate": 'Bearer resource_metadata="https://mcp.acme.io/gone"'
+                },
+            )
+        return httpx.Response(404)
+
+    client = MCPOAuthClient(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPOAuthDiscoveryError):
+        await client.discover(server_url="https://mcp.acme.io/")
+
+
 @pytest.mark.asyncio
 async def test_register_posts_metadata_and_returns_client_info():
     client = MCPOAuthClient(transport=httpx.MockTransport(_mock_as_handler()))

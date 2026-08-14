@@ -158,11 +158,16 @@ class MCPOAuthConnectService:
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
         """Unauthenticated probe -> protected-resource metadata -> authorization-server
-        metadata. Feeds MCPEndpointData.oauth (resource, authorization_server,
-        scopes_offered) and the scope checklist WP18's consent screen renders. No
-        secret involved — this is discovery, callable before there is anything to
-        connect (entities.md §2.3: "fetched at configuration time with no secret at
-        all")."""
+        metadata. The probe's own response drives where protected-resource metadata is
+        read from: a 401 whose WWW-Authenticate header carries `resource_metadata`
+        (RFC 9728) names it directly; only when there is no 401, no header, or no
+        `resource_metadata` parameter does this fall back to the well-known URIs
+        (OD21 — matches mcp.client.auth.oauth2.OAuthClientProvider's own ordering,
+        read for ordering only, not called into). Feeds MCPEndpointData.oauth
+        (resource, authorization_server, scopes_offered) and the scope checklist
+        WP18's consent screen renders. No secret involved — this is discovery,
+        callable before there is anything to connect (entities.md §2.3: "fetched at
+        configuration time with no secret at all")."""
 
     async def begin(
         self, *, project_id: UUID, user_id: UUID, server_url: str, scopes: List[str]
@@ -313,7 +318,13 @@ backing a real `VaultService` for the storage-adapter tests, matching
   `test_oauth_state_identity.py`'s existing precedent for the sibling domain.
 - `MCPOAuthClient.discover()`: a mock AS answers protected-resource metadata then
   authorization-server metadata; the parsed result carries `authorization_server` and
-  `scopes_supported`; a 404 at every well-known URL raises a typed discovery error.
+  `scopes_supported`; a 404 at every well-known URL raises a typed discovery error; a
+  server whose protected-resource metadata lives only at an unguessable path, named by a
+  401's `WWW-Authenticate: resource_metadata=...` header (RFC 9728), is discovered via that
+  header — the case OD21 closed, verified to fail against the well-known-only ordering
+  before the fix and pass after; a 401 with no header, a header with no
+  `resource_metadata`, and a header URL that itself 404s all fall back to the well-known
+  chain rather than failing outright.
 - `MCPOAuthClient` registration: no stored `client_info` -> a registration POST fires and the
   response is stored; a stored `client_info` -> no registration POST fires.
 - `MCPOAuthConnectService.begin()`: returns an `authorization_url` containing the fixed
