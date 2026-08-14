@@ -1,12 +1,17 @@
 """
 worker_streams - list-parameterized entrypoint hosting the stream consumer
-loops (records, events, spans) in one process.
+loops (records, events, spans, and — EE only — measurements, debits) in one
+process.
 
-Reads AGENTA_WORKER_STREAMS (subset of {records, events, spans}); empty or
-unset selects all three. Each selected loop keeps its own stream name,
-consumer group, and StreamConsumer subclass unchanged (see
+Reads AGENTA_WORKER_STREAMS (subset of ALL_STREAMS); empty or unset selects
+every stream for the running edition. Each selected loop keeps its own stream
+name, consumer group, and StreamConsumer subclass unchanged (see
 oss/src/tasks/asyncio/shared/consumer.py) — this entrypoint only decides which
 loops share this process, via asyncio.gather.
+
+`measurements`/`debits` are wallet streams (EE only): they are omitted from
+ALL_STREAMS entirely in an OSS build, so an unset AGENTA_WORKER_STREAMS never
+tries to build a worker that needs ee.* imports.
 
 Replaces the removed single-loop stream entrypoints; this is now the sole
 stream-consumer entrypoint.
@@ -49,10 +54,23 @@ from oss.src.utils.logging import get_module_logger
 # Guard EE imports so an OSS build needn't import the ee.* package.
 if is_ee():
     from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
+    from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
+    from ee.src.core.wallets.runtime import get_wallet_settlement_port
+    from ee.src.core.wallets.streaming import RedisDebitPublisher
+    from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
+    from ee.src.dbs.postgres.measurements.organization import (
+        ProjectOrganizationResolver,
+    )
+    from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
+    from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 
 log = get_module_logger(__name__)
 
-ALL_STREAMS = ("records", "events", "spans")
+# measurements/debits are wallet (EE-only) streams — excluded from ALL_STREAMS in an
+# OSS build so the default (unset AGENTA_WORKER_STREAMS) selection never needs ee.*.
+ALL_STREAMS = ("records", "events", "spans") + (
+    ("measurements", "debits") if is_ee() else ()
+)
 
 # Bound the stream so acked entries are trimmed; without this it grows unbounded.
 MAXLEN_QUEUES_WEBHOOKS = 100_000
@@ -133,6 +151,29 @@ async def _build_events_worker(redis_client: Redis) -> StreamConsumer:
     )
 
 
+async def _build_measurements_worker(redis_client: Redis) -> StreamConsumer:
+    return MeasurementWorker(
+        measurements_dao=MeasurementsDAO(),
+        organization_resolver=ProjectOrganizationResolver(),
+        debit_publisher=RedisDebitPublisher(),
+        redis_client=redis_client,
+        stream_name=STREAM_MEASUREMENTS,
+        consumer_group="worker-measurements",
+    )
+
+
+async def _build_debits_worker(redis_client: Redis) -> StreamConsumer:
+    # Seeded runtime factory (WP-1-00): `get_wallet_settlement_port()` and
+    # `DebitWorker.process_batch` are unimplemented until WP-1-01/WP-1-03 land.
+    # This wiring does not change when they do.
+    return DebitWorker(
+        settlement_port=get_wallet_settlement_port(),
+        redis_client=redis_client,
+        stream_name=STREAM_DEBITS,
+        consumer_group="worker-debits",
+    )
+
+
 async def main_async() -> int:
     try:
         streams = _selected_streams()
@@ -156,6 +197,9 @@ async def main_async() -> int:
             "records": _build_records_worker,
             "events": _build_events_worker,
         }
+        if is_ee():
+            builders["measurements"] = _build_measurements_worker
+            builders["debits"] = _build_debits_worker
 
         consumers: List[StreamConsumer] = [
             await builders[name](redis_client) for name in streams
