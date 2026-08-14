@@ -20,8 +20,10 @@ import {
 } from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 
+import GatewayConnectToolWidget from "./GatewayConnectToolWidget"
 import type {ClientToolHandlerProps} from "./types"
 import {settledFailureChip, useConnectFlow, type ConnectOutput} from "./useConnectFlow"
+import {parseGatewayTarget} from "./useGatewayConnectFlow"
 
 const {Text} = Typography
 
@@ -34,6 +36,19 @@ const {Text} = Typography
 const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 
 const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
+    // Gateway-target path (WP26): `meta.input.target` present means this call asks for a
+    // gateway connection, not an external integration. Checked before any hook runs — the
+    // presence of `target` is fixed for a given call, so each mounted instance consistently
+    // takes one branch or the other across its lifetime.
+    const gatewayTarget = parseGatewayTarget(meta.input)
+    if (gatewayTarget) {
+        return <GatewayConnectToolWidget target={gatewayTarget} meta={meta} settle={settle} />
+    }
+
+    return <IntegrationConnectToolWidget meta={meta} settle={settle} />
+}
+
+const IntegrationConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     const {
         label,
         phase,
