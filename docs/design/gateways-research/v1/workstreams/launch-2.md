@@ -42,8 +42,9 @@ have yet — no third category.
 | D34 — no body conversion | **not enforced**; `TranslatedLLMAdapter` still converts | **WP24** |
 | OD16 — which upstreams a relay-only gateway reaches | not verified | **WP24**, first task |
 | `provider_key` `NOT NULL` | unchanged | **WP24**, with the migration |
-| OD14 — the harness matrix | not run | **unowned** — W3 needs it, nobody has it |
-| Mock upstreams echoing headers | not built | **unowned** — W4 |
+| OD14 — the harness matrix | not run | **WP13**, phase 0 |
+| OD17 — which MCP servers a stateless relay reaches | not verified | **WP15**, phase 0 |
+| Mock upstreams echoing headers | not built | **the seed** (W4) |
 
 D31's data-plane rule and D32's pass-through mechanics are built and tested; they are not
 in this table because there is nothing left of them to do.
@@ -229,7 +230,10 @@ providers OD16 cleared are reachable through the front door matching their shape
 **WP15 — MCP servers on the wire.** The runner's `McpServerConfig.connection.url` points at
 a gateway MCP route and its `credentials` array carries ours. The binding this
 needs already exists, which is why this is the smaller of the two runner packages.
-*Depends on:* WP12.
+Carries OD17's verification as its first task — per server, does it answer a plain stateless
+POST, and does it need the SSE leg the gateway refuses — because D8 settled which revision we
+build to and nothing settled what an older upstream does.
+*Depends on:* WP12, and WP13's wire commit.
 
 ---
 

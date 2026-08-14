@@ -296,6 +296,46 @@ is the last thing on a stored row that reads `provider_key` (entities.md §2.4).
 split gone, the column decides nothing and becomes a label — at which point its `NOT NULL`
 should go with it.
 
+### OD17. Which MCP servers a stateless relay actually reaches
+
+The MCP twin of OD16, and open for the same reason: D8 settled which revision we **build**
+to, and nothing settles what happens when an upstream server speaks an **older** one.
+
+The gateway is stateless end to end. `POST` is the only relaying verb; `GET` and `DELETE`
+on both proxy paths are refused rather than proxied, because those are the SSE and
+session-teardown legs the 2026-07-28 revision removed. Routing reads `MCP-Method` and
+`MCP-Name` from headers and never parses the body — which is what lets the tool filter
+refuse a call before the upstream is dialled, and is not something a session-based revision
+would allow.
+
+**The failure is confusing rather than clean, which is the part worth fixing.** A server
+still on a session revision half-works by accident: the data plane strips only
+`X-AG-Credentials`, so a session header a client sent relays through untouched on the POST
+leg, while the `GET` leg that server needs is refused at our door. The caller sees a
+partial success and a refused verb, not "this server speaks a revision we do not".
+
+This is a per-server fact and not an argument. For each server we care about:
+
+1. **Does it answer a plain stateless POST?** No `Mcp-Session-Id` minted, nothing expected
+   back, no initialize handshake required before a `tools/list`.
+2. **Does it accept header-based routing**, or does it require the method to be read from
+   the JSON-RPC body? The latter does not fail us — we relay the body untouched and the
+   server reads it — but it does mean our filter's view and the server's view of what is
+   being called come from two different places, which is worth knowing before we rely on it.
+3. **Does it need the SSE leg for ordinary calls**, or only for server-initiated messages we
+   do not support anyway?
+
+**The expected shape of the answer**, to be confirmed rather than assumed: unauthenticated
+and static-secret servers built against the current revision work as-is, which is wave 1's
+tested set. Servers on the prior revision work for tool calls and fail on anything needing
+the stream. The size of that second group is unknown, and "how much of the ecosystem has
+moved" is exactly the question nobody has checked.
+
+**What resolving it changes.** If the older group is large, the cheap fix is a clear refusal
+— detect the revision and say so — rather than the expensive one, which is carrying session
+state and reintroducing everything D8 declined to build. That trade is the decision this
+open design exists to inform, and it is not one to make mid-implementation.
+
 ### OD2. Is a user's own secret the norm or the exception — parked
 
 User-owned secrets are not implemented, so this waits until they are. The mechanism is designed

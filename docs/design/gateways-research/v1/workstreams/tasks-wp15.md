@@ -3,6 +3,16 @@
 Read [`specs-wp15.md`](specs-wp15.md) first. Branch from WP13's wire commit, not from M4 —
 the two packages share `protocol.ts` and editing it in parallel is how a stack scrambles.
 
+## Phase 0 — the reachable set (OD17)
+
+- [ ] For each server this package targets, read whether it answers a plain stateless `POST`
+      with no session minted, and whether it needs the SSE leg for ordinary calls. Source it
+      from the server's own documentation or a probe, never from assumption.
+- [ ] Record the per-server reading in the package's findings, including the servers that
+      fail and why.
+- [ ] If most targeted servers are still on a session revision, **stop and report** — that is
+      a D8 decision, not a wiring problem.
+
 ## The route
 
 - [ ] Build `connection.url` as `{gateway_base}/gateways/mcps/{namespace}/...` from D30's

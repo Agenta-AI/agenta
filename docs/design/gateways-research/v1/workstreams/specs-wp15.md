@@ -7,6 +7,21 @@ The smaller of the two runner packages, because the binding it needs already exi
 
 ---
 
+## Phase 0 — which servers a stateless relay reaches (OD17)
+
+Before any wiring, answer OD17 for the servers this package is tested against and for the
+handful we expect to route first. Per server, from its own documentation or a probe against
+it: does it answer a plain stateless `POST` with no session minted, and does it need the SSE
+leg for ordinary calls? The gateway refuses `GET` and `DELETE`, so a server that needs the
+stream is not reachable and no amount of wiring here changes that.
+
+**If this phase finds that most servers we care about are still on a session revision, stop
+and report.** The answer is a decision about whether to detect and refuse a revision clearly
+or to carry session state — reversing D8 — and neither belongs in this package.
+
+**Record the answers in `open-designs.md` OD17 and close it**, the way WP24 closes OD16. A
+server that passes is a fact; a server assumed to pass is what this phase exists to prevent.
+
 ## What changes
 
 `McpServerConfig` (`services/runner/src/protocol.ts:314`) already has the right shape:
