@@ -11,6 +11,8 @@ import {CheckCircle, Plugs, Spinner, Warning} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import MCPConnectDialog from "@/oss/components/pages/settings/MCPEndpoints/MCPConnectDialog"
+
 import type {ClientToolHandlerProps} from "./types"
 import {useGatewayConnectFlow, type GatewayTarget} from "./useGatewayConnectFlow"
 
@@ -33,9 +35,12 @@ const GatewayConnectToolWidget = ({
         phase,
         outcome,
         providerDrawerOpen,
+        connectingEndpoint,
         runConnect,
         onProviderSaved,
         onProviderClosed,
+        onMcpConnectSuccess,
+        onMcpDialogClosed,
         decline,
     } = useGatewayConnectFlow(target, meta, settle)
     const connections = useAtomValue(providerConnectionsAtom)
@@ -58,7 +63,16 @@ const GatewayConnectToolWidget = ({
                         connections={connections}
                         onSaved={onProviderSaved}
                     />
-                ) : null}
+                ) : (
+                    // `custom` endpoint only (WP19 repoint) — a `builtin` target has no
+                    // per-instance dialog to mount here; the shared catalog drawer it opens
+                    // instead is mounted once, globally, in Playground.tsx.
+                    <MCPConnectDialog
+                        endpoint={connectingEndpoint}
+                        onClose={onMcpDialogClosed}
+                        onSuccess={onMcpConnectSuccess}
+                    />
+                )}
             </>
         )
     }

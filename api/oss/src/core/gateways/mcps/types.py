@@ -1,6 +1,7 @@
 """MCP plane domain exceptions (entities.md §5)."""
 
 from typing import List, Optional
+from uuid import UUID
 
 from oss.src.core.gateways.dtos import (
     GatewayConnectionRequirement,
@@ -62,13 +63,23 @@ class MCPAuthRequiredError(GatewaysError):
 
 
 class MCPScopeInsufficientError(GatewaysError):
-    """A step-up scope challenge from the upstream (D17; `mcp.md`). Raised by
-    the OAuth checkpoint's client; until then unreachable. Declared now so the
-    interaction path can be typed against it."""
+    """A step-up scope challenge from the upstream (D17; `mcp.md`; WP19). Raised by
+    `MCPGatewayService.relay` when a `custom` OAuth endpoint's upstream answers 403
+    with an RFC 6750 `insufficient_scope` challenge. `endpoint_id` is optional so the
+    boundary can attach a connect affordance without widening every existing caller
+    (specs-wp17.md/wp18.md's own precedent — WP17's tests construct this with only
+    `target`/`scopes`)."""
 
-    def __init__(self, *, target: str, scopes: List[str]):
+    def __init__(
+        self,
+        *,
+        target: str,
+        scopes: List[str],
+        endpoint_id: Optional[UUID] = None,
+    ):
         self.target = target
         self.scopes = scopes
+        self.endpoint_id = endpoint_id
         super().__init__(f"Additional scopes required for {target}: {scopes}")
 
 

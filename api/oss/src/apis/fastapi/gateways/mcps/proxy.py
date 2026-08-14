@@ -35,7 +35,10 @@ from oss.src.apis.fastapi.gateways.mcps.utils import (
     split_builtin_path,
 )
 from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_marker
-from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.dtos import (
+    GatewayConnectAffordance,
+    GatewayEndpointNamespace,
+)
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
@@ -187,12 +190,23 @@ def _map_gateway_exception(e: BaseException) -> Response:
             data={"requirement": e.requirement.model_dump(mode="json")},
         )
     if isinstance(e, MCPScopeInsufficientError):
+        scope_data: Dict[str, Any] = {"target": e.target, "scopes": e.scopes}
+        if e.endpoint_id is not None:
+            # Step-up reuses the missing-connection interaction (D17): the same
+            # connect route WP18 built, re-run with a wider scope choice. `body: {}`
+            # points at step 1 (discover) so the dialog re-offers the current scope
+            # set rather than this refusal guessing which ones matter (WP25: a
+            # marker-only recovery never carries `e.scopes` this far anyway).
+            scope_data["connect"] = GatewayConnectAffordance(
+                endpoint=f"/gateways/mcps/endpoints/{e.endpoint_id}/connect",
+                body={},
+            ).model_dump(mode="json")
         return _protocol_error(
             status_code=status.HTTP_409_CONFLICT,
             code=_JSONRPC_SERVER_ERROR,
             message=e.message,
             cause="scope_insufficient",
-            data={"target": e.target, "scopes": e.scopes},
+            data=scope_data,
         )
     if isinstance(e, GatewayEndpointInactiveError):
         return _protocol_error(

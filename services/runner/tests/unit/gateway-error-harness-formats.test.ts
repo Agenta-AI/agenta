@@ -173,6 +173,16 @@ const MCP_REFUSALS: Refusal[] = [
     message: "Endpoint 'acme-notion' is inactive",
     type: "invalid_request_error",
   },
+  {
+    // WP19: the step-up scope challenge, MCP-only (no LLM-plane equivalent). Raised for the
+    // first time by this package (`core/gateways/mcps/service.py`'s scope-challenge detection);
+    // added here so its marker recovery is pinned same as the four pre-existing MCP causes.
+    name: "insufficient scope (step-up)",
+    status: 409,
+    code: "scope_insufficient",
+    message: "Additional scopes required for custom/acme-notion: ['write']",
+    type: "invalid_request_error",
+  },
 ];
 
 function mcpJsonRpcBody(r: Refusal): string {

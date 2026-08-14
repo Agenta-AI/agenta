@@ -9,17 +9,26 @@
  * `plane: "llm"` opens `ProviderDrawer` — the project's existing "connect a model provider"
  * surface — and settles on its `onSaved` callback, a real, verified signal.
  *
- * `plane: "mcp"` opens the shared, already-mounted tool catalog drawer via
- * `toolCatalogDrawerOpenAtom` and settles OPTIMISTICALLY when it closes, because no per-call
- * completion signal is available from that shared surface (see specs-wp26.md "Settle
- * semantics"). This is safe: the gateway re-checks registration on every call regardless of
- * what this widget believed, so a wrong optimistic "connected" only costs one more
- * refusal-and-request round trip, never a false permission.
+ * `plane: "mcp"` (WP19 repoint): a `target.name` that matches a registered `custom` MCP
+ * endpoint opens `MCPConnectDialog` (the real WP18 surface) and settles on its `onSuccess`
+ * callback — a real, verified signal, same footing as the LLM path. This is also the SAME
+ * dialog a step-up refusal (`scope_insufficient`) points the agent back at: the request
+ * carries no scope list (WP25's marker never recovers one on the MCP plane), so the dialog
+ * re-runs `discover()` and re-offers the current scope checklist rather than this widget
+ * guessing which ones matter (D17). A `target.name` with no matching `custom` endpoint falls
+ * back to the shared tool-catalog drawer via `toolCatalogDrawerOpenAtom` and settles
+ * OPTIMISTICALLY when it closes — unchanged from WP26, and still correct for a `builtin`
+ * (Composio) target, the one case with no per-call completion signal to read (see
+ * specs-wp26.md "Settle semantics"). Safe either way: the gateway re-checks registration and
+ * scope on every call regardless of what this widget believed.
  */
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolCatalogDrawerOpenAtom} from "@agenta/entities/gatewayTool"
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
+
+import type {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
+import {mcpEndpointsAtom} from "@/oss/state/mcpEndpoints/atoms"
 
 import type {ClientToolMeta, SettleClientTool} from "./types"
 
@@ -63,6 +72,16 @@ export const gatewayCancelledOutput = (target: GatewayTarget): Record<string, un
 
 export type GatewayConnectPhase = "idle" | "connecting"
 
+/** The `custom` endpoint a `plane: "mcp"` target names, or `null` when it names a
+ * `builtin` (Composio) server instead — the only two cases D35 registration allows. */
+export const resolveCustomMcpEndpoint = (
+    endpoints: MCPEndpoint[] | undefined,
+    target: GatewayTarget,
+): MCPEndpoint | null => {
+    if (target.plane !== "mcp") return null
+    return endpoints?.find((e) => e.namespace === "custom" && e.slug === target.name) ?? null
+}
+
 export const useGatewayConnectFlow = (
     target: GatewayTarget,
     meta: ClientToolMeta,
@@ -71,10 +90,17 @@ export const useGatewayConnectFlow = (
     const [phase, setPhase] = useState<GatewayConnectPhase>("idle")
     const [outcome, setOutcome] = useState<{connected: boolean; reason?: string} | null>(null)
     const [providerDrawerOpen, setProviderDrawerOpen] = useState(false)
+    const [connectingEndpoint, setConnectingEndpoint] = useState<MCPEndpoint | null>(null)
     const [catalogOpen, setCatalogOpen] = useAtom(toolCatalogDrawerOpenAtom)
     // Whether THIS instance is the one that opened the shared catalog drawer — the atom is
     // shared across every mounted widget, so only the opener may settle on its close.
     const openedCatalogRef = useRef(false)
+
+    const mcpEndpointsQuery = useAtomValue(mcpEndpointsAtom)
+    const customEndpoint = useMemo(
+        () => resolveCustomMcpEndpoint(mcpEndpointsQuery.data, target),
+        [mcpEndpointsQuery.data, target],
+    )
 
     const settledRef = useRef(false)
     const label = gatewayTargetLabel(target)
@@ -90,8 +116,10 @@ export const useGatewayConnectFlow = (
         [settle],
     )
 
-    // MCP: the shared drawer closing (having been opened by THIS instance) is the only signal
-    // this path gets. See module doc for why "closed = done" is optimistic-but-safe.
+    // Fallback only: a `plane: "mcp"` target with no matching `custom` endpoint (a `builtin`
+    // server) still goes through the shared catalog drawer, which has no per-call completion
+    // signal — the shared drawer closing (having been opened by THIS instance) is the only
+    // signal that path gets. See module doc for why "closed = done" is optimistic-but-safe.
     useEffect(() => {
         if (target.plane !== "mcp") return
         if (!openedCatalogRef.current) return
@@ -105,11 +133,13 @@ export const useGatewayConnectFlow = (
         setPhase("connecting")
         if (target.plane === "llm") {
             setProviderDrawerOpen(true)
+        } else if (customEndpoint) {
+            setConnectingEndpoint(customEndpoint)
         } else {
             openedCatalogRef.current = true
             setCatalogOpen(true)
         }
-    }, [meta.settled, target, setCatalogOpen])
+    }, [meta.settled, target, setCatalogOpen, customEndpoint])
 
     const onProviderSaved = useCallback(() => {
         finish(gatewayConnectedOutput(target))
@@ -117,6 +147,24 @@ export const useGatewayConnectFlow = (
 
     const onProviderClosed = useCallback(() => {
         setProviderDrawerOpen(false)
+        if (!settledRef.current && !meta.settled) finish(gatewayCancelledOutput(target))
+    }, [finish, meta.settled, target])
+
+    // Real, verified signal (MCPConnectDialog's own postMessage-checked completion) — not the
+    // catalog drawer's optimistic close, since a `custom` endpoint now has one (WP19 repoint).
+    const onMcpConnectSuccess = useCallback(() => {
+        setConnectingEndpoint(null)
+        finish(gatewayConnectedOutput(target))
+    }, [finish, target])
+
+    // Closed without success: discovery failure and an explicit decline both land here
+    // (MCPConnectDialog renders the discovery error inline first; only closing after either
+    // reaches this handler), and both settle as "cancelled" — the same terminal shape the LLM
+    // path already uses for "opened, then closed with nothing to show for it". An explicit
+    // decline BEFORE opening (see `decline` below) settles as "declined" instead, so the two
+    // stay distinguishable in the settled output.
+    const onMcpDialogClosed = useCallback(() => {
+        setConnectingEndpoint(null)
         if (!settledRef.current && !meta.settled) finish(gatewayCancelledOutput(target))
     }, [finish, meta.settled, target])
 
@@ -130,8 +178,11 @@ export const useGatewayConnectFlow = (
         phase,
         outcome,
         providerDrawerOpen,
+        connectingEndpoint,
         runConnect,
         onProviderSaved,
+        onMcpConnectSuccess,
+        onMcpDialogClosed,
         onProviderClosed,
         decline,
     }

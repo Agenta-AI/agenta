@@ -6,6 +6,7 @@ reachable yet, and `ComposioMCPAdapter` has no owning package in this wave.
 """
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 from uuid import UUID
@@ -42,6 +43,7 @@ from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPEndpointNotFoundError,
+    MCPScopeInsufficientError,
     MCPToolNotAllowedError,
     MCPUpstreamError,
 )
@@ -99,6 +101,26 @@ class _ResolvedTarget:
     provider: Optional[str] = None
     integration: Optional[str] = None
     connection: Optional[Connection] = None
+
+
+_INSUFFICIENT_SCOPE_RE = re.compile(
+    r"""\berror\s*=\s*"insufficient_scope"|\berror\s*=\s*insufficient_scope\b"""
+)
+_SCOPE_PARAM_RE = re.compile(r'\bscope\s*=\s*"([^"]*)"')
+
+
+def _parse_scope_challenge(headers: Dict[str, str]) -> Optional[List[str]]:
+    """RFC 6750 `WWW-Authenticate: Bearer error="insufficient_scope", scope="a b"` —
+    the step-up challenge (D17, WP19). `None` when the response isn't one; `[]` when
+    it is but the upstream omitted `scope` (WP18's dialog re-discovers the offered set
+    either way, so a missing list degrades to "reopen the checklist", not a failure)."""
+    header = next(
+        (v for k, v in headers.items() if k.lower() == "www-authenticate"), None
+    )
+    if not header or not _INSUFFICIENT_SCOPE_RE.search(header):
+        return None
+    match = _SCOPE_PARAM_RE.search(header)
+    return match.group(1).split() if match else []
 
 
 def _target_path(
@@ -410,6 +432,35 @@ class MCPGatewayService:
                 outcome=GatewayOutcome(status_code=exc.status_code),
             )
             raise
+
+        # 5b. Step-up (D17, WP19): a `custom` OAuth target's upstream answering 403 with
+        # an RFC 6750 `insufficient_scope` challenge raises an interaction instead of
+        # passing the refusal through — same treatment `_resolve_auth` already gives a
+        # missing secret, one step later (after dial, since the challenge is the
+        # upstream's to raise, not ours to predict).
+        if (
+            namespace == GatewayEndpointNamespace.CUSTOM
+            and target.endpoint.auth_mode == MCPAuthScheme.OAUTH
+            and result.status_code == 403
+        ):
+            challenged_scopes = _parse_scope_challenge(result.headers)
+            if challenged_scopes is not None:
+                await self.policy.record(
+                    scope=scope,
+                    target=policy_target,
+                    decision=decision,
+                    outcome=GatewayOutcome(status_code=403),
+                )
+                raise MCPScopeInsufficientError(
+                    target=_target_path(
+                        namespace=namespace,
+                        provider=provider,
+                        integration=integration,
+                        name=name,
+                    ),
+                    scopes=challenged_scopes,
+                    endpoint_id=target.endpoint.id,
+                )
 
         # 6. Record, then — for a list method — filter the response body.
         await self.policy.record(

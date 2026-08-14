@@ -309,6 +309,45 @@ def test_mapped_gateway_exceptions_carry_the_code_marker_except_upstream_error(
         assert message.endswith(marker)
 
 
+def test_scope_insufficient_with_no_endpoint_id_carries_no_connect_affordance(
+    client, mock_service
+):
+    """The pre-WP19 shape (WP17's own seed test constructs it this way) stays valid:
+    `connect` is additive, not required."""
+    mock_service.raise_error = _scope_insufficient()
+
+    response = client.post(
+        "/custom/acme-notion", headers={"MCP-Method": "tools/list"}, content=b"{}"
+    )
+
+    data = response.json()["error"]["data"]
+    assert data["scopes"] == ["write"]
+    assert "connect" not in data
+
+
+def test_scope_insufficient_with_endpoint_id_carries_the_connect_affordance(
+    client, mock_service
+):
+    """WP19: the step-up interaction reuses the missing-connection path (D17) — the
+    same `POST /endpoints/{id}/connect` route WP18 built, re-run with a wider scope
+    choice. `body: {}` points at step 1 (discover), not a guessed scope list — a
+    marker-only recovery never carries `e.scopes` this far (WP25)."""
+    endpoint_id = uuid4()
+    mock_service.raise_error = MCPScopeInsufficientError(
+        target="custom/acme-notion", scopes=["write"], endpoint_id=endpoint_id
+    )
+
+    response = client.post(
+        "/custom/acme-notion", headers={"MCP-Method": "tools/list"}, content=b"{}"
+    )
+
+    data = response.json()["error"]["data"]
+    assert data["connect"] == {
+        "endpoint": f"/gateways/mcps/endpoints/{endpoint_id}/connect",
+        "body": {},
+    }
+
+
 def test_auth_required_carries_the_connect_requirement(client, mock_service):
     mock_service.raise_error = _auth_required()
 

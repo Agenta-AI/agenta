@@ -6,12 +6,15 @@
  */
 import {describe, expect, it} from "vitest"
 
+import type {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
+
 import {
     gatewayCancelledOutput,
     gatewayConnectedOutput,
     gatewayDeclinedOutput,
     gatewayTargetLabel,
     parseGatewayTarget,
+    resolveCustomMcpEndpoint,
 } from "./useGatewayConnectFlow"
 
 describe("parseGatewayTarget", () => {
@@ -82,5 +85,48 @@ describe("settle-output builders", () => {
             target,
             reason: "cancelled",
         })
+    })
+})
+
+describe("resolveCustomMcpEndpoint (WP19 repoint)", () => {
+    const customEndpoint = {
+        id: "ep-1",
+        slug: "acme-notion",
+        namespace: "custom",
+        auth_mode: "oauth",
+        data: {route: {base_url: "https://acme.example/mcp"}},
+    } as unknown as MCPEndpoint
+
+    const builtinEndpoint = {
+        id: "ep-2",
+        slug: "acme-notion",
+        namespace: "builtin",
+        auth_mode: "oauth",
+        data: {route: {base_url: "composio://composio/notion/acme-notion"}},
+    } as unknown as MCPEndpoint
+
+    it("resolves a matching custom endpoint by slug", () => {
+        const target = {plane: "mcp" as const, name: "acme-notion"}
+        expect(resolveCustomMcpEndpoint([customEndpoint], target)).toBe(customEndpoint)
+    })
+
+    it("is null for an llm-plane target regardless of the endpoint list", () => {
+        const target = {plane: "llm" as const, name: "acme-notion"}
+        expect(resolveCustomMcpEndpoint([customEndpoint], target)).toBeNull()
+    })
+
+    it("is null when the only match is a builtin (Composio) endpoint, not custom — falls back to the catalog drawer", () => {
+        const target = {plane: "mcp" as const, name: "acme-notion"}
+        expect(resolveCustomMcpEndpoint([builtinEndpoint], target)).toBeNull()
+    })
+
+    it("is null when no endpoint matches the target's name at all", () => {
+        const target = {plane: "mcp" as const, name: "unknown-server"}
+        expect(resolveCustomMcpEndpoint([customEndpoint], target)).toBeNull()
+    })
+
+    it("is null when the endpoint list hasn't loaded yet", () => {
+        const target = {plane: "mcp" as const, name: "acme-notion"}
+        expect(resolveCustomMcpEndpoint(undefined, target)).toBeNull()
     })
 })
