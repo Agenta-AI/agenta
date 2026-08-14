@@ -115,6 +115,9 @@ export const accent = {
     link: {light: OLIVE, dark: "#8ccfff"}, // [override] [absorbs] the 6× #58a6ff literal
     linkHover: {light: INK, dark: "#b0deff"}, // [override]
     linkActive: {light: INK_DEEP, dark: "#54b5fa"}, // [override]
+    // A link drawn ON an ink surface (the tooltip overlay), which is dark in BOTH themes — so it
+    // takes the dark link step in both. `link` itself is olive in light and unreadable there.
+    linkOnInk: {light: "#8ccfff", dark: "#8ccfff"},
 } satisfies Record<string, Pair>
 
 /**
@@ -818,6 +821,7 @@ export const antdLight: Record<string, string> = {
     colorLink: l(accent.link),
     colorLinkHover: l(accent.linkHover),
     colorLinkActive: l(accent.linkActive),
+    colorLinkOnInk: l(accent.linkOnInk),
     // info (deep blue)
     colorInfo: l(semantic.info),
     colorInfoText: l(semantic.info),

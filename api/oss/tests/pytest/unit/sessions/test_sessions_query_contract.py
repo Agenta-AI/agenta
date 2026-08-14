@@ -36,7 +36,8 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamQuery,
     SessionStreamQueryFlags,
 )
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.shared.dtos import Windowing
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
@@ -48,7 +49,7 @@ from oss.src.dbs.postgres.shared.utils import apply_windowing
 
 
 def test_nested_only_request_normalizes_by_semantic_role():
-    reference = Reference(id=uuid4())
+    reference = SessionReference(id=uuid4())
     normalized = normalize_session_query_request(
         SessionQueryRequest(
             session=SessionPredicatesRequest(
@@ -85,7 +86,7 @@ def test_nested_only_request_normalizes_by_semantic_role():
 
 
 def test_flat_only_request_remains_valid():
-    reference = Reference(id=uuid4())
+    reference = SessionReference(id=uuid4())
     normalized = normalize_session_query_request(
         SessionQueryRequest(
             search="refund",
@@ -110,8 +111,8 @@ def test_flat_only_request_remains_valid():
 
 
 def test_equivalent_mixed_request_is_accepted_order_insensitively():
-    first = Reference(id=uuid4())
-    second = Reference(id=uuid4())
+    first = SessionReference(id=uuid4())
+    second = SessionReference(id=uuid4())
     normalized = normalize_session_query_request(
         SessionQueryRequest(
             session=SessionPredicatesRequest(
@@ -241,7 +242,7 @@ def test_empty_legacy_references_remain_neutral():
 
 
 def test_empty_legacy_references_do_not_conflict_with_canonical_references():
-    reference = Reference(id=uuid4())
+    reference = SessionReference(id=uuid4())
     normalized = normalize_session_query_request(
         SessionQueryRequest(turn_references=[reference], references=[])
     )
@@ -379,10 +380,14 @@ def test_session_id_exclusion_wins_on_overlap():
 
 
 class _Streams:
-    def __init__(self, rows):
+    def __init__(self, rows, reference_session_ids=()):
         self.rows = rows
         self.query_calls = []
         self.count_calls = []
+        self.reference_session_ids = list(reference_session_ids)
+
+    async def query_session_ids_by_references(self, *, project_id, references, limit):
+        return self.reference_session_ids[:limit]
 
     async def query_streams(self, **kwargs):
         self.query_calls.append(kwargs)
@@ -428,7 +433,7 @@ async def test_page_and_total_share_one_turn_reference_resolution():
     page = await service.query_sessions_page(
         project_id=project_id,
         query=SessionQuery(
-            turn_references=[Reference(id=uuid4())],
+            turn_references=[SessionReference(id=uuid4())],
             session_ids=["session-a"],
             exclude_session_ids=["session-b"],
         ),
@@ -751,7 +756,7 @@ async def test_router_consumes_nested_fields_and_projection_options():
         exclude=SessionExcludeRequest(
             origins=[SessionOrigin.manual], session_ids=["session-b"]
         ),
-        turn_references=[Reference(id=uuid4())],
+        turn_references=[SessionReference(id=uuid4())],
         expand=[SessionExpansion.trigger],
     )
 

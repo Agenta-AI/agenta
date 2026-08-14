@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {useAltKey} from "@agenta/shared/hooks"
 import {PencilSimple, Plus, X} from "@phosphor-icons/react"
 import {Button, Dropdown, Tooltip} from "antd"
 import type {MenuProps} from "antd"
@@ -8,7 +9,9 @@ import {useAtomValue} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {SESSION_SPRING, TAG_VARIANTS} from "../assets/sessionMotion"
+import {useInlineRenameRequest} from "../hooks/useInlineRenameRequest"
 import {useSessionActions} from "../hooks/useSessionActions"
+import {SESSION_SHORTCUT_MAX} from "../hooks/useSessionShortcuts"
 import {type SessionDotStatus, sessionDotStatusAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
 import {type AgentChatSession, sessionFirstUserTextAtomFamily} from "../state/sessions"
@@ -133,6 +136,8 @@ interface SessionTagProps {
     onRename: (id: string, title: string) => void
     /** Right-click actions, from the shared `useSessionActions` set. */
     menu: MenuProps
+    /** This platform's Alt chord prefix, resolved once by the bar (`⌥` on macOS, `Alt+` elsewhere). */
+    altKey: string
 }
 
 /** One session chip: status dot + truncated label (double-click or pencil to rename) + hover
@@ -149,11 +154,13 @@ const SessionTag = memo(function SessionTag({
     onClose,
     onRename,
     menu,
+    altKey,
 }: SessionTagProps) {
     const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
     const label = session.title || text || `Chat ${index + 1}`
     const tabRef = useRef<HTMLDivElement>(null)
     const labelRef = useRef<SessionTabLabelHandle>(null)
+    useInlineRenameRequest(session.id, labelRef, "strip")
     // Hide the hover actions while the inline rename input owns the row.
     const [renaming, setRenaming] = useState(false)
     // Mount the hover actions on hover/focus rather than rendering them behind `opacity-0` — see
@@ -255,6 +262,10 @@ const SessionTag = memo(function SessionTag({
                 <div
                     role="tab"
                     aria-selected={active}
+                    // The digit row jumps to the first nine tabs.
+                    aria-keyshortcuts={
+                        index < SESSION_SHORTCUT_MAX ? `Alt+${index + 1}` : undefined
+                    }
                     tabIndex={0}
                     onClick={handleSelect}
                     onKeyDown={onKeyDown}
@@ -282,6 +293,12 @@ const SessionTag = memo(function SessionTag({
                         label={label}
                         onRename={handleRename}
                         onEditingChange={setRenaming}
+                        // Spells out the truncated name, and the shortcut that reaches this tab.
+                        title={
+                            index < SESSION_SHORTCUT_MAX
+                                ? `${label} (${altKey}${index + 1})`
+                                : label
+                        }
                         className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap"
                         // A mask fades the text into the tag's OWN fill (no ellipsis, no painted
                         // patch, theme-proof). Hover widens the fade to end before the icons, so
@@ -298,7 +315,7 @@ const SessionTag = memo(function SessionTag({
                             // handler and select the session alongside renaming or closing it.
                             onKeyDown={(e) => e.stopPropagation()}
                         >
-                            <Tooltip title="Rename session" mouseEnterDelay={0.5}>
+                            <Tooltip title={`Rename session (${altKey}R)`} mouseEnterDelay={0.5}>
                                 <Button
                                     type="text"
                                     aria-label="Rename session"
@@ -373,6 +390,7 @@ const SessionTagBar = ({
     // Right-click a chip for the same verbs the sessions list offers. Scope IS the owning agent,
     // so the local tab cache and the server stay in step.
     const scope = useChatScopeKey()
+    const altKey = useAltKey()
     const {menuItems, onMenuClick} = useSessionActions()
     const menuFor = useCallback(
         (session: AgentChatSession): MenuProps => {
@@ -382,7 +400,7 @@ const SessionTagBar = ({
                 name: session.title,
                 archived: Boolean(session.archived),
             }
-            return {items: menuItems(target), onClick: onMenuClick(target)}
+            return {items: menuItems(target, {shortcuts: true}), onClick: onMenuClick(target)}
         },
         [menuItems, onMenuClick, scope],
     )
@@ -568,6 +586,7 @@ const SessionTagBar = ({
                                         onClose={onClose}
                                         onRename={onRename}
                                         menu={menuFor(session)}
+                                        altKey={altKey}
                                     />
                                 ))}
                             </AnimatePresence>

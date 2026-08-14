@@ -2,7 +2,7 @@
  * Slash-command types + matching for the chat composer's `/` palette.
  *
  * The composer is generic — a host supplies its own sections (the playground chat gives
- * `/model`, `/harness`, and the agent's tools and skills). Kept out of the plugin file so a host
+ * `/model` and the agent's tools and skills). Kept out of the plugin file so a host
  * can import the types without pulling Lexical in.
  */
 import type {ReactNode} from "react"

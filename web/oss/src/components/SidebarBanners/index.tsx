@@ -24,8 +24,10 @@ const SidebarBanners = () => {
         }
     }
 
+    // box-border is explicit because preflight is off; the app only gets border-box from
+    // antd's `.ant-layout *` reset, which does not reach portalled trees.
     return (
-        <div className="w-[215px] shrink-0">
+        <div className="box-border w-full shrink-0 px-[19px]">
             <SidebarBanner
                 banner={topBanner}
                 onDismiss={topBanner.dismissible ? handleDismiss : undefined}

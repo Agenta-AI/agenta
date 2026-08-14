@@ -1,80 +1,65 @@
-/** The schedule drawer's sectioned create/edit form (one per draft or saved schedule). */
+/** The schedule drawer's create/edit form (one per drawer open). */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-/* Unused while the Deployed option is hidden — restore with the call site below.
 import {
-    appEnvironmentsQueryAtomFamily,
-    environmentsListQueryAtomFamily,
-} from "@agenta/entities/environment"
-*/
-import {
-    describeCron,
     getScheduleMessage,
     parseInputsFields,
     isEntityActive,
+    remapMessageShape,
+    suggestScheduleName,
     triggerApiErrorMessage,
     triggerScheduleDrawerAtom,
     useTriggerSchedule,
     validateCron,
+    cronToBuilder,
     type TriggerScheduleCreate,
     type TriggerScheduleData,
     type TriggerScheduleEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
-import {workflowMolecule, workflowVariantsListDataAtomFamily} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {Input, Spinner} from "@agenta/ui/ui"
-import {CalendarBlank, ChatText, Clock, GitBranch, Tag} from "@phosphor-icons/react"
+import {HeightCollapse} from "@agenta/ui/components"
+import {Input} from "@agenta/ui/ui"
+import {CaretDown, SlidersHorizontal} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
 import {DrawerFooter} from "../../../drawers/shared/DrawerFooter"
-import {
-    createWorkflowRevisionAdapter,
-    type WorkflowRevisionSelectionResult,
-} from "../../../selection"
+import {Labelled} from "../../../drawers/shared/Labelled"
 import {ScheduleBuilderField} from "../ScheduleBuilderField"
+import {AgentField} from "../shared/AgentField"
+import {ScheduleFormSkeleton} from "../shared/FormSkeleton"
 import {normalizeJson} from "../shared/normalizeJson"
-import {RequiredTitle} from "../shared/RequiredTitle"
+import {useShapeChange} from "../shared/useShapeChange"
 import {
-    RunVersionField,
-    buildRunVersionReferences,
-    composeRevisionLabel,
-    extractBoundWorkflowId,
-    isRunVersionBound,
-} from "../shared/RunVersionField"
+    bindingKey,
+    buildTriggerReferences,
+    useBoundAgentShape,
+    useTriggerBinding,
+    type TriggerBinding,
+} from "../shared/useTriggerBinding"
+import {VersionField} from "../shared/VersionField"
 
-import {applicationRevisionAdapter, DEFAULT_CRON, SCHEDULE_EVENT_KEY} from "./constants"
+import {DEFAULT_CRON, SCHEDULE_EVENT_KEY} from "./constants"
 import {MessageComposer} from "./MessageComposer"
-import {RunInPlaygroundButton} from "./RunInPlaygroundButton"
 import {WindowField} from "./WindowField"
 
-// Seed id for a create-mode default-bind. Variant before revision: the value is written
-// back under `application_variant`, so pinning a revision id here would mislabel it.
-function extractDefaultBindId(
-    refs: Record<string, {id?: string | null} | null | undefined> | null | undefined,
-): string | null {
-    return refs?.application_variant?.id ?? refs?.application_revision?.id ?? null
-}
-
 // ---------------------------------------------------------------------------
-// Schedule form
+// Schedule form — a flat field stack: Name, [Agent], Schedule, Message, and an Advanced
+// disclosure holding Version and the active window. The playground already knows the agent, so
+// it omits that field; settings picks one.
 // ---------------------------------------------------------------------------
 
 export function ScheduleForm({
     scheduleId,
     onClose,
-    hidden,
-    onNameChange,
     onSaved,
 }: {
     scheduleId?: string
     onClose: () => void
-    hidden?: boolean
-    onNameChange?: (name: string) => void
-    // Called with the saved schedule's id on success. When provided the drawer stays
-    // open (master-detail); otherwise the form closes the drawer (settings).
+    // Called with the saved schedule's id on success. When provided the drawer stays open;
+    // otherwise the form closes it.
     onSaved?: (savedId: string) => void
 }) {
     const [state] = useAtom(triggerScheduleDrawerAtom)
@@ -89,115 +74,42 @@ export function ScheduleForm({
         create,
         edit,
     } = useTriggerSchedule(scheduleId)
+
+    // A deleted schedule stays viewable but read-only — its config is history, not a draft.
     const isDeleted = Boolean(schedule?.deleted_at)
 
     const [name, setName] = useState("")
     const [cron, setCron] = useState(DEFAULT_CRON)
     const [startTime, setStartTime] = useState<string | null>(null)
     const [endTime, setEndTime] = useState<string | null>(null)
+    // Carried through save, not editable here — active/paused is toggled from the triggers list.
     const [enabled, setEnabled] = useState(true)
-    const [workflowRevId, setWorkflowRevId] = useState<string | null>(null)
-    const [workflowSelection, setWorkflowSelection] =
-        useState<WorkflowRevisionSelectionResult | null>(null)
-    const [workflowLabel, setWorkflowLabel] = useState<string | null>(null)
-    // The bound workflow (app) id from `refs.application`. A stored `application_variant`
-    // pin (the default "runs whatever is deployed variant" bind — see `extractDefaultBindId`)
-    // has no revision id, so `workflowRevId` below holds a VARIANT id — unresolvable by the
-    // revision-keyed selectors. This id is the fallback key that still resolves an app name.
-    const [boundWorkflowId, setBoundWorkflowId] = useState<string | null>(null)
     const [inputsText, setInputsText] = useState("{}")
+    const [advancedOpen, setAdvancedOpen] = useState(false)
+    // Settings picks the agent; the playground and edit mode resolve it (see `resolved`).
+    const [agentWorkflowId, setAgentWorkflowId] = useState<string | null>(null)
+    const [binding, setBinding] = useState<TriggerBinding | null>(null)
 
-    // Run agent version: bind to a specific revision (the picker) or to an
-    // environment (always runs whatever is deployed there).
-    const [bindMode, setBindMode] = useState<"revision" | "environment">("revision")
-    const [environmentSlug, setEnvironmentSlug] = useState<string | null>(null)
-    const [appSlug, setAppSlug] = useState<string | null>(null)
-    /* Unused while the Deployed option is hidden — restore with the call site below.
-    const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
-    const environments = envQuery.data?.environments ?? []
-    */
+    const storedReferences = schedule?.data?.references
+    const resolved = useTriggerBinding({
+        storedReferences: isEdit ? storedReferences : state?.defaultReferences,
+        playgroundEntityId,
+        agentWorkflowId,
+    })
+    // Baseline excludes the agent the user picked, or a rebind would move both sides of the
+    // dirty check together and leave Save disabled.
+    const baselineBinding = useTriggerBinding({
+        storedReferences: isEdit ? storedReferences : state?.defaultReferences,
+        playgroundEntityId,
+    })
+    const activeBinding = binding ?? resolved
 
-    // Resolve the bound revision id to a human label (edit-mode prefill stores only
-    // the id) — app name / variant name · vN. These are sync atoms (null for unknown).
-    const resolvedArtifact = useAtomValue(
-        workflowMolecule.selectors.artifactName(workflowRevId ?? ""),
+    // The bound agent's display name — the drawer title and the Name placeholder both use it.
+    const agentName = useAtomValue(
+        workflowMolecule.selectors.artifactName(
+            activeBinding.workflowId ?? playgroundEntityId ?? "",
+        ),
     )
-    const resolvedVariant = useAtomValue(
-        workflowMolecule.selectors.variantLabel(workflowRevId ?? ""),
-    )
-    const resolvedRevData = useAtomValue(workflowMolecule.selectors.data(workflowRevId ?? ""))
-    // Fallback path for a variant-only pin (`workflowRevId` is a VARIANT id, not a revision
-    // id): the selectors above key off a revision/workflow id and resolve to null, so recover
-    // the app name from `boundWorkflowId` and the variant name from its variants list.
-    const fallbackArtifact = useAtomValue(
-        workflowMolecule.selectors.artifactName(boundWorkflowId ?? ""),
-    )
-    const boundWorkflowVariants = useAtomValue(
-        workflowVariantsListDataAtomFamily(boundWorkflowId ?? ""),
-    )
-    const fallbackVariant = useMemo(() => {
-        const variant = boundWorkflowVariants.find((v) => v.id === workflowRevId)
-        return variant?.name ?? variant?.slug ?? null
-    }, [boundWorkflowVariants, workflowRevId])
-    const resolvedRevisionName = useMemo(() => {
-        if (!workflowRevId) return null
-        return composeRevisionLabel({
-            artifact: resolvedArtifact,
-            fallbackArtifact,
-            variant: resolvedVariant,
-            fallbackVariant,
-            version: resolvedRevData?.version,
-        })
-    }, [
-        workflowRevId,
-        resolvedArtifact,
-        resolvedVariant,
-        resolvedRevData?.version,
-        fallbackArtifact,
-        fallbackVariant,
-    ])
-
-    // In a playground the workflow is already known (the agent), so scope the picker
-    // to that workflow — pick a variant + revision, not an arbitrary workflow. In
-    // settings (no playground) keep the full workflow → variant → revision picker.
-    const playgroundWorkflow = useAtomValue(
-        workflowMolecule.selectors.data(playgroundEntityId ?? ""),
-    )
-    // The agent's app name — the scoped picker's leaf label omits it, so we prepend it.
-    const playgroundAppName = useAtomValue(
-        workflowMolecule.selectors.artifactName(playgroundEntityId ?? ""),
-    )
-    const revisionAdapter = useMemo(() => {
-        if (!playgroundEntityId) return applicationRevisionAdapter
-        return createWorkflowRevisionAdapter({
-            workflowId: playgroundWorkflow?.workflow_id ?? playgroundEntityId,
-            excludeRevisionZero: true,
-            parentLabel: "Variant",
-        })
-    }, [playgroundEntityId, playgroundWorkflow?.workflow_id])
-
-    // Environment options: in a playground, scope to the environments this agent is
-    // actually deployed to (not every project environment); settings lists them all.
-    /* Unused while the Deployed option is hidden — restore with the call site below.
-    const appIdForEnv = playgroundEntityId
-        ? (playgroundWorkflow?.workflow_id ?? playgroundEntityId)
-        : ""
-    const appDeployments = useAtomValue(appEnvironmentsQueryAtomFamily(appIdForEnv))
-    const envOptions = useMemo<{value: string; label: string}[]>(() => {
-        if (!playgroundEntityId) {
-            return environments.map((e) => ({value: e.slug ?? "", label: e.name || e.slug || ""}))
-        }
-        return (appDeployments.data ?? [])
-            .filter((d) => d.deployedRevisionId || d.deployedVariantId)
-            .map((d) => ({
-                value: d.slug ?? "",
-                label:
-                    d.deployedVariantName && d.revision
-                        ? `${d.name} · ${d.deployedVariantName} v${d.revision}`
-                        : (d.name ?? d.slug ?? ""),
-            }))
-    }, [playgroundEntityId, environments, appDeployments.data])
-    */
 
     // Prefill from the freshly-fetched schedule (edit mode). Hydrate once per id: any trigger
     // mutation invalidates this query, and a background refetch must not overwrite the edits
@@ -216,96 +128,37 @@ export function ScheduleForm({
         setStartTime(schedule.data?.start_time ?? null)
         setEndTime(schedule.data?.end_time ?? null)
         setEnabled(isEntityActive(schedule))
-        const refs = schedule.data?.references
-        const envRef = refs?.environment
-        if (envRef) {
-            setBindMode("environment")
-            setEnvironmentSlug(envRef.slug ?? null)
-            setAppSlug(refs?.application?.slug ?? null)
-        } else {
-            setWorkflowRevId(extractBoundWorkflowId(refs))
-            // Label is resolved from the revision id below, not stored as the raw id.
-            setBoundWorkflowId(refs?.application?.id ?? null)
-        }
         setInputsText(JSON.stringify(schedule.data?.inputs_fields ?? {}, null, 2))
+        // The binding is derived from the stored references, never re-picked on open.
     }, [isEdit, schedule, scheduleFetching, scheduleId])
 
-    // Create-mode default-bind: when opened with `defaultReferences` (e.g. from an
-    // agent's config panel), pre-bind the new schedule to that workflow so the user
-    // doesn't have to re-pick it. Seed `workflowRevId` from the variant ref and, when
-    // present, the workflow (app) id via the selection metadata so `handleSubmit`
-    // emits the same `{application, application_variant}` shape a fresh pick would.
-    useEffect(() => {
-        if (isEdit) return
-        const refs = state?.defaultReferences
-        setAppSlug(refs?.application?.slug ?? null)
-        const variantId = extractDefaultBindId(refs)
-        if (!variantId) return
-        const appId = refs?.application?.id ?? null
-        const label = state?.defaultBoundLabel ?? appId ?? variantId
-        setWorkflowRevId(variantId)
-        setWorkflowLabel(label)
-        setBoundWorkflowId(appId)
-        setWorkflowSelection({
-            type: "workflowRevision",
-            id: variantId,
-            label,
-            path: [],
-            metadata: {
-                workflowId: appId ?? "",
-                workflowName: state?.defaultBoundLabel ?? "",
-                variantId,
-                variantName: "",
-                revision: 0,
-            },
-        })
-        // Run once per open; `state` is keyed so the form remounts per drawer open.
-    }, [isEdit])
-
     const cronValidation = useMemo(() => validateCron(cron), [cron])
+    const versionChosen = !!activeBinding.workflowId || !!activeBinding.variantId
 
-    // The binding as persisted — the picker's leaf can't represent every shape the BE accepts.
-    const storedReferences = schedule?.data?.references
-    const versionChosen = isRunVersionBound({
-        bindMode,
-        workflowRevId,
-        environmentSlug,
-        storedReferences,
-    })
-
-    // Save enables only on draft changes vs the starting point (loaded schedule in
-    // edit, defaults in new). Normalized JSON so formatting isn't a change.
+    // Save enables only on draft changes vs the starting point (loaded schedule in edit,
+    // defaults in new). Normalized JSON so formatting isn't a change.
     const baselineSnapshot = useMemo(() => {
         if (isEdit && schedule) {
-            const refs = schedule.data?.references
-            const envRef = refs?.environment
             return JSON.stringify({
                 name: schedule.name ?? "",
                 cron: schedule.data?.schedule ?? DEFAULT_CRON,
                 startTime: schedule.data?.start_time ?? null,
                 endTime: schedule.data?.end_time ?? null,
                 enabled: isEntityActive(schedule),
-                bindMode: envRef ? "environment" : "revision",
-                environmentSlug: envRef?.slug ?? null,
-                workflowRevId: extractBoundWorkflowId(refs),
+                binding: bindingKey(baselineBinding),
                 inputs: normalizeJson(JSON.stringify(schedule.data?.inputs_fields ?? {})),
             })
         }
-        // New mode: the baseline includes the default-bound workflow (set by the
-        // prefill effect) so pre-binding to the agent isn't counted as a change.
-        const refs = state?.defaultReferences
         return JSON.stringify({
             name: "",
             cron: DEFAULT_CRON,
             startTime: null,
             endTime: null,
             enabled: true,
-            bindMode: "revision",
-            environmentSlug: null,
-            workflowRevId: extractDefaultBindId(refs),
+            binding: bindingKey(baselineBinding),
             inputs: normalizeJson("{}"),
         })
-    }, [isEdit, schedule, state?.defaultReferences])
+    }, [isEdit, schedule, baselineBinding])
 
     const isDirty = useMemo(
         () =>
@@ -316,23 +169,62 @@ export function ScheduleForm({
                 startTime,
                 endTime,
                 enabled,
-                bindMode,
-                environmentSlug: environmentSlug ?? null,
-                workflowRevId: workflowRevId ?? null,
+                binding: bindingKey(activeBinding),
                 inputs: normalizeJson(inputsText),
             }),
-        [
-            baselineSnapshot,
-            name,
-            cron,
-            startTime,
-            endTime,
-            enabled,
-            bindMode,
-            environmentSlug,
-            workflowRevId,
-            inputsText,
-        ],
+        [baselineSnapshot, name, cron, startTime, endTime, enabled, activeBinding, inputsText],
+    )
+
+    // What shape do the bound app's inputs take? `executionMode` is the runtime's own split:
+    // "chat" when the app takes a `messages` array, else "completion" (flat named inputs). The
+    // composer writes to `messages` for chat, or the first string input from the schema.
+    // Most specific id the molecule can resolve: the open revision, then the pinned one, then
+    // the variant, then the artifact. Without the artifact fallback a settings-created schedule
+    // reads as a completion app and writes to the wrong input key.
+    const schemaSourceId =
+        playgroundEntityId ??
+        activeBinding.revisionId ??
+        activeBinding.variantId ??
+        activeBinding.workflowId ??
+        ""
+    // The molecule only resolves where an app is open (the playground); from settings it never
+    // does, so fall back to the bound revision's own flags.
+    const boundShape = useBoundAgentShape(activeBinding)
+    const isChatInput =
+        useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat" ||
+        boundShape.isChat
+    const agentInputSchema =
+        useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId)) ??
+        boundShape.inputSchema
+    const primaryInputKey = useMemo(() => {
+        if (isChatInput) return "messages"
+        const ports = extractInputPortsFromSchema(agentInputSchema)
+        return ports.find((p) => p.type === "string")?.key ?? "message"
+    }, [isChatInput, agentInputSchema])
+    const composedMessage = useMemo(
+        () => getScheduleMessage(inputsText, isChatInput, primaryInputKey),
+        [inputsText, isChatInput, primaryInputKey],
+    )
+
+    // The agent resolves after the drawer opens, so a message typed first was written under the
+    // placeholder shape. Move it rather than letting the composer read "" and save the old shape.
+    const takeShapeChange = useShapeChange({isChat: isChatInput, primaryKey: primaryInputKey})
+    useEffect(() => {
+        const previous = takeShapeChange()
+        if (!previous) return
+        setInputsText((current) =>
+            remapMessageShape(current, previous, {
+                isChat: isChatInput,
+                primaryKey: primaryInputKey,
+            }),
+        )
+    }, [takeShapeChange, isChatInput, primaryInputKey])
+
+    // Shown as the placeholder and saved verbatim when the field is left empty, so a schedule
+    // is never nameless — "Mon 09:00 — Bug report".
+    const namePlaceholder = useMemo(
+        () => suggestScheduleName(cronToBuilder(cron).state, agentName),
+        [cron, agentName],
     )
 
     const handleSubmit = useCallback(async () => {
@@ -341,18 +233,8 @@ export function ScheduleForm({
             message.error(cronValidation.error ?? "Invalid cron expression")
             return
         }
-        if (bindMode === "environment" && !environmentSlug) {
-            message.error("Select an environment")
-            return
-        }
-        // Deployed binding resolves via app slug + environment; without the app the reference
-        // is ambiguous (an env can host many apps). Fail loud rather than persist it.
-        if (bindMode === "environment" && !appSlug) {
-            message.error("This schedule isn't linked to an app — use Pinned (a specific revision)")
-            return
-        }
-        if (bindMode === "revision" && !versionChosen) {
-            message.error("Bind a workflow")
+        if (!versionChosen) {
+            message.error("Pick the agent this schedule runs")
             return
         }
         if (startTime && endTime && !dayjs.utc(endTime).isAfter(dayjs.utc(startTime))) {
@@ -365,29 +247,16 @@ export function ScheduleForm({
             message.error(parsedInputs.error)
             return
         }
-        const inputsFields = parsedInputs.value
 
-        // On a fresh pick, send the application family by the picker's ids. The
-        // scoped (playground) picker's leaf is a specific REVISION → bind via
-        // `application_revision`; otherwise it's a variant (latest) →
-        // `application_variant`. Without a re-pick (edit), resend the stored
-        // already-complete references. The BE completes the family either way.
-        const references = buildRunVersionReferences({
-            bindMode,
-            environmentSlug,
-            appSlug,
-            workflowSelection,
-            workflowRevId,
-            fallbackReferences: storedReferences,
-        })
+        const resolvedName = name.trim() || namePlaceholder
 
         const data: TriggerScheduleData = {
             event_key: schedule?.data?.event_key ?? SCHEDULE_EVENT_KEY,
             schedule: cron.trim(),
             start_time: startTime,
             end_time: endTime,
-            inputs_fields: inputsFields,
-            references,
+            inputs_fields: parsedInputs.value,
+            references: buildTriggerReferences(activeBinding, storedReferences),
         }
 
         try {
@@ -396,7 +265,7 @@ export function ScheduleForm({
                 // Full PUT — carry the whole entity, override owned fields.
                 const body: TriggerScheduleEdit = {
                     id: schedule.id as string,
-                    name: name || null,
+                    name: resolvedName,
                     description: schedule.description ?? null,
                     tags: schedule.tags ?? null,
                     meta: schedule.meta ?? null,
@@ -412,7 +281,7 @@ export function ScheduleForm({
                 message.success("Schedule updated")
             } else {
                 const body: TriggerScheduleCreate = {
-                    name: name || null,
+                    name: resolvedName,
                     data,
                     // Honor the Active toggle at creation (otherwise the BE defaults to active).
                     flags: {is_active: enabled},
@@ -426,7 +295,7 @@ export function ScheduleForm({
                 message.success("Schedule created")
             }
             // A newly created schedule dismisses the drawer (it now shows in the triggers list);
-            // an edit keeps the master-detail open on the saved schedule (settings closes).
+            // an edit keeps the drawer open on the saved schedule.
             if (!isEdit) {
                 onClose()
             } else if (onSaved && savedId) {
@@ -438,189 +307,73 @@ export function ScheduleForm({
             message.error(triggerApiErrorMessage(error, "Failed to save schedule"))
         }
     }, [
+        isDeleted,
         cronValidation,
         cron,
         startTime,
         endTime,
-        bindMode,
-        environmentSlug,
-        appSlug,
-        workflowRevId,
-        workflowSelection,
         versionChosen,
+        activeBinding,
+        storedReferences,
         inputsText,
         isEdit,
         schedule,
         name,
+        namePlaceholder,
         enabled,
         edit,
         create,
         onClose,
         onSaved,
-        isDeleted,
     ])
 
-    // Per-section header state: icon tint (complete / warning / default) and a
-    // collapsed summary of what's configured.
-    const cronValid = cronValidation.valid
-    const versionSummary =
-        bindMode === "revision"
-            ? (workflowLabel ?? resolvedRevisionName ?? undefined)
-            : environmentSlug
-              ? `env: ${environmentSlug}`
-              : undefined
-    const windowSet = !!startTime || !!endTime
-    const windowSummary = windowSet
-        ? `${startTime ? startTime.slice(0, 10) : "open"} → ${endTime ? endTime.slice(0, 10) : "open"}`
-        : undefined
-    // What shape do the bound app's inputs take? `executionMode` is the runtime's own
-    // split: "chat" when the app takes a `messages` array (agents carry is_chat, and
-    // chat apps either set it or declare `messages` in their input schema), else
-    // "completion" (flat named inputs). The composer writes to `messages` for chat, or
-    // the first string input from the schema (fallback "message") for completion.
-    const schemaSourceId = playgroundEntityId ?? workflowRevId ?? ""
-    const isChatInput =
-        useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat"
-    const agentInputSchema = useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId))
-    const primaryInputKey = useMemo(() => {
-        if (isChatInput) return "messages"
-        const ports = extractInputPortsFromSchema(agentInputSchema)
-        return ports.find((p) => p.type === "string")?.key ?? "message"
-    }, [isChatInput, agentInputSchema])
-    const composedMessage = useMemo(
-        () => getScheduleMessage(inputsText, isChatInput, primaryInputKey),
-        [inputsText, isChatInput, primaryInputKey],
-    )
-    const messageStatus = composedMessage.trim() ? "complete" : "default"
-    // Create is gated on completeness, not on dirtiness — a schedule pre-bound from an
-    // agent's config panel already matches its baseline (see the subscription form).
-    const canSubmit = !isDeleted && (isEdit ? isDirty : cronValid && versionChosen)
+    // Create is gated on completeness; edit on having changed something.
+    const canSubmit =
+        !isDeleted &&
+        (isEdit ? isDirty : cronValidation.valid && versionChosen && !!composedMessage.trim())
 
     if (isEdit && scheduleLoading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Spinner />
-            </div>
-        )
+        return <ScheduleFormSkeleton showAgent={!playgroundEntityId} />
     }
 
     return (
-        <div
-            className={`flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden${
-                hidden ? " hidden" : ""
-            }`}
-        >
+        <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
             {isDeleted ? (
                 <p className="m-0 bg-colorWarningBg px-6 py-3 text-xs text-colorWarningText">
                     This schedule was deleted. Its saved configuration is read-only.
                 </p>
             ) : null}
             <fieldset disabled={isDeleted} className="contents">
-                <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                    <ConfigAccordionSection
-                        size="compact"
-                        collapsible={false}
-                        icon={<Tag size={15} />}
-                        title="Name"
-                        status={name.trim() ? "complete" : "default"}
-                    >
+                {/* ag-scroll-quiet: no resting scrollbar over the form, thumb on hover/focus,
+                    stable gutter so revealing it never reflows the fields. */}
+                <div className="ag-scroll-quiet flex flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-6 py-5">
+                    <Labelled label="Name">
                         <Input
-                            placeholder="Schedule name"
+                            placeholder={namePlaceholder}
                             value={name}
-                            onChange={(e) => {
-                                setName(e.target.value)
-                                onNameChange?.(e.target.value)
-                            }}
+                            onChange={(e) => setName(e.target.value)}
                         />
-                    </ConfigAccordionSection>
+                    </Labelled>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<Clock size={15} />}
-                        title={<RequiredTitle>When should it run?</RequiredTitle>}
-                        status={cronValid ? "complete" : "warning"}
-                        summary={cronValid ? describeCron(cron) : undefined}
-                        summaryCollapsedOnly
-                    >
+                    {!playgroundEntityId && (
+                        <Labelled label="Agent">
+                            <AgentField
+                                workflowId={activeBinding.workflowId}
+                                onChange={(id) => {
+                                    setAgentWorkflowId(id)
+                                    // A different agent invalidates any pinned revision.
+                                    setBinding(null)
+                                }}
+                                disabled={isMutating}
+                            />
+                        </Labelled>
+                    )}
+
+                    <Labelled label="Schedule">
                         <ScheduleBuilderField value={cron} onChange={setCron} />
-                    </ConfigAccordionSection>
+                    </Labelled>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        defaultOpen={false}
-                        icon={<CalendarBlank size={15} />}
-                        title="Active window"
-                        status={windowSet ? "complete" : "default"}
-                        summary={windowSummary}
-                        summaryCollapsedOnly
-                    >
-                        <WindowField
-                            startTime={startTime}
-                            endTime={endTime}
-                            onChangeStart={setStartTime}
-                            onChangeEnd={setEndTime}
-                        />
-                    </ConfigAccordionSection>
-
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<GitBranch size={15} />}
-                        title={<RequiredTitle>Which version runs?</RequiredTitle>}
-                        status={versionChosen ? "complete" : "warning"}
-                        summary={versionSummary}
-                        summaryCollapsedOnly
-                    >
-                        <RunVersionField
-                            bindMode={bindMode}
-                            onBindModeChange={setBindMode}
-                            revisionAdapter={revisionAdapter}
-                            revisionPlaceholder={
-                                workflowLabel ??
-                                resolvedRevisionName ??
-                                (playgroundEntityId
-                                    ? "Select a variant revision"
-                                    : "Select workflow revision")
-                            }
-                            onRevisionSelect={(selection) => {
-                                setWorkflowRevId(selection.id)
-                                setWorkflowSelection(selection)
-                                const m = selection.metadata
-                                const app = playgroundAppName ?? m.workflowName
-                                const segs: string[] = []
-                                if (app) segs.push(app)
-                                if (m.variantName && m.variantName !== app) segs.push(m.variantName)
-                                let label = segs.join(" / ")
-                                if (m.revision != null)
-                                    label = label ? `${label} · v${m.revision}` : `v${m.revision}`
-                                setWorkflowLabel(label || selection.label)
-                            }}
-                            hideEnvironment
-                            /* Deployed option temporarily hidden — drop `hideEnvironment`
-                               and uncomment to restore.
-                            envOptions={envOptions}
-                            envLoading={
-                                playgroundEntityId ? appDeployments.isLoading : envQuery.isLoading
-                            }
-                            environmentSlug={environmentSlug}
-                            onEnvironmentChange={setEnvironmentSlug}
-                            envNotFound={
-                                playgroundEntityId
-                                    ? "This agent isn't deployed to any environment yet."
-                                    : undefined
-                            }
-                            */
-                        />
-                    </ConfigAccordionSection>
-
-                    <ConfigAccordionSection
-                        size="compact"
-                        noDivider
-                        icon={<ChatText size={15} />}
-                        title="What should the agent do?"
-                        status={messageStatus}
-                        summary={composedMessage.trim() || undefined}
-                        summaryCollapsedOnly
-                    >
+                    <Labelled label="Message">
                         <MessageComposer
                             inputsText={inputsText}
                             onChange={setInputsText}
@@ -628,35 +381,67 @@ export function ScheduleForm({
                             primaryKey={primaryInputKey}
                             disabled={isMutating}
                         />
-                    </ConfigAccordionSection>
+                    </Labelled>
+
+                    <div className="flex flex-col">
+                        <button
+                            type="button"
+                            onClick={() => setAdvancedOpen((v) => !v)}
+                            aria-expanded={advancedOpen}
+                            // px-0/font-[inherit]: preflight is off, so a bare button keeps the
+                            // UA's 6px inline padding (misaligning it from the fields) and Arial.
+                            className="flex items-center justify-between border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-0 py-3 font-[inherit]"
+                        >
+                            <span className="flex items-center gap-2">
+                                <SlidersHorizontal
+                                    size={15}
+                                    className="text-[var(--ag-colorTextSecondary)]"
+                                />
+                                <span className="text-xs font-medium text-[var(--ag-colorText)]">
+                                    Advanced
+                                </span>
+                            </span>
+                            <CaretDown
+                                size={14}
+                                className={`text-[var(--ag-colorIcon)] transition-transform ${
+                                    advancedOpen ? "" : "-rotate-90"
+                                }`}
+                            />
+                        </button>
+                        <HeightCollapse open={advancedOpen}>
+                            <div className="flex flex-col gap-5 pb-2 pt-1">
+                                <Labelled label="Version">
+                                    <VersionField
+                                        workflowId={activeBinding.workflowId}
+                                        binding={activeBinding}
+                                        onChange={setBinding}
+                                        disabled={isMutating}
+                                    />
+                                </Labelled>
+                                <Labelled label="Active window">
+                                    <WindowField
+                                        startTime={startTime}
+                                        endTime={endTime}
+                                        onChangeStart={setStartTime}
+                                        onChangeEnd={setEndTime}
+                                    />
+                                </Labelled>
+                            </div>
+                        </HeightCollapse>
+                    </div>
                 </div>
             </fieldset>
 
             <DrawerFooter
-                enabled={enabled}
-                onEnabledChange={isDeleted ? undefined : setEnabled}
                 left={
                     isDeleted ? (
                         <span className="text-xs text-colorTextSecondary">Deleted</span>
                     ) : undefined
                 }
                 onCancel={onClose}
-                run={
-                    playgroundEntityId && !isDeleted ? (
-                        <RunInPlaygroundButton
-                            playgroundEntityId={playgroundEntityId}
-                            name={name}
-                            cron={cron}
-                            inputsText={inputsText}
-                            message={composedMessage}
-                            disabled={!isEdit}
-                            onClose={onClose}
-                        />
-                    ) : undefined
-                }
                 isMutating={isMutating}
                 canSave={canSubmit}
-                submitLabel={isEdit ? "Save" : "Create"}
+                submitLabel={isEdit ? "Save" : "Create schedule"}
                 onSubmit={handleSubmit}
             />
         </div>

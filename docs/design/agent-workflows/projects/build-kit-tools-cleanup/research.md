@@ -130,9 +130,12 @@ that the SDK resolves into a callback spec with a direct `call`
 `RunContext` (`protocol.ts:174-185`) carries `workflow.{artifact,variant,revision}` refs,
 `workflow.is_draft`, and `trace.{trace_id,span_id}`. The service computes it per turn
 (`services/oss/src/agent/tracing.py:164-171`), and it rides the `/run` request
-(`protocol.ts:472`). It is consumed ONLY by `call.context` bindings today. Gateway
-(`callRef`) dispatch passes the model's args verbatim with no context injection
-(`relay.ts:283-289`).
+(`protocol.ts:472`). Gateway (`callRef`) dispatch passes the model's args verbatim with no
+context injection (`relay.ts:283-289`), so `call.context` bindings are the only tool-side
+consumer. They are not the only consumer overall: the runner also turns
+`runContext.workflow` into the references it writes on the turn ledger and proposes on the
+session heartbeat. See
+`docs/design/agent-workflows/interfaces/cross-service/service-to-agent-runner.md`.
 
 ### The `/tools/call` plane already runs composite server-side logic
 

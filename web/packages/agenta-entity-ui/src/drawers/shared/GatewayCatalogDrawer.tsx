@@ -25,7 +25,7 @@ import {
 } from "@phosphor-icons/react"
 import Image from "next/image"
 
-import {AppCard} from "./CatalogAppCard"
+import {AppCard, AppLogo} from "./CatalogAppCard"
 
 interface InfiniteList<X> {
     total: number
@@ -240,6 +240,18 @@ function IntegrationsView<I, T, C>({
         [integrations.length, prefetchThreshold],
     )
 
+    // A connection carries only its integration key, so the rail's logos come from the catalog
+    // list. Accumulated across pages/searches: the grid narrows as the user types, and a rail
+    // logo must not blank out because its app fell out of the current results.
+    const logoByKeyRef = useRef(new Map<string, string>())
+    const logoByKey = useMemo(() => {
+        integrations.forEach((i) => {
+            const logo = adapter.integration.logo(i)
+            if (logo) logoByKeyRef.current.set(adapter.integration.key(i), logo)
+        })
+        return new Map(logoByKeyRef.current)
+    }, [integrations, adapter])
+
     const hasConnections = connections.length > 0
 
     return (
@@ -261,7 +273,10 @@ function IntegrationsView<I, T, C>({
                             return (
                                 <div
                                     key={cid}
-                                    className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]"
+                                    // shrink-0: in a scrolling flex column the default is to
+                                    // compress siblings, so expanding one app squeezed the rest
+                                    // instead of scrolling the rail.
+                                    className="shrink-0 overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]"
                                 >
                                     <button
                                         type="button"
@@ -279,6 +294,12 @@ function IntegrationsView<I, T, C>({
                                                 className="shrink-0 text-[var(--ag-colorTextTertiary)]"
                                             />
                                         )}
+                                        <AppLogo
+                                            logo={logoByKey.get(
+                                                adapter.connection.integrationKey(conn),
+                                            )}
+                                            size={16}
+                                        />
                                         <div className="min-w-0 flex-1">
                                             <div className="truncate text-xs font-medium">
                                                 {adapter.connection.name(conn) ||

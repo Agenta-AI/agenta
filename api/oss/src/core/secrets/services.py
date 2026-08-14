@@ -1,11 +1,55 @@
+from typing import Any
 from uuid import UUID, uuid4
 
 from oss.src.utils.env import env
 from oss.src.utils.helpers import get_slug_from_name_and_id
-from oss.src.core.secrets.enums import SecretKind
+from oss.src.core.secrets.enums import (
+    STANDARD_PROVIDER_DISPLAY_NAMES,
+    SecretKind,
+    StandardProviderKind,
+)
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
 from oss.src.core.secrets.context import set_data_encryption_key
 from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
+
+
+def next_provider_key_name(
+    *,
+    kind: StandardProviderKind,
+    taken_names: set[str],
+) -> str:
+    """The first free display name for a new connection of ``kind``.
+
+    The first connection of a provider family takes the plain display name ("OpenAI"), later
+    ones get a suffix ("OpenAI 2", "OpenAI 3"). The name is display only; the slug is identity.
+    """
+    title = STANDARD_PROVIDER_DISPLAY_NAMES.get(kind, kind.value)
+
+    if title not in taken_names:
+        return title
+
+    index = 2
+    while f"{title} {index}" in taken_names:
+        index += 1
+
+    return f"{title} {index}"
+
+
+def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
+    """Fill an update payload's omitted ``models``/``harnesses`` from the stored record.
+
+    The two fields are policy edited on their own surface (the connection drawer), so an update
+    from another surface — renaming the connection, rotating its key — omits them and must not
+    wipe them. An explicit empty list is a choice ("offer nothing") and is left alone.
+    """
+    for field in ("models", "harnesses"):
+        if not hasattr(update_data, field) or getattr(update_data, field) is not None:
+            continue
+
+        stored_value = getattr(stored_data, field, None)
+
+        if stored_value is not None:
+            setattr(update_data, field, stored_value)
 
 
 class VaultService:
@@ -20,16 +64,25 @@ class VaultService:
         organization_id: UUID | None = None,
         create_secret_dto: CreateSecretDTO,
     ):
-        # custom_secret is addressed by slug; derive one from the name when absent.
+        # custom_secret and custom_provider are addressed by slug; derive one from the name when
+        # absent so the record keeps its identity when the display name later changes.
         if (
             not create_secret_dto.slug
-            and create_secret_dto.secret.kind == SecretKind.CUSTOM_SECRET
+            and create_secret_dto.secret.kind
+            in (SecretKind.CUSTOM_SECRET, SecretKind.CUSTOM_PROVIDER)
             and create_secret_dto.header
             and create_secret_dto.header.name
         ):
             create_secret_dto.slug = get_slug_from_name_and_id(
                 create_secret_dto.header.name,
                 uuid4(),
+            )
+
+        if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
+            await self._name_and_slug_provider_key(
+                project_id=project_id,
+                organization_id=organization_id,
+                create_secret_dto=create_secret_dto,
             )
 
         with set_data_encryption_key(
@@ -41,6 +94,47 @@ class VaultService:
                 create_secret_dto=create_secret_dto,
             )
             return secret_dto
+
+    async def _name_and_slug_provider_key(
+        self,
+        *,
+        project_id: UUID | None,
+        organization_id: UUID | None,
+        create_secret_dto: CreateSecretDTO,
+    ) -> None:
+        """Give a new provider_key connection a display name and a stable slug.
+
+        Several connections may exist per provider family, so identity is the slug, not the
+        provider. An unnamed connection is named after its provider ("OpenAI", then "OpenAI 2"),
+        computed here rather than client-side because two clients can create at the same time.
+        Existing records keep their missing slug and resolve by provider family.
+        """
+        header = create_secret_dto.header
+
+        if not header.name:
+            with set_data_encryption_key(
+                data_encryption_key=self._data_encryption_key,
+            ):
+                secrets_dtos = await self.secrets_dao.list(
+                    project_id=project_id,
+                    organization_id=organization_id,
+                )
+
+            header.name = next_provider_key_name(
+                kind=create_secret_dto.secret.data.kind,
+                taken_names={
+                    secret_dto.header.name
+                    for secret_dto in secrets_dtos or []
+                    if secret_dto.kind == SecretKind.PROVIDER_KEY
+                    and secret_dto.header.name
+                },
+            )
+
+        if not create_secret_dto.slug:
+            create_secret_dto.slug = get_slug_from_name_and_id(
+                header.name,
+                uuid4(),
+            )
 
     async def get_secret_by_id(
         self,
@@ -98,6 +192,18 @@ class VaultService:
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
+            if update_secret_dto.secret is not None:
+                stored_secret_dto = await self.secrets_dao.get_by_id(
+                    secret_id=secret_id,
+                    project_id=project_id,
+                    organization_id=organization_id,
+                )
+                if stored_secret_dto is not None:
+                    _carry_over_saved_policy(
+                        stored_data=stored_secret_dto.data,
+                        update_data=update_secret_dto.secret.data,
+                    )
+
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,
                 update_secret_dto=update_secret_dto,
