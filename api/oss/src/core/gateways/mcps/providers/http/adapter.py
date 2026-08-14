@@ -37,7 +37,8 @@ def _drop_header(headers: Dict[str, str], name: str) -> Dict[str, str]:
 
 
 def _drop_gateway_headers(headers: Dict[str, str]) -> Dict[str, str]:
-    """Our own inbound credentials never reach a third-party server (D31)."""
+    """Our own credentials never reach a third-party server (D31). Everything else the
+    caller sent is forwarded, and only a resolved secret overwrites `Authorization`."""
     return {k: v for k, v in headers.items() if k.lower() not in GATEWAY_ONLY_HEADERS}
 
 

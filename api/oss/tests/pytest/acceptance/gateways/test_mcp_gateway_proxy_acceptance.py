@@ -49,8 +49,8 @@ def _create_custom_endpoint(authed_api, *, tools=None):
     return body["endpoint"]
 
 
-def _call(authed_api, slug, payload):
-    return authed_api("POST", f"/gateways/mcps/custom/{slug}", json=payload)
+def _call(gateway_api, slug, payload):
+    return gateway_api("POST", f"/gateways/mcps/custom/{slug}", json=payload)
 
 
 @pytest.fixture(scope="class")
@@ -61,9 +61,11 @@ def mock_mcp_endpoint(authed_api):
 
 @pytest.mark.acceptance
 class TestMCPGatewayProxyAcceptance:
-    def test_tools_list_relays_the_upstream_answer(self, authed_api, mock_mcp_endpoint):
+    def test_tools_list_relays_the_upstream_answer(
+        self, gateway_api, mock_mcp_endpoint
+    ):
         response = _call(
-            authed_api,
+            gateway_api,
             mock_mcp_endpoint["slug"],
             {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
         )
@@ -76,7 +78,7 @@ class TestMCPGatewayProxyAcceptance:
         }
 
     def test_tools_call_round_trips_the_upstream_result_unmodified(
-        self, authed_api, mock_mcp_endpoint
+        self, gateway_api, mock_mcp_endpoint
     ):
         payload = {
             "jsonrpc": "2.0",
@@ -85,19 +87,19 @@ class TestMCPGatewayProxyAcceptance:
             "params": {"name": "echo", "arguments": {"text": "hello"}},
         }
 
-        response = _call(authed_api, mock_mcp_endpoint["slug"], payload)
+        response = _call(gateway_api, mock_mcp_endpoint["slug"], payload)
 
         body = _assert_ok(response)
         assert body["id"] == 7
         assert "hello" in json.dumps(body["result"])
 
     def test_a_failing_tool_relays_as_a_result_not_a_transport_error(
-        self, authed_api, mock_mcp_endpoint
+        self, gateway_api, mock_mcp_endpoint
     ):
         # D16: the server's own failure reason is what lets a model correct itself, so
         # it travels as the response body, never as a gateway error.
         response = _call(
-            authed_api,
+            gateway_api,
             mock_mcp_endpoint["slug"],
             {
                 "jsonrpc": "2.0",
@@ -110,11 +112,13 @@ class TestMCPGatewayProxyAcceptance:
         body = _assert_ok(response)
         assert body["result"]["isError"] is True
 
-    def test_tool_outside_the_policy_is_refused_before_the_upstream(self, authed_api):
+    def test_tool_outside_the_policy_is_refused_before_the_upstream(
+        self, authed_api, gateway_api
+    ):
         endpoint = _create_custom_endpoint(authed_api, tools={"allowlist": ["echo"]})
 
         response = _call(
-            authed_api,
+            gateway_api,
             endpoint["slug"],
             {
                 "jsonrpc": "2.0",
@@ -127,11 +131,11 @@ class TestMCPGatewayProxyAcceptance:
         assert response.status_code == 403, response.text
         assert response.json()["error"]["data"]["cause"] == "tool_not_allowed"
 
-    def test_an_include_policy_filters_the_listing(self, authed_api):
+    def test_an_include_policy_filters_the_listing(self, authed_api, gateway_api):
         endpoint = _create_custom_endpoint(authed_api, tools={"allowlist": ["echo"]})
 
         response = _call(
-            authed_api,
+            gateway_api,
             endpoint["slug"],
             {"jsonrpc": "2.0", "id": 4, "method": "tools/list"},
         )

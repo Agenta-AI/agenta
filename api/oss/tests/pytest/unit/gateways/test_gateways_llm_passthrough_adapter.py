@@ -170,7 +170,7 @@ async def test_no_secret_sends_no_authorization_header():
 
 
 @pytest.mark.asyncio
-async def test_inbound_authorization_header_is_not_forwarded():
+async def test_our_credentials_header_is_never_forwarded():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -183,10 +183,53 @@ async def test_inbound_authorization_header_is_not_forwarded():
         secret=None,
         context=_context(),
         body=_body(),
-        headers={"Authorization": "Secret caller-token"},
+        headers={"X-AG-Credentials": "Secret caller-token"},
     )
 
-    assert "authorization" not in captured["request"].headers
+    assert "x-ag-credentials" not in captured["request"].headers
+
+
+@pytest.mark.asyncio
+async def test_caller_authorization_reaches_the_upstream_when_no_secret_resolved():
+    """Pass-through (OD15): the data plane reads only our own header, so `Authorization`
+    is the caller's own vendor auth and nothing overwrites it."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=_context(),
+        body=_body(),
+        headers={"Authorization": "Bearer caller-subscription"},
+    )
+
+    assert captured["request"].headers["authorization"] == "Bearer caller-subscription"
+
+
+@pytest.mark.asyncio
+async def test_a_resolved_secret_overwrites_the_callers_authorization():
+    """The other half of the same rule: when we do hold a secret, ours is what goes out."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(200, json={"id": "x", "choices": []})
+
+    adapter = _adapter(handler)
+    await adapter.relay_chat_completion(
+        route=_route(),
+        secret=_standard_secret(key="sk-ours"),
+        context=_context(),
+        body=_body(),
+        headers={"Authorization": "Bearer caller-subscription"},
+    )
+
+    assert captured["request"].headers["authorization"] == "Bearer sk-ours"
 
 
 @pytest.mark.asyncio

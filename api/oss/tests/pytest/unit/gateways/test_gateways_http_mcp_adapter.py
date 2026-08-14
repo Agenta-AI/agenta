@@ -466,10 +466,9 @@ async def test_agenta_route_to_a_private_address_is_not_refused():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("header", ["X-AG-Credentials", "Authorization"])
-async def test_gateway_credentials_are_never_forwarded_upstream(header):
-    """The caller's headers are forwarded wholesale except these: they authenticate
-    the caller INTO the gateway and are ours, not the upstream's."""
+async def test_our_credentials_header_is_never_forwarded_upstream():
+    """The caller's headers are forwarded wholesale except this one: it authenticates
+    the caller INTO the gateway and is ours, not the upstream's (D31)."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -483,7 +482,30 @@ async def test_gateway_credentials_are_never_forwarded_upstream(header):
         auth=_auth(secret=None),
         context=_context(),
         body=b"{}",
-        headers={header: "Secret leaked-token"},
+        headers={"X-AG-Credentials": "Secret leaked-token"},
     )
 
-    assert header.lower() not in captured["headers"]
+    assert "x-ag-credentials" not in captured["headers"]
+
+
+@pytest.mark.asyncio
+async def test_caller_authorization_reaches_the_server_when_no_secret_resolved():
+    """Pass-through (OD15): the data plane reads only our own header, so `Authorization`
+    is the caller's and nothing of ours overwrites it."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["headers"] = request.headers
+        return _json_response()
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    await adapter.relay(
+        route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+        auth=_auth(secret=None),
+        context=_context(),
+        body=b"{}",
+        headers={"Authorization": "Bearer caller-token"},
+    )
+
+    assert captured["headers"]["authorization"] == "Bearer caller-token"

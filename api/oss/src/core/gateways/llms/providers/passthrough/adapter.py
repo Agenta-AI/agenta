@@ -28,8 +28,9 @@ _DEFAULT_TIMEOUT_SECONDS = 60.0
 
 _CHAT_COMPLETIONS_PATH = "/chat/completions"
 
-# Stripped from the outbound header set: hop-by-hop headers (RFC 7230 §6.1) plus
-# authorization, which is ours to the platform, not the upstream's.
+# Stripped from the outbound header set: hop-by-hop headers (RFC 7230 §6.1) plus our own
+# credentials header. A caller's `Authorization` is forwarded and overwritten below only
+# when a secret resolved — pass-through is what happens when nothing overwrites (OD15).
 _STRIPPED_HEADERS = {
     *GATEWAY_ONLY_HEADERS,
     "host",

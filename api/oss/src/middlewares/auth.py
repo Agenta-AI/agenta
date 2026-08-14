@@ -1,4 +1,5 @@
 from typing import Optional
+from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
 import asyncio
@@ -49,17 +50,27 @@ _ALLOWED_TOKENS = (
     _SECRET_TOKEN_PREFIX,
 )
 
-# The gateways' own credentials header (D31). It wins over `Authorization` whenever
-# present, because on a pass-through route `Authorization` carries the caller's upstream
-# vendor auth and is not ours to read.
+# The gateways' own credentials header (D31). It wins over `Authorization` everywhere, and
+# on the gateway DATA PLANE it is the only header read at all — there `Authorization`
+# belongs to the upstream, so a fallback would read the caller's vendor auth as ours.
 _CREDENTIALS_HEADER = "X-AG-Credentials"
+
+# `/gateways/{plane}/{namespace}/...` is the data plane; `/gateways/{plane}/endpoints/...`
+# is ordinary CRUD. No namespace can spell `endpoints`, which is what keeps the two apart
+# under one mount prefix.
+_GATEWAY_DATA_PLANE = re_compile(
+    r"^(?:/api)?/gateways/(?:llms|mcps)/(?:builtin|standard|custom)(?:/|$)"
+)
 
 
 def _credentials_header(request: Request) -> Optional[str]:
+    ours = request.headers.get(_CREDENTIALS_HEADER) or request.headers.get(
+        _CREDENTIALS_HEADER.lower()
+    )
+    if ours or _GATEWAY_DATA_PLANE.match(request.url.path):
+        return ours
     return (
-        request.headers.get(_CREDENTIALS_HEADER)
-        or request.headers.get(_CREDENTIALS_HEADER.lower())
-        or request.headers.get("Authorization")
+        request.headers.get("Authorization")
         or request.headers.get("authorization")
         or None
     )

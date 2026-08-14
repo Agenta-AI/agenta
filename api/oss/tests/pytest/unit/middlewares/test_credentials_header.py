@@ -10,9 +10,13 @@ from starlette.requests import Request
 from oss.src.middlewares.auth import _credentials_header
 
 
-def _request(headers: dict) -> Request:
+def _request(headers: dict, path: str = "/") -> Request:
     raw = [(k.lower().encode(), v.encode()) for k, v in headers.items()]
-    return Request({"type": "http", "method": "GET", "path": "/", "headers": raw})
+    return Request({"type": "http", "method": "GET", "path": path, "headers": raw})
+
+
+_DATA_PLANE = "/gateways/llms/custom/acme/v1/chat/completions"
+_CRUD = "/gateways/llms/endpoints/"
 
 
 def test_authorization_alone_is_still_read():
@@ -45,3 +49,43 @@ def test_header_lookup_is_case_insensitive():
     assert _credentials_header(_request({"x-ag-credentials": "Secret jwt"})) == (
         "Secret jwt"
     )
+
+
+# --- the data plane reads our header and nothing else (D31) ------------------ #
+
+
+def test_data_plane_ignores_authorization_entirely():
+    """There `Authorization` is the caller's own vendor auth, bound for the upstream —
+    reading it as ours is how a subscription token gets mistaken for a gateway token."""
+    request = _request({"Authorization": "ApiKey k"}, path=_DATA_PLANE)
+
+    assert _credentials_header(request) is None
+
+
+def test_data_plane_still_reads_our_header():
+    request = _request({"X-AG-Credentials": "Secret jwt"}, path=_DATA_PLANE)
+
+    assert _credentials_header(request) == "Secret jwt"
+
+
+def test_the_crud_routes_under_the_same_prefix_keep_the_fallback():
+    """`/gateways/{plane}/endpoints/...` is ordinary CRUD; no namespace spells
+    `endpoints`, which is what keeps the two apart under one mount prefix."""
+    request = _request({"Authorization": "ApiKey k"}, path=_CRUD)
+
+    assert _credentials_header(request) == "ApiKey k"
+
+
+def test_the_mcp_data_plane_is_covered_too():
+    request = _request({"Authorization": "ApiKey k"}, path="/gateways/mcps/custom/acme")
+
+    assert _credentials_header(request) is None
+
+
+def test_the_api_prefixed_data_plane_is_covered_too():
+    request = _request(
+        {"Authorization": "ApiKey k"},
+        path="/api/gateways/llms/standard/openai/v1/models",
+    )
+
+    assert _credentials_header(request) is None

@@ -70,11 +70,11 @@ def mock_llm_endpoint(authed_api):
 @pytest.mark.acceptance
 class TestLLMGatewayProxyAcceptance:
     def test_streaming_round_trips_sse_bytes_unmodified(
-        self, authed_api, mock_llm_endpoint
+        self, gateway_api, mock_llm_endpoint
     ):
         slug = mock_llm_endpoint["slug"]
 
-        response = authed_api(
+        response = gateway_api(
             "POST",
             f"/gateways/llms/custom/{slug}/v1/chat/completions",
             json={
@@ -94,11 +94,11 @@ class TestLLMGatewayProxyAcceptance:
         assert body.count(b"data: ") >= 2
 
     def test_non_streaming_call_returns_the_mocks_completion_body(
-        self, authed_api, mock_llm_endpoint
+        self, gateway_api, mock_llm_endpoint
     ):
         slug = mock_llm_endpoint["slug"]
 
-        response = authed_api(
+        response = gateway_api(
             "POST",
             f"/gateways/llms/custom/{slug}/v1/chat/completions",
             json={
@@ -112,7 +112,7 @@ class TestLLMGatewayProxyAcceptance:
         assert body["choices"][0]["message"]["role"] == "assistant"
 
     def test_slow_upstream_times_out_inside_the_configured_window_not_at_30s(
-        self, authed_api
+        self, authed_api, gateway_api
     ):
         # A separate endpoint from `mock_llm_endpoint`: this one pins a short
         # config.timeout_seconds so it is the GATEWAY, not curl and not the
@@ -125,7 +125,7 @@ class TestLLMGatewayProxyAcceptance:
         slug = endpoint["slug"]
 
         started = time.monotonic()
-        response = authed_api(
+        response = gateway_api(
             "POST",
             f"/gateways/llms/custom/{slug}/v1/chat/completions",
             json={
@@ -160,11 +160,11 @@ class TestLLMGatewayProxyAcceptance:
         assert response.status_code == 401
 
     def test_model_outside_allowlist_is_refused_with_model_not_allowed(
-        self, authed_api, mock_llm_endpoint
+        self, gateway_api, mock_llm_endpoint
     ):
         slug = mock_llm_endpoint["slug"]
 
-        response = authed_api(
+        response = gateway_api(
             "POST",
             f"/gateways/llms/custom/{slug}/v1/chat/completions",
             json={
@@ -177,11 +177,11 @@ class TestLLMGatewayProxyAcceptance:
         assert response.json()["error"]["code"] == "model_not_allowed"
 
     def test_list_models_answers_the_endpoints_allowlist(
-        self, authed_api, mock_llm_endpoint
+        self, gateway_api, mock_llm_endpoint
     ):
         slug = mock_llm_endpoint["slug"]
 
-        response = authed_api("GET", f"/gateways/llms/custom/{slug}/v1/models")
+        response = gateway_api("GET", f"/gateways/llms/custom/{slug}/v1/models")
 
         body = _assert_ok(response)
         assert body["object"] == "list"

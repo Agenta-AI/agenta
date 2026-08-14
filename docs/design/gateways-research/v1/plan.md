@@ -118,7 +118,9 @@ flowchart LR
     WP12 --> WP13["WP13<br/>runner + harnesses"]
     WP12 --> WP14["WP14<br/>agent v0"]
     WP12 --> WP15["WP15<br/>MCP on the wire"]
-    WP13 & WP14 & WP15 & WP4 --> CB(["Checkpoint B<br/>DEPLOY"])
+    CA --> WP23["WP23<br/>front doors"]
+    WP23 --> WP24["WP24<br/>relay-only<br/>south port"]
+    WP13 & WP14 & WP15 & WP4 & WP24 --> CB(["Checkpoint B<br/>DEPLOY"])
     CB --> WP16["WP16<br/>secret kinds"]
     WP16 --> WP17["WP17<br/>OAuth client"]
     WP17 --> WP18["WP18<br/>consent flow"]
@@ -273,6 +275,18 @@ record of a call that does not happen is worth nothing.
 **WP15 — MCP servers on the wire.** The runner's MCP server configs point at gateway URLs with a
 gateway token rather than upstream secrets.
 *Depends on:* WP12.
+
+**WP23 — Protocol front doors.** `/v1/responses` and `/v1/messages` beside
+`/v1/chat/completions` (D33), each with its own policy-field parse, usage extraction and
+ceiling binding. Everything behind the front door is protocol-blind.
+*Depends on:* Checkpoint A. *Blocks:* WP24.
+
+**WP24 — The relay-only south port.** D34 forbids body conversion, so the
+`passthrough`/`translated` split becomes one relay with a routing strategy and an
+authentication strategy per deployment, and `TranslatedLLMAdapter` is deleted. Carries
+OD16's per-provider verification, and `provider_key`'s `NOT NULL` with it.
+*Depends on:* WP23 — removing conversion first would make Anthropic, Gemini, Bedrock and
+Vertex unreachable rather than reachable another way.
 
 **Merge M3 → Checkpoint B.** Deploy. Acceptance tests above. The fan-out, the worktrees and
 the traps are in [`workstreams/launch-2.md`](workstreams/launch-2.md).

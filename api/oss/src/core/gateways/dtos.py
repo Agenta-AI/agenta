@@ -12,11 +12,11 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
-# Inbound headers that authenticate the caller INTO the gateway (D13, D31). They are
-# ours, never the upstream's, and are stripped on both planes before any relay.
-# Authorization becomes conditional when pass-through lands: stripped only when it is
-# the header we authenticated with (open-designs.md OD15).
-GATEWAY_ONLY_HEADERS = frozenset({"x-ag-credentials", "authorization"})
+# The header that authenticates the caller INTO the gateway (D31). It is ours and is
+# stripped on both planes before any relay. Nothing else of the caller's is: the data plane
+# reads no other header as ours, so `Authorization` is the caller's own and reaches the
+# upstream unless a resolved secret overwrites it — which is pass-through (OD15).
+GATEWAY_ONLY_HEADERS = frozenset({"x-ag-credentials"})
 
 
 class GatewayAuthScheme(str, Enum):
