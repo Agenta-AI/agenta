@@ -1,0 +1,125 @@
+"""Unit tests for routing.py's per-deployment URL composition (specs-wp24.md Phase 1)."""
+
+import pytest
+
+from oss.src.core.gateways.llms.dtos import (
+    LLMDeploymentKind,
+    LLMProtocol,
+    LLMResolvedRoute,
+)
+from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
+from oss.src.core.gateways.llms.types import LLMUpstreamError
+
+
+def _route(**overrides) -> LLMResolvedRoute:
+    base = dict(
+        provider_key="openai", deployment_kind=LLMDeploymentKind.DIRECT, model="gpt-4o"
+    )
+    base.update(overrides)
+    return LLMResolvedRoute(**base)
+
+
+def test_direct_known_provider_uses_the_catalogued_base_url():
+    route = _route(provider_key="groq")
+    assert (
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+        == "https://api.groq.com/openai/v1/chat/completions"
+    )
+
+
+def test_direct_anthropic_uses_the_messages_door():
+    route = _route(provider_key="anthropic")
+    assert (
+        build_url(route, LLMProtocol.MESSAGES)
+        == "https://api.anthropic.com/v1/messages"
+    )
+
+
+def test_direct_row_base_url_overrides_the_catalogue():
+    route = _route(provider_key="openai", base_url="https://proxy.example/v1")
+    assert (
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+        == "https://proxy.example/v1/chat/completions"
+    )
+
+
+def test_direct_unknown_provider_raises_naming_it():
+    route = _route(provider_key="totally-unheard-of")
+    with pytest.raises(LLMUpstreamError) as excinfo:
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+    assert "totally-unheard-of" in str(excinfo.value)
+
+
+def test_custom_deployment_uses_the_row_base_url():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.CUSTOM, base_url="https://acme.internal/v1"
+    )
+    assert (
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+        == "https://acme.internal/v1/chat/completions"
+    )
+
+
+def test_custom_deployment_with_no_base_url_raises():
+    route = _route(deployment_kind=LLMDeploymentKind.CUSTOM, base_url=None)
+    with pytest.raises(LLMUpstreamError):
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+
+
+def test_azure_composes_deployment_path_and_api_version():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.AZURE,
+        base_url="https://acme.openai.azure.com",
+        api_version="2024-10-21",
+        model="gpt-4o",
+    )
+    assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
+        "https://acme.openai.azure.com/openai/deployments/gpt-4o/chat/completions"
+        "?api-version=2024-10-21"
+    )
+
+
+def test_azure_with_no_base_url_raises():
+    route = _route(deployment_kind=LLMDeploymentKind.AZURE, base_url=None)
+    with pytest.raises(LLMUpstreamError):
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+
+
+def test_bedrock_composes_mantle_host_from_region():
+    route = _route(deployment_kind=LLMDeploymentKind.BEDROCK, region="eu-central-1")
+    assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
+        "https://bedrock-mantle.eu-central-1.api.aws/v1/chat/completions"
+    )
+
+
+def test_bedrock_with_no_region_or_base_url_raises():
+    route = _route(deployment_kind=LLMDeploymentKind.BEDROCK, region=None)
+    with pytest.raises(LLMUpstreamError):
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+
+
+def test_vertex_composes_openapi_host_from_region_and_project():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        region="europe-west4",
+        extras={"vertex_project": "acme-prod"},
+    )
+    assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
+        "https://europe-west4-aiplatform.googleapis.com/v1/projects/acme-prod"
+        "/locations/europe-west4/endpoints/openapi/chat/completions"
+    )
+
+
+def test_vertex_with_no_project_raises():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX, region="europe-west4", extras=None
+    )
+    with pytest.raises(LLMUpstreamError):
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+
+
+def test_sagemaker_always_raises_naming_the_reason():
+    route = _route(deployment_kind=LLMDeploymentKind.SAGEMAKER, region="us-east-1")
+    with pytest.raises(LLMUpstreamError) as excinfo:
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+    assert "sagemaker" in (excinfo.value.detail or "").lower()

@@ -8,6 +8,11 @@ checked as a prefix so the base model name stays free-form:
     mock/error        raises LLMUpstreamError
     mock/slow-{n}     sleeps n seconds, then answers like mock/echo
 
+`context.protocol` (D33, WP23) picks the response shape — Chat Completions, OpenAI
+Responses or Anthropic Messages — so the three front doors each have something protocol-
+shaped to relay in tests, without any of this adapter's logic branching on the door that
+called it beyond this one dispatch.
+
 The deployable app (app.py) calls this same adapter, so both tiers share one
 implementation of the control convention.
 """
@@ -19,7 +24,11 @@ import time
 import uuid
 from typing import Any, AsyncIterator, Dict, Optional
 
-from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMResolvedRoute
+from oss.src.core.gateways.llms.dtos import (
+    LLMCallContext,
+    LLMProtocol,
+    LLMResolvedRoute,
+)
 from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
@@ -39,7 +48,11 @@ def _last_message_content(body: bytes) -> str:
     except (json.JSONDecodeError, TypeError):
         return ""
 
-    messages = payload.get("messages") or []
+    # "messages" (Chat Completions, Messages) or "input" (Responses) — same shape,
+    # different field name on the wire.
+    messages = payload.get("messages") or payload.get("input") or []
+    if isinstance(messages, str):
+        return messages
     if not messages:
         return ""
 
@@ -87,8 +100,41 @@ def _chunk_payload(
     }
 
 
+def _responses_payload(
+    *, response_id: str, created: int, model: str, content: str
+) -> Dict[str, Any]:
+    return {
+        "id": response_id,
+        "object": "response",
+        "created_at": created,
+        "model": model,
+        "output": [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": content}],
+            }
+        ],
+    }
+
+
+def _messages_payload(*, message_id: str, model: str, content: str) -> Dict[str, Any]:
+    return {
+        "id": message_id,
+        "type": "message",
+        "role": "assistant",
+        "model": model,
+        "content": [{"type": "text", "text": content}],
+        "stop_reason": "end_turn",
+    }
+
+
 def _sse(payload: Dict[str, Any]) -> bytes:
     return f"data: {json.dumps(payload)}\n\n".encode()
+
+
+def _sse_event(event: str, payload: Dict[str, Any]) -> bytes:
+    return f"event: {event}\ndata: {json.dumps(payload)}\n\n".encode()
 
 
 async def _empty_body() -> AsyncIterator[bytes]:
@@ -139,39 +185,98 @@ class MockLLMAdapter(LLMUpstreamInterface):
         )
 
         async def _body_iter() -> AsyncIterator[bytes]:
-            if context.stream:
-                yield _sse(
-                    _chunk_payload(
-                        completion_id=completion_id,
-                        created=created,
-                        model=model,
-                        delta={"role": "assistant", "content": content},
-                        finish=None,
-                    )
-                )
-                yield _sse(
-                    _chunk_payload(
-                        completion_id=completion_id,
-                        created=created,
-                        model=model,
-                        delta={},
-                        finish="stop",
-                    )
-                )
-                yield b"data: [DONE]\n\n"
-            else:
-                payload = _completion_payload(
-                    completion_id=completion_id,
-                    created=created,
-                    model=model,
-                    content=content,
-                )
-                payload["usage"] = {
-                    "prompt_tokens": input_tokens,
-                    "completion_tokens": output_tokens,
+            if context.protocol == LLMProtocol.RESPONSES:
+                usage = {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
                     "total_tokens": input_tokens + output_tokens,
                 }
-                yield json.dumps(payload).encode()
+                if context.stream:
+                    yield _sse_event(
+                        "response.output_text.delta",
+                        {"type": "response.output_text.delta", "delta": content},
+                    )
+                    completed = _responses_payload(
+                        response_id=completion_id,
+                        created=created,
+                        model=model,
+                        content=content,
+                    )
+                    completed["usage"] = usage
+                    yield _sse_event(
+                        "response.completed",
+                        {"type": "response.completed", "response": completed},
+                    )
+                else:
+                    payload = _responses_payload(
+                        response_id=completion_id,
+                        created=created,
+                        model=model,
+                        content=content,
+                    )
+                    payload["usage"] = usage
+                    yield json.dumps(payload).encode()
+
+            elif context.protocol == LLMProtocol.MESSAGES:
+                usage = {"input_tokens": input_tokens, "output_tokens": output_tokens}
+                if context.stream:
+                    yield _sse_event(
+                        "content_block_delta",
+                        {
+                            "type": "content_block_delta",
+                            "delta": {"type": "text_delta", "text": content},
+                        },
+                    )
+                    yield _sse_event(
+                        "message_delta",
+                        {
+                            "type": "message_delta",
+                            "delta": {"stop_reason": "end_turn"},
+                            "usage": usage,
+                        },
+                    )
+                    yield _sse_event("message_stop", {"type": "message_stop"})
+                else:
+                    payload = _messages_payload(
+                        message_id=completion_id, model=model, content=content
+                    )
+                    payload["usage"] = usage
+                    yield json.dumps(payload).encode()
+
+            else:
+                if context.stream:
+                    yield _sse(
+                        _chunk_payload(
+                            completion_id=completion_id,
+                            created=created,
+                            model=model,
+                            delta={"role": "assistant", "content": content},
+                            finish=None,
+                        )
+                    )
+                    yield _sse(
+                        _chunk_payload(
+                            completion_id=completion_id,
+                            created=created,
+                            model=model,
+                            delta={},
+                            finish="stop",
+                        )
+                    )
+                    yield b"data: [DONE]\n\n"
+                else:
+                    payload = _completion_payload(
+                        completion_id=completion_id,
+                        created=created,
+                        model=model,
+                        content=content,
+                    )
+                    payload["usage"] = {
+                        "prompt_tokens": input_tokens,
+                        "completion_tokens": output_tokens,
+                        "total_tokens": input_tokens + output_tokens,
+                    }
+                    yield json.dumps(payload).encode()
 
             result.usage = GatewayUsage(
                 calls=1,

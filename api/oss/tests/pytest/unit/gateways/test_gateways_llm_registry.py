@@ -1,4 +1,4 @@
-"""Unit tests for `registry.py` (specs-wp7.md, tasks-wp7.md Phases 2 and 8). Nothing running."""
+"""Unit tests for `registry.py` (specs-wp24.md, tasks-wp24.md Phase 1). Nothing running."""
 
 import ast
 from pathlib import Path
@@ -11,65 +11,24 @@ from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInt
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
 from oss.src.core.gateways.llms.types import LLMAdapterNotFoundError
 
-_TRANSLATED_DEPLOYMENTS = [
-    LLMDeploymentKind.AZURE,
-    LLMDeploymentKind.BEDROCK,
-    LLMDeploymentKind.SAGEMAKER,
-    LLMDeploymentKind.VERTEX,
-]
-
-_DIRECT_PASSTHROUGH_PROVIDERS = [
-    "openai",
-    "groq",
-    "together_ai",
-    "openrouter",
-    "mistral",
-    "mistralai",
-]
-
-_DIRECT_TRANSLATED_PROVIDERS = [
-    "anthropic",
-    "gemini",
-    "cohere",
-    "deepinfra",
-    "perplexityai",
-    "minimax",
-]
-
-_DIRECT_PASSTHROUGH_PROVIDERS_SET = set(_DIRECT_PASSTHROUGH_PROVIDERS)
-_DIRECT_TRANSLATED_PROVIDERS_SET = set(_DIRECT_TRANSLATED_PROVIDERS)
-
-
-@pytest.mark.parametrize("deployment_kind", _TRANSLATED_DEPLOYMENTS)
-@pytest.mark.parametrize("provider_key", ["openai", "anthropic", "acme"])
-def test_cloud_reseller_deployments_are_always_translated(
-    provider_key, deployment_kind
-):
-    assert select_upstream(provider_key, deployment_kind) == "translated"
-
-
-@pytest.mark.parametrize("provider_key", ["openai", "anthropic", "acme"])
-def test_custom_deployment_is_always_passthrough(provider_key):
-    assert select_upstream(provider_key, LLMDeploymentKind.CUSTOM) == "passthrough"
-
-
-@pytest.mark.parametrize("provider_key", _DIRECT_PASSTHROUGH_PROVIDERS)
-def test_direct_openai_shaped_providers_are_passthrough(provider_key):
-    assert select_upstream(provider_key, LLMDeploymentKind.DIRECT) == "passthrough"
-
-
-@pytest.mark.parametrize("provider_key", _DIRECT_TRANSLATED_PROVIDERS)
-def test_direct_non_openai_shaped_providers_are_translated(provider_key):
-    assert select_upstream(provider_key, LLMDeploymentKind.DIRECT) == "translated"
-
 
 @pytest.mark.parametrize("deployment_kind", list(LLMDeploymentKind))
-def test_mock_provider_key_always_selects_mock(deployment_kind):
-    assert select_upstream("mock", deployment_kind) == "mock"
+def test_mock_deployment_kind_always_selects_mock(deployment_kind):
+    expected = "mock" if deployment_kind == LLMDeploymentKind.MOCK else "relay"
+    assert select_upstream("anything", deployment_kind) == expected
+
+
+@pytest.mark.parametrize("provider_key", ["openai", "anthropic", "mock", None, "acme"])
+def test_provider_key_never_changes_the_answer_except_via_deployment_kind(provider_key):
+    """D34 removed the one branch that read `provider_key` on a stored row
+    (entities.md §2.4) — the whole decision is `deployment_kind` now."""
+    for deployment_kind in LLMDeploymentKind:
+        expected = "mock" if deployment_kind == LLMDeploymentKind.MOCK else "relay"
+        assert select_upstream(provider_key, deployment_kind) == expected
 
 
 def test_select_upstream_imports_nothing_beyond_llm_deployment_kind():
-    """Pure — no DAO, no vault, no I/O (specs-wp7.md's own contract)."""
+    """Pure — no DAO, no vault, no I/O (specs-wp24.md's own contract)."""
     module_path = (
         Path(__file__).parents[4] / "src/core/gateways/llms/registry.py"
     ).resolve()
@@ -97,40 +56,19 @@ class _StubAdapter(LLMUpstreamInterface):
 def test_registry_get_raises_on_a_miss():
     registry = LLMUpstreamRegistry(adapters={})
     with pytest.raises(LLMAdapterNotFoundError):
-        registry.get("passthrough")
+        registry.get("relay")
 
 
 def test_registry_get_and_keys_roundtrip():
     adapter = _StubAdapter()
-    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
-    assert registry.get("passthrough") is adapter
-    assert registry.keys() == ["passthrough"]
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+    assert registry.get("relay") is adapter
+    assert registry.keys() == ["relay"]
 
 
-# --- Phase 8 acceptance: the scripted, no-provider-keys-needed check --------- #
-
-
-def test_every_catalogued_direct_provider_maps_to_the_documented_adapter_key():
-    """`tasks-wp7.md` Phase 8: 'confirm every DIRECT provider in supported_llm_models
-    maps to the documented adapter key via select_upstream (a scripted check, not a
-    real call — CI has no provider keys).' Runs here, with nothing deployed, because it
-    needs no compose stack — only the two sets this module already declares.
-
-    A subset check, not equality: `_DIRECT_PASSTHROUGH_PROVIDERS` also names `mistralai`,
-    which is in the classification table but has no `supported_llm_models` entry (only
-    `mistral` does) — a `BUILTIN` target can never resolve to it (`catalog.py` returns
-    `None`), so it is reachable only via a `CUSTOM` row naming that `provider_key`, which
-    always resolves to `"passthrough"` regardless of this table (registry.py's own CUSTOM
-    branch). Nothing here needs it to appear in the catalogue."""
-    documented = _DIRECT_PASSTHROUGH_PROVIDERS_SET | _DIRECT_TRANSLATED_PROVIDERS_SET
-    assert set(supported_llm_models.keys()) <= documented, (
-        "supported_llm_models has a provider absent from registry.py's classification table"
-    )
-
+def test_every_catalogued_direct_provider_resolves_to_relay():
+    """No provider in `supported_llm_models` is unreachable at the select_upstream layer —
+    OD16 cleared them all; a provider absent from `routing.py`'s table (none, today) would
+    fail at relay time instead, with the reason named."""
     for provider_key in supported_llm_models:
-        expected = (
-            "passthrough"
-            if provider_key in _DIRECT_PASSTHROUGH_PROVIDERS_SET
-            else "translated"
-        )
-        assert select_upstream(provider_key, LLMDeploymentKind.DIRECT) == expected
+        assert select_upstream(provider_key, LLMDeploymentKind.DIRECT) == "relay"

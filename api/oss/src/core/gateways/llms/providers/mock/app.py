@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
     LLMDeploymentKind,
+    LLMProtocol,
     LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
@@ -45,8 +46,7 @@ async def echo_headers(request: Request) -> Response:
     return JSONResponse(content={"headers": dict(request.headers)})
 
 
-@app.post("/v1/chat/completions")
-async def chat_completions(request: Request) -> Response:
+async def _relay(request: Request, *, protocol: LLMProtocol) -> Response:
     body = await request.body()
     try:
         payload = json.loads(body) if body else {}
@@ -55,9 +55,9 @@ async def chat_completions(request: Request) -> Response:
 
     model = payload.get("model") or "mock/echo"
     stream = bool(payload.get("stream", False))
-    context = LLMCallContext(model=model, stream=stream)
+    context = LLMCallContext(model=model, stream=stream, protocol=protocol)
     route = LLMResolvedRoute(
-        provider_key="mock", deployment_kind=LLMDeploymentKind.DIRECT, model=model
+        provider_key="mock", deployment_kind=LLMDeploymentKind.MOCK, model=model
     )
 
     try:
@@ -87,3 +87,18 @@ async def chat_completions(request: Request) -> Response:
         media_type="application/json",
         status_code=result.status_code,
     )
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request) -> Response:
+    return await _relay(request, protocol=LLMProtocol.CHAT_COMPLETIONS)
+
+
+@app.post("/v1/responses")
+async def responses(request: Request) -> Response:
+    return await _relay(request, protocol=LLMProtocol.RESPONSES)
+
+
+@app.post("/v1/messages")
+async def messages(request: Request) -> Response:
+    return await _relay(request, protocol=LLMProtocol.MESSAGES)

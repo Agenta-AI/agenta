@@ -3,7 +3,7 @@
 The same fixture every `LLMUpstreamInterface` / `MCPUpstreamInterface` implementation
 must pass — run against `MockLLMAdapter`/`MockMCPAdapter` now, reused by WP6/WP7/WP8/WP9's
 real adapters once they exist. An adapter that is not implemented yet is parametrized in
-as a skip, not omitted, so the moment `PassthroughLLMAdapter` etc. lands this file starts
+as a skip, not omitted, so the moment `RelayLLMAdapter` etc. lands this file starts
 enforcing the contract on it with no further edits here.
 
 Nothing running: plain Python objects.
@@ -12,7 +12,6 @@ Nothing running: plain Python objects.
 import importlib
 import json
 from dataclasses import fields
-from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -57,7 +56,7 @@ def _passthrough_mock_handler(request: httpx.Request) -> httpx.Response:
 
 
 def _passthrough_llm_adapter():
-    """PassthroughLLMAdapter needs real network I/O (entities.md §7.1), so —
+    """RelayLLMAdapter needs real network I/O (entities.md §7.1), so —
     unlike the other entries here — it cannot be built with a bare no-arg
     constructor: it is wired against an `httpx.MockTransport` instead, keeping
     this contract test in the "nothing running" tier (workstreams/specs-wp6.md)."""
@@ -65,7 +64,7 @@ def _passthrough_llm_adapter():
         module = importlib.import_module(
             "oss.src.core.gateways.llms.providers.passthrough.adapter"
         )
-        adapter_cls = module.PassthroughLLMAdapter
+        adapter_cls = module.RelayLLMAdapter
     except (ImportError, AttributeError):
         return None
 
@@ -97,14 +96,7 @@ def _http_mcp_adapter():
 
 _LLM_ADAPTER_PARAMS = [
     _adapter_param(MockLLMAdapter(), name="MockLLMAdapter"),
-    _adapter_param(_passthrough_llm_adapter(), name="PassthroughLLMAdapter"),
-    _adapter_param(
-        _optional_instance(
-            "oss.src.core.gateways.llms.providers.translated.adapter",
-            "TranslatedLLMAdapter",
-        ),
-        name="TranslatedLLMAdapter",
-    ),
+    _adapter_param(_passthrough_llm_adapter(), name="RelayLLMAdapter"),
 ]
 
 _MCP_ADAPTER_PARAMS = [
@@ -120,48 +112,13 @@ _MCP_ADAPTER_PARAMS = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def _mock_litellm_acompletion(monkeypatch):
-    """`TranslatedLLMAdapter` (WP7) is the one adapter here that calls out to litellm — mock
-    it at its own import site so this fixture stays a no-op for every other adapter and
-    still never opens a socket once the module exists."""
-    try:
-        from oss.src.core.gateways.llms.providers.translated import (
-            adapter as translated_adapter_module,
-        )
-    except ImportError:
-        yield
-        return
-
-    async def _mock_acompletion(*, model, stream=False, **kwargs):  # noqa: ARG001
-        response = SimpleNamespace(
-            usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
-            _hidden_params={"response_cost": 0.0},
-            model_dump_json=lambda: json.dumps(
-                {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
-            ),
-        )
-        if not stream:
-            return response
-
-        async def _stream():
-            yield response
-
-        return _stream()
-
-    monkeypatch.setattr(
-        translated_adapter_module.litellm, "acompletion", _mock_acompletion
-    )
-    yield
-
-
 @pytest.mark.parametrize("adapter", _LLM_ADAPTER_PARAMS)
 async def test_relay_chat_completion_returns_llm_relay_result(adapter):
     route = LLMResolvedRoute(
         provider_key="mock",
         deployment_kind=LLMDeploymentKind.DIRECT,
         model="mock/echo",
-        # Unused by MockLLMAdapter; PassthroughLLMAdapter needs one to build an
+        # Unused by MockLLMAdapter; RelayLLMAdapter needs one to build an
         # outbound URL, and the MockTransport above never dials it for real.
         base_url="http://mock-passthrough-upstream.invalid",
     )

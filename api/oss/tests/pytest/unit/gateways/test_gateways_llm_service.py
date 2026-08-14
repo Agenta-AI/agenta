@@ -16,6 +16,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMEndpointData,
     LLMEndpointSettings,
     LLMModelFilter,
+    LLMProtocol,
 )
 from oss.src.core.gateways.llms.interfaces import (
     LLMEndpointsDAOInterface,
@@ -324,14 +325,16 @@ async def test_list_models_custom_returns_the_allowlist_exactly():
 
 
 @pytest.mark.asyncio
-async def test_list_models_standard_returns_catalogue_slugs_verbatim():
-    from agenta.sdk.utils.assets import supported_llm_models
-
+async def test_list_models_standard_strips_the_litellm_routing_prefix():
+    """catalog.py bares each id (open-designs.md OD16): the litellm-flavored catalogue
+    entry means nothing to Anthropic's real API, and D34 forbids fixing that at relay
+    time, so the fix is in what the catalogue advertises."""
     slugs = await _service().list_models(
         scope=_scope(), namespace=GatewayEndpointNamespace.STANDARD, name="anthropic"
     )
 
-    assert slugs == supported_llm_models["anthropic"]
+    assert slugs[0] == "claude-fable-5"
+    assert not any(slug.startswith("anthropic/") for slug in slugs)
 
 
 @pytest.mark.asyncio
@@ -382,6 +385,33 @@ async def test_disallowed_model_raises_without_calling_resolver():
     assert resolver.resolve_calls == []
 
 
+@pytest.mark.parametrize(
+    "protocol",
+    [LLMProtocol.CHAT_COMPLETIONS, LLMProtocol.RESPONSES, LLMProtocol.MESSAGES],
+)
+@pytest.mark.asyncio
+async def test_disallowed_model_is_refused_on_every_door_before_the_secret(protocol):
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"])
+    )
+    resolver = _MockResolver(secret=_secret())
+
+    body = json.dumps({"model": "gpt-4o-mini"}).encode()
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _service(dao=dao, resolver=resolver).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="acme",
+            body=body,
+            headers={},
+            protocol=protocol,
+        )
+
+    assert resolver.resolve_calls == []
+
+
 @pytest.mark.asyncio
 async def test_policy_denial_records_once_before_raising():
     dao = _MockLlmEndpointsDAO()
@@ -416,9 +446,10 @@ async def test_ceiling_breach_names_all_three_values():
     )
     resolver = _MockResolver(secret=_secret())
 
-    body = json.dumps(
-        {"model": "gpt-4o", "messages": [], "max_output_tokens": 200}
-    ).encode()
+    # Chat Completions' request field is `max_tokens`, not the `max_output_tokens`
+    # config key (D33: which request field varies per protocol; the ceiling itself
+    # is always named `max_output_tokens` in the error).
+    body = json.dumps({"model": "gpt-4o", "messages": [], "max_tokens": 200}).encode()
 
     with pytest.raises(CeilingExceededError) as excinfo:
         await _service(dao=dao, resolver=resolver).relay_chat_completion(
@@ -433,6 +464,119 @@ async def test_ceiling_breach_names_all_three_values():
     assert excinfo.value.requested == 200
     assert excinfo.value.allowed == 100
     assert resolver.resolve_calls == []
+
+
+# --- ceiling binding is per protocol (D33, D34, WP23) ------------------------ #
+
+
+@pytest.mark.parametrize(
+    "protocol,field",
+    [
+        (LLMProtocol.CHAT_COMPLETIONS, "max_tokens"),
+        (LLMProtocol.CHAT_COMPLETIONS, "max_completion_tokens"),
+        (LLMProtocol.RESPONSES, "max_output_tokens"),
+        (LLMProtocol.MESSAGES, "max_tokens"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_ceiling_binds_to_the_protocols_own_field_and_rejects_above_it(
+    protocol, field
+):
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), max_output_tokens=100
+    )
+    resolver = _MockResolver(secret=_secret())
+
+    body = json.dumps({"model": "gpt-4o", field: 200}).encode()
+
+    with pytest.raises(CeilingExceededError) as excinfo:
+        await _service(dao=dao, resolver=resolver).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="acme",
+            body=body,
+            headers={},
+            protocol=protocol,
+        )
+
+    assert excinfo.value.requested == 200
+    assert excinfo.value.allowed == 100
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.parametrize(
+    "protocol,field",
+    [
+        (LLMProtocol.CHAT_COMPLETIONS, "max_tokens"),
+        (LLMProtocol.RESPONSES, "max_output_tokens"),
+        (LLMProtocol.MESSAGES, "max_tokens"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_ceiling_at_or_below_the_limit_is_not_rejected(protocol, field):
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), max_output_tokens=100
+    )
+    secret = _secret()
+    resolver = _MockResolver(secret=secret)
+
+    adapter_result = LLMRelayResult(
+        status_code=200, headers={}, body=_one_chunk_body(b"{}")
+    )
+    adapter = _MockAdapter(result=adapter_result)
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+    policy = _MockPolicy(allowed=True)
+
+    body = json.dumps({"model": "gpt-4o", field: 100}).encode()
+
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry, policy=policy
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=body,
+        headers={},
+        protocol=protocol,
+    )
+
+    assert result is adapter_result
+
+
+@pytest.mark.asyncio
+async def test_ceiling_ignores_another_protocols_field_name():
+    # A Responses body naming `max_tokens` (Chat Completions'/Messages' field) is not
+    # mistaken for the ceiling field — RESPONSES only reads `max_output_tokens`.
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), max_output_tokens=100
+    )
+    secret = _secret()
+    resolver = _MockResolver(secret=secret)
+
+    adapter_result = LLMRelayResult(
+        status_code=200, headers={}, body=_one_chunk_body(b"{}")
+    )
+    adapter = _MockAdapter(result=adapter_result)
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+    policy = _MockPolicy(allowed=True)
+
+    body = json.dumps({"model": "gpt-4o", "max_tokens": 999}).encode()
+
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry, policy=policy
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=body,
+        headers={},
+        protocol=LLMProtocol.RESPONSES,
+    )
+
+    assert result is adapter_result
 
 
 @pytest.mark.asyncio
@@ -452,7 +596,7 @@ async def test_successful_non_streaming_call_records_after_relay():
         usage=GatewayUsage(calls=1, input_tokens=3, output_tokens=4, cost=0.01),
     )
     adapter = _MockAdapter(result=adapter_result)
-    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
     policy = _MockPolicy(allowed=True)
 
     body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
@@ -497,7 +641,7 @@ async def test_streaming_call_records_only_after_full_consumption():
 
     adapter_result = LLMRelayResult(status_code=200, headers={}, body=_two_chunks())
     adapter = _MockAdapter(result=adapter_result)
-    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
 
     body = json.dumps({"model": "gpt-4o", "messages": [], "stream": True}).encode()
     result = await _service(

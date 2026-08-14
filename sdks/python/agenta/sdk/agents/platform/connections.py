@@ -25,6 +25,7 @@ from ..capabilities import (
     PROVIDER_ENV_VARS,
 )
 from ..connections.endpoints import (
+    _REGION_ENV,
     build_gateway_resolved_connection,
     build_resolved_connection,
     gateway_target,
@@ -344,7 +345,9 @@ class _ConnectionCandidate:
         )
 
     def resolved_env(self, provider: str) -> Dict[str, str]:
-        env = dict(self.env)
+        # Region is addressing, not a credential: it reaches the gateway on the endpoint row,
+        # not by riding this dict to be discarded downstream (WP24).
+        env = {k: v for k, v in self.env.items() if k not in _REGION_ENV}
         env_var = _provider_env_var(provider) or _provider_env_var(self.provider)
         # Bedrock's key is a bearer token with its own channel below — never the family's
         # API-key env var (a bedrock key in ANTHROPIC_API_KEY would mis-auth the direct API).
@@ -404,7 +407,11 @@ def _custom_provider_candidate(
         return None
 
     env = _normalized_extra_env(extras)
-    region = env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION")
+    region = (
+        env.get("AWS_REGION")
+        or env.get("AWS_DEFAULT_REGION")
+        or env.get("GOOGLE_CLOUD_LOCATION")
+    )
     raw_url = _stripped(settings.get("url"))
     endpoint_blocked = False
     if raw_url:

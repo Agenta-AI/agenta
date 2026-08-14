@@ -8,8 +8,7 @@ project is answered by the resolver's `available_provider_keys` (R2), not by thi
 
 from typing import List, Optional
 
-from agenta.sdk.agents.connections.endpoints import direct_endpoint
-from agenta.sdk.utils.assets import supported_llm_models
+from agenta.sdk.utils.assets import litellm_provider_prefixes, supported_llm_models
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import (
@@ -19,8 +18,22 @@ from oss.src.core.gateways.llms.dtos import (
     LLMEndpointRoute,
     LLMModelFilter,
 )
-from oss.src.core.gateways.llms.registry import select_upstream
+from oss.src.core.gateways.llms.providers.passthrough.routing import DIRECT_BASE_URLS
 from oss.src.core.shared.dtos import Header
+
+
+def _bare_model_id(*, provider_key: str, model_id: str) -> str:
+    """Strip the provider's own litellm routing prefix, if the catalogued id carries one.
+
+    litellm's `"anthropic/claude-sonnet-5"`-style ids exist for litellm's own dispatch and
+    mean nothing to the upstream itself (open-designs.md OD16) — a relay that never touches
+    the body must advertise the id the real upstream accepts, since fixing this at relay
+    time would be the body conversion D34 forbids.
+    """
+    prefix = litellm_provider_prefixes.get(provider_key)
+    if prefix and model_id.startswith(f"{prefix}/"):
+        return model_id[len(prefix) + 1 :]
+    return model_id
 
 
 def standard_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
@@ -40,17 +53,22 @@ def standard_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
         namespace=GatewayEndpointNamespace.STANDARD,
         data=LLMEndpointData(
             route=_route(provider_key),
-            models=LLMModelFilter(allowlist=list(model_slugs)),
+            models=LLMModelFilter(
+                allowlist=[
+                    _bare_model_id(provider_key=provider_key, model_id=model_id)
+                    for model_id in model_slugs
+                ]
+            ),
         ),
     )
 
 
 def _route(provider_key: str) -> LLMEndpointRoute:
-    """The passthrough adapter dials `base_url` and refuses without one; the translated
-    adapter takes the provider's own default from litellm, so it is left unset there."""
-    if select_upstream(provider_key, LLMDeploymentKind.DIRECT) != "passthrough":
-        return LLMEndpointRoute()
-    return LLMEndpointRoute(base_url=direct_endpoint(provider_key))
+    """Every DIRECT provider OD16 clears has a known base_url (open-designs.md); one absent
+    from the table is one OD16 did not clear, and relaying to it fails at relay time rather
+    than here — this function never raises."""
+    base_url = DIRECT_BASE_URLS.get(provider_key)
+    return LLMEndpointRoute(base_url=base_url) if base_url else LLMEndpointRoute()
 
 
 def standard_llm_endpoints() -> List[LLMEndpoint]:

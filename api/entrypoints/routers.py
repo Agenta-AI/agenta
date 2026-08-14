@@ -174,9 +174,8 @@ from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
 from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
-    PassthroughLLMAdapter,
+    RelayLLMAdapter,
 )
-from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLLMAdapter
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
@@ -1106,8 +1105,7 @@ llm_gateway_service = LLMGatewayService(
     resolver=secrets_resolver,
     upstream_registry=LLMUpstreamRegistry(
         adapters={
-            "passthrough": PassthroughLLMAdapter(),
-            "translated": TranslatedLLMAdapter(),
+            "relay": RelayLLMAdapter(),
             "mock": MockLLMAdapter(),
         }
     ),

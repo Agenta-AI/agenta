@@ -1,72 +1,34 @@
 """`LLMUpstreamRegistry` and `select_upstream` (entities.md §7.1, §8).
 
-`select_upstream` is pure — no DAO, no vault, no I/O — so the wave's adapter split (which
-provider's wire is OpenAI-shaped versus which needs the routing library) is a table
-reviewable and testable on its own, independent of any adapter's construction.
+`select_upstream` is pure — no DAO, no vault, no I/O — so which adapter key a deployment
+resolves to is a table reviewable and testable on its own, independent of any adapter's
+construction. D34 forbids body conversion, so there is exactly one relay adapter for every
+deployment kind; the `passthrough`/`translated` split it replaces is gone (open-designs.md
+OD16).
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
 from oss.src.core.gateways.llms.interfaces import LLMUpstreamInterface
 from oss.src.core.gateways.llms.types import LLMAdapterNotFoundError
 
-# The mock upstream is selected on provider_key alone, ahead of the deployment_kind split —
-# the mocks register under a third key (entities.md §7.1) and are reachable only through
-# a seeded endpoint naming this provider (D23; reachability is WP1/WP10's concern).
-_MOCK_PROVIDER_KEY = "mock"
 
-# Cloud-reseller deployments: auth is request signing, never a bearer header, so the wire
-# is never byte-for-byte by construction (§7.1) — always translated.
-_TRANSLATED_DEPLOYMENTS = {
-    LLMDeploymentKind.AZURE,
-    LLMDeploymentKind.BEDROCK,
-    LLMDeploymentKind.SAGEMAKER,
-    LLMDeploymentKind.VERTEX,
-}
+def select_upstream(
+    provider_key: Optional[str], deployment_kind: LLMDeploymentKind
+) -> str:  # noqa: ARG001
+    """Picks the adapter key for the registry. Pure: no I/O, no DAO, no vault.
 
-# DIRECT providers whose own chat-completions wire is already OpenAI-shaped (verified
-# against litellm's base URLs and provider docs at the time this table was written; a
-# provider litellm later adds OpenAI-compatible support for moves row, not the design).
-_DIRECT_PASSTHROUGH_PROVIDERS = {
-    "openai",
-    "groq",
-    "together_ai",
-    "openrouter",
-    "mistral",
-    "mistralai",
-}
-
-# DIRECT providers whose native wire differs from OpenAI's — litellm already knows each
-# shape (D9).
-_DIRECT_TRANSLATED_PROVIDERS = {
-    "anthropic",
-    "gemini",
-    "cohere",
-    "deepinfra",
-    "perplexityai",
-    "minimax",
-}
-
-
-def select_upstream(provider_key: str, deployment_kind: LLMDeploymentKind) -> str:
-    """Picks the adapter key for the registry. Pure: no I/O, no DAO, no vault."""
-    if provider_key == _MOCK_PROVIDER_KEY:
+    `provider_key` decides nothing here any more (D34 removed the one branch that read it,
+    entities.md §2.4) — kept as a parameter so callers do not need to change, but the whole
+    decision is now `deployment_kind` alone: `MOCK` selects the test double, everything else
+    is the one relay. A deployment kind with no routing/auth strategy (`sagemaker`, OD16)
+    still resolves to `"relay"` here and fails at relay time, naming the reason — the
+    registry only ever misses on a typo in this table, never on a provider fact.
+    """
+    if deployment_kind == LLMDeploymentKind.MOCK:
         return "mock"
-
-    if deployment_kind in _TRANSLATED_DEPLOYMENTS:
-        return "translated"
-
-    if deployment_kind == LLMDeploymentKind.CUSTOM:
-        return "passthrough"
-
-    # DIRECT: OpenAI-shaped providers relay byte for byte; everything else — including a
-    # provider absent from both known sets — goes through the routing library, since a
-    # wrong "passthrough" guess would relay bytes the upstream cannot parse while a wrong
-    # "translated" guess merely spends an unnecessary re-serialization.
-    return (
-        "passthrough" if provider_key in _DIRECT_PASSTHROUGH_PROVIDERS else "translated"
-    )
+    return "relay"
 
 
 class LLMUpstreamRegistry:

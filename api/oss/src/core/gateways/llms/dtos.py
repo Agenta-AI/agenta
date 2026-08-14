@@ -32,6 +32,7 @@ class LLMDeploymentKind(str, Enum):
     BEDROCK = "bedrock"
     SAGEMAKER = "sagemaker"
     VERTEX = "vertex_ai"
+    MOCK = "mock"  # the in-process test double (D23) — a deployment kind, not a provider name
 
 
 class LLMEndpointRoute(GatewayEndpointRoute):
@@ -72,7 +73,10 @@ class LLMEndpointFlags(BaseModel):
 
 
 class LLMEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
-    provider_key: str
+    # Nullable (entities.md §2.4): with the passthrough/translated split gone (D34), a
+    # stored row's provider_key decides nothing — it is a label, not a routing input. A
+    # custom row pointed at a self-hosted gateway names no provider that means anything.
+    provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     namespace: GatewayEndpointNamespace = GatewayEndpointNamespace.CUSTOM
     secret_id: Optional[UUID] = None
@@ -83,7 +87,7 @@ class LLMEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
 
 
 class LLMEndpointCreate(Slug, Header, Metadata):
-    provider_key: str
+    provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     secret_id: Optional[UUID] = None
     #
@@ -106,19 +110,30 @@ class LLMEndpointQuery(BaseModel):
     slug: Optional[str] = None
 
 
+class LLMProtocol(str, Enum):
+    """The front door a call arrived through (D33). `model`/`stream` share field
+    names across all three wires; this tag exists so the ceiling check can bind
+    to the right request field without guessing (D34, WP23)."""
+
+    CHAT_COMPLETIONS = "chat_completions"
+    RESPONSES = "responses"
+    MESSAGES = "messages"
+
+
 class LLMCallContext(BaseModel):
     """What policy needs from the request body — parsed minimally, so the body
     itself can relay byte for byte (`scope-checklist.md`)."""
 
     model: str
     stream: bool = False
+    protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS
 
 
 class LLMResolvedRoute(BaseModel):
     """What the south port receives: the route after selection, with the model
     id already in the routing library's form."""
 
-    provider_key: str
+    provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     model: str
     #

@@ -22,8 +22,8 @@ from uuid import uuid4
 import pytest
 
 # Compose service name and port WP5 owns (workstreams/specs-wp5.md); the trailing /v1
-# is the upstream's own path segment, appended to by PassthroughLLMAdapter's
-# `route.base_url + "/chat/completions"` (specs-wp6.md, entities.md §9's base_url note).
+# is the upstream's own path segment, appended to by RelayLLMAdapter's per-protocol
+# routing strategy (specs-wp24.md, entities.md §9's base_url note).
 _MOCK_BASE_URL = "http://mock-llm-gateway:9091/v1"
 
 
@@ -40,10 +40,10 @@ def _create_custom_endpoint(authed_api, *, models, timeout_seconds=None):
             "/gateways/llms/endpoints/",
             json={
                 "endpoint": {
-                    # NOT "mock": select_upstream sends that key to the in-process
-                    # MockLLMAdapter, which would never dial base_url. "openai" +
-                    # custom routes to the passthrough adapter, so these cross a real
-                    # socket to the mock-llm-gateway container.
+                    # deployment_kind "custom" (not "mock"): select_upstream sends
+                    # LLMDeploymentKind.MOCK to the in-process MockLLMAdapter, which
+                    # would never dial base_url. "custom" routes to RelayLLMAdapter,
+                    # so these cross a real socket to the mock-llm-gateway container.
                     "slug": slug,
                     "provider_key": "openai",
                     "deployment_kind": "custom",
@@ -186,3 +186,80 @@ class TestLLMGatewayProxyAcceptance:
         body = _assert_ok(response)
         assert body["object"] == "list"
         assert {m["id"] for m in body["data"]} == {"mock/echo"}
+
+
+@pytest.mark.acceptance
+class TestLLMGatewayResponsesAndMessagesDoorsAcceptance:
+    """D33/WP23/WP24: the same byte-for-byte relay, over the responses and messages doors.
+
+    `RelayLLMAdapter`'s routing strategy is protocol-aware (specs-wp24.md): each door's
+    request lands on the mock's matching handler (`/v1/responses`, `/v1/messages`), not
+    always `/v1/chat/completions` — this proves both WP23's parse-only-the-policy-fields
+    property and WP24's per-protocol URL composition together.
+    """
+
+    def test_responses_door_relays_request_and_response_bytes(
+        self, gateway_api, mock_llm_endpoint
+    ):
+        slug = mock_llm_endpoint["slug"]
+
+        response = gateway_api(
+            "POST",
+            f"/gateways/llms/custom/{slug}/v1/responses",
+            json={"model": "mock/echo", "input": [{"role": "user", "content": "hi"}]},
+        )
+
+        assert response.status_code == 200
+
+    def test_messages_door_relays_request_and_response_bytes(
+        self, gateway_api, mock_llm_endpoint
+    ):
+        slug = mock_llm_endpoint["slug"]
+
+        response = gateway_api(
+            "POST",
+            f"/gateways/llms/custom/{slug}/v1/messages",
+            json={
+                "model": "mock/echo",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        )
+
+        assert response.status_code == 200
+
+    def test_responses_door_streams_sse_bytes_unmodified(
+        self, gateway_api, mock_llm_endpoint
+    ):
+        slug = mock_llm_endpoint["slug"]
+
+        response = gateway_api(
+            "POST",
+            f"/gateways/llms/custom/{slug}/v1/responses",
+            json={
+                "model": "mock/echo",
+                "stream": True,
+                "input": [{"role": "user", "content": "hi"}],
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.content.count(b"data: ") >= 1
+
+    def test_model_outside_allowlist_is_refused_on_the_messages_door_too(
+        self, gateway_api, mock_llm_endpoint
+    ):
+        slug = mock_llm_endpoint["slug"]
+
+        response = gateway_api(
+            "POST",
+            f"/gateways/llms/custom/{slug}/v1/messages",
+            json={
+                "model": "mock/not-on-the-allowlist",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "model_not_allowed"
