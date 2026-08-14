@@ -1,6 +1,7 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {
+    fetchSessionRecordsAtom,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
@@ -8,13 +9,14 @@ import {
     type SessionInteractionRowStates,
 } from "@agenta/entities/session"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
+import {generateId} from "@agenta/shared/utils"
 import {type UIMessage} from "ai"
-import {useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
-import {sessionRunningElsewhereAtomFamily} from "../state/liveness"
+import {sessionLivenessAtomFamily, sessionRunningElsewhereAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
 import {isSessionFresh} from "../state/sessionEphemera"
 import {activeSessionIdAtomFamily} from "../state/sessions"
@@ -51,6 +53,26 @@ export const shouldSkipRecordsRefresh = ({
     busy: boolean
     pendingResume: boolean
 }): boolean => busy || pendingResume
+
+/** A transcript whose tail is a user turn nothing ever answered — the shape a send that died
+ * client-side (aborted mid-prepare, a lost seed handoff) leaves behind (#6042). */
+export const hasStrandedTail = (messages: UIMessage[]): boolean =>
+    messages.length > 0 && messages[messages.length - 1]?.role === "user"
+
+/** Same carrier shape `useAgentChatSession`'s error effect uses, so the stamp renders through the
+ * existing red error bubble. */
+const strandedRunErrorCarrier = (): UIMessage =>
+    ({
+        id: `run-error-${generateId()}`,
+        role: "assistant",
+        parts: [],
+        metadata: {
+            runError: {
+                message:
+                    "This message never reached the agent — the run was not started. Send it again.",
+            },
+        },
+    }) as unknown as UIMessage
 
 /** Waiting CLIENT-TOOL cards anywhere in the chat — the same whole-chat scan the tab status uses.
  * Narrow to client tools on purpose: an interrupted turn can leave an ordinary server tool part at
@@ -434,6 +456,36 @@ export const useSessionHydration = ({
         // Deliberately NOT keyed on `adoptServerTranscript` — the poll reads it through the ref
         // above, so a re-render can't cancel a pending tick or reset the backoff.
     }, [runningElsewhere, sessionId])
+
+    // ── Stranded first send (#6042) ─────────────────────────────────────────────
+    // A restored transcript whose tail is an unanswered user turn, with the backend idle and the
+    // durable record log EMPTY, means the send died client-side before it ever reached the runner
+    // (aborted mid-prepare, a lost seed handoff). Without this check the session reads as
+    // busy-forever on every reopen. One-shot per mount, and only for the zero-records case —
+    // `records: []` is a confirmed-empty log, `records: null` is a failed fetch and never stamps.
+    const liveness = useAtomValue(sessionLivenessAtomFamily(sessionId))
+    const strandedCheckedRef = useRef(false)
+    useEffect(() => {
+        if (strandedCheckedRef.current || isHydrating || busy) return
+        if (liveness.isLoading || liveness.nest.isRunning) return
+        if (!hasStrandedTail(messagesRef.current)) return
+        strandedCheckedRef.current = true
+        let cancelled = false
+        void getDefaultStore()
+            .set(fetchSessionRecordsAtom, sessionId)
+            .then(({records}) => {
+                if (cancelled || busyRef.current) return
+                if (!records || records.length > 0) return
+                const current = messagesRef.current
+                if (!hasStrandedTail(current)) return
+                const stamped = [...current, strandedRunErrorCarrier()]
+                setMessages(stamped)
+                persistMessages({id: sessionId, messages: stamped})
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [isHydrating, busy, liveness, sessionId, messagesRef, busyRef, setMessages, persistMessages])
 
     // ── Push counterpart to that poll: the session watch relay ─────────────────
     // The relay ticks whenever this session's durable records change — a turn resumed on another
