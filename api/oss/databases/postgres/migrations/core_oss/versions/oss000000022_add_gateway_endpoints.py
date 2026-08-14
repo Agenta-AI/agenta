@@ -14,7 +14,7 @@ endpoint's configuration (§2.1). Each endpoint names one secret, project-owned 
 user-level grants are out of scope, and reopening them adds tables rather than
 changing these (out-of-scope.md).
 
-Revision ID: oss000000021
+Revision ID: oss000000022
 Revises: oss000000020
 Create Date: 2026-08-13 00:00:00.000000
 
@@ -26,8 +26,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "oss000000021"
-down_revision: Union[str, None] = "oss000000020"
+revision: str = "oss000000022"
+down_revision: Union[str, None] = "oss000000021"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
