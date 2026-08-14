@@ -354,7 +354,7 @@ async def test_relay_result_unaffected_when_publisher_raises(monkeypatch):
         policy=GatewayPolicyService(resolver=AsyncMock()),
         resolver=AsyncMock(),
         upstream_registry=LLMUpstreamRegistry(
-            adapters={"passthrough": _PassthroughAdapter(adapter_result)}
+            adapters={"relay": _PassthroughAdapter(adapter_result)}
         ),
     )
 

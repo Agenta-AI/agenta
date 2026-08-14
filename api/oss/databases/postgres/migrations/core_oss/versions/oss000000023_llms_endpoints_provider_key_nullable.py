@@ -5,7 +5,7 @@ stored row's `provider_key` decided anything, entities.md §2.4) is gone. The co
 `query_endpoints` filters on it and an upstream error names it — but a `custom` row pointed
 at a self-hosted gateway no longer has to name a provider that means nothing to it.
 
-Revision ID: oss000000022
+Revision ID: oss000000023
 Revises: oss000000021
 Create Date: 2026-08-14 00:00:00.000000
 
@@ -16,8 +16,8 @@ from typing import Sequence, Union
 from alembic import op
 from sqlalchemy import String
 
-revision: str = "oss000000022"
-down_revision: Union[str, None] = "oss000000021"
+revision: str = "oss000000023"
+down_revision: Union[str, None] = "oss000000022"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

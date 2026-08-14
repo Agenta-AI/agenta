@@ -1,15 +1,10 @@
-"""The composition entrypoints: resolve_tools / resolve_mcp / resolve_secrets."""
+"""The composition entrypoints: resolve_tools / resolve_mcp."""
 
 from __future__ import annotations
 
 from typing import Mapping, Sequence
 
-from agenta.sdk.agents.platform import (
-    PlatformConnection,
-    resolve_provider_keys,
-    resolve_secrets,
-    resolve_tools,
-)
+from agenta.sdk.agents.platform import PlatformConnection, resolve_tools
 from agenta.sdk.agents.platform import resolve_mcp
 
 
@@ -60,8 +55,3 @@ async def test_resolve_mcp_routes_through_the_gateway_when_configured():
     assert len(resolved) == 1
     assert resolved[0].url == "https://api.x/api/gateways/mcps/custom/notion"
     assert [c.binding.name for c in resolved[0].credentials] == ["X-AG-Credentials"]
-
-
-def test_resolve_secrets_is_the_provider_key_entrypoint():
-    # The third entrypoint is the provider-key fetch (harness/model keys), not named secrets.
-    assert resolve_secrets is resolve_provider_keys
