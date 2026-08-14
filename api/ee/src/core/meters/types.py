@@ -25,7 +25,7 @@ class Meters(str, Enum):
     EVALUATIONS_RUN = Counter.EVALUATIONS_RUN.value
     TRACES_INGESTED = Counter.TRACES_INGESTED.value
     TRACES_RETRIEVED = Counter.TRACES_RETRIEVED.value
-    CREDITS_CONSUMED = Counter.CREDITS_CONSUMED.value
+    CREDITS_CONSUMED = "credits_consumed"  # legacy, dropped from Counter; keeps old meter rows readable
     EVENTS_INGESTED = Counter.EVENTS_INGESTED.value
     RECORDS_INGESTED = Counter.RECORDS_INGESTED.value
     # GAUGES
