@@ -978,7 +978,7 @@ and triggers sit outside it. Importing our vocabulary from the integrations doma
 re-couple the two through the back door for no gain; a fourth definition inside our own
 boundary costs nothing and keeps the boundary real. If all four ever converge, the
 neutral home is `core/shared/dtos.py` — which already holds `Identifier`, `Slug` and
-`Header` — and that convergence is deliberately later work: `cleanups.md` item 9 carries
+`Header` — and that convergence is deliberately later work: `cleanups.md` CU9 carries
 it, gated on the gateways existing at all.
 
 One semantic addition the existing copies lack: `NONE`. The first checkpoint's reachable

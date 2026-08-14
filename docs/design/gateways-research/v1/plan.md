@@ -343,7 +343,7 @@ second-order to having one, and it blocks nothing.
 
 ## Not packages, because the gateways have to exist first
 
-`cleanups.md` is the register: eleven things that become possible only once the gateways run, from
+`cleanups.md` is the register: twelve things that become possible only once the gateways run, from
 closing the vault's plaintext read surface to collapsing the runner wire's secret arrays to
 moving the eligible slice of the runner's tool loopback. None of them can be scheduled in front of
 the waves, and none of them is optional — together they are what D1 costs in full.
