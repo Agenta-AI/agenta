@@ -25,7 +25,7 @@ from oss.src.apis.fastapi.gateways.llms.utils import (
     parse_messages_call_context,
     parse_responses_call_context,
 )
-from oss.src.apis.fastapi.gateways.utils import response_headers
+from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_marker
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
@@ -67,21 +67,10 @@ _DOMAIN_EXCEPTIONS = (
 )
 
 
-# A single unambiguous machine-readable marker, embedded in every TYPED refusal's `message`
-# (WP25, OD18) so `code` survives even when a harness's SDK discards everything else the body
-# carries — codex-rs's `extract_error_message` keeps only `error.message` before reformatting,
-# so a marker inside that one surviving field is the only channel left. U+27E6/U+27E7
-# (MATHEMATICAL LEFT/RIGHT WHITE SQUARE BRACKET) never occur in ordinary error prose, a model's
-# own output, JSON delimiters (`{}`/`[]`), or markdown, so nothing else can produce or be
-# mistaken for this marker, and it cannot collide with `parseGatewayErrorDetail`'s separate
-# `{...}` body scan. Never applied to `upstream_error`: D16 forwards the upstream's own detail
+# The code marker is shared with the MCP plane (`gateways/mcps/proxy.py`) via
+# `gateways/utils.py::with_code_marker` — see that module for why (WP25, OD18) and why this
+# delimiter. Never applied to `upstream_error`: D16 forwards the upstream's own detail
 # untouched, and this surface must not inject text into it.
-_CODE_MARKER_OPEN = "⟦agenta_code:"
-_CODE_MARKER_CLOSE = "⟧"
-
-
-def _with_code_marker(message: str, code: str) -> str:
-    return f"{message} {_CODE_MARKER_OPEN}{code}{_CODE_MARKER_CLOSE}"
 
 
 def _openai_error(
@@ -93,7 +82,7 @@ def _openai_error(
     marked: bool = True,
     **extra: Any,
 ) -> JSONResponse:
-    rendered = _with_code_marker(message, code) if marked else message
+    rendered = with_code_marker(message, code) if marked else message
     error: Dict[str, Any] = {"message": rendered, "type": error_type, "code": code}
     error.update(extra)
     return JSONResponse(status_code=status_code, content={"error": error})

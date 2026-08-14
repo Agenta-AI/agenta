@@ -272,6 +272,43 @@ def test_mapped_gateway_exceptions_carry_status_and_cause(
     assert "retryable" not in payload["error"]["data"]
 
 
+@pytest.mark.parametrize(
+    "make_error, expected_status, expected_cause",
+    [
+        (_endpoint_not_found, 404, "endpoint_not_found"),
+        (_policy_denied, 403, "policy_denied"),
+        (_entitlement_denied, 403, "entitlement_denied"),
+        (_tool_not_allowed, 403, "tool_not_allowed"),
+        (_ceiling_exceeded, 400, "ceiling_exceeded"),
+        (_auth_required, 409, "auth_required"),
+        (_scope_insufficient, 409, "scope_insufficient"),
+        (_secret_missing, 409, "secret_missing"),
+        (_secret_invalid, 409, "secret_invalid"),
+        (_upstream_error_below_500, 424, "upstream_error"),
+        (_upstream_error_5xx, 502, "upstream_error"),
+        (_upstream_error_no_status, 424, "upstream_error"),
+    ],
+)
+def test_mapped_gateway_exceptions_carry_the_code_marker_except_upstream_error(
+    client, mock_service, make_error, expected_status, expected_cause
+):
+    """WP25/OD18: `cause` must survive in `message` alone on both planes, for the same
+    reason as the LLM plane — Codex's own SDK keeps only `error.message`. `upstream_error`
+    is excluded — D16 forwards the upstream's own detail untouched."""
+    mock_service.raise_error = make_error()
+
+    response = client.post(
+        "/custom/acme-notion", headers={"MCP-Method": "tools/list"}, content=b"{}"
+    )
+
+    message = response.json()["error"]["message"]
+    marker = f"⟦agenta_code:{expected_cause}⟧"
+    if expected_cause == "upstream_error":
+        assert marker not in message
+    else:
+        assert message.endswith(marker)
+
+
 def test_auth_required_carries_the_connect_requirement(client, mock_service):
     mock_service.raise_error = _auth_required()
 
