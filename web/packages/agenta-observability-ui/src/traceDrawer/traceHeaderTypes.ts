@@ -1,11 +1,7 @@
 import {Dispatch, SetStateAction} from "react"
 
-import {SortResult, TraceTabTypes} from "@agenta/observability"
-
-import {Filter} from "@/oss/lib/Types"
-import {_AgentaRootsResponse, TracesWithAnnotations} from "@/oss/services/observability/types"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {QueryValue} from "@/oss/state/appState/types"
+import type {Filter, SortResult, TraceSpanNode, TraceTabTypes} from "@agenta/observability"
+import type {TracesWithAnnotations} from "@agenta/observability/dto"
 
 export interface TraceHeaderProps {
     // Original props (ObservabilityDashboard)
@@ -20,14 +16,10 @@ export interface TraceHeaderProps {
     limit: number
     setSelectedTraceId: (val: string) => void
     setSelectedNode?: (val: string) => void
-    setTraceParam: (
-        value: QueryValue | ((prev: QueryValue) => QueryValue),
-        options?: {shallow?: boolean; preserveHash?: boolean},
-    ) => void
-    setSpanParam: (
-        value: QueryValue | ((prev: QueryValue) => QueryValue),
-        options?: {shallow?: boolean; preserveHash?: boolean},
-    ) => void
+    // The query-param seam writes shallow and takes a plain value; antd-era callers passed an
+    // updater plus options, neither of which the seam needs.
+    setTraceParam: (value: string | null | undefined) => void
+    setSpanParam: (value: string | null | undefined) => void
     setTraceDrawerTrace: (payload: {
         traceId?: string
         activeSpanId?: string | null

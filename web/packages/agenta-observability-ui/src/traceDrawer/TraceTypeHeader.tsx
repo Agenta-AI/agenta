@@ -1,28 +1,27 @@
 import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
-import {deleteTraceModalAtom, DeleteTraceModal} from "@agenta/observability-ui"
-import {hasAppReference} from "@agenta/playground"
-import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
+import type {TraceSpanNode} from "@agenta/observability"
+import {closeTraceDrawerAtom} from "@agenta/observability/traceDrawer"
+import {
+    getTraceDrawerPlaygroundActions,
+    traceDrawerBaseAppURLAtom,
+    traceDrawerNavigate,
+} from "@agenta/observability/traceDrawer"
+import {getTraceIdFromNode} from "@agenta/observability/traceDrawer"
+import {EnhancedButton, Tag} from "@agenta/ui/components/presentational"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {DeleteOutlined} from "@ant-design/icons"
+import {SimpleTooltip} from "@agenta/ui/ui"
+import {Trash} from "@phosphor-icons/react"
 import {Play, SidebarSimple} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
-import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
-import {openTraceInPlaygroundAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/openInPlayground"
-import {closeTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import type {TraceSpanNode} from "@/oss/services/tracing/types"
-import {useAppNavigation} from "@/oss/state/appState"
-import {urlAtom} from "@/oss/state/url"
-import {buildPlaygroundUrl} from "@/oss/state/url/playground"
+import DeleteTraceModal from "../delete"
+import {deleteTraceModalAtom} from "../delete/store/atom"
 
-import {getTraceIdFromNode} from "../../../TraceHeader/assets/helper"
-
-import {TraceTypeHeaderProps} from "./types"
+import {getTraceDrawerReferences} from "./referenceSlots"
+import {TraceTypeHeaderProps} from "./traceTypeHeaderTypes"
 
 /**
  * Span types whose inputs match the app's root input schema — the unit the
@@ -49,12 +48,12 @@ const TraceTypeHeader = ({
     setIsAnnotationsSectionOpen,
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
+    const {AddToTestsetButton, AnnotateDrawerButton} = getTraceDrawerReferences()
+    const {openTraceInPlayground, openWorkflowRevisionDrawer, hasAppReference, buildPlaygroundUrl} =
+        getTraceDrawerPlaygroundActions()
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
-    const setOpenInPlayground = useSetAtom(openTraceInPlaygroundAtom)
-    const openWorkflowRevisionDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
     const closeTraceDrawer = useSetAtom(closeTraceDrawerAtom)
-    const url = useAtomValue(urlAtom)
-    const navigation = useAppNavigation()
+    const baseAppURL = useAtomValue(traceDrawerBaseAppURLAtom)
     // Resolving slug-only application references to UUIDs requires a backend
     // round trip (POST /workflows/revisions/retrieve). Show a spinner on the
     // Playground button so the user sees the click registered while we wait.
@@ -92,7 +91,7 @@ const TraceTypeHeader = ({
         // these helpers expect; align at the boundary, no data is converted.
         const agData = extractAgData(activeTrace as unknown as Parameters<typeof extractAgData>[0])
         const hasExtractableData = Boolean(agData?.inputs || agData?.parameters)
-        const hasApp = hasAppReference(
+        const hasApp = hasAppReference?.(
             activeTrace as unknown as Parameters<typeof hasAppReference>[0],
         )
         const isInvocation = INVOCATION_SPAN_TYPES.has(spanType)
@@ -144,7 +143,7 @@ const TraceTypeHeader = ({
                 traceRoot && traceRoot.span_id !== activeTrace.span_id && hasAgentSpan(traceRoot)
                     ? traceRoot
                     : activeTrace
-            const result = await setOpenInPlayground(spanToOpen)
+            const result = await openTraceInPlayground?.(spanToOpen)
             // Need at least an entityId (revision or ephemeral) to open.
             if (!result || !result.entityId) return
 
@@ -152,14 +151,15 @@ const TraceTypeHeader = ({
                 // Span with an app reference → navigate to app playground.
                 // Close the trace drawer since we're leaving observability entirely.
                 closeTraceDrawer()
-                const appPlaygroundBase = `${url.baseAppURL}/${result.appId}/playground`
+                const appPlaygroundBase = `${baseAppURL}/${result.appId}/playground`
                 const playgroundUrl =
                     result.type === "revision"
                         ? // Specific revision — pin it in the URL.
                           `${appPlaygroundBase}?revisions=${result.entityId}`
                         : // Ephemeral entity scoped to an app (legacy evaluator path).
-                          buildPlaygroundUrl([result.entityId], appPlaygroundBase)
-                navigation.push(playgroundUrl)
+                          (buildPlaygroundUrl?.([result.entityId], appPlaygroundBase) ??
+                          appPlaygroundBase)
+                void traceDrawerNavigate(playgroundUrl)
                 return
             }
 
@@ -183,7 +183,7 @@ const TraceTypeHeader = ({
             // editor. Without this, the editor is unfocusable in either expanded
             // or collapsed mode because the trace drawer's focus trap pulls
             // focus back on every click.
-            openWorkflowRevisionDrawer({
+            openWorkflowRevisionDrawer?.({
                 entityId: result.entityId,
                 context: "variant",
                 expanded: true,
@@ -195,9 +195,9 @@ const TraceTypeHeader = ({
     }, [
         activeTrace,
         traces,
-        setOpenInPlayground,
-        url.baseAppURL,
-        navigation,
+        openTraceInPlayground,
+        baseAppURL,
+        buildPlaygroundUrl,
         openWorkflowRevisionDrawer,
         closeTraceDrawer,
     ])
@@ -206,17 +206,11 @@ const TraceTypeHeader = ({
 
     return (
         <div className="h-10 px-4 flex items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
-            <Tooltip
-                placement="topLeft"
-                title={activeTrace?.span_name || (error ? "Error" : "")}
-                mouseEnterDelay={0.25}
-            >
-                <Typography.Text
-                    className={clsx("truncate text-nowrap flex-1 text-sm font-medium")}
-                >
+            <SimpleTooltip side="top" title={activeTrace?.span_name || (error ? "Error" : "")}>
+                <span className={clsx("truncate text-nowrap flex-1 text-sm font-medium")}>
                     {activeTrace?.span_name || (error ? "Error" : "")}
-                </Typography.Text>
-            </Tooltip>
+                </span>
+            </SimpleTooltip>
 
             <div className="flex gap-2">
                 <TooltipWithCopyAction
@@ -224,15 +218,16 @@ const TraceTypeHeader = ({
                     title="Copy span id"
                     tooltipProps={{placement: "bottom", arrow: true}}
                 >
-                    <Tag className="font-mono truncate bg-[var(--ag-c-0517290F)]" variant="filled">
-                        # {activeTrace?.span_id || "-"}
-                    </Tag>
+                    <Tag
+                        className="font-mono truncate bg-[var(--ag-c-0517290F)]"
+                        label={`# ${activeTrace?.span_id || "-"}`}
+                    />
                 </TooltipWithCopyAction>
-                <Tooltip
+                <SimpleTooltip
                     title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
-                    placement="bottom"
+                    side="bottom"
                 >
-                    <Button
+                    <EnhancedButton
                         type="default"
                         size="small"
                         icon={<Play size={14} />}
@@ -241,8 +236,8 @@ const TraceTypeHeader = ({
                         onClick={handleOpenInPlayground}
                     >
                         Playground
-                    </Button>
-                </Tooltip>
+                    </EnhancedButton>
+                </SimpleTooltip>
                 <AddToTestsetButton
                     label="Add to testset"
                     size="small"
@@ -261,8 +256,8 @@ const TraceTypeHeader = ({
                     data-tour="annotate-button"
                 />
 
-                <Button
-                    icon={<DeleteOutlined />}
+                <EnhancedButton
+                    icon={<Trash size={14} />}
                     onClick={() =>
                         setDeleteModalState({
                             isOpen: true,
@@ -276,7 +271,7 @@ const TraceTypeHeader = ({
                     size="small"
                 />
                 {setIsAnnotationsSectionOpen && (
-                    <Button
+                    <EnhancedButton
                         icon={<SidebarSimple size={14} />}
                         type={isAnnotationsSectionOpen ? "default" : "primary"}
                         className="shrink-0 flex items-center justify-center"

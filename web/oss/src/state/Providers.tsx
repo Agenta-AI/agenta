@@ -8,6 +8,16 @@ import dynamic from "next/dynamic"
 
 import AgSWRConfig from "../lib/api/SWRConfig"
 
+import {useRouter} from "next/router"
+
+import {
+    bindTraceDrawerClearParams,
+    bindTraceDrawerNavigate,
+    bindTraceDrawerSetQueryParam,
+} from "@agenta/observability/traceDrawer"
+
+import {registerTraceDrawerReferenceSlots} from "../components/SharedDrawers/TraceDrawer/registerReferenceSlots"
+
 import {bindObservabilityHostAtoms} from "./observability"
 import UserListener from "./profile/UserListener"
 import {SessionListener} from "./session"
@@ -24,11 +34,31 @@ const HydrateAtoms = ({children}: PropsWithChildren) => {
     // render — before any consumer's query atom evaluates. An effect would be
     // too late and fire one disabled query first.
     const bindObservability = useSetAtom(bindObservabilityHostAtoms)
+    const router = useRouter()
     const observabilityBound = useRef(false)
     if (!observabilityBound.current) {
         observabilityBound.current = true
         bindObservability()
+        registerTraceDrawerReferenceSlots()
     }
+    // The drawer's out-links push through the app's router; rebound each render so the
+    // binding never closes over a stale router instance.
+    bindTraceDrawerNavigate((href) => {
+        void router.push(href)
+    })
+    // Shallow query writes: the drawer syncs ?trace/?span without re-running data fetching.
+    bindTraceDrawerSetQueryParam((name, value) => {
+        const query = {...router.query}
+        if (value === null) delete query[name]
+        else query[name] = value
+        void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
+    })
+    bindTraceDrawerClearParams(() => {
+        const query = {...router.query}
+        delete query.trace
+        delete query.span
+        void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
+    })
     return children
 }
 

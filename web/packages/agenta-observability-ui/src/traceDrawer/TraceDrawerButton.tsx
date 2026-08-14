@@ -1,14 +1,13 @@
 import {cloneElement, isValidElement, useCallback, useMemo} from "react"
 
+import {traceDrawerSetQueryParam} from "@agenta/observability/traceDrawer"
+import {openTraceDrawerAtom, setTraceDrawerActiveSpanAtom} from "@agenta/observability/traceDrawer"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {TreeView} from "@phosphor-icons/react"
-import {Button} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 
-import {requestNavigationAtom} from "@/oss/state/appState"
-
-import {openTraceDrawerAtom, setTraceDrawerActiveSpanAtom} from "./store/traceDrawerStore"
-import {TraceDrawerButtonProps} from "./types"
+import {TraceDrawerButtonProps} from "./traceDrawerButtonTypes"
 
 const TraceDrawerButton = ({
     label,
@@ -17,21 +16,33 @@ const TraceDrawerButton = ({
     result,
     ...props
 }: TraceDrawerButtonProps) => {
+    // A playground test result; probed rather than typed since playground sits above this package.
+    const loose = result as
+        | {
+              response?: {
+                  trace_id?: string
+                  trace?: {trace_id?: string}
+                  tree?: {nodes?: unknown}
+              }
+              metadata?: {rawError?: {detail?: {trace_id?: string}}}
+              error?: unknown
+          }
+        | null
+        | undefined
+
     const setActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const setNavigation = useSetAtom(requestNavigationAtom)
 
     const traceId = useMemo(() => {
         const directTraceId =
-            (result as any)?.response?.trace_id ||
-            (result as any)?.metadata?.rawError?.detail?.trace_id
+            loose?.response?.trace_id || loose?.metadata?.rawError?.detail?.trace_id
         if (directTraceId) return directTraceId
 
-        const responseTrace = (result as any)?.response?.trace
+        const responseTrace = loose?.response?.trace
         if (responseTrace?.trace_id) return responseTrace.trace_id
 
-        const nodes = (result as any)?.response?.tree?.nodes
-        const extractTraceId = (value: any): string | null => {
+        const nodes = loose?.response?.tree?.nodes
+        const extractTraceId = (value: unknown): string | null => {
             if (!value) return null
             if (Array.isArray(value)) {
                 for (const entry of value) {
@@ -41,13 +52,12 @@ const TraceDrawerButton = ({
                 return null
             }
             if (typeof value === "object") {
-                return (
-                    value.trace_id ||
-                    value.span_id ||
-                    value?.node?.trace_id ||
-                    value?.node?.id ||
-                    null
-                )
+                const node = value as {
+                    trace_id?: string
+                    span_id?: string
+                    node?: {trace_id?: string; id?: string}
+                }
+                return node.trace_id || node.span_id || node.node?.trace_id || node.node?.id || null
             }
             return null
         }
@@ -69,10 +79,13 @@ const TraceDrawerButton = ({
         if (!traceId) return
 
         const deriveActiveSpan = (): string | null => {
-            const nodes = (result as any)?.response?.tree?.nodes
+            const nodes = loose?.response?.tree?.nodes
             if (!nodes) return null
 
-            const pickSpan = (node: any) => node?.span_id || node?.trace_id || null
+            const pickSpan = (node: unknown) => {
+                const n = node as {span_id?: string; trace_id?: string} | null | undefined
+                return n?.span_id || n?.trace_id || null
+            }
 
             if (Array.isArray(nodes)) {
                 return pickSpan(nodes[0])
@@ -92,19 +105,13 @@ const TraceDrawerButton = ({
         // Batch trace and span into a single navigation command to avoid
         // a race where the second patch overwrites the first, and preserve
         // the URL hash so the playground snapshot is not lost.
-        setNavigation({
-            type: "patch-query",
-            patch: {
-                trace: traceId,
-                span: nextActiveSpan ?? undefined,
-            },
-            shallow: true,
-            preserveHash: true,
-        })
-    }, [traceId, result, openTraceDrawer, setActiveSpan, setNavigation])
+        // Was a `patch-query` navigation request; the seam writes the same two params shallow.
+        traceDrawerSetQueryParam("trace", traceId)
+        traceDrawerSetQueryParam("span", nextActiveSpan ?? undefined)
+    }, [traceId, result, openTraceDrawer, setActiveSpan])
 
     const hasTrace = useMemo(() => {
-        const nodes = (result as any)?.response?.tree?.nodes
+        const nodes = loose?.response?.tree?.nodes
         const hasNodes = (() => {
             if (!nodes) return false
             if (Array.isArray(nodes)) {
@@ -125,7 +132,7 @@ const TraceDrawerButton = ({
             return false
         })()
 
-        return hasNodes || Boolean((result as any)?.response?.trace) || Boolean(result?.error)
+        return hasNodes || Boolean(loose?.response?.trace) || Boolean(loose?.error)
     }, [result])
 
     const passthroughProps = {
@@ -143,7 +150,7 @@ const TraceDrawerButton = ({
                     },
                 )
             ) : (
-                <Button
+                <EnhancedButton
                     type="text"
                     icon={icon && <TreeView size={14} />}
                     onClick={handleOpen}
@@ -153,11 +160,10 @@ const TraceDrawerButton = ({
                     className={clsx([props.className])}
                 >
                     {label}
-                </Button>
+                </EnhancedButton>
             )}
         </>
     )
 }
 
 export default TraceDrawerButton
-export {default as TraceDrawer} from "./components/TraceDrawer"

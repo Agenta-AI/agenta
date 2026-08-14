@@ -1,10 +1,10 @@
 import {Dispatch, SetStateAction} from "react"
 
-import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {TraceSpanNode} from "@agenta/observability"
 
 export interface TraceTypeHeaderProps {
     activeTrace: TraceSpanNode | undefined
-    error: any
+    error: unknown
     traces?: TraceSpanNode[]
     setSelectedTraceId: (val: string) => void
     setIsAnnotationsSectionOpen?: Dispatch<SetStateAction<boolean>>

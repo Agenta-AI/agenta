@@ -1,11 +1,11 @@
 import {ReactNode} from "react"
 
 import {SPAN_VISIBILITY_OPTIONS, type SpanVisibilityMode} from "@agenta/observability"
+import {Divider, Switch} from "@agenta/ui/ui"
 import {Check} from "@phosphor-icons/react"
-import {Divider, Switch, Typography} from "antd"
 import clsx from "clsx"
 
-import {TraceTreeSettingsProps} from "./types"
+import type {TraceTreeSettingsProps} from "./traceTreeSettingsTypes"
 
 const DISPLAY_TOGGLES = [
     {key: "latency", label: "Show latency"},
@@ -14,9 +14,9 @@ const DISPLAY_TOGGLES = [
 ] as const
 
 const SectionLabel = ({children}: {children: ReactNode}) => (
-    <Typography.Text className="block px-3 pt-2 pb-1 text-xs font-medium uppercase tracking-wider text-colorTextTertiary">
+    <span className="block px-3 pt-2 pb-1 text-xs font-medium uppercase tracking-wider text-colorTextTertiary">
         {children}
-    </Typography.Text>
+    </span>
 )
 
 const TraceTreeSettings = ({
@@ -38,11 +38,11 @@ const TraceTreeSettings = ({
             <SectionLabel>Display</SectionLabel>
             {DISPLAY_TOGGLES.map(({key, label}) => (
                 <div key={key} className="flex items-center justify-between gap-3 px-3 py-1.5">
-                    <Typography.Text>{label}</Typography.Text>
+                    <span>{label}</span>
                     <Switch
-                        size="small"
+                        size="sm"
                         checked={settings[key]}
-                        onChange={(checked) => handleSwitchChange(key, checked)}
+                        onCheckedChange={(checked) => handleSwitchChange(key, checked)}
                     />
                 </div>
             ))}
@@ -67,10 +67,10 @@ const TraceTreeSettings = ({
                             }}
                         >
                             <div className="flex flex-col min-w-0">
-                                <Typography.Text>{option.label}</Typography.Text>
-                                <Typography.Text className="text-xs leading-tight text-colorTextTertiary">
+                                <span>{option.label}</span>
+                                <span className="text-xs leading-tight text-colorTextTertiary">
                                     {option.hint}
-                                </Typography.Text>
+                                </span>
                             </div>
                             <Check
                                 size={14}

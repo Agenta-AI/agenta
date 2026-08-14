@@ -1,21 +1,21 @@
 import {useCallback, useMemo} from "react"
 
-import {getObservabilityColumns} from "@agenta/observability-ui"
-import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
-import {InfiniteVirtualTable} from "@agenta/ui/table"
-import type {InfiniteTableRowBase} from "@agenta/ui/table"
-import type {ColumnDefs} from "@agenta/ui/table"
-import {Tag, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
-
 import {
     LinkedSpanRow,
     linkedSpansAtom,
     linkedSpanTargetsAtom,
     linkedSpanTracesQueryAtom,
     setTraceDrawerTraceAtom,
-} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {useQueryParamState} from "@/oss/state/appState"
+} from "@agenta/observability/traceDrawer"
+import {traceDrawerSetQueryParam} from "@agenta/observability/traceDrawer"
+import {Tag} from "@agenta/ui/components/presentational"
+import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
+import {InfiniteVirtualTable} from "@agenta/ui/table"
+import type {InfiniteTableRowBase} from "@agenta/ui/table"
+import type {ColumnDefs} from "@agenta/ui/table"
+import {useAtomValue, useSetAtom} from "jotai"
+
+import {getObservabilityColumns} from "@agenta/observability-ui"
 
 interface LinkedSpansTabItemProps {
     isActive: boolean
@@ -59,8 +59,10 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
     const linkedSpans = useAtomValue(linkedSpansAtom)
     const linkedSpansQuery = useAtomValue(linkedSpanTracesQueryAtom)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
-    const [, setTraceParam] = useQueryParamState("trace")
-    const [, setSpanParam] = useQueryParamState("span")
+    const setTraceParam = (value: string | null | undefined) =>
+        traceDrawerSetQueryParam("trace", value)
+    const setSpanParam = (value: string | null | undefined) =>
+        traceDrawerSetQueryParam("span", value)
 
     const evaluatorSlugs = useMemo(
         () => collectEvaluatorSlugsFromTraces(linkedSpans),
@@ -79,8 +81,9 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
                 activeSpanId: record.span_id,
                 source: "linked",
             })
-            setTraceParam(record.trace_id, {shallow: true})
-            setSpanParam(record.span_id, {shallow: true})
+            // The seam always writes shallow; the old antd-era options arg is gone.
+            setTraceParam(record.trace_id)
+            setSpanParam(record.span_id)
         },
         [setSpanParam, setTraceDrawerTrace, setTraceParam],
     )
@@ -111,12 +114,10 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
                 return (
                     <EnhancedTooltip copyText={spanId} title="Copy span id">
                         <Tag
-                            bordered={false}
                             className="font-mono bg-[var(--ag-c-0517290F)]"
                             onClick={() => navigateToLink(record)}
-                        >
-                            # {shortId}
-                        </Tag>
+                            label={`# ${shortId}`}
+                        />
                     </EnhancedTooltip>
                 )
             },
@@ -142,7 +143,7 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
     if (!hasLinks) {
         return (
             <div className="flex items-center justify-center">
-                <Typography.Text type="secondary">No linked spans found.</Typography.Text>
+                <span className="text-colorTextSecondary">No linked spans found.</span>
             </div>
         )
     }

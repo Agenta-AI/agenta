@@ -1,25 +1,29 @@
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {Skeleton, Splitter, Tabs, TabsProps} from "antd"
+import {traceSidePanelOpenAtom} from "@agenta/observability/traceDrawer"
+import {getRawTraceSpanData} from "@agenta/observability/traceDrawer"
+import {TraceContentProps} from "@agenta/observability/traceDrawer"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
-import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
-import AccordionTreePanel from "@/oss/components/SharedDrawers/TraceDrawer/components/AccordionTreePanel"
-import {traceSidePanelOpenAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import {SkeletonBlock} from "../primitives/SkeletonBlock"
 
-import TraceSidePanel from "../TraceSidePanel"
-
-import {getRawTraceSpanData} from "./assets/helpers"
-import {TraceContentProps} from "./assets/types"
-import AnnotationTabItem from "./components/AnnotationTabItem"
-import LinkedSpansTabItem from "./components/LinkedSpansTabItem"
-import OverviewTabItem from "./components/OverviewTabItem"
-import TraceTypeHeader from "./components/TraceTypeHeader"
+import AccordionTreePanel from "./AccordionTreePanel"
+import AnnotationTabItem from "./AnnotationTabItem"
+import LinkedSpansTabItem from "./LinkedSpansTabItem"
+import OverviewTabItem from "./OverviewTabItem"
+import {getTraceDrawerReferences} from "./referenceSlots"
+import TraceSidePanel from "./TraceSidePanel"
+import TraceTypeHeader from "./TraceTypeHeader"
 
 const loadingContent = (
     <div className="px-4 py-6">
-        <Skeleton active paragraph={{rows: 6}} title={false} />
+        <div className="flex flex-col gap-2">
+            {[0, 1, 2, 3, 4, 5].map((row) => (
+                <SkeletonBlock key={row} />
+            ))}
+        </div>
     </div>
 )
 
@@ -32,6 +36,7 @@ const TraceContent = ({
     setSelectedTraceId,
     activeId,
 }: TraceContentProps) => {
+    const {TraceSpanDrillInView: TraceSpanDrillInViewSlot} = getTraceDrawerReferences()
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
     const spanEntityId = activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeId
@@ -55,7 +60,7 @@ const TraceContent = ({
         return () => observer.disconnect()
     }, [])
 
-    const items: TabsProps["items"] = useMemo(() => {
+    const items: {key?: string; label?: ReactNode; children?: ReactNode}[] = useMemo(() => {
         if (isLoading && !activeTrace) {
             return [
                 {
@@ -70,7 +75,8 @@ const TraceContent = ({
         if (!activeTrace) {
             const errorPayload = error
             const rawPayload =
-                traceResponse?.response ?? (errorPayload ? {error: errorPayload} : {})
+                (traceResponse as {response?: unknown} | undefined)?.response ??
+                (errorPayload ? {error: errorPayload} : {})
             return [
                 {
                     key: "raw_data",
@@ -78,7 +84,7 @@ const TraceContent = ({
                     children: (
                         <AccordionTreePanel
                             label={errorPayload ? "Error" : "Raw Data"}
-                            value={rawPayload as any}
+                            value={rawPayload as never}
                             enableFormatSwitcher
                             fullEditorHeight
                             enableSearch
@@ -107,7 +113,7 @@ const TraceContent = ({
                 children: (
                     <>
                         {spanEntityId ? (
-                            <TraceSpanDrillInView
+                            <TraceSpanDrillInViewSlot
                                 spanId={spanEntityId}
                                 spanDataOverride={rawActiveTrace}
                                 title="Raw Data"
@@ -142,7 +148,10 @@ const TraceContent = ({
     }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId, tabNavHeight])
 
     // Ensure active tab exists in items; if not, switch to first tab
-    const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])
+    const itemKeys = useMemo(
+        () => (items || []).map((it: {key?: string}) => String(it?.key)),
+        [items],
+    )
     useEffect(() => {
         if (!itemKeys.includes(tab) && itemKeys.length > 0) {
             setTab(itemKeys[0])
@@ -166,34 +175,47 @@ const TraceContent = ({
                     traces={traces}
                 />
 
-                <Splitter className="flex-1 min-h-0">
-                    <Splitter.Panel min={400} className="w-full flex-1">
+                {/* antd Splitter gave a draggable 400/280 split; the side panel is a fixed
+                    280px column here — dragging was never wired to anything persisted. */}
+                <div className="flex flex-1 min-h-0">
+                    <div className="w-full flex-1 min-w-[400px]">
                         <div ref={tabsWrapperRef} className="flex-1">
                             <Tabs
-                                defaultActiveKey="overview"
-                                activeKey={tab}
-                                onChange={setTab}
-                                items={items}
-                                className={clsx(
-                                    "flex flex-col h-full [&_.ant-tabs-nav]:!sticky [&_.ant-tabs-nav]:!top-0 [&_.ant-tabs-nav]:!z-30 [&_.ant-tabs-nav]:!bg-[var(--ag-c-FFFFFF)]",
-                                    "[&_.ant-tabs-nav]:mb-2 [&_.ant-tabs-nav]:flex-wrap-reverse [&_.ant-tabs-nav-wrap]:px-4",
-                                    "[&_.ant-tabs-content-holder]:p-3 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full",
-                                    "[&_.ant-tabs-nav-operations]:!hidden",
-                                    "[&_.ant-tabs-extra-content]:pt-[10px] [&_.ant-tabs-extra-content]:pb-[10px] [&_.ant-tabs-extra-content]:pl-4",
-                                )}
-                            />
+                                value={tab}
+                                onValueChange={setTab}
+                                className="flex flex-col h-full"
+                            >
+                                <TabsList className="sticky top-0 z-30 px-4 mb-2">
+                                    {(items || []).map(
+                                        (item: {key?: string; label?: ReactNode}) => (
+                                            <TabsTrigger key={item.key} value={String(item.key)}>
+                                                {item.label}
+                                            </TabsTrigger>
+                                        ),
+                                    )}
+                                </TabsList>
+                                {(items || []).map((item: {key?: string; children?: ReactNode}) => (
+                                    <TabsContent
+                                        key={item.key}
+                                        value={String(item.key)}
+                                        className="p-3 flex-1 h-full"
+                                    >
+                                        {item.children}
+                                    </TabsContent>
+                                ))}
+                            </Tabs>
                         </div>
-                    </Splitter.Panel>
+                    </div>
                     {isAnnotationsSectionOpen && (
-                        <Splitter.Panel min={280} defaultSize={280} collapsible>
+                        <div className="w-[280px] min-w-[280px] shrink-0">
                             <TraceSidePanel
-                                activeTrace={activeTrace as any}
+                                activeTrace={activeTrace as never}
                                 activeTraceId={activeId}
                                 isLoading={isLoading}
                             />
-                        </Splitter.Panel>
+                        </div>
                     )}
-                </Splitter>
+                </div>
             </div>
         </div>
     )

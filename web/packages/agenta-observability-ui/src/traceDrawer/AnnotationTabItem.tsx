@@ -2,55 +2,37 @@ import {useMemo} from "react"
 
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {evaluatorsListDataAtom, resolveOutputSchemaProperties} from "@agenta/entities/workflow"
-import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
-import {ChatText} from "@phosphor-icons/react"
-import {Badge, Button, Flex, Space, Table, Typography} from "antd"
-import type {TableProps} from "antd/es/table"
-import clsx from "clsx"
+import {getStringOrJson} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
-import {createUseStyles} from "react-jss"
 
-import {
-    NUMERIC_METRIC_TYPES,
-    USEABLE_METRIC_TYPES,
-} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/constants"
-import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
-import {JSSTheme} from "@/oss/lib/Types"
+import {SimpleTable} from "../primitives/SimpleTable"
 
-import NoTraceAnnotations from "../../../TraceSidePanel/TraceAnnotations/components/NoTraceAnnotations"
-
-import {getAnnotationTableColumns} from "./assets/getAnnotationTableColumns"
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    expandableTable: {
-        "& .ant-table-cell": {
-            backgroundColor: theme.colorFillTertiary,
-        },
-    },
-    table: {
-        "& .ant-table-expanded-row > .ant-table-cell": {
-            padding: 0,
-        },
-    },
-}))
+// Mirrors `AnnotateDrawer/assets/constants`; duplicated rather than reaching into that drawer.
+const USEABLE_METRIC_TYPES = ["string", "number", "integer", "float", "boolean"]
+const NUMERIC_METRIC_TYPES = ["number", "integer", "float"]
+import EvaluatorDetailsPopover from "./EvaluatorDetailsPopover"
+import {getAnnotationTableColumns} from "./getAnnotationTableColumns"
+import NoTraceAnnotations from "./NoTraceAnnotations"
 
 const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
-    const classes = useStyles()
     const evaluators = useAtomValue(evaluatorsListDataAtom)
 
     // Last minute changes to display multiselect values in the table. This is not the best way to do it but it works for now.
     const mergedAnnWithEvaluator = useMemo(() => {
         return annotations.map((ann) => {
-            const outputs = (ann.data?.outputs as Record<string, any>) || {}
+            const outputs = (ann.data?.outputs as Record<string, Record<string, unknown>>) || {}
             const allAnnMetrics = {...outputs.metrics, ...outputs.notes, ...outputs.extra}
             const evaluator = evaluators.find((e) => e.slug === ann.references?.evaluator?.slug)
 
-            const evalMetricsSchema: Record<string, any> =
+            const evalMetricsSchema: Record<string, unknown> =
                 resolveOutputSchemaProperties(evaluator?.data) ?? {}
 
             const grouped = Object.entries(allAnnMetrics).reduce(
                 (acc, [key, value]) => {
-                    const schema = evalMetricsSchema[key]
+                    // Evaluator metric schemas are JSON-schema fragments.
+                    const schema = evalMetricsSchema[key] as
+                        | {anyOf?: unknown; type?: string}
+                        | undefined
                     let type: string
                     const metricValue = value
 
@@ -85,7 +67,7 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
 
                     return acc
                 },
-                {metrics: {}, notes: {}, extra: {}} as Record<string, Record<string, any>>,
+                {metrics: {}, notes: {}, extra: {}} as Record<string, Record<string, unknown>>,
             )
 
             return {
@@ -108,125 +90,83 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
             if (!acc[key]) {
                 acc[key] = []
             }
-            acc[key].push({...item})
+            acc[key].push({...item} as AnnotationDto)
             return acc
         },
         {} as Record<string, AnnotationDto[]>,
     )
 
-    const expandable: TableProps<AnnotationDto>["expandable"] = {
-        expandedRowRender: (record) => (
-            <div>
-                <Table
-                    columns={[
-                        {
-                            title: "User",
-                            key: "user",
-                            dataIndex: "user",
-                            render: (_, record) => <div>{record.key}</div>,
-                            width: 152,
-                        },
-                        {
-                            title: "Note",
-                            key: "text",
-                            dataIndex: "text",
-                            render: (_, record) => (
-                                <div className="w-fit text-wrap">{record.value.value}</div>
-                            ),
-                        },
-                    ]}
-                    dataSource={Object.entries(record?.data?.outputs?.notes || {}).map(
-                        ([key, value]) => ({
-                            key,
-                            value,
-                        }),
-                    )}
-                    rowKey={(note, index) => `${note}-${index}`}
-                    pagination={false}
-                    bordered
-                    showHeader={false}
-                    size="small"
-                    className={classes.expandableTable}
-                />
-            </div>
-        ),
-        expandIcon: ({expanded, onExpand, record}) => {
-            const notes = record?.data?.outputs?.notes || {}
-            const hasNotes = Object.keys(notes).length > 0
+    // antd drove expansion through `expandable.expandIcon` + internal state; SimpleTable renders
+    // the expanded row unconditionally, so a row with no notes simply renders nothing.
+    const renderNotes = (record: AnnotationDto) => {
+        const notes = (record?.data?.outputs?.notes || {}) as Record<string, unknown>
+        if (!Object.keys(notes).length) return null
 
-            if (!hasNotes) return <div className="not-available-table-cell"></div> // Don't render expand icon if no notes
-
-            return (
-                <Flex align="center" gap={10}>
-                    <Button
-                        size="small"
-                        className="!w-[16px] !h-4 !p-0.5 !rounded-sm flex items-center justify-center"
-                        icon={
-                            expanded ? (
-                                <MinusOutlined className="w-3 h-3 mt-0.5" />
-                            ) : (
-                                <PlusOutlined className="w-3 h-3 mt-0.5" />
-                            )
-                        }
-                        onClick={(e) => onExpand(record, e)}
-                    />
-                    <div className="flex items-center gap-1.5">
-                        <ChatText size={16} />
-                        <Badge
-                            count={Object.values(notes).length}
-                            color="#000000"
-                            className="[&_.ant-badge-count]:!rounded-[4px] [&_.ant-badge-count]:!h-[14px] [&_.ant-badge-count]:!min-w-[14px] [&_.ant-badge-count]:text-[12px] [&_.ant-badge-count]:!flex [&_.ant-badge-count]:items-center [&_.ant-badge-count]:justify-center"
-                        />
-                    </div>
-                </Flex>
-            )
-        },
-        rowExpandable: (record) => Object.values(record?.data?.outputs?.notes || {}).length > 0,
-        columnWidth: 100,
-        fixed: "left",
+        return (
+            <SimpleTable<{key: string; value: unknown}>
+                columns={[
+                    {
+                        title: "User",
+                        key: "user",
+                        dataIndex: "key",
+                        render: (_value, note) => <div>{note.key}</div>,
+                        width: 152,
+                    },
+                    {
+                        title: "Note",
+                        key: "text",
+                        dataIndex: "value",
+                        render: (_value, note) => (
+                            <div className="w-fit text-wrap">
+                                {getStringOrJson(note.value as string)}
+                            </div>
+                        ),
+                    },
+                ]}
+                dataSource={Object.entries(notes).map(([key, value]) => ({key, value}))}
+                rowKey={(note) => note.key}
+                bordered
+            />
+        )
     }
     return (
-        <Space orientation="vertical" size={16} className="w-full">
+        <div className="flex flex-col gap-4 w-full">
             {Object.entries(groupedByReference).length > 0 ? (
                 Object.entries(groupedByReference).map(([key, annotations]) => {
                     const [slug, kind] = key.split("::")
                     // `evaluator` is not on AnnotationDto; dead access kept as-is (falls through to slug)
-                    const evaluator = (annotations?.[0] as any)?.evaluator
-                    const evaluatorName = evaluator?.name || slug
+                    const evaluator = (annotations?.[0] as {evaluator?: unknown} | undefined)
+                        ?.evaluator
+                    const evaluatorName = (evaluator as {name?: string} | undefined)?.name || slug
                     return (
-                        <Space orientation="vertical" key={key} className="w-full @container">
+                        <div key={key} className="flex flex-col gap-2 w-full @container">
                             <div className="w-full flex items-center justify-between">
-                                <EvaluatorDetailsPopover evaluator={evaluator} fallbackLabel={slug}>
-                                    <Typography.Text className="font-medium">
-                                        {evaluatorName}
-                                    </Typography.Text>
+                                <EvaluatorDetailsPopover
+                                    evaluator={evaluator as never}
+                                    fallbackLabel={slug}
+                                >
+                                    <span className="font-medium">{evaluatorName}</span>
                                 </EvaluatorDetailsPopover>
 
-                                <Typography.Text type="secondary" className="capitalize">
+                                <span className="text-colorTextSecondary capitalize">
                                     {kind} evaluator
-                                </Typography.Text>
+                                </span>
                             </div>
 
-                            <Table
+                            <SimpleTable
                                 columns={getAnnotationTableColumns(slug, annotations)}
-                                pagination={false}
-                                scroll={{x: "max-content"}}
                                 bordered
-                                expandable={expandable}
+                                expandedRowRender={renderNotes}
                                 dataSource={annotations}
-                                className={clsx(
-                                    "[&_.ant-table-expanded-row-fixed]:!w-[100cqw] [&_.ant-table-expanded-row-fixed]:!px-0 [&_.ant-table-expanded-row-fixed]:!sticky [&_.ant-table-expanded-row-fixed]:!left-0",
-                                    classes.table,
-                                )}
                                 rowKey="span_id"
                             />
-                        </Space>
+                        </div>
                     )
                 })
             ) : (
                 <NoTraceAnnotations />
             )}
-        </Space>
+        </div>
     )
 }
 

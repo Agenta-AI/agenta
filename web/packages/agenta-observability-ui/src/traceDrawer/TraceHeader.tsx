@@ -7,25 +7,28 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@agenta/entities/trace"
+import type {TraceSpanNode} from "@agenta/observability"
 import {buildTraceUrlParams as buildTraceQueryParams} from "@agenta/observability"
-import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
-import {Button, Space, Tag, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
-
+import {observabilityScopeAtom, useObservability} from "@agenta/observability"
 import {
     setTraceDrawerTraceAtom,
     traceDrawerBackTargetAtom,
     traceDrawerIsLinkedViewAtom,
-} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
-import {useObservability} from "@/oss/state/observability"
-import {getProjectValues} from "@/oss/state/project"
+} from "@agenta/observability/traceDrawer"
+import {
+    getNodeTimestamp,
+    getSpanIdFromNode,
+    getTraceIdFromNode,
+    toISOString,
+} from "@agenta/observability/traceDrawer"
+import {projectIdAtom} from "@agenta/shared/state"
+import {EnhancedButton, Tag} from "@agenta/ui/components/presentational"
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
+import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
+import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
-import {getNodeTimestamp, getSpanIdFromNode, getTraceIdFromNode, toISOString} from "./assets/helper"
-import {NavSource, NavState, TraceHeaderProps} from "./assets/types"
+import type {NavSource, NavState, TraceHeaderProps} from "./traceHeaderTypes"
 
 const AddToQueuePopover = dynamic(
     () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
@@ -50,7 +53,9 @@ const TraceHeader = ({
     setSelected,
 }: TraceHeaderProps) => {
     const {traces: tableTracesRaw, hasMoreTraces, fetchMoreTraces} = useObservability()
-    const appId = useAtomValue(selectedAppIdAtom)
+    // `selectedAppIdAtom` in the app; the package reads the same value through its host seam.
+    const appId = useAtomValue(observabilityScopeAtom).appId
+    const projectId = useAtomValue(projectIdAtom)
     const backTarget = useAtomValue(traceDrawerBackTargetAtom)
     const isLinkedView = useAtomValue(traceDrawerIsLinkedViewAtom)
     const internalSetTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
@@ -167,7 +172,7 @@ const TraceHeader = ({
                 activeFocusKey,
             })
 
-            const params: Record<string, any> = {...baseParams, size: requestSize}
+            const params: Record<string, unknown> = {...baseParams, size: requestSize}
 
             if (direction === "next") {
                 params.newest = activeTimestampIso
@@ -178,13 +183,15 @@ const TraceHeader = ({
             }
 
             try {
-                const {projectId} = getProjectValues()
-                const response = await fetchAllPreviewTraces(params, appId, projectId ?? "")
+                const response = (await fetchAllPreviewTraces(params, appId, projectId ?? "")) as {
+                    traces?: unknown
+                    spans?: unknown
+                }
 
                 console.debug("[TraceNav] fetchRelative:response", {
                     direction,
-                    hasTraces: Boolean((response as any)?.traces),
-                    hasSpans: Boolean((response as any)?.spans),
+                    hasTraces: Boolean(response?.traces),
+                    hasSpans: Boolean(response?.spans),
                 })
                 let candidates: TraceSpanNode[] = []
 
@@ -198,9 +205,9 @@ const TraceHeader = ({
                     candidates = transformTracingResponse(
                         response.spans,
                     ) as unknown as TraceSpanNode[]
-                } else if (Array.isArray((response as any)?.spans)) {
+                } else if (Array.isArray(response?.spans)) {
                     candidates = transformTracingResponse(
-                        (response as any).spans,
+                        response.spans,
                     ) as unknown as TraceSpanNode[]
                 }
 
@@ -345,7 +352,7 @@ const TraceHeader = ({
                 targetSpanId,
             })
 
-            setTraceParam(targetTraceId ?? undefined, {shallow: true})
+            setTraceParam(targetTraceId ?? undefined)
 
             if (targetTraceId) {
                 setTraceDrawerTrace({traceId: targetTraceId, activeSpanId: targetSpanId ?? null})
@@ -375,10 +382,10 @@ const TraceHeader = ({
 
             if (focusMode === "span") {
                 console.debug("[TraceNav] setSpanParam", targetSpanId)
-                setSpanParam(targetSpanId ?? undefined, {shallow: true})
+                setSpanParam(targetSpanId ?? undefined)
             } else {
                 console.debug("[TraceNav] clear span param")
-                setSpanParam(undefined, {shallow: true})
+                setSpanParam(undefined)
             }
         },
         [
@@ -431,7 +438,7 @@ const TraceHeader = ({
 
         internalSetTraceDrawerTrace({source: "back"})
 
-        setTraceParam(backTarget.traceId ?? undefined, {shallow: true})
+        setTraceParam(backTarget.traceId ?? undefined)
         setSelectedTraceId(backTarget.traceId)
 
         if (backTarget.spanId) {
@@ -443,9 +450,9 @@ const TraceHeader = ({
         }
 
         if (traceTabs === "span") {
-            setSpanParam(backTarget.spanId ?? undefined, {shallow: true})
+            setSpanParam(backTarget.spanId ?? undefined)
         } else {
-            setSpanParam(undefined, {shallow: true})
+            setSpanParam(undefined)
         }
     }, [
         backTarget,
@@ -464,9 +471,9 @@ const TraceHeader = ({
     return (
         <>
             <div className="flex items-center justify-between gap-2">
-                <Space>
+                <div className="flex items-center gap-2">
                     {backTarget && (
-                        <Button
+                        <EnhancedButton
                             type="default"
                             size="small"
                             onClick={handleBackToOrigin}
@@ -475,13 +482,13 @@ const TraceHeader = ({
                     )}
                     {!isLinkedView && (
                         <div>
-                            <Button
+                            <EnhancedButton
                                 onClick={handlePrevTrace}
                                 type="text"
                                 disabled={isPrevDisabled}
                                 icon={<CaretUp size={16} />}
                             />
-                            <Button
+                            <EnhancedButton
                                 onClick={handleNextTrace}
                                 type="text"
                                 disabled={isNextDisabled}
@@ -490,21 +497,22 @@ const TraceHeader = ({
                         </div>
                     )}
 
-                    <Typography.Text className="text-sm font-medium">Trace</Typography.Text>
+                    <span className="text-sm font-medium">Trace</span>
                     <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
-                        <Tag className="font-mono bg-[var(--ag-c-0517290F)]" variant="filled">
-                            # {displayTraceId || "-"}
-                        </Tag>
+                        <Tag
+                            className="font-mono bg-[var(--ag-c-0517290F)]"
+                            label={`# ${displayTraceId || "-"}`}
+                        />
                     </TooltipWithCopyAction>
-                </Space>
+                </div>
                 <AddToQueuePopover
                     itemType="traces"
                     itemIds={activeTraceKey ? [activeTraceKey] : []}
                     disabled={!activeTraceKey}
                 >
-                    <Button size="small" disabled={!activeTraceKey}>
+                    <EnhancedButton size="small" disabled={!activeTraceKey}>
                         Add annotation queue
-                    </Button>
+                    </EnhancedButton>
                 </AddToQueuePopover>
             </div>
         </>

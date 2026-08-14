@@ -3,12 +3,12 @@ import {memo, ReactNode, useMemo} from "react"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
-import {Button, Popover, Typography} from "antd"
+import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
-import ReferenceTag from "@/oss/components/References/ReferenceTag"
-
-import useEvaluatorNavigation from "../hooks/useEvaluatorNavigation"
+import {getTraceDrawerReferences} from "./referenceSlots"
 
 type EvaluatorLike = Workflow | null | undefined
 
@@ -38,22 +38,34 @@ const EvaluatorDetailsPopover = ({
     fallbackLabel,
     children,
 }: EvaluatorDetailsPopoverProps) => {
+    const {ReferenceTag} = getTraceDrawerReferences()
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
     const latestRevisionId =
         useAtomValue(workflowLatestRevisionQueryAtomFamily(evaluator?.id || "")).data?.id ?? null
 
     const evaluatorName = evaluator?.name || fallbackLabel
-    const evaluatorId =
-        (evaluator as any)?.id || (evaluator as any)?.slug || (evaluator as any)?.key
-    const createdAt = (evaluator as any)?.created_at || (evaluator as any)?.createdAt
-    const createdByRaw =
-        (evaluator as any)?.createdBy ||
-        (evaluator as any)?.created_by ||
-        (evaluator as any)?.created_by_id
+    // The record arrives in several shapes (workflow revision, annotation reference, raw DTO),
+    // so each field is probed rather than typed to one of them.
+    const e = evaluator as
+        | {
+              id?: string
+              slug?: string
+              key?: string
+              created_at?: string
+              createdAt?: string
+              createdBy?: unknown
+              created_by?: unknown
+              created_by_id?: unknown
+              flags?: {is_feedback?: boolean | null} | null
+              meta?: {is_feedback?: boolean | null} | null
+          }
+        | null
+        | undefined
+    const evaluatorId = e?.id || e?.slug || e?.key
+    const createdAt = e?.created_at || e?.createdAt
+    const createdByRaw = e?.createdBy || e?.created_by || e?.created_by_id
     const createdBy = typeof createdByRaw === "string" ? createdByRaw : ""
-    const isHuman =
-        Boolean((evaluator as any)?.flags?.is_feedback) ||
-        Boolean((evaluator as any)?.meta?.is_feedback)
+    const isHuman = Boolean(e?.flags?.is_feedback) || Boolean(e?.meta?.is_feedback)
 
     const evaluatorWithLatestRevision = useMemo(() => {
         if (!latestRevisionId) return null
@@ -72,13 +84,11 @@ const EvaluatorDetailsPopover = ({
         <div className="w-[250px]">
             <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between gap-2">
-                    <Typography.Text strong className="truncate">
-                        {evaluatorName}
-                    </Typography.Text>
+                    <span className="truncate font-medium">{evaluatorName}</span>
                 </div>
                 <div className="flex flex-col gap-2 *:text-nowrap">
                     <div className="flex items-center justify-between gap-3">
-                        <Typography.Text type="secondary">Evaluator ID</Typography.Text>
+                        <span className="text-colorTextSecondary">Evaluator ID</span>
                         <ReferenceTag
                             label={getShortId(
                                 typeof evaluatorId === "string"
@@ -104,23 +114,20 @@ const EvaluatorDetailsPopover = ({
                         />
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <Typography.Text type="secondary">Evaluator Type</Typography.Text>
-                        <Typography.Text>
-                            {" "}
-                            {isHuman ? "Human evaluator" : "Automatic evaluator"}
-                        </Typography.Text>
+                        <span className="text-colorTextSecondary">Evaluator Type</span>
+                        <span> {isHuman ? "Human evaluator" : "Automatic evaluator"}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <Typography.Text type="secondary">Created at</Typography.Text>
-                        <Typography.Text>{formatDateTime(createdAt)}</Typography.Text>
+                        <span className="text-colorTextSecondary">Created at</span>
+                        <span>{formatDateTime(createdAt)}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <Typography.Text type="secondary">Created by</Typography.Text>
+                        <span className="text-colorTextSecondary">Created by</span>
                         <UserAuthorLabel name={createdBy} showAvatar />
                     </div>
                 </div>
                 {target ? (
-                    <Button
+                    <EnhancedButton
                         type="default"
                         size="small"
                         block
@@ -130,15 +137,24 @@ const EvaluatorDetailsPopover = ({
                         }}
                     >
                         {isHuman ? "Open evaluator registry" : "Open evaluator playground"}
-                    </Button>
+                    </EnhancedButton>
                 ) : null}
             </div>
         </div>
     )
 
     return (
-        <Popover mouseEnterDelay={0.2} arrow content={popoverContent} trigger="hover">
-            {children || <Typography.Text>{evaluatorName}</Typography.Text>}
+        <Popover>
+            {/* antd opened this on hover; Radix Popover is click-driven, and click is the
+                accessible behaviour for a panel with links and buttons inside. */}
+            <PopoverTrigger asChild>
+                <span className="inline-flex cursor-pointer">
+                    {children || <span>{evaluatorName}</span>}
+                </span>
+            </PopoverTrigger>
+            <PopoverContent side="bottom" align="start" className="w-auto max-w-[420px]">
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

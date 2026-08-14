@@ -1,19 +1,18 @@
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {setTraceDrawerTraceAtom} from "@agenta/observability/traceDrawer"
+import {getStringOrJson} from "@agenta/shared/utils"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {TreeStructure} from "@phosphor-icons/react"
-import {Button} from "antd"
-import {Table} from "antd"
-import {ColumnsType} from "antd/es/table"
 import {getDefaultStore} from "jotai"
 
-import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
-import {setTraceDrawerTraceAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import type {SimpleColumn} from "../primitives/SimpleTable"
+import {ValueTag} from "../primitives/ValueTag"
 
 export const getAnnotationTableColumns = (
     reference: string,
     groupAnnotations: AnnotationDto[],
-): ColumnsType<AnnotationDto> => {
+): SimpleColumn<AnnotationDto>[] => {
     return [
         {
             title: null,
@@ -25,7 +24,7 @@ export const getAnnotationTableColumns = (
             }),
             render: (_, record) => {
                 return (
-                    <Button
+                    <EnhancedButton
                         icon={
                             <TreeStructure
                                 size={14}
@@ -44,7 +43,6 @@ export const getAnnotationTableColumns = (
                 )
             },
         },
-        Table.EXPAND_COLUMN,
         {
             title: "Metrics",
             key: `metrics-${reference}`,
@@ -52,8 +50,10 @@ export const getAnnotationTableColumns = (
             children: Array.from(
                 new Set(
                     groupAnnotations.flatMap((a) =>
-                        Object.keys((a.data?.outputs?.metrics || {}) as Record<string, any>).concat(
-                            Object.keys((a.data?.outputs?.extra || {}) as Record<string, any>),
+                        Object.keys(
+                            (a.data?.outputs?.metrics || {}) as Record<string, unknown>,
+                        ).concat(
+                            Object.keys((a.data?.outputs?.extra || {}) as Record<string, unknown>),
                         ),
                     ),
                 ),
@@ -61,9 +61,13 @@ export const getAnnotationTableColumns = (
                 title: metricKey,
                 key: `metrics-${reference}-${metricKey}`,
                 onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (_: any, record: any) => {
-                    const value = record.data?.outputs?.metrics?.[metricKey]?.value
-                    const extraValue = record.data?.outputs?.extra?.[metricKey]?.value
+                render: (_: unknown, record: AnnotationDto) => {
+                    // `outputs` is a deep JSON union in the DTO; read the two buckets by key.
+                    const outputs = record.data?.outputs as
+                        | Record<string, Record<string, {value?: unknown}> | undefined>
+                        | undefined
+                    const value = outputs?.metrics?.[metricKey]?.value
+                    const extraValue = outputs?.extra?.[metricKey]?.value
 
                     if (value === undefined && extraValue === undefined) {
                         return <span className="text-gray-500">–</span>
@@ -71,11 +75,7 @@ export const getAnnotationTableColumns = (
 
                     return value !== undefined ? (
                         typeof value === "boolean" ? (
-                            <CustomAntdTag
-                                value={getStringOrJson(value)}
-                                className="w-fit"
-                                bordered={false}
-                            />
+                            <ValueTag value={getStringOrJson(value)} className="w-fit" />
                         ) : (
                             <span>{getStringOrJson(value)}</span>
                         )
@@ -83,20 +83,15 @@ export const getAnnotationTableColumns = (
                         Array.isArray(extraValue) ? (
                             <div className="flex items-center gap-2 max-w-[450px] overflow-x-auto [&::-webkit-scrollbar]:!w-0">
                                 {extraValue.map((item, index) => (
-                                    <CustomAntdTag
+                                    <ValueTag
                                         key={index}
                                         value={getStringOrJson(item)}
                                         className="w-fit"
-                                        bordered={false}
                                     />
                                 ))}
                             </div>
                         ) : (
-                            <CustomAntdTag
-                                value={getStringOrJson(extraValue)}
-                                className="w-fit"
-                                bordered={false}
-                            />
+                            <ValueTag value={getStringOrJson(extraValue)} className="w-fit" />
                         )
                     ) : (
                         <span className="text-gray-500">–</span>

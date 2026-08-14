@@ -1,14 +1,13 @@
 import {useMemo} from "react"
 
-import {TreeStructureIcon} from "@phosphor-icons/react"
-import {Tag, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
-
 import {
     linksAndReferencesAtom,
     setTraceDrawerTraceAtom,
-    TraceDrawerSpanLink,
-} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+    type TraceDrawerSpanLink,
+} from "@agenta/observability/traceDrawer"
+import {Tag} from "@agenta/ui/components/presentational"
+import {TreeStructureIcon} from "@phosphor-icons/react"
+import {useAtomValue, useSetAtom} from "jotai"
 
 const TraceLinkedSpans = () => {
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
@@ -38,7 +37,7 @@ const TraceLinkedSpans = () => {
     }, [linksAndReferences?.links])
 
     if (!validLinks.length) {
-        return <Typography.Text type="secondary">No linked spans found.</Typography.Text>
+        return <span className="text-colorTextSecondary">No linked spans found.</span>
     }
 
     return (
@@ -49,14 +48,16 @@ const TraceLinkedSpans = () => {
                         return (
                             <Tag
                                 key={`${link.trace_id}-${link.span_id}-${link.key || ""}`}
-                                bordered={false}
                                 className="cursor-pointer self-start bg-[var(--ag-c-0517290F)] flex gap-1 items-center"
                                 onClick={() => handleNavigate(link)}
-                            >
-                                <TreeStructureIcon size={14} />{" "}
-                                {/* `trace` is not on TraceDrawerSpanLink; dead access kept as-is (falls through to key) */}
-                                {(link as any)?.trace?.[0]?.span_name || link?.key}
-                            </Tag>
+                                icon={<TreeStructureIcon size={14} />}
+                                // `trace` is not declared on the link type; the read is kept
+                                // (it falls through to `key`) but no longer switches off checking.
+                                label={
+                                    (link as {trace?: {span_name?: string}[]})?.trace?.[0]
+                                        ?.span_name || link?.key
+                                }
+                            />
                         )
                     })}
                 </div>

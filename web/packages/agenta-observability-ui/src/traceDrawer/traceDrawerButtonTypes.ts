@@ -1,11 +1,11 @@
 import type {ReactNode} from "react"
 
-import type {PlaygroundTestResult as TestResult} from "@agenta/playground"
-import {ButtonProps} from "antd"
+import type {EnhancedButtonProps} from "@agenta/ui/components/presentational"
 
-export interface TraceDrawerButtonProps extends ButtonProps {
+export interface TraceDrawerButtonProps extends EnhancedButtonProps {
     label?: ReactNode
     icon?: boolean
     children?: ReactNode
-    result: TestResult | null | undefined
+    /** A playground test result; typed loosely since playground sits above this package. */
+    result: unknown
 }

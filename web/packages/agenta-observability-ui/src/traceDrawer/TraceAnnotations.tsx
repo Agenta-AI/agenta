@@ -4,17 +4,18 @@ import {groupAnnotationsByReferenceId} from "@agenta/entities/annotation/dto"
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {evaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
-import {CloseOutlined} from "@ant-design/icons"
-import {Button, Popover, Space, Typography} from "antd"
+import {getStringOrJson} from "@agenta/shared/utils"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
-import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
-import {booleanValueColorClass} from "@/oss/lib/helpers/colors"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {ValueTag} from "../primitives/ValueTag"
+import {booleanValueColorClass} from "../primitives/valueTone"
 
-import NoTraceAnnotations from "./components/NoTraceAnnotations"
+import EvaluatorDetailsPopover from "./EvaluatorDetailsPopover"
+import NoTraceAnnotations from "./NoTraceAnnotations"
 
 const annotationPopoverClass =
     "w-[300px] [&_.ant-popover-container]:!p-0 [&_.ant-popover-title]:p-2 [&_.ant-popover-title]:border-b [&_.ant-popover-title]:border-solid [&_.ant-popover-title]:border-[var(--ag-colorSplit)] [&_.ant-popover-content]:p-2 [&_.ant-popover-content]:max-h-[200px] [&_.ant-popover-content]:overflow-y-auto"
@@ -26,7 +27,7 @@ interface TraceAnnotationsProps {
 type AnnotationCategory = "metric" | "note" | "extra"
 
 interface AnnotationChipEntry {
-    annotations: {value: any; user: string}[]
+    annotations: {value: unknown; user: string}[]
     average?: number
     latest?: boolean
     category: AnnotationCategory
@@ -62,7 +63,10 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
 
             for (const [metricName, metricValue] of Object.entries(metrics)) {
                 metricsBucket[metricName] = {
-                    annotations: (metricValue.annotations || []) as {value: any; user: string}[],
+                    annotations: (metricValue.annotations || []) as {
+                        value: unknown
+                        user: string
+                    }[],
                     average: metricValue.average,
                     latest: metricValue.latest,
                     category: "metric",
@@ -93,8 +97,11 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                 bucket.evaluator = evaluatorMap.get(refId) || null
             }
 
-            const outputs = (annotation.data?.outputs || {}) as Record<string, any>
-            const categories: [AnnotationCategory, Record<string, any>][] = [
+            const outputs = (annotation.data?.outputs || {}) as Record<
+                string,
+                Record<string, unknown>
+            >
+            const categories: [AnnotationCategory, Record<string, unknown>][] = [
                 ["note", outputs.notes || {}],
                 ["extra", outputs.extra || {}],
             ]
@@ -173,9 +180,9 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                 evaluator={group.evaluator}
                                 fallbackLabel={group.refId}
                             >
-                                <Typography.Text type="secondary" className="text-[12px]">
+                                <span className="text-colorTextSecondary text-[12px]">
                                     {group?.evaluator?.name || group.refId}
-                                </Typography.Text>
+                                </span>
                             </EvaluatorDetailsPopover>
                         </div>
 
@@ -189,13 +196,13 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                 metric.category === "metric" &&
                                 (metric.average !== undefined || metric.latest !== undefined) ? (
                                     <div className="flex items-center justify-between">
-                                        <Space className="truncate overflow-hidden">
-                                            <Typography.Text>
+                                        <div className="flex items-center gap-2 truncate overflow-hidden">
+                                            <span>
                                                 {metric.latest !== undefined
                                                     ? "Value:"
                                                     : "Total mean:"}
-                                            </Typography.Text>
-                                            <CustomAntdTag
+                                            </span>
+                                            <ValueTag
                                                 value={
                                                     metric.latest !== undefined
                                                         ? metric.latest
@@ -204,12 +211,11 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                         : `μ ${metric.average}`
                                                 }
                                                 className={booleanColorClass}
-                                                bordered={false}
                                             />
-                                        </Space>
-                                        <Button
+                                        </div>
+                                        <EnhancedButton
                                             type="text"
-                                            icon={<CloseOutlined />}
+                                            icon={<X />}
                                             onClick={() => setIsAnnotationsPopoverOpen(null)}
                                             size="small"
                                         />
@@ -217,13 +223,11 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                 ) : (
                                     <div className="flex items-center justify-between gap-2">
                                         <div className="flex flex-col overflow-hidden">
-                                            <Typography.Text className="truncate">
-                                                {key}
-                                            </Typography.Text>
+                                            <span className="truncate">{key}</span>
                                         </div>
-                                        <Button
+                                        <EnhancedButton
                                             type="text"
-                                            icon={<CloseOutlined />}
+                                            icon={<X />}
                                             onClick={() => setIsAnnotationsPopoverOpen(null)}
                                             size="small"
                                         />
@@ -233,7 +237,6 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                             return (
                                 <div key={key}>
                                     <Popover
-                                        overlayClassName={annotationPopoverClass}
                                         open={
                                             isAnnotationsPopoverOpen ===
                                             getPopoverKey(group.refId, key)
@@ -243,14 +246,47 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                 open ? getPopoverKey(group.refId, key) : null,
                                             )
                                         }}
-                                        placement="bottom"
-                                        trigger="click"
-                                        arrow={false}
-                                        title={popoverTitle}
-                                        content={
+                                    >
+                                        {/* antd took `title`/`content` as props and the trigger
+                                            as children; Radix names all three explicitly. */}
+                                        <PopoverTrigger asChild>
+                                            <div
+                                                className={clsx(
+                                                    "flex items-center flex-wrap gap-1 justify-between",
+                                                    "py-1 px-3 cursor-pointer",
+                                                    "rounded-lg border border-[var(--ag-c-BDC7D1)] border-solid",
+                                                )}
+                                            >
+                                                <span className="truncate overflow-hidden text-ellipsis flex-1">
+                                                    {key}
+                                                </span>
+                                                {summaryValue ? (
+                                                    <span
+                                                        className={clsx(
+                                                            "truncate overflow-hidden text-ellipsis",
+                                                            booleanColorClass ||
+                                                                "text-colorTextSecondary",
+                                                        )}
+                                                    >
+                                                        {summaryValue}
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                            side="bottom"
+                                            className={annotationPopoverClass}
+                                        >
+                                            {popoverTitle}
                                             <div className="flex flex-col gap-2">
                                                 {metric.annotations?.map(
-                                                    (annotation: any, i: number) => (
+                                                    (
+                                                        annotation: {
+                                                            user?: string
+                                                            value?: unknown
+                                                        },
+                                                        i: number,
+                                                    ) => (
                                                         <div
                                                             className="flex flex-col gap-2"
                                                             key={i}
@@ -259,42 +295,16 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                                 name={annotation.user || ""}
                                                                 showAvatar
                                                             />
-                                                            <Typography.Text
-                                                                type="secondary"
-                                                                className="px-1"
-                                                            >
-                                                                {getStringOrJson(annotation.value)}
-                                                            </Typography.Text>
+                                                            <span className="text-colorTextSecondary px-1">
+                                                                {getStringOrJson(
+                                                                    annotation.value as string,
+                                                                )}
+                                                            </span>
                                                         </div>
                                                     ),
                                                 )}
                                             </div>
-                                        }
-                                    >
-                                        <div
-                                            className={clsx(
-                                                "flex items-center flex-wrap gap-1 justify-between",
-                                                "py-1 px-3 cursor-pointer",
-                                                "rounded-lg border border-[var(--ag-c-BDC7D1)] border-solid",
-                                            )}
-                                        >
-                                            <Typography.Text className="truncate overflow-hidden text-ellipsis flex-1">
-                                                {key}
-                                            </Typography.Text>
-                                            {summaryValue ? (
-                                                <Typography.Text
-                                                    type={
-                                                        booleanColorClass ? undefined : "secondary"
-                                                    }
-                                                    className={clsx(
-                                                        "truncate overflow-hidden text-ellipsis",
-                                                        booleanColorClass,
-                                                    )}
-                                                >
-                                                    {summaryValue}
-                                                </Typography.Text>
-                                            ) : null}
-                                        </div>
+                                        </PopoverContent>
                                     </Popover>
                                 </div>
                             )

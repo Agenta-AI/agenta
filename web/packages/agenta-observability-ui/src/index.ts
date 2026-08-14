@@ -136,6 +136,11 @@ export {default as DeleteTraceModal, type DeleteTraceModalProps} from "./delete"
 export {deleteTraceModalAtom} from "./delete/store/atom"
 export {useTracesExport, type UseTracesExportOptions} from "./table/useTracesExport"
 export {
+    collectEvaluatorSlugsFromTraces,
+    orderEvaluatorSlugs,
+    useEvaluatorSlugs,
+} from "./columns/useEvaluatorSlugs"
+export {
     ObservabilitySessionsTable,
     type ObservabilitySessionsTableProps,
 } from "./table/ObservabilitySessionsTable"

@@ -1,8 +1,8 @@
 import React, {useMemo, useState} from "react"
 
-import {MinusSquareOutlined, PlusSquareOutlined} from "@ant-design/icons"
+import {MinusSquare, PlusSquare} from "@phosphor-icons/react"
 
-import {useStyles} from "./assets/styles"
+import {nodeLabelClass, nodeLabelContentClass, treeLineClass} from "./customTreeStyles"
 
 /**
  * CustomTree is a recursive tree view component for rendering a hierarchy of nodes.
@@ -80,7 +80,6 @@ const TreeNodeComponent = <TNode,>({
     defaultExpanded?: boolean
     isRoot?: boolean
 }) => {
-    const classes = useStyles()
     const initialExpanded = useMemo(() => {
         if (typeof (node as {expanded?: boolean}).expanded === "boolean") {
             return (node as {expanded?: boolean}).expanded as boolean
@@ -101,13 +100,13 @@ const TreeNodeComponent = <TNode,>({
         <div className={isRoot ? "pl-2" : "relative pl-5"}>
             <div
                 className={
-                    !isRoot ? `${classes.treeLine} ${shouldShowAsLast ? "last" : ""}` : undefined
+                    !isRoot ? `${treeLineClass} ${shouldShowAsLast ? "last" : ""}` : undefined
                 }
             >
                 <div
                     className={
                         !isRoot
-                            ? `${classes.nodeLabel} ${shouldShowAsLast ? "last" : ""}`
+                            ? `${nodeLabelClass} ${shouldShowAsLast ? "last" : ""}`
                             : "flex items-center"
                     }
                     onClick={() => onSelect?.(nodeKey, node)}
@@ -120,12 +119,12 @@ const TreeNodeComponent = <TNode,>({
                                 toggle()
                             }}
                         >
-                            {expanded ? <MinusSquareOutlined /> : <PlusSquareOutlined />}
+                            {expanded ? <MinusSquare size={14} /> : <PlusSquare size={14} />}
                         </span>
                     )}
                     <div
                         className={
-                            classes.nodeLabelContent +
+                            nodeLabelContentClass +
                             " " +
                             (nodeKey === selectedKey ? "bg-[var(--ag-c-F5F7FA)]" : "")
                         }

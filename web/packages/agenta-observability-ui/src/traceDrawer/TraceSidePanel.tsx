@@ -1,11 +1,11 @@
 import {useMemo} from "react"
 
-import {Collapse, CollapseProps, Skeleton, Typography} from "antd"
-import clsx from "clsx"
+import type {TraceSpanNode} from "@agenta/observability"
+import type {TracesWithAnnotations} from "@agenta/observability/dto"
+import {useTraceDrawer} from "@agenta/observability/traceDrawer"
+import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from "@agenta/ui/ui"
 
-import {TracesWithAnnotations} from "@/oss/services/observability/types"
-
-import useTraceDrawer from "../../hooks/useTraceDrawer"
+import {SkeletonBlock} from "../primitives/SkeletonBlock"
 
 import TraceAnnotations from "./TraceAnnotations"
 import TraceDetails from "./TraceDetails"
@@ -30,15 +30,18 @@ const TraceSidePanel = ({
 
     const loadingContent = (
         <div className="px-3 py-4">
-            <Skeleton active paragraph={{rows: 4}} title={false} />
+            <div className="flex flex-col gap-2">
+                {/* antd `Skeleton paragraph={{rows: 4}}` */}
+                {[0, 1, 2, 3].map((row) => (
+                    <SkeletonBlock key={row} />
+                ))}
+            </div>
         </div>
     )
 
     const emptyState = (message: string) => (
         <div className="px-3 py-4">
-            <Typography.Text type="secondary" className="text-sm">
-                {message}
-            </Typography.Text>
+            <span className="text-colorTextSecondary text-sm">{message}</span>
         </div>
     )
 
@@ -53,7 +56,7 @@ const TraceSidePanel = ({
     const detailsContent = showLoading ? (
         loadingContent
     ) : derived ? (
-        <TraceDetails activeTrace={derived as any} />
+        <TraceDetails activeTrace={derived as TraceSpanNode} />
     ) : (
         emptyState("Select a span to view trace details.")
     )
@@ -74,38 +77,26 @@ const TraceSidePanel = ({
         emptyState("No references found.")
     )
 
-    const items: CollapseProps["items"] = useMemo(
+    const items = useMemo(
         () => [
             {
                 key: "annotations",
-                label: (
-                    <Typography.Text className={collapseItemLabelClass}>
-                        Annotations
-                    </Typography.Text>
-                ),
+                label: <span className={collapseItemLabelClass}>Annotations</span>,
                 children: annotationsContent,
             },
             {
                 key: "details",
-                label: (
-                    <Typography.Text className={collapseItemLabelClass}>Trace info</Typography.Text>
-                ),
+                label: <span className={collapseItemLabelClass}>Trace info</span>,
                 children: detailsContent,
             },
             {
                 key: "references",
-                label: (
-                    <Typography.Text className={collapseItemLabelClass}>References</Typography.Text>
-                ),
+                label: <span className={collapseItemLabelClass}>References</span>,
                 children: referencesContent,
             },
             {
                 key: "linked",
-                label: (
-                    <Typography.Text className={collapseItemLabelClass}>
-                        Linked spans
-                    </Typography.Text>
-                ),
+                label: <span className={collapseItemLabelClass}>Linked spans</span>,
                 children: linkedContent,
             },
         ],
@@ -113,15 +104,25 @@ const TraceSidePanel = ({
     )
 
     return (
-        <Collapse
-            items={items}
-            defaultActiveKey={["annotations", "details", "linked", "references"]}
-            className={clsx(
-                "transition-all duration-300 ease-[ease] max-w-full overflow-hidden opacity-100 rounded-none border-0",
-                "[&_.ant-collapse-content]:border-[var(--ag-colorSplit)] [&_.ant-collapse-content_.ant-collapse-content-box]:p-3 [&_.ant-collapse-item]:border-[var(--ag-colorSplit)]",
-                "[&_.ant-collapse-header]:!py-[10.5px]",
-            )}
-        />
+        <Accordion
+            type="multiple"
+            defaultValue={["annotations", "details", "references", "linked"]}
+            className="transition-all duration-300 ease-[ease] max-w-full overflow-hidden opacity-100 rounded-none border-0"
+        >
+            {items.map((item) => (
+                <AccordionItem
+                    key={item.key}
+                    value={item.key}
+                    className="border-[var(--ag-colorSplit)]"
+                >
+                    {/* antd's header padding was 10.5px; the panel body was 12px. */}
+                    <AccordionTrigger className="!py-[10.5px]">{item.label}</AccordionTrigger>
+                    <AccordionContent className="p-3 border-[var(--ag-colorSplit)]">
+                        {item.children}
+                    </AccordionContent>
+                </AccordionItem>
+            ))}
+        </Accordion>
     )
 }
 

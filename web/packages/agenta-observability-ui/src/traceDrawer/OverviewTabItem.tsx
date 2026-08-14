@@ -10,17 +10,14 @@ import {
     spanMetaConfigurationAtomFamily,
     spanNodeTypeAtomFamily,
 } from "@agenta/observability"
-import {Space} from "antd"
+import type {TraceSpanNode} from "@agenta/observability"
+import {prepareTraceOverviewPanels} from "@agenta/observability/traceDrawer"
+import {getStringOrJson} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 
-import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
-import ResultTag from "@/oss/components/ResultTag/ResultTag"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-
-import AccordionTreePanel from "../../../AccordionTreePanel"
-
-import {prepareTraceOverviewPanels} from "./messagePanels"
+import AccordionTreePanel from "./AccordionTreePanel"
+import {getTraceDrawerReferences} from "./referenceSlots"
+import ResultTag from "./ResultTag"
 
 const OverviewTabItem = ({
     activeTrace,
@@ -29,6 +26,7 @@ const OverviewTabItem = ({
     activeTrace: TraceSpanNode
     prettyJsonStickyOffset?: number
 }) => {
+    const {TraceSpanDrillInView: TraceSpanDrillInViewSlot} = getTraceDrawerReferences()
     // Use trace drill-in API for data access while preserving existing UI rendering.
     const entityWithDrillIn = traceSpanMolecule as typeof traceSpanMolecule & {
         drillIn: NonNullable<typeof traceSpanMolecule.drillIn>
@@ -95,7 +93,7 @@ const OverviewTabItem = ({
     return (
         <div className="w-full flex flex-col gap-2">
             {metaConfig && (
-                <Space style={{flexWrap: "wrap"}}>
+                <div className="flex flex-wrap items-center gap-2">
                     {Object.entries(metaConfig)
                         .filter(([key]) =>
                             [
@@ -109,13 +107,13 @@ const OverviewTabItem = ({
                         .map(([key, value], index) => (
                             <ResultTag key={index} value1={key} value2={getStringOrJson(value)} />
                         ))}
-                </Space>
+                </div>
             )}
 
             {panels.inputs ? (
                 <div className="flex flex-col gap-2">
                     {spanEntityId ? (
-                        <TraceSpanDrillInView
+                        <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
                             title="inputs"
                             editable={false}
@@ -127,7 +125,7 @@ const OverviewTabItem = ({
                     ) : (
                         <AccordionTreePanel
                             label={"inputs"}
-                            value={panels.inputs.value as any}
+                            value={panels.inputs.value as never}
                             enableFormatSwitcher
                             viewModePreset={panels.inputs.hasMessages ? "message" : "default"}
                         />
@@ -138,7 +136,7 @@ const OverviewTabItem = ({
             {hasParameters ? (
                 <div className="flex flex-col gap-2">
                     {spanEntityId ? (
-                        <TraceSpanDrillInView
+                        <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
                             title="parameters"
                             editable={false}
@@ -150,7 +148,7 @@ const OverviewTabItem = ({
                     ) : (
                         <AccordionTreePanel
                             label={"parameters"}
-                            value={parameters as any}
+                            value={parameters as never}
                             enableFormatSwitcher
                             defaultCollapsed
                         />
@@ -161,7 +159,7 @@ const OverviewTabItem = ({
             {panels.outputs ? (
                 <div className="flex flex-col gap-2">
                     {spanEntityId ? (
-                        <TraceSpanDrillInView
+                        <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
                             title="outputs"
                             editable={false}
@@ -173,7 +171,7 @@ const OverviewTabItem = ({
                     ) : (
                         <AccordionTreePanel
                             label={"outputs"}
-                            value={panels.outputs.value as any}
+                            value={panels.outputs.value as never}
                             enableFormatSwitcher
                             viewModePreset={panels.outputs.hasMessages ? "message" : "default"}
                         />
@@ -182,11 +180,11 @@ const OverviewTabItem = ({
             ) : null}
 
             {internals && (
-                <Space orientation="vertical" className="w-full" size={24}>
+                <div className="flex flex-col gap-6 w-full">
                     {nodeType !== "chat" && (
                         <>
                             {spanEntityId ? (
-                                <TraceSpanDrillInView
+                                <TraceSpanDrillInViewSlot
                                     spanId={spanEntityId}
                                     title="internals"
                                     editable={false}
@@ -197,19 +195,19 @@ const OverviewTabItem = ({
                             ) : (
                                 <AccordionTreePanel
                                     label={"internals"}
-                                    value={internals}
+                                    value={internals as Record<string, unknown>}
                                     enableFormatSwitcher
                                 />
                             )}
                         </>
                     )}
-                </Space>
+                </div>
             )}
 
             {exception && (
-                <Space orientation="vertical" className="w-full" size={24}>
+                <div className="flex flex-col gap-6 w-full">
                     {spanEntityId ? (
-                        <TraceSpanDrillInView
+                        <TraceSpanDrillInViewSlot
                             spanId={spanEntityId}
                             title="Exception"
                             editable={false}
@@ -218,7 +216,7 @@ const OverviewTabItem = ({
                             prettyJsonStickyOffset={prettyJsonStickyOffset}
                         />
                     ) : null}
-                </Space>
+                </div>
             )}
         </div>
     )

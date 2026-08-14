@@ -1,31 +1,25 @@
 import {useCallback, useState} from "react"
 
+import {traceDrawerClearParams} from "@agenta/observability/traceDrawer"
+import {closeTraceDrawerAtom, isDrawerOpenAtom} from "@agenta/observability/traceDrawer"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {clearTraceParamAtom} from "@/oss/state/url"
-
-import {closeTraceDrawerAtom, isDrawerOpenAtom} from "../store/traceDrawerStore"
 
 import TraceDrawerContent from "./TraceDrawerContent"
 
 const TraceDrawer = () => {
     const open = useAtomValue(isDrawerOpenAtom)
     const closeDrawer = useSetAtom(closeTraceDrawerAtom)
-    const clearTraceParam = useSetAtom(clearTraceParamAtom)
 
     const initialWidth = 1200
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
-    const handleAfterOpenChange = useCallback(
-        (isOpen: boolean) => {
-            if (!isOpen) {
-                // clearTraceQueryParam already removes both trace and span params
-                clearTraceParam()
-            }
-        },
-        [clearTraceParam],
-    )
+    const handleAfterOpenChange = useCallback((isOpen: boolean) => {
+        if (!isOpen) {
+            // clearTraceQueryParam already removes both trace and span params
+            traceDrawerClearParams()
+        }
+    }, [])
 
     const toggleWidth = useCallback(() => {
         setDrawerWidth((width) => (width === initialWidth ? 1920 : initialWidth))

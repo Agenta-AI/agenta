@@ -1,19 +1,11 @@
 import {useMemo} from "react"
 
-import {Space, Typography} from "antd"
+import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
+import {linksAndReferencesAtom, traceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
+import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
-import {
-    ApplicationReferenceLabel,
-    EnvironmentReferenceLabel,
-    EvaluatorReferenceLabel,
-    TestsetTag,
-    VariantReferenceLabel,
-} from "@/oss/components/References"
-import useEvaluatorNavigation from "@/oss/components/SharedDrawers/TraceDrawer/hooks/useEvaluatorNavigation"
-import {linksAndReferencesAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import useURL from "@/oss/hooks/useURL"
-import {projectIdAtom} from "@/oss/state/project"
+import {getTraceDrawerReferences} from "./referenceSlots"
 
 const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
 
@@ -28,13 +20,29 @@ const labelMap: Record<string, string> = {
     testset: "Test sets",
 }
 
+interface ReferenceEntry extends Record<string, unknown> {
+    key?: string
+    id?: string
+    slug?: string
+}
+
 const TraceReferences = () => {
+    const {
+        ApplicationReferenceLabel,
+        EnvironmentReferenceLabel,
+        EvaluatorReferenceLabel,
+        TestsetTag,
+        VariantReferenceLabel,
+    } = getTraceDrawerReferences()
+
     const linksAndReferences = useAtomValue(linksAndReferencesAtom)
-    const {projectURL} = useURL()
+    const projectURL = useAtomValue(traceDrawerProjectURLAtom)
     const projectId = useAtomValue(projectIdAtom)
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
 
-    const references = linksAndReferences?.references || []
+    // The store hands these back as unknown-valued bags; this component reads them as
+    // identified references, so name that shape once instead of casting at every read.
+    const references = (linksAndReferences?.references ?? []) as ReferenceEntry[]
 
     const applicationReference = useMemo(
         () => references.find((ref) => ref?.key === "application"),
@@ -57,11 +65,9 @@ const TraceReferences = () => {
     )
 
     const groupedReferences = useMemo(() => {
-        const validReferences = references?.filter(
-            (reference) => (reference as any)?.id || (reference as any)?.slug,
-        )
+        const validReferences = references?.filter((reference) => reference?.id || reference?.slug)
 
-        return validReferences?.reduce<Record<string, Record<string, any>[]>>((acc, reference) => {
+        return validReferences?.reduce<Record<string, ReferenceEntry[]>>((acc, reference) => {
             const key = reference?.key || "other"
             if (!acc[key]) acc[key] = []
             acc[key].push(reference)
@@ -122,7 +128,7 @@ const TraceReferences = () => {
                 const applicationId = applicationReference?.id || applicationReference?.slug
                 // Use the revision ID from application_revision reference for molecule lookup.
                 // The variant reference stores a variant ID, but the molecule resolves by revision ID.
-                const revisionId = (applicationRevisionReference as any)?.id || id
+                const revisionId = applicationRevisionReference?.id || id
                 const href =
                     projectURL && applicationId && revisionId
                         ? `${projectURL}/apps/${encodeURIComponent(
@@ -148,36 +154,32 @@ const TraceReferences = () => {
     }
 
     if (!references.length) {
-        return <Typography.Text type="secondary">No references found.</Typography.Text>
+        return <span className="text-colorTextSecondary">No references found.</span>
     }
 
     return (
-        <Space orientation="vertical" size={12} className="w-full">
+        <div className="flex flex-col gap-3 items-start w-full">
             {Object.entries(groupedReferences || {}).map(([key, refs]) => {
                 const displayLabel = labelMap[key]
                 if (!displayLabel) return null
                 return (
-                    <Space key={key} orientation="vertical" size={6} className="w-full">
-                        <Typography.Text className={titleClass}>{displayLabel}</Typography.Text>
+                    <div key={key} className="flex flex-col gap-1.5 items-start w-full">
+                        <span className={titleClass}>{displayLabel}</span>
                         <div className="flex flex-col gap-1">
                             {refs?.map((ref, index) => {
                                 const tag = renderReferenceTag({
                                     key: ref.key as string,
-                                    id: (ref as any)?.id,
-                                    slug: (ref as any)?.slug,
+                                    id: ref?.id,
+                                    slug: ref?.slug,
                                 })
                                 if (!tag) return null
-                                return (
-                                    <span key={`${ref.key}-${(ref as any)?.id || index}`}>
-                                        {tag}
-                                    </span>
-                                )
+                                return <span key={`${ref.key}-${ref?.id || index}`}>{tag}</span>
                             })}
                         </div>
-                    </Space>
+                    </div>
                 )
             })}
-        </Space>
+        </div>
     )
 }
 

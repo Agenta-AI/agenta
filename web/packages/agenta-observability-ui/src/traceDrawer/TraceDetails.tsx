@@ -7,13 +7,14 @@ import {
     spanEndTimeAtomFamily,
     spanStartTimeAtomFamily,
 } from "@agenta/observability"
-import {spanTypeStatusMapper as statusMapper, StatusRenderer} from "@agenta/observability-ui"
-import {Flex, Space, Typography} from "antd"
+import type {TraceSpanNode} from "@agenta/observability"
 import {useAtomValue} from "jotai"
 import {PlusCircle, Timer} from "lucide-react"
 
-import ResultTag from "@/oss/components/ResultTag/ResultTag"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {statusMapper} from "../cells/AvatarTreeContent"
+import {StatusRenderer} from "../cells/StatusRenderer"
+
+import ResultTag from "./ResultTag"
 
 const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
 const resultTagClass = "flex items-center font-mono gap-1"
@@ -32,9 +33,9 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const traceStartTime = useAtomValue(spanStartTimeAtomFamily(activeTrace))
     const traceEndTime = useAtomValue(spanEndTimeAtomFamily(activeTrace))
     return (
-        <Flex vertical gap={12}>
-            <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Type</Typography.Text>
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1 items-start">
+                <span className={titleClass}>Type</span>
 
                 <ResultTag
                     style={{
@@ -49,19 +50,19 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         </>
                     }
                 />
-            </Space>
+            </div>
 
-            <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Status</Typography.Text>
+            <div className="flex flex-col gap-1 items-start">
+                <span className={titleClass}>Status</span>
                 <StatusRenderer
                     status={activeTrace?.status_code}
                     message={activeTrace?.status_message}
                     bordered={false}
                 />
-            </Space>
+            </div>
 
-            <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Latency</Typography.Text>
+            <div className="flex flex-col gap-1 items-start">
+                <span className={titleClass}>Latency</span>
                 <ResultTag
                     bordered={false}
                     className="bg-[var(--ag-c-0517290F)]"
@@ -71,10 +72,10 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         </div>
                     }
                 />
-            </Space>
+            </div>
 
-            <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Timestamp</Typography.Text>
+            <div className="flex flex-col gap-1 items-start">
+                <span className={titleClass}>Timestamp</span>
 
                 <ResultTag
                     value1={<div className={resultTagClass}>Start - {traceStartTime}</div>}
@@ -90,10 +91,10 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         </div>
                     }
                 />
-            </Space>
+            </div>
 
-            <Space orientation="vertical" size={4}>
-                <Typography.Text className={titleClass}>Tokens & Cost</Typography.Text>
+            <div className="flex flex-col gap-1 items-start">
+                <span className={titleClass}>Tokens & Cost</span>
                 <ResultTag
                     bordered={false}
                     className="bg-[var(--ag-c-0517290F)]"
@@ -104,20 +105,20 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         </div>
                     }
                     popoverContent={
-                        <Space orientation="vertical">
-                            <Space className={tokenContainerClass}>
+                        <div className="flex flex-col gap-2 items-start">
+                            <div className={`flex items-center gap-2 ${tokenContainerClass}`}>
                                 <div>{formattedPromptTokens}</div>
                                 <div>Prompt tokens</div>
-                            </Space>
-                            <Space className={tokenContainerClass}>
+                            </div>
+                            <div className={`flex items-center gap-2 ${tokenContainerClass}`}>
                                 <div>{formattedCompletionTokens}</div>
                                 <div>Completion tokens</div>
-                            </Space>
-                        </Space>
+                            </div>
+                        </div>
                     }
                 />
-            </Space>
-        </Flex>
+            </div>
+        </div>
     )
 }
 

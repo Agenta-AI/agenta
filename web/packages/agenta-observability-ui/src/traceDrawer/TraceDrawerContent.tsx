@@ -1,25 +1,22 @@
 import {useEffect, useRef, useState} from "react"
 
-import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
-import {Button, Spin, Splitter} from "antd"
+import {useObservability} from "@agenta/observability"
+import {useTraceDrawer} from "@agenta/observability/traceDrawer"
+import {traceDrawerSetQueryParam} from "@agenta/observability/traceDrawer"
+import {
+    setTraceDrawerActiveSpanAtom,
+    setTraceDrawerTraceAtom,
+} from "@agenta/observability/traceDrawer"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {ArrowsIn, ArrowsOut, X} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import useTraceDrawer from "@/oss/components/SharedDrawers/TraceDrawer/hooks/useTraceDrawer"
-import {useQueryParamState} from "@/oss/state/appState"
-import {useObservability} from "@/oss/state/observability"
+import {SkeletonBlock} from "../primitives/SkeletonBlock"
 
-import {setTraceDrawerActiveSpanAtom, setTraceDrawerTraceAtom} from "../store/traceDrawerStore"
-
-const TraceContent = dynamic(
-    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceContent"),
-)
-const TraceHeader = dynamic(
-    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceHeader"),
-)
-const TraceTree = dynamic(
-    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceTree"),
-)
+const TraceContent = dynamic(() => import("./TraceContent"))
+const TraceHeader = dynamic(() => import("./TraceHeader"))
+const TraceTree = dynamic(() => import("./TraceTree"))
 
 interface TraceDrawerContentProps {
     onClose: () => void
@@ -41,8 +38,10 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
     } = useObservability()
     const setActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
-    const [, setTraceQueryParam] = useQueryParamState("trace")
-    const [, setSpanQueryParam] = useQueryParamState("span")
+    const setTraceQueryParam = (value: string | null | undefined) =>
+        traceDrawerSetQueryParam("trace", value)
+    const setSpanQueryParam = (value: string | null | undefined) =>
+        traceDrawerSetQueryParam("span", value)
 
     // Initialize selection when drawer payload changes
     const lastPayloadActiveIdRef = useRef<string | undefined>(undefined)
@@ -76,9 +75,9 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
     useEffect(() => {
         if (selected) {
             setActiveSpan(selected)
-            setSpanQueryParam(selected, {shallow: true})
+            setSpanQueryParam(selected)
         } else {
-            setSpanQueryParam(undefined, {shallow: true})
+            setSpanQueryParam(null)
         }
     }, [selected, setActiveSpan, setSpanQueryParam])
 
@@ -88,23 +87,23 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
     return (
         <div className="h-full w-full flex flex-col" data-tour="trace-drawer">
             <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
-                <Button
+                <EnhancedButton
                     onClick={onClose}
                     type="text"
-                    icon={<CloseOutlined />}
+                    icon={<X size={14} />}
                     data-tour="trace-drawer-close"
                 />
-                <Button
+                <EnhancedButton
                     onClick={onToggleWidth}
                     type="text"
-                    icon={isExpanded ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                    icon={isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
                 />
                 <div className="flex-1 min-w-0">
                     <TraceHeader
-                        activeTrace={activeTrace as any}
+                        activeTrace={activeTrace as never}
                         activeTraceId={activeId}
                         traceId={traceId}
-                        traces={traces as any}
+                        traces={traces as never}
                         traceTabs={traceTabs}
                         filters={filters}
                         sort={sort}
@@ -119,35 +118,34 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
                     />
                 </div>
             </div>
-            <Spin
-                spinning={Boolean(isLoading)}
-                description="Loading trace…"
-                size="large"
-                classNames={{root: "flex-1 min-h-0 [&_.ant-spin-container]:h-full"}}
-            >
+            {/* antd `Spin` wrapped the body and dimmed it; the tree/content render their own
+                skeletons, so a loading pass just shows a block above them. */}
+            <div className="flex-1 min-h-0">
+                {isLoading ? <SkeletonBlock className="m-3" /> : null}
                 <div className="h-full">
-                    <Splitter className="h-full">
-                        <Splitter.Panel defaultSize={320} collapsible>
+                    {/* antd Splitter: a 320px tree column beside the content. */}
+                    <div className="flex h-full">
+                        <div className="w-[320px] min-w-[320px] shrink-0">
                             <TraceTree
                                 activeTraceId={activeId}
                                 selected={activeId}
                                 setSelected={setSelected}
                             />
-                        </Splitter.Panel>
-                        <Splitter.Panel min={400}>
+                        </div>
+                        <div className="flex-1 min-w-[400px]">
                             <TraceContent
-                                activeTrace={activeTrace as any}
+                                activeTrace={activeTrace as never}
                                 traceResponse={traceResponse}
-                                error={error as any}
+                                error={error as never}
                                 isLoading={isLoading}
                                 setSelectedTraceId={setGlobalSelectedTraceId}
-                                traces={traces as any}
+                                traces={traces as never}
                                 activeId={activeId}
                             />
-                        </Splitter.Panel>
-                    </Splitter>
+                        </div>
+                    </div>
                 </div>
-            </Spin>
+            </div>
         </div>
     )
 }
