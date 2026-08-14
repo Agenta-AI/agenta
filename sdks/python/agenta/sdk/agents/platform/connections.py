@@ -625,7 +625,7 @@ def _resolve_from_secrets(
     if not env:
         raise MissingCredentialError(provider=provider, slug=chosen.slug)
 
-    # The gateway holds the provider's secret now (D4/W1): the connected path routes through
+    # The gateway holds the provider's secret now (D4/D36): the connected path routes through
     # it rather than injecting `env` into the harness. `env`'s only remaining job above is the
     # fail-loud emptiness check; the value itself never leaves this function.
     if not gateway_base_url or not gateway_credentials_value:

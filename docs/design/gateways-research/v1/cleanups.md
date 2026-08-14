@@ -193,7 +193,7 @@ risks and become one contract with four implementations that can disagree.
 **Also on this item, and larger than the duplication:** `AGENTA_INSECURE_EGRESS_ALLOWED` defaults
 to `true` and is set in no deployment configuration in this repo, so every copy is currently
 inert. The default exists so zero-config self-hosting works, which is a real requirement; what is
-missing is that a shared deployment turns it off. Checkpoint A verifies with it `false`, and
+missing is that a shared deployment turns it off. C1 verifies with it `false`, and
 cloud setting it `false` is a deployment action rather than an assumption.
 
 **Done.** One definition per language, with the range tables generated or tested against each
@@ -212,4 +212,4 @@ it possible.
 records them as outside this work entirely.
 
 **Usage recording and charging, and per-endpoint configuration.** Deferred rather than unlocked:
-they are gateway work that ships after checkpoint C, and `plan.md` carries them.
+they are gateway work that ships after C3, and `plan.md` carries them.

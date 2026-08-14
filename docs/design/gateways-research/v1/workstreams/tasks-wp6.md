@@ -1,7 +1,7 @@
 # WP6 tasks — LLM ingress and relay
 
-Ordered so each item is one reviewable commit. Depends on merge **M1** (WP1 + WP2 + WP3 landed on
-the base branch) — branch from M1, not from the seed commit directly, so `LLMGatewayService`'s
+Ordered so each item is one reviewable commit. Depends on merge **IM1** (WP1 + WP2 + WP3 landed on
+the base branch) — branch from IM1, not from the seed commit directly, so `LLMGatewayService`'s
 constructor and `SecretsResolverInterface` are real rather than raising
 `NotImplementedError`. Run `ruff format` then `ruff check --fix` (from the repo root) before every
 commit and fix all errors, per `api/AGENTS.md`.
@@ -144,7 +144,7 @@ owned by nobody... Write your additions as a diff inside `tasks-wp6.md`; do NOT 
 file."* That instruction is also the only workable one here — `llm_gateway_service` does
 not exist as a variable in `routers.py` yet (WP7's `core/gateways/llms/service.py` is not
 on this branch), so `LLMGatewayProxy(llm_gateway_service=llm_gateway_service)` cannot
-actually be constructed today. The diff below is this package's contribution to the M2
+actually be constructed today. The diff below is this package's contribution to the IM2
 merge, to be applied once WP7's service lands (by WP7, or whoever resolves the merge) —
 not a commit made in this worktree.
 
@@ -213,12 +213,12 @@ Notes for whoever applies this at the merge:
   attributes" comment already in the file), so the mount line uses `llm_gateway_proxy.router`.
   WP10's `LLMGatewayRouter` mount is a separate, WP10-owned line, not part of this diff.
 
-## Phase 6 — Acceptance (post-M2, once WP5/WP7 are merged)
+## Phase 6 — Acceptance (post-IM2, once WP5/WP7 are merged)
 
 Per this worktree's own task brief, rule 5: acceptance tests need a running deployment, which
 this worktree does not have — write them, do not run them. `oss/tests/pytest/acceptance/gateways/
 test_llm_gateway_proxy_acceptance.py` written accordingly (collection verified locally; execution
-needs the full M2 deployment WP7/WP10 complete):
+needs the full IM2 deployment WP7/WP10 complete):
 
 - [x] Deploy the local stack with WP1/WP2/WP3/WP5/WP7 all merged — documented in the test
       module's docstring as the manual run instructions; not performed by this package.

@@ -1,6 +1,6 @@
 # WP14 — tasks
 
-Read [`specs-wp14.md`](specs-wp14.md) first. Branch from WP12's merge (M4).
+Read [`specs-wp14.md`](specs-wp14.md) first. Branch from WP12's merge (IM4).
 
 ## Read first
 

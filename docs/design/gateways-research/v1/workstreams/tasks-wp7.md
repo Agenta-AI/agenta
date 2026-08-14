@@ -1,6 +1,6 @@
 # WP7 tasks — LLM routing and model allowlist
 
-Ordered so each item is one reviewable commit. Depends on merge **M1** — branch from M1, not the
+Ordered so each item is one reviewable commit. Depends on merge **IM1** — branch from IM1, not the
 seed commit directly. Run `ruff format` then `ruff check --fix` (from the repo root) before every
 commit and fix all errors, per `api/AGENTS.md`.
 
@@ -214,7 +214,7 @@ individually so the mapping from item to code is traceable in one diff.
 - [x] `api/entrypoints/routers.py`: construct `llm_gateway_service = LLMGatewayService(...)` per
       the diff in `specs-wp7.md`, with the `upstream_registry` dict entries for `"passthrough"`,
       `"translated"`, `"mock"` — coordinate with WP5's and WP6's import lines landing in the same
-      block at the M1→M2 merge.
+      block at the IM1→IM2 merge.
 - [x] If the litellm-as-direct-dependency question (flagged in "Missing from the design") is
       resolved in favor of adding it: `api/pyproject.toml` gets the `litellm` line, matching the
       SDK's own pin (`litellm>=1,<2`).
@@ -228,7 +228,7 @@ by `providers/translated/adapter.py` since Phase 3).
 
 **`api/entrypoints/routers.py` — diff only, not applied here.** Per rule 6 of the top-level brief,
 this file is nobody's to edit directly mid-wave; the diff below is what should land at the
-M1→M2 merge, once WP6's `PassthroughLLMAdapter` exists on the integration branch (it does not
+IM1→IM2 merge, once WP6's `PassthroughLLMAdapter` exists on the integration branch (it does not
 exist on this worktree, so applying this diff here would break the import). Two things beyond
 `specs-wp7.md`'s own diff, both flagged by the coordinator mid-task: the `MockLLMAdapter` import
 uncomments (WP5 left it commented, deliberately, for whichever of WP7/WP9 builds the first plane
@@ -289,7 +289,7 @@ does not import-error: the construction block references `PassthroughLLMAdapter`
 must land together with WP6's uncomment, not before — same ordering constraint the seed's own
 comment block already documented for `MockLLMAdapter`.
 
-## Phase 8 — Acceptance (post-M2, once WP1/WP5/WP6 are merged)
+## Phase 8 — Acceptance (post-IM2, once WP1/WP5/WP6 are merged)
 
 - [ ] Deploy the local stack with WP1/WP2/WP3/WP5/WP6/WP7 all merged. **Not done here** — this
       worktree has no compose deployment and only WP1/WP2/WP3/WP5 are merged onto this branch

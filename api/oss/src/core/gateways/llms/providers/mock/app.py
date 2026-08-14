@@ -37,7 +37,7 @@ async def health() -> Response:
 
 @app.post("/__echo/v1/chat/completions")
 async def echo_headers(request: Request) -> Response:
-    """Report the headers this process received (launch-2.md W4).
+    """Report the headers this process received (launch-2.md D39).
 
     On the completions path rather than a bare route so it is reachable THROUGH the gateway:
     an endpoint whose `base_url` ends in `/__echo` relays here, and the answer is the only

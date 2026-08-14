@@ -71,7 +71,7 @@ Changed in place, in later work packages: `core/secrets/` gains the two OAuth ki
 `core/access/permissions/types.py` gains six `Permission` members (§9).
 
 Not shown: the deployable mocks. The adapter-level mocks above satisfy unit and contract
-tests; Checkpoint A's acceptance tests additionally need the mocks running as compose
+tests; C1's acceptance tests additionally need the mocks running as compose
 services in the local stack (`plan.md` WP5). Those are services, not entities, and are out
 of this document's scope.
 

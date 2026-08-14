@@ -1,7 +1,7 @@
 # WP13 — Runner and harnesses
 
 **Owns:** `services/runner/src/`, the harness configuration writers, and the wire's consumer
-side. **Depends on:** WP12. **Blocks:** Checkpoint B.
+side. **Depends on:** WP12. **Blocks:** C2.
 
 The runner carries a gateway route and our credentials instead of provider secrets. Two
 properties make it worth doing, and both are checkable: the per-consumer secret arrays
@@ -16,7 +16,7 @@ collapse, and the redaction set shrinks with them.
 - `endpoint.baseUrl` — the gateway route
 - `credentialMode: "none"` — no provider secret to inject
 - `credentials: []` — empty
-- the gateway-credentials field from the seed (W1), carrying the header name and value
+- the gateway-credentials field from the seed (D36), carrying the header name and value
 
 The wire's field-by-field meaning is documented above the interface and is the authority; the
 runner re-validates rather than trusting, as it does today, and does not invent fields.

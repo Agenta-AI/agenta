@@ -1,9 +1,9 @@
 # WP23 — Protocol front doors
 
 **Owns:** `apis/fastapi/gateways/llms/proxy.py`, `apis/fastapi/gateways/llms/utils.py`.
-**Depends on:** Checkpoint A. **Blocks:** WP24.
+**Depends on:** C1. **Blocks:** WP24.
 
-Three front doors instead of one (D33, W3). This is what makes D34 survivable: a gateway
+Three front doors instead of one (D33, D38). This is what makes D34 survivable: a gateway
 that may not convert a body reaches an upstream only through a door that speaks its protocol.
 
 ---

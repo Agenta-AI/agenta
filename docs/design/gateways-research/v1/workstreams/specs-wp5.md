@@ -2,7 +2,7 @@
 
 A mock LLM endpoint and a mock MCP server, first-class deliverables (D23) rather than test
 scaffolding bolted on afterwards. Depends on nothing — starts immediately, in parallel with the
-seed if necessary. Blocks every acceptance test in wave 1: Checkpoint A's whole target set is
+seed if necessary. Blocks every acceptance test in wave 1: C1's whole target set is
 "our own servers and the mocks" (`open-designs.md` OD10), so nothing downstream can be
 acceptance-tested without this package.
 
@@ -18,7 +18,7 @@ Two deliverables per plane, and `entities.md` is explicit that only one of them 
 - **The deployable mock** — a standalone process speaking the real upstream protocol (OpenAI-
   compatible HTTP for the model plane, MCP Streamable HTTP for the tool plane), run as its own
   docker-compose service. `entities.md` §0 says outright: *"Not shown: the deployable mocks...
-  Checkpoint A's acceptance tests additionally need the mocks running as compose services in the
+  C1's acceptance tests additionally need the mocks running as compose services in the
   local stack (`plan.md` WP5). Those are services, not entities, and are out of this document's
   scope."* This is what satisfies **acceptance tests**: a real HTTP request travels gateway →
   passthrough/http adapter → real socket → this process → a real streamed/hung response back,
@@ -218,7 +218,7 @@ Both apps expose `GET /health` for the compose healthcheck.
 Following the existing profile-gated satellite-service precedent
 (`hosting/docker-compose/oss/docker-compose.dev.yml`, the `composio` and tunnel services under
 `with-tunnel`) for shape — copy their shape, never their names: the tunnel services belong to the
-development-ingress work, which renames and adds to them (D26), but **not profile-gated** — Checkpoint A's acceptance tests need these
+development-ingress work, which renames and adds to them (D26), but **not profile-gated** — C1's acceptance tests need these
 every run, unconditionally, matching D23 ("no third-party dependency to gate on... the gateways
 have no third-party dependency to gate on" — same reasoning: the mocks are ours, not optional):
 
@@ -290,7 +290,7 @@ inside their own `LLMUpstreamRegistry(...)` / `MCPUpstreamRegistry(...)` constru
 
 - **No third-party dependency, ever.** Both adapters and both deployable apps depend only on
   what the API already ships (`fastapi`, `httpx`/`uvicorn` if needed) — D23 exists specifically so
-  Checkpoint A needs nothing external.
+  C1 needs nothing external.
 - **Registered always, reachable conditionally.** The wiring snippet's own comment: `"mock":
   MockLLMAdapter(), # registered always; reachable only via the mock endpoints the local stack
   defines`. The adapter class is present in every deploy (nothing branches on environment inside
@@ -401,14 +401,14 @@ be driven to fail on demand."*
   data-seed, a startup fixture, or a manual `POST /gateways/llms/endpoints/` call scripted into
   `run.sh`) is not decided anywhere in `v1/`. This blocks nothing in WP5 itself but blocks the
   acceptance test that reaches the mock *through the gateway* rather than directly — raise it at
-  the M1→Checkpoint A merge point.
+  the IM1→C1 merge point.
 
 ## Checkpoint
 
-Feeds **Checkpoint A** (`plan.md`): *"The LLM gateway and the MCP gateway both accept a call,
+Feeds **C1** (`plan.md`): *"The LLM gateway and the MCP gateway both accept a call,
 authorise it, resolve and inject a secret, reach a mock upstream, and return... Everything it
 proves is proved against our own mocks."* WP5's direct contribution: without it there is no mock
-upstream for WP6/WP7/WP8/WP9's relay paths to reach, and Checkpoint A's acceptance suite (a
+upstream for WP6/WP7/WP8/WP9's relay paths to reach, and C1's acceptance suite (a
 permitted request reaches the mock with the caller's token replaced by the upstream secret; a
 streamed response arrives byte for byte on both gateways; a tool call outside the allowlist is
 refused) has nothing to run against.

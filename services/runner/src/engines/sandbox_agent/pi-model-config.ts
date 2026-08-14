@@ -58,7 +58,7 @@ export interface PiModelConfigPlan {
   /** The exact selected model(s). v1 registers exactly one. */
   models: Array<{ id: string }>;
   /**
-   * OUR gateway credential (D31/W1), keyed by header name, valued by `$ENV_VAR` indirection
+   * OUR gateway credential (D31/D36), keyed by header name, valued by `$ENV_VAR` indirection
    * (`models.json`'s own value-resolution syntax — see the bundled Pi `docs/models.md`) so the
    * raw value never reaches this file on disk. Absent when the connection is not gateway-routed.
    */
@@ -265,7 +265,7 @@ export function isPiModelConfigApplicable(request: AgentRunRequest): boolean {
  * the request is INCOMPLETE and throws `PiModelConfigError`:
  *   - a non-empty connection slug;
  *   - an endpoint base URL;
- *   - credential mode "env", OR "none" with a gateway credential (D31/W1: a gateway route
+ *   - credential mode "env", OR "none" with a gateway credential (D31/D36: a gateway route
  *     carries OUR credentials instead of the provider's, so there is no API key to require);
  *   - `OPENAI_API_KEY` present in the materialized model environment when credential mode is
  *     "env" (`secrets` — on a Daytona Secrets run this includes the opaque credential BINDINGS,
@@ -286,7 +286,7 @@ export function buildPiModelConfigPlan(
   const model = request.model?.trim();
   const hasKey = !!secrets[OPENAI_API_KEY_ENV]?.trim();
   const gatewayCredentials = request.modelConnection?.gatewayCredentials;
-  // A gateway route (D31/W1) carries OUR credentials instead of a provider key: credentialMode
+  // A gateway route (D31/D36) carries OUR credentials instead of a provider key: credentialMode
   // is "none" and there is nothing in `secrets` to require. `env` mode is still the only other
   // legal shape (the provider key itself), so this is not a third credentialMode value — it is
   // gatewayCredentials substituting for the API-key check the same way it substitutes on the wire.

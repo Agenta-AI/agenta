@@ -98,11 +98,11 @@ consumes only `VaultService` (already landed) and a mock of it for tests.
 ## routers.py diff (hand off at merge, do not commit directly)
 
 - [x] Write the `SecretsResolver(vault_service=vault_service)` construction line from
-      `specs-wp2.md` into this package's PR description for the M1 merge.
+      `specs-wp2.md` into this package's PR description for the IM1 merge.
 
 ## Definition of done
 
-Feeds **M1**, then **Checkpoint A** through WP6 and WP8 (both call `resolve()` on the
+Feeds **IM1**, then **C1** through WP6 and WP8 (both call `resolve()` on the
 relay path). Exit condition, verbatim from `plan.md`: *"each resolution mode behaves as
 specified and no path silently returns no secret."*
 

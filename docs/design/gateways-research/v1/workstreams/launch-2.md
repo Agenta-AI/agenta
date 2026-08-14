@@ -1,10 +1,10 @@
-# Wave 2 launch — to Checkpoint B
+# Wave 2 launch — to C2
 
 Wave 1 built the gateways. Wave 2 makes them the only way out. Nothing new is designed
 here: the packages are the ones `plan.md` names, and this document is what each worktree
 needs to start without reading the whole of `v1/`.
 
-**Checkpoint B is "everything except OAuth works."** Agent v0, the runner and the harnesses
+**C2 is "everything except OAuth works."** Agent v0, the runner and the harnesses
 reach models and MCP servers only through the gateways; every call leaves an audit event;
 no provider secret exists inside a sandbox.
 
@@ -44,7 +44,7 @@ have yet — no third category.
 | `provider_key` `NOT NULL` | unchanged | **WP24**, with the migration |
 | OD14 — the harness matrix | not run | **WP13**, phase 0 |
 | OD17 — which MCP servers a stateless relay reaches | not verified | **WP15**, phase 0 |
-| Mock upstreams echoing headers | not built | **the seed** (W4) |
+| Mock upstreams echoing headers | not built | **the seed** (D39) |
 
 D31's data-plane rule and D32's pass-through mechanics are built and tested; they are not
 in this table because there is nothing left of them to do.
@@ -95,13 +95,13 @@ inside one of them.** One agent writes it on the base branch and everything else
       branch name; it advances. — `release/v0.112.1` merged into `feat/gateways`.
 - [x] **The four rulings below are settled.** Each changed a shape more than one package
       depends on, so none could be deferred into a worktree.
-- [x] **Write the gateway-credentials field** (W1) on the runner wire
+- [x] **Write the gateway-credentials field** (D36) on the runner wire
       (`services/runner/src/protocol.ts`) and in the SDK
       (`sdks/python/agenta/sdk/agents/connections/models.py`), with its validator and its
       materialization. Declarations only; no caller changes.
-- [x] **Exempt loopback from the https requirement** (W2), as an explicit branch in
+- [x] **Exempt loopback from the https requirement** (D37), as an explicit branch in
       `ResolvedConnection`'s validator with the reason written on it.
-- [x] **Add the header echo to both mock upstreams** (W4): one endpoint returning the
+- [x] **Add the header echo to both mock upstreams** (D39): one endpoint returning the
       headers of the request it received, in `core/gateways/{llms,mcps}/providers/mock/app.py`.
 - [x] **Verify**: the credentials field round-trips SDK → wire → runner and is materialized,
       with a test that fails if any leg drops it. This is the specific failure the shape
@@ -129,7 +129,7 @@ inside one of them.** One agent writes it on the base branch and everything else
   (`test_gateway_credentials.py`, `gateway-credentials.test.ts`). A package that changes the
   field changes the golden and both tests, deliberately.
 
-### W1 — SETTLED: our credentials are their own field, not a widened binding
+### D36 — SETTLED: our credentials are their own field, not a widened binding
 
 `ResolvedCredential.binding` stays `EnvironmentCredentialBinding`. The gateway's credentials
 travel as a distinct field on `ResolvedConnection` and on `ModelConnection`, carrying the
@@ -151,7 +151,7 @@ configuration writer then reads exactly one place for the header it must set.
 leg of SDK → wire → runner drops it. `credentialMode` keeps its three values and its
 meaning; nothing about the provider's secrets changes.
 
-### W2 — SETTLED: loopback is exempt from the https requirement, explicitly
+### D37 — SETTLED: loopback is exempt from the https requirement, explicitly
 
 `ResolvedConnection` keeps refusing an `opaque_http` credential over plain http, except when
 the host is a loopback address. Written as an explicit branch with the reason on it, not as a
@@ -159,7 +159,7 @@ relaxed regex: the check exists so a provider secret cannot cross a plaintext ho
 host, and a loopback hop has no remote to cross to. Development stays on http; nothing about
 a deployed gateway changes.
 
-### W3 — SETTLED: all three front doors, in WP23, together
+### D38 — SETTLED: all three front doors, in WP23, together
 
 `/v1/chat/completions`, `/v1/responses` and `/v1/messages`. Not sequenced, because the
 sequencing was only ever about which upstreams to unblock first, and the answer is all of
@@ -169,7 +169,7 @@ from the start rather than re-scoped per door.
 `/v1/models` stays where it is — it answers from the endpoint's allowlist and is not a
 protocol front door.
 
-### W4 — SETTLED: the seed owns the mock upstreams' header echo
+### D39 — SETTLED: the seed owns the mock upstreams' header echo
 
 Both mock upstreams gain one endpoint that reports the headers of the request it received.
 It is in the seed rather than a package because two packages' acceptance tests read it and
@@ -202,7 +202,7 @@ deployment naming the gateway, `endpoint.base_url` the gateway URL, and our own 
 the provider's secret. The SDK keeps every capability it has (D4), so this
 is a change of *what the resolver returns*, not of what it can express — except for the
 header binding above, which lands here and on the wire together.
-*Depends on:* Checkpoint A. *Blocks:* WP13, WP14, WP15.
+*Depends on:* C1. *Blocks:* WP13, WP14, WP15.
 *Done when:* a resolved connection for any provider names the gateway, and no provider key
 appears in its output.
 
@@ -210,7 +210,7 @@ appears in its output.
 the principal, the target, the decision and the outcome. The service already computes all
 four — `GatewayOutcome` carries the status, the secret owner and its origin, and
 `GatewayTarget` carries plane, namespace, name and model. Emission is the missing half.
-*Depends on:* Checkpoint A. *Blocks:* nothing.
+*Depends on:* C1. *Blocks:* nothing.
 *Done when:* one event per call, queryable through the existing surface, on both planes and
 on the refusal paths as well as the success ones.
 
@@ -230,7 +230,7 @@ the local and the Daytona sandbox.
 Chat Completions names the ceiling `max_tokens`, Responses names it `max_output_tokens`.
 Nothing else in the pipeline changes: resolution, filters, ceilings, secrets and audit are
 all protocol-blind.
-*Depends on:* Checkpoint A. *Blocks:* WP24.
+*Depends on:* C1. *Blocks:* WP24.
 *Done when:* a request in each protocol relays byte for byte to an upstream that speaks it,
 with usage recorded and the ceiling enforced.
 
@@ -260,13 +260,13 @@ build to and nothing settled what an older upstream does.
 
 ## Merges
 
-**M4 — after WP12.** Not deployed. It exists so WP13, WP14 and WP15 branch from one
+**IM4 — after WP12.** Not deployed. It exists so WP13, WP14 and WP15 branch from one
 resolver rather than three copies of an unmerged one.
 
-**WP15 branches from WP13's wire commit, not from M4.** The two share `protocol.ts`, and a
+**WP15 branches from WP13's wire commit, not from IM4.** The two share `protocol.ts`, and a
 shared file edited in parallel is how a stack scrambles.
 
-**M5 → Checkpoint B.** Deploy. All seven packages.
+**IM5 → C2.** Deploy. All seven packages.
 
 WP23 and WP24 are a pair and land in that order. They are in this wave rather than a later
 one because D34 is a constraint on what the relay may do, and a constraint that is written
@@ -275,7 +275,7 @@ that assumes conversion is available.
 
 ---
 
-## Acceptance at Checkpoint B
+## Acceptance at C2
 
 From `plan.md`, unchanged, plus what wave 1's shape now makes checkable:
 

@@ -143,12 +143,12 @@ branch, per `workstreams/README.md`.
 ## routers.py diff (hand off at merge, do not commit directly)
 
 - [x] Write the two-line DAO-construction diff from `specs-wp1.md` into this
-      package's PR description / merge notes for M1 — `LLMEndpointsDAO`,
+      package's PR description / merge notes for IM1 — `LLMEndpointsDAO`,
       `MCPEndpointsDAO` constructed with `_transactions_engine`.
 
 ## Definition of done
 
-Feeds **M1**, then **Checkpoint A** via WP6/WP7/WP8/WP9/WP10. Exit condition, verbatim
+Feeds **IM1**, then **C1** via WP6/WP7/WP8/WP9/WP10. Exit condition, verbatim
 from `plan.md`: *"a custom endpoint round-trips, and every DAO verb takes the owner."*
 
 WP1 is done when: the migration applies and downgrades cleanly; a custom endpoint on

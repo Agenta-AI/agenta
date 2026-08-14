@@ -1,6 +1,6 @@
 # WP15 — tasks
 
-Read [`specs-wp15.md`](specs-wp15.md) first. Branch from WP13's wire commit, not from M4 —
+Read [`specs-wp15.md`](specs-wp15.md) first. Branch from WP13's wire commit, not from IM4 —
 the two packages share `protocol.ts` and editing it in parallel is how a stack scrambles.
 
 ## Phase 0 — the reachable set (OD17)

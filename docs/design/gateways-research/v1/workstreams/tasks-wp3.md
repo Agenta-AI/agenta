@@ -113,7 +113,7 @@ Depends on nothing else — WP3 can start immediately alongside WP1 and WP2.
 ## `api/entrypoints/routers.py` diff (hand off at merge, do not commit directly)
 
 - [x] Write the `GatewayPolicyService(resolver=secret_resolver)` construction line
-      from `specs-wp3.md` into this package's PR description for the M1 merge — ordered
+      from `specs-wp3.md` into this package's PR description for the IM1 merge — ordered
       after WP2's `secret_resolver` construction line. Recorded below for the merge to
       apply; this package does not touch `api/entrypoints/routers.py` itself.
 
@@ -126,7 +126,7 @@ gateway_policy_service = GatewayPolicyService(resolver=secret_resolver)
 
 ## Definition of done
 
-Feeds **M1**, then **Checkpoint A** through every plane service and management router
+Feeds **IM1**, then **C1** through every plane service and management router
 that calls `authorize()`. Exit condition, verbatim from `plan.md`: *"a caller without
 permission on an endpoint is refused before any upstream call."*
 
@@ -134,7 +134,7 @@ WP3 is done when: the unit suite above passes in full; the six `Permission` memb
 correctly wired through `VIEWER`/`ANNOTATOR`/`EDITOR` and propagate to
 `DEVELOPER`/`ADMIN`/`OWNER`; `authorize()` never raises and never returns anything but a
 `PolicyDecision`; and `record()` is safely callable with the full signature and produces
-no observable side effect in wave 1. Note in the M1/M2 merge notes that "every member is
+no observable side effect in wave 1. Note in the IM1/IM2 merge notes that "every member is
 checked by a named route" (the `RUN_TRIGGERS` lesson) cannot be fully verified from this
 package alone — it depends on WP6/WP8/WP10 actually calling `authorize()` with each of
-the six permissions, and should be grepped for at the Checkpoint A merge, not assumed.
+the six permissions, and should be grepped for at the C1 merge, not assumed.

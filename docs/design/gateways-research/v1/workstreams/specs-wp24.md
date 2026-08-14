@@ -2,7 +2,7 @@
 
 **Owns:** `core/gateways/llms/providers/`, `core/gateways/llms/registry.py`, and the
 `provider_key` migration.
-**Depends on:** WP23. **Blocks:** Checkpoint B.
+**Depends on:** WP23. **Blocks:** C2.
 
 D34 forbids body conversion. This package enforces it, which means deleting the adapter that
 does it and replacing the passthrough/translated split with one relay that can compose a URL
@@ -16,7 +16,7 @@ For each of Azure, Bedrock, SageMaker and Vertex, and for each `direct` provider
 routed to the translated adapter, answer three questions from the provider's own request
 schema — not from what the current adapter does:
 
-1. **Does it accept the bytes a front door relays?** With all three doors shipped (W3), the
+1. **Does it accept the bytes a front door relays?** With all three doors shipped (D38), the
    question is whether *some* door's body is what this upstream takes. Azure OpenAI takes the
    OpenAI body; a Bedrock Anthropic model takes the Anthropic Messages body.
 2. **Can its URL be composed from route fields?** Azure needs base URL, deployment name and

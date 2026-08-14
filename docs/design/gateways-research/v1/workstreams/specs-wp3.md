@@ -17,8 +17,8 @@ type.
 ## What this is NOT
 
 - **No credit check.** `plan.md` is explicit: "the entitlement check. No credit check."
-  Credit checks arrive with metering and billing, after checkpoint C (`plan.md`, "After
-  checkpoint C"). `authorize()` never touches the legacy credits counter (D24 — left
+  Credit checks arrive with metering and billing, after C3 (`plan.md`, "After
+  C3"). `authorize()` never touches the legacy credits counter (D24 — left
   alone) and never touches a spend ceiling.
 - **Not secret resolution.** `authorize()` never resolves a secret and never calls
   `SecretsResolverInterface` — that is WP2, called separately by the plane service
@@ -30,10 +30,10 @@ type.
   `core/gateways/policy/audit.py`, which is **WP4's file, landing in wave 2** (`plan.md`:
   *"Moved out of wave 1: wave 1 makes the call work, and a record of a call that does not
   happen is worth nothing"*). WP3 must still ship a **safe, callable, non-raising**
-  `record()` in wave 1 — because WP6/WP7/WP8/WP9's relay path calls it on the Checkpoint A
+  `record()` in wave 1 — because WP6/WP7/WP8/WP9's relay path calls it on the C1
   hot path — but it does nothing yet beyond satisfying the contract "never raises." See
   the `record()` section below; do not build a partial audit pipeline to fill the gap and
-  do not raise `NotImplementedError` (that would break Checkpoint A, since a stub that
+  do not raise `NotImplementedError` (that would break C1, since a stub that
   raises is called on every relay).
 - **Not the caller's exception raising.** `authorize()` never raises `PolicyDeniedError`
   or `EntitlementDeniedError` (both are seed-owned, `core/gateways/policy/types.py`, and
@@ -57,7 +57,7 @@ Edited:
   explicitly), but it is a shared enum every other domain also extends — add members,
   touch nothing else in the file.
 
-WP3 adds one construction line to `api/entrypoints/routers.py` at the M1 merge (below).
+WP3 adds one construction line to `api/entrypoints/routers.py` at the IM1 merge (below).
 
 ## `GatewayPolicyService` (reproduce verbatim, `entities.md` §8)
 
@@ -144,7 +144,7 @@ permission call and is not an entitlement check this method performs; WP3 does n
 
 ## `record()` — the wave-1 stub, ruled at kickoff (R4)
 
-This is now a ruling, not this spec's proposal. R4 asked whether a method on the checkpoint A
+This is now a ruling, not this spec's proposal. R4 asked whether a method on the C1
 hot path may be the seed's usual not-implemented default; the answer is no — **it ships as a
 no-op that returns `None` and never raises.** What the seed freezes is the *call*, which every
 wave 1 relay makes unconditionally on both the allow and the deny branch, so wave 2 changes a
@@ -157,7 +157,7 @@ async def record(
     # WP4 (wave 2) replaces this body with policy/audit.py's
     # build_gateway_call_attributes + publish_gateway_call. Wave 1 has no
     # audit.py yet (plan.md: "a record of a call that does not happen is worth
-    # nothing"), but this method is on the Checkpoint A hot path — every
+    # nothing"), but this method is on the C1 hot path — every
     # relay call in WP6/7/8/9 calls it on both the allow and deny branch — so
     # it must exist, accept the full signature, and never raise. It does
     # nothing observable in wave 1.
@@ -222,7 +222,7 @@ counter-example not to repeat ("defined, role-wired, checked by nothing"). WP3 d
 and wires all six; WP6/WP8 (data plane) and WP10 (management CRUD) are the packages that
 actually call `authorize(permission=Permission.USE_LLM_ENDPOINTS, ...)` /
 `.VIEW_*`/`.EDIT_*` from their handlers. WP3's own done test (below) cannot fully close
-this by itself — flag it in the merge notes for M1/M2 as a cross-package check, not
+this by itself — flag it in the merge notes for IM1/IM2 as a cross-package check, not
 something WP3 can verify alone from its own worktree.
 
 ## Contracts this package must honour
@@ -286,9 +286,9 @@ touches the database and Redis cache (`get_cache`/`set_cache`) and `check_entitl
 touches EE's meters/subscriptions services — both are mocked in the unit suite above, so
 `GatewayPolicyService` itself needs no live dependency to test. A cross-package
 acceptance test that a caller without permission is refused end-to-end belongs to
-Checkpoint A's acceptance suite (`plan.md`), not to this package's own tests.
+C1's acceptance suite (`plan.md`), not to this package's own tests.
 
-## `api/entrypoints/routers.py` diff (apply at the M1 merge)
+## `api/entrypoints/routers.py` diff (apply at the IM1 merge)
 
 ```python
 from oss.src.core.gateways.policy.service import GatewayPolicyService
@@ -301,7 +301,7 @@ same merge — order this line after WP2's.)
 
 ## Checkpoint
 
-Feeds **M1**, then **Checkpoint A** through every plane service (WP6/7/8/9) and the
+Feeds **IM1**, then **C1** through every plane service (WP6/7/8/9) and the
 management routers (WP10), all of which call `authorize()`.
 
 Exit condition, verbatim from `plan.md`: *"a caller without permission on an endpoint is

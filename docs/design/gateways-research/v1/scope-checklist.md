@@ -12,10 +12,10 @@ decided — and the column stopped carrying information.
 | `1` | Wave 1 — both gateways working end to end, on the mocks and our own servers |
 | `2` | Wave 2 — every caller converted |
 | `3` | Wave 3 — OAuth end to end |
-| `later` | Real gateway work, after checkpoint C |
+| `later` | Real gateway work, after C3 |
 | `—` | Out of this work; a separate effort owns it |
 
-**A checkpoint is a deploy, not a release.** Nothing between here and checkpoint C carries user
+**A checkpoint is a deploy, not a release.** Nothing between here and C3 carries user
 traffic, so nothing observable happens that could have been recorded and was not. That kills the
 usual argument for building recording early — "it cannot be backfilled" is only true once there
 is something real to miss.

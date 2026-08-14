@@ -3,8 +3,8 @@
 How the packages actually get started in parallel. `README.md` says who owns what; this says what
 to run, in what order, and what to check before moving on.
 
-Everything here targets **checkpoint A**. Waves 2 and 3 follow the same shape and are deliberately
-not pre-planned in detail, because checkpoint A's outcome changes them.
+Everything here targets **C1**. Waves 2 and 3 follow the same shape and are deliberately
+not pre-planned in detail, because C1's outcome changes them.
 
 ## Before anything starts
 
@@ -77,11 +77,11 @@ Each starts by reading `specs-wp{k}.md`, works `tasks-wp{k}.md` top to bottom, s
 owned paths, and **stops at the merge point** rather than reaching into another package's files to
 finish something.
 
-**WP5 is not scaffolding.** The mocks are deliverables (D23), and they are what makes checkpoint A
+**WP5 is not scaffolding.** The mocks are deliverables (D23), and they are what makes C1
 testable without a third-party dependency. A package treating them as throwaway produces a
 checkpoint nobody can verify.
 
-## Merge M1 — foundation
+## Merge IM1 — foundation
 
 Static only, not deployed. Nothing here serves traffic.
 
@@ -106,9 +106,9 @@ separate, and the plane's `service.py` belongs to the domain package. WP6 calls 
 through the seed's declaration; WP8 calls WP9's. Neither pair blocks the other, and neither edits
 the other's files.
 
-## Reaching checkpoint A
+## Reaching C1
 
-Checkpoint A is reached when this runs on the merged base, not when five packages report done.
+C1 is reached when this runs on the merged base, not when five packages report done.
 
 - [ ] Merge the five, applying the `api/entrypoints/routers.py` lines together as one edit.
 - [ ] Both mocks run in the local stack.
@@ -129,9 +129,9 @@ Checkpoint A is reached when this runs on the merged base, not when five package
 - [ ] Deploy.
 
 **What is deliberately absent:** no audit record, no usage recorded, no per-endpoint
-configuration, no OAuth, and **no brokered server** — checkpoint A's reachable targets are our own
+configuration, no OAuth, and **no brokered server** — C1's reachable targets are our own
 servers and the mocks (D23), so the Composio-backed adapter is not a wave 1 deliverable (R8).
-Checkpoint A proves the call path and only the call path (`scope-checklist.md`).
+C1 proves the call path and only the call path (`scope-checklist.md`).
 
 ## Rules for anyone working a package
 

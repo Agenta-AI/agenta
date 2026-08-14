@@ -18,7 +18,7 @@ New:
 Edited: none. `core/gateways/mcps/{dtos,types,interfaces}.py` are seed-owned
 and frozen. `dbs/postgres/gateways/mcps/` (the DAO implementation this
 package calls through the `MCPEndpointsDAOInterface` port) is **WP1**'s,
-already landed by M1.
+already landed by IM1.
 
 ## Interfaces
 
@@ -347,7 +347,7 @@ it is not a DTO in §4 and must not be added to `dtos.py`.
   in shape; a target with no filter passes all three through untouched.
 - The full relay path against a real mock MCP server, and the merge against
   a real Postgres-backed `MCPEndpointsDAO` — **acceptance**, part of
-  Checkpoint A (shared with WP8; see `specs-wp8.md`'s acceptance section).
+  C1 (shared with WP8; see `specs-wp8.md`'s acceptance section).
 
 ## Executable done test
 
@@ -378,20 +378,20 @@ list_endpoints(project_id=P)
 - `core/gateways/mcps/token_storage.py` (`VaultTokenStorage`) and the OAuth
   client that drives a custom server's connect flow — **WP17/WP18** (wave 3).
 - `dbs/postgres/gateways/mcps/` (DAO implementation, migration) — **WP1**,
-  already landed by M1.
+  already landed by IM1.
 - `core/access/permissions/types.py`'s six new members — **WP3**, already
-  landed by M1.
+  landed by IM1.
 
 ## Checkpoint
 
-Feeds **Checkpoint A**, together with WP8 (see `specs-wp8.md`'s acceptance
-section for the shared suite) at the M2 merge.
+Feeds **C1**, together with WP8 (see `specs-wp8.md`'s acceptance
+section for the shared suite) at the IM2 merge.
 
 ## `api/entrypoints/routers.py` diff
 
 This package owns the `MCPGatewayService` and `MCPUpstreamRegistry`
 construction block — the one other packages (WP8's adapter entry, WP10's
-router construction) attach to. Applied at the M2 merge together with the
+router construction) attach to. Applied at the IM2 merge together with the
 sibling fragments from `specs-wp6.md`/`specs-wp7.md`/`specs-wp8.md`/`specs-wp10.md`:
 
 ```diff
@@ -413,7 +413,7 @@ sibling fragments from `specs-wp6.md`/`specs-wp7.md`/`specs-wp8.md`/`specs-wp10.
 
 `mcp_endpoints_dao`, `gateway_policy_service` and `secret_resolver` are
 constructed earlier in the file by WP1/WP2/WP3's fragments (already landed
-at M1); `connections_service` is the pre-existing connections-domain
+at IM1); `connections_service` is the pre-existing connections-domain
 instance every other leaf service in the file already receives by
 reference (`entities.md` §8) — this fragment only adds the service and
 registry. As with WP8's fragment, the local variable names above are
@@ -426,5 +426,5 @@ either it must be stubbed (raising on every call) until a later package
 implements it, or the dict entry is omitted and `list_endpoints`'s builtin
 branch is the only place `builtin` support exists in wave 1 (listing works,
 calling does not, and would raise via `MCPUpstreamRegistry.get("composio")`
-missing the key). Flag this at the M2 merge — it is not resolved by this
+missing the key). Flag this at the IM2 merge — it is not resolved by this
 spec.

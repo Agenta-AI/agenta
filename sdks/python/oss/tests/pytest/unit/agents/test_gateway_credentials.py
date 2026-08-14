@@ -1,4 +1,4 @@
-"""The gateway-credentials field, from the producer side (wave 2's seed, W1 and W2).
+"""The gateway-credentials field, from the producer side (wave 2's seed, D36 and D37).
 
 The specific failure the shape invites is a silent drop: a field that validates in the SDK,
 serializes, and never arrives. So the assertion that matters is against the shared golden
@@ -55,7 +55,7 @@ def test_a_dump_never_carries_the_value():
 
 
 def test_the_provider_secret_stays_its_own_field():
-    """W1: our credentials and a provider's secret are not interchangeable."""
+    """D36: our credentials and a provider's secret are not interchangeable."""
     connection = _connection(
         credential_mode="env",
         credentials=[
@@ -94,7 +94,7 @@ def test_plain_http_to_a_remote_host_is_refused():
     ["http://localhost:8000/gateways", "http://127.0.0.1:8000/gateways"],
 )
 def test_loopback_is_exempt_from_https(base_url):
-    """W2: the check exists so a secret cannot cross a plaintext hop to a remote host."""
+    """D37: the check exists so a secret cannot cross a plaintext hop to a remote host."""
     assert _connection(endpoint=Endpoint(base_url=base_url)).plaintext_headers()
 
 

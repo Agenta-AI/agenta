@@ -27,7 +27,7 @@ seed commit in `core/gateways/policy/interfaces.py`.
   other — `resolve()` only reads it; it never mints, refreshes, or exchanges a token. That
   is WP17.
 - **Not the two new secret kinds.** `oauth_provider`/`oauth_grant` (WP16) do not exist yet
-  when this package lands (wave 1, before Checkpoint B). Once WP16+WP17 land, an
+  when this package lands (wave 1, before C2). Once WP16+WP17 land, an
   `oauth_grant` secret is just another vault row a `BoundSecretRef` can point at —
   `resolve()` needs no change to reach it. Nothing in WP2 blocks on WP16.
 
@@ -38,7 +38,7 @@ New:
   `SecretsResolverInterface` (seed-owned, `core/gateways/policy/interfaces.py` —
   imported, never edited).
 
-Edited: none. WP2 adds one construction line to `api/entrypoints/routers.py` at the M1
+Edited: none. WP2 adds one construction line to `api/entrypoints/routers.py` at the IM1
 merge (below); it does not commit that file.
 
 ## Interface (reproduce verbatim, seed-owned)
@@ -329,7 +329,7 @@ mock in the unit suite above, and there is no direct database or Redis touch any
 `VaultService`, it belongs in a cross-package integration suite, not in this package's
 own test file.
 
-## `api/entrypoints/routers.py` diff (apply at the M1 merge)
+## `api/entrypoints/routers.py` diff (apply at the IM1 merge)
 
 ```python
 from oss.src.core.gateways.policy.resolution import SecretsResolver
@@ -341,7 +341,7 @@ secret_resolver = SecretsResolver(vault_service=vault_service)
 
 ## Checkpoint
 
-Feeds **M1**, then **Checkpoint A** through WP6 and WP8 (both call `resolve()` on the
+Feeds **IM1**, then **C1** through WP6 and WP8 (both call `resolve()` on the
 relay path).
 
 Exit condition, verbatim from `plan.md`: *"each resolution mode behaves as specified and

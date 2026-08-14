@@ -11,7 +11,7 @@ no gateway resolver, and a test can pass fakes.
   here; gating MCP on/off is the caller's concern.
 - ``resolve_connection`` -> one least-privilege ``ResolvedConnection`` for a single ``ModelRef``,
   via the secrets-backed ``VaultConnectionResolver`` (fail-loud), routed through the gateway
-  and carrying no provider secret (W1/D30).
+  and carrying no provider secret (D36/D30).
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ async def resolve_mcp(
 ) -> List[ResolvedMCPServer]:
     """Resolve MCP server declarations. Caller decides whether to call.
 
-    Routes through the gateway (W1/D30/D31) when a backend is configured: every declared
+    Routes through the gateway (D36/D30/D31) when a backend is configured: every declared
     server becomes a `custom/{name}` gateway route carrying OUR credentials, and no named
     secret is fetched. With no backend configured (the offline/standalone case) it falls
     back to the direct dial with named secrets injected, unchanged.

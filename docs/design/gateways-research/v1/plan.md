@@ -41,7 +41,7 @@ Permission checks and entitlement checks are **in for both gateways**. Credit ch
 
 Three, and the middle one is the big one.
 
-### Checkpoint A — both gateways serve traffic against mocks
+### C1 — both gateways serve traffic against mocks
 
 The LLM gateway and the MCP gateway both accept a call, authorise it, resolve and inject a
 secret, reach a mock upstream, and return. Policy fires. Nothing is recorded and nothing is
@@ -56,7 +56,7 @@ may not use is refused; a permitted request reaches the mock with the caller's t
 the upstream secret; a streamed response arrives byte for byte on **both** gateways, tool names,
 schemas and errors included; a tool call outside the allowlist is refused.
 
-### Checkpoint B — the real callers go through the gateways
+### C2 — the real callers go through the gateways
 
 Agent v0, the runner and the harnesses reach models and MCP servers only through the gateways.
 This is "everything except OAuth works." It also picks up the one thing wave 1 left out: an audit
@@ -66,7 +66,7 @@ event per call.
 sandbox; the run's model calls and tool calls appear as audit events with the right principal;
 a run naming a model it may not use fails cleanly.
 
-### Checkpoint C — OAuth works
+### C3 — OAuth works
 
 An OAuth-protected MCP server can be connected from the dashboard, used in a run, refreshed
 without a human, and step-up raises an interaction.
@@ -82,9 +82,9 @@ revoke and confirm the tool stays listed and the call fails with something actio
 | Wave | From | To | What it delivers |
 |---|---|---|---|
 | 0 | — | the seed | The shared state: every layer declared, column by column |
-| 1 | seed | **Checkpoint A** | Both gateways, the shared policy core, and the mocks |
-| 2 | A | **Checkpoint B** | Every caller converted |
-| 3 | B | **Checkpoint C** | OAuth end to end |
+| 1 | seed | **C1** | Both gateways, the shared policy core, and the mocks |
+| 2 | A | **C2** | Every caller converted |
+| 3 | B | **C3** | OAuth end to end |
 
 Intermediate merges inside a wave are listed with the wave. They are not deployed.
 
@@ -92,7 +92,7 @@ Intermediate merges inside a wave are listed with the wave. They are not deploye
 acceptance-test. It is the one wave whose output is a document and a commit rather than
 behaviour.
 
-**Checkpoint A is not split.** Separating the registry from the rest was considered and is not
+**C1 is not split.** Separating the registry from the rest was considered and is not
 worth the extra deploy; the two fan-outs inside wave 1 already give the parallelism.
 
 ---
@@ -106,13 +106,13 @@ flowchart LR
     S --> WP2["WP2<br/>secret resolution"]
     S --> WP3["WP3<br/>policy core"]
     WP5["WP5<br/>test doubles<br/>(no deps)"]
-    WP1 & WP2 & WP3 --> M1{{"M1<br/>foundation"}}
-    M1 --> WP6["WP6<br/>LLM ingress"]
-    M1 --> WP7["WP7<br/>LLM routing"]
-    M1 --> WP8["WP8<br/>MCP ingress"]
-    M1 --> WP9["WP9<br/>MCP registry"]
-    M1 --> WP10["WP10<br/>endpoint CRUD"]
-    WP6 & WP7 & WP8 & WP9 & WP10 & WP5 --> CA(["Checkpoint A<br/>DEPLOY"])
+    WP1 & WP2 & WP3 --> IM1{{"IM1<br/>foundation"}}
+    IM1 --> WP6["WP6<br/>LLM ingress"]
+    IM1 --> WP7["WP7<br/>LLM routing"]
+    IM1 --> WP8["WP8<br/>MCP ingress"]
+    IM1 --> WP9["WP9<br/>MCP registry"]
+    IM1 --> WP10["WP10<br/>endpoint CRUD"]
+    WP6 & WP7 & WP8 & WP9 & WP10 & WP5 --> CA(["C1<br/>DEPLOY"])
     CA --> WP12["WP12<br/>SDK resolution"]
     CA --> WP4["WP4<br/>audit events"]
     WP12 --> WP13["WP13<br/>runner + harnesses"]
@@ -120,13 +120,13 @@ flowchart LR
     WP12 --> WP15["WP15<br/>MCP on the wire"]
     CA --> WP23["WP23<br/>front doors"]
     WP23 --> WP24["WP24<br/>relay-only<br/>south port"]
-    WP13 & WP14 & WP15 & WP4 & WP24 --> CB(["Checkpoint B<br/>DEPLOY"])
+    WP13 & WP14 & WP15 & WP4 & WP24 --> CB(["C2<br/>DEPLOY"])
     CB --> WP16["WP16<br/>secret kinds"]
     WP16 --> WP17["WP17<br/>OAuth client"]
     WP17 --> WP18["WP18<br/>consent flow"]
     WP17 --> WP20["WP20<br/>registration fallback"]
     WP18 --> WP19["WP19<br/>step-up"]
-    WP19 & WP20 --> CC(["Checkpoint C<br/>DEPLOY"])
+    WP19 & WP20 --> CC(["C3<br/>DEPLOY"])
 ```
 
 The two fan-outs in wave 1 are the widest points: three packages, then five. Wave 2 carries a
@@ -136,7 +136,7 @@ pieces genuinely depend on each other.
 **Wave 1 is deliberately the thinnest thing that works**, and recording, configuration and tuning
 sit outside the three waves entirely.
 
-**A checkpoint is a deploy, not a release.** No user traffic passes before checkpoint C, so
+**A checkpoint is a deploy, not a release.** No user traffic passes before C3, so
 nothing observable happens that could have been recorded and was not. That removes the only real
 argument for building the meter early, and leaves the cost of guessing what to meter — which the
 pricing model answers, not the gateway.
@@ -189,7 +189,7 @@ Every worktree branches from that commit, so interface dependencies never serial
 
 ---
 
-## Wave 1 — to Checkpoint A
+## Wave 1 — to C1
 
 ### Fan-out 1: foundation
 
@@ -215,46 +215,46 @@ forced errors, forced slowness, forced scope challenges later.
 *Depends on:* nothing. **Start immediately.** *Blocks:* every acceptance test.
 *Done when:* both mocks run in the local stack and can be driven to fail on demand.
 
-**Merge M1 — foundation.** Static only, not deployed.
+**Merge IM1 — foundation.** Static only, not deployed.
 
 ### Fan-out 2: the two gateways, in parallel
 
 **WP6 — LLM ingress and relay.** The OpenAI-compatible surface, streaming, the body kept byte for
 byte, timeouts.
-*Depends on:* M1. *Done when:* a streamed response is relayed unmodified and a hung upstream
+*Depends on:* IM1. *Done when:* a streamed response is relayed unmodified and a hung upstream
 times out rather than hanging the gateway.
 
 **WP7 — LLM routing and model allowlist.** The routing library in-process; standard endpoints
 generated from the SDK catalogue; custom endpoints restricted to their declared models.
-*Depends on:* M1. *Done when:* every provider and deployment pair reachable today is reachable
+*Depends on:* IM1. *Done when:* every provider and deployment pair reachable today is reachable
 through the gateway, including reseller shapes, and a model outside a custom endpoint's list is
 refused.
 
 **WP8 — MCP ingress and proxy.** One URL per server, namespaced identifier, transparent
 pass-through with tool names untouched.
-*Depends on:* M1. *Done when:* list and call both relay unchanged and a tool outside the
+*Depends on:* IM1. *Done when:* list and call both relay unchanged and a tool outside the
 allowlist is refused.
 
 **WP9 — MCP registry and tool allowlist.** Custom servers as rows, built-in servers defined by
 us, per-server tool allowlists.
-*Depends on:* M1, WP1. *Done when:* a custom server registers and resolves, and a built-in one
+*Depends on:* IM1, WP1. *Done when:* a custom server registers and resolves, and a built-in one
 needs no row.
 
 **WP10 — Endpoint CRUD API.** Routers and models for creating and configuring custom endpoints on
 both gateways. Creation and deletion only — per-endpoint configuration is WP21, in wave 2.
-*Depends on:* M1, WP1. *Done when:* a custom endpoint can be created and deleted, and a standard
+*Depends on:* IM1, WP1. *Done when:* a custom endpoint can be created and deleted, and a standard
 one cannot be edited.
 
-**Merge M2 → Checkpoint A.** Deploy. Acceptance tests above.
+**Merge IM2 → C1.** Deploy. Acceptance tests above.
 
 ---
 
-## Wave 2 — to Checkpoint B
+## Wave 2 — to C2
 
 **WP12 — SDK connection resolution.** `resolve_connection` returns a gateway route: the provider
 and deployment naming the gateway, the base URL, and the token. The SDK keeps every capability it
 has (D4).
-*Depends on:* Checkpoint A. *Blocks:* WP13, WP14.
+*Depends on:* C1. *Blocks:* WP13, WP14.
 
 **WP13 — Runner and harnesses.** The runner carries a gateway route rather than provider secrets.
 Verify the secret arrays collapse and the redaction set shrinks. This is **not** a
@@ -269,7 +269,7 @@ change. The MCP side already has `{kind: "header", name}` and is the precedent t
 **WP4 — Audit events.** Emission into the existing events domain (D22), with the principal, the
 target, the decision and the outcome. Moved out of wave 1: wave 1 makes the call work, and a
 record of a call that does not happen is worth nothing.
-*Depends on:* Checkpoint A. *Blocks:* nothing.
+*Depends on:* C1. *Blocks:* nothing.
 *Done when:* one event per call, queryable through the existing surface.
 
 **WP15 — MCP servers on the wire.** The runner's MCP server configs point at gateway URLs with a
@@ -279,7 +279,7 @@ gateway token rather than upstream secrets.
 **WP23 — Protocol front doors.** `/v1/responses` and `/v1/messages` beside
 `/v1/chat/completions` (D33), each with its own policy-field parse, usage extraction and
 ceiling binding. Everything behind the front door is protocol-blind.
-*Depends on:* Checkpoint A. *Blocks:* WP24.
+*Depends on:* C1. *Blocks:* WP24.
 
 **WP24 — The relay-only south port.** D34 forbids body conversion, so the
 `passthrough`/`translated` split becomes one relay with a routing strategy and an
@@ -288,16 +288,16 @@ OD16's per-provider verification, and `provider_key`'s `NOT NULL` with it.
 *Depends on:* WP23 — removing conversion first would make Anthropic, Gemini, Bedrock and
 Vertex unreachable rather than reachable another way.
 
-**Merge M3 → Checkpoint B.** Deploy. Acceptance tests above. The fan-out, the worktrees and
+**Merge IM3 → C2.** Deploy. Acceptance tests above. The fan-out, the worktrees and
 the traps are in [`workstreams/launch-2.md`](workstreams/launch-2.md).
 
 ---
 
-## Wave 3 — to Checkpoint C
+## Wave 3 — to C3
 
 **WP16 — Secret kinds.** `oauth_provider` and `oauth_grant`: enum values, settings DTOs, union
 arms, validator branches (D14). Coordinate with the parallel work adding kinds to the same enum.
-*Depends on:* Checkpoint B. *Blocks:* WP17.
+*Depends on:* C2. *Blocks:* WP17.
 
 **WP17 — OAuth client.** The official SDK's client provider, with a storage adapter over the
 secrets service; connect callbacks pointed at the dashboard rather than a local browser.
@@ -319,11 +319,11 @@ fallback automatic rather than a configuration flag.
 *Done when:* a deployment on an internal-only domain completes a full authorization without any
 hosted component of ours in the path.
 
-**Merge M4 → Checkpoint C.** Deploy. Acceptance tests above.
+**Merge IM4 → C3.** Deploy. Acceptance tests above.
 
 ---
 
-## After checkpoint C
+## After C3
 
 Real gateway work, deliberately not scheduled into the three waves. Nothing above depends on it,
 and none of it can be lost by waiting, because **no checkpoint before C is a release**.

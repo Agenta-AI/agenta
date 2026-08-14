@@ -153,7 +153,7 @@ commit and starts immediately; does not wait on WP1/WP2/WP3. Run `ruff format` t
 - [x] `api/entrypoints/routers.py` is owned by nobody (cross-package operating rule: every WP5–
       WP9 worktree lands here, so no single package edits it directly to avoid five worktrees
       fighting over one file). **Not edited.** The two import lines are recorded below as the
-      diff for whoever performs the M1 merge to apply, alongside WP7's/WP9's own registry-dict
+      diff for whoever performs the IM1 merge to apply, alongside WP7's/WP9's own registry-dict
       edits in the same wiring block:
 
       ```diff

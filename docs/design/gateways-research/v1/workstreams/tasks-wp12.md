@@ -6,7 +6,7 @@ Read [`specs-wp12.md`](specs-wp12.md) first. Branch from the wave-2 seed commit.
 
 - [ ] Read `connections/models.py` end to end before editing. `ResolvedConnection`'s
       validators encode rules this package must keep, not route around.
-- [ ] Confirm the seed's gateway-credentials field is present and materialized (W1). If it
+- [ ] Confirm the seed's gateway-credentials field is present and materialized (D36). If it
       is missing, stop — every downstream package inherits it and it is not this package's
       to invent.
 - [ ] Extend the validator: `credential_mode == "none"` with the gateway-credentials field
@@ -44,7 +44,7 @@ Read [`specs-wp12.md`](specs-wp12.md) first. Branch from the wave-2 seed commit.
       field populated.
 - [ ] Unit, structural: `model_dump_json()` carries no upstream secret, for every pair.
       Assert on the dump, not on named fields — a field added later must fail this test.
-- [ ] Unit: loopback http passes the validator; non-loopback http still fails (W2).
+- [ ] Unit: loopback http passes the validator; non-loopback http still fails (D37).
 - [ ] Unit: a target with no front door raises.
 - [ ] `ruff format` && `ruff check --fix` in `sdks/python`; run the SDK unit tests.
 - [ ] Commit: "gateways(sdk): resolve connections to the gateway route".

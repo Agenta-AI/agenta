@@ -1,6 +1,6 @@
 # WP13 — tasks
 
-Read [`specs-wp13.md`](specs-wp13.md) first. Branch from WP12's merge (M4).
+Read [`specs-wp13.md`](specs-wp13.md) first. Branch from WP12's merge (IM4).
 
 ## Phase 0 — the harness matrix, before any code
 

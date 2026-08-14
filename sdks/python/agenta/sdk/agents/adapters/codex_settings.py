@@ -71,7 +71,7 @@ MANAGED_PROVIDER_NAME = "Agenta OpenAI"
 # absent on subscription runs.
 MANAGED_PROVIDER_ENV_KEY = "OPENAI_API_KEY"
 
-# OUR gateway credential (D31/W1), not a provider secret: codex's `env_http_headers` maps a header
+# OUR gateway credential (D31/D36), not a provider secret: codex's `env_http_headers` maps a header
 # NAME to an env var name and reads the value from its process environment at request time (the
 # same indirection `env_key` already uses for the bearer token), so this file never carries the raw
 # value. Must match the runner's `GATEWAY_CREDENTIALS_VALUE_ENV` (services/runner/src/engines/
@@ -106,7 +106,7 @@ def _render_managed_provider_table(
     A TOML table must follow every top-level scalar, so this is appended AFTER the scalars (which
     include the ``model_provider`` pointer). The secret never appears here; only the env var name.
 
-    ``base_url`` and ``gateway_header`` carry a gateway route (D31/W1): ``base_url`` points codex
+    ``base_url`` and ``gateway_header`` carry a gateway route (D31/D36): ``base_url`` points codex
     at the gateway instead of OpenAI's default endpoint, and ``env_http_headers`` (a codex 0.145+
     field, verified OD14) maps the header NAME to ``GATEWAY_CREDENTIALS_VALUE_ENV`` so codex reads
     the credential from its process env at request time, exactly like ``env_key`` above. Both
@@ -186,7 +186,7 @@ def build_codex_settings_files(
     When a subscription run has nothing authored or derived either, returns ``[]`` so the runner
     writes no file and that run stays byte-identical to a fileless run.
 
-    ``gateway_base_url``/``gateway_header`` (D31/W1) carry a gateway route onto the managed
+    ``gateway_base_url``/``gateway_header`` (D31/D36) carry a gateway route onto the managed
     provider table (see ``_render_managed_provider_table``); both are ignored on a subscription
     run, which never renders the table at all.
 

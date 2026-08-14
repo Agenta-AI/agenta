@@ -1,7 +1,7 @@
 # WP4 — Audit events
 
 **Owns:** `core/gateways/policy/service.py::record`, and a new `core/gateways/policy/audit.py`.
-**Depends on:** Checkpoint A only. **Blocks:** nothing. Can start on day one.
+**Depends on:** C1 only. **Blocks:** nothing. Can start on day one.
 
 One event per gateway call, into the existing events domain (D22). No new table, no new
 worker, no new queryable surface.
@@ -70,7 +70,7 @@ event store — D22 is explicit that the audit record is an event, not a table.
 - **Unit.** A publisher that raises does not propagate — the relay's own result is
   unaffected.
 - **Unit.** A pass-through call (no secret resolved) records with `secret_origin` unset.
-- **Acceptance, at Checkpoint B.** A run's model and tool calls appear as events with the
+- **Acceptance, at C2.** A run's model and tool calls appear as events with the
   right principal.
 
 ## Out of scope

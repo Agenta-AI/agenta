@@ -36,7 +36,7 @@ async def health() -> Response:
 
 @app.post("/__echo")
 async def echo_headers(request: Request) -> Response:
-    """Report the headers this process received (launch-2.md W4).
+    """Report the headers this process received (launch-2.md D39).
 
     Reachable through the gateway by pointing an endpoint's `base_url` at `/__echo`: the MCP
     relay POSTs to `base_url` directly, so the answer is what the upstream really saw.

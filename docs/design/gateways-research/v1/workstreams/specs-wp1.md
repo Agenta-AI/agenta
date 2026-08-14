@@ -45,7 +45,7 @@ New, and owned by no other package (`workstreams/README.md` file-ownership table
   — the one migration; creates both tables in one revision.
 
 Edited: none outside the above. WP1 adds two lines to `api/entrypoints/routers.py` as a
-diff applied at the M1 merge (below) — it does not commit that file directly.
+diff applied at the IM1 merge (below) — it does not commit that file directly.
 
 **Verify the migration head before branching.** `workstreams/README.md` records
 `release/v0.112.0` at `park00000000` as the observed head at prep time and warns both
@@ -295,7 +295,7 @@ inlineable. `downgrade()` drops indexes then tables in reverse dependency order:
 - FK behavior: deleting a `secrets` row referenced by an endpoint's `secret_id` leaves the
   endpoint row present with `secret_id = NULL`.
 
-## `api/entrypoints/routers.py` diff (apply at the M1 merge)
+## `api/entrypoints/routers.py` diff (apply at the IM1 merge)
 
 WP1 contributes the two DAO constructions; nothing else in this file is WP1's.
 
@@ -313,7 +313,7 @@ mounts the routers last.)
 
 ## Checkpoint
 
-Feeds **M1 (foundation)**, then **Checkpoint A** through WP6/WP7/WP8/WP9/WP10, all of
+Feeds **IM1 (foundation)**, then **C1** through WP6/WP7/WP8/WP9/WP10, all of
 which depend on this package.
 
 Exit condition, verbatim from `plan.md`: *"a custom endpoint round-trips, and every DAO

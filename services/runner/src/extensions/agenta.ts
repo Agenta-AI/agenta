@@ -389,7 +389,7 @@ const factory = (pi: ExtensionAPI): void => {
 
   // Extension factories complete before Pi selects the configured model. Registering only
   // baseUrl/headers here overrides the built-in provider without replacing its model catalog.
-  // `headers` carries OUR gateway credential (D31/W1) when this connection is gateway-routed —
+  // `headers` carries OUR gateway credential (D31/D36) when this connection is gateway-routed —
   // absent for a plain custom-endpoint override with no gateway involved.
   if (modelProviderOverride) {
     pi.registerProvider(modelProviderOverride.provider, {

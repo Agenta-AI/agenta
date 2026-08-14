@@ -1,7 +1,7 @@
 # WP9 tasks — MCP registry and tool allowlist
 
 Ordered so each item is one reviewable commit. Depends on the seed commit
-and on merge M1 (WP1's `dbs/postgres/gateways/mcps/` DAO implementation and
+and on merge IM1 (WP1's `dbs/postgres/gateways/mcps/` DAO implementation and
 migration, WP2's `SecretsResolverInterface` implementation, WP3's
 `GatewayPolicyService`) having landed.
 
@@ -37,7 +37,7 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
       required for real (see the three-source-merge section below);
       entities.md §8's abbreviated constructor pseudocode omits it, which is a
       gap in the design, not an instruction to mock the integration. Flagged
-      for the M2 merge review.
+      for the IM2 merge review.
 - [x] Implement `create_endpoint`, `fetch_endpoint`, `edit_endpoint`,
       `delete_endpoint`, `query_endpoints` as thin delegations to
       `MCPEndpointsDAOInterface`.
@@ -139,10 +139,10 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
       (`MCPEndpointNotFoundError`, `_ADAPTER_KEYS[namespace]`). Covered
       implicitly by every relay test, which passes plain strings.
 
-## entrypoint wiring (coordinate at M2)
+## entrypoint wiring (coordinate at IM2)
 
 **Not applied to `routers.py` by this package** — recorded here per the six rules'
-"own your paths", for whoever runs the M2 merge.
+"own your paths", for whoever runs the IM2 merge.
 
 - [ ] Add the `MCPGatewayService` + `MCPUpstreamRegistry` construction
       block to `api/entrypoints/routers.py` as a diff fragment. **Updated**
@@ -180,7 +180,7 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
          "their imports land with those [WP7/WP9's registries], not here."
          Uncommenting it and registering it here is this package's job, not
          WP5's or a later merge step — without it the mocks are unreachable
-         and Checkpoint A has nothing to relay to (D23: the mocks are the
+         and C1 has nothing to relay to (D23: the mocks are the
          entire reachable target set in wave 1, no brokered target exists).
 - [ ] `"http": HttpMCPAdapter()` and `"composio": ComposioMCPAdapter()` are
       left commented above, not omitted outright, so the shape of the final
@@ -189,7 +189,7 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
       wave 1 (flagged already by specs-wp9.md) — decide with the merge
       reviewers whether it stays commented indefinitely or gets a raising
       stub. Do not silently invent an implementation here.
-- [ ] At the M2 merge: apply this fragment together with WP6's, WP7's,
+- [ ] At the IM2 merge: apply this fragment together with WP6's, WP7's,
       WP8's and WP10's. Verify with `git diff` that the combined edit
       contains exactly the expected lines.
 - [ ] `ruff format` && `ruff check --fix` on the merged `routers.py`.
@@ -197,10 +197,10 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
       entrypoints/routers.py" (shared commit with WP8's fragment — one
       commit for the whole merged file, not one per package).
 
-## Checkpoint A verification (acceptance, after M2 deploy)
+## C1 verification (acceptance, after IM2 deploy)
 
 **Not run by this package** — needs a live deployment per the "know which tests you
-may run" rule, so this section stays a checklist for whoever runs the M2 deploy.
+may run" rule, so this section stays a checklist for whoever runs the IM2 deploy.
 
 - [ ] Deploy the merged stack.
 - [ ] `create_endpoint` a custom NONE-scheme MCP endpoint; confirm
@@ -209,7 +209,7 @@ may run" rule, so this section stays a checklist for whoever runs the M2 deploy.
 - [ ] With at least one active composio connection seeded, confirm
       `list_endpoints` includes a `namespace=BUILTIN` entry with no
       corresponding `mcps_endpoints` row.
-- [ ] Confirm the shared Checkpoint A relay/allowlist assertions from
+- [ ] Confirm the shared C1 relay/allowlist assertions from
       `tasks-wp8.md` pass (this package's `relay` implementation is what
       makes them true).
 - [ ] File any acceptance-test failure as a finding — this suite is shared
@@ -217,10 +217,10 @@ may run" rule, so this section stays a checklist for whoever runs the M2 deploy.
 
 ## Definition of done
 
-Feeds **Checkpoint A**. Plan.md's stated done condition, verbatim: *"a
+Feeds **C1**. Plan.md's stated done condition, verbatim: *"a
 custom server registers and resolves, and a built-in one needs no row."*
 WP9 is done when: every CRUD/merge/relay unit test above passes with no
 real database or network; `list_endpoints` never writes a generated entry
 to the DAO; the connection-state derivation is correct for all four cases;
 the relay step order is verified, not just its outcome; and the
-Checkpoint A acceptance assertions above pass against the deployed stack.
+C1 acceptance assertions above pass against the deployed stack.

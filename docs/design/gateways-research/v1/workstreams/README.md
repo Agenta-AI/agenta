@@ -9,7 +9,7 @@ missed. Neither carries history; the design documents in `v1/` remain the source
 and a spec that disagrees with them is a bug in the spec.
 
 **Status: wave 1 written.** Waves 2 and 3 follow the same shape and are deliberately not
-pre-written, because checkpoint A's outcome changes them.
+pre-written, because C1's outcome changes them.
 
 ## The base
 

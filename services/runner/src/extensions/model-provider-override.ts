@@ -8,7 +8,7 @@ export interface PiModelProviderOverride {
   provider: string;
   baseUrl: string;
   /**
-   * OUR gateway credential (D31/W1), keyed by header name. Present only on a gateway-routed
+   * OUR gateway credential (D31/D36), keyed by header name. Present only on a gateway-routed
    * connection. Unlike `models.json`'s `$ENV` indirection, this rides the raw value directly:
    * the payload travels through a runner-set env var the extension reads at startup, never a
    * file on disk, the same delivery `ANTHROPIC_CUSTOM_HEADERS` already uses for Claude.

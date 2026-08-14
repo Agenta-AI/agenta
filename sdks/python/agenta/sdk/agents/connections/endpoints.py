@@ -199,12 +199,12 @@ def build_gateway_resolved_connection(
     gateway_credentials_value: str,
     input_modalities: Optional[List[str]] = None,
 ) -> ResolvedConnection:
-    """Build a resolved connection that routes through the gateway (W1/D30/D31).
+    """Build a resolved connection that routes through the gateway (D36/D30/D31).
 
     No provider secret ever lands here: ``credentials`` stays empty and ``credential_mode``
     is ``none`` — the gateway holds the provider's secret, not the harness. Our own
     credentials into the gateway ride ``gateway_credentials`` (``X-AG-Credentials``), never
-    ``credentials``, which stays reserved for a provider's own secret (W1).
+    ``credentials``, which stays reserved for a provider's own secret (D36).
     """
     return ResolvedConnection(
         provider=provider,

@@ -2,7 +2,7 @@
 
 Ordered so each item is one reviewable commit. Depends on the seed commit
 (`core/gateways/{dtos,types}.py`, `core/gateways/mcps/{dtos,types,interfaces}.py`)
-already existing on the base branch, and on merge M1 (WP1 domain/storage,
+already existing on the base branch, and on merge IM1 (WP1 domain/storage,
 WP2 secret resolution, WP3 policy core, WP5 mocks) having landed.
 
 ## south port
@@ -123,7 +123,7 @@ designed, not a defect in `HttpMCPAdapter`. Any conforming implementation of the
 would reject this exact call under this suite's default posture. The contract test needs
 one of: the `allow_insecure_env` marker plus an actually-reachable `https` mock-gateway
 target, an injected `MockTransport`, or a host-allowlist entry — a call for whoever owns
-that file (WP5) or the M2 merge coordinator, not WP8.
+that file (WP5) or the IM2 merge coordinator, not WP8.
 
 ## utils.py
 
@@ -232,7 +232,7 @@ that file (WP5) or the M2 merge coordinator, not WP8.
 - [x] `ruff format` && `ruff check --fix`; run tests; fix failures.
 - [x] Commit: "gateways(mcp): MCPGatewayProxy routing tests".
 
-## entrypoint wiring (coordinate at M2)
+## entrypoint wiring (coordinate at IM2)
 
 - [x] Add the `"http": HttpMCPAdapter()` entry to the `MCPUpstreamRegistry`
       adapters dict in `api/entrypoints/routers.py`, as a diff fragment —
@@ -243,7 +243,7 @@ that file (WP5) or the M2 merge coordinator, not WP8.
       and `app.include_router(router=mcp_gateway_proxy.router,
       prefix="/gateways/mcps", include_in_schema=False)` as a second diff
       fragment.
-- [ ] At the M2 merge: apply this package's two fragments together with
+- [ ] At the IM2 merge: apply this package's two fragments together with
       WP6's, WP7's, WP9's and WP10's. Verify with `git diff` that the
       combined edit to `routers.py` contains exactly these lines plus the
       siblings' — no accidental double-registration of the `"http"` key.
@@ -269,7 +269,7 @@ Fragment 2 — the adapter registry entry, into WP9's `MCPUpstreamRegistry` cons
 ```diff
      upstream_registry=MCPUpstreamRegistry(adapters={
 -        # WP9 constructs this dict; WP8, WP5 and (later) the Composio
--        # adapter each contribute one entry, combined at the M2 merge.
+-        # adapter each contribute one entry, combined at the IM2 merge.
 +        "http": HttpMCPAdapter(),          # custom: MCPDirectAuth
      }),
 ```
@@ -292,7 +292,7 @@ alongside WP10's `mcp_gateway.router` line on 1518, which this package does not 
 +)
 ```
 
-## Checkpoint A verification (acceptance, after M2 deploy)
+## C1 verification (acceptance, after IM2 deploy)
 
 - [ ] Deploy the merged stack (WP1 migration applied, WP5 mock MCP server
       running as a compose service).
@@ -309,11 +309,11 @@ alongside WP10's `mcp_gateway.router` line on 1518, which this package does not 
 
 ## Definition of done
 
-Feeds **Checkpoint A**. Plan.md's stated done condition, verbatim: *"list
+Feeds **C1**. Plan.md's stated done condition, verbatim: *"list
 and call both relay unchanged and a tool outside the allowlist is
 refused."* WP8 is done when: `parse_mcp_call_context` and `HttpMCPAdapter`
 pass their unit tests with no real network or database; the three proxy
 routes dispatch to the right handler with the right parsed segments,
 verified against a mock service; the two `routers.py` diff fragments are
-ready to hand to the M2 merge; and the Checkpoint A acceptance assertions
+ready to hand to the IM2 merge; and the C1 acceptance assertions
 above pass against the deployed stack.

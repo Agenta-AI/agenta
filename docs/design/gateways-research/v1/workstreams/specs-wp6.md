@@ -240,10 +240,10 @@ Denials wear the surface's own error shape (§9): `{"error": {"message", "type",
 carrying a stable cause — `policy_denied`, `model_not_allowed`, `ceiling_exceeded`,
 `secret_missing` are the four `entities.md` names explicitly. The mapping from domain
 exception to HTTP status is `handle_gateway_exceptions()` (WP10, not yet built when WP6 starts
-per the wave-1 fan-out — both run against M1 in parallel). Until that merge, `proxy.py` catches
+per the wave-1 fan-out — both run against IM1 in parallel). Until that merge, `proxy.py` catches
 the domain exceptions it can already type against (everything in `core/gateways/llms/types.py`
 and `core/gateways/policy/types.py`, all seed-owned) directly and renders the OpenAI body itself;
-reconcile with WP10's shared decorator at the M2 merge rather than blocking on it — this is a
+reconcile with WP10's shared decorator at the IM2 merge rather than blocking on it — this is a
 merge-point conversation per `workstreams/README.md` rule 1, not a WP6 commit that waits.
 
 What must never happen: leaking the house envelope (`count`, entity-wrapped) onto this surface,
@@ -311,7 +311,7 @@ exists): `PassthroughLLMAdapter` is added to the parametrized fixture asserting
 `httpx.MockTransport` stub, not a real mock).
 
 Acceptance — needs the compose stack, WP5's `mock-llm-gateway` reachable, and WP7's service/
-catalog/registry wired (i.e., this suite only runs post-M2, at Checkpoint A):
+catalog/registry wired (i.e., this suite only runs post-IM2, at C1):
 - A seeded custom endpoint pointing at `mock-llm-gateway`'s URL: `POST
   /gateways/llms/custom/{slug}/v1/chat/completions` with `"model": "mock/echo", "stream": true`
   streams back the exact SSE bytes the mock produced — byte comparison, not a re-decoded

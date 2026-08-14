@@ -1,6 +1,6 @@
 # WP23 — tasks
 
-Read [`specs-wp23.md`](specs-wp23.md) first. Branch from Checkpoint A.
+Read [`specs-wp23.md`](specs-wp23.md) first. Branch from C1.
 
 ## utils.py — one parser per protocol
 

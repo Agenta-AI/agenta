@@ -32,7 +32,7 @@ def _gateway_route(namespace: str, name: str) -> str:
 
 
 def _assert_routed_through_gateway(resolved, *, namespace: str, name: str) -> None:
-    """W1/D30: the connected path injects no provider secret; the gateway holds it.
+    """D36/D30: the connected path injects no provider secret; the gateway holds it.
 
     A vault record no longer distinguishes itself in the resolved output once two records
     share a (namespace, name) pair (e.g. two `openai` provider keys both route through
@@ -371,7 +371,7 @@ async def test_known_direct_custom_provider_uses_direct_deployment(
 ):
     # A named custom record for an OpenAI-shaped family still normalizes to `deployment
     # "direct"`, but the connected path now routes it through `custom/{slug}` on the
-    # gateway rather than injecting the vault's provider-family env var (D4/W1).
+    # gateway rather than injecting the vault's provider-family env var (D4/D36).
     endpoint = "https://93.184.216.34/v1"
     model_id = "vendor/model-v1"
     fake_http(

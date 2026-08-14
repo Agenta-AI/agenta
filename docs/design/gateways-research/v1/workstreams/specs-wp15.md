@@ -1,7 +1,7 @@
 # WP15 — MCP servers on the wire
 
 **Owns:** the runner's MCP server configuration path. **Depends on:** WP12, and WP13's wire
-commit. **Blocks:** Checkpoint B.
+commit. **Blocks:** C2.
 
 The smaller of the two runner packages, because the binding it needs already exists.
 

@@ -94,7 +94,7 @@ def test_build_gateway_resolved_connection_requires_an_effective_https_route():
     ["http://localhost:8000", "http://127.0.0.1:8000"],
 )
 def test_build_gateway_resolved_connection_allows_loopback_http(gateway_base_url):
-    # W2: the https requirement is loopback-exempt, and the gateway route is no exception.
+    # D37: the https requirement is loopback-exempt, and the gateway route is no exception.
     resolved = build_gateway_resolved_connection(
         provider="openai",
         model="gpt-5.5",

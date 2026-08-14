@@ -1,6 +1,6 @@
 # WP4 — tasks
 
-Read [`specs-wp4.md`](specs-wp4.md) first. Branch from Checkpoint A; no seed dependency.
+Read [`specs-wp4.md`](specs-wp4.md) first. Branch from C1; no seed dependency.
 
 ## audit.py — the attribute builder
 

@@ -9,7 +9,7 @@ hard-fails.
 The project's LLM provider keys (the model-blind whole-vault dump this module used to also
 expose as `resolve_provider_keys`) are gone: the agent resolves exactly one least-privilege
 connection per run via `resolve_connection` / `VaultConnectionResolver`, which routes through
-the gateway and injects no provider secret into the harness (W1/D30).
+the gateway and injects no provider secret into the harness (D36/D30).
 
 Logs never include secret names or values, only counts.
 """

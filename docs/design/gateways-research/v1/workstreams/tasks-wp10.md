@@ -1,7 +1,7 @@
 # WP10 tasks — Endpoint CRUD API
 
 Ordered so each item is one reviewable commit. Depends on the seed commit
-and on merge M1 (WP1's DAO implementations, WP3's six new `Permission`
+and on merge IM1 (WP1's DAO implementations, WP3's six new `Permission`
 members) having landed.
 
 ## exceptions.py — NOT this package's file any more (R1)
@@ -125,7 +125,7 @@ members) having landed.
 - [ ] `ruff format` && `ruff check --fix`; run tests; fix failures.
 - [ ] Commit: "gateways(mcp): MCPGatewayRouter tests".
 
-## entrypoint wiring (coordinate at M2)
+## entrypoint wiring (coordinate at IM2)
 
 - [ ] Add `llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)`
       and `mcp_gateway_router = MCPGatewayRouter(mcp_gateway_service=mcp_gateway_service)`
@@ -140,7 +140,7 @@ members) having landed.
       the merge — confirm both proxies' imports resolve cleanly against
       what this package actually wrote, not just the documented signature
       they coded against.
-- [ ] At the M2 merge: apply this fragment together with WP6's, WP7's,
+- [ ] At the IM2 merge: apply this fragment together with WP6's, WP7's,
       WP8's and WP9's. Verify with `git diff` that the combined edit
       contains exactly the expected lines.
 - [ ] `ruff format` && `ruff check --fix` on the merged `routers.py`.
@@ -148,7 +148,7 @@ members) having landed.
       entrypoints/routers.py" (shared commit — one commit for the whole
       merged file).
 
-## Checkpoint A verification (acceptance, after M2 deploy)
+## C1 verification (acceptance, after IM2 deploy)
 
 - [ ] Deploy the merged stack.
 - [ ] `POST /gateways/mcps/endpoints/` with a NONE-scheme custom endpoint
@@ -164,10 +164,10 @@ members) having landed.
 
 ## Definition of done
 
-Feeds **Checkpoint A**. Plan.md's stated done condition, verbatim: *"a
+Feeds **C1**. Plan.md's stated done condition, verbatim: *"a
 custom endpoint can be created and deleted, and a standard one cannot be
 edited."* WP10 is done when: every wire model instantiates; every mapped
 exception produces the right status and body shape; both routers' routes
 dispatch correctly against mocks with no real database; the `(WP18)`-tagged
-routes are absent by construction; and the Checkpoint A acceptance
+routes are absent by construction; and the C1 acceptance
 assertions above pass against the deployed stack.

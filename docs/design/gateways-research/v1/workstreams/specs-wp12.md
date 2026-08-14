@@ -1,7 +1,7 @@
 # WP12 — SDK connection resolution
 
 **Owns:** `sdks/python/agenta/sdk/agents/connections/`, plus `platform/resolve.py::resolve_connection`.
-**Depends on:** Checkpoint A, and wave 2's seed (the gateway-credentials field, W1).
+**Depends on:** C1, and wave 2's seed (the gateway-credentials field, D36).
 **Blocks:** WP13, WP14, WP15.
 
 Make the resolver return a gateway route. Everything downstream — the runner, agent v0, the
@@ -27,7 +27,7 @@ them:
 | `endpoint.base_url` | the provider's URL | **the gateway's route** for this target |
 | `credentials` | the provider's secret | **empty** — the gateway holds it |
 | `credential_mode` | `env` | `none`, since we inject no provider secret |
-| the W1 field | — | our credentials and the header they ride |
+| the D36 field | — | our credentials and the header they ride |
 | `environment` | regions, project ids | unchanged; still non-secret |
 
 **The gateway route is `{gateway_base}/gateways/llms/{namespace}/{name}`**, with the
@@ -38,7 +38,7 @@ already makes (entities.md §2.4).
 
 **`credential_mode` becomes `none`, not `env`.** Its meaning is "where does the *provider's*
 credential come from", and the answer is now "nowhere, the gateway has it". Our own
-credentials are not a provider credential and do not travel in `credentials` — that is W1.
+credentials are not a provider credential and do not travel in `credentials` — that is D36.
 
 ## Contracts this package must honour
 
@@ -49,18 +49,18 @@ credentials are not a provider credential and do not travel in `credentials` —
 - **Every capability survives** (D4). The resolver still answers for every provider,
   deployment and modality it answers for today. A provider it cannot route through the
   gateway must fail loudly, not silently degrade to a direct connection.
-- **`plaintext_environment()` stays complete.** It returns the environment; the W1 field
+- **`plaintext_environment()` stays complete.** It returns the environment; the D36 field
   materializes separately and both are called at the boundary. A consumer that calls only
   one must not silently lose the other — the seed's validator is what enforces this, and
   this package must not work around it.
-- **The https requirement holds except on loopback** (W2, settled in the seed).
+- **The https requirement holds except on loopback** (D37, settled in the seed).
 - **Masking survives.** `ResolvedCredential.value` is masked from `repr`, `str` and
-  `model_dump`; the W1 field carries a secret too and inherits the same treatment.
+  `model_dump`; the D36 field carries a secret too and inherits the same treatment.
 
 ## Which upstreams are reachable
 
 D34 forbids body conversion, so a target is routable only if a front door speaks its
-protocol. WP23 ships all three doors, so at Checkpoint B the answer is: everything with a
+protocol. WP23 ships all three doors, so at C2 the answer is: everything with a
 door. **Until WP23 merges, this package can only be tested against Chat Completions
 targets** — which is the mock, the OpenAI-shaped providers and OpenAI-compatible custom
 endpoints. Do not add a fallback for the rest; a provider with no door is an error.
@@ -69,7 +69,7 @@ endpoints. Do not add a fallback for the rest; a provider with no door is an err
 
 - **Unit, no network.** A resolved connection for each (provider, deployment) pair the
   resolver supports: base URL is the gateway's, `credentials` is empty, `credential_mode` is
-  `none`, and the W1 field carries our credentials.
+  `none`, and the D36 field carries our credentials.
 - **Unit, structural.** `model_dump_json()` of a resolved connection contains no upstream
   secret, for every pair.
 - **Unit.** A target with no front door raises, naming the target and the protocol.

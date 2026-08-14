@@ -513,7 +513,7 @@ unnecessary but harmful:
   tunnel fails, and Daytona sandboxes depend on that one for a durable working folder.
 
 So the only inbound need this design has is the client-identity fetch below, it belongs to the
-OAuth wave rather than to checkpoint A, and the ingress tunnel already serves it.
+OAuth wave rather than to C1, and the ingress tunnel already serves it.
 
 ### The one thing that can genuinely fail
 
@@ -605,7 +605,7 @@ that reconnects; the gateway makes the call itself, so it can, and should.
 **The flag that turns it all off is on by default.** `AGENTA_INSECURE_EGRESS_ALLOWED` defaults to
 `true` in `api/oss/src/utils/env.py` — zero-config self-hosting is the reason — and it is set in no
 deployment configuration in this repo, cloud included. So the guard as it stands is inert in
-production. Two consequences, both on checkpoint A's list rather than deferred: the acceptance check
+production. Two consequences, both on C1's list rather than deferred: the acceptance check
 runs with the flag `false`, and turning it `false` on a shared deployment is a named deployment
 action rather than an assumption.
 
@@ -692,7 +692,7 @@ wrong one is ours. One helper, consulted at both of the middleware's existing re
 
 **On the data plane it is not merely preferred — it is the only header we read.** The
 proxies are ours to specify and have no legacy callers: no user traffic passes before
-checkpoint C, and wave 2's callers are the SDK, the runner and agent v0. Requiring it there
+C3, and wave 2's callers are the SDK, the runner and agent v0. Requiring it there
 buys a property worth more than the flexibility it costs — **`Authorization` on a data-plane
 request is always the caller's**, never ours, in every request rather than in the ones we
 can prove. The management CRUD routes are ordinary API routes and keep all three schemes.
@@ -841,7 +841,7 @@ exists in the gateway's registry: an endpoint row for a `custom` target, a store
 secret declared in agent code. It routes by name and the gateway resolves the rest.
 
 **Why it follows from the wave rather than being a new constraint.** A secret declared in agent
-code is a secret inside the sandbox, which is exactly what Checkpoint B closes. There is no
+code is a secret inside the sandbox, which is exactly what C2 closes. There is no
 version of "the author brings their own URL and token" that also satisfies "no third-party
 secret in a sandbox". So the CRUD registries on both planes are not administrative convenience;
 they are the only place a secret can live once the sandbox cannot hold one.
@@ -872,6 +872,19 @@ mechanism, since the pause, the render hint and the resume path are all already 
 
 **Both consequences are wave-3 scope.** Neither was in wave 2's checkpoint, and neither should
 be retrofitted into a package that has already merged.
+
+
+## D36-D39. The wave-2 launch rulings
+
+Four shape rulings that had to settle before wave 2's packages could start. Their full text
+lives in [`workstreams/launch-2.md`](workstreams/launch-2.md), beside the seed they governed,
+rather than being restated here: D36 (our credentials are their own field, not a widened
+binding), D37 (loopback is exempt from the https requirement, explicitly), D38 (all three
+protocol front doors ship together), D39 (the seed owns the mock upstreams' header echo).
+
+They carry D-numbers because the prefix vocabulary reserves `W` for waves: WP work packages,
+CU cleanups, IM intermediate merges, C checkpoints, W waves. Numbering is absolute within a
+workstream and never restarts per wave.
 
 
 ---

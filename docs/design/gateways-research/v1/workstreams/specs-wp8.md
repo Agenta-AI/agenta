@@ -202,7 +202,7 @@ port"). It never receives `MCPBrokeredAuth`; that arm is `ComposioMCPAdapter`
 (a separate provider, out of this package's ownership per
 `workstreams/README.md`'s file table, and out of scope entirely — no work
 package in wave 1 owns it, since `builtin` MCP servers are not called in
-Checkpoint A under D23).
+C1 under D23).
 
 Body: POST `body` verbatim to `route.url`, with `route.headers` (the
 endpoint's own non-secret configured headers, §2.4) merged under the
@@ -212,7 +212,7 @@ authorization, §7.1's LLM-side analog), plus one derived header when
 into a wire header depends on which secret kind backs it —
 `OAuthGrantSettingsDTO.access_token` / `.token_type` (`entities.md` §4.5) is
 the only populated shape reachable in this wave, and it maps to
-`Authorization: {token_type} {access_token}`. **In Checkpoint A this branch
+`Authorization: {token_type} {access_token}`. **In C1 this branch
 is unreachable in practice**: D23 restricts wave 1's reachable MCP targets
 to unauthenticated servers (`auth_mode = NONE`) and the mocks, and OAuth
 `oauth_grant` secrets do not exist until WP16/WP17 (wave 3). Implement the
@@ -303,7 +303,7 @@ acceptance tests.
 to `true` (`api/oss/src/utils/env.py`), and the guard is a no-op when it is on — so a unit
 test that does not set it `false` will pass while proving nothing. Set it explicitly in the
 test. The second: nothing in this repo's deployment configuration sets it, so the
-checkpoint A verification runs with it `false`.
+C1 verification runs with it `false`.
 
 **The host allowlist.** Carry the runner's escape hatch so a self-hoster can permit one
 known internal server without disabling the guard globally — the runner reads
@@ -348,17 +348,17 @@ anything needing Postgres, Redis or the API is integration or acceptance.
   which the house rule's "nothing running" test still passes (no
   external process, no network).
 - Byte-for-byte relay end to end, and the tool-outside-allowlist refusal —
-  **acceptance**, part of Checkpoint A. Needs the deployed stack: real
+  **acceptance**, part of C1. Needs the deployed stack: real
   Postgres (WP1's tables), the mock MCP server running as a compose
   service (WP5, D23), and WP9's real `MCPGatewayService`. WP8 does not own
-  writing this test alone — it is the shared Checkpoint A suite
+  writing this test alone — it is the shared C1 suite
   (`plan.md`) — but WP8's own "done" claim rests on it passing.
 
 ## Executable done test
 
 Plan.md's stated done condition for WP8: *"list and call both relay
 unchanged and a tool outside the allowlist is refused."* Concretely, once
-WP8 and WP9 are both merged at M2 and the stack is deployed:
+WP8 and WP9 are both merged at IM2 and the stack is deployed:
 
 ```text
 POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/list", ...}
@@ -379,7 +379,7 @@ POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/call","tool":"
   **WP9**.
 - `ComposioMCPAdapter` (the `builtin` south-port adapter) and anything
   touching `MCPBrokeredAuth` — not owned by any wave-1 package; `builtin`
-  MCP servers are not reachable under D23 in Checkpoint A.
+  MCP servers are not reachable under D23 in C1.
 - The management CRUD router (`apis/fastapi/gateways/mcps/{router,models}.py`)
   — **WP10**. `apis/fastapi/gateways/exceptions.py` — **the seed** (R1),
   already present; import it.
@@ -387,13 +387,13 @@ POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/call","tool":"
   mapping must exist (it is part of the frozen exceptions table) but is
   unreachable until then.
 - Endpoint configuration (timeouts, ceilings, extra headers) — WP21, after
-  checkpoint C.
+  C3.
 
 ## `api/entrypoints/routers.py` diff
 
 This file is never owned by a package (`workstreams/README.md`). WP8
 contributes two fragments, applied together with WP6's, WP7's, WP9's and
-WP10's fragments at the M2 merge (the merge that follows wave 1's second
+WP10's fragments at the IM2 merge (the merge that follows wave 1's second
 fan-out, per `plan.md`).
 
 Adapter registration (into the `MCPUpstreamRegistry` construction WP9
@@ -403,7 +403,7 @@ contributes only the `"http"` entry):
 ```diff
      upstream_registry=MCPUpstreamRegistry(adapters={
 -        # WP9 constructs this dict; WP8, WP5 and (later) the Composio
--        # adapter each contribute one entry, combined at the M2 merge.
+-        # adapter each contribute one entry, combined at the IM2 merge.
 +        "http": HttpMCPAdapter(),          # custom: MCPDirectAuth
      }),
 ```

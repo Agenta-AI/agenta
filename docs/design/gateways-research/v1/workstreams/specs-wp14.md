@@ -1,6 +1,6 @@
 # WP14 — Agent v0
 
-**Owns:** agent v0's model call path. **Depends on:** WP12. **Blocks:** Checkpoint B.
+**Owns:** agent v0's model call path. **Depends on:** WP12. **Blocks:** C2.
 
 The remaining caller. Smallest of the wave-2 packages, and the one that proves the resolver
 change is general rather than runner-shaped.

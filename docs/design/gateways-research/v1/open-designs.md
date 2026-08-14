@@ -54,7 +54,7 @@ async def list_models(self, *, scope, namespace, name) -> List[str]: ...
 It is per endpoint, not global — the route is `/{namespace}/{name}/v1/models` (§9). Owned by
 **WP7**, called by **WP6**, exactly like `relay_chat_completion`.
 
-**R4. `GatewayPolicyService.record()` sits on the checkpoint A hot path, but its real body is a
+**R4. `GatewayPolicyService.record()` sits on the C1 hot path, but its real body is a
 wave 2 file. → WP3 ships it as a no-op that returns `None` and never raises.**
 
 Note this is not actually a seed file: `core/gateways/policy/service.py` belongs to **WP3**, and the
@@ -92,11 +92,11 @@ self-hoster can permit one internal server without disabling the guard, and a di
 
 The catch that makes this more than paperwork: `AGENTA_INSECURE_EGRESS_ALLOWED` defaults to `true`
 and is set in no deployment configuration in this repo, so today the guard is inert everywhere it
-runs. Checkpoint A verifies with it `false`, and setting it `false` on shared deployments is a
+runs. C1 verifies with it `false`, and setting it `false` on shared deployments is a
 named action.
 
 **R8. The Composio-backed MCP adapter has no owning package in wave 1** — and on inspection it
-should not, because checkpoint A's reachable targets are our own servers and the mocks (D23). It
+should not, because C1's reachable targets are our own servers and the mocks (D23). It
 belongs to whichever wave first makes a brokered server reachable. Worth stating so its absence
 reads as intent rather than omission.
 
@@ -124,18 +124,18 @@ the transcription carried the registry classes there; but §0's file layout is e
 `interfaces.py` holds *"the DAO interface + the south port"* and `registry.py` holds *"adapter key
 -> interface"*. The result is two classes of each name, the `interfaces.py` pair being
 never-implemented stubs that would win silently if imported. **The stubs come out at the merge**,
-leaving the real ones in `registry.py`. Deferred to M2 rather than fixed mid-flight, because the
+leaving the real ones in `registry.py`. Deferred to IM2 rather than fixed mid-flight, because the
 packages that own `registry.py` were still writing when it was found.
 
 **R11. §9's exception-mapping table is narrower than §5's exception set** — surfaced by writing
 the seed. The table names six categories; `SecretNotFoundError`, `SecretInvalidError` and
 `MCPScopeInsufficientError` are not among them, and a fall-through would answer a project with no
-provider key with a 500, on checkpoint A's hot path.
+provider key with a 500, on C1's hot path.
 
 **Mapped to 409 in the seed, on §5's own words** rather than on invention: "the second says *you
 could, once someone connects* … maps to the needs-auth / needs-input interaction path (D17)", which
 is the same interaction status `MCPAuthRequiredError` already takes. `SecretInvalidError`
-follows D18 identically. Confirm before checkpoint A; a different status is a one-file change.
+follows D18 identically. Confirm before C1; a different status is a one-file change.
 
 **SETTLED at 409, on all three surfaces.** The CRUD decorator and the MCP proxy already agreed;
 the LLM proxy was the outlier at 404, and its justifying comment claimed the decorator gave 404
@@ -319,7 +319,7 @@ should go with it.
 
 ---
 
-**CLOSED (WP24, phase 0).** All three front doors ship (W3), so every provider below is
+**CLOSED (WP24, phase 0).** All three front doors ship (D38), so every provider below is
 checked against whichever door matches its own wire, not only Chat Completions. Sourced
 from each provider's own current documentation (dated where the fact is recent), not from
 what today's adapter does.

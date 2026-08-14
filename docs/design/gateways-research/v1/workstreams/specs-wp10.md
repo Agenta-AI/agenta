@@ -5,7 +5,7 @@ Delivers the management CRUD surface for both gateways: `LLMGatewayRouter`,
 exception-mapping decorator both these routers and the two data-plane
 proxies (WP6, WP8) use. **Creation and deletion only** — per-endpoint
 configuration (timeouts, ceilings, extra headers, D21) is WP21, scheduled
-after checkpoint C, not this package.
+after C3, not this package.
 
 ## Files
 
@@ -17,7 +17,7 @@ New:
 - `api/oss/src/apis/fastapi/gateways/mcps/models.py` — the MCP management wire models (§6).
 
 Edited: none. `core/gateways/{llms,mcps}/service.py` are WP7's and WP9's,
-already landed by M1 (this package depends on M1 and WP1, per `plan.md`).
+already landed by IM1 (this package depends on IM1 and WP1, per `plan.md`).
 
 ## Interfaces
 
@@ -355,7 +355,7 @@ rule.
 
 - **`apis/fastapi/gateways/exceptions.py` → the seed (R1).** Three packages need
   `handle_gateway_exceptions()` — this one and both proxies (WP6, WP8) — and
-  `plan.md`'s dependency graph listed the three as siblings depending only on M1,
+  `plan.md`'s dependency graph listed the three as siblings depending only on IM1,
   so no one of them could own it without inventing a dependency. It is now written
   once in the seed, before any worktree forks, and all three import it.
 - **The SSRF gate at registration → this package (R7, D28).** Section above.
@@ -415,25 +415,25 @@ GET /gateways/mcps/endpoints/{a builtin entry's synthetic identity, if one
   `(WP18)` in `entities.md` §9. Do not wire these routes; they arrive with
   wave 3's consent flow.
 - Per-endpoint configuration (timeouts, ceilings, extra headers) — **WP21**,
-  after checkpoint C (D21, `plan.md`).
+  after C3 (D21, `plan.md`).
 - The data-plane proxies (`apis/fastapi/gateways/{llms,mcps}/proxy.py`) and
   their `utils.py` — **WP6** (LLM), **WP8** (MCP).
 - `core/gateways/{llms,mcps}/service.py` and everything behind it (target
   resolution, secret resolution, the namespace merges) — **WP7**
   (LLM), **WP9** (MCP).
 - `core/access/permissions/types.py`'s six new members — **WP3**, already
-  landed by M1.
+  landed by IM1.
 
 ## Checkpoint
 
-Feeds **Checkpoint A**, together with WP6, WP7, WP8, WP9 at the M2 merge.
+Feeds **C1**, together with WP6, WP7, WP8, WP9 at the IM2 merge.
 
 ## `api/entrypoints/routers.py` diff
 
 This file is never owned by a package. WP10 contributes the two CRUD
 router constructions and mounts, applied together with WP6's and WP8's
 proxy mounts (and WP7's/WP9's service-construction fragments, which these
-constructors depend on) at the M2 merge:
+constructors depend on) at the IM2 merge:
 
 ```diff
 +from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter

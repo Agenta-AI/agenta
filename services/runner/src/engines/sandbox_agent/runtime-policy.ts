@@ -89,7 +89,7 @@ export function applyClaudeConnectionEnv(
     logger(`claude base_url: ${baseUrl}`);
   }
 
-  // OUR gateway credential (D31/W1), not a provider secret. `ANTHROPIC_CUSTOM_HEADERS` is the
+  // OUR gateway credential (D31/D36), not a provider secret. `ANTHROPIC_CUSTOM_HEADERS` is the
   // mechanism the pinned claude-agent-acp bridge itself uses for a gateway route (its own
   // `createEnvForGateway` sets the same pair), so this mirrors a supported shape rather than
   // inventing one (OD14). Format: one `Name: Value` pair per line.
