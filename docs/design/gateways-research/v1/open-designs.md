@@ -259,51 +259,42 @@ pass-through on a target, so a project cannot quietly split its spend across per
 subscriptions. That is a policy flag rather than a mode, it belongs with the other
 governance flags, and nobody has asked for it.
 
-### OD16. Translation is doing three jobs, and only one of them is translation
+### OD16. Which upstreams a relay-only gateway actually reaches
 
-Why is anything translated at all, when byte-for-byte is the property the whole design is
-built to protect? Because `TranslatedLLMAdapter` is currently carrying three unrelated
-jobs under one name, and only the first is genuinely translation:
+D34 forbids body conversion outright and keeps routing and authentication, which settles the
+principle. What is open is the consequence: **which upstreams remain reachable, through
+which front door, once nothing may rewrite a body.**
 
-1. **Body-shape conversion.** A Chat Completions request reaching Anthropic Messages. This
-   is real translation, it is what breaks byte-for-byte, and it exists **only because there
-   is one front door**. Add the `/v1/messages` front door (D33) and a Messages caller
-   reaching Anthropic is a pure relay. Translation shrinks as front doors are added; it is
-   a function of the mismatch, not of the provider.
-2. **URL composition.** Azure's `/openai/deployments/{deployment}/chat/completions` plus an
-   `api-version` query parameter; Bedrock's `/model/{id}/invoke`; Vertex's endpoint path.
-   The adapter builds a URL from route fields. That is routing, and the passthrough adapter
-   already does the simple case of it.
-3. **Auth that is not a static header.** SigV4 signing for Bedrock, a token minted from a
-   service account for Vertex, `api-key` rather than `Authorization` for Azure. That is a
-   step before the request goes out, not a change to the request's meaning.
+This is a per-provider fact and not an argument. For each upstream, three questions:
 
-**Azure is the clearest case that the current table over-translates.** Azure OpenAI takes
-the OpenAI body unchanged; what differs is the URL and the name of the auth header. Both are
-jobs 2 and 3. Routing it through the routing library costs a parse and a re-serialize on
-every call, and with them the upstream's prompt caching — the exact thing byte-for-byte
-exists to keep.
+1. **Does it accept the bytes a front door would relay?** Azure OpenAI takes the OpenAI
+   body unchanged, so Chat Completions reaches it today. A Bedrock Anthropic model takes the
+   Anthropic Messages body, so it needs the `/v1/messages` front door and reaches nothing
+   before that. The answer is read from the provider's own request schema, not inferred from
+   which adapter currently handles it.
+2. **Can the URL be composed from route fields?** Azure needs `base_url`, the deployment
+   name and an API version; Bedrock needs the region and the model id. Whether the model id
+   comes from the path or the body changes what the relay has to touch — and if it must come
+   out of the body, that provider fails question 1 rather than passing this one.
+3. **Can its auth be applied without touching the body?** A header, however named, is
+   trivial. A signature over the request is allowed but is real work, and SigV4 signs the
+   body it is given, which is compatible with relaying it and not with rewriting it.
 
-**Bedrock and Vertex are less clear and cut the same way.** Their bodies are the *provider's
-own* shape — a Bedrock Anthropic model takes the Anthropic Messages body — so whether they
-need job 1 depends entirely on which front door the caller used. Through `/v1/messages`
-they would not; through Chat Completions they would.
+**The expected shape of the answer**, to be confirmed rather than assumed: Azure moves to a
+plain relay with URL composition and a renamed auth header. Bedrock and Vertex become
+reachable through the front door matching the body they take, with signing. The `direct`
+providers whose wire is not OpenAI's — Anthropic, Gemini, Cohere — are reachable only
+through their own front doors, and are not reachable at all until those land.
 
-**The shape this suggests** is a passthrough adapter that can compose a URL and apply a
-signing or token step, with the routing library kept for job 1 alone. That is one adapter
-gaining two capabilities rather than a second adapter existing, and it makes the default
-byte-for-byte instead of the exception.
+**The cost worth stating plainly.** Until the second front door exists, the gateway reaches
+OpenAI-shaped upstreams and OpenAI-compatible custom endpoints, and nothing else. That is a
+smaller set than today's provider table suggests, and it is the honest consequence of D34
+rather than a gap in it.
 
-**What it changes downstream.** `select_upstream`'s `direct` branch is the only place
-`provider_key` decides anything on a stored row (§2.4). Collapse the split and the column
-becomes purely descriptive — a filter and a label, which is a thin justification for
-`NOT NULL`.
-
-**What settles it** is per-provider verification, not argument: for each of Azure, Bedrock,
-Vertex and SageMaker, does the upstream accept the body we would relay, byte for byte, at a
-URL we can compose from route fields? Where the answer is yes, the provider moves to
-passthrough and the design gets simpler. Where it is no, it stays translated and the reason
-is recorded next to it. Nothing here should move on reasoning alone.
+**What this unblocks if it resolves the expected way.** `select_upstream`'s `direct` branch
+is the last thing on a stored row that reads `provider_key` (entities.md §2.4). With the
+split gone, the column decides nothing and becomes a label — at which point its `NOT NULL`
+should go with it.
 
 ### OD2. Is a user's own secret the norm or the exception — parked
 

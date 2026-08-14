@@ -36,7 +36,8 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
     service.py        LLMGatewayService: management + the data-plane relay
     providers/
       passthrough/adapter.py   OpenAI-compatible upstreams, byte-for-byte relay
-      translated/adapter.py    the routing library in-process: shape + reseller signing
+      translated/adapter.py    the routing library in-process (superseded by D34;
+                               see open-designs.md OD16)
       mock/adapter.py          the mock LLM endpoint (D23, WP5)
   mcps/               the tool plane (WP1, WP8, WP9)
     dtos.py
@@ -568,10 +569,10 @@ to keep a column, and not enough to call it structural — so **`NOT NULL` is th
 revisiting**, since a `custom` row pointed at a self-hosted gateway is being made to name a
 provider that means nothing to it.
 
-The `direct` split is also the thinner of the two justifications, and it is under review:
-`open-designs.md` OD16 asks whether most of what the translated adapter does is translation
-at all. If that split collapses, `provider_key` on a stored row decides nothing and becomes
-a pure label.
+The `direct` split is also the thinner of the two justifications, and D34 removes the
+reason it exists — a relay that may not convert a body has no shape-driven adapter choice to
+make. `open-designs.md` OD16 holds which upstreams that leaves reachable; if it resolves as
+expected, `provider_key` on a stored row decides nothing and becomes a pure label.
 
 A custom MCP endpoint is a URL somebody pasted; it has no provider to name, nothing filters
 on it, and no adapter choice follows from it — one protocol, one transport.

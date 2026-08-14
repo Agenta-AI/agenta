@@ -771,16 +771,64 @@ liability that grows with every provider release, and it breaks upstream prompt 
 is the thing the byte-for-byte relay exists to protect. Adding a front door is additive: a
 parser for that protocol's model field, a route, and the same policy pipeline behind it.
 
-**`TranslatedLLMAdapter` is not the thing this refuses.** It translates *provider shape* behind
-a single front door — a Chat Completions request reaching Bedrock, whose wire is not OpenAI's
-and whose auth is request signing. It never turns a Messages request into a Responses one. The
-two are easy to conflate and the distinction is what keeps D33 and D9 from contradicting each
-other.
+**D34 makes this the only mechanism, not one of two.** Since no body may be converted, an
+upstream is reachable exactly when a front door speaks its protocol — so adding front doors
+is how the reachable set grows, and there is no second route through a converting adapter.
 
 **What each new front door needs.** Its own minimal body parse for the policy fields (the model
 id, the stream flag), its own usage extraction, and its own ceiling binding — Chat Completions
 names the ceiling `max_tokens`, Responses names it `max_output_tokens`. Nothing else in the
 pipeline changes: resolution, filters, ceilings, secrets and audit are all protocol-blind.
+
+## D34. The gateway never converts a body. Not the request, not the response, ever
+
+The relay carries bytes. It may choose *where* to send them and *how to authenticate*
+sending them; it may never change what they say. That holds for the request body and the
+response body, streamed or not, on both planes.
+
+**The three things an adapter does are not one thing, and only two of them are allowed.**
+
+- **Routing** — composing a URL from route fields: Azure's
+  `/openai/deployments/{deployment}/chat/completions` and its `api-version` parameter,
+  Bedrock's `/model/{id}/invoke`, a reseller's `base_url` plus the protocol's own path.
+  Allowed, and unremarkable: it is what a proxy is.
+- **Authentication** — presenting the secret the way the upstream wants it: a bearer header,
+  a differently-named header like Azure's `api-key`, a SigV4 signature, a token minted from
+  a service account. Allowed, and sometimes unavoidable — an upstream that authenticates by
+  signing leaves no other option. Calling this "translation" was a category error: nothing
+  about the caller's request changes, only how we prove we may send it.
+- **Body conversion** — rewriting a Chat Completions request into Anthropic Messages, or
+  the reverse, or reconstructing a response from parsed objects. **Forbidden.**
+
+**Why forbidden, and not merely discouraged.** Conversion is the one thing that makes the
+gateway lossy. It breaks byte-for-byte, and with it the upstream's prompt caching, which is
+the property this design exists to preserve. It silently drops whatever the target format
+has no field for — reasoning traces, cache markers, structured-output modes, provider
+extensions shipped last week — and the loss is invisible to the caller, who sees a plausible
+answer built from less than they sent. And it is unbounded work: every provider release is a
+new mapping to maintain, forever, in the one place a bug is hardest to see.
+
+**What follows: an upstream is reachable when a front door speaks its protocol.** This makes
+D33's front doors the mechanism rather than an optimisation. Chat Completions reaches
+OpenAI-shaped upstreams; Anthropic Messages reaches Anthropic and the Bedrock and Vertex
+models that take that body; and a provider whose protocol has no front door is not reachable
+through the gateway until one exists. That is a real and deliberate limit, and it is
+narrower than it sounds, because a harness already speaks its vendor's protocol — the
+front door and the caller match by construction.
+
+**Translation does not disappear; it moves to the client.** A caller that wants one shape
+across many providers builds the provider-shaped request itself, with whatever library it
+likes, and sends those bytes through the matching front door. The loss then happens where
+the caller can see it and chose it, rather than inside a relay that promised not to look.
+The routing library keeps two jobs on our side that are not conversion: cost arithmetic
+after the fact, and signing where the auth scheme is a signature.
+
+**What this supersedes.** The `passthrough` / `translated` adapter split, which named the
+forbidden job as if it were a peer of the allowed ones. What replaces it is one relay with a
+routing strategy and an authentication strategy per deployment. `open-designs.md` OD16
+holds what is left: which upstreams that reclassification actually reaches, verified per
+provider rather than argued.
+
 
 ---
 
