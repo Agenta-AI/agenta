@@ -81,18 +81,17 @@ advance; both are unmistakable the moment they arrive.
 
 ## Upstreams a relay-only gateway cannot reach
 
-Three exclusions from WP24's per-provider verification (OD16). Each is unreachable for a stated
-reason rather than merely unbuilt, and each is recorded here so it is not rediscovered as a bug.
+One exclusion from WP24's per-provider verification (OD16), recorded so it is not rediscovered as a
+bug. It is unreachable for a stated reason rather than merely unbuilt.
 
 **SageMaker.** Its invoke API has no platform-level request schema: AWS forwards opaque bytes to
 whatever container the customer deployed. There is no "SageMaker wire" to check a front door
 against, so the answer is per-deployment rather than a fact this design can pin. `select_upstream`
-raises, naming that it has no fixed protocol rather than naming one it needs.
+raises, naming that it has no fixed protocol rather than naming one it needs. Every other model
+provider OD16 examined is reachable through one door or another.
 
-**Bedrock's legacy `InvokeModel` path and Vertex's Claude `rawPredict` path** were listed
-here and are **no longer out of scope**: D40 carves out a static, named field rewrite for exactly
-these two, and WP27 implements it.
-
-**Both have wired alternatives**, which is why the exclusion costs nothing today: Bedrock through
-its newer `bedrock-mantle` endpoint with a plain bearer key, and Vertex through its
-OpenAI-compatible layer. Neither vendor is unreachable; one path per vendor is.
+Bedrock's legacy `InvokeModel` path and Vertex's Claude `rawPredict` path were listed here and are
+**no longer out of scope**: D40 carves out a static, named field rewrite for exactly these two, and
+WP27 implements it. Both also have wired alternatives that need no rewrite at all — Bedrock through
+its newer `bedrock-mantle` endpoint with a plain bearer key, Vertex through its OpenAI-compatible
+layer — so neither vendor was ever unreachable; one path per vendor was.
