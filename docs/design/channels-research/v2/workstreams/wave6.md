@@ -178,10 +178,55 @@ once already in some form:
 
 ## Deploy
 
-A checkpoint activity, and not mine to run. It needs a publicly reachable request
-URL — Slack cannot call a laptop. The tunnel is part of the deployment, and the
-setup page has to say so, because otherwise the failure arrives as no event ever
+A checkpoint activity, and not the agent's to run. It needs a publicly reachable
+request URL — Slack cannot call a laptop. The tunnel is part of the deployment, and
+the setup page has to say so, because otherwise the failure arrives as no event ever
 appearing, which is the hardest kind to diagnose.
+
+### Before bringing it up
+
+Three settings, and two of them get registered with a provider, so changing them
+afterwards means editing an app somebody else owns.
+
+**A reserved tunnel domain.** `NGROK_DOMAIN_INGRESS`. The provider stores both the
+request URL and the redirect URL, so an address that rotates on restart invalidates
+both. This is the whole reason that variable exists.
+
+**`AGENTA_API_URL` pointing at that same domain.** The hosted install composes its
+redirect URI from configuration, not from the request. If the two disagree, the
+manifest points one place and the authorization redirect points another — `F68`.
+
+**All three hosted-app settings, or none.** `SLACK_CLIENT_ID`,
+`SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`. The gate needs all three non-empty,
+and with any missing the install button does not render at all. A button that is
+absent when it was expected is this check, not a bug. The customer-owned flow needs
+none of them and stays available either way.
+
+What to register in the app:
+
+```text
+request URL    https://<ingress-domain>/api/channels/slack/events/
+redirect URL   https://<ingress-domain>/api/channels/catalog/channels/slack/callback/
+```
+
+**Open the setup page on the tunnel host, not on `localhost`.** The manifest composes
+its request URL from the request that fetched it, so a page browsed on localhost
+produces a manifest carrying a localhost request URL. The provider accepts it and no
+event ever arrives. That is `F64`, and its symptom is silence.
+
+### Run the written tests before any ceremony
+
+83 tests are written and none has ever executed — the schema they need did not exist
+in any running stack. They cost minutes, they run before a single app is created, and
+they fail closer to a cause than a manual flow does.
+
+```text
+integration   65 collected
+acceptance    18 collected
+```
+
+Anything they find is cheaper here than after an app exists and a manifest has been
+pasted.
 
 ## CU-C — what the deployment finds
 

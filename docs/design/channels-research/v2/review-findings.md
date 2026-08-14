@@ -801,6 +801,37 @@
   deployment does, and both were wrong. The deployment repository is the authority
   on public URLs, and it is not in this tree.
 
+### F68. The manifest and the OAuth callback derive the public host from two different sources
+
+- ID: `F68`
+- Origin: `wave-6 CU-B`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Robustness`
+- Summary: The setup document composes its request URL from `request.base_url` — the
+  host the operator happened to browse. The hosted install composes its redirect URI
+  from `env.agenta.api_url` — configuration. Both are meant to be the same public
+  address, and nothing checks that they agree. When they disagree, the app manifest
+  points one place and the authorization redirect points another, and the two failures
+  look nothing alike: a wrong request URL is silence, a wrong redirect URI is a refusal
+  from the provider before we are ever called.
+- Evidence:
+  - `apis/fastapi/channels/router.py` uses `request.base_url` in three places: the
+    per-channel setup route, the bridge create document, and the per-connection setup
+    route.
+  - The same file derives the OAuth callback from `env.agenta.api_url`, once.
+- Files: `api/oss/src/apis/fastapi/channels/router.py`
+- Suggested Fix: pick one source. Configuration is the better one for anything a
+  provider stores, because it survives whichever host a browser used. The reason to
+  keep `base_url` is `F64`'s: it is already correct in production, where the app runs
+  with a `/api` root path behind one domain. Either resolve them to one helper or
+  refuse when they disagree — a mismatch is always a misconfiguration, never a valid
+  deployment.
+- Notes: neither half is wrong on its own, which is why no test catches it. It is a
+  disagreement between two right answers, and it only becomes visible in development,
+  where the browsed host and the configured host routinely differ.
+
 ### F67. Slack declares three identity fields and discovers two, so every writer must guess the third
 
 - ID: `F67`

@@ -226,9 +226,19 @@ discriminator. Everything else in the wave has a real caller chain and a test on
 branches. That one branch has never seen a real payload, and it fails as a bare 401
 that nothing reports.
 
+- [ ] **Set the three things that get registered elsewhere**, before bringing it up:
+      a reserved tunnel domain, `AGENTA_API_URL` pointing at that same domain, and
+      either all three hosted-app settings or none. `wave6.md`'s deploy section
+      carries the two URLs to register and why each matters.
+- [ ] **Run the 83 written tests before creating any app.** They have never executed,
+      because no running stack carried this schema. Anything they find is cheaper
+      before a manifest has been pasted into somebody's workspace.
 - [ ] The deployment needs a publicly reachable request URL. Slack cannot call a
       laptop, so the tunnel is part of the deployment and the setup page has to say
       so.
+- [ ] **Open the setup page on the tunnel host.** A page browsed on `localhost`
+      produces a manifest carrying a localhost request URL, which the platform accepts
+      and which delivers nothing. The symptom is silence.
 - [ ] Set up Slack from the manifest as an operator would, with no shortcuts and no
       pre-seeded rows. The shortcuts are what hid the last four defects.
 - [ ] Send a **direct message** and get an answer. That is C6.
