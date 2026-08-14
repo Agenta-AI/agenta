@@ -69,6 +69,7 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 10 | Open | Gateway/wallet write path: concurrency, adaptive exposure, idempotency, L1/L2, and recovery. |
 | 11 | Open | Restricted-credit applicability, selection order, and admission. |
 | 12 | Open | Store classes, same-database co-location units, financial-history authority, and cross-store recovery. |
+| 13 | Open | Whether earned value expires at all, and what decides spend order between lots. |
 
 Items 2, 4, and 7 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
@@ -1173,3 +1174,73 @@ best-effort Redis-Stream handoff; they do not join the wallet database.
 ### Decision
 
 _Unresolved._
+
+---
+
+## 13. Does earned value expire, and what decides spend order
+
+### Context
+
+Every lot today carries a `priority` and an optional `end_time`, and the settlement planner
+sorts candidates by `(priority, end_time, wallet_credit_id)` — **priority first**.
+
+`report.md` §6.2, decision 3, chose the opposite and called it "not close": soonest expiry
+first, with priority only as the tie-break. Its argument is a stranding scenario. An
+organization holds a signup grant expiring in ninety days and a contribution award expiring
+tomorrow. Under expiry-first the award is spent and the contributor keeps what they earned.
+Under priority-first the signup grant is spent first and the award expires unused.
+
+The delivered order came from the `WP-1-01` specification, which said "priority/end-time/
+credit-ID order". Nothing recorded that this reversed a stated decision.
+
+Today the divergence is inert: `plan_allowance` is priority 10 and expires at period end,
+the signup grant is priority 20 and lasts twelve months, so both orders agree. It becomes
+live the first time a short-lived lot sits at a higher priority number than a long-lived one
+— which is exactly what the grant catalog's next entries introduce.
+
+### The question behind the question
+
+Expiry order only matters because things expire. So the prior question is whether earned
+value should expire at all.
+
+A plan allowance expiring at period end is obvious: it is what the subscription bought for
+that period, and rolling it over would mean selling the same month twice. A purchase expiring
+is a liability decision. But **a contribution award is payment for work already done**, and
+expiring it takes back something the person earned. That is a different moral object from an
+unspent monthly allowance, and treating them identically because both are rows in one table
+is a data-model convenience, not a policy.
+
+### The options
+
+1. **Expiry-first, as `report.md` decided.** Short-lived value is always spent first, so
+   nothing is stranded. Priority becomes a pure tie-break. Simple, and it never strands
+   earned value — but it also spends a promotional grant before money somebody paid us
+   whenever the promotion expires sooner, which may not be what we want.
+2. **Priority-first, as delivered.** Source is what decides, and expiry only breaks ties.
+   Predictable and easy to explain, and it can strand earned value.
+3. **Earned value never expires.** Removes the problem for the case that motivated it, at
+   the cost of an unbounded liability we carry forever and cannot clear.
+4. **A weighted heuristic.** Rank lots by something combining the value remaining and the
+   time remaining — spend most urgently what is largest and closest to expiring. Strictly
+   more expressive than either sort, and strictly harder to explain to a user who asks why
+   their balance moved the way it did. It also has to stay deterministic and stable, because
+   the settlement planner's ordering has to be reproducible on replay.
+
+### Why it matters
+
+Spend order is cheap to change — it is a sort key over an indexed column, named in
+`report.md` §7.5 as one of the decisions that stays cheap. **Expiry policy is not.** Once
+awards have been issued under a stated rule, shortening it is a public failure and extending
+it is free. So the expiry question should be answered before the earning path ships, and the
+sort question can follow it.
+
+### Current direction
+
+Priority-first, as delivered, with signup at twelve months. No contribution award has ever
+been issued, so nothing is stranded yet and no rule has been published.
+
+### Decision
+
+_Unresolved. Deferred deliberately: the weighted-heuristic option needs a product judgement
+about what a user should be told about their own balance, and the expiry question needs a
+position on whether earned value is payment or promotion._

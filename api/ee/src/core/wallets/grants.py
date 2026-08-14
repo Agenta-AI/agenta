@@ -18,11 +18,9 @@ from uuid import UUID
 TWELVE_MONTHS_DAYS = 365
 
 # PRODUCT DECISION (2026-08-14, WP-1-05): $1 signup grant, awarded once per organization,
-# on every plan including free. `credit_kind="award"` is the closest existing
-# `GENERAL_CREDIT_KINDS` entry (`ee.src.core.wallets.types`) — `mechanics.md` names a
-# dedicated `signup_grant` kind, but that value does not exist in the runtime credit-kind
-# set today, and this pass does not add one; reusing `award` keeps the grant spendable
-# against any general resource without inventing a new enum value.
+# on every plan including free. `credit_kind="signup_grant"` (`mechanics.md` §4;
+# `GENERAL_CREDIT_KINDS` in `ee.src.core.wallets.types`) — its own kind, distinguishable
+# from a `contribution_award` or any other inbound kind by the row alone.
 SIGNUP_GRANT_AMOUNT_MUSD = 1_000_000  # $1
 # Spent after the recurring plan_allowance credit (priority 10, `plans.py`) — the
 # funded-plan allowance is drawn down first; the one-time signup bonus lasts longer.
@@ -47,15 +45,20 @@ GRANT_CATALOG: Dict[str, GrantRule] = {
     "signup": GrantRule(
         code="signup",
         amount_musd=SIGNUP_GRANT_AMOUNT_MUSD,
-        credit_kind="award",
+        credit_kind="signup_grant",
         priority=SIGNUP_GRANT_PRIORITY,
         lifetime_days=TWELVE_MONTHS_DAYS,
         repeatable=False,
     ),
-    # Intended next entries (mechanics.md §4), each a new row here, no new code path:
-    #   "activation_milestone" — repeatable=False, e.g. saving a first agent
-    #   "referral_bonus"       — repeatable=True, keyed by the referral identifier
-    #   "contribution_award"   — repeatable=True, keyed by the contribution identifier
+    # Intended next entries (mechanics.md §4), each a new row here, no new code path.
+    # Suggested priority (spend order, after plan_allowance=10/signup_grant=20 above —
+    # see `ee.src.core.wallets.types.GENERAL_CREDIT_KINDS` for the full kind set):
+    #   "promotion"           — repeatable=False, priority=30, keyed by campaign
+    #   "referral_bonus"      — repeatable=True,  priority=40, keyed by referral identifier
+    #   "contribution_award"  — repeatable=True,  priority=50, keyed by contribution identifier
+    #   "goodwill"            — repeatable=True,  priority=60, keyed by support case identifier
+    #   "activation_milestone" — repeatable=False, e.g. saving a first agent (not a
+    #                             mechanics.md §4 kind; would need its own credit_kind)
 }
 
 

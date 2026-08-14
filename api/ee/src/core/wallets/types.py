@@ -132,13 +132,22 @@ class CreditCandidateDTO(BaseModel):
 # kind funds only resource keys starting with that prefix.
 # ---------------------------------------------------------------------------
 
+# Eight inbound kinds delivered here (mechanics.md §4 is the naming source). Each answers
+# "where did this value come from" from the row alone — no more catch-all "award".
+# Deliberately NOT included yet (mechanics.md §4 names these too; add them as their own
+# rows here when their code paths land, never re-use one of the eight above for them):
+#   auto_recharge, charge_refund, chargeback_reversal, opening_balance,
+#   partner_allocation
 GENERAL_CREDIT_KINDS = frozenset(
     {
+        "signup_grant",
         "plan_allowance",
         "purchase",
-        "award",
-        "provider_credit",
-        "adjustment",
+        "promotion",
+        "contribution_award",
+        "referral_bonus",
+        "goodwill",
+        "correction",
     }
 )
 RESTRICTED_CREDIT_KIND_PREFIX = "restricted:"
