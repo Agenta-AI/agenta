@@ -717,6 +717,12 @@ If you're running a shared or multi-tenant deployment, set it to `false`. Agenta
 blocks any such request that resolves to a private, loopback, or reserved IP address,
 regardless of who configured the URL. Public URLs are never affected either way.
 
+Every deployment configuration in this repo that produces a reachable, sign-ups-open
+instance — the docker-compose `.gh` env files and the Kubernetes `values.*.example.yaml`
+overlays — sets this to `false` already. Only the local dev docker-compose files
+(`.env.oss.dev`, `.env.ee.dev`, single developer, not exposed) keep the permissive
+default.
+
 The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALLOW_INSECURE`,
 `AGENTA_SERVICES_HOOK_ALLOW_INSECURE`, `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE`) are
 deprecated aliases and still work, but new configuration should use the canonical name.
