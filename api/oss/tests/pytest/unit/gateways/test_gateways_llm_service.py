@@ -1,4 +1,4 @@
-"""Unit tests for `LlmGatewayService` (specs-wp7.md, tasks-wp7.md Phases 5, 5b, 6).
+"""Unit tests for `LLMGatewayService` (specs-wp7.md, tasks-wp7.md Phases 5, 5b, 6).
 
 Stubbed DAO/policy/resolver/registry — no real adapters, no compose, nothing running.
 """
@@ -11,21 +11,22 @@ import pytest
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import (
-    LlmDeploymentKind,
-    LlmEndpoint,
-    LlmEndpointConfig,
-    LlmEndpointData,
+    LLMDeploymentKind,
+    LLMEndpoint,
+    LLMEndpointData,
+    LLMEndpointSettings,
+    LLMModelFilter,
 )
 from oss.src.core.gateways.llms.interfaces import (
-    LlmEndpointsDAOInterface,
-    LlmRelayResult,
-    LlmUpstreamInterface,
+    LLMEndpointsDAOInterface,
+    LLMRelayResult,
+    LLMUpstreamInterface,
 )
-from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry
-from oss.src.core.gateways.llms.service import LlmGatewayService
+from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
+from oss.src.core.gateways.llms.service import LLMGatewayService
 from oss.src.core.gateways.llms.types import (
-    LlmEndpointNotFoundError,
-    LlmModelNotAllowedError,
+    LLMEndpointNotFoundError,
+    LLMModelNotAllowedError,
 )
 from oss.src.core.gateways.policy.dtos import (
     SecretMode,
@@ -61,21 +62,21 @@ def _custom_row(
     *,
     slug="acme",
     provider_key="openai",
-    deployment=LlmDeploymentKind.CUSTOM,
-    model_slugs=None,
+    deployment_kind=LLMDeploymentKind.CUSTOM,
+    models=None,
     max_output_tokens=None,
     secret_id=None,
-) -> LlmEndpoint:
-    return LlmEndpoint(
+) -> LLMEndpoint:
+    return LLMEndpoint(
         id=uuid4(),
         slug=slug,
         provider_key=provider_key,
-        deployment=deployment,
+        deployment_kind=deployment_kind,
         namespace=GatewayEndpointNamespace.CUSTOM,
         secret_id=secret_id,
-        data=LlmEndpointData(
-            model_slugs=list(model_slugs) if model_slugs is not None else ["gpt-4o"],
-            config=LlmEndpointConfig(max_output_tokens=max_output_tokens),
+        data=LLMEndpointData(
+            models=models or LLMModelFilter(allowlist=["gpt-4o"]),
+            settings=LLMEndpointSettings(max_output_tokens=max_output_tokens),
         ),
     )
 
@@ -95,14 +96,14 @@ def _secret() -> ResolvedSecret:
     )
 
 
-class _MockLlmEndpointsDAO(LlmEndpointsDAOInterface):
+class _MockLlmEndpointsDAO(LLMEndpointsDAOInterface):
     def __init__(self):
         self.calls: List[tuple] = []
-        self.rows_by_slug: Dict[str, LlmEndpoint] = {}
-        self.query_result: List[LlmEndpoint] = []
-        self.create_result: Optional[LlmEndpoint] = None
-        self.fetch_result: Optional[LlmEndpoint] = None
-        self.edit_result: Optional[LlmEndpoint] = None
+        self.rows_by_slug: Dict[str, LLMEndpoint] = {}
+        self.query_result: List[LLMEndpoint] = []
+        self.create_result: Optional[LLMEndpoint] = None
+        self.fetch_result: Optional[LLMEndpoint] = None
+        self.edit_result: Optional[LLMEndpoint] = None
         self.delete_result: bool = True
 
     async def create_endpoint(self, *, project_id, user_id, endpoint):
@@ -168,8 +169,8 @@ class _MockPolicy:
         self.record_calls.append((scope, target, decision, outcome))
 
 
-class _MockAdapter(LlmUpstreamInterface):
-    def __init__(self, *, result: LlmRelayResult):
+class _MockAdapter(LLMUpstreamInterface):
+    def __init__(self, *, result: LLMRelayResult):
         self.result = result
         self.calls: List[dict] = []
 
@@ -192,14 +193,14 @@ async def _one_chunk_body(data: bytes) -> AsyncIterator[bytes]:
 
 def _service(
     *, dao=None, policy=None, resolver=None, registry=None
-) -> LlmGatewayService:
-    return LlmGatewayService(
+) -> LLMGatewayService:
+    return LLMGatewayService(
         llm_endpoints_dao=dao if dao is not None else _MockLlmEndpointsDAO(),
         policy=policy if policy is not None else _MockPolicy(),
         resolver=resolver if resolver is not None else _MockResolver(),
         upstream_registry=registry
         if registry is not None
-        else LlmUpstreamRegistry(adapters={}),
+        else LLMUpstreamRegistry(adapters={}),
     )
 
 
@@ -309,9 +310,11 @@ async def test_list_endpoints_with_no_keys_yields_custom_rows_only():
 
 
 @pytest.mark.asyncio
-async def test_list_models_custom_returns_model_slugs_exactly():
+async def test_list_models_custom_returns_the_allowlist_exactly():
     dao = _MockLlmEndpointsDAO()
-    dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["a", "b"])
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["a", "b"])
+    )
 
     slugs = await _service(dao=dao).list_models(
         scope=_scope(), namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
@@ -333,7 +336,7 @@ async def test_list_models_standard_returns_catalogue_slugs_verbatim():
 
 @pytest.mark.asyncio
 async def test_list_models_unknown_name_raises_not_found():
-    with pytest.raises(LlmEndpointNotFoundError):
+    with pytest.raises(LLMEndpointNotFoundError):
         await _service().list_models(
             scope=_scope(), namespace=GatewayEndpointNamespace.CUSTOM, name="ghost"
         )
@@ -342,7 +345,9 @@ async def test_list_models_unknown_name_raises_not_found():
 @pytest.mark.asyncio
 async def test_list_models_denied_decision_raises_before_reading_slugs():
     dao = _MockLlmEndpointsDAO()
-    dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["a"])
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["a"])
+    )
     policy = _MockPolicy(allowed=False)
 
     with pytest.raises(PolicyDeniedError):
@@ -358,12 +363,14 @@ async def test_list_models_denied_decision_raises_before_reading_slugs():
 @pytest.mark.asyncio
 async def test_disallowed_model_raises_without_calling_resolver():
     dao = _MockLlmEndpointsDAO()
-    dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["gpt-4o"])
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"])
+    )
     resolver = _MockResolver(secret=_secret())
 
     body = json.dumps({"model": "gpt-4o-mini", "messages": []}).encode()
 
-    with pytest.raises(LlmModelNotAllowedError):
+    with pytest.raises(LLMModelNotAllowedError):
         await _service(dao=dao, resolver=resolver).relay_chat_completion(
             scope=_scope(),
             namespace=GatewayEndpointNamespace.CUSTOM,
@@ -378,7 +385,9 @@ async def test_disallowed_model_raises_without_calling_resolver():
 @pytest.mark.asyncio
 async def test_policy_denial_records_once_before_raising():
     dao = _MockLlmEndpointsDAO()
-    dao.rows_by_slug["acme"] = _custom_row(slug="acme", model_slugs=["gpt-4o"])
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"])
+    )
     policy = _MockPolicy(allowed=False)
     resolver = _MockResolver(secret=_secret())
 
@@ -403,7 +412,7 @@ async def test_policy_denial_records_once_before_raising():
 async def test_ceiling_breach_names_all_three_values():
     dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(
-        slug="acme", model_slugs=["gpt-4o"], max_output_tokens=100
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), max_output_tokens=100
     )
     resolver = _MockResolver(secret=_secret())
 
@@ -429,19 +438,21 @@ async def test_ceiling_breach_names_all_three_values():
 @pytest.mark.asyncio
 async def test_successful_non_streaming_call_records_after_relay():
     dao = _MockLlmEndpointsDAO()
-    row = _custom_row(slug="acme", model_slugs=["gpt-4o"], secret_id=uuid4())
+    row = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), secret_id=uuid4()
+    )
     dao.rows_by_slug["acme"] = row
     secret = _secret()
     resolver = _MockResolver(secret=secret)
 
-    adapter_result = LlmRelayResult(
+    adapter_result = LLMRelayResult(
         status_code=200,
         headers={},
         body=_one_chunk_body(b'{"ok": true}'),
         usage=GatewayUsage(calls=1, input_tokens=3, output_tokens=4, cost=0.01),
     )
     adapter = _MockAdapter(result=adapter_result)
-    registry = LlmUpstreamRegistry(adapters={"passthrough": adapter})
+    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
     policy = _MockPolicy(allowed=True)
 
     body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
@@ -475,7 +486,7 @@ async def test_successful_non_streaming_call_records_after_relay():
 async def test_streaming_call_records_only_after_full_consumption():
     dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(
-        slug="acme", model_slugs=["gpt-4o"], secret_id=uuid4()
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), secret_id=uuid4()
     )
     resolver = _MockResolver(secret=_secret())
     policy = _MockPolicy(allowed=True)
@@ -484,9 +495,9 @@ async def test_streaming_call_records_only_after_full_consumption():
         yield b"chunk-1"
         yield b"chunk-2"
 
-    adapter_result = LlmRelayResult(status_code=200, headers={}, body=_two_chunks())
+    adapter_result = LLMRelayResult(status_code=200, headers={}, body=_two_chunks())
     adapter = _MockAdapter(result=adapter_result)
-    registry = LlmUpstreamRegistry(adapters={"passthrough": adapter})
+    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
 
     body = json.dumps({"model": "gpt-4o", "messages": [], "stream": True}).encode()
     result = await _service(

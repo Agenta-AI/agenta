@@ -1,6 +1,6 @@
 """Router wiring — apis/fastapi/gateways/mcps/router.py (entities.md §9).
 
-TestClient + a hand-written mock `McpGatewayService` + a monkeypatched
+TestClient + a hand-written mock `MCPGatewayService` + a monkeypatched
 `get_auth_scope()`/`check_action_access()` — no real database, no real service.
 """
 
@@ -11,9 +11,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter
-from oss.src.core.gateways.dtos import GatewayAuthScheme
-from oss.src.core.gateways.mcps.dtos import McpEndpoint, McpEndpointData, McpGrant
+from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
+from oss.src.core.gateways.mcps.dtos import MCPAuthScheme
+from oss.src.core.gateways.mcps.dtos import (
+    MCPEndpoint,
+    MCPEndpointData,
+    MCPEndpointRoute,
+)
 from oss.src.utils.context import AuthScope
 
 
@@ -31,8 +35,6 @@ EXPECTED_ROUTES = {
     ("/endpoints/{endpoint_id}", "GET"): "fetch_mcp_endpoint",
     ("/endpoints/{endpoint_id}", "PUT"): "edit_mcp_endpoint",
     ("/endpoints/{endpoint_id}", "DELETE"): "delete_mcp_endpoint",
-    ("/grants/query", "POST"): "query_mcp_grants",
-    ("/grants/{grant_id}", "DELETE"): "revoke_mcp_grant",
 }
 
 # Fixed (not `uuid4()`-at-collection-time) so pytest-xdist workers agree on
@@ -40,20 +42,18 @@ EXPECTED_ROUTES = {
 _A_FIXED_ID = "00000000-0000-0000-0000-000000000001"
 
 
-def _endpoint(endpoint_id) -> McpEndpoint:
-    return McpEndpoint(
+def _endpoint(endpoint_id) -> MCPEndpoint:
+    return MCPEndpoint(
         id=endpoint_id,
         slug="acme-notion",
-        auth_mode=GatewayAuthScheme.NONE,
-        data=McpEndpointData(url="https://mcp.acme.example/notion"),
+        auth_mode=MCPAuthScheme.NONE,
+        data=MCPEndpointData(
+            route=MCPEndpointRoute(base_url="https://mcp.acme.example/notion")
+        ),
     )
 
 
-def _grant(grant_id) -> McpGrant:
-    return McpGrant(id=grant_id, endpoint_id=uuid4(), secret_id=uuid4())
-
-
-class MockMcpGatewayService:
+class MockMCPGatewayService:
     def __init__(self):
         self.calls = []
         self.create_return = None
@@ -62,9 +62,6 @@ class MockMcpGatewayService:
         self.fetch_return = None
         self.edit_return = None
         self.delete_return = True
-        self.query_grants_return = []
-        self.revoke_grant_return = True
-        self.raise_not_implemented_for_grants = False
 
     async def create_endpoint(self, *, project_id, user_id, endpoint):
         self.calls.append("create_endpoint")
@@ -90,27 +87,15 @@ class MockMcpGatewayService:
         self.calls.append("delete_endpoint")
         return self.delete_return
 
-    async def query_grants(self, *, project_id, grant=None, windowing=None):
-        self.calls.append("query_grants")
-        if self.raise_not_implemented_for_grants:
-            raise NotImplementedError("query_grants (WP17/WP18)")
-        return self.query_grants_return
-
-    async def revoke_grant(self, *, project_id, grant_id):
-        self.calls.append("revoke_grant")
-        if self.raise_not_implemented_for_grants:
-            raise NotImplementedError("revoke_grant (WP17/WP18)")
-        return self.revoke_grant_return
-
 
 @pytest.fixture
 def service():
-    return MockMcpGatewayService()
+    return MockMCPGatewayService()
 
 
 @pytest.fixture
 def router(service):
-    return McpGatewayRouter(mcp_gateway_service=service)
+    return MCPGatewayRouter(mcp_gateway_service=service)
 
 
 @pytest.fixture
@@ -193,7 +178,7 @@ def test_create_endpoint_reaches_the_service(client, service, allow):
             "endpoint": {
                 "slug": "acme-notion",
                 "auth_mode": "none",
-                "data": {"url": "https://mcp.acme.example/notion"},
+                "data": {"route": {"base_url": "https://mcp.acme.example/notion"}},
             }
         },
     )
@@ -245,7 +230,7 @@ def test_edit_endpoint_reaches_the_service(client, service, allow):
             "endpoint": {
                 "id": str(endpoint_id),
                 "auth_mode": "none",
-                "data": {"url": "https://mcp.acme.example/notion"},
+                "data": {"route": {"base_url": "https://mcp.acme.example/notion"}},
             }
         },
     )
@@ -264,7 +249,7 @@ def test_edit_endpoint_rejects_a_path_body_id_mismatch(client, service, allow):
             "endpoint": {
                 "id": str(other_id),
                 "auth_mode": "none",
-                "data": {"url": "https://mcp.acme.example/notion"},
+                "data": {"route": {"base_url": "https://mcp.acme.example/notion"}},
             }
         },
     )
@@ -283,33 +268,6 @@ def test_delete_endpoint_reaches_the_service(client, service, allow):
     assert service.calls == ["delete_endpoint"]
 
 
-def test_query_grants_reaches_the_service(client, service, allow):
-    service.query_grants_return = [_grant(uuid4())]
-
-    response = client.post("/grants/query", json={})
-
-    assert response.status_code == 200
-    assert response.json()["count"] == 1
-    assert service.calls == ["query_grants"]
-
-
-def test_revoke_grant_reaches_the_service(client, service, allow):
-    service.revoke_grant_return = True
-
-    response = client.delete(f"/grants/{_A_FIXED_ID}")
-
-    assert response.status_code == 204
-    assert service.calls == ["revoke_grant"]
-
-
-def test_revoke_grant_false_maps_to_404(client, service, allow):
-    service.revoke_grant_return = False
-
-    response = client.delete(f"/grants/{_A_FIXED_ID}")
-
-    assert response.status_code == 404
-
-
 # ---------------------------------------------------------------------------
 # A denied _check short-circuits before the mock service is called
 # ---------------------------------------------------------------------------
@@ -321,7 +279,12 @@ def test_revoke_grant_false_maps_to_404(client, service, allow):
         (
             "POST",
             "/endpoints/",
-            {"endpoint": {"auth_mode": "none", "data": {"url": "https://example.com"}}},
+            {
+                "endpoint": {
+                    "auth_mode": "none",
+                    "data": {"route": {"base_url": "https://example.com"}},
+                }
+            },
         ),
         ("GET", "/endpoints/", None),
         ("POST", "/endpoints/query", {}),
@@ -329,11 +292,14 @@ def test_revoke_grant_false_maps_to_404(client, service, allow):
         (
             "PUT",
             f"/endpoints/{_A_FIXED_ID}",
-            {"endpoint": {"auth_mode": "none", "data": {"url": "https://example.com"}}},
+            {
+                "endpoint": {
+                    "auth_mode": "none",
+                    "data": {"route": {"base_url": "https://example.com"}},
+                }
+            },
         ),
         ("DELETE", f"/endpoints/{_A_FIXED_ID}", None),
-        ("POST", "/grants/query", {}),
-        ("DELETE", f"/grants/{_A_FIXED_ID}", None),
     ],
 )
 def test_denied_check_short_circuits_before_the_service_is_called(
@@ -367,7 +333,7 @@ def test_edit_endpoint_none_maps_to_404(client, service, allow):
             "endpoint": {
                 "id": _A_FIXED_ID,
                 "auth_mode": "none",
-                "data": {"url": "https://mcp.acme.example/notion"},
+                "data": {"route": {"base_url": "https://mcp.acme.example/notion"}},
             }
         },
     )
@@ -388,19 +354,3 @@ def test_delete_endpoint_false_maps_to_404(client, service, allow):
 # table does not catch it, so it propagates as an unhandled 500. Expected,
 # not a bug to fix here (specs-wp10.md, tasks-wp10.md).
 # ---------------------------------------------------------------------------
-
-
-def test_query_grants_not_implemented_propagates_as_500(client, service, allow):
-    service.raise_not_implemented_for_grants = True
-
-    response = client.post("/grants/query", json={})
-
-    assert response.status_code == 500
-
-
-def test_revoke_grant_not_implemented_propagates_as_500(client, service, allow):
-    service.raise_not_implemented_for_grants = True
-
-    response = client.delete(f"/grants/{_A_FIXED_ID}")
-
-    assert response.status_code == 500

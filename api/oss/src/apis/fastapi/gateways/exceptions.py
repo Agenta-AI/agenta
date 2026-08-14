@@ -15,16 +15,16 @@ from fastapi import HTTPException, status
 
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.llms.types import (
-    LlmEndpointNotFoundError,
-    LlmModelNotAllowedError,
-    LlmUpstreamError,
+    LLMEndpointNotFoundError,
+    LLMModelNotAllowedError,
+    LLMUpstreamError,
 )
 from oss.src.core.gateways.mcps.types import (
-    McpAuthRequiredError,
-    McpEndpointNotFoundError,
-    McpScopeInsufficientError,
-    McpToolNotAllowedError,
-    McpUpstreamError,
+    MCPAuthRequiredError,
+    MCPEndpointNotFoundError,
+    MCPScopeInsufficientError,
+    MCPToolNotAllowedError,
+    MCPUpstreamError,
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
@@ -40,7 +40,7 @@ def handle_gateway_exceptions():
 
     `*NotFoundError` -> 404. `PolicyDeniedError` / `EntitlementDeniedError` -> 403.
     `*NotAllowedError` -> 403. `CeilingExceededError` -> 400, its body naming the
-    ceiling, the requested and the allowed values (D25). `McpAuthRequiredError` ->
+    ceiling, the requested and the allowed values (D25). `MCPAuthRequiredError` ->
     409 carrying the `GatewayConnectionRequirement` (an interaction, not a failure
     — D17). `*UpstreamError` -> 424, or 502 when the upstream answered >=500 (the
     424/502 split tools and triggers already use).
@@ -56,7 +56,7 @@ def handle_gateway_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
-            except (LlmEndpointNotFoundError, McpEndpointNotFoundError) as e:
+            except (LLMEndpointNotFoundError, MCPEndpointNotFoundError) as e:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
@@ -72,7 +72,7 @@ def handle_gateway_exceptions():
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=e.message,
                 ) from e
-            except (LlmModelNotAllowedError, McpToolNotAllowedError) as e:
+            except (LLMModelNotAllowedError, MCPToolNotAllowedError) as e:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=e.message,
@@ -87,7 +87,7 @@ def handle_gateway_exceptions():
                         "allowed": e.allowed,
                     },
                 ) from e
-            except McpAuthRequiredError as e:
+            except MCPAuthRequiredError as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail={
@@ -95,7 +95,7 @@ def handle_gateway_exceptions():
                         "requirement": e.requirement.model_dump(mode="json"),
                     },
                 ) from e
-            except McpScopeInsufficientError as e:
+            except MCPScopeInsufficientError as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail={"message": e.message, "scopes": e.scopes},
@@ -105,7 +105,7 @@ def handle_gateway_exceptions():
                     status_code=status.HTTP_409_CONFLICT,
                     detail=e.message,
                 ) from e
-            except (LlmUpstreamError, McpUpstreamError) as e:
+            except (LLMUpstreamError, MCPUpstreamError) as e:
                 upstream = e.status_code
                 raise HTTPException(
                     status_code=(

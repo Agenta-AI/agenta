@@ -1,4 +1,4 @@
-"""Unit tests for MockLlmAdapter (entities.md §7.1, workstreams/specs-wp5.md).
+"""Unit tests for MockLLMAdapter (entities.md §7.1, workstreams/specs-wp5.md).
 
 Nothing running: the adapter is exercised as a plain Python object.
 """
@@ -9,18 +9,18 @@ import time
 import pytest
 
 from oss.src.core.gateways.llms.dtos import (
-    LlmCallContext,
-    LlmDeploymentKind,
-    LlmResolvedRoute,
+    LLMCallContext,
+    LLMDeploymentKind,
+    LLMResolvedRoute,
 )
-from oss.src.core.gateways.llms.interfaces import LlmRelayResult
-from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
-from oss.src.core.gateways.llms.types import LlmUpstreamError
+from oss.src.core.gateways.llms.interfaces import LLMRelayResult
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
+from oss.src.core.gateways.llms.types import LLMUpstreamError
 
 
-def _route(model: str = "mock/echo") -> LlmResolvedRoute:
-    return LlmResolvedRoute(
-        provider_key="mock", deployment=LlmDeploymentKind.DIRECT, model=model
+def _route(model: str = "mock/echo") -> LLMResolvedRoute:
+    return LLMResolvedRoute(
+        provider_key="mock", deployment_kind=LLMDeploymentKind.DIRECT, model=model
     )
 
 
@@ -36,16 +36,16 @@ async def _drain(body):
 
 @pytest.mark.asyncio
 async def test_echo_returns_well_formed_result():
-    adapter = MockLlmAdapter()
+    adapter = MockLLMAdapter()
     result = await adapter.relay_chat_completion(
         route=_route(),
         secret=None,
-        context=LlmCallContext(model="mock/echo"),
+        context=LLMCallContext(model="mock/echo"),
         body=_body("hello there"),
         headers={},
     )
 
-    assert isinstance(result, LlmRelayResult)
+    assert isinstance(result, LLMRelayResult)
     assert result.status_code == 200
 
     chunks = await _drain(result.body)
@@ -57,13 +57,13 @@ async def test_echo_returns_well_formed_result():
 
 @pytest.mark.asyncio
 async def test_error_model_raises_upstream_error():
-    adapter = MockLlmAdapter()
+    adapter = MockLLMAdapter()
 
-    with pytest.raises(LlmUpstreamError) as excinfo:
+    with pytest.raises(LLMUpstreamError) as excinfo:
         await adapter.relay_chat_completion(
             route=_route("mock/error"),
             secret=None,
-            context=LlmCallContext(model="mock/error"),
+            context=LLMCallContext(model="mock/error"),
             body=_body(),
             headers={},
         )
@@ -74,13 +74,13 @@ async def test_error_model_raises_upstream_error():
 
 @pytest.mark.asyncio
 async def test_slow_model_sleeps_before_returning():
-    adapter = MockLlmAdapter()
+    adapter = MockLLMAdapter()
     start = time.monotonic()
 
     result = await adapter.relay_chat_completion(
         route=_route("mock/slow-1"),
         secret=None,
-        context=LlmCallContext(model="mock/slow-1"),
+        context=LLMCallContext(model="mock/slow-1"),
         body=_body(),
         headers={},
     )
@@ -93,12 +93,12 @@ async def test_slow_model_sleeps_before_returning():
 
 @pytest.mark.asyncio
 async def test_streaming_yields_multiple_chunks_ending_in_done():
-    adapter = MockLlmAdapter()
+    adapter = MockLLMAdapter()
 
     result = await adapter.relay_chat_completion(
         route=_route(),
         secret=None,
-        context=LlmCallContext(model="mock/echo", stream=True),
+        context=LLMCallContext(model="mock/echo", stream=True),
         body=_body("hi"),
         headers={},
     )
@@ -112,12 +112,12 @@ async def test_streaming_yields_multiple_chunks_ending_in_done():
 
 @pytest.mark.asyncio
 async def test_usage_populated_after_body_exhausted():
-    adapter = MockLlmAdapter()
+    adapter = MockLLMAdapter()
 
     result = await adapter.relay_chat_completion(
         route=_route(),
         secret=None,
-        context=LlmCallContext(model="mock/echo"),
+        context=LLMCallContext(model="mock/echo"),
         body=_body("hello world"),
         headers={},
     )

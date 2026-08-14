@@ -1,7 +1,7 @@
 """The generated standard-endpoint catalogue (entities.md §8, D20).
 
 Two pure functions over the SDK's static provider->model map. A standard endpoint is
-derived, never stored: no id, no `Lifecycle`, code-default `config`. Existence for a given
+derived, never stored: no id, no `Lifecycle`, code-default `settings`. Existence for a given
 project is answered by the resolver's `available_provider_keys` (R2), not by this module —
 `standard_llm_endpoint` never queries a DAO or the vault.
 """
@@ -13,16 +13,17 @@ from agenta.sdk.utils.assets import supported_llm_models
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import (
-    LlmDeploymentKind,
-    LlmEndpoint,
-    LlmEndpointData,
-    LlmEndpointRoute,
+    LLMDeploymentKind,
+    LLMEndpoint,
+    LLMEndpointData,
+    LLMEndpointRoute,
+    LLMModelFilter,
 )
 from oss.src.core.gateways.llms.registry import select_upstream
 from oss.src.core.shared.dtos import Header
 
 
-def standard_llm_endpoint(*, provider_key: str) -> Optional[LlmEndpoint]:
+def standard_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
     """The generated endpoint for one provider, or None when `provider_key` has no
     entry in `supported_llm_models` — covers both an unknown string and the three
     `StandardProviderKind` members with no catalogue entry (`anyscale`, `alephalpha`,
@@ -31,28 +32,28 @@ def standard_llm_endpoint(*, provider_key: str) -> Optional[LlmEndpoint]:
     if model_slugs is None:
         return None
 
-    return LlmEndpoint(
+    return LLMEndpoint(
         slug=provider_key,
         header=Header(name=provider_key),
         provider_key=provider_key,
-        deployment=LlmDeploymentKind.DIRECT,
+        deployment_kind=LLMDeploymentKind.DIRECT,
         namespace=GatewayEndpointNamespace.STANDARD,
-        data=LlmEndpointData(
+        data=LLMEndpointData(
             route=_route(provider_key),
-            model_slugs=list(model_slugs),
+            models=LLMModelFilter(allowlist=list(model_slugs)),
         ),
     )
 
 
-def _route(provider_key: str) -> LlmEndpointRoute:
+def _route(provider_key: str) -> LLMEndpointRoute:
     """The passthrough adapter dials `base_url` and refuses without one; the translated
     adapter takes the provider's own default from litellm, so it is left unset there."""
-    if select_upstream(provider_key, LlmDeploymentKind.DIRECT) != "passthrough":
-        return LlmEndpointRoute()
-    return LlmEndpointRoute(base_url=direct_endpoint(provider_key))
+    if select_upstream(provider_key, LLMDeploymentKind.DIRECT) != "passthrough":
+        return LLMEndpointRoute()
+    return LLMEndpointRoute(base_url=direct_endpoint(provider_key))
 
 
-def standard_llm_endpoints() -> List[LlmEndpoint]:
+def standard_llm_endpoints() -> List[LLMEndpoint]:
     """All eleven, existence-unfiltered — the service intersects with the project's
     provider keys (D20)."""
     endpoints = (

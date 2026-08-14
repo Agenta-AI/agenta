@@ -2,11 +2,11 @@
 
 A standalone ASGI app (`uvicorn oss.src.core.gateways.llms.providers.mock.app:app`),
 not mounted into the main API process. It terminates a real HTTP connection and a
-real socket, which is what the in-process `MockLlmAdapter` cannot exercise (SSE
+real socket, which is what the in-process `MockLLMAdapter` cannot exercise (SSE
 framing over the wire, a genuine hang under a client-side timeout) — Checkpoint A's
 acceptance suite needs this running as its own compose service.
 
-Delegates every request straight to `MockLlmAdapter` so both tiers share one
+Delegates every request straight to `MockLLMAdapter` so both tiers share one
 implementation of the control convention: a test written against the in-process
 adapter and a test written against this process see identical behavior for the
 same input.
@@ -18,15 +18,15 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from oss.src.core.gateways.llms.dtos import (
-    LlmCallContext,
-    LlmDeploymentKind,
-    LlmResolvedRoute,
+    LLMCallContext,
+    LLMDeploymentKind,
+    LLMResolvedRoute,
 )
-from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
-from oss.src.core.gateways.llms.types import LlmUpstreamError
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
+from oss.src.core.gateways.llms.types import LLMUpstreamError
 
 app = FastAPI(title="agenta-mock-llm-gateway")
-_adapter = MockLlmAdapter()
+_adapter = MockLLMAdapter()
 
 
 @app.get("/health")
@@ -44,16 +44,16 @@ async def chat_completions(request: Request) -> Response:
 
     model = payload.get("model") or "mock/echo"
     stream = bool(payload.get("stream", False))
-    context = LlmCallContext(model=model, stream=stream)
-    route = LlmResolvedRoute(
-        provider_key="mock", deployment=LlmDeploymentKind.DIRECT, model=model
+    context = LLMCallContext(model=model, stream=stream)
+    route = LLMResolvedRoute(
+        provider_key="mock", deployment_kind=LLMDeploymentKind.DIRECT, model=model
     )
 
     try:
         result = await _adapter.relay_chat_completion(
             route=route, secret=None, context=context, body=body, headers={}
         )
-    except LlmUpstreamError as exc:
+    except LLMUpstreamError as exc:
         return JSONResponse(
             status_code=exc.status_code or 500,
             content={

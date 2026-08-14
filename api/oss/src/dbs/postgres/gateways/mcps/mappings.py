@@ -1,22 +1,18 @@
 """MCP plane DBE <-> DTO mappings (entities.md §2, §4.4)."""
 
 from datetime import datetime, timezone
-from typing import Optional
 from uuid import UUID
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.mcps.dtos import (
-    McpEndpoint,
-    McpEndpointCreate,
-    McpEndpointData,
-    McpEndpointEdit,
-    McpEndpointFlags,
-    McpGrant,
-    McpGrantCreate,
-    McpGrantFlags,
+    MCPEndpoint,
+    MCPEndpointCreate,
+    MCPEndpointData,
+    MCPEndpointEdit,
+    MCPEndpointFlags,
 )
 from oss.src.core.shared.dtos import Status
-from oss.src.dbs.postgres.gateways.mcps.dbes import McpEndpointDBE, McpGrantDBE
+from oss.src.dbs.postgres.gateways.mcps.dbes import MCPEndpointDBE
 
 
 def map_mcp_endpoint_create_to_dbe(
@@ -24,9 +20,9 @@ def map_mcp_endpoint_create_to_dbe(
     project_id: UUID,
     user_id: UUID,
     #
-    dto: McpEndpointCreate,
-) -> McpEndpointDBE:
-    return McpEndpointDBE(
+    dto: MCPEndpointCreate,
+) -> MCPEndpointDBE:
+    return MCPEndpointDBE(
         project_id=project_id,
         slug=dto.slug,
         name=dto.name,
@@ -46,13 +42,13 @@ def map_mcp_endpoint_create_to_dbe(
 
 def map_mcp_endpoint_dbe_to_dto(
     *,
-    dbe: McpEndpointDBE,
-) -> McpEndpoint:
-    data = McpEndpointData(**(dbe.data or {}))
-    flags = McpEndpointFlags(**(dbe.flags or {}))
+    dbe: MCPEndpointDBE,
+) -> MCPEndpoint:
+    data = MCPEndpointData(**(dbe.data or {}))
+    flags = MCPEndpointFlags(**(dbe.flags or {}))
     status = Status(**dbe.status) if dbe.status else None
 
-    return McpEndpoint(
+    return MCPEndpoint(
         id=dbe.id,
         slug=dbe.slug,
         name=dbe.name,
@@ -83,11 +79,11 @@ def map_mcp_endpoint_dbe_to_dto(
 
 def map_mcp_endpoint_edit_to_dbe(
     *,
-    dbe: McpEndpointDBE,
+    dbe: MCPEndpointDBE,
     user_id: UUID,
     #
-    dto: McpEndpointEdit,
-) -> McpEndpointDBE:
+    dto: MCPEndpointEdit,
+) -> MCPEndpointDBE:
     """Full PUT over the editable surface (§4.4): data, flags, header, secret_id,
     and — unlike the LLM plane — auth_mode, which can move none -> oauth."""
     dbe.name = dto.name
@@ -102,48 +98,3 @@ def map_mcp_endpoint_edit_to_dbe(
     dbe.updated_by_id = user_id
 
     return dbe
-
-
-def map_mcp_grant_create_to_dbe(
-    *,
-    project_id: UUID,
-    user_id: Optional[UUID],
-    #
-    dto: McpGrantCreate,
-) -> McpGrantDBE:
-    return McpGrantDBE(
-        project_id=project_id,
-        #
-        endpoint_id=dto.endpoint_id,
-        user_id=dto.user_id,
-        secret_id=dto.secret_id,
-        #
-        flags=dto.flags.model_dump(mode="json", exclude_none=True),
-        #
-        created_by_id=user_id,
-    )
-
-
-def map_mcp_grant_dbe_to_dto(
-    *,
-    dbe: McpGrantDBE,
-) -> McpGrant:
-    flags = McpGrantFlags(**(dbe.flags or {}))
-    status = Status(**dbe.status) if dbe.status else None
-
-    return McpGrant(
-        id=dbe.id,
-        endpoint_id=dbe.endpoint_id,
-        user_id=dbe.user_id,
-        secret_id=dbe.secret_id,
-        #
-        flags=flags,
-        status=status,
-        #
-        created_at=dbe.created_at,
-        updated_at=dbe.updated_at,
-        deleted_at=dbe.deleted_at,
-        created_by_id=dbe.created_by_id,
-        updated_by_id=dbe.updated_by_id,
-        deleted_by_id=dbe.deleted_by_id,
-    )

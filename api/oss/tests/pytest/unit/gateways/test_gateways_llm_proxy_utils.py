@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from oss.src.core.gateways.llms.dtos import LlmCallContext
+from oss.src.core.gateways.llms.dtos import LLMCallContext
 from oss.src.apis.fastapi.gateways.llms.utils import parse_llm_call_context
 
 
@@ -26,7 +26,7 @@ def test_streaming_body_extracts_model_and_stream():
 
     context = parse_llm_call_context(body=body)
 
-    assert context == LlmCallContext(model="gpt-4o", stream=True)
+    assert context == LLMCallContext(model="gpt-4o", stream=True)
 
 
 def test_non_streaming_body_defaults_stream_false():
@@ -34,7 +34,7 @@ def test_non_streaming_body_defaults_stream_false():
 
     context = parse_llm_call_context(body=body)
 
-    assert context == LlmCallContext(model="gpt-4o", stream=False)
+    assert context == LLMCallContext(model="gpt-4o", stream=False)
 
 
 def test_missing_model_raises_value_error():

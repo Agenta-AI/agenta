@@ -1,6 +1,6 @@
-"""LlmEndpointsDAO against real Postgres (entities.md §7, WP1 exit condition).
+"""LLMEndpointsDAO against real Postgres (entities.md §7, WP1 exit condition).
 
-Needs a live deployment — write, do not run without one (`api/AGENTS.md`'s
+Needs a live deployment_kind — write, do not run without one (`api/AGENTS.md`'s
 test-layer rule).
 """
 
@@ -9,37 +9,38 @@ from sqlalchemy import text
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import (
-    LlmDeploymentKind,
-    LlmEndpointConfig,
-    LlmEndpointCreate,
-    LlmEndpointData,
-    LlmEndpointEdit,
-    LlmEndpointQuery,
-    LlmEndpointRoute,
+    LLMDeploymentKind,
+    LLMEndpointCreate,
+    LLMEndpointData,
+    LLMEndpointEdit,
+    LLMEndpointQuery,
+    LLMEndpointRoute,
+    LLMEndpointSettings,
+    LLMModelFilter,
 )
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
+from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
-def _create_dto(*, slug: str) -> LlmEndpointCreate:
-    return LlmEndpointCreate(
+def _create_dto(*, slug: str) -> LLMEndpointCreate:
+    return LLMEndpointCreate(
         slug=slug,
         name="Acme Azure",
         provider_key="azure",
-        deployment=LlmDeploymentKind.AZURE,
-        data=LlmEndpointData(
-            route=LlmEndpointRoute(base_url="https://acme.openai.azure.com"),
-            model_slugs=["gpt-4o"],
-            config=LlmEndpointConfig(max_output_tokens=4096),
+        deployment_kind=LLMDeploymentKind.AZURE,
+        data=LLMEndpointData(
+            route=LLMEndpointRoute(base_url="https://acme.openai.azure.com"),
+            models=LLMModelFilter(allowlist=["gpt-4o"]),
+            settings=LLMEndpointSettings(max_output_tokens=4096),
         ),
     )
 
 
 async def test_create_then_fetch_round_trips_field_for_field(seeded_project):
-    dao = LlmEndpointsDAO(engine=get_transactions_engine())
+    dao = LLMEndpointsDAO(engine=get_transactions_engine())
     project_id = seeded_project["project_id"]
     user_id = seeded_project["user_id"]
     secret_id = seeded_project["secret_id"]
@@ -64,10 +65,10 @@ async def test_create_then_fetch_round_trips_field_for_field(seeded_project):
     assert fetched is not None
     assert fetched.slug == create.slug
     assert fetched.provider_key == create.provider_key
-    assert fetched.deployment == create.deployment
+    assert fetched.deployment_kind == create.deployment_kind
     assert fetched.secret_id == secret_id
     assert fetched.data.route.base_url == create.data.route.base_url
-    assert fetched.data.model_slugs == create.data.model_slugs
+    assert fetched.data.models.allowlist == create.data.models.allowlist
 
     by_slug = await dao.fetch_endpoint_by_slug(
         project_id=project_id,
@@ -79,7 +80,7 @@ async def test_create_then_fetch_round_trips_field_for_field(seeded_project):
 
 
 async def test_duplicate_slug_raises_entity_creation_conflict(seeded_project):
-    dao = LlmEndpointsDAO(engine=get_transactions_engine())
+    dao = LLMEndpointsDAO(engine=get_transactions_engine())
     project_id = seeded_project["project_id"]
     user_id = seeded_project["user_id"]
 
@@ -101,7 +102,7 @@ async def test_duplicate_slug_raises_entity_creation_conflict(seeded_project):
 
 
 async def test_edit_endpoint_replaces_data_and_flags_wholesale(seeded_project):
-    dao = LlmEndpointsDAO(engine=get_transactions_engine())
+    dao = LLMEndpointsDAO(engine=get_transactions_engine())
     project_id = seeded_project["project_id"]
     user_id = seeded_project["user_id"]
 
@@ -113,12 +114,12 @@ async def test_edit_endpoint_replaces_data_and_flags_wholesale(seeded_project):
     )
     assert created.data.extras is None
 
-    edit = LlmEndpointEdit(
+    edit = LLMEndpointEdit(
         id=created.id,
-        data=LlmEndpointData(
-            route=LlmEndpointRoute(base_url="https://new.openai.azure.com"),
-            model_slugs=["gpt-4o-mini"],
-            # `extras` and `model_slugs` from the original are gone unless
+        data=LLMEndpointData(
+            route=LLMEndpointRoute(base_url="https://new.openai.azure.com"),
+            models=LLMModelFilter(allowlist=["gpt-4o-mini"]),
+            # the original's `models` allowlist is gone unless
             # repeated here — this is a PUT, not a PATCH.
         ),
     )
@@ -131,7 +132,7 @@ async def test_edit_endpoint_replaces_data_and_flags_wholesale(seeded_project):
     )
     assert edited is not None
     assert edited.data.route.base_url == "https://new.openai.azure.com"
-    assert edited.data.model_slugs == ["gpt-4o-mini"]
+    assert edited.data.models.allowlist == ["gpt-4o-mini"]
     assert edited.updated_by_id == user_id
     assert edited.updated_at is not None
 
@@ -140,11 +141,11 @@ async def test_edit_endpoint_replaces_data_and_flags_wholesale(seeded_project):
         #
         endpoint_id=created.id,
     )
-    assert refetched.data.model_slugs == ["gpt-4o-mini"]
+    assert refetched.data.models.allowlist == ["gpt-4o-mini"]
 
 
 async def test_delete_endpoint_is_idempotent(seeded_project):
-    dao = LlmEndpointsDAO(engine=get_transactions_engine())
+    dao = LLMEndpointsDAO(engine=get_transactions_engine())
     project_id = seeded_project["project_id"]
     user_id = seeded_project["user_id"]
 
@@ -175,7 +176,7 @@ async def test_delete_endpoint_is_idempotent(seeded_project):
 
 
 async def test_query_endpoints_filters_by_provider_and_deployment(seeded_project):
-    dao = LlmEndpointsDAO(engine=get_transactions_engine())
+    dao = LLMEndpointsDAO(engine=get_transactions_engine())
     project_id = seeded_project["project_id"]
     user_id = seeded_project["user_id"]
 
@@ -185,11 +186,11 @@ async def test_query_endpoints_filters_by_provider_and_deployment(seeded_project
         #
         endpoint=_create_dto(slug="acme-query-azure"),
     )
-    direct = LlmEndpointCreate(
+    direct = LLMEndpointCreate(
         slug="acme-query-direct",
         provider_key="openai",
-        deployment=LlmDeploymentKind.DIRECT,
-        data=LlmEndpointData(model_slugs=["gpt-4o"]),
+        deployment_kind=LLMDeploymentKind.DIRECT,
+        data=LLMEndpointData(models=LLMModelFilter(allowlist=["gpt-4o"])),
     )
     openai = await dao.create_endpoint(
         project_id=project_id,
@@ -201,28 +202,28 @@ async def test_query_endpoints_filters_by_provider_and_deployment(seeded_project
     by_provider = await dao.query_endpoints(
         project_id=project_id,
         #
-        endpoint=LlmEndpointQuery(provider_key="azure"),
+        endpoint=LLMEndpointQuery(provider_key="azure"),
     )
     assert {e.id for e in by_provider} == {azure.id}
 
     by_deployment = await dao.query_endpoints(
         project_id=project_id,
         #
-        endpoint=LlmEndpointQuery(deployment=LlmDeploymentKind.DIRECT),
+        endpoint=LLMEndpointQuery(deployment_kind=LLMDeploymentKind.DIRECT),
     )
     assert {e.id for e in by_deployment} == {openai.id}
 
     by_slug = await dao.query_endpoints(
         project_id=project_id,
         #
-        endpoint=LlmEndpointQuery(slug="acme-query-azure"),
+        endpoint=LLMEndpointQuery(slug="acme-query-azure"),
     )
     assert {e.id for e in by_slug} == {azure.id}
 
 
 async def test_deleting_secret_sets_endpoint_secret_id_null(seeded_project):
     """D18/§2.1: a dead secret must not silently delete configuration."""
-    dao = LlmEndpointsDAO(engine=get_transactions_engine())
+    dao = LLMEndpointsDAO(engine=get_transactions_engine())
     project_id = seeded_project["project_id"]
     user_id = seeded_project["user_id"]
     secret_id = seeded_project["secret_id"]

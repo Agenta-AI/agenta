@@ -1,11 +1,11 @@
 """LLM gateway management CRUD router (entities.md §9).
 
-`LlmGatewayService` is WP7's — declared here only as a `TYPE_CHECKING` forward reference
+`LLMGatewayService` is WP7's — declared here only as a `TYPE_CHECKING` forward reference
 so this router can be built, wired and unit-tested against a mock before WP7 lands (rule
 4: "stop at the merge point").
 
-The SSRF gate at registration (D28): `LlmEndpointData.route.base_url` is the LLM plane's
-equivalent of the MCP plane's `data.url` — a user-typed upstream URL for a custom endpoint
+The SSRF gate at registration (D28): `LLMEndpointData.route.base_url` is the LLM plane's
+equivalent of the MCP plane's `data.route.base_url` — a user-typed upstream URL for a custom endpoint
 (every row this router writes is custom by construction, same as MCP). Unlike the MCP url
 it is optional (only some deployments set a base URL), so the gate only runs when it is
 set. Gated with the no-DNS `validate_url_format_and_literal_ip` (save-time; the resolving
@@ -20,29 +20,29 @@ from fastapi import APIRouter, HTTPException, Request, status
 
 from oss.src.apis.fastapi.gateways.exceptions import handle_gateway_exceptions
 from oss.src.apis.fastapi.gateways.llms.models import (
-    LlmEndpointCreateRequest,
-    LlmEndpointEditRequest,
-    LlmEndpointQueryRequest,
-    LlmEndpointResponse,
-    LlmEndpointsResponse,
+    LLMEndpointCreateRequest,
+    LLMEndpointEditRequest,
+    LLMEndpointQueryRequest,
+    LLMEndpointResponse,
+    LLMEndpointsResponse,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
-from oss.src.core.gateways.llms.types import LlmEndpointNotFoundError
+from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
 from oss.src.utils.exceptions import intercept_exceptions
 
 if TYPE_CHECKING:
-    from oss.src.core.gateways.llms.service import LlmGatewayService
+    from oss.src.core.gateways.llms.service import LLMGatewayService
 
 
 def _guard_custom_endpoint_base_url(*, base_url) -> None:
     """SSRF gate at registration (D28) — no-DNS variant; never a leaked ValueError.
 
-    `base_url` is optional on `LlmEndpointRoute`; only some deployments set one."""
+    `base_url` is optional on `LLMEndpointRoute`; only some deployments set one."""
     if not base_url:
         return
     try:
@@ -54,8 +54,8 @@ def _guard_custom_endpoint_base_url(*, base_url) -> None:
         ) from e
 
 
-class LlmGatewayRouter:
-    def __init__(self, *, llm_gateway_service: "LlmGatewayService"):
+class LLMGatewayRouter:
+    def __init__(self, *, llm_gateway_service: "LLMGatewayService"):
         self.service = llm_gateway_service
         self.router = APIRouter()
 
@@ -64,7 +64,7 @@ class LlmGatewayRouter:
             self.create_endpoint,
             methods=["POST"],
             operation_id="create_llm_endpoint",
-            response_model=LlmEndpointResponse,
+            response_model=LLMEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -72,7 +72,7 @@ class LlmGatewayRouter:
             self.list_endpoints,
             methods=["GET"],
             operation_id="list_llm_endpoints",
-            response_model=LlmEndpointsResponse,
+            response_model=LLMEndpointsResponse,
             response_model_exclude_none=True,
         )
         # GET /endpoints/ is the merged listing — generated + custom (§8);
@@ -83,7 +83,7 @@ class LlmGatewayRouter:
             self.query_endpoints,
             methods=["POST"],
             operation_id="query_llm_endpoints",
-            response_model=LlmEndpointsResponse,
+            response_model=LLMEndpointsResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -91,7 +91,7 @@ class LlmGatewayRouter:
             self.fetch_endpoint,
             methods=["GET"],
             operation_id="fetch_llm_endpoint",
-            response_model=LlmEndpointResponse,
+            response_model=LLMEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -99,7 +99,7 @@ class LlmGatewayRouter:
             self.edit_endpoint,
             methods=["PUT"],
             operation_id="edit_llm_endpoint",
-            response_model=LlmEndpointResponse,
+            response_model=LLMEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -125,8 +125,8 @@ class LlmGatewayRouter:
         self,
         request: Request,
         *,
-        body: LlmEndpointCreateRequest,
-    ) -> LlmEndpointResponse:
+        body: LLMEndpointCreateRequest,
+    ) -> LLMEndpointResponse:
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_LLM_ENDPOINTS)
 
@@ -139,20 +139,20 @@ class LlmGatewayRouter:
             endpoint=body.endpoint,
         )
 
-        return LlmEndpointResponse(count=1 if endpoint else 0, endpoint=endpoint)
+        return LLMEndpointResponse(count=1 if endpoint else 0, endpoint=endpoint)
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
     async def list_endpoints(
         self,
         request: Request,
-    ) -> LlmEndpointsResponse:
+    ) -> LLMEndpointsResponse:
         scope = get_auth_scope()
         await self._check(scope, Permission.VIEW_LLM_ENDPOINTS)
 
         endpoints = await self.service.list_endpoints(scope=scope)
 
-        return LlmEndpointsResponse(count=len(endpoints), endpoints=endpoints)
+        return LLMEndpointsResponse(count=len(endpoints), endpoints=endpoints)
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -160,8 +160,8 @@ class LlmGatewayRouter:
         self,
         request: Request,
         *,
-        body: LlmEndpointQueryRequest,
-    ) -> LlmEndpointsResponse:
+        body: LLMEndpointQueryRequest,
+    ) -> LLMEndpointsResponse:
         scope = get_auth_scope()
         await self._check(scope, Permission.VIEW_LLM_ENDPOINTS)
 
@@ -173,7 +173,7 @@ class LlmGatewayRouter:
             windowing=body.windowing,
         )
 
-        return LlmEndpointsResponse(count=len(endpoints), endpoints=endpoints)
+        return LLMEndpointsResponse(count=len(endpoints), endpoints=endpoints)
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -182,7 +182,7 @@ class LlmGatewayRouter:
         request: Request,
         *,
         endpoint_id: UUID,
-    ) -> LlmEndpointResponse:
+    ) -> LLMEndpointResponse:
         scope = get_auth_scope()
         await self._check(scope, Permission.VIEW_LLM_ENDPOINTS)
 
@@ -192,12 +192,12 @@ class LlmGatewayRouter:
             endpoint_id=endpoint_id,
         )
         if not endpoint:
-            raise LlmEndpointNotFoundError(
+            raise LLMEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
 
-        return LlmEndpointResponse(count=1, endpoint=endpoint)
+        return LLMEndpointResponse(count=1, endpoint=endpoint)
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -206,8 +206,8 @@ class LlmGatewayRouter:
         request: Request,
         *,
         endpoint_id: UUID,
-        body: LlmEndpointEditRequest,
-    ) -> LlmEndpointResponse:
+        body: LLMEndpointEditRequest,
+    ) -> LLMEndpointResponse:
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_LLM_ENDPOINTS)
 
@@ -226,12 +226,12 @@ class LlmGatewayRouter:
             endpoint=body.endpoint,
         )
         if not endpoint:
-            raise LlmEndpointNotFoundError(
+            raise LLMEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
 
-        return LlmEndpointResponse(count=1, endpoint=endpoint)
+        return LLMEndpointResponse(count=1, endpoint=endpoint)
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -250,7 +250,7 @@ class LlmGatewayRouter:
             endpoint_id=endpoint_id,
         )
         if not deleted:
-            raise LlmEndpointNotFoundError(
+            raise LLMEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )

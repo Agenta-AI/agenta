@@ -1,7 +1,7 @@
-"""Unit tests for `McpGatewayService` (specs-wp9.md, tasks-wp9.md).
+"""Unit tests for `MCPGatewayService` (specs-wp9.md, tasks-wp9.md).
 
-Every case runs against in-memory mocks — a dict-backed `McpEndpointsDAOInterface`, a
-dict-backed `McpGrantsDAOInterface`, a stub `ConnectionsService`, a call-logging
+Every case runs against in-memory mocks — a dict-backed `MCPEndpointsDAOInterface`, a
+a stub `ConnectionsService`, a call-logging
 `GatewayPolicyService`, and a call-logging `SecretsResolverInterface`. No Postgres, no
 HTTP, no real upstream. Organized by the commit sections in tasks-wp9.md:
 CRUD delegation, the three-namespace merge, connection-state derivation, the declared
@@ -17,33 +17,30 @@ import json
 
 from oss.src.core.gateway.connections.dtos import Connection, ConnectionProviderKind
 from oss.src.core.gateways.mcps.dtos import (
-    McpBrokeredAuth,
-    McpCallContext,
-    McpDirectAuth,
-    McpEndpoint,
-    McpEndpointCreate,
-    McpEndpointData,
-    McpEndpointEdit,
-    McpEndpointFlags,
-    McpEndpointQuery,
-    McpGrant,
-    McpGrantFlags,
-    McpToolPolicy,
-    McpToolPolicyMode,
+    MCPBrokeredAuth,
+    MCPCallContext,
+    MCPDirectAuth,
+    MCPEndpoint,
+    MCPEndpointCreate,
+    MCPEndpointData,
+    MCPEndpointEdit,
+    MCPEndpointFlags,
+    MCPEndpointQuery,
+    MCPEndpointRoute,
+    MCPToolFilter,
 )
 from oss.src.core.gateways.mcps.interfaces import (
-    McpEndpointsDAOInterface,
-    McpRelayResult,
+    MCPEndpointsDAOInterface,
+    MCPRelayResult,
 )
-from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
-from oss.src.core.gateways.mcps.service import McpGatewayService
+from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
+from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.types import (
-    McpEndpointNotFoundError,
-    McpToolNotAllowedError,
-    McpUpstreamError,
+    MCPEndpointNotFoundError,
+    MCPToolNotAllowedError,
+    MCPUpstreamError,
 )
 from oss.src.core.gateways.policy.dtos import (
-    SecretMode,
     SecretOwner,
     SecretOwnerKind,
     PolicyDecision,
@@ -52,7 +49,8 @@ from oss.src.core.gateways.policy.dtos import (
 )
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.policy.types import PolicyDeniedError
-from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayConnectionState
+from oss.src.core.gateways.dtos import GatewayConnectionState
+from oss.src.core.gateways.mcps.dtos import MCPAuthScheme
 from oss.src.core.secrets.dtos import (
     CustomSecretDTO,
     CustomSecretSettingsDTO,
@@ -66,34 +64,34 @@ from oss.src.utils.context import AuthScope
 # --- mocks (this package must not subclass the real Postgres DAO or ConnectionsService) --- #
 
 
-class MockMcpEndpointsDAO(McpEndpointsDAOInterface):
-    """In-memory endpoint_id -> McpEndpoint map. Records every call for assertion."""
+class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
+    """In-memory endpoint_id -> MCPEndpoint map. Records every call for assertion."""
 
     def __init__(self) -> None:
-        self._by_id: Dict[UUID, McpEndpoint] = {}
+        self._by_id: Dict[UUID, MCPEndpoint] = {}
         self.calls: List[str] = []
 
     async def create_endpoint(
         self, *, project_id, user_id, endpoint
-    ) -> Optional[McpEndpoint]:
+    ) -> Optional[MCPEndpoint]:
         self.calls.append("create_endpoint")
-        created = McpEndpoint(id=uuid4(), **endpoint.model_dump())
+        created = MCPEndpoint(id=uuid4(), **endpoint.model_dump())
         self._by_id[created.id] = created
         return created
 
-    async def fetch_endpoint(self, *, project_id, endpoint_id) -> Optional[McpEndpoint]:
+    async def fetch_endpoint(self, *, project_id, endpoint_id) -> Optional[MCPEndpoint]:
         self.calls.append("fetch_endpoint")
         return self._by_id.get(endpoint_id)
 
     async def fetch_endpoint_by_slug(
         self, *, project_id, slug
-    ) -> Optional[McpEndpoint]:
+    ) -> Optional[MCPEndpoint]:
         self.calls.append("fetch_endpoint_by_slug")
         return next((e for e in self._by_id.values() if e.slug == slug), None)
 
     async def edit_endpoint(
         self, *, project_id, user_id, endpoint
-    ) -> Optional[McpEndpoint]:
+    ) -> Optional[MCPEndpoint]:
         self.calls.append("edit_endpoint")
         existing = self._by_id.get(endpoint.id)
         if existing is None:
@@ -115,27 +113,14 @@ class MockMcpEndpointsDAO(McpEndpointsDAOInterface):
 
     async def query_endpoints(
         self, *, project_id, endpoint=None, windowing=None
-    ) -> List[McpEndpoint]:
+    ) -> List[MCPEndpoint]:
         self.calls.append("query_endpoints")
         return list(self._by_id.values())
 
 
-class MockMcpGrantsDAO:
-    """In-memory (endpoint_id, user_id) -> McpGrant map; only the two verbs the
-    service touches in wave 1."""
-
-    def __init__(self, grants: Optional[List[McpGrant]] = None) -> None:
-        self._by_key: Dict[tuple, McpGrant] = {
-            (g.endpoint_id, g.user_id): g for g in grants or []
-        }
-
-    async def fetch_grant(self, *, project_id, endpoint_id, user_id):
-        return self._by_key.get((endpoint_id, user_id))
-
-
 class MockConnectionsService:
     """In-memory stand-in for `ConnectionsService`; only `query_connections` and
-    `get_connection` are called by `McpGatewayService`."""
+    `get_connection` are called by `MCPGatewayService`."""
 
     def __init__(self, connections: Optional[List[Connection]] = None) -> None:
         self._connections = connections or []
@@ -175,30 +160,30 @@ def _connection(
     )
 
 
-def _endpoint_create(slug: str = "acme-notion") -> McpEndpointCreate:
-    return McpEndpointCreate(
+def _endpoint_create(slug: str = "acme-notion") -> MCPEndpointCreate:
+    return MCPEndpointCreate(
         slug=slug,
-        auth_mode=GatewayAuthScheme.NONE,
-        data=McpEndpointData(url="https://example.com/mcp"),
-        flags=McpEndpointFlags(),
+        auth_mode=MCPAuthScheme.NONE,
+        data=MCPEndpointData(
+            route=MCPEndpointRoute(base_url="https://example.com/mcp")
+        ),
+        flags=MCPEndpointFlags(),
     )
 
 
 def _service(
     *,
     mcp_endpoints_dao=None,
-    mcp_grants_dao=None,
     connections_service=None,
     resolver=None,
-) -> McpGatewayService:
+) -> MCPGatewayService:
     from unittest.mock import AsyncMock
 
-    return McpGatewayService(
-        mcp_endpoints_dao=mcp_endpoints_dao or MockMcpEndpointsDAO(),
-        mcp_grants_dao=mcp_grants_dao or MockMcpGrantsDAO(),
+    return MCPGatewayService(
+        mcp_endpoints_dao=mcp_endpoints_dao or MockMCPEndpointsDAO(),
         policy=GatewayPolicyService(resolver=AsyncMock()),
         resolver=resolver if resolver is not None else AsyncMock(),
-        upstream_registry=McpUpstreamRegistry(adapters={}),
+        upstream_registry=MCPUpstreamRegistry(adapters={}),
         connections_service=connections_service or MockConnectionsService(),
     )
 
@@ -208,7 +193,7 @@ def _service(
 
 @pytest.mark.asyncio
 async def test_create_endpoint_delegates_to_dao():
-    dao = MockMcpEndpointsDAO()
+    dao = MockMCPEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     project_id, user_id = uuid4(), uuid4()
 
@@ -223,7 +208,7 @@ async def test_create_endpoint_delegates_to_dao():
 
 @pytest.mark.asyncio
 async def test_fetch_endpoint_delegates_to_dao_and_passes_through_result():
-    dao = MockMcpEndpointsDAO()
+    dao = MockMCPEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     created = await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create()
@@ -247,29 +232,31 @@ async def test_fetch_endpoint_missing_returns_none():
 
 @pytest.mark.asyncio
 async def test_edit_endpoint_delegates_to_dao():
-    dao = MockMcpEndpointsDAO()
+    dao = MockMCPEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     created = await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create()
     )
     dao.calls.clear()
 
-    edit = McpEndpointEdit(
+    edit = MCPEndpointEdit(
         id=created.id,
-        auth_mode=GatewayAuthScheme.NONE,
-        data=McpEndpointData(url="https://example.com/mcp-v2"),
+        auth_mode=MCPAuthScheme.NONE,
+        data=MCPEndpointData(
+            route=MCPEndpointRoute(base_url="https://example.com/mcp-v2")
+        ),
     )
     edited = await service.edit_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=edit
     )
 
     assert dao.calls == ["edit_endpoint"]
-    assert edited.data.url == "https://example.com/mcp-v2"
+    assert edited.data.route.base_url == "https://example.com/mcp-v2"
 
 
 @pytest.mark.asyncio
 async def test_delete_endpoint_delegates_to_dao():
-    dao = MockMcpEndpointsDAO()
+    dao = MockMCPEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     created = await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create()
@@ -284,7 +271,7 @@ async def test_delete_endpoint_delegates_to_dao():
 
 @pytest.mark.asyncio
 async def test_query_endpoints_delegates_to_dao_and_returns_its_rows():
-    dao = MockMcpEndpointsDAO()
+    dao = MockMCPEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create("a")
@@ -295,7 +282,7 @@ async def test_query_endpoints_delegates_to_dao_and_returns_its_rows():
     dao.calls.clear()
 
     rows = await service.query_endpoints(
-        project_id=uuid4(), endpoint=McpEndpointQuery()
+        project_id=uuid4(), endpoint=MCPEndpointQuery()
     )
 
     assert dao.calls == ["query_endpoints"]
@@ -349,7 +336,7 @@ async def test_list_endpoints_builtin_queries_connections_service_for_composio_o
 
 @pytest.mark.asyncio
 async def test_list_endpoints_custom_rows_carry_custom_namespace():
-    dao = MockMcpEndpointsDAO()
+    dao = MockMCPEndpointsDAO()
     service = _service(mcp_endpoints_dao=dao)
     await service.create_endpoint(
         project_id=uuid4(), user_id=uuid4(), endpoint=_endpoint_create("acme-notion")
@@ -364,7 +351,7 @@ async def test_list_endpoints_custom_rows_carry_custom_namespace():
 
 @pytest.mark.asyncio
 async def test_list_endpoints_never_writes_a_generated_entry_to_the_dao():
-    dao = MockMcpEndpointsDAO()
+    dao = MockMCPEndpointsDAO()
     service = _service(
         mcp_endpoints_dao=dao,
         connections_service=MockConnectionsService([_connection()]),
@@ -383,12 +370,12 @@ async def test_list_endpoints_never_writes_a_generated_entry_to_the_dao():
 @pytest.mark.asyncio
 async def test_connection_state_none_scheme_is_ready_unconditionally():
     service = _service()
-    endpoint = McpEndpoint(
+    endpoint = MCPEndpoint(
         id=uuid4(),
         slug="acme",
-        auth_mode=GatewayAuthScheme.NONE,
+        auth_mode=MCPAuthScheme.NONE,
         namespace="custom",
-        data=McpEndpointData(url="https://example.com"),
+        data=MCPEndpointData(route=MCPEndpointRoute(base_url="https://example.com")),
     )
 
     state = await service._connection_state(
@@ -396,95 +383,23 @@ async def test_connection_state_none_scheme_is_ready_unconditionally():
     )
 
     assert state == GatewayConnectionState.READY
-
-
-@pytest.mark.asyncio
-async def test_connection_state_custom_with_valid_grant_is_ready():
-    endpoint_id = uuid4()
-    grant = McpGrant(
-        id=uuid4(),
-        endpoint_id=endpoint_id,
-        user_id=None,
-        secret_id=uuid4(),
-        flags=McpGrantFlags(is_valid=True),
-    )
-    service = _service(mcp_grants_dao=MockMcpGrantsDAO([grant]))
-    endpoint = McpEndpoint(
-        id=endpoint_id,
-        slug="acme",
-        auth_mode=GatewayAuthScheme.OAUTH,
-        namespace="custom",
-        data=McpEndpointData(url="https://example.com"),
-    )
-
-    state = await service._connection_state(
-        project_id=uuid4(), user_id=None, endpoint=endpoint
-    )
-
-    assert state == GatewayConnectionState.READY
-
-
-@pytest.mark.asyncio
-async def test_connection_state_custom_with_no_grant_needs_auth():
-    service = _service(mcp_grants_dao=MockMcpGrantsDAO())
-    endpoint = McpEndpoint(
-        id=uuid4(),
-        slug="acme",
-        auth_mode=GatewayAuthScheme.OAUTH,
-        namespace="custom",
-        data=McpEndpointData(url="https://example.com"),
-    )
-
-    state = await service._connection_state(
-        project_id=uuid4(), user_id=uuid4(), endpoint=endpoint
-    )
-
-    assert state == GatewayConnectionState.NEEDS_AUTH
 
 
 # --- grants: declared, not implemented (WP17/WP18) ------------------------------------ #
 
 
 @pytest.mark.asyncio
-async def test_connect_endpoint_raises_not_implemented():
-    service = _service()
-    with pytest.raises(NotImplementedError):
-        await service.connect_endpoint(
-            project_id=uuid4(), user_id=uuid4(), endpoint_id=uuid4(), scopes=[]
-        )
-
-
-@pytest.mark.asyncio
-async def test_complete_connect_raises_not_implemented():
-    service = _service()
-    with pytest.raises(NotImplementedError):
-        await service.complete_connect(state="x", payload={})
-
-
-@pytest.mark.asyncio
-async def test_revoke_grant_raises_not_implemented():
-    service = _service()
-    with pytest.raises(NotImplementedError):
-        await service.revoke_grant(project_id=uuid4(), grant_id=uuid4())
-
-
-@pytest.mark.asyncio
-async def test_query_grants_raises_not_implemented():
-    service = _service()
-    with pytest.raises(NotImplementedError):
-        await service.query_grants(project_id=uuid4())
-
-
-@pytest.mark.asyncio
 async def test_connection_state_builtin_with_valid_connection_is_ready():
     connection = _connection(is_active=True, is_valid=True)
     service = _service(connections_service=MockConnectionsService([connection]))
-    endpoint = McpEndpoint(
+    endpoint = MCPEndpoint(
         slug=connection.slug,
-        auth_mode=GatewayAuthScheme.OAUTH,
+        auth_mode=MCPAuthScheme.OAUTH,
         namespace="builtin",
         connection_id=connection.id,
-        data=McpEndpointData(url="composio://composio/notion/my-notion"),
+        data=MCPEndpointData(
+            route=MCPEndpointRoute(base_url="composio://composio/notion/my-notion")
+        ),
     )
 
     state = await service._connection_state(
@@ -498,12 +413,14 @@ async def test_connection_state_builtin_with_valid_connection_is_ready():
 async def test_connection_state_builtin_with_invalid_connection_needs_auth():
     connection = _connection(is_active=True, is_valid=False)
     service = _service(connections_service=MockConnectionsService([connection]))
-    endpoint = McpEndpoint(
+    endpoint = MCPEndpoint(
         slug=connection.slug,
-        auth_mode=GatewayAuthScheme.OAUTH,
+        auth_mode=MCPAuthScheme.OAUTH,
         namespace="builtin",
         connection_id=connection.id,
-        data=McpEndpointData(url="composio://composio/notion/my-notion"),
+        data=MCPEndpointData(
+            route=MCPEndpointRoute(base_url="composio://composio/notion/my-notion")
+        ),
     )
 
     state = await service._connection_state(
@@ -530,7 +447,7 @@ class MockUpstreamAdapter:
         self.last_auth = auth
         if self._raise is not None:
             raise self._raise
-        return self._result or McpRelayResult(
+        return self._result or MCPRelayResult(
             status_code=200,
             headers={"content-type": "application/json"},
             body=b'{"jsonrpc":"2.0","id":1,"result":{}}',
@@ -615,13 +532,12 @@ def _relay_service(
     resolver=None,
     policy=None,
     adapters: Dict[str, object],
-) -> McpGatewayService:
-    return McpGatewayService(
-        mcp_endpoints_dao=mcp_endpoints_dao or MockMcpEndpointsDAO(),
-        mcp_grants_dao=MockMcpGrantsDAO(),
+) -> MCPGatewayService:
+    return MCPGatewayService(
+        mcp_endpoints_dao=mcp_endpoints_dao or MockMCPEndpointsDAO(),
         policy=policy or MockPolicyService(),
         resolver=resolver or MockResolver(),
-        upstream_registry=McpUpstreamRegistry(adapters=adapters),
+        upstream_registry=MCPUpstreamRegistry(adapters=adapters),
         connections_service=connections_service or MockConnectionsService(),
     )
 
@@ -640,7 +556,7 @@ async def test_relay_builtin_agenta_none_scheme_dispatches_without_touching_reso
         namespace="builtin",
         provider="agenta",
         name="tools",
-        context=McpCallContext(method="tools/call", target="echo"),
+        context=MCPCallContext(method="tools/call", target="echo"),
         body=b"{}",
         headers={},
     )
@@ -648,7 +564,7 @@ async def test_relay_builtin_agenta_none_scheme_dispatches_without_touching_reso
     assert result.status_code == 200
     assert adapter.relay_calls == 1
     assert resolver.resolve_calls == 0
-    assert isinstance(adapter.last_auth, McpDirectAuth)
+    assert isinstance(adapter.last_auth, MCPDirectAuth)
     assert adapter.last_auth.secret is None
     assert len(policy.record_calls) == 1
     assert policy.record_calls[0]["outcome"].status_code == 200
@@ -658,29 +574,29 @@ async def test_relay_builtin_agenta_none_scheme_dispatches_without_touching_reso
 async def test_relay_custom_not_found_raises():
     service = _relay_service(adapters={"http": MockUpstreamAdapter()})
 
-    with pytest.raises(McpEndpointNotFoundError):
+    with pytest.raises(MCPEndpointNotFoundError):
         await service.relay(
             scope=_scope(),
             namespace="custom",
             name="missing",
-            context=McpCallContext(method="tools/call", target="echo"),
+            context=MCPCallContext(method="tools/call", target="echo"),
             body=b"{}",
             headers={},
         )
 
 
 async def _custom_endpoint(
-    dao: "MockMcpEndpointsDAO", *, tool_policy: Optional[McpToolPolicy] = None
-) -> McpEndpoint:
+    dao: "MockMCPEndpointsDAO", *, tools: Optional[MCPToolFilter] = None
+) -> MCPEndpoint:
     return await dao.create_endpoint(
         project_id=uuid4(),
         user_id=uuid4(),
-        endpoint=McpEndpointCreate(
+        endpoint=MCPEndpointCreate(
             slug="acme-notion",
-            auth_mode=GatewayAuthScheme.NONE,
-            data=McpEndpointData(
-                url="https://example.com/mcp",
-                tool_policy=tool_policy or McpToolPolicy(),
+            auth_mode=MCPAuthScheme.NONE,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://example.com/mcp"),
+                tools=tools or MCPToolFilter(),
             ),
         ),
     )
@@ -688,10 +604,8 @@ async def _custom_endpoint(
 
 @pytest.mark.asyncio
 async def test_relay_tool_outside_include_policy_raises_before_resolver_or_adapter():
-    dao = MockMcpEndpointsDAO()
-    await _custom_endpoint(
-        dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=["a"])
-    )
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao, tools=MCPToolFilter(allowlist=["a"]))
     adapter = MockUpstreamAdapter()
     resolver = MockResolver()
     policy = MockPolicyService()
@@ -702,12 +616,12 @@ async def test_relay_tool_outside_include_policy_raises_before_resolver_or_adapt
         adapters={"http": adapter},
     )
 
-    with pytest.raises(McpToolNotAllowedError):
+    with pytest.raises(MCPToolNotAllowedError):
         await service.relay(
             scope=_scope(),
             namespace="custom",
             name="acme-notion",
-            context=McpCallContext(method="tools/call", target="b"),
+            context=MCPCallContext(method="tools/call", target="b"),
             body=b"{}",
             headers={},
         )
@@ -719,20 +633,18 @@ async def test_relay_tool_outside_include_policy_raises_before_resolver_or_adapt
 
 @pytest.mark.asyncio
 async def test_relay_empty_include_policy_refuses_every_tool():
-    dao = MockMcpEndpointsDAO()
-    await _custom_endpoint(
-        dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=[])
-    )
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao, tools=MCPToolFilter(allowlist=[]))
     service = _relay_service(
         mcp_endpoints_dao=dao, adapters={"http": MockUpstreamAdapter()}
     )
 
-    with pytest.raises(McpToolNotAllowedError):
+    with pytest.raises(MCPToolNotAllowedError):
         await service.relay(
             scope=_scope(),
             namespace="custom",
             name="acme-notion",
-            context=McpCallContext(method="tools/call", target="anything"),
+            context=MCPCallContext(method="tools/call", target="anything"),
             body=b"{}",
             headers={},
         )
@@ -740,7 +652,7 @@ async def test_relay_empty_include_policy_refuses_every_tool():
 
 @pytest.mark.asyncio
 async def test_relay_policy_denial_records_before_raising():
-    dao = MockMcpEndpointsDAO()
+    dao = MockMCPEndpointsDAO()
     await _custom_endpoint(dao)
     adapter = MockUpstreamAdapter()
     policy = MockPolicyService(allow=False)
@@ -753,7 +665,7 @@ async def test_relay_policy_denial_records_before_raising():
             scope=_scope(),
             namespace="custom",
             name="acme-notion",
-            context=McpCallContext(method="tools/list"),
+            context=MCPCallContext(method="tools/list"),
             body=b"{}",
             headers={},
         )
@@ -781,7 +693,7 @@ async def test_relay_builtin_never_touches_resolver_only_connections_service():
         name="my-notion",
         provider="composio",
         integration="notion",
-        context=McpCallContext(method="initialize"),
+        context=MCPCallContext(method="initialize"),
         body=b"{}",
         headers={},
     )
@@ -789,64 +701,28 @@ async def test_relay_builtin_never_touches_resolver_only_connections_service():
     assert result.status_code == 200
     assert resolver.resolve_calls == 0
     assert adapter.relay_calls == 1
-    assert isinstance(adapter.last_auth, McpBrokeredAuth)
+    assert isinstance(adapter.last_auth, MCPBrokeredAuth)
     assert adapter.last_auth.connection is connection
 
 
 @pytest.mark.asyncio
-async def test_relay_custom_oauth_resolves_via_resolver_with_user_optional_mode():
-    dao = MockMcpEndpointsDAO()
-    endpoint = await dao.create_endpoint(
-        project_id=uuid4(),
-        user_id=uuid4(),
-        endpoint=McpEndpointCreate(
-            slug="acme-oauth",
-            auth_mode=GatewayAuthScheme.OAUTH,
-            data=McpEndpointData(url="https://example.com/mcp"),
-        ),
-    )
-    secret = _resolved_secret()
-    resolver = MockResolver(secret=secret)
-    adapter = MockUpstreamAdapter()
-    service = _relay_service(
-        mcp_endpoints_dao=dao, resolver=resolver, adapters={"http": adapter}
-    )
-
-    result = await service.relay(
-        scope=_scope(),
-        namespace="custom",
-        name="acme-oauth",
-        context=McpCallContext(method="tools/call", target="echo"),
-        body=b"{}",
-        headers={},
-    )
-
-    assert result.status_code == 200
-    assert resolver.resolve_calls == 1
-    assert resolver.last_mode == SecretMode.USER_OPTIONAL
-    assert isinstance(adapter.last_auth, McpDirectAuth)
-    assert adapter.last_auth.secret is secret
-    assert endpoint.id is not None
-
-
-@pytest.mark.asyncio
 async def test_relay_upstream_failure_records_outcome_before_raising():
-    dao = MockMcpEndpointsDAO()
+    dao = MockMCPEndpointsDAO()
     await _custom_endpoint(dao)
     adapter = MockUpstreamAdapter(
-        raise_exc=McpUpstreamError(target="x", status_code=502)
+        raise_exc=MCPUpstreamError(target="x", status_code=502)
     )
     policy = MockPolicyService()
     service = _relay_service(
         mcp_endpoints_dao=dao, policy=policy, adapters={"http": adapter}
     )
 
-    with pytest.raises(McpUpstreamError):
+    with pytest.raises(MCPUpstreamError):
         await service.relay(
             scope=_scope(),
             namespace="custom",
             name="acme-notion",
-            context=McpCallContext(method="tools/call", target="echo"),
+            context=MCPCallContext(method="tools/call", target="echo"),
             body=b"{}",
             headers={},
         )
@@ -855,7 +731,7 @@ async def test_relay_upstream_failure_records_outcome_before_raising():
     assert policy.record_calls[0]["outcome"].status_code == 502
 
 
-def _tools_list_result(names: List[str]) -> McpRelayResult:
+def _tools_list_result(names: List[str]) -> MCPRelayResult:
     body = {
         "jsonrpc": "2.0",
         "id": 1,
@@ -863,15 +739,13 @@ def _tools_list_result(names: List[str]) -> McpRelayResult:
             "tools": [{"name": n, "description": n, "inputSchema": {}} for n in names]
         },
     }
-    return McpRelayResult(status_code=200, headers={}, body=json.dumps(body).encode())
+    return MCPRelayResult(status_code=200, headers={}, body=json.dumps(body).encode())
 
 
 @pytest.mark.asyncio
 async def test_relay_tools_list_filters_by_include_policy():
-    dao = MockMcpEndpointsDAO()
-    await _custom_endpoint(
-        dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=["a", "b"])
-    )
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao, tools=MCPToolFilter(allowlist=["a", "b"]))
     adapter = MockUpstreamAdapter(result=_tools_list_result(["a", "b", "c"]))
     service = _relay_service(mcp_endpoints_dao=dao, adapters={"http": adapter})
 
@@ -879,7 +753,7 @@ async def test_relay_tools_list_filters_by_include_policy():
         scope=_scope(),
         namespace="custom",
         name="acme-notion",
-        context=McpCallContext(method="tools/list"),
+        context=MCPCallContext(method="tools/list"),
         body=b"{}",
         headers={},
     )
@@ -891,8 +765,8 @@ async def test_relay_tools_list_filters_by_include_policy():
 
 @pytest.mark.asyncio
 async def test_relay_tools_list_passes_through_untouched_when_policy_is_all():
-    dao = MockMcpEndpointsDAO()
-    await _custom_endpoint(dao, tool_policy=McpToolPolicy(mode=McpToolPolicyMode.ALL))
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao, tools=MCPToolFilter())
     adapter = MockUpstreamAdapter(result=_tools_list_result(["a", "b", "c"]))
     service = _relay_service(mcp_endpoints_dao=dao, adapters={"http": adapter})
 
@@ -900,7 +774,7 @@ async def test_relay_tools_list_passes_through_untouched_when_policy_is_all():
         scope=_scope(),
         namespace="custom",
         name="acme-notion",
-        context=McpCallContext(method="tools/list"),
+        context=MCPCallContext(method="tools/list"),
         body=b"{}",
         headers={},
     )

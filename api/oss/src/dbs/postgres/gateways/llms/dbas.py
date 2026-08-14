@@ -4,7 +4,7 @@ from sqlalchemy import UUID, Column
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import String
 
-from oss.src.core.gateways.llms.dtos import LlmDeploymentKind
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
 from oss.src.dbs.postgres.shared.dbas import (
     DataDBA,
     FlagsDBA,
@@ -19,7 +19,7 @@ from oss.src.dbs.postgres.shared.dbas import (
 )
 
 
-class LlmEndpointDBA(
+class LLMEndpointDBA(
     ProjectScopeDBA,
     IdentifierDBA,
     SlugDBA,
@@ -31,13 +31,13 @@ class LlmEndpointDBA(
     TagsDBA,
     MetaDBA,
 ):
-    """One custom LLM endpoint: a provider deployment we reach (entities.md §2)."""
+    """One custom LLM endpoint: a provider deployment_kind we reach (entities.md §2)."""
 
     __abstract__ = True
 
     provider_key = Column(String, nullable=False)
-    deployment = Column(
-        SQLEnum(LlmDeploymentKind, name="llmdeploymentkind_enum"), nullable=False
+    deployment_kind = Column(
+        SQLEnum(LLMDeploymentKind, name="llmdeploymentkind_enum"), nullable=False
     )
     secret_id = Column(UUID(as_uuid=True), nullable=True)
-    # data: { route, model_slugs, config, extras } — LlmEndpointData (entities.md §2.4)
+    # data: { route, models, settings } — LLMEndpointData (entities.md §2.4)

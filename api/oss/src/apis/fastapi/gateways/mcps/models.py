@@ -1,10 +1,7 @@
 """MCP gateway management wire models (entities.md §6).
 
-The house triple, matching `triggers/models.py`, plus the grant and connect shapes.
+The house triple, matching `triggers/models.py`, plus the connect shapes.
 
-Grants get no create or edit request by design: a grant comes into being because a
-consent flow completed, never because someone POSTed a grant document (§6). Do not add
-`McpGrantCreateRequest` / `McpGrantEditRequest`.
 """
 
 from typing import List, Optional
@@ -12,55 +9,38 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from oss.src.core.gateways.mcps.dtos import (
-    McpEndpoint,
-    McpEndpointCreate,
-    McpEndpointEdit,
-    McpEndpointQuery,
-    McpGrant,
-    McpGrantQuery,
+    MCPEndpoint,
+    MCPEndpointCreate,
+    MCPEndpointEdit,
+    MCPEndpointQuery,
 )
 from oss.src.core.shared.dtos import Windowing
 
 
-class McpEndpointCreateRequest(BaseModel):
-    endpoint: McpEndpointCreate
+class MCPEndpointCreateRequest(BaseModel):
+    endpoint: MCPEndpointCreate
 
 
-class McpEndpointEditRequest(BaseModel):
-    endpoint: McpEndpointEdit
+class MCPEndpointEditRequest(BaseModel):
+    endpoint: MCPEndpointEdit
 
 
-class McpEndpointQueryRequest(BaseModel):
-    endpoint: Optional[McpEndpointQuery] = None
+class MCPEndpointQueryRequest(BaseModel):
+    endpoint: Optional[MCPEndpointQuery] = None
     windowing: Optional[Windowing] = None
 
 
-class McpEndpointResponse(BaseModel):
+class MCPEndpointResponse(BaseModel):
     count: int = 0
-    endpoint: Optional[McpEndpoint] = None
+    endpoint: Optional[MCPEndpoint] = None
 
 
-class McpEndpointsResponse(BaseModel):
+class MCPEndpointsResponse(BaseModel):
     count: int = 0
-    endpoints: List[McpEndpoint] = Field(default_factory=list)
+    endpoints: List[MCPEndpoint] = Field(default_factory=list)
 
 
-class McpGrantQueryRequest(BaseModel):
-    grant: Optional[McpGrantQuery] = None
-    windowing: Optional[Windowing] = None
-
-
-class McpGrantResponse(BaseModel):
-    count: int = 0
-    grant: Optional[McpGrant] = None
-
-
-class McpGrantsResponse(BaseModel):
-    count: int = 0
-    grants: List[McpGrant] = Field(default_factory=list)
-
-
-class McpConnectRequest(BaseModel):
+class MCPConnectRequest(BaseModel):
     """Begin the consent flow on one endpoint (WP18). Scopes are SELECTED, not
     inherited from everything the server advertises (D17). Declared here for the
     wire shape; the route is wired by WP18, not this package."""
@@ -68,6 +48,6 @@ class McpConnectRequest(BaseModel):
     scopes: List[str] = Field(default_factory=list)
 
 
-class McpConnectResponse(BaseModel):
+class MCPConnectResponse(BaseModel):
     count: int = 0
     redirect_url: Optional[str] = None

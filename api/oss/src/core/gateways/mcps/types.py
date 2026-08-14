@@ -9,7 +9,7 @@ from oss.src.core.gateways.dtos import (
 from oss.src.core.gateways.types import GatewaysError
 
 
-class McpEndpointNotFoundError(GatewaysError):
+class MCPEndpointNotFoundError(GatewaysError):
     def __init__(
         self,
         *,
@@ -28,7 +28,7 @@ class McpEndpointNotFoundError(GatewaysError):
         super().__init__(f"MCP endpoint not found: {target}")
 
 
-class McpToolNotAllowedError(GatewaysError):
+class MCPToolNotAllowedError(GatewaysError):
     """The named tool is outside the endpoint's tool policy (§2.4)."""
 
     def __init__(
@@ -51,7 +51,7 @@ class McpToolNotAllowedError(GatewaysError):
         super().__init__(f"Tool {tool} not allowed on {target}")
 
 
-class McpAuthRequiredError(GatewaysError):
+class MCPAuthRequiredError(GatewaysError):
     """No usable grant for this owner on an OAuth endpoint. Carries the
     requirement so the boundary can return the connect affordance instead of a
     bare failure (D17)."""
@@ -61,7 +61,7 @@ class McpAuthRequiredError(GatewaysError):
         super().__init__(f"Authorization required for {requirement.target}")
 
 
-class McpScopeInsufficientError(GatewaysError):
+class MCPScopeInsufficientError(GatewaysError):
     """A step-up scope challenge from the upstream (D17; `mcp.md`). Raised by
     the OAuth checkpoint's client; until then unreachable. Declared now so the
     interaction path can be typed against it."""
@@ -72,7 +72,7 @@ class McpScopeInsufficientError(GatewaysError):
         super().__init__(f"Additional scopes required for {target}: {scopes}")
 
 
-class McpUpstreamError(GatewaysError):
+class MCPUpstreamError(GatewaysError):
     def __init__(
         self,
         *,

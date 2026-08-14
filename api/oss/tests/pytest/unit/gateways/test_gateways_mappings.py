@@ -9,25 +9,24 @@ exactly the way `session.refresh()` would before a real mapping-back call.
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespace
+from oss.src.core.gateways.mcps.dtos import MCPAuthScheme, GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import (
-    LlmDeploymentKind,
-    LlmEndpointConfig,
-    LlmEndpointCreate,
-    LlmEndpointData,
-    LlmEndpointFlags,
-    LlmEndpointRoute,
+    LLMDeploymentKind,
+    LLMEndpointCreate,
+    LLMEndpointData,
+    LLMEndpointFlags,
+    LLMEndpointRoute,
+    LLMEndpointSettings,
+    LLMModelFilter,
 )
 from oss.src.core.gateways.mcps.dtos import (
-    McpEndpointConfig,
-    McpEndpointCreate,
-    McpEndpointData,
-    McpEndpointFlags,
-    McpGrantCreate,
-    McpGrantFlags,
-    McpOAuthData,
-    McpToolPolicy,
-    McpToolPolicyMode,
+    MCPEndpointSettings,
+    MCPEndpointCreate,
+    MCPEndpointData,
+    MCPEndpointFlags,
+    MCPOAuthData,
+    MCPEndpointRoute,
+    MCPToolFilter,
 )
 from oss.src.dbs.postgres.gateways.llms.mappings import (
     map_llm_endpoint_create_to_dbe,
@@ -36,8 +35,6 @@ from oss.src.dbs.postgres.gateways.llms.mappings import (
 from oss.src.dbs.postgres.gateways.mcps.mappings import (
     map_mcp_endpoint_create_to_dbe,
     map_mcp_endpoint_dbe_to_dto,
-    map_mcp_grant_create_to_dbe,
-    map_mcp_grant_dbe_to_dto,
 )
 
 
@@ -56,42 +53,37 @@ def _stamp_lifecycle(dbe):
 
 
 def test_llm_endpoint_data_serializes_exclude_none():
-    data = LlmEndpointData(
-        route=LlmEndpointRoute(base_url="https://api.openai.com/v1"),
-        model_slugs=["gpt-4o"],
-        config=LlmEndpointConfig(max_output_tokens=4096),
+    data = LLMEndpointData(
+        route=LLMEndpointRoute(base_url="https://api.openai.com/v1"),
+        models=LLMModelFilter(allowlist=["gpt-4o"]),
+        settings=LLMEndpointSettings(max_output_tokens=4096),
     )
     dumped = data.model_dump(mode="json", exclude_none=True)
     assert dumped["route"]["base_url"] == "https://api.openai.com/v1"
-    assert dumped["model_slugs"] == ["gpt-4o"]
+    assert dumped["models"]["allowlist"] == ["gpt-4o"]
     assert "extras" not in dumped
 
 
 def test_llm_endpoint_flags_serializes_exclude_none():
-    flags = LlmEndpointFlags()
+    flags = LLMEndpointFlags()
     assert flags.model_dump(mode="json", exclude_none=True) == {"is_active": True}
 
 
 def test_mcp_endpoint_data_serializes_exclude_none():
-    data = McpEndpointData(
-        url="https://mcp.acme.com",
-        tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=["search"]),
-        config=McpEndpointConfig(timeout_seconds=10.0),
-        oauth=McpOAuthData(resource="https://mcp.acme.com"),
+    data = MCPEndpointData(
+        route=MCPEndpointRoute(base_url="https://mcp.acme.com"),
+        tools=MCPToolFilter(allowlist=["search"]),
+        settings=MCPEndpointSettings(timeout_seconds=10.0),
+        oauth=MCPOAuthData(resource="https://mcp.acme.com"),
     )
     dumped = data.model_dump(mode="json", exclude_none=True)
-    assert dumped["url"] == "https://mcp.acme.com"
-    assert dumped["tool_policy"]["mode"] == "include"
+    assert dumped["route"]["base_url"] == "https://mcp.acme.com"
+    assert dumped["tools"]["allowlist"] == ["search"]
     assert dumped["oauth"]["resource"] == "https://mcp.acme.com"
 
 
 def test_mcp_endpoint_flags_serializes_exclude_none():
-    flags = McpEndpointFlags()
-    assert flags.model_dump(mode="json", exclude_none=True) == {"is_active": True}
-
-
-def test_mcp_grant_flags_serializes_exclude_none():
-    flags = McpGrantFlags()
+    flags = MCPEndpointFlags()
     assert flags.model_dump(mode="json", exclude_none=True) == {
         "is_active": True,
         "is_valid": True,
@@ -106,19 +98,19 @@ def test_llm_endpoint_create_round_trips_through_dbe():
     user_id = uuid4()
     secret_id = uuid4()
 
-    create = LlmEndpointCreate(
+    create = LLMEndpointCreate(
         slug="acme-azure",
         name="Acme Azure",
-        description="Acme's Azure OpenAI deployment",
+        description="Acme's Azure OpenAI deployment_kind",
         provider_key="azure",
-        deployment=LlmDeploymentKind.AZURE,
+        deployment_kind=LLMDeploymentKind.AZURE,
         secret_id=secret_id,
-        data=LlmEndpointData(
-            route=LlmEndpointRoute(base_url="https://acme.openai.azure.com"),
-            model_slugs=["gpt-4o"],
-            config=LlmEndpointConfig(max_output_tokens=4096),
+        data=LLMEndpointData(
+            route=LLMEndpointRoute(base_url="https://acme.openai.azure.com"),
+            models=LLMModelFilter(allowlist=["gpt-4o"]),
+            settings=LLMEndpointSettings(max_output_tokens=4096),
         ),
-        flags=LlmEndpointFlags(is_active=True),
+        flags=LLMEndpointFlags(is_active=True),
         tags={"env": "prod"},
         meta={"note": "created by test"},
     )
@@ -140,12 +132,12 @@ def test_llm_endpoint_create_round_trips_through_dbe():
     assert endpoint.name == create.name
     assert endpoint.description == create.description
     assert endpoint.provider_key == create.provider_key
-    assert endpoint.deployment == create.deployment
+    assert endpoint.deployment_kind == create.deployment_kind
     assert endpoint.secret_id == secret_id
     assert endpoint.namespace == GatewayEndpointNamespace.CUSTOM
     assert endpoint.data.route.base_url == create.data.route.base_url
-    assert endpoint.data.model_slugs == create.data.model_slugs
-    assert endpoint.data.config.max_output_tokens == 4096
+    assert endpoint.data.models.allowlist == create.data.models.allowlist
+    assert endpoint.data.settings.max_output_tokens == 4096
     assert endpoint.flags.is_active is True
     assert endpoint.tags == create.tags
     assert endpoint.meta == create.meta
@@ -160,18 +152,18 @@ def test_mcp_endpoint_create_round_trips_through_dbe():
     user_id = uuid4()
     secret_id = uuid4()
 
-    create = McpEndpointCreate(
+    create = MCPEndpointCreate(
         slug="acme-notion",
         name="Acme Notion",
         description="Acme's self-hosted Notion MCP server",
-        auth_mode=GatewayAuthScheme.OAUTH,
+        auth_mode=MCPAuthScheme.OAUTH,
         secret_id=secret_id,
-        data=McpEndpointData(
-            url="https://mcp.acme.com",
-            tool_policy=McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=["search"]),
-            config=McpEndpointConfig(timeout_seconds=10.0),
+        data=MCPEndpointData(
+            route=MCPEndpointRoute(base_url="https://mcp.acme.com"),
+            tools=MCPToolFilter(allowlist=["search"]),
+            settings=MCPEndpointSettings(timeout_seconds=10.0),
         ),
-        flags=McpEndpointFlags(is_active=True),
+        flags=MCPEndpointFlags(is_active=True),
         tags={"env": "prod"},
         meta={"note": "created by test"},
     )
@@ -198,9 +190,8 @@ def test_mcp_endpoint_create_round_trips_through_dbe():
     assert endpoint.connection_id is None
     assert endpoint.provider_key is None
     assert endpoint.integration_key is None
-    assert endpoint.data.url == create.data.url
-    assert endpoint.data.tool_policy.mode == McpToolPolicyMode.INCLUDE
-    assert endpoint.data.tool_policy.names == ["search"]
+    assert endpoint.data.route.base_url == create.data.route.base_url
+    assert endpoint.data.tools.allowlist == ["search"]
     assert endpoint.flags.is_active is True
     assert endpoint.tags == create.tags
     assert endpoint.meta == create.meta
@@ -208,64 +199,3 @@ def test_mcp_endpoint_create_round_trips_through_dbe():
 
 
 # --- MCP grant round-trip ------------------------------------------------------ #
-
-
-def test_mcp_grant_create_round_trips_through_dbe_project_owned():
-    project_id = uuid4()
-    endpoint_id = uuid4()
-    secret_id = uuid4()
-
-    create = McpGrantCreate(
-        endpoint_id=endpoint_id,
-        user_id=None,
-        secret_id=secret_id,
-    )
-
-    dbe = map_mcp_grant_create_to_dbe(
-        project_id=project_id,
-        user_id=None,
-        #
-        dto=create,
-    )
-    assert dbe.project_id == project_id
-    assert dbe.user_id is None
-    assert dbe.created_by_id is None
-    _stamp_lifecycle(dbe)
-
-    grant = map_mcp_grant_dbe_to_dto(dbe=dbe)
-
-    assert grant.id == dbe.id
-    assert grant.endpoint_id == endpoint_id
-    assert grant.user_id is None
-    assert grant.secret_id == secret_id
-    assert grant.flags.is_active is True
-    assert grant.flags.is_valid is True
-
-
-def test_mcp_grant_create_round_trips_through_dbe_user_owned():
-    project_id = uuid4()
-    endpoint_id = uuid4()
-    secret_id = uuid4()
-    owner_id = uuid4()
-
-    create = McpGrantCreate(
-        endpoint_id=endpoint_id,
-        user_id=owner_id,
-        secret_id=secret_id,
-    )
-
-    dbe = map_mcp_grant_create_to_dbe(
-        project_id=project_id,
-        user_id=owner_id,
-        #
-        dto=create,
-    )
-    assert dbe.user_id == owner_id
-    assert dbe.created_by_id == owner_id
-    _stamp_lifecycle(dbe)
-
-    grant = map_mcp_grant_dbe_to_dto(dbe=dbe)
-
-    assert grant.user_id == owner_id
-    assert grant.endpoint_id == endpoint_id
-    assert grant.secret_id == secret_id

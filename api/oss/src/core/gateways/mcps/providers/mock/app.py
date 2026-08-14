@@ -6,7 +6,7 @@ one `application/json` response out, `202` for a notification — the same shape
 the runner's internal tool server (services/runner/src/tools/tool-mcp-http.ts), no
 session id, no SSE leg. `GET`/`DELETE` answer `405`.
 
-Delegates every POST straight to `MockMcpAdapter` so both tiers share one
+Delegates every POST straight to `MockMCPAdapter` so both tiers share one
 implementation of the control convention.
 """
 
@@ -16,17 +16,17 @@ from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
 from oss.src.core.gateways.mcps.dtos import (
-    McpCallContext,
-    McpDirectAuth,
-    McpResolvedRoute,
+    MCPCallContext,
+    MCPDirectAuth,
+    MCPResolvedRoute,
 )
-from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
-from oss.src.core.gateways.mcps.types import McpUpstreamError
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+from oss.src.core.gateways.mcps.types import MCPUpstreamError
 
 app = FastAPI(title="agenta-mock-mcp-gateway")
-_adapter = MockMcpAdapter()
-_route = McpResolvedRoute(url="http://mock-mcp-gateway:9092/")
-_auth = McpDirectAuth(secret=None)
+_adapter = MockMCPAdapter()
+_route = MCPResolvedRoute(url="http://mock-mcp-gateway:9092/")
+_auth = MCPDirectAuth(secret=None)
 
 
 @app.get("/health")
@@ -42,7 +42,7 @@ async def relay(request: Request) -> Response:
     except (json.JSONDecodeError, TypeError):
         payload = {}
 
-    context = McpCallContext(method=payload.get("method", ""))
+    context = MCPCallContext(method=payload.get("method", ""))
 
     try:
         result = await _adapter.relay(
@@ -52,7 +52,7 @@ async def relay(request: Request) -> Response:
             body=body,
             headers=dict(request.headers),
         )
-    except McpUpstreamError as exc:
+    except MCPUpstreamError as exc:
         return Response(
             status_code=exc.status_code or 502,
             content=(exc.detail or str(exc)).encode(),

@@ -1,6 +1,6 @@
 """Router wiring — apis/fastapi/gateways/llms/router.py (entities.md §9).
 
-TestClient + a hand-written mock `LlmGatewayService` + a monkeypatched
+TestClient + a hand-written mock `LLMGatewayService` + a monkeypatched
 `get_auth_scope()`/`check_action_access()` — no real database, no real service.
 """
 
@@ -11,11 +11,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter
+from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
 from oss.src.core.gateways.llms.dtos import (
-    LlmDeploymentKind,
-    LlmEndpoint,
-    LlmEndpointData,
+    LLMDeploymentKind,
+    LLMEndpoint,
+    LLMEndpointData,
+    LLMModelFilter,
 )
 from oss.src.utils.context import AuthScope
 
@@ -37,17 +38,17 @@ EXPECTED_ROUTES = {
 }
 
 
-def _endpoint(endpoint_id) -> LlmEndpoint:
-    return LlmEndpoint(
+def _endpoint(endpoint_id) -> LLMEndpoint:
+    return LLMEndpoint(
         id=endpoint_id,
         slug="acme-openai",
         provider_key="openai",
-        deployment=LlmDeploymentKind.DIRECT,
-        data=LlmEndpointData(model_slugs=["gpt-4o"]),
+        deployment_kind=LLMDeploymentKind.DIRECT,
+        data=LLMEndpointData(models=LLMModelFilter(allowlist=["gpt-4o"])),
     )
 
 
-class MockLlmGatewayService:
+class MockLLMGatewayService:
     def __init__(self):
         self.calls = []
         self.create_return = None
@@ -84,12 +85,12 @@ class MockLlmGatewayService:
 
 @pytest.fixture
 def service():
-    return MockLlmGatewayService()
+    return MockLLMGatewayService()
 
 
 @pytest.fixture
 def router(service):
-    return LlmGatewayRouter(llm_gateway_service=service)
+    return LLMGatewayRouter(llm_gateway_service=service)
 
 
 @pytest.fixture
@@ -156,8 +157,8 @@ def test_create_endpoint_reaches_the_service(client, service, allow):
             "endpoint": {
                 "slug": "acme-openai",
                 "provider_key": "openai",
-                "deployment": "direct",
-                "data": {"model_slugs": ["gpt-4o"]},
+                "deployment_kind": "direct",
+                "data": {"models": {"allowlist": ["gpt-4o"]}},
             }
         },
     )
@@ -208,7 +209,7 @@ def test_edit_endpoint_reaches_the_service(client, service, allow):
         json={
             "endpoint": {
                 "id": str(endpoint_id),
-                "data": {"model_slugs": ["gpt-4o-mini"]},
+                "data": {"models": {"allowlist": ["gpt-4o-mini"]}},
             }
         },
     )
@@ -256,7 +257,7 @@ _A_FIXED_ID = "00000000-0000-0000-0000-000000000001"
         (
             "POST",
             "/endpoints/",
-            {"endpoint": {"provider_key": "openai", "deployment": "direct"}},
+            {"endpoint": {"provider_key": "openai", "deployment_kind": "direct"}},
         ),
         ("GET", "/endpoints/", None),
         ("POST", "/endpoints/query", {}),

@@ -1,11 +1,11 @@
-"""MockLlmAdapter: the in-process mock LLM upstream (entities.md §7.1, D23).
+"""MockLLMAdapter: the in-process mock LLM upstream (entities.md §7.1, D23).
 
 No socket, no process. Registered once, statically, under the "mock" adapter key
 (wiring block, entities.md §9). Controllable behavior is keyed by `context.model`,
 checked as a prefix so the base model name stays free-form:
 
     mock/echo         (default; any name matching no other suffix below)
-    mock/error        raises LlmUpstreamError
+    mock/error        raises LLMUpstreamError
     mock/slow-{n}     sleeps n seconds, then answers like mock/echo
 
 The deployable app (app.py) calls this same adapter, so both tiers share one
@@ -19,9 +19,9 @@ import time
 import uuid
 from typing import Any, AsyncIterator, Dict, Optional
 
-from oss.src.core.gateways.llms.dtos import LlmCallContext, LlmResolvedRoute
-from oss.src.core.gateways.llms.interfaces import LlmRelayResult, LlmUpstreamInterface
-from oss.src.core.gateways.llms.types import LlmUpstreamError
+from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMResolvedRoute
+from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
+from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
 _ERROR_PREFIX = "mock/error"
@@ -96,7 +96,7 @@ async def _empty_body() -> AsyncIterator[bytes]:
     yield b""  # pragma: no cover — placeholder, makes this an async generator
 
 
-class MockLlmAdapter(LlmUpstreamInterface):
+class MockLLMAdapter(LLMUpstreamInterface):
     """The mock upstream (D23): unauthenticated, in-process, never opens a
     socket. `secret` may be None — targets with GatewayAuthScheme.NONE are
     the intended callers (entities.md §2)."""
@@ -104,17 +104,17 @@ class MockLlmAdapter(LlmUpstreamInterface):
     async def relay_chat_completion(
         self,
         *,
-        route: LlmResolvedRoute,
+        route: LLMResolvedRoute,
         secret: Optional[ResolvedSecret],
         #
-        context: LlmCallContext,
+        context: LLMCallContext,
         body: bytes,
         headers: Dict[str, str],
-    ) -> LlmRelayResult:
+    ) -> LLMRelayResult:
         model = context.model
 
         if model.startswith(_ERROR_PREFIX):
-            raise LlmUpstreamError(
+            raise LLMUpstreamError(
                 provider_key="mock", status_code=500, detail="forced by mock/error"
             )
 
@@ -128,7 +128,7 @@ class MockLlmAdapter(LlmUpstreamInterface):
         completion_id = f"chatcmpl-mock-{uuid.uuid4().hex}"
         created = int(time.time())
 
-        result = LlmRelayResult(
+        result = LLMRelayResult(
             status_code=200,
             headers={
                 "content-type": (

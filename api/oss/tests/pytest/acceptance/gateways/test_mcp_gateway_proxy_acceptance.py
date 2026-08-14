@@ -1,10 +1,10 @@
 """Acceptance tests for the MCP data-plane proxy (specs-wp8.md "Done test").
 
-specs-wp8.md rests WP8's done claim on two checks running against a deployment: a
+specs-wp8.md rests WP8's done claim on two checks running against a deployment_kind: a
 byte-for-byte relay end to end, and the refusal of a tool outside the endpoint's policy.
 specs-wp9.md cross-references the same pair. Mirrors the LLM module next door.
 
-Needs a real deployment (api/AGENTS.md's test-layer rule). Run it with the stack up:
+Needs a real deployment_kind (api/AGENTS.md's test-layer rule). Run it with the stack up:
 
     load-env hosting/docker-compose/ee/.env.ee.dev
     bash hosting/docker-compose/run.sh --ee --dev --build
@@ -26,11 +26,11 @@ def _assert_ok(response):
     return response.json()
 
 
-def _create_custom_endpoint(authed_api, *, tool_policy=None):
+def _create_custom_endpoint(authed_api, *, tools=None):
     slug = f"wp8-acceptance-{uuid4().hex[:8]}"
-    data = {"url": _MOCK_BASE_URL}
-    if tool_policy is not None:
-        data["tool_policy"] = tool_policy
+    data = {"route": {"base_url": _MOCK_BASE_URL}}
+    if tools is not None:
+        data["tools"] = tools
 
     body = _assert_ok(
         authed_api(
@@ -60,7 +60,7 @@ def mock_mcp_endpoint(authed_api):
 
 
 @pytest.mark.acceptance
-class TestMcpGatewayProxyAcceptance:
+class TestMCPGatewayProxyAcceptance:
     def test_tools_list_relays_the_upstream_answer(self, authed_api, mock_mcp_endpoint):
         response = _call(
             authed_api,
@@ -111,9 +111,7 @@ class TestMcpGatewayProxyAcceptance:
         assert body["result"]["isError"] is True
 
     def test_tool_outside_the_policy_is_refused_before_the_upstream(self, authed_api):
-        endpoint = _create_custom_endpoint(
-            authed_api, tool_policy={"mode": "include", "names": ["echo"]}
-        )
+        endpoint = _create_custom_endpoint(authed_api, tools={"allowlist": ["echo"]})
 
         response = _call(
             authed_api,
@@ -130,9 +128,7 @@ class TestMcpGatewayProxyAcceptance:
         assert response.json()["error"]["data"]["cause"] == "tool_not_allowed"
 
     def test_an_include_policy_filters_the_listing(self, authed_api):
-        endpoint = _create_custom_endpoint(
-            authed_api, tool_policy={"mode": "include", "names": ["echo"]}
-        )
+        endpoint = _create_custom_endpoint(authed_api, tools={"allowlist": ["echo"]})
 
         response = _call(
             authed_api,

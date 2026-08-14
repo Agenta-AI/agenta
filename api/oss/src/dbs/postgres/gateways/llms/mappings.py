@@ -5,14 +5,14 @@ from uuid import UUID
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import (
-    LlmEndpoint,
-    LlmEndpointCreate,
-    LlmEndpointData,
-    LlmEndpointEdit,
-    LlmEndpointFlags,
+    LLMEndpoint,
+    LLMEndpointCreate,
+    LLMEndpointData,
+    LLMEndpointEdit,
+    LLMEndpointFlags,
 )
 from oss.src.core.shared.dtos import Status
-from oss.src.dbs.postgres.gateways.llms.dbes import LlmEndpointDBE
+from oss.src.dbs.postgres.gateways.llms.dbes import LLMEndpointDBE
 
 
 def map_llm_endpoint_create_to_dbe(
@@ -20,16 +20,16 @@ def map_llm_endpoint_create_to_dbe(
     project_id: UUID,
     user_id: UUID,
     #
-    dto: LlmEndpointCreate,
-) -> LlmEndpointDBE:
-    return LlmEndpointDBE(
+    dto: LLMEndpointCreate,
+) -> LLMEndpointDBE:
+    return LLMEndpointDBE(
         project_id=project_id,
         slug=dto.slug,
         name=dto.name,
         description=dto.description,
         #
         provider_key=dto.provider_key,
-        deployment=dto.deployment,
+        deployment_kind=dto.deployment_kind,
         secret_id=dto.secret_id,
         #
         data=dto.data.model_dump(mode="json", exclude_none=True),
@@ -43,20 +43,20 @@ def map_llm_endpoint_create_to_dbe(
 
 def map_llm_endpoint_dbe_to_dto(
     *,
-    dbe: LlmEndpointDBE,
-) -> LlmEndpoint:
-    data = LlmEndpointData(**(dbe.data or {}))
-    flags = LlmEndpointFlags(**(dbe.flags or {}))
+    dbe: LLMEndpointDBE,
+) -> LLMEndpoint:
+    data = LLMEndpointData(**(dbe.data or {}))
+    flags = LLMEndpointFlags(**(dbe.flags or {}))
     status = Status(**dbe.status) if dbe.status else None
 
-    return LlmEndpoint(
+    return LLMEndpoint(
         id=dbe.id,
         slug=dbe.slug,
         name=dbe.name,
         description=dbe.description,
         #
         provider_key=dbe.provider_key,
-        deployment=dbe.deployment,
+        deployment_kind=dbe.deployment_kind,
         namespace=GatewayEndpointNamespace.CUSTOM,
         secret_id=dbe.secret_id,
         #
@@ -77,13 +77,13 @@ def map_llm_endpoint_dbe_to_dto(
 
 def map_llm_endpoint_edit_to_dbe(
     *,
-    dbe: LlmEndpointDBE,
+    dbe: LLMEndpointDBE,
     user_id: UUID,
     #
-    dto: LlmEndpointEdit,
-) -> LlmEndpointDBE:
+    dto: LLMEndpointEdit,
+) -> LLMEndpointDBE:
     """Full PUT over the editable surface (§4.3): data, flags, header, secret_id.
-    provider_key and deployment are absent from LlmEndpointEdit and therefore
+    provider_key and deployment_kind are absent from LLMEndpointEdit and therefore
     untouched here."""
     dbe.name = dto.name
     dbe.description = dto.description

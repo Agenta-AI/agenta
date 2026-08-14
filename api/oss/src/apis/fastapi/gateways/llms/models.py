@@ -9,32 +9,32 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from oss.src.core.gateways.llms.dtos import (
-    LlmEndpoint,
-    LlmEndpointCreate,
-    LlmEndpointEdit,
-    LlmEndpointQuery,
+    LLMEndpoint,
+    LLMEndpointCreate,
+    LLMEndpointEdit,
+    LLMEndpointQuery,
 )
 from oss.src.core.shared.dtos import Windowing
 
 
-class LlmEndpointCreateRequest(BaseModel):
-    endpoint: LlmEndpointCreate
+class LLMEndpointCreateRequest(BaseModel):
+    endpoint: LLMEndpointCreate
 
 
-class LlmEndpointEditRequest(BaseModel):
-    endpoint: LlmEndpointEdit
+class LLMEndpointEditRequest(BaseModel):
+    endpoint: LLMEndpointEdit
 
 
-class LlmEndpointQueryRequest(BaseModel):
-    endpoint: Optional[LlmEndpointQuery] = None
+class LLMEndpointQueryRequest(BaseModel):
+    endpoint: Optional[LLMEndpointQuery] = None
     windowing: Optional[Windowing] = None
 
 
-class LlmEndpointResponse(BaseModel):
+class LLMEndpointResponse(BaseModel):
     count: int = 0
-    endpoint: Optional[LlmEndpoint] = None
+    endpoint: Optional[LLMEndpoint] = None
 
 
-class LlmEndpointsResponse(BaseModel):
+class LLMEndpointsResponse(BaseModel):
     count: int = 0
-    endpoints: List[LlmEndpoint] = Field(default_factory=list)
+    endpoints: List[LLMEndpoint] = Field(default_factory=list)

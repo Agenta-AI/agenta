@@ -745,8 +745,8 @@ class MockGatewaysConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class McpGatewayConfig(BaseModel):
-    """`HttpMcpAdapter`'s outbound-guard escape hatch. Mirrors the runner's
+class MCPGatewayConfig(BaseModel):
+    """`HttpMCPAdapter`'s outbound-guard escape hatch. Mirrors the runner's
     `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP server whose host is
     listed here skips the SSRF guard (`core/webhooks/utils.py`) entirely, so a
     self-hoster can reach one known internal server without disabling the
@@ -1677,7 +1677,7 @@ class EnvironSettings(BaseModel):
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
-    mcp_gateway: McpGatewayConfig = McpGatewayConfig()
+    mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
     mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()

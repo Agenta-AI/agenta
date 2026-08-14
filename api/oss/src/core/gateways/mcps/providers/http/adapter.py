@@ -1,8 +1,8 @@
-"""HttpMcpAdapter: the south-port relay for `custom` MCP servers (entities.md §7.1).
+"""HttpMCPAdapter: the south-port relay for `custom` MCP servers (entities.md §7.1).
 
-Registered under the `"http"` key (WP9's `McpUpstreamRegistry`) and reached only via the
+Registered under the `"http"` key (WP9's `MCPUpstreamRegistry`) and reached only via the
 `custom` namespace: `agenta` targets route to the mocks/agenta adapters and `builtin`
-targets route to `ComposioMcpAdapter` (out of this wave). Because only `custom` URLs are
+targets route to `ComposioMCPAdapter` (out of this wave). Because only `custom` URLs are
 ever handed to this class, the SSRF guard (D28) runs unconditionally on every call rather
 than branching on a namespace this port is never given.
 """
@@ -13,14 +13,15 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 
 from oss.src.core.gateways.mcps.dtos import (
-    McpBrokeredAuth,
-    McpCallContext,
-    McpDirectAuth,
-    McpRelayAuth,
-    McpResolvedRoute,
+    MCPBrokeredAuth,
+    MCPCallContext,
+    MCPDirectAuth,
+    MCPRelayAuth,
+    MCPResolvedRoute,
 )
-from oss.src.core.gateways.mcps.interfaces import McpRelayResult, McpUpstreamInterface
-from oss.src.core.gateways.mcps.types import McpUpstreamError
+from oss.src.core.gateways.dtos import GATEWAY_ONLY_HEADERS
+from oss.src.core.gateways.mcps.interfaces import MCPRelayResult, MCPUpstreamInterface
+from oss.src.core.gateways.mcps.types import MCPUpstreamError
 from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
 from oss.src.utils.env import env
 
@@ -33,6 +34,11 @@ def _host_allowlist() -> Set[str]:
 
 def _drop_header(headers: Dict[str, str], name: str) -> Dict[str, str]:
     return {k: v for k, v in headers.items() if k.lower() != name.lower()}
+
+
+def _drop_gateway_headers(headers: Dict[str, str]) -> Dict[str, str]:
+    """Our own inbound credentials never reach a third-party server (D31)."""
+    return {k: v for k, v in headers.items() if k.lower() not in GATEWAY_ONLY_HEADERS}
 
 
 def _pin_to_resolved_ip(url: str, resolved_ip: str) -> Tuple[str, str]:
@@ -55,7 +61,7 @@ def _pin_to_resolved_ip(url: str, resolved_ip: str) -> Tuple[str, str]:
     return pinned_url, host_header
 
 
-def _authorization_header(auth: McpDirectAuth) -> Optional[str]:
+def _authorization_header(auth: MCPDirectAuth) -> Optional[str]:
     """Derive `Authorization` from a resolved OAuth grant, when present.
 
     `OAuthGrantSettingsDTO` (entities.md §4.5) doesn't exist in this codebase yet — it
@@ -75,7 +81,7 @@ def _authorization_header(auth: McpDirectAuth) -> Optional[str]:
     return f"{token_type} {access_token}"
 
 
-class HttpMcpAdapter(McpUpstreamInterface):
+class HttpMCPAdapter(MCPUpstreamInterface):
     """Streamable HTTP relay for `custom` MCP servers. Transparent per D16: the body
     and the upstream's response travel byte-for-byte; only the route and the
     authorization change."""
@@ -83,23 +89,23 @@ class HttpMcpAdapter(McpUpstreamInterface):
     def __init__(self, *, transport: Optional[httpx.BaseTransport] = None) -> None:
         # Injectable seam for unit tests (an httpx.MockTransport standing in for a real
         # upstream, per specs-wp8.md's test layer); None keeps the wiring-site
-        # `HttpMcpAdapter()` call unchanged and uses httpx's normal transport.
+        # `HttpMCPAdapter()` call unchanged and uses httpx's normal transport.
         self._transport = transport
 
     async def relay(
         self,
         *,
-        route: McpResolvedRoute,
-        auth: McpRelayAuth,
+        route: MCPResolvedRoute,
+        auth: MCPRelayAuth,
         #
-        context: McpCallContext,  # unused: no JSON-RPC parsing here (§7.1)
+        context: MCPCallContext,  # unused: no JSON-RPC parsing here (§7.1)
         body: bytes,
         headers: Dict[str, str],
-    ) -> McpRelayResult:
-        if isinstance(auth, McpBrokeredAuth):
+    ) -> MCPRelayResult:
+        if isinstance(auth, MCPBrokeredAuth):
             raise TypeError(
-                "HttpMcpAdapter relays McpDirectAuth only; McpBrokeredAuth (builtin) "
-                "belongs to ComposioMcpAdapter"
+                "HttpMCPAdapter relays MCPDirectAuth only; MCPBrokeredAuth (builtin) "
+                "belongs to ComposioMCPAdapter"
             )
 
         parsed = urlparse(route.url)
@@ -108,7 +114,9 @@ class HttpMcpAdapter(McpUpstreamInterface):
         # route.headers merged under the caller's forwarded headers (§7.1): caller
         # headers win on collision. The caller's own `Host` referred to this gateway,
         # never the upstream, so it is dropped either way.
-        merged_headers = _drop_header({**route.headers, **headers}, "Host")
+        merged_headers = _drop_gateway_headers(
+            _drop_header({**route.headers, **headers}, "Host")
+        )
 
         if hostname in _host_allowlist():
             target_url = route.url
@@ -124,17 +132,16 @@ class HttpMcpAdapter(McpUpstreamInterface):
                     if "could not be resolved" in message
                     else f"blocked target: {message}"
                 )
-                raise McpUpstreamError(target=route.url, detail=detail) from e
+                raise MCPUpstreamError(target=route.url, detail=detail) from e
 
             target_url, host_header = _pin_to_resolved_ip(route.url, resolved_ip)
             merged_headers["Host"] = host_header
 
         authorization = _authorization_header(auth)
         if authorization is not None:
-            merged_headers = _drop_header(merged_headers, "Authorization")
             merged_headers["Authorization"] = authorization
 
-        timeout = route.config.timeout_seconds or _DEFAULT_TIMEOUT_SECONDS
+        timeout = route.settings.timeout_seconds or _DEFAULT_TIMEOUT_SECONDS
 
         try:
             async with httpx.AsyncClient(
@@ -147,9 +154,9 @@ class HttpMcpAdapter(McpUpstreamInterface):
                     extensions={"sni_hostname": parsed.hostname},
                 )
         except httpx.RequestError as e:
-            raise McpUpstreamError(target=route.url, detail=str(e)) from e
+            raise MCPUpstreamError(target=route.url, detail=str(e)) from e
 
-        return McpRelayResult(
+        return MCPRelayResult(
             status_code=response.status_code,
             headers=dict(response.headers),
             body=response.content,

@@ -1,4 +1,4 @@
-"""Unit tests for MockMcpAdapter (entities.md §7.1, workstreams/specs-wp5.md).
+"""Unit tests for MockMCPAdapter (entities.md §7.1, workstreams/specs-wp5.md).
 
 Nothing running: the adapter is exercised as a plain Python object.
 """
@@ -9,21 +9,21 @@ import time
 import pytest
 
 from oss.src.core.gateways.mcps.dtos import (
-    McpCallContext,
-    McpDirectAuth,
-    McpResolvedRoute,
+    MCPCallContext,
+    MCPDirectAuth,
+    MCPResolvedRoute,
 )
-from oss.src.core.gateways.mcps.interfaces import McpRelayResult
-from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
-from oss.src.core.gateways.mcps.types import McpUpstreamError
+from oss.src.core.gateways.mcps.interfaces import MCPRelayResult
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+from oss.src.core.gateways.mcps.types import MCPUpstreamError
 
 
-def _route() -> McpResolvedRoute:
-    return McpResolvedRoute(url="http://mock-mcp-gateway:9092/")
+def _route() -> MCPResolvedRoute:
+    return MCPResolvedRoute(url="http://mock-mcp-gateway:9092/")
 
 
-def _auth() -> McpDirectAuth:
-    return McpDirectAuth(secret=None)
+def _auth() -> MCPDirectAuth:
+    return MCPDirectAuth(secret=None)
 
 
 def _rpc(method: str, *, params=None, request_id=1) -> bytes:
@@ -35,17 +35,17 @@ def _rpc(method: str, *, params=None, request_id=1) -> bytes:
 
 @pytest.mark.asyncio
 async def test_tools_list_returns_all_three_tools():
-    adapter = MockMcpAdapter()
+    adapter = MockMCPAdapter()
 
     result = await adapter.relay(
         route=_route(),
         auth=_auth(),
-        context=McpCallContext(method="tools/list"),
+        context=MCPCallContext(method="tools/list"),
         body=_rpc("tools/list"),
         headers={},
     )
 
-    assert isinstance(result, McpRelayResult)
+    assert isinstance(result, MCPRelayResult)
     payload = json.loads(result.body)
     names = {tool["name"] for tool in payload["result"]["tools"]}
     assert names == {"echo", "fail", "slow"}
@@ -53,12 +53,12 @@ async def test_tools_list_returns_all_three_tools():
 
 @pytest.mark.asyncio
 async def test_echo_tool_echoes_arguments():
-    adapter = MockMcpAdapter()
+    adapter = MockMCPAdapter()
 
     result = await adapter.relay(
         route=_route(),
         auth=_auth(),
-        context=McpCallContext(method="tools/call"),
+        context=MCPCallContext(method="tools/call"),
         body=_rpc("tools/call", params={"name": "echo", "arguments": {"x": 1}}),
         headers={},
     )
@@ -71,12 +71,12 @@ async def test_echo_tool_echoes_arguments():
 
 @pytest.mark.asyncio
 async def test_fail_tool_returns_error_result_not_exception():
-    adapter = MockMcpAdapter()
+    adapter = MockMCPAdapter()
 
     result = await adapter.relay(
         route=_route(),
         auth=_auth(),
-        context=McpCallContext(method="tools/call"),
+        context=MCPCallContext(method="tools/call"),
         body=_rpc("tools/call", params={"name": "fail"}),
         headers={},
     )
@@ -88,13 +88,13 @@ async def test_fail_tool_returns_error_result_not_exception():
 
 @pytest.mark.asyncio
 async def test_slow_tool_sleeps():
-    adapter = MockMcpAdapter()
+    adapter = MockMCPAdapter()
     start = time.monotonic()
 
     result = await adapter.relay(
         route=_route(),
         auth=_auth(),
-        context=McpCallContext(method="tools/call"),
+        context=MCPCallContext(method="tools/call"),
         body=_rpc("tools/call", params={"name": "slow", "arguments": {"seconds": 1}}),
         headers={},
     )
@@ -107,13 +107,13 @@ async def test_slow_tool_sleeps():
 
 @pytest.mark.asyncio
 async def test_unrecognized_method_raises_upstream_error():
-    adapter = MockMcpAdapter()
+    adapter = MockMCPAdapter()
 
-    with pytest.raises(McpUpstreamError) as excinfo:
+    with pytest.raises(MCPUpstreamError) as excinfo:
         await adapter.relay(
             route=_route(),
             auth=_auth(),
-            context=McpCallContext(method="resources/list"),
+            context=MCPCallContext(method="resources/list"),
             body=_rpc("resources/list"),
             headers={},
         )
@@ -123,12 +123,12 @@ async def test_unrecognized_method_raises_upstream_error():
 
 @pytest.mark.asyncio
 async def test_notification_returns_202_with_empty_body():
-    adapter = MockMcpAdapter()
+    adapter = MockMCPAdapter()
 
     result = await adapter.relay(
         route=_route(),
         auth=_auth(),
-        context=McpCallContext(method="notifications/initialized"),
+        context=MCPCallContext(method="notifications/initialized"),
         body=_rpc("notifications/initialized"),
         headers={},
     )

@@ -1,28 +1,28 @@
 """Unit tests for parse_mcp_call_context (entities.md §9, workstreams/specs-wp8.md).
 
-Pure function: header dicts in, McpCallContext out. Header names pinned against the
-2026-07-28 MCP revision: `Mcp-Method` (required), `Mcp-Name` (target, absent for
+Pure function: header dicts in, MCPCallContext out. Header names pinned against the
+2026-07-28 MCP revision: `MCP-Method` (required), `MCP-Name` (target, absent for
 target-less methods).
 """
 
 import pytest
 
 from oss.src.apis.fastapi.gateways.mcps.utils import parse_mcp_call_context
-from oss.src.core.gateways.mcps.dtos import McpCallContext
+from oss.src.core.gateways.mcps.dtos import MCPCallContext
 
 
 def test_both_headers_present():
     context = parse_mcp_call_context(
-        headers={"Mcp-Method": "tools/call", "Mcp-Name": "echo"}
+        headers={"MCP-Method": "tools/call", "MCP-Name": "echo"}
     )
 
-    assert context == McpCallContext(method="tools/call", target="echo")
+    assert context == MCPCallContext(method="tools/call", target="echo")
 
 
 def test_target_absent_for_a_target_less_method():
-    context = parse_mcp_call_context(headers={"Mcp-Method": "tools/list"})
+    context = parse_mcp_call_context(headers={"MCP-Method": "tools/list"})
 
-    assert context == McpCallContext(method="tools/list", target=None)
+    assert context == MCPCallContext(method="tools/list", target=None)
 
 
 def test_header_names_are_case_insensitive():
@@ -30,22 +30,22 @@ def test_header_names_are_case_insensitive():
         headers={"mcp-method": "tools/call", "MCP-NAME": "echo"}
     )
 
-    assert context == McpCallContext(method="tools/call", target="echo")
+    assert context == MCPCallContext(method="tools/call", target="echo")
 
 
 def test_missing_method_header_raises_value_error():
     with pytest.raises(ValueError):
-        parse_mcp_call_context(headers={"Mcp-Name": "echo"})
+        parse_mcp_call_context(headers={"MCP-Name": "echo"})
 
 
 def test_blank_method_header_raises_value_error():
     with pytest.raises(ValueError):
-        parse_mcp_call_context(headers={"Mcp-Method": "   "})
+        parse_mcp_call_context(headers={"MCP-Method": "   "})
 
 
 def test_blank_target_header_is_treated_as_absent():
     context = parse_mcp_call_context(
-        headers={"Mcp-Method": "tools/list", "Mcp-Name": "  "}
+        headers={"MCP-Method": "tools/list", "MCP-Name": "  "}
     )
 
     assert context.target is None

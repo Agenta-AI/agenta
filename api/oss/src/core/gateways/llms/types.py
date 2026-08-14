@@ -6,16 +6,16 @@ from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.types import GatewaysError
 
 
-class LlmEndpointNotFoundError(GatewaysError):
+class LLMEndpointNotFoundError(GatewaysError):
     def __init__(self, *, namespace: GatewayEndpointNamespace, name: str):
         self.namespace = namespace
         self.name = name
         super().__init__(f"LLM endpoint not found: {namespace.value}/{name}")
 
 
-class LlmModelNotAllowedError(GatewaysError):
+class LLMModelNotAllowedError(GatewaysError):
     """The model is outside the endpoint's allowlist — a custom endpoint's
-    declared model_slugs, or a standard provider's catalogue (§4.3)."""
+    declared model allowlist, or a standard provider's catalogue (§4.3)."""
 
     def __init__(self, *, model: str, namespace: GatewayEndpointNamespace, name: str):
         self.model = model
@@ -24,7 +24,7 @@ class LlmModelNotAllowedError(GatewaysError):
         super().__init__(f"Model {model} not allowed on {namespace.value}/{name}")
 
 
-class LlmAdapterNotFoundError(GatewaysError):
+class LLMAdapterNotFoundError(GatewaysError):
     """No south-port adapter registered under this key (registry.py's own miss,
     entities.md §7.1's ``ConnectionsGatewayRegistry``/``ProviderNotFoundError`` shape,
     copied into this domain's vocabulary rather than importing the integrations one)."""
@@ -34,7 +34,7 @@ class LlmAdapterNotFoundError(GatewaysError):
         super().__init__(f"No LLM upstream adapter registered under {key!r}")
 
 
-class LlmUpstreamError(GatewaysError):
+class LLMUpstreamError(GatewaysError):
     """The upstream failed after policy allowed. Carries the upstream status so
     the proxy can relay a faithful OpenAI-shaped error (§9)."""
 

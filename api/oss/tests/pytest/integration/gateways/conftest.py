@@ -35,7 +35,7 @@ async def _fresh_engine_per_test():
 @pytest.fixture
 async def seeded_project():
     """Provision the FK chain (org -> workspace -> project) and one bare
-    `secrets` row, so llm_gateway_endpoints.secret_id / mcp_gateway_grants.secret_id
+    `secrets` row, so llms_endpoints.secret_id / mcps_endpoints.secret_id
     have a real target to reference. The row's `data` is intentionally NULL — these
     tests never decrypt it, they only exercise the FK's ondelete behaviour."""
     engine = get_transactions_engine()
@@ -99,15 +99,11 @@ async def seeded_project():
 
     async with engine.session() as session:
         await session.execute(
-            text("DELETE FROM llm_gateway_endpoints WHERE project_id = :project_id"),
+            text("DELETE FROM llms_endpoints WHERE project_id = :project_id"),
             {"project_id": project_id},
         )
         await session.execute(
-            text("DELETE FROM mcp_gateway_grants WHERE project_id = :project_id"),
-            {"project_id": project_id},
-        )
-        await session.execute(
-            text("DELETE FROM mcp_gateway_endpoints WHERE project_id = :project_id"),
+            text("DELETE FROM mcps_endpoints WHERE project_id = :project_id"),
             {"project_id": project_id},
         )
         await session.execute(

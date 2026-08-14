@@ -7,7 +7,7 @@ from oss.src.core.gateways.llms.catalog import (
     standard_llm_endpoint,
     standard_llm_endpoints,
 )
-from oss.src.core.gateways.llms.dtos import LlmDeploymentKind
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
 
 
 def test_standard_llm_endpoint_openai_matches_the_catalogue_exactly():
@@ -16,8 +16,8 @@ def test_standard_llm_endpoint_openai_matches_the_catalogue_exactly():
     assert endpoint is not None
     assert endpoint.namespace == GatewayEndpointNamespace.STANDARD
     assert endpoint.slug == "openai"
-    assert endpoint.deployment == LlmDeploymentKind.DIRECT
-    assert endpoint.data.model_slugs == supported_llm_models["openai"]
+    assert endpoint.deployment_kind == LLMDeploymentKind.DIRECT
+    assert endpoint.data.models.allowlist == supported_llm_models["openai"]
     assert endpoint.id is None
     assert endpoint.created_at is None
 

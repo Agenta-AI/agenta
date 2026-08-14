@@ -1,9 +1,9 @@
 """Adapter interface contract tests (entities.md §7.1, workstreams/specs-wp5.md).
 
-The same fixture every `LlmUpstreamInterface` / `McpUpstreamInterface` implementation
-must pass — run against `MockLlmAdapter`/`MockMcpAdapter` now, reused by WP6/WP7/WP8/WP9's
+The same fixture every `LLMUpstreamInterface` / `MCPUpstreamInterface` implementation
+must pass — run against `MockLLMAdapter`/`MockMCPAdapter` now, reused by WP6/WP7/WP8/WP9's
 real adapters once they exist. An adapter that is not implemented yet is parametrized in
-as a skip, not omitted, so the moment `PassthroughLlmAdapter` etc. lands this file starts
+as a skip, not omitted, so the moment `PassthroughLLMAdapter` etc. lands this file starts
 enforcing the contract on it with no further edits here.
 
 Nothing running: plain Python objects.
@@ -18,20 +18,20 @@ import httpx
 import pytest
 
 from oss.src.core.gateways.llms.dtos import (
-    LlmCallContext,
-    LlmDeploymentKind,
-    LlmResolvedRoute,
+    LLMCallContext,
+    LLMDeploymentKind,
+    LLMResolvedRoute,
 )
-from oss.src.core.gateways.llms.interfaces import LlmRelayResult
-from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
+from oss.src.core.gateways.llms.interfaces import LLMRelayResult
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
 
 from oss.src.core.gateways.mcps.dtos import (
-    McpCallContext,
-    McpDirectAuth,
-    McpResolvedRoute,
+    MCPCallContext,
+    MCPDirectAuth,
+    MCPResolvedRoute,
 )
-from oss.src.core.gateways.mcps.interfaces import McpRelayResult
-from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
+from oss.src.core.gateways.mcps.interfaces import MCPRelayResult
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
 
 
 def _optional_instance(module_path: str, class_name: str):
@@ -57,7 +57,7 @@ def _passthrough_mock_handler(request: httpx.Request) -> httpx.Response:
 
 
 def _passthrough_llm_adapter():
-    """PassthroughLlmAdapter needs real network I/O (entities.md §7.1), so —
+    """PassthroughLLMAdapter needs real network I/O (entities.md §7.1), so —
     unlike the other entries here — it cannot be built with a bare no-arg
     constructor: it is wired against an `httpx.MockTransport` instead, keeping
     this contract test in the "nothing running" tier (workstreams/specs-wp6.md)."""
@@ -65,7 +65,7 @@ def _passthrough_llm_adapter():
         module = importlib.import_module(
             "oss.src.core.gateways.llms.providers.passthrough.adapter"
         )
-        adapter_cls = module.PassthroughLlmAdapter
+        adapter_cls = module.PassthroughLLMAdapter
     except (ImportError, AttributeError):
         return None
 
@@ -78,7 +78,7 @@ def _mcp_mock_handler(request: httpx.Request) -> httpx.Response:
 
 
 def _http_mcp_adapter():
-    """Like the passthrough one, HttpMcpAdapter makes a real outbound call, so it
+    """Like the passthrough one, HttpMCPAdapter makes a real outbound call, so it
     gets an `httpx.MockTransport` rather than a bare constructor.
 
     It also runs the outbound guard (D28) before that transport is ever reached, so the
@@ -88,7 +88,7 @@ def _http_mcp_adapter():
         module = importlib.import_module(
             "oss.src.core.gateways.mcps.providers.http.adapter"
         )
-        adapter_cls = module.HttpMcpAdapter
+        adapter_cls = module.HttpMCPAdapter
     except (ImportError, AttributeError):
         return None
 
@@ -96,33 +96,33 @@ def _http_mcp_adapter():
 
 
 _LLM_ADAPTER_PARAMS = [
-    _adapter_param(MockLlmAdapter(), name="MockLlmAdapter"),
-    _adapter_param(_passthrough_llm_adapter(), name="PassthroughLlmAdapter"),
+    _adapter_param(MockLLMAdapter(), name="MockLLMAdapter"),
+    _adapter_param(_passthrough_llm_adapter(), name="PassthroughLLMAdapter"),
     _adapter_param(
         _optional_instance(
             "oss.src.core.gateways.llms.providers.translated.adapter",
-            "TranslatedLlmAdapter",
+            "TranslatedLLMAdapter",
         ),
-        name="TranslatedLlmAdapter",
+        name="TranslatedLLMAdapter",
     ),
 ]
 
 _MCP_ADAPTER_PARAMS = [
-    _adapter_param(MockMcpAdapter(), name="MockMcpAdapter"),
-    _adapter_param(_http_mcp_adapter(), name="HttpMcpAdapter"),
+    _adapter_param(MockMCPAdapter(), name="MockMCPAdapter"),
+    _adapter_param(_http_mcp_adapter(), name="HttpMCPAdapter"),
     _adapter_param(
         _optional_instance(
             "oss.src.core.gateways.mcps.providers.composio.adapter",
-            "ComposioMcpAdapter",
+            "ComposioMCPAdapter",
         ),
-        name="ComposioMcpAdapter",
+        name="ComposioMCPAdapter",
     ),
 ]
 
 
 @pytest.fixture(autouse=True)
 def _mock_litellm_acompletion(monkeypatch):
-    """`TranslatedLlmAdapter` (WP7) is the one adapter here that calls out to litellm — mock
+    """`TranslatedLLMAdapter` (WP7) is the one adapter here that calls out to litellm — mock
     it at its own import site so this fixture stays a no-op for every other adapter and
     still never opens a socket once the module exists."""
     try:
@@ -157,11 +157,11 @@ def _mock_litellm_acompletion(monkeypatch):
 
 @pytest.mark.parametrize("adapter", _LLM_ADAPTER_PARAMS)
 async def test_relay_chat_completion_returns_llm_relay_result(adapter):
-    route = LlmResolvedRoute(
+    route = LLMResolvedRoute(
         provider_key="mock",
-        deployment=LlmDeploymentKind.DIRECT,
+        deployment_kind=LLMDeploymentKind.DIRECT,
         model="mock/echo",
-        # Unused by MockLlmAdapter; PassthroughLlmAdapter needs one to build an
+        # Unused by MockLLMAdapter; PassthroughLLMAdapter needs one to build an
         # outbound URL, and the MockTransport above never dials it for real.
         base_url="http://mock-passthrough-upstream.invalid",
     )
@@ -172,12 +172,12 @@ async def test_relay_chat_completion_returns_llm_relay_result(adapter):
     result = await adapter.relay_chat_completion(
         route=route,
         secret=None,
-        context=LlmCallContext(model="mock/echo"),
+        context=LLMCallContext(model="mock/echo"),
         body=body,
         headers={},
     )
 
-    assert isinstance(result, LlmRelayResult)
+    assert isinstance(result, LLMRelayResult)
     assert not isinstance(result, dict)
     assert {f.name for f in fields(result)} == {
         "status_code",
@@ -190,7 +190,7 @@ async def test_relay_chat_completion_returns_llm_relay_result(adapter):
 @pytest.mark.parametrize("adapter", _MCP_ADAPTER_PARAMS)
 @pytest.mark.parametrize("method", ["initialize", "tools/list", "tools/call"])
 async def test_relay_returns_mcp_relay_result(adapter, method, monkeypatch):
-    # HttpMcpAdapter runs the outbound guard (D28) before its transport. Model a real
+    # HttpMCPAdapter runs the outbound guard (D28) before its transport. Model a real
     # custom server: a public https host, resolver patched so no DNS is needed. The
     # guard stays on — a public target simply passes it, which is the whole point.
     monkeypatch.setattr(
@@ -200,8 +200,8 @@ async def test_relay_returns_mcp_relay_result(adapter, method, monkeypatch):
         "oss.src.core.webhooks.utils.socket.getaddrinfo",
         lambda *a, **kw: [(None, None, None, None, ("93.184.216.34", 0))],
     )
-    route = McpResolvedRoute(url="https://mcp.example.com/")
-    auth = McpDirectAuth(secret=None)
+    route = MCPResolvedRoute(url="https://mcp.example.com/")
+    auth = MCPDirectAuth(secret=None)
     payload = {"jsonrpc": "2.0", "id": 1, "method": method}
     if method == "tools/call":
         payload["params"] = {"name": "echo", "arguments": {}}
@@ -210,11 +210,11 @@ async def test_relay_returns_mcp_relay_result(adapter, method, monkeypatch):
     result = await adapter.relay(
         route=route,
         auth=auth,
-        context=McpCallContext(method=method),
+        context=MCPCallContext(method=method),
         body=body,
         headers={},
     )
 
-    assert isinstance(result, McpRelayResult)
+    assert isinstance(result, MCPRelayResult)
     assert not isinstance(result, dict)
     assert {f.name for f in fields(result)} == {"status_code", "headers", "body"}

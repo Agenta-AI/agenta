@@ -1,4 +1,4 @@
-"""Unit tests for HttpMcpAdapter (entities.md §7.1, workstreams/specs-wp8.md).
+"""Unit tests for HttpMCPAdapter (entities.md §7.1, workstreams/specs-wp8.md).
 
 Nothing running: httpx.MockTransport stands in for the upstream — no real network, no
 real MCP server. SSRF-guard tests monkeypatch
@@ -15,28 +15,28 @@ import httpx
 import pytest
 
 from oss.src.core.gateways.mcps.dtos import (
-    McpBrokeredAuth,
-    McpCallContext,
-    McpDirectAuth,
-    McpEndpointConfig,
-    McpResolvedRoute,
+    MCPBrokeredAuth,
+    MCPCallContext,
+    MCPDirectAuth,
+    MCPEndpointSettings,
+    MCPResolvedRoute,
 )
-from oss.src.core.gateways.mcps.interfaces import McpRelayResult
-from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
-from oss.src.core.gateways.mcps.providers.http.adapter import HttpMcpAdapter
-from oss.src.core.gateways.mcps.types import McpUpstreamError
+from oss.src.core.gateways.mcps.interfaces import MCPRelayResult
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
+from oss.src.core.gateways.mcps.types import MCPUpstreamError
 
 _PUBLIC_IP = (
     "93.184.216.34"  # example.com — routable, non-private (webhooks test precedent)
 )
 
 
-def _context() -> McpCallContext:
-    return McpCallContext(method="tools/list")
+def _context() -> MCPCallContext:
+    return MCPCallContext(method="tools/list")
 
 
-def _auth(*, secret=None) -> McpDirectAuth:
-    return McpDirectAuth(secret=secret)
+def _auth(*, secret=None) -> MCPDirectAuth:
+    return MCPDirectAuth(secret=secret)
 
 
 def _json_response(status_code: int = 200, **body) -> httpx.Response:
@@ -74,11 +74,11 @@ async def test_body_passed_through_byte_for_byte():
         captured["content"] = request.content
         return _json_response()
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
     sent_body = b'{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'
 
     await adapter.relay(
-        route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+        route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
         auth=_auth(),
         context=_context(),
         body=sent_body,
@@ -96,10 +96,10 @@ async def test_route_and_caller_headers_both_present():
         captured["headers"] = request.headers
         return _json_response()
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
     await adapter.relay(
-        route=McpResolvedRoute(
+        route=MCPResolvedRoute(
             url=f"https://{_PUBLIC_IP}/mcp", headers={"X-Route-Header": "route"}
         ),
         auth=_auth(),
@@ -123,10 +123,10 @@ async def test_caller_header_wins_on_collision_with_route_header():
         captured["headers"] = request.headers
         return _json_response()
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
     await adapter.relay(
-        route=McpResolvedRoute(
+        route=MCPResolvedRoute(
             url=f"https://{_PUBLIC_IP}/mcp", headers={"X-Shared": "route-value"}
         ),
         auth=_auth(),
@@ -147,17 +147,17 @@ async def test_upstream_status_and_body_relayed_untouched():
             content=b'{"jsonrpc": "2.0", "id": 1, "result": {"ok": true}}',
         )
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
     result = await adapter.relay(
-        route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+        route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
         auth=_auth(),
         context=_context(),
         body=b"{}",
         headers={},
     )
 
-    assert isinstance(result, McpRelayResult)
+    assert isinstance(result, MCPRelayResult)
     assert result.status_code == 200
     assert result.body == b'{"jsonrpc": "2.0", "id": 1, "result": {"ok": true}}'
     assert result.headers["x-upstream"] == "1"
@@ -165,12 +165,12 @@ async def test_upstream_status_and_body_relayed_untouched():
 
 @pytest.mark.asyncio
 async def test_brokered_auth_is_rejected():
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(lambda r: _json_response()))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(lambda r: _json_response()))
 
     with pytest.raises(TypeError):
         await adapter.relay(
-            route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
-            auth=McpBrokeredAuth.model_construct(connection=SimpleNamespace()),
+            route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+            auth=MCPBrokeredAuth.model_construct(connection=SimpleNamespace()),
             context=_context(),
             body=b"{}",
             headers={},
@@ -190,10 +190,10 @@ async def test_no_authorization_header_when_secret_is_none():
         captured["headers"] = request.headers
         return _json_response()
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
     await adapter.relay(
-        route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+        route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
         auth=_auth(secret=None),
         context=_context(),
         body=b"{}",
@@ -207,7 +207,7 @@ async def test_no_authorization_header_when_secret_is_none():
 async def test_authorization_header_derived_from_oauth_grant():
     """`OAuthGrantSettingsDTO` (entities.md §4.5) isn't in this codebase yet (WP16,
     wave 3), so the mock secret is a SimpleNamespace shaped like its future
-    `.secret.data.grant.{access_token,token_type}` — the shape HttpMcpAdapter reads
+    `.secret.data.grant.{access_token,token_type}` — the shape HttpMCPAdapter reads
     defensively via getattr."""
     captured = {}
 
@@ -215,7 +215,7 @@ async def test_authorization_header_derived_from_oauth_grant():
         captured["headers"] = request.headers
         return _json_response()
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
     mock_secret = SimpleNamespace(
         secret=SimpleNamespace(
             data=SimpleNamespace(
@@ -225,8 +225,8 @@ async def test_authorization_header_derived_from_oauth_grant():
     )
 
     await adapter.relay(
-        route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
-        auth=McpDirectAuth.model_construct(secret=mock_secret),
+        route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+        auth=MCPDirectAuth.model_construct(secret=mock_secret),
         context=_context(),
         body=b"{}",
         headers={},
@@ -245,11 +245,11 @@ async def test_connection_failure_raises_mcp_upstream_error_with_no_false_status
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection refused", request=request)
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
-    with pytest.raises(McpUpstreamError) as excinfo:
+    with pytest.raises(MCPUpstreamError) as excinfo:
         await adapter.relay(
-            route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+            route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
             auth=_auth(),
             context=_context(),
             body=b"{}",
@@ -272,10 +272,10 @@ async def test_jsonrpc_error_body_is_returned_not_raised():
             },
         )
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
     result = await adapter.relay(
-        route=McpResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+        route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
         auth=_auth(),
         context=_context(),
         body=b"{}",
@@ -301,11 +301,11 @@ async def test_jsonrpc_error_body_is_returned_not_raised():
     ],
 )
 async def test_blocked_targets_are_refused(url):
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(lambda r: _json_response()))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(lambda r: _json_response()))
 
-    with pytest.raises(McpUpstreamError):
+    with pytest.raises(MCPUpstreamError):
         await adapter.relay(
-            route=McpResolvedRoute(url=url),
+            route=MCPResolvedRoute(url=url),
             auth=_auth(),
             context=_context(),
             body=b"{}",
@@ -315,11 +315,11 @@ async def test_blocked_targets_are_refused(url):
 
 @pytest.mark.asyncio
 async def test_plain_http_public_host_is_refused():
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(lambda r: _json_response()))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(lambda r: _json_response()))
 
-    with pytest.raises(McpUpstreamError):
+    with pytest.raises(MCPUpstreamError):
         await adapter.relay(
-            route=McpResolvedRoute(url=f"http://{_PUBLIC_IP}/mcp"),
+            route=MCPResolvedRoute(url=f"http://{_PUBLIC_IP}/mcp"),
             auth=_auth(),
             context=_context(),
             body=b"{}",
@@ -339,11 +339,11 @@ async def test_unresolvable_hostname_gives_resolution_message_not_blocked_messag
             socket.gaierror("Name or service not known")
         ),
     )
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(lambda r: _json_response()))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(lambda r: _json_response()))
 
-    with pytest.raises(McpUpstreamError) as excinfo:
+    with pytest.raises(MCPUpstreamError) as excinfo:
         await adapter.relay(
-            route=McpResolvedRoute(url="https://this-does-not-exist.invalid/mcp"),
+            route=MCPResolvedRoute(url="https://this-does-not-exist.invalid/mcp"),
             auth=_auth(),
             context=_context(),
             body=b"{}",
@@ -367,10 +367,10 @@ async def test_hostname_resolves_to_literal_ip_with_host_header_preserved(monkey
         captured["host_header"] = request.headers["host"]
         return _json_response()
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
     await adapter.relay(
-        route=McpResolvedRoute(url="https://mcp.example.com/mcp"),
+        route=MCPResolvedRoute(url="https://mcp.example.com/mcp"),
         auth=_auth(),
         context=_context(),
         body=b"{}",
@@ -393,10 +393,10 @@ async def test_host_allowlist_bypasses_the_guard(monkeypatch):
         captured["host"] = request.url.host
         return _json_response()
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
     result = await adapter.relay(
-        route=McpResolvedRoute(url="http://internal-mcp.local/mcp"),
+        route=MCPResolvedRoute(url="http://internal-mcp.local/mcp"),
         auth=_auth(),
         context=_context(),
         body=b"{}",
@@ -422,12 +422,12 @@ async def test_endpoint_timeout_config_is_respected(monkeypatch):
 
     monkeypatch.setattr(httpx.AsyncClient, "__init__", spy_init)
 
-    adapter = HttpMcpAdapter(transport=httpx.MockTransport(handler))
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
     await adapter.relay(
-        route=McpResolvedRoute(
+        route=MCPResolvedRoute(
             url=f"https://{_PUBLIC_IP}/mcp",
-            config=McpEndpointConfig(timeout_seconds=5.0),
+            settings=MCPEndpointSettings(timeout_seconds=5.0),
         ),
         auth=_auth(),
         context=_context(),
@@ -439,22 +439,51 @@ async def test_endpoint_timeout_config_is_respected(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Namespace scoping: the guard is HttpMcpAdapter's, not McpUpstreamInterface's.
-# The `agenta` namespace routes to MockMcpAdapter (WP5), which never makes an
+# Namespace scoping: the guard is HttpMCPAdapter's, not MCPUpstreamInterface's.
+# The `agenta` namespace routes to MockMCPAdapter (WP5), which never makes an
 # outbound call at all, so a private-looking route.url on it is never refused.
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_agenta_route_to_a_private_address_is_not_refused():
-    adapter = MockMcpAdapter()
+    adapter = MockMCPAdapter()
 
     result = await adapter.relay(
-        route=McpResolvedRoute(url="http://127.0.0.1/mcp"),
+        route=MCPResolvedRoute(url="http://127.0.0.1/mcp"),
         auth=_auth(),
-        context=McpCallContext(method="tools/list"),
+        context=MCPCallContext(method="tools/list"),
         body=b'{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}',
         headers={},
     )
 
     assert result.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Gateway-only headers never reach a third-party server (D31)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("header", ["X-AG-Credentials", "Authorization"])
+async def test_gateway_credentials_are_never_forwarded_upstream(header):
+    """The caller's headers are forwarded wholesale except these: they authenticate
+    the caller INTO the gateway and are ours, not the upstream's."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["headers"] = request.headers
+        return _json_response()
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    await adapter.relay(
+        route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+        auth=_auth(secret=None),
+        context=_context(),
+        body=b"{}",
+        headers={header: "Secret leaked-token"},
+    )
+
+    assert header.lower() not in captured["headers"]

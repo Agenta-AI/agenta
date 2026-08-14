@@ -1,4 +1,4 @@
-"""MockMcpAdapter: the in-process mock MCP upstream (entities.md §7.1, D23).
+"""MockMCPAdapter: the in-process mock MCP upstream (entities.md §7.1, D23).
 
 Unlike the real `http`/`composio` adapters, this one *is* the upstream — it
 parses `body` (the caller's JSON-RPC payload) itself and answers in-process,
@@ -18,10 +18,10 @@ Three tools, advertised by `tools/list` and dispatched by `tools/call`'s
 
 `notifications/*` returns 202 with an empty body, matching the runner's
 internal MCP server (services/runner/src/tools/tool-mcp-http.ts). Any other
-method is a transport-level failure: McpUpstreamError(status_code=501) — there
+method is a transport-level failure: MCPUpstreamError(status_code=501) — there
 is no fourth method to mock.
 
-Forced scope challenges (McpScopeInsufficientError) are explicitly not built
+Forced scope challenges (MCPScopeInsufficientError) are explicitly not built
 here (D23's "later"): that type is unreachable until the OAuth checkpoint
 (wave 3); adding a tool that raises it now would exercise a 403-handling path
 that does not exist yet. Extension point: a `scope-challenge` tool would live
@@ -33,14 +33,14 @@ import json
 from typing import Any, Dict
 
 from oss.src.core.gateways.mcps.dtos import (
-    McpCallContext,
-    McpRelayAuth,
-    McpResolvedRoute,
+    MCPCallContext,
+    MCPRelayAuth,
+    MCPResolvedRoute,
 )
-from oss.src.core.gateways.mcps.interfaces import McpRelayResult, McpUpstreamInterface
-from oss.src.core.gateways.mcps.types import McpUpstreamError
+from oss.src.core.gateways.mcps.interfaces import MCPRelayResult, MCPUpstreamInterface
+from oss.src.core.gateways.mcps.types import MCPUpstreamError
 
-_PROTOCOL_VERSION = "2026-07-28"  # pinned per McpCallContext's own docstring
+_PROTOCOL_VERSION = "2026-07-28"  # pinned per MCPCallContext's own docstring
 
 _TOOLS = [
     {
@@ -94,17 +94,17 @@ def _initialize_result() -> Dict[str, Any]:
     }
 
 
-class MockMcpAdapter(McpUpstreamInterface):
+class MockMCPAdapter(MCPUpstreamInterface):
     async def relay(
         self,
         *,
-        route: McpResolvedRoute,
-        auth: McpRelayAuth,
+        route: MCPResolvedRoute,
+        auth: MCPRelayAuth,
         #
-        context: McpCallContext,
+        context: MCPCallContext,
         body: bytes,
         headers: Dict[str, str],
-    ) -> McpRelayResult:
+    ) -> MCPRelayResult:
         try:
             payload = json.loads(body) if body else {}
         except (json.JSONDecodeError, TypeError):
@@ -114,7 +114,7 @@ class MockMcpAdapter(McpUpstreamInterface):
         request_id = payload.get("id")
 
         if method.startswith("notifications/"):
-            return McpRelayResult(status_code=202, headers={}, body=b"")
+            return MCPRelayResult(status_code=202, headers={}, body=b"")
 
         if method == "initialize":
             result = _initialize_result()
@@ -123,14 +123,14 @@ class MockMcpAdapter(McpUpstreamInterface):
         elif method == "tools/call":
             result = await _dispatch_tool_call(payload.get("params") or {})
         else:
-            raise McpUpstreamError(
+            raise MCPUpstreamError(
                 target=route.url,
                 status_code=501,
                 detail=f"unsupported method: {method}",
             )
 
         response = {"jsonrpc": "2.0", "id": request_id, "result": result}
-        return McpRelayResult(
+        return MCPRelayResult(
             status_code=200,
             headers={"content-type": "application/json"},
             body=json.dumps(response).encode(),

@@ -7,12 +7,12 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 
-from oss.src.dbs.postgres.gateways.llms.dbas import LlmEndpointDBA
+from oss.src.dbs.postgres.gateways.llms.dbas import LLMEndpointDBA
 from oss.src.dbs.postgres.shared.base import Base
 
 
-class LlmEndpointDBE(Base, LlmEndpointDBA):
-    __tablename__ = "llm_gateway_endpoints"
+class LLMEndpointDBE(Base, LLMEndpointDBA):
+    __tablename__ = "llms_endpoints"
 
     __table_args__ = (
         PrimaryKeyConstraint("project_id", "id"),
@@ -21,15 +21,15 @@ class LlmEndpointDBE(Base, LlmEndpointDBA):
         UniqueConstraint(
             "project_id",
             "slug",
-            name="uq_llm_gateway_endpoints_project_slug",
+            name="uq_llms_endpoints_project_slug",
         ),
         Index(
-            "ix_llm_gateway_endpoints_project_provider",
+            "ix_llms_endpoints_project_provider",
             "project_id",
             "provider_key",
         ),
         Index(
-            "ix_llm_gateway_endpoints_flags",
+            "ix_llms_endpoints_flags",
             "flags",
             postgresql_using="gin",
         ),

@@ -1,4 +1,4 @@
-"""`LlmGatewayService` (entities.md §8): management CRUD, the generated-endpoint merge, and
+"""`LLMGatewayService` (entities.md §8): management CRUD, the generated-endpoint merge, and
 the relay path's policy/allowlist/ceiling/secret/adapter-selection pipeline.
 """
 
@@ -15,25 +15,26 @@ from oss.src.core.gateways.llms.catalog import (
     standard_llm_endpoints,
 )
 from oss.src.core.gateways.llms.dtos import (
-    LlmCallContext,
-    LlmDeploymentKind,
-    LlmEndpoint,
-    LlmEndpointConfig,
-    LlmEndpointCreate,
-    LlmEndpointEdit,
-    LlmEndpointQuery,
-    LlmEndpointRoute,
-    LlmResolvedRoute,
+    LLMCallContext,
+    LLMDeploymentKind,
+    LLMEndpoint,
+    LLMEndpointSettings,
+    LLMModelFilter,
+    LLMEndpointCreate,
+    LLMEndpointEdit,
+    LLMEndpointQuery,
+    LLMEndpointRoute,
+    LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.interfaces import (
-    LlmEndpointsDAOInterface,
-    LlmRelayResult,
+    LLMEndpointsDAOInterface,
+    LLMRelayResult,
 )
-from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry, select_upstream
+from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
 from oss.src.core.gateways.llms.types import (
-    LlmEndpointNotFoundError,
-    LlmModelNotAllowedError,
-    LlmUpstreamError,
+    LLMEndpointNotFoundError,
+    LLMModelNotAllowedError,
+    LLMUpstreamError,
 )
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
@@ -62,10 +63,10 @@ class _ResolvedLlmTarget:
     namespace: GatewayEndpointNamespace
     name: str
     provider_key: str
-    deployment: LlmDeploymentKind
-    model_slugs: List[str]
-    route_data: LlmEndpointRoute
-    config: LlmEndpointConfig
+    deployment_kind: LLMDeploymentKind
+    models: LLMModelFilter
+    route_data: LLMEndpointRoute
+    settings: LLMEndpointSettings
     endpoint_id: Optional[UUID] = None
     secret_id: Optional[UUID] = None
     is_active: bool = True
@@ -91,20 +92,21 @@ class _ResolvedLlmTarget:
         # nothing to resolve.
         return None
 
-    def route(self, context: LlmCallContext) -> LlmResolvedRoute:
-        return LlmResolvedRoute(
+    def route(self, context: LLMCallContext) -> LLMResolvedRoute:
+        return LLMResolvedRoute(
             provider_key=self.provider_key,
-            deployment=self.deployment,
+            deployment_kind=self.deployment_kind,
             model=context.model,
             base_url=self.route_data.base_url,
             api_version=self.route_data.api_version,
             region=self.route_data.region,
             headers=self.route_data.headers,
-            config=self.config,
+            extras=self.route_data.extras,
+            settings=self.settings,
         )
 
 
-def _parse_call_context(body: bytes) -> LlmCallContext:
+def _parse_call_context(body: bytes) -> LLMCallContext:
     """The service's own model/stream extraction — a private duplicate of WP6's
     `apis/fastapi/gateways/llms/utils.py::parse_llm_call_context`, not an import of it: core
     must not import the api layer (`api/AGENTS.md`'s layering rule), and this package owns
@@ -116,7 +118,7 @@ def _parse_call_context(body: bytes) -> LlmCallContext:
     model = payload.get("model") if isinstance(payload, dict) else None
     if not model:
         raise ValueError("request body names no model")
-    return LlmCallContext(model=model, stream=bool(payload.get("stream", False)))
+    return LLMCallContext(model=model, stream=bool(payload.get("stream", False)))
 
 
 def _requested_max_output_tokens(body: bytes) -> Optional[int]:
@@ -135,14 +137,14 @@ def _requested_max_output_tokens(body: bytes) -> Optional[int]:
     return None
 
 
-class LlmGatewayService:
+class LLMGatewayService:
     def __init__(
         self,
         *,
-        llm_endpoints_dao: LlmEndpointsDAOInterface,
+        llm_endpoints_dao: LLMEndpointsDAOInterface,
         policy: GatewayPolicyService,
         resolver: SecretsResolverInterface,
-        upstream_registry: LlmUpstreamRegistry,
+        upstream_registry: LLMUpstreamRegistry,
     ) -> None:
         self.llm_endpoints_dao = llm_endpoints_dao
         self.policy = policy
@@ -157,8 +159,8 @@ class LlmGatewayService:
         project_id: UUID,
         user_id: UUID,
         #
-        endpoint: LlmEndpointCreate,
-    ) -> Optional[LlmEndpoint]:
+        endpoint: LLMEndpointCreate,
+    ) -> Optional[LLMEndpoint]:
         return await self.llm_endpoints_dao.create_endpoint(
             project_id=project_id, user_id=user_id, endpoint=endpoint
         )
@@ -169,7 +171,7 @@ class LlmGatewayService:
         project_id: UUID,
         #
         endpoint_id: UUID,
-    ) -> Optional[LlmEndpoint]:
+    ) -> Optional[LLMEndpoint]:
         return await self.llm_endpoints_dao.fetch_endpoint(
             project_id=project_id, endpoint_id=endpoint_id
         )
@@ -180,8 +182,8 @@ class LlmGatewayService:
         project_id: UUID,
         user_id: UUID,
         #
-        endpoint: LlmEndpointEdit,
-    ) -> Optional[LlmEndpoint]:
+        endpoint: LLMEndpointEdit,
+    ) -> Optional[LLMEndpoint]:
         return await self.llm_endpoints_dao.edit_endpoint(
             project_id=project_id, user_id=user_id, endpoint=endpoint
         )
@@ -202,15 +204,15 @@ class LlmGatewayService:
         *,
         project_id: UUID,
         #
-        endpoint: Optional[LlmEndpointQuery] = None,
+        endpoint: Optional[LLMEndpointQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[LlmEndpoint]:
+    ) -> List[LLMEndpoint]:
         return await self.llm_endpoints_dao.query_endpoints(
             project_id=project_id, endpoint=endpoint, windowing=windowing
         )
 
-    async def list_endpoints(self, *, scope: AuthScope) -> List[LlmEndpoint]:
+    async def list_endpoints(self, *, scope: AuthScope) -> List[LLMEndpoint]:
         """The merge (D20): generated standard endpoints, existing iff a provider_key secret
         exists for the provider, plus every custom row. The only read that spans namespaces.
 
@@ -260,7 +262,7 @@ class LlmGatewayService:
                 permission=Permission.USE_LLM_ENDPOINTS, target=target.target_path()
             )
 
-        return list(target.model_slugs)
+        return target.models.enumerate()
 
     async def relay_chat_completion(
         self,
@@ -271,7 +273,7 @@ class LlmGatewayService:
         #
         body: bytes,
         headers: Dict[str, str],
-    ) -> LlmRelayResult:
+    ) -> LLMRelayResult:
         target = await self._resolve_target(
             project_id=scope.project_id, namespace=namespace, name=name
         )
@@ -313,7 +315,7 @@ class LlmGatewayService:
         )
 
         adapter = self.upstream_registry.get(
-            select_upstream(target.provider_key, target.deployment)
+            select_upstream(target.provider_key, target.deployment_kind)
         )
         # Enforced here, not per adapter: `timeout_seconds` is a property of the
         # endpoint, and an adapter that forgets it would otherwise have no ceiling at
@@ -329,10 +331,10 @@ class LlmGatewayService:
                     body=body,
                     headers=headers,
                 ),
-                timeout=target.config.timeout_seconds,
+                timeout=target.settings.timeout_seconds,
             )
         except asyncio.TimeoutError as e:
-            raise LlmUpstreamError(
+            raise LLMUpstreamError(
                 provider_key=target.provider_key,
                 status_code=None,
                 detail="upstream timed out",
@@ -359,15 +361,15 @@ class LlmGatewayService:
         if namespace == GatewayEndpointNamespace.STANDARD:
             endpoint = standard_llm_endpoint(provider_key=name)
             if endpoint is None:
-                raise LlmEndpointNotFoundError(namespace=namespace, name=name)
+                raise LLMEndpointNotFoundError(namespace=namespace, name=name)
             return _ResolvedLlmTarget(
                 namespace=GatewayEndpointNamespace.STANDARD,
                 name=name,
                 provider_key=endpoint.provider_key,
-                deployment=endpoint.deployment,
-                model_slugs=endpoint.data.model_slugs,
+                deployment_kind=endpoint.deployment_kind,
+                models=endpoint.data.models,
                 route_data=endpoint.data.route,
-                config=endpoint.data.config,
+                settings=endpoint.data.settings,
             )
 
         if namespace == GatewayEndpointNamespace.CUSTOM:
@@ -375,22 +377,22 @@ class LlmGatewayService:
                 project_id=project_id, slug=name
             )
             if row is None:
-                raise LlmEndpointNotFoundError(namespace=namespace, name=name)
+                raise LLMEndpointNotFoundError(namespace=namespace, name=name)
             return _ResolvedLlmTarget(
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=row.slug or name,
                 provider_key=row.provider_key,
-                deployment=row.deployment,
-                model_slugs=row.data.model_slugs,
+                deployment_kind=row.deployment_kind,
+                models=row.data.models,
                 route_data=row.data.route,
-                config=row.data.config,
+                settings=row.data.settings,
                 endpoint_id=row.id,
                 secret_id=row.secret_id,
                 is_active=row.flags.is_active,
             )
 
         # BUILTIN: reserved, empty on the LLM plane until we supply the key (D30).
-        raise LlmEndpointNotFoundError(namespace=namespace, name=name)
+        raise LLMEndpointNotFoundError(namespace=namespace, name=name)
 
     @staticmethod
     def _check_active(*, target: _ResolvedLlmTarget) -> None:
@@ -398,15 +400,15 @@ class LlmGatewayService:
             raise GatewayEndpointInactiveError(target=target.target_path())
 
     def _check_allowlist(
-        self, *, target: _ResolvedLlmTarget, context: LlmCallContext
+        self, *, target: _ResolvedLlmTarget, context: LLMCallContext
     ) -> None:
-        if context.model not in target.model_slugs:
-            raise LlmModelNotAllowedError(
+        if not target.models.allows(context.model):
+            raise LLMModelNotAllowedError(
                 model=context.model, namespace=target.namespace, name=target.name
             )
 
     def _check_ceilings(self, *, target: _ResolvedLlmTarget, body: bytes) -> None:
-        ceiling = target.config.max_output_tokens
+        ceiling = target.settings.max_output_tokens
         if ceiling is None:
             return
         requested = _requested_max_output_tokens(body)
@@ -420,7 +422,7 @@ class LlmGatewayService:
         )
 
     def _outcome_from(
-        self, *, result: LlmRelayResult, secret: Optional[ResolvedSecret]
+        self, *, result: LLMRelayResult, secret: Optional[ResolvedSecret]
     ) -> GatewayOutcome:
         return GatewayOutcome(
             status_code=result.status_code,
@@ -436,7 +438,7 @@ class LlmGatewayService:
         scope: AuthScope,
         target: GatewayTarget,
         decision: PolicyDecision,
-        result: LlmRelayResult,
+        result: LLMRelayResult,
         secret: Optional[ResolvedSecret],
     ) -> AsyncIterator[bytes]:
         try:

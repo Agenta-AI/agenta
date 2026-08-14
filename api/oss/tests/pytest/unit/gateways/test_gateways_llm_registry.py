@@ -6,16 +6,16 @@ from pathlib import Path
 import pytest
 from agenta.sdk.utils.assets import supported_llm_models
 
-from oss.src.core.gateways.llms.dtos import LlmDeploymentKind
-from oss.src.core.gateways.llms.interfaces import LlmRelayResult, LlmUpstreamInterface
-from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry, select_upstream
-from oss.src.core.gateways.llms.types import LlmAdapterNotFoundError
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
+from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
+from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
+from oss.src.core.gateways.llms.types import LLMAdapterNotFoundError
 
 _TRANSLATED_DEPLOYMENTS = [
-    LlmDeploymentKind.AZURE,
-    LlmDeploymentKind.BEDROCK,
-    LlmDeploymentKind.SAGEMAKER,
-    LlmDeploymentKind.VERTEX,
+    LLMDeploymentKind.AZURE,
+    LLMDeploymentKind.BEDROCK,
+    LLMDeploymentKind.SAGEMAKER,
+    LLMDeploymentKind.VERTEX,
 ]
 
 _DIRECT_PASSTHROUGH_PROVIDERS = [
@@ -40,30 +40,32 @@ _DIRECT_PASSTHROUGH_PROVIDERS_SET = set(_DIRECT_PASSTHROUGH_PROVIDERS)
 _DIRECT_TRANSLATED_PROVIDERS_SET = set(_DIRECT_TRANSLATED_PROVIDERS)
 
 
-@pytest.mark.parametrize("deployment", _TRANSLATED_DEPLOYMENTS)
+@pytest.mark.parametrize("deployment_kind", _TRANSLATED_DEPLOYMENTS)
 @pytest.mark.parametrize("provider_key", ["openai", "anthropic", "acme"])
-def test_cloud_reseller_deployments_are_always_translated(provider_key, deployment):
-    assert select_upstream(provider_key, deployment) == "translated"
+def test_cloud_reseller_deployments_are_always_translated(
+    provider_key, deployment_kind
+):
+    assert select_upstream(provider_key, deployment_kind) == "translated"
 
 
 @pytest.mark.parametrize("provider_key", ["openai", "anthropic", "acme"])
 def test_custom_deployment_is_always_passthrough(provider_key):
-    assert select_upstream(provider_key, LlmDeploymentKind.CUSTOM) == "passthrough"
+    assert select_upstream(provider_key, LLMDeploymentKind.CUSTOM) == "passthrough"
 
 
 @pytest.mark.parametrize("provider_key", _DIRECT_PASSTHROUGH_PROVIDERS)
 def test_direct_openai_shaped_providers_are_passthrough(provider_key):
-    assert select_upstream(provider_key, LlmDeploymentKind.DIRECT) == "passthrough"
+    assert select_upstream(provider_key, LLMDeploymentKind.DIRECT) == "passthrough"
 
 
 @pytest.mark.parametrize("provider_key", _DIRECT_TRANSLATED_PROVIDERS)
 def test_direct_non_openai_shaped_providers_are_translated(provider_key):
-    assert select_upstream(provider_key, LlmDeploymentKind.DIRECT) == "translated"
+    assert select_upstream(provider_key, LLMDeploymentKind.DIRECT) == "translated"
 
 
-@pytest.mark.parametrize("deployment", list(LlmDeploymentKind))
-def test_mock_provider_key_always_selects_mock(deployment):
-    assert select_upstream("mock", deployment) == "mock"
+@pytest.mark.parametrize("deployment_kind", list(LLMDeploymentKind))
+def test_mock_provider_key_always_selects_mock(deployment_kind):
+    assert select_upstream("mock", deployment_kind) == "mock"
 
 
 def test_select_upstream_imports_nothing_beyond_llm_deployment_kind():
@@ -87,20 +89,20 @@ def test_select_upstream_imports_nothing_beyond_llm_deployment_kind():
     assert not any("dao" in module.lower() for module in imported_modules)
 
 
-class _StubAdapter(LlmUpstreamInterface):
-    async def relay_chat_completion(self, **kwargs) -> LlmRelayResult:  # noqa: ARG002
+class _StubAdapter(LLMUpstreamInterface):
+    async def relay_chat_completion(self, **kwargs) -> LLMRelayResult:  # noqa: ARG002
         raise NotImplementedError
 
 
 def test_registry_get_raises_on_a_miss():
-    registry = LlmUpstreamRegistry(adapters={})
-    with pytest.raises(LlmAdapterNotFoundError):
+    registry = LLMUpstreamRegistry(adapters={})
+    with pytest.raises(LLMAdapterNotFoundError):
         registry.get("passthrough")
 
 
 def test_registry_get_and_keys_roundtrip():
     adapter = _StubAdapter()
-    registry = LlmUpstreamRegistry(adapters={"passthrough": adapter})
+    registry = LLMUpstreamRegistry(adapters={"passthrough": adapter})
     assert registry.get("passthrough") is adapter
     assert registry.keys() == ["passthrough"]
 
@@ -131,4 +133,4 @@ def test_every_catalogued_direct_provider_maps_to_the_documented_adapter_key():
             if provider_key in _DIRECT_PASSTHROUGH_PROVIDERS_SET
             else "translated"
         )
-        assert select_upstream(provider_key, LlmDeploymentKind.DIRECT) == expected
+        assert select_upstream(provider_key, LLMDeploymentKind.DIRECT) == expected

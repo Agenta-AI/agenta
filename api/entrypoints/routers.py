@@ -164,27 +164,27 @@ from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 
 # GATEWAYS: core/gateways/ (entities.md §9 "Wiring"). Two router objects per plane —
 # management CRUD and the data plane are separate surfaces (§1).
-from oss.src.dbs.postgres.gateways.llms.dao import LlmEndpointsDAO
-from oss.src.dbs.postgres.gateways.mcps.dao import McpEndpointsDAO, McpGrantsDAO
+from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
+from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
-from oss.src.core.gateways.llms.registry import LlmUpstreamRegistry
-from oss.src.core.gateways.llms.service import LlmGatewayService
-from oss.src.core.gateways.llms.providers.mock.adapter import MockLlmAdapter
+from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
+from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
-    PassthroughLlmAdapter,
+    PassthroughLLMAdapter,
 )
-from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLlmAdapter
-from oss.src.core.gateways.mcps.registry import McpUpstreamRegistry
-from oss.src.core.gateways.mcps.service import McpGatewayService
-from oss.src.core.gateways.mcps.providers.mock.adapter import MockMcpAdapter
-from oss.src.core.gateways.mcps.providers.http.adapter import HttpMcpAdapter
-from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter
-from oss.src.apis.fastapi.gateways.llms.proxy import LlmGatewayProxy
-from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter
-from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy
+from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLLMAdapter
+from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
+from oss.src.core.gateways.mcps.service import MCPGatewayService
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
+from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
+from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
+from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
 
-# ComposioMcpAdapter serves the builtin namespace and has no owner in wave 1: no brokered
+# ComposioMCPAdapter serves the builtin namespace and has no owner in wave 1: no brokered
 # target is reachable yet, so our own servers and the mocks are the whole set (D23).
 
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
@@ -1083,48 +1083,45 @@ triggers = TriggersRouter(
 
 # GATEWAYS: storage and the policy core (entities.md §9 "Wiring"). The plane services,
 # their registries and the routers/proxies land with WP6-WP10.
-llm_endpoints_dao = LlmEndpointsDAO(engine=_transactions_engine)
-mcp_endpoints_dao = McpEndpointsDAO(engine=_transactions_engine)
-mcp_grants_dao = McpGrantsDAO(engine=_transactions_engine)
+llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
+mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
 
 secrets_resolver = SecretsResolver(
     vault_service=vault_service,
-    mcp_grants_dao=mcp_grants_dao,
 )
 
 gateway_policy_service = GatewayPolicyService(resolver=secrets_resolver)
 
-llm_gateway_service = LlmGatewayService(
+llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
     policy=gateway_policy_service,
     resolver=secrets_resolver,
-    upstream_registry=LlmUpstreamRegistry(
+    upstream_registry=LLMUpstreamRegistry(
         adapters={
-            "passthrough": PassthroughLlmAdapter(),
-            "translated": TranslatedLlmAdapter(),
-            "mock": MockLlmAdapter(),
+            "passthrough": PassthroughLLMAdapter(),
+            "translated": TranslatedLLMAdapter(),
+            "mock": MockLLMAdapter(),
         }
     ),
 )
 
-mcp_gateway_service = McpGatewayService(
+mcp_gateway_service = MCPGatewayService(
     mcp_endpoints_dao=mcp_endpoints_dao,
-    mcp_grants_dao=mcp_grants_dao,
     policy=gateway_policy_service,
     resolver=secrets_resolver,
     connections_service=connections_service,
-    upstream_registry=McpUpstreamRegistry(
+    upstream_registry=MCPUpstreamRegistry(
         adapters={
-            "http": HttpMcpAdapter(),
-            "mock": MockMcpAdapter(),
+            "http": HttpMCPAdapter(),
+            "mock": MockMCPAdapter(),
         }
     ),
 )
 
-llm_gateway_router = LlmGatewayRouter(llm_gateway_service=llm_gateway_service)
-llm_gateway_proxy = LlmGatewayProxy(llm_gateway_service=llm_gateway_service)
-mcp_gateway_router = McpGatewayRouter(mcp_gateway_service=mcp_gateway_service)
-mcp_gateway_proxy = McpGatewayProxy(mcp_gateway_service=mcp_gateway_service)
+llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
+llm_gateway_proxy = LLMGatewayProxy(llm_gateway_service=llm_gateway_service)
+mcp_gateway_router = MCPGatewayRouter(mcp_gateway_service=mcp_gateway_service)
+mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)
 
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,

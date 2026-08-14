@@ -26,7 +26,7 @@ from oss.src.core.gateways.dtos import (
     GatewayConnectAffordance,
     GatewayConnectionRequirement,
     GatewayConnectionState,
-    GatewayEndpointConfig,
+    GatewayEndpointSettings,
     GatewayEndpointNamespace,
 )
 from oss.src.core.gateways.types import GatewaysError
@@ -40,7 +40,6 @@ from oss.src.core.gateways.policy.dtos import (
     GatewayPlane,
     GatewayTarget,
     GatewayUsage,
-    GrantRef,
     PolicyDecision,
     ProviderKeyRef,
     ResolvedSecret,
@@ -56,61 +55,57 @@ from oss.src.core.gateways.policy.types import (
 from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 
 from oss.src.core.gateways.llms.dtos import (
-    LlmCallContext,
-    LlmDeploymentKind,
-    LlmEndpoint,
-    LlmEndpointConfig,
-    LlmEndpointCreate,
-    LlmEndpointData,
-    LlmEndpointEdit,
-    LlmEndpointFlags,
-    LlmEndpointQuery,
-    LlmEndpointRoute,
-    LlmResolvedRoute,
+    LLMCallContext,
+    LLMDeploymentKind,
+    LLMEndpoint,
+    LLMEndpointCreate,
+    LLMEndpointData,
+    LLMEndpointEdit,
+    LLMEndpointFlags,
+    LLMEndpointQuery,
+    LLMEndpointRoute,
+    LLMEndpointSettings,
+    LLMModelFilter,
+    LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.types import (
-    LlmEndpointNotFoundError,
-    LlmModelNotAllowedError,
-    LlmUpstreamError,
+    LLMEndpointNotFoundError,
+    LLMModelNotAllowedError,
+    LLMUpstreamError,
 )
 from oss.src.core.gateways.llms.interfaces import (
-    LlmEndpointsDAOInterface,
-    LlmRelayResult,
-    LlmUpstreamInterface,
+    LLMEndpointsDAOInterface,
+    LLMRelayResult,
+    LLMUpstreamInterface,
 )
 
 from oss.src.core.gateways.mcps.dtos import (
-    McpBrokeredAuth,
-    McpCallContext,
-    McpDirectAuth,
-    McpEndpoint,
-    McpEndpointConfig,
-    McpEndpointCreate,
-    McpEndpointData,
-    McpEndpointEdit,
-    McpEndpointFlags,
-    McpEndpointQuery,
-    McpGrant,
-    McpGrantCreate,
-    McpGrantFlags,
-    McpGrantQuery,
-    McpOAuthData,
-    McpResolvedRoute,
-    McpToolPolicy,
-    McpToolPolicyMode,
+    MCPBrokeredAuth,
+    MCPCallContext,
+    MCPDirectAuth,
+    MCPEndpoint,
+    MCPEndpointSettings,
+    MCPEndpointCreate,
+    MCPEndpointData,
+    MCPEndpointEdit,
+    MCPEndpointFlags,
+    MCPEndpointQuery,
+    MCPOAuthData,
+    MCPResolvedRoute,
+    MCPEndpointRoute,
+    MCPToolFilter,
 )
 from oss.src.core.gateways.mcps.types import (
-    McpAuthRequiredError,
-    McpEndpointNotFoundError,
-    McpScopeInsufficientError,
-    McpToolNotAllowedError,
-    McpUpstreamError,
+    MCPAuthRequiredError,
+    MCPEndpointNotFoundError,
+    MCPScopeInsufficientError,
+    MCPToolNotAllowedError,
+    MCPUpstreamError,
 )
 from oss.src.core.gateways.mcps.interfaces import (
-    McpEndpointsDAOInterface,
-    McpGrantsDAOInterface,
-    McpRelayResult,
-    McpUpstreamInterface,
+    MCPEndpointsDAOInterface,
+    MCPRelayResult,
+    MCPUpstreamInterface,
 )
 
 from oss.src.apis.fastapi.gateways.exceptions import handle_gateway_exceptions
@@ -130,8 +125,8 @@ def test_gateway_dtos():
     )
     assert requirement.connect is affordance
     assert GatewayEndpointNamespace.BUILTIN.value == "builtin"
-    config = GatewayEndpointConfig(timeout_seconds=30.0, extra_headers={"x": "y"})
-    assert config.timeout_seconds == 30.0
+    settings = GatewayEndpointSettings(timeout_seconds=30.0)
+    assert settings.timeout_seconds == 30.0
 
 
 def test_gateways_error():
@@ -163,7 +158,6 @@ def test_policy_dtos():
 
     assert ProviderKeyRef(provider_key="openai").provider_key == "openai"
     assert BoundSecretRef(secret_id=uuid4()).secret_id is not None
-    assert GrantRef(endpoint_id=uuid4()).endpoint_id is not None
 
     secret = ResolvedSecret(
         secret=_standard_secret(),
@@ -223,60 +217,64 @@ def test_secret_resolver_interface_is_abstract_with_two_methods():
 
 
 def test_llm_dtos():
-    route = LlmEndpointRoute(base_url="https://api.openai.com/v1")
-    config = LlmEndpointConfig(max_output_tokens=4096)
-    data = LlmEndpointData(route=route, model_slugs=["gpt-4o"], config=config)
-    flags = LlmEndpointFlags()
+    route = LLMEndpointRoute(base_url="https://api.openai.com/v1")
+    settings = LLMEndpointSettings(max_output_tokens=4096)
+    data = LLMEndpointData(
+        route=route, models=LLMModelFilter(allowlist=["gpt-4o"]), settings=settings
+    )
+    flags = LLMEndpointFlags()
 
-    endpoint = LlmEndpoint(
+    endpoint = LLMEndpoint(
         id=uuid4(),
         slug="acme-azure",
         provider_key="azure",
-        deployment=LlmDeploymentKind.AZURE,
+        deployment_kind=LLMDeploymentKind.AZURE,
         data=data,
         flags=flags,
     )
     assert endpoint.namespace == GatewayEndpointNamespace.CUSTOM
 
-    create = LlmEndpointCreate(
+    create = LLMEndpointCreate(
         slug="acme-azure",
         provider_key="azure",
-        deployment=LlmDeploymentKind.AZURE,
+        deployment_kind=LLMDeploymentKind.AZURE,
         data=data,
     )
-    assert create.deployment == LlmDeploymentKind.AZURE
+    assert create.deployment_kind == LLMDeploymentKind.AZURE
 
-    edit = LlmEndpointEdit(id=uuid4(), data=data, flags=flags)
+    edit = LLMEndpointEdit(id=uuid4(), data=data, flags=flags)
     assert edit.data is data
 
-    query = LlmEndpointQuery(provider_key="azure", deployment=LlmDeploymentKind.AZURE)
+    query = LLMEndpointQuery(
+        provider_key="azure", deployment_kind=LLMDeploymentKind.AZURE
+    )
     assert query.slug is None
 
-    context = LlmCallContext(model="gpt-4o", stream=True)
+    context = LLMCallContext(model="gpt-4o", stream=True)
     assert context.stream is True
 
-    resolved = LlmResolvedRoute(
+    resolved = LLMResolvedRoute(
         provider_key="azure",
-        deployment=LlmDeploymentKind.AZURE,
+        deployment_kind=LLMDeploymentKind.AZURE,
         model="gpt-4o",
         base_url="https://acme.openai.azure.com",
-        config=config,
+        settings=settings,
     )
     assert resolved.model == "gpt-4o"
 
 
 def test_llm_exceptions():
-    not_found = LlmEndpointNotFoundError(
+    not_found = LLMEndpointNotFoundError(
         namespace=GatewayEndpointNamespace.CUSTOM, name="acme-azure"
     )
     assert "acme-azure" in not_found.message
 
-    not_allowed = LlmModelNotAllowedError(
+    not_allowed = LLMModelNotAllowedError(
         model="gpt-5", namespace=GatewayEndpointNamespace.CUSTOM, name="acme-azure"
     )
     assert not_allowed.model == "gpt-5"
 
-    upstream = LlmUpstreamError(provider_key="azure", status_code=500, detail="boom")
+    upstream = LLMUpstreamError(provider_key="azure", status_code=500, detail="boom")
     assert upstream.status_code == 500
 
 
@@ -285,7 +283,7 @@ async def test_llm_relay_result_and_ports():
     async def _body():
         yield b"chunk"
 
-    result = LlmRelayResult(status_code=200, headers={}, body=_body())
+    result = LLMRelayResult(status_code=200, headers={}, body=_body())
     assert {f.name for f in fields(result)} == {
         "status_code",
         "headers",
@@ -293,7 +291,7 @@ async def test_llm_relay_result_and_ports():
         "usage",
     }
 
-    assert LlmEndpointsDAOInterface.__abstractmethods__ == frozenset(
+    assert LLMEndpointsDAOInterface.__abstractmethods__ == frozenset(
         {
             "create_endpoint",
             "fetch_endpoint",
@@ -303,7 +301,7 @@ async def test_llm_relay_result_and_ports():
             "query_endpoints",
         }
     )
-    assert LlmUpstreamInterface.__abstractmethods__ == frozenset(
+    assert LLMUpstreamInterface.__abstractmethods__ == frozenset(
         {"relay_chat_completion"}
     )
 
@@ -312,20 +310,20 @@ async def test_llm_relay_result_and_ports():
 
 
 def test_mcp_dtos():
-    tool_policy = McpToolPolicy(mode=McpToolPolicyMode.INCLUDE, names=["search"])
-    config = McpEndpointConfig(timeout_seconds=10.0)
-    oauth = McpOAuthData(
+    tools = MCPToolFilter(allowlist=["search"])
+    settings = MCPEndpointSettings(timeout_seconds=10.0)
+    oauth = MCPOAuthData(
         resource="https://mcp.acme.com", authorization_server="https://auth.acme.com"
     )
-    data = McpEndpointData(
-        url="https://mcp.acme.com",
-        tool_policy=tool_policy,
-        config=config,
+    data = MCPEndpointData(
+        route=MCPEndpointRoute(base_url="https://mcp.acme.com"),
+        tools=tools,
+        settings=settings,
         oauth=oauth,
     )
-    flags = McpEndpointFlags()
+    flags = MCPEndpointFlags()
 
-    endpoint = McpEndpoint(
+    endpoint = MCPEndpoint(
         id=uuid4(),
         slug="acme-notion",
         auth_mode=GatewayAuthScheme.OAUTH,
@@ -334,38 +332,26 @@ def test_mcp_dtos():
     )
     assert endpoint.namespace == GatewayEndpointNamespace.CUSTOM
 
-    create = McpEndpointCreate(
+    create = MCPEndpointCreate(
         slug="acme-notion", auth_mode=GatewayAuthScheme.OAUTH, data=data
     )
     assert create.data is data
 
-    edit = McpEndpointEdit(id=uuid4(), auth_mode=GatewayAuthScheme.NONE, data=data)
+    edit = MCPEndpointEdit(id=uuid4(), auth_mode=GatewayAuthScheme.NONE, data=data)
     assert edit.auth_mode == GatewayAuthScheme.NONE
 
-    query = McpEndpointQuery(auth_mode=GatewayAuthScheme.OAUTH)
+    query = MCPEndpointQuery(auth_mode=GatewayAuthScheme.OAUTH)
     assert query.slug is None
 
-    grant_flags = McpGrantFlags()
-    grant = McpGrant(
-        id=uuid4(), endpoint_id=uuid4(), secret_id=uuid4(), flags=grant_flags
-    )
-    assert grant.user_id is None
-
-    grant_create = McpGrantCreate(endpoint_id=uuid4(), secret_id=uuid4())
-    assert grant_create.flags.is_valid is True
-
-    grant_query = McpGrantQuery(endpoint_id=uuid4())
-    assert grant_query.user_id is None
-
-    call_context = McpCallContext(method="tools/call", target="acme-notion")
+    call_context = MCPCallContext(method="tools/call", target="acme-notion")
     assert call_context.method == "tools/call"
 
-    resolved_route = McpResolvedRoute(
-        url="https://mcp.acme.com", headers={"x": "y"}, config=config
+    resolved_route = MCPResolvedRoute(
+        url="https://mcp.acme.com", headers={"x": "y"}, settings=settings
     )
     assert resolved_route.url == "https://mcp.acme.com"
 
-    direct_auth = McpDirectAuth(
+    direct_auth = MCPDirectAuth(
         secret=ResolvedSecret(
             secret=_standard_secret(),
             owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
@@ -380,12 +366,12 @@ def test_mcp_dtos():
         provider_key=ConnectionProviderKind.COMPOSIO,
         integration_key="notion",
     )
-    brokered_auth = McpBrokeredAuth(connection=connection)
+    brokered_auth = MCPBrokeredAuth(connection=connection)
     assert brokered_auth.connection.integration_key == "notion"
 
 
 def test_mcp_exceptions():
-    not_found = McpEndpointNotFoundError(
+    not_found = MCPEndpointNotFoundError(
         namespace=GatewayEndpointNamespace.BUILTIN,
         name="my-notion",
         provider="composio",
@@ -393,7 +379,7 @@ def test_mcp_exceptions():
     )
     assert "builtin/composio/notion/my-notion" in not_found.message
 
-    not_allowed = McpToolNotAllowedError(
+    not_allowed = MCPToolNotAllowedError(
         tool="search", namespace=GatewayEndpointNamespace.CUSTOM, name="acme-notion"
     )
     assert not_allowed.tool == "search"
@@ -401,23 +387,23 @@ def test_mcp_exceptions():
     requirement = GatewayConnectionRequirement(
         target="custom/acme-notion", state=GatewayConnectionState.NEEDS_AUTH
     )
-    auth_required = McpAuthRequiredError(requirement=requirement)
+    auth_required = MCPAuthRequiredError(requirement=requirement)
     assert auth_required.requirement is requirement
 
-    scope_insufficient = McpScopeInsufficientError(
+    scope_insufficient = MCPScopeInsufficientError(
         target="custom/acme-notion", scopes=["notion:write"]
     )
     assert scope_insufficient.scopes == ["notion:write"]
 
-    upstream = McpUpstreamError(target="custom/acme-notion", status_code=502)
+    upstream = MCPUpstreamError(target="custom/acme-notion", status_code=502)
     assert upstream.status_code == 502
 
 
 def test_mcp_relay_result_and_ports():
-    result = McpRelayResult(status_code=200, headers={}, body=b"{}")
+    result = MCPRelayResult(status_code=200, headers={}, body=b"{}")
     assert {f.name for f in fields(result)} == {"status_code", "headers", "body"}
 
-    assert McpEndpointsDAOInterface.__abstractmethods__ == frozenset(
+    assert MCPEndpointsDAOInterface.__abstractmethods__ == frozenset(
         {
             "create_endpoint",
             "fetch_endpoint",
@@ -427,17 +413,7 @@ def test_mcp_relay_result_and_ports():
             "query_endpoints",
         }
     )
-    assert McpGrantsDAOInterface.__abstractmethods__ == frozenset(
-        {
-            "create_grant",
-            "fetch_grant",
-            "fetch_grant_by_id",
-            "update_grant",
-            "delete_grant",
-            "query_grants",
-        }
-    )
-    assert McpUpstreamInterface.__abstractmethods__ == frozenset({"relay"})
+    assert MCPUpstreamInterface.__abstractmethods__ == frozenset({"relay"})
 
 
 # --- API boundary -------------------------------------------------------------- #
@@ -457,13 +433,13 @@ async def test_handle_gateway_exceptions_passes_through():
     "raised, expected_status",
     [
         (
-            LlmEndpointNotFoundError(
+            LLMEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
             ),
             404,
         ),
         (
-            McpEndpointNotFoundError(
+            MCPEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
             ),
             404,
@@ -472,13 +448,13 @@ async def test_handle_gateway_exceptions_passes_through():
         (PolicyDeniedError(permission=Permission.USE_MOUNTS, target="t"), 403),
         (EntitlementDeniedError(key="k", target="t"), 403),
         (
-            LlmModelNotAllowedError(
+            LLMModelNotAllowedError(
                 model="m", namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
             ),
             403,
         ),
         (
-            McpToolNotAllowedError(
+            MCPToolNotAllowedError(
                 tool="t", namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
             ),
             403,
@@ -490,11 +466,11 @@ async def test_handle_gateway_exceptions_passes_through():
             400,
         ),
         (SecretInvalidError(target="t"), 409),
-        (McpScopeInsufficientError(target="t", scopes=["a"]), 409),
-        (LlmUpstreamError(provider_key="openai", status_code=503), 502),
-        (LlmUpstreamError(provider_key="openai", status_code=429), 424),
-        (LlmUpstreamError(provider_key="openai"), 424),
-        (McpUpstreamError(target="t", status_code=500), 502),
+        (MCPScopeInsufficientError(target="t", scopes=["a"]), 409),
+        (LLMUpstreamError(provider_key="openai", status_code=503), 502),
+        (LLMUpstreamError(provider_key="openai", status_code=429), 424),
+        (LLMUpstreamError(provider_key="openai"), 424),
+        (MCPUpstreamError(target="t", status_code=500), 502),
     ],
 )
 async def test_handle_gateway_exceptions_mapping(raised, expected_status):
@@ -538,7 +514,7 @@ async def test_auth_required_carries_the_connect_affordance():
 
     @handle_gateway_exceptions()
     async def _handler():
-        raise McpAuthRequiredError(requirement=requirement)
+        raise MCPAuthRequiredError(requirement=requirement)
 
     with pytest.raises(HTTPException) as excinfo:
         await _handler()

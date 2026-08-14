@@ -67,13 +67,7 @@ class BoundSecretRef(BaseModel):
     secret_id: UUID
 
 
-class GrantRef(BaseModel):
-    """An OAuth-protected MCP endpoint: find this owner's grant (§2.5)."""
-
-    endpoint_id: UUID
-
-
-SecretRef = Union[ProviderKeyRef, BoundSecretRef, GrantRef]
+SecretRef = Union[ProviderKeyRef, BoundSecretRef]
 
 
 class ResolvedSecret(BaseModel):

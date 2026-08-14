@@ -39,18 +39,19 @@ class SecretsResolverInterface(ABC):
                            project's; SecretNotFoundError(USER) naming the
                            narrower owner if neither exists.
 
-        Until user-owned secrets ship, the user arm of every mode finds nothing
-        and the modes degrade to project lookup or failure — behaviourally
-        today's world, with the signature already right.
+        User-owned secrets are out of scope (`out-of-scope.md`), so the user arm
+        of every mode finds nothing and the modes degrade to project lookup or
+        failure. The signature keeps the owner anyway, per D10: reopening this is
+        then a new table and a new arm, never a signature change.
 
         By ref arm:
           ProviderKeyRef -> scan the project's provider_key / custom_provider
                             secrets for the provider, as the SDK's settings
                             builder does today (`models.md`).
           BoundSecretRef -> VaultService.get_secret_by_id, scoped to the project.
-          GrantRef       -> the grants DAO's owner-keyed fetch (§7), then
-                            get_secret_by_id; SecretInvalidError when the
-                            grant's is_valid is False (D18).
+                            Both planes' endpoints name their secret this way,
+                            OAuth included; SecretInvalidError when the
+                            endpoint's is_valid is False (D18).
 
         Raises, never returns None: no path silently yields "no secret"
         (`secrets.md`), and the exceptions carry which owner is missing so the

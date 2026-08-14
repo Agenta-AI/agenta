@@ -1,28 +1,24 @@
 """`SecretsResolver` — the one lookup both gateways call to turn a `SecretRef`
 into a `(secret, owner, payer)` triple (`entities.md` §7.2, WP2).
 
-Pure orchestration over `VaultService` and `McpGrantsDAOInterface`; this module never
-talks to Postgres, the vault's encryption, or the grants schema directly.
+Pure orchestration over `VaultService`; this module never talks to Postgres or the
+vault's encryption directly.
 """
 
 from typing import Optional, Set
 
-from oss.src.core.gateways.mcps.dtos import McpGrant
-from oss.src.core.gateways.mcps.interfaces import McpGrantsDAOInterface
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     SecretMode,
     SecretOwner,
     SecretOwnerKind,
     SecretRef,
-    GrantRef,
     ProviderKeyRef,
     ResolvedSecret,
     SecretOrigin,
 )
 from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.types import (
-    SecretInvalidError,
     SecretNotFoundError,
 )
 from oss.src.core.secrets.dtos import SecretResponseDTO
@@ -32,16 +28,14 @@ from oss.src.utils.context import AuthScope
 
 
 class SecretsResolver(SecretsResolverInterface):
-    """`VaultService` + `McpGrantsDAOInterface`, composed (D23: both mockable)."""
+    """`VaultService`, wrapped (D23: mockable)."""
 
     def __init__(
         self,
         *,
         vault_service: VaultService,
-        mcp_grants_dao: McpGrantsDAOInterface,
     ) -> None:
         self.vault_service = vault_service
-        self.mcp_grants_dao = mcp_grants_dao
 
     async def resolve(
         self,
@@ -55,8 +49,6 @@ class SecretsResolver(SecretsResolverInterface):
             return await self._resolve_bound_secret(scope=scope, ref=ref, mode=mode)
         if isinstance(ref, ProviderKeyRef):
             return await self._resolve_provider_key(scope=scope, ref=ref, mode=mode)
-        if isinstance(ref, GrantRef):
-            return await self._resolve_grant(scope=scope, ref=ref, mode=mode)
         raise TypeError(f"Unsupported SecretRef type: {type(ref)!r}")
 
     async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
@@ -150,76 +142,5 @@ class SecretsResolver(SecretsResolverInterface):
         return ResolvedSecret(
             secret=match,
             owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
-            origin=SecretOrigin.VAULT,
-        )
-
-    # --- GrantRef ---------------------------------------------------------------- #
-
-    async def _resolve_grant(
-        self, *, scope: AuthScope, ref: GrantRef, mode: SecretMode
-    ) -> ResolvedSecret:
-        target = f"endpoint:{ref.endpoint_id}"
-        grant: Optional[McpGrant]
-
-        if mode == SecretMode.PROJECT_ONLY:
-            grant = await self.mcp_grants_dao.fetch_grant(
-                project_id=scope.project_id, endpoint_id=ref.endpoint_id, user_id=None
-            )
-            if grant is None:
-                raise SecretNotFoundError(
-                    mode=mode, missing=SecretOwnerKind.PROJECT, target=target
-                )
-        elif mode == SecretMode.USER_REQUIRED:
-            # Never followed by a user_id=None lookup — the whole point of this mode.
-            grant = await self.mcp_grants_dao.fetch_grant(
-                project_id=scope.project_id,
-                endpoint_id=ref.endpoint_id,
-                user_id=scope.user_id,
-            )
-            if grant is None:
-                raise SecretNotFoundError(
-                    mode=mode, missing=SecretOwnerKind.USER, target=target
-                )
-        elif mode == SecretMode.USER_OPTIONAL:
-            grant = await self.mcp_grants_dao.fetch_grant(
-                project_id=scope.project_id,
-                endpoint_id=ref.endpoint_id,
-                user_id=scope.user_id,
-            )
-            if grant is None:
-                grant = await self.mcp_grants_dao.fetch_grant(
-                    project_id=scope.project_id,
-                    endpoint_id=ref.endpoint_id,
-                    user_id=None,
-                )
-            if grant is None:
-                # Narrower owner named even though the project lookup was also tried.
-                raise SecretNotFoundError(
-                    mode=mode, missing=SecretOwnerKind.USER, target=target
-                )
-        else:
-            raise TypeError(f"Unsupported SecretMode: {mode!r}")
-
-        if not grant.flags.is_valid:
-            # Short-circuits before any vault read — an invalid grant never spends
-            # a lookup on a secret it is about to refuse to use.
-            raise SecretInvalidError(target=target)
-
-        secret = await self.vault_service.get_secret_by_id(
-            grant.secret_id, project_id=scope.project_id
-        )
-        if secret is None:
-            # Dangling secret_id despite the FK: the constraint prevents this at
-            # steady state, but the resolver must not trust an invariant it can't see.
-            raise SecretInvalidError(target=target, detail="secret missing")
-
-        owner_kind = (
-            SecretOwnerKind.USER
-            if grant.user_id is not None
-            else SecretOwnerKind.PROJECT
-        )
-        return ResolvedSecret(
-            secret=secret,
-            owner=SecretOwner(kind=owner_kind, user_id=grant.user_id),
             origin=SecretOrigin.VAULT,
         )

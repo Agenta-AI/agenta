@@ -1,4 +1,4 @@
-"""`LlmUpstreamRegistry` and `select_upstream` (entities.md §7.1, §8).
+"""`LLMUpstreamRegistry` and `select_upstream` (entities.md §7.1, §8).
 
 `select_upstream` is pure — no DAO, no vault, no I/O — so the wave's adapter split (which
 provider's wire is OpenAI-shaped versus which needs the routing library) is a table
@@ -7,11 +7,11 @@ reviewable and testable on its own, independent of any adapter's construction.
 
 from typing import Dict, List
 
-from oss.src.core.gateways.llms.dtos import LlmDeploymentKind
-from oss.src.core.gateways.llms.interfaces import LlmUpstreamInterface
-from oss.src.core.gateways.llms.types import LlmAdapterNotFoundError
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
+from oss.src.core.gateways.llms.interfaces import LLMUpstreamInterface
+from oss.src.core.gateways.llms.types import LLMAdapterNotFoundError
 
-# The mock upstream is selected on provider_key alone, ahead of the deployment split —
+# The mock upstream is selected on provider_key alone, ahead of the deployment_kind split —
 # the mocks register under a third key (entities.md §7.1) and are reachable only through
 # a seeded endpoint naming this provider (D23; reachability is WP1/WP10's concern).
 _MOCK_PROVIDER_KEY = "mock"
@@ -19,10 +19,10 @@ _MOCK_PROVIDER_KEY = "mock"
 # Cloud-reseller deployments: auth is request signing, never a bearer header, so the wire
 # is never byte-for-byte by construction (§7.1) — always translated.
 _TRANSLATED_DEPLOYMENTS = {
-    LlmDeploymentKind.AZURE,
-    LlmDeploymentKind.BEDROCK,
-    LlmDeploymentKind.SAGEMAKER,
-    LlmDeploymentKind.VERTEX,
+    LLMDeploymentKind.AZURE,
+    LLMDeploymentKind.BEDROCK,
+    LLMDeploymentKind.SAGEMAKER,
+    LLMDeploymentKind.VERTEX,
 }
 
 # DIRECT providers whose own chat-completions wire is already OpenAI-shaped (verified
@@ -49,15 +49,15 @@ _DIRECT_TRANSLATED_PROVIDERS = {
 }
 
 
-def select_upstream(provider_key: str, deployment: LlmDeploymentKind) -> str:
+def select_upstream(provider_key: str, deployment_kind: LLMDeploymentKind) -> str:
     """Picks the adapter key for the registry. Pure: no I/O, no DAO, no vault."""
     if provider_key == _MOCK_PROVIDER_KEY:
         return "mock"
 
-    if deployment in _TRANSLATED_DEPLOYMENTS:
+    if deployment_kind in _TRANSLATED_DEPLOYMENTS:
         return "translated"
 
-    if deployment == LlmDeploymentKind.CUSTOM:
+    if deployment_kind == LLMDeploymentKind.CUSTOM:
         return "passthrough"
 
     # DIRECT: OpenAI-shaped providers relay byte for byte; everything else — including a
@@ -69,14 +69,14 @@ def select_upstream(provider_key: str, deployment: LlmDeploymentKind) -> str:
     )
 
 
-class LlmUpstreamRegistry:
-    def __init__(self, *, adapters: Dict[str, LlmUpstreamInterface]) -> None:
+class LLMUpstreamRegistry:
+    def __init__(self, *, adapters: Dict[str, LLMUpstreamInterface]) -> None:
         self._adapters = adapters
 
-    def get(self, key: str) -> LlmUpstreamInterface:
+    def get(self, key: str) -> LLMUpstreamInterface:
         adapter = self._adapters.get(key)
         if adapter is None:
-            raise LlmAdapterNotFoundError(key=key)
+            raise LLMAdapterNotFoundError(key=key)
         return adapter
 
     def keys(self) -> List[str]:

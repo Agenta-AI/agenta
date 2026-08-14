@@ -1,6 +1,6 @@
-"""Unit tests for McpGatewayProxy routing (entities.md §9, workstreams/specs-wp8.md).
+"""Unit tests for MCPGatewayProxy routing (entities.md §9, workstreams/specs-wp8.md).
 
-In-process ASGI against a mock `McpGatewayService` and a mockd `get_auth_scope()` — no
+In-process ASGI against a mock `MCPGatewayService` and a mockd `get_auth_scope()` — no
 Postgres, no real service, no network. Asserts which handler each path reaches (the
 each builtin provider's own grammar under its segment), the 405s on the
 stream verbs, and the exception -> protocol-error mapping this proxy owns
@@ -17,20 +17,20 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from oss.src.apis.fastapi.gateways.mcps.proxy import McpGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import (
     GatewayConnectionRequirement,
     GatewayConnectionState,
     GatewayEndpointNamespace,
 )
-from oss.src.core.gateways.mcps.interfaces import McpRelayResult
+from oss.src.core.gateways.mcps.interfaces import MCPRelayResult
 from oss.src.core.gateways.mcps.types import (
-    McpAuthRequiredError,
-    McpEndpointNotFoundError,
-    McpScopeInsufficientError,
-    McpToolNotAllowedError,
-    McpUpstreamError,
+    MCPAuthRequiredError,
+    MCPEndpointNotFoundError,
+    MCPScopeInsufficientError,
+    MCPToolNotAllowedError,
+    MCPUpstreamError,
 )
 from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
 from oss.src.core.gateways.policy.types import (
@@ -52,7 +52,7 @@ class _MockMcpGatewayService:
         self.calls.append(kwargs)
         if self.raise_error is not None:
             raise self.raise_error
-        return McpRelayResult(
+        return MCPRelayResult(
             status_code=200,
             headers={"content-type": "application/json"},
             body=b'{"jsonrpc": "2.0", "id": 1, "result": {}}',
@@ -77,7 +77,7 @@ def client(mock_service, monkeypatch):
         lambda: scope,
     )
 
-    proxy = McpGatewayProxy(mcp_gateway_service=mock_service)
+    proxy = MCPGatewayProxy(mcp_gateway_service=mock_service)
     app = FastAPI()
     app.include_router(proxy.router)
     return TestClient(app)
@@ -86,7 +86,7 @@ def client(mock_service, monkeypatch):
 def test_builtin_agenta_nests_the_slug(client, mock_service):
     response = client.post(
         "/builtin/agenta/tools/search",
-        headers={"Mcp-Method": "tools/list"},
+        headers={"MCP-Method": "tools/list"},
         content=b"{}",
     )
 
@@ -101,7 +101,7 @@ def test_builtin_agenta_nests_the_slug(client, mock_service):
 def test_builtin_reaches_with_three_segments(client, mock_service):
     response = client.post(
         "/builtin/composio/notion/my-notion",
-        headers={"Mcp-Method": "tools/list"},
+        headers={"MCP-Method": "tools/list"},
         content=b"{}",
     )
 
@@ -116,7 +116,7 @@ def test_builtin_reaches_with_three_segments(client, mock_service):
 def test_custom_reaches_with_the_slug(client, mock_service):
     response = client.post(
         "/custom/acme-notion",
-        headers={"Mcp-Method": "tools/list"},
+        headers={"MCP-Method": "tools/list"},
         content=b"{}",
     )
 
@@ -143,11 +143,11 @@ def test_get_and_delete_return_405(client, path):
 
 def test_relayed_body_and_status_pass_through_untouched(client, mock_service):
     """The upstream's own protocol-level result (success or its own JSON-RPC `error`
-    body, D16) never goes through `_map_gateway_exception` — `HttpMcpAdapter` never
+    body, D16) never goes through `_map_gateway_exception` — `HttpMCPAdapter` never
     raises for it, so it is not this test's concern to mock beyond the happy path;
     the mapping only ever sees exceptions from `service.relay` itself."""
     response = client.post(
-        "/custom/acme-notion", headers={"Mcp-Method": "tools/list"}, content=b"{}"
+        "/custom/acme-notion", headers={"MCP-Method": "tools/list"}, content=b"{}"
     )
 
     assert response.status_code == 200
@@ -157,7 +157,7 @@ def test_relayed_body_and_status_pass_through_untouched(client, mock_service):
 def test_authorization_header_is_not_forwarded_to_the_service(client, mock_service):
     client.post(
         "/custom/acme-notion",
-        headers={"Mcp-Method": "tools/list", "Authorization": "Secret platform-token"},
+        headers={"MCP-Method": "tools/list", "Authorization": "Secret platform-token"},
         content=b"{}",
     )
 
@@ -175,7 +175,7 @@ def test_authorization_header_is_not_forwarded_to_the_service(client, mock_servi
 
 
 def _endpoint_not_found():
-    return McpEndpointNotFoundError(
+    return MCPEndpointNotFoundError(
         namespace=GatewayEndpointNamespace.CUSTOM, name="missing"
     )
 
@@ -191,7 +191,7 @@ def _entitlement_denied():
 
 
 def _tool_not_allowed():
-    return McpToolNotAllowedError(
+    return MCPToolNotAllowedError(
         tool="danger", namespace=GatewayEndpointNamespace.CUSTOM, name="acme-notion"
     )
 
@@ -206,11 +206,11 @@ def _auth_required():
     requirement = GatewayConnectionRequirement(
         target="custom/acme-notion", state=GatewayConnectionState.NEEDS_AUTH
     )
-    return McpAuthRequiredError(requirement=requirement)
+    return MCPAuthRequiredError(requirement=requirement)
 
 
 def _scope_insufficient():
-    return McpScopeInsufficientError(target="custom/acme-notion", scopes=["write"])
+    return MCPScopeInsufficientError(target="custom/acme-notion", scopes=["write"])
 
 
 def _secret_missing():
@@ -226,15 +226,15 @@ def _secret_invalid():
 
 
 def _upstream_error_below_500():
-    return McpUpstreamError(target="http://upstream", status_code=400)
+    return MCPUpstreamError(target="http://upstream", status_code=400)
 
 
 def _upstream_error_5xx():
-    return McpUpstreamError(target="http://upstream", status_code=503)
+    return MCPUpstreamError(target="http://upstream", status_code=503)
 
 
 def _upstream_error_no_status():
-    return McpUpstreamError(target="http://upstream")
+    return MCPUpstreamError(target="http://upstream")
 
 
 @pytest.mark.parametrize(
@@ -260,7 +260,7 @@ def test_mapped_gateway_exceptions_carry_status_and_cause(
     mock_service.raise_error = make_error()
 
     response = client.post(
-        "/custom/acme-notion", headers={"Mcp-Method": "tools/list"}, content=b"{}"
+        "/custom/acme-notion", headers={"MCP-Method": "tools/list"}, content=b"{}"
     )
 
     assert response.status_code == expected_status
@@ -276,7 +276,7 @@ def test_auth_required_carries_the_connect_requirement(client, mock_service):
     mock_service.raise_error = _auth_required()
 
     response = client.post(
-        "/custom/acme-notion", headers={"Mcp-Method": "tools/list"}, content=b"{}"
+        "/custom/acme-notion", headers={"MCP-Method": "tools/list"}, content=b"{}"
     )
 
     requirement = response.json()["error"]["data"]["requirement"]

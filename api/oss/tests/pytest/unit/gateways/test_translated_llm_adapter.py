@@ -1,4 +1,4 @@
-"""Unit tests for `TranslatedLlmAdapter` (specs-wp7.md, tasks-wp7.md Phase 3).
+"""Unit tests for `TranslatedLLMAdapter` (specs-wp7.md, tasks-wp7.md Phase 3).
 
 `litellm.acompletion` is monkeypatched at the module boundary — no real network call.
 """
@@ -9,14 +9,14 @@ from types import SimpleNamespace
 import pytest
 
 from oss.src.core.gateways.llms.dtos import (
-    LlmCallContext,
-    LlmDeploymentKind,
-    LlmResolvedRoute,
+    LLMCallContext,
+    LLMDeploymentKind,
+    LLMResolvedRoute,
 )
-from oss.src.core.gateways.llms.interfaces import LlmRelayResult
+from oss.src.core.gateways.llms.interfaces import LLMRelayResult
 from oss.src.core.gateways.llms.providers.translated import adapter as adapter_module
-from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLlmAdapter
-from oss.src.core.gateways.llms.types import LlmUpstreamError
+from oss.src.core.gateways.llms.providers.translated.adapter import TranslatedLLMAdapter
+from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import (
     SecretOwner,
     SecretOwnerKind,
@@ -115,20 +115,20 @@ async def test_standard_provider_secret_passes_api_key(monkeypatch):
         capture=capture,
     )
 
-    route = LlmResolvedRoute(
+    route = LLMResolvedRoute(
         provider_key="anthropic",
-        deployment=LlmDeploymentKind.DIRECT,
+        deployment_kind=LLMDeploymentKind.DIRECT,
         model="anthropic/x",
     )
-    result = await TranslatedLlmAdapter().relay_chat_completion(
+    result = await TranslatedLLMAdapter().relay_chat_completion(
         route=route,
         secret=_standard_secret(key="sk-abc"),
-        context=LlmCallContext(model="anthropic/x"),
+        context=LLMCallContext(model="anthropic/x"),
         body=_body(),
         headers={},
     )
 
-    assert isinstance(result, LlmRelayResult)
+    assert isinstance(result, LLMRelayResult)
     assert capture["api_key"] == "sk-abc"
     assert capture["model"] == "anthropic/x"
 
@@ -140,13 +140,13 @@ async def test_custom_provider_secret_merges_extras(monkeypatch):
         monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
     )
 
-    route = LlmResolvedRoute(
-        provider_key="acme", deployment=LlmDeploymentKind.BEDROCK, model="claude-3"
+    route = LLMResolvedRoute(
+        provider_key="acme", deployment_kind=LLMDeploymentKind.BEDROCK, model="claude-3"
     )
-    await TranslatedLlmAdapter().relay_chat_completion(
+    await TranslatedLLMAdapter().relay_chat_completion(
         route=route,
         secret=_custom_secret(extras={"aws_access_key_id": "AKIA123"}),
-        context=LlmCallContext(model="claude-3"),
+        context=LLMCallContext(model="claude-3"),
         body=_body(),
         headers={},
     )
@@ -161,16 +161,16 @@ async def test_azure_deployment_prefixes_model_and_passes_api_version(monkeypatc
         monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
     )
 
-    route = LlmResolvedRoute(
+    route = LLMResolvedRoute(
         provider_key="acme",
-        deployment=LlmDeploymentKind.AZURE,
+        deployment_kind=LLMDeploymentKind.AZURE,
         model="gpt-4o",
         api_version="2026-01-01",
     )
-    await TranslatedLlmAdapter().relay_chat_completion(
+    await TranslatedLLMAdapter().relay_chat_completion(
         route=route,
         secret=None,
-        context=LlmCallContext(model="gpt-4o"),
+        context=LLMCallContext(model="gpt-4o"),
         body=_body(),
         headers={},
     )
@@ -181,25 +181,30 @@ async def test_azure_deployment_prefixes_model_and_passes_api_version(monkeypatc
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "deployment, region_kwarg",
+    "deployment_kind, region_kwarg",
     [
-        (LlmDeploymentKind.BEDROCK, "aws_region_name"),
-        (LlmDeploymentKind.VERTEX, "vertex_location"),
+        (LLMDeploymentKind.BEDROCK, "aws_region_name"),
+        (LLMDeploymentKind.VERTEX, "vertex_location"),
     ],
 )
-async def test_bedrock_and_vertex_pass_region(monkeypatch, deployment, region_kwarg):
+async def test_bedrock_and_vertex_pass_region(
+    monkeypatch, deployment_kind, region_kwarg
+):
     capture = {}
     _mock_acompletion(
         monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
     )
 
-    route = LlmResolvedRoute(
-        provider_key="acme", deployment=deployment, model="a-model", region="us-east-1"
+    route = LLMResolvedRoute(
+        provider_key="acme",
+        deployment_kind=deployment_kind,
+        model="a-model",
+        region="us-east-1",
     )
-    await TranslatedLlmAdapter().relay_chat_completion(
+    await TranslatedLLMAdapter().relay_chat_completion(
         route=route,
         secret=None,
-        context=LlmCallContext(model="a-model"),
+        context=LLMCallContext(model="a-model"),
         body=_body(),
         headers={},
     )
@@ -216,14 +221,14 @@ async def test_litellm_exception_becomes_llm_upstream_error(monkeypatch):
         exc=le.RateLimitError(message="boom", llm_provider="openai", model="gpt-4o"),
     )
 
-    route = LlmResolvedRoute(
-        provider_key="openai", deployment=LlmDeploymentKind.DIRECT, model="gpt-4o"
+    route = LLMResolvedRoute(
+        provider_key="openai", deployment_kind=LLMDeploymentKind.DIRECT, model="gpt-4o"
     )
-    with pytest.raises(LlmUpstreamError) as excinfo:
-        await TranslatedLlmAdapter().relay_chat_completion(
+    with pytest.raises(LLMUpstreamError) as excinfo:
+        await TranslatedLLMAdapter().relay_chat_completion(
             route=route,
             secret=None,
-            context=LlmCallContext(model="gpt-4o"),
+            context=LLMCallContext(model="gpt-4o"),
             body=_body(),
             headers={},
         )
@@ -242,13 +247,13 @@ async def test_usage_and_cost_populated_on_success(monkeypatch):
         ),
     )
 
-    route = LlmResolvedRoute(
-        provider_key="openai", deployment=LlmDeploymentKind.DIRECT, model="gpt-4o"
+    route = LLMResolvedRoute(
+        provider_key="openai", deployment_kind=LLMDeploymentKind.DIRECT, model="gpt-4o"
     )
-    result = await TranslatedLlmAdapter().relay_chat_completion(
+    result = await TranslatedLLMAdapter().relay_chat_completion(
         route=route,
         secret=None,
-        context=LlmCallContext(model="gpt-4o"),
+        context=LLMCallContext(model="gpt-4o"),
         body=_body(),
         headers={},
     )
@@ -277,15 +282,15 @@ async def test_streaming_wraps_chunks_as_sse_and_terminates_with_done(monkeypatc
 
     _mock_acompletion(monkeypatch, response=_chunks())
 
-    route = LlmResolvedRoute(
+    route = LLMResolvedRoute(
         provider_key="anthropic",
-        deployment=LlmDeploymentKind.DIRECT,
+        deployment_kind=LLMDeploymentKind.DIRECT,
         model="anthropic/x",
     )
-    result = await TranslatedLlmAdapter().relay_chat_completion(
+    result = await TranslatedLLMAdapter().relay_chat_completion(
         route=route,
         secret=None,
-        context=LlmCallContext(model="anthropic/x", stream=True),
+        context=LLMCallContext(model="anthropic/x", stream=True),
         body=_body(stream=True),
         headers={},
     )
@@ -296,3 +301,90 @@ async def test_streaming_wraps_chunks_as_sse_and_terminates_with_done(monkeypatc
     assert result.usage is not None
     assert result.usage.input_tokens == 3
     assert result.usage.output_tokens == 2
+
+
+# ---------------------------------------------------------------------------
+# route.extras — non-secret provider knobs with no named field (entities.md §2.4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_route_extras_reach_litellm_as_kwargs(monkeypatch):
+    """`vertex_project` is the canonical case: routing, not secret material, and no
+    named route field carries it."""
+    capture = {}
+    _mock_acompletion(
+        monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
+    )
+
+    route = LLMResolvedRoute(
+        provider_key="acme",
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        model="gemini-2.0-flash",
+        region="europe-west4",
+        extras={"vertex_project": "acme-prod"},
+    )
+
+    await TranslatedLLMAdapter().relay_chat_completion(
+        route=route,
+        secret=None,
+        context=LLMCallContext(model="gemini-2.0-flash"),
+        body=_body(),
+        headers={},
+    )
+
+    assert capture["vertex_project"] == "acme-prod"
+    assert capture["vertex_location"] == "europe-west4"
+
+
+@pytest.mark.asyncio
+async def test_the_secret_outranks_route_extras_on_collision(monkeypatch):
+    """A route field must never be able to override authentication material."""
+    capture = {}
+    _mock_acompletion(
+        monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
+    )
+
+    route = LLMResolvedRoute(
+        provider_key="acme",
+        deployment_kind=LLMDeploymentKind.BEDROCK,
+        model="claude-3",
+        extras={"aws_access_key_id": "AKIA-FROM-THE-ROUTE"},
+    )
+
+    await TranslatedLLMAdapter().relay_chat_completion(
+        route=route,
+        secret=_custom_secret(extras={"aws_access_key_id": "AKIA-FROM-THE-VAULT"}),
+        context=LLMCallContext(model="claude-3"),
+        body=_body(),
+        headers={},
+    )
+
+    assert capture["aws_access_key_id"] == "AKIA-FROM-THE-VAULT"
+
+
+@pytest.mark.asyncio
+async def test_route_extras_never_override_the_body(monkeypatch):
+    """Extras sit above the caller's body but below the secret — a caller cannot be
+    silently re-pointed, and an endpoint cannot be re-authenticated."""
+    capture = {}
+    _mock_acompletion(
+        monkeypatch, response=_MockModelResponse(usage=_MockUsage()), capture=capture
+    )
+
+    route = LLMResolvedRoute(
+        provider_key="acme",
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        model="gemini-2.0-flash",
+        extras={"temperature": 0.9},
+    )
+
+    await TranslatedLLMAdapter().relay_chat_completion(
+        route=route,
+        secret=None,
+        context=LLMCallContext(model="gemini-2.0-flash"),
+        body=_body(temperature=0.1),
+        headers={},
+    )
+
+    assert capture["temperature"] == 0.9

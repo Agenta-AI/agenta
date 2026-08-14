@@ -21,8 +21,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from oss.src.apis.fastapi.gateways.llms.router import LlmGatewayRouter
-from oss.src.apis.fastapi.gateways.mcps.router import McpGatewayRouter
+from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
+from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
 from oss.src.utils.context import AuthScope
 
 FIXED_SCOPE = AuthScope(
@@ -62,7 +62,7 @@ class _NullMcpService:
 
 @pytest.fixture
 def mcp_client(monkeypatch):
-    router = McpGatewayRouter(mcp_gateway_service=_NullMcpService())
+    router = MCPGatewayRouter(mcp_gateway_service=_NullMcpService())
     app = FastAPI()
     app.include_router(router.router)
     monkeypatch.setattr(
@@ -78,7 +78,7 @@ def mcp_client(monkeypatch):
 
 @pytest.fixture
 def llm_client(monkeypatch):
-    router = LlmGatewayRouter(llm_gateway_service=_NullLlmService())
+    router = LLMGatewayRouter(llm_gateway_service=_NullLlmService())
     app = FastAPI()
     app.include_router(router.router)
     monkeypatch.setattr(
@@ -97,7 +97,7 @@ def _mcp_create_body(url: str) -> dict:
         "endpoint": {
             "slug": "acme-mcp",
             "auth_mode": "none",
-            "data": {"url": url},
+            "data": {"route": {"base_url": url}},
         }
     }
 
@@ -120,7 +120,7 @@ def test_mcp_create_endpoint_rejects_blocked_urls(mcp_client, url):
     response = mcp_client.post("/endpoints/", json=_mcp_create_body(url))
 
     assert response.status_code == 400
-    assert "endpoint.data.url" in response.json()["detail"]
+    assert "endpoint.data.route.base_url" in response.json()["detail"]
 
 
 def test_mcp_create_endpoint_accepts_a_public_https_hostname_without_dns(
@@ -161,13 +161,13 @@ def test_mcp_edit_endpoint_rejects_a_blocked_url(mcp_client):
             "endpoint": {
                 "id": endpoint_id,
                 "auth_mode": "none",
-                "data": {"url": "http://127.0.0.1/mcp"},
+                "data": {"route": {"base_url": "http://127.0.0.1/mcp"}},
             }
         },
     )
 
     assert response.status_code == 400
-    assert "endpoint.data.url" in response.json()["detail"]
+    assert "endpoint.data.route.base_url" in response.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +181,7 @@ def _llm_create_body(base_url) -> dict:
         "endpoint": {
             "slug": "acme-llm",
             "provider_key": "openai",
-            "deployment": "custom",
+            "deployment_kind": "custom",
             "data": {"route": {}},
         }
     }
@@ -207,7 +207,7 @@ def test_llm_create_endpoint_rejects_blocked_base_urls(llm_client, base_url):
 
 
 def test_llm_create_endpoint_is_a_noop_when_base_url_absent(llm_client):
-    """No base_url set (e.g. a deployment that never needed one) — the gate must
+    """No base_url set (e.g. a deployment_kind that never needed one) — the gate must
     not reject a request that carries nothing for it to check."""
     response = llm_client.post("/endpoints/", json=_llm_create_body(None))
 

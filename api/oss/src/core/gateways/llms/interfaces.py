@@ -13,18 +13,18 @@ from typing import AsyncIterator, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.gateways.llms.dtos import (
-    LlmCallContext,
-    LlmEndpoint,
-    LlmEndpointCreate,
-    LlmEndpointEdit,
-    LlmEndpointQuery,
-    LlmResolvedRoute,
+    LLMCallContext,
+    LLMEndpoint,
+    LLMEndpointCreate,
+    LLMEndpointEdit,
+    LLMEndpointQuery,
+    LLMResolvedRoute,
 )
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 from oss.src.core.shared.dtos import Windowing
 
 
-class LlmEndpointsDAOInterface(ABC):
+class LLMEndpointsDAOInterface(ABC):
     """Persistence contract for custom LLM endpoints. Standard endpoints are
     generated (D20) and never pass through this interface — the service merges
     them in from catalog.py, which is why nothing here has a namespace
@@ -37,8 +37,8 @@ class LlmEndpointsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         #
-        endpoint: LlmEndpointCreate,
-    ) -> Optional[LlmEndpoint]:
+        endpoint: LLMEndpointCreate,
+    ) -> Optional[LLMEndpoint]:
         """Insert. Raises EntityCreationConflict on a slug collision — the one
         exception a create surfaces, per the connections DAO discipline."""
         raise NotImplementedError
@@ -50,7 +50,7 @@ class LlmEndpointsDAOInterface(ABC):
         project_id: UUID,
         #
         endpoint_id: UUID,
-    ) -> Optional[LlmEndpoint]:
+    ) -> Optional[LLMEndpoint]:
         raise NotImplementedError
 
     @abstractmethod
@@ -60,9 +60,9 @@ class LlmEndpointsDAOInterface(ABC):
         project_id: UUID,
         #
         slug: str,
-    ) -> Optional[LlmEndpoint]:
+    ) -> Optional[LLMEndpoint]:
         """The data-plane route lookup (§2.3). Backed by
-        uq_llm_gateway_endpoints_project_slug, so at most one row by
+        uq_llms_endpoints_project_slug, so at most one row by
         construction. None means the custom namespace has no such name — the
         proxy 404s in the surface's own error shape (§9)."""
         raise NotImplementedError
@@ -74,10 +74,10 @@ class LlmEndpointsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         #
-        endpoint: LlmEndpointEdit,
-    ) -> Optional[LlmEndpoint]:
+        endpoint: LLMEndpointEdit,
+    ) -> Optional[LLMEndpoint]:
         """Full PUT over the editable surface (§4.3): data, flags, header,
-        secret_id. provider_key and deployment are absent from the Edit DTO and
+        secret_id. provider_key and deployment_kind are absent from the Edit DTO and
         therefore untouchable here."""
         raise NotImplementedError
 
@@ -97,10 +97,10 @@ class LlmEndpointsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        endpoint: Optional[LlmEndpointQuery] = None,
+        endpoint: Optional[LLMEndpointQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[LlmEndpoint]:
+    ) -> List[LLMEndpoint]:
         raise NotImplementedError
 
 
@@ -108,7 +108,7 @@ class LlmEndpointsDAOInterface(ABC):
 
 
 @dataclass
-class LlmRelayResult:
+class LLMRelayResult:
     """One upstream answer, streaming or not. `body` yields exactly one chunk
     for a non-streaming call. `usage` is populated by the adapter once `body`
     is exhausted, when the upstream exposed it (the OpenAI stream carries a
@@ -121,7 +121,7 @@ class LlmRelayResult:
     usage: Optional[GatewayUsage] = None
 
 
-class LlmUpstreamInterface(ABC):
+class LLMUpstreamInterface(ABC):
     """Turns a resolved route plus a resolved secret into an upstream call.
     The core never imports an implementation; wiring happens at the entrypoint."""
 
@@ -129,17 +129,17 @@ class LlmUpstreamInterface(ABC):
     async def relay_chat_completion(
         self,
         *,
-        route: LlmResolvedRoute,
+        route: LLMResolvedRoute,
         secret: Optional[ResolvedSecret],
         #
-        context: LlmCallContext,
+        context: LLMCallContext,
         body: bytes,
         headers: Dict[str, str],
-    ) -> LlmRelayResult:
+    ) -> LLMRelayResult:
         """Relay one completion call. `body` is the caller's payload untouched;
         `headers` are the caller's headers already stripped of authorization.
         `secret` is None only for targets whose auth scheme is NONE (the
-        mocks). Raises LlmUpstreamError on upstream failure."""
+        mocks). Raises LLMUpstreamError on upstream failure."""
         raise NotImplementedError
 
-    # async def relay_embedding(...) -> LlmRelayResult — deferred with the evaluator path (D15)
+    # async def relay_embedding(...) -> LLMRelayResult — deferred with the evaluator path (D15)

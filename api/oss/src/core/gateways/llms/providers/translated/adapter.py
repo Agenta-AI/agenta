@@ -1,4 +1,4 @@
-"""`TranslatedLlmAdapter` — the litellm-mediated south port (entities.md §7.1, §8).
+"""`TranslatedLLMAdapter` — the litellm-mediated south port (entities.md §7.1, §8).
 
 For providers whose native wire differs from OpenAI's, and for cloud resellers whose auth
 is request signing: the routing library earns its place here (D9), and byte-for-byte is
@@ -13,30 +13,30 @@ import litellm
 import openai
 
 from oss.src.core.gateways.llms.dtos import (
-    LlmCallContext,
-    LlmDeploymentKind,
-    LlmResolvedRoute,
+    LLMCallContext,
+    LLMDeploymentKind,
+    LLMResolvedRoute,
 )
-from oss.src.core.gateways.llms.interfaces import LlmRelayResult, LlmUpstreamInterface
-from oss.src.core.gateways.llms.types import LlmUpstreamError
+from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
+from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 from oss.src.core.secrets.dtos import CustomProviderDTO, StandardProviderDTO
 from oss.src.core.secrets.enums import SecretKind
 
-# route.deployment -> litellm's model prefix. DIRECT non-OpenAI-shaped providers carry
+# route.deployment_kind -> litellm's model prefix. DIRECT non-OpenAI-shaped providers carry
 # their prefix already, from the catalogue (e.g. "anthropic/claude-...").
 _DEPLOYMENT_PREFIXES = {
-    LlmDeploymentKind.AZURE: "azure",
-    LlmDeploymentKind.BEDROCK: "bedrock",
-    LlmDeploymentKind.SAGEMAKER: "sagemaker",
-    LlmDeploymentKind.VERTEX: "vertex_ai",
+    LLMDeploymentKind.AZURE: "azure",
+    LLMDeploymentKind.BEDROCK: "bedrock",
+    LLMDeploymentKind.SAGEMAKER: "sagemaker",
+    LLMDeploymentKind.VERTEX: "vertex_ai",
 }
 
 _BODY_PASSTHROUGH_EXCLUDED_KEYS = {"model", "stream"}
 
 
-def _prefixed_model(route: LlmResolvedRoute) -> str:
-    prefix = _DEPLOYMENT_PREFIXES.get(route.deployment)
+def _prefixed_model(route: LLMResolvedRoute) -> str:
+    prefix = _DEPLOYMENT_PREFIXES.get(route.deployment_kind)
     return f"{prefix}/{route.model}" if prefix else route.model
 
 
@@ -59,16 +59,22 @@ def _secret_kwargs(secret: Optional[ResolvedSecret]) -> Dict[str, Any]:
     return {}
 
 
-def _route_kwargs(route: LlmResolvedRoute) -> Dict[str, Any]:
+def _route_extras(route: LLMResolvedRoute) -> Dict[str, Any]:
+    """Non-secret provider knobs with no named field (`vertex_project` and friends).
+    Merged BELOW the secret so a route can never override authentication material."""
+    return dict(route.extras or {})
+
+
+def _route_kwargs(route: LLMResolvedRoute) -> Dict[str, Any]:
     """`api_version` and `region` come from the route, never the secret (§7.1)."""
     kwargs: Dict[str, Any] = {}
-    if route.deployment == LlmDeploymentKind.AZURE and route.api_version:
+    if route.deployment_kind == LLMDeploymentKind.AZURE and route.api_version:
         kwargs["api_version"] = route.api_version
-    if route.deployment == LlmDeploymentKind.BEDROCK and route.region:
+    if route.deployment_kind == LLMDeploymentKind.BEDROCK and route.region:
         kwargs["aws_region_name"] = route.region
-    if route.deployment == LlmDeploymentKind.VERTEX and route.region:
+    if route.deployment_kind == LLMDeploymentKind.VERTEX and route.region:
         kwargs["vertex_location"] = route.region
-    extra_headers = {**(route.headers or {}), **(route.config.extra_headers or {})}
+    extra_headers = dict(route.headers or {})
     if extra_headers:
         kwargs["extra_headers"] = extra_headers
     return kwargs
@@ -118,7 +124,7 @@ def _sse(payload_json: str) -> bytes:
     return f"data: {payload_json}\n\n".encode()
 
 
-class TranslatedLlmAdapter(LlmUpstreamInterface):
+class TranslatedLLMAdapter(LLMUpstreamInterface):
     """Calls `litellm.acompletion` in-process. `secret` is None only for a NONE-scheme
     target; litellm then relies on whatever ambient provider config (if any) is configured
     for the process, same as an unauthenticated call to any other adapter."""
@@ -126,20 +132,21 @@ class TranslatedLlmAdapter(LlmUpstreamInterface):
     async def relay_chat_completion(
         self,
         *,
-        route: LlmResolvedRoute,
+        route: LLMResolvedRoute,
         secret: Optional[ResolvedSecret],
         #
-        context: LlmCallContext,
+        context: LLMCallContext,
         body: bytes,
         headers: Dict[str, str],
-    ) -> LlmRelayResult:
+    ) -> LLMRelayResult:
         model = _prefixed_model(route)
         kwargs = _body_kwargs(body)
+        kwargs.update(_route_extras(route))
         kwargs.update(_secret_kwargs(secret))
         kwargs.update(_route_kwargs(route))
         if context.stream:
             # Trailing usage frame, mirroring the OpenAI stream's own convention
-            # (LlmRelayResult's docstring) — without it litellm reports no usage at all.
+            # (LLMRelayResult's docstring) — without it litellm reports no usage at all.
             kwargs.setdefault("stream_options", {"include_usage": True})
 
         try:
@@ -147,13 +154,13 @@ class TranslatedLlmAdapter(LlmUpstreamInterface):
                 model=model, stream=context.stream, **kwargs
             )
         except openai.OpenAIError as exc:
-            raise LlmUpstreamError(
+            raise LLMUpstreamError(
                 provider_key=route.provider_key,
                 status_code=getattr(exc, "status_code", None),
                 detail=str(exc),
             ) from exc
 
-        result = LlmRelayResult(
+        result = LLMRelayResult(
             status_code=200,
             headers={
                 "content-type": (
@@ -177,14 +184,14 @@ async def _empty_body() -> AsyncIterator[bytes]:
 
 
 async def _single_body(
-    response: Any, *, result: LlmRelayResult, model: str
+    response: Any, *, result: LLMRelayResult, model: str
 ) -> AsyncIterator[bytes]:
     yield response.model_dump_json().encode()
     result.usage = _usage_from_response(response, model=model)
 
 
 async def _stream_body(
-    stream: Any, *, result: LlmRelayResult, model: str
+    stream: Any, *, result: LLMRelayResult, model: str
 ) -> AsyncIterator[bytes]:
     usage_response = None
     async for chunk in stream:

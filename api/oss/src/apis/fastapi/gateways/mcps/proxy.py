@@ -1,15 +1,15 @@
-"""`McpGatewayProxy`: the MCP data plane's protocol surface (entities.md §9).
+"""`MCPGatewayProxy`: the MCP data plane's protocol surface (entities.md §9).
 
 Three thin routes, one per namespace (D27); they exist because the routes carry different
 path parameters, not because the behaviour differs. Each parses the caller's routing
-headers, reads the raw body, and delegates to `McpGatewayService.relay` (WP9), which owns
+headers, reads the raw body, and delegates to `MCPGatewayService.relay` (WP9), which owns
 target resolution, the allowlist check, secret resolution and the outbound guard. No
 wire models here — the data plane relays bytes (§6).
 
 **Error mapping is NOT `apis/fastapi/gateways/exceptions.py::handle_gateway_exceptions()`.**
 That decorator (seed, R1) raises a plain `HTTPException(status_code, detail=str)`, which is
 right for WP10's CRUD routers (they speak the house wire) and wrong here: it collapses every
-cause that shares a status into one indistinguishable message — `McpEndpointNotFoundError`
+cause that shares a status into one indistinguishable message — `MCPEndpointNotFoundError`
 and `SecretNotFoundError` both become an opaque `HTTPException` a caller cannot tell
 apart. §9 requires the opposite of a proxy: "the MCP proxy answers protocol-shaped errors at
 the transport status the relay produced, and gateway-authored refusals as the protocol's
@@ -19,8 +19,8 @@ carrying a stable `cause` string in `error.data` — never the house `{code,mess
 retryable,...}` envelope, which must not leak onto this surface. The HTTP status each cause
 takes is still exactly what `handle_gateway_exceptions()`'s table assigns; only the body
 shape and the added cause differ. The upstream's own protocol-level error is untouched by
-any of this: `HttpMcpAdapter` never raises for a non-2xx status or a JSON-RPC `error` body
-(D16), so it reaches the caller as `McpRelayResult` pass-through, not through this mapping.
+any of this: `HttpMCPAdapter` never raises for a non-2xx status or a JSON-RPC `error` body
+(D16), so it reaches the caller as `MCPRelayResult` pass-through, not through this mapping.
 """
 
 from __future__ import annotations
@@ -38,11 +38,11 @@ from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
-    McpAuthRequiredError,
-    McpEndpointNotFoundError,
-    McpScopeInsufficientError,
-    McpToolNotAllowedError,
-    McpUpstreamError,
+    MCPAuthRequiredError,
+    MCPEndpointNotFoundError,
+    MCPScopeInsufficientError,
+    MCPToolNotAllowedError,
+    MCPUpstreamError,
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
@@ -55,7 +55,7 @@ from oss.src.utils.context import get_auth_scope
 from oss.src.utils.exceptions import intercept_exceptions
 
 if TYPE_CHECKING:
-    from oss.src.core.gateways.mcps.service import McpGatewayService
+    from oss.src.core.gateways.mcps.service import MCPGatewayService
 
 # JSON-RPC 2.0 reserved codes: -32600 is "Invalid Request" (our own pre-relay header
 # validation); -32000 is the start of the implementation-defined "Server error" range,
@@ -70,16 +70,16 @@ _JSONRPC_SERVER_ERROR = -32000
 _MAPPED_EXCEPTIONS = (
     GatewayEndpointInactiveError,
     ValueError,
-    McpEndpointNotFoundError,
+    MCPEndpointNotFoundError,
     PolicyDeniedError,
     EntitlementDeniedError,
-    McpToolNotAllowedError,
+    MCPToolNotAllowedError,
     CeilingExceededError,
-    McpAuthRequiredError,
-    McpScopeInsufficientError,
+    MCPAuthRequiredError,
+    MCPScopeInsufficientError,
     SecretNotFoundError,
     SecretInvalidError,
-    McpUpstreamError,
+    MCPUpstreamError,
 )
 
 
@@ -128,7 +128,7 @@ def _map_gateway_exception(e: BaseException) -> Response:
             message=str(e),
             cause="invalid_request",
         )
-    if isinstance(e, McpEndpointNotFoundError):
+    if isinstance(e, MCPEndpointNotFoundError):
         return _protocol_error(
             status_code=status.HTTP_404_NOT_FOUND,
             code=_JSONRPC_SERVER_ERROR,
@@ -150,7 +150,7 @@ def _map_gateway_exception(e: BaseException) -> Response:
             message=e.message,
             cause="entitlement_denied",
         )
-    if isinstance(e, McpToolNotAllowedError):
+    if isinstance(e, MCPToolNotAllowedError):
         return _protocol_error(
             status_code=status.HTTP_403_FORBIDDEN,
             code=_JSONRPC_SERVER_ERROR,
@@ -170,7 +170,7 @@ def _map_gateway_exception(e: BaseException) -> Response:
                 "allowed": e.allowed,
             },
         )
-    if isinstance(e, McpAuthRequiredError):
+    if isinstance(e, MCPAuthRequiredError):
         return _protocol_error(
             status_code=status.HTTP_409_CONFLICT,
             code=_JSONRPC_SERVER_ERROR,
@@ -178,7 +178,7 @@ def _map_gateway_exception(e: BaseException) -> Response:
             cause="auth_required",
             data={"requirement": e.requirement.model_dump(mode="json")},
         )
-    if isinstance(e, McpScopeInsufficientError):
+    if isinstance(e, MCPScopeInsufficientError):
         return _protocol_error(
             status_code=status.HTTP_409_CONFLICT,
             code=_JSONRPC_SERVER_ERROR,
@@ -207,7 +207,7 @@ def _map_gateway_exception(e: BaseException) -> Response:
             message=e.message,
             cause="secret_invalid",
         )
-    if isinstance(e, McpUpstreamError):
+    if isinstance(e, MCPUpstreamError):
         upstream_status = e.status_code
         return _protocol_error(
             status_code=(
@@ -223,8 +223,8 @@ def _map_gateway_exception(e: BaseException) -> Response:
     raise e  # pragma: no cover - unreachable: _MAPPED_EXCEPTIONS stays exhaustive with this
 
 
-class McpGatewayProxy:
-    def __init__(self, *, mcp_gateway_service: "McpGatewayService") -> None:
+class MCPGatewayProxy:
+    def __init__(self, *, mcp_gateway_service: "MCPGatewayService") -> None:
         self.service = mcp_gateway_service
         self.router = APIRouter()
 

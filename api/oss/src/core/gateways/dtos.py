@@ -7,9 +7,14 @@ importing the existing triplicate copies in `core/gateway/connections/dtos.py`,
 """
 
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+
+# Inbound headers that authenticate the caller INTO the gateway (D13, D31). They are
+# ours, never the upstream's, and are stripped on both planes before any relay.
+GATEWAY_ONLY_HEADERS = frozenset({"x-ag-credentials", "authorization"})
 
 
 class GatewayAuthScheme(str, Enum):
@@ -24,7 +29,7 @@ class GatewayConnectionState(str, Enum):
     """Derived per caller at read time — never stored (§2.6)."""
 
     READY = "ready"  # a usable secret exists for this owner
-    NEEDS_AUTH = "needs_auth"  # OAuth target with no grant for this owner; connect
+    NEEDS_AUTH = "needs_auth"  # OAuth target with no usable secret; connect
     NEEDS_INPUT = "needs_input"  # a secret must be supplied before use
 
 
@@ -55,9 +60,41 @@ class GatewayEndpointNamespace(str, Enum):
     CUSTOM = "custom"  # a row; configurable
 
 
-class GatewayEndpointConfig(BaseModel):
-    """Per-endpoint configuration, one concern for both planes (D21). Custom
-    endpoints only; generated endpoints take the code defaults."""
+class GatewayEndpointRoute(BaseModel):
+    """Where and how to dial an upstream — the two fields both planes share (§2.4).
+    `headers` is addressing, never a secret: `Authorization` is derived from the
+    resolved secret and overwrites whatever is set here (§7.2)."""
+
+    base_url: Optional[str] = None
+    headers: Optional[Dict[str, str]] = None
+
+
+class GatewayEndpointFilter(BaseModel):
+    """One name filter, the same shape for LLM models and MCP tools (§2.4).
+
+    Absent list = no constraint from that side; `allowlist: []` refuses everything;
+    `denylist` always wins. Exact names only — a glob syntax would need its own
+    decision on both planes at once.
+    """
+
+    allowlist: Optional[List[str]] = None
+    denylist: Optional[List[str]] = None
+
+    def allows(self, name: str) -> bool:
+        if self.denylist is not None and name in self.denylist:
+            return False
+        if self.allowlist is None:
+            return True
+        return name in self.allowlist
+
+    def enumerate(self) -> List[str]:
+        """What can be listed, which is only ever the allowlist minus the denylist —
+        with no allowlist the gateway does not know the upstream's catalogue (§2.4)."""
+        return [name for name in (self.allowlist or []) if self.allows(name)]
+
+
+class GatewayEndpointSettings(BaseModel):
+    """Per-endpoint settings, one concern for both planes (D21). Custom endpoints
+    only; generated endpoints take the code defaults."""
 
     timeout_seconds: Optional[float] = None
-    extra_headers: Optional[Dict[str, str]] = None

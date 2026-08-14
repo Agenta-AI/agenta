@@ -7,10 +7,10 @@ body itself is never re-serialized so the relay stays byte for byte (§7.1).
 import json
 from typing import Any, Dict
 
-from oss.src.core.gateways.llms.dtos import LlmCallContext
+from oss.src.core.gateways.llms.dtos import LLMCallContext
 
 
-def parse_llm_call_context(*, body: bytes) -> LlmCallContext:
+def parse_llm_call_context(*, body: bytes) -> LLMCallContext:
     """Extract model and stream from the JSON body without materializing a
     parsed copy for relay — the body itself stays byte-for-byte (§7.1).
     Raises ValueError when the body names no model; the proxy translates that
@@ -24,4 +24,4 @@ def parse_llm_call_context(*, body: bytes) -> LlmCallContext:
 
     stream = bool(payload.get("stream", False)) if isinstance(payload, dict) else False
 
-    return LlmCallContext(model=model, stream=stream)
+    return LLMCallContext(model=model, stream=stream)

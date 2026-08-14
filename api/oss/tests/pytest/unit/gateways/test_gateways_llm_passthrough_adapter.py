@@ -1,4 +1,4 @@
-"""Unit tests for PassthroughLlmAdapter (entities.md §7.1, workstreams/specs-wp6.md).
+"""Unit tests for PassthroughLLMAdapter (entities.md §7.1, workstreams/specs-wp6.md).
 
 Nothing running: httpx.MockTransport intercepts every request, no real socket.
 """
@@ -10,15 +10,15 @@ import httpx
 import pytest
 
 from oss.src.core.gateways.llms.dtos import (
-    LlmCallContext,
-    LlmDeploymentKind,
-    LlmEndpointConfig,
-    LlmResolvedRoute,
+    LLMCallContext,
+    LLMDeploymentKind,
+    LLMEndpointSettings,
+    LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
-    PassthroughLlmAdapter,
+    PassthroughLLMAdapter,
 )
-from oss.src.core.gateways.llms.types import LlmUpstreamError
+from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import (
     SecretOwner,
     SecretOwnerKind,
@@ -44,19 +44,19 @@ def _route(
     *,
     base_url: Optional[str] = "https://upstream.example/v1",
     timeout_seconds: Optional[float] = None,
-) -> LlmResolvedRoute:
-    return LlmResolvedRoute(
+) -> LLMResolvedRoute:
+    return LLMResolvedRoute(
         provider_key="openai",
-        deployment=LlmDeploymentKind.CUSTOM,
+        deployment_kind=LLMDeploymentKind.CUSTOM,
         model="gpt-4o",
         base_url=base_url,
         headers={"x-route": "1"},
-        config=LlmEndpointConfig(timeout_seconds=timeout_seconds),
+        settings=LLMEndpointSettings(timeout_seconds=timeout_seconds),
     )
 
 
-def _context(*, stream: bool = False) -> LlmCallContext:
-    return LlmCallContext(model="gpt-4o", stream=stream)
+def _context(*, stream: bool = False) -> LLMCallContext:
+    return LLMCallContext(model="gpt-4o", stream=stream)
 
 
 def _body() -> bytes:
@@ -102,9 +102,9 @@ def _custom_secret(
     )
 
 
-def _adapter(handler) -> PassthroughLlmAdapter:
+def _adapter(handler) -> PassthroughLLMAdapter:
     transport = httpx.MockTransport(handler)
-    return PassthroughLlmAdapter(client=httpx.AsyncClient(transport=transport))
+    return PassthroughLLMAdapter(client=httpx.AsyncClient(transport=transport))
 
 
 async def _drain(body):
@@ -251,7 +251,7 @@ async def test_timeout_raises_llm_upstream_error():
 
     adapter = _adapter(handler)
 
-    with pytest.raises(LlmUpstreamError) as excinfo:
+    with pytest.raises(LLMUpstreamError) as excinfo:
         await adapter.relay_chat_completion(
             route=_route(),
             secret=None,
@@ -270,7 +270,7 @@ async def test_connection_failure_raises_llm_upstream_error_never_something_else
 
     adapter = _adapter(handler)
 
-    with pytest.raises(LlmUpstreamError):
+    with pytest.raises(LLMUpstreamError):
         await adapter.relay_chat_completion(
             route=_route(),
             secret=None,
@@ -287,7 +287,7 @@ async def test_non_timeout_5xx_raises_llm_upstream_error_with_status_code():
 
     adapter = _adapter(handler)
 
-    with pytest.raises(LlmUpstreamError) as excinfo:
+    with pytest.raises(LLMUpstreamError) as excinfo:
         await adapter.relay_chat_completion(
             route=_route(),
             secret=None,
@@ -366,9 +366,9 @@ async def test_streaming_result_passes_sse_chunks_through_unmodified():
 
 @pytest.mark.asyncio
 async def test_missing_base_url_raises_llm_upstream_error():
-    adapter = PassthroughLlmAdapter()
+    adapter = PassthroughLLMAdapter()
 
-    with pytest.raises(LlmUpstreamError):
+    with pytest.raises(LLMUpstreamError):
         await adapter.relay_chat_completion(
             route=_route(base_url=None),
             secret=None,

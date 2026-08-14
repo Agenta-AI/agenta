@@ -3,11 +3,11 @@
 No wire models: the caller's body relays byte for byte (§7.1). This router only parses
 just enough to route (`parse_llm_call_context`) and puts the answer back on the wire
 exactly as it arrived. Endpoint resolution, the allowlist, ceilings, policy authorization
-and secret resolution all live inside `LlmGatewayService.relay_chat_completion`
+and secret resolution all live inside `LLMGatewayService.relay_chat_completion`
 (WP7) — this file never decides whether a call is allowed, only how to shape the denial
 once WP7 says no.
 
-Streaming audit timing is not this file's job either: `LlmGatewayService` wraps the
+Streaming audit timing is not this file's job either: `LLMGatewayService` wraps the
 returned iterator and records in its own `finally` once it is exhausted. This proxy drains
 `result.body` through `StreamingResponse` and holds no `GatewayPolicyService` reference —
 the constructor below takes only the one service.
@@ -23,10 +23,10 @@ from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.llms.types import (
-    LlmAdapterNotFoundError,
-    LlmEndpointNotFoundError,
-    LlmModelNotAllowedError,
-    LlmUpstreamError,
+    LLMAdapterNotFoundError,
+    LLMEndpointNotFoundError,
+    LLMModelNotAllowedError,
+    LLMUpstreamError,
 )
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
@@ -37,24 +37,24 @@ from oss.src.core.gateways.policy.types import (
 from oss.src.utils.context import get_auth_scope
 
 if TYPE_CHECKING:
-    # LlmGatewayService is WP7's (core/gateways/llms/service.py) and does not exist on
+    # LLMGatewayService is WP7's (core/gateways/llms/service.py) and does not exist on
     # this branch yet — a TYPE_CHECKING-only import keeps the annotation honest without
     # making this module's import fail before WP7 lands (out of WP6's owned paths).
-    from oss.src.core.gateways.llms.service import LlmGatewayService
+    from oss.src.core.gateways.llms.service import LLMGatewayService
 
 # The caller's own secret to US — never forwarded to the upstream (§9's pseudocode).
 _STRIPPED_INBOUND_HEADERS = {"authorization"}
 
 _DOMAIN_EXCEPTIONS = (
     GatewayEndpointInactiveError,
-    LlmAdapterNotFoundError,
+    LLMAdapterNotFoundError,
     PolicyDeniedError,
     EntitlementDeniedError,
-    LlmModelNotAllowedError,
+    LLMModelNotAllowedError,
     CeilingExceededError,
     SecretNotFoundError,
-    LlmEndpointNotFoundError,
-    LlmUpstreamError,
+    LLMEndpointNotFoundError,
+    LLMUpstreamError,
 )
 
 
@@ -77,7 +77,7 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
     `handle_gateway_exceptions()` (seed, apis/fastapi/gateways/exceptions.py)
     applies for the management CRUD, but that decorator collapses distinct
     causes sharing one HTTP status (e.g. PolicyDeniedError and
-    LlmModelNotAllowedError both 403) into a bare `detail` string — this
+    LLMModelNotAllowedError both 403) into a bare `detail` string — this
     surface needs the `code` to stay distinguishable per exception type, so it
     is not reused here (see this package's own report for the full reasoning).
     """
@@ -95,7 +95,7 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             error_type="invalid_request_error",
             code="endpoint_inactive",
         )
-    if isinstance(exc, LlmModelNotAllowedError):
+    if isinstance(exc, LLMModelNotAllowedError):
         return _openai_error(
             status_code=403,
             message=exc.message,
@@ -119,21 +119,21 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             error_type="invalid_request_error",
             code="secret_missing",
         )
-    if isinstance(exc, LlmAdapterNotFoundError):
+    if isinstance(exc, LLMAdapterNotFoundError):
         return _openai_error(
             status_code=502,
             message=exc.message,
             error_type="api_error",
             code="adapter_not_found",
         )
-    if isinstance(exc, LlmEndpointNotFoundError):
+    if isinstance(exc, LLMEndpointNotFoundError):
         return _openai_error(
             status_code=404,
             message=exc.message,
             error_type="invalid_request_error",
             code="endpoint_not_found",
         )
-    # LlmUpstreamError: the upstream's own detail passes through untouched (D16) —
+    # LLMUpstreamError: the upstream's own detail passes through untouched (D16) —
     # never replaced with a generic message.
     status_code = 502 if exc.status_code is not None and exc.status_code >= 500 else 424
     return _openai_error(
@@ -144,8 +144,8 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
     )
 
 
-class LlmGatewayProxy:
-    def __init__(self, *, llm_gateway_service: "LlmGatewayService") -> None:
+class LLMGatewayProxy:
+    def __init__(self, *, llm_gateway_service: "LLMGatewayService") -> None:
         self.service = llm_gateway_service
         self.router = APIRouter()
 

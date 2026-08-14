@@ -1,7 +1,7 @@
-"""PassthroughLlmAdapter: the byte-for-byte OpenAI-compatible south port
+"""PassthroughLLMAdapter: the byte-for-byte OpenAI-compatible south port
 (entities.md §7.1).
 
-For upstreams that speak the caller's own protocol (`deployment=custom`, and direct
+For upstreams that speak the caller's own protocol (`deployment_kind=custom`, and direct
 providers whose API is OpenAI-shaped). The request `body` travels to the upstream
 untouched — no `json.loads`/`json.dumps` round trip on it anywhere in this file — which is
 what keeps upstream prompt caching working (`scope-checklist.md`). The response body is
@@ -14,9 +14,10 @@ from typing import Any, AsyncIterator, Dict, Optional
 
 import httpx
 
-from oss.src.core.gateways.llms.dtos import LlmCallContext, LlmResolvedRoute
-from oss.src.core.gateways.llms.interfaces import LlmRelayResult, LlmUpstreamInterface
-from oss.src.core.gateways.llms.types import LlmUpstreamError
+from oss.src.core.gateways.dtos import GATEWAY_ONLY_HEADERS
+from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMResolvedRoute
+from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
+from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 from oss.src.core.secrets.enums import SecretKind
 
@@ -30,7 +31,7 @@ _CHAT_COMPLETIONS_PATH = "/chat/completions"
 # Stripped from the outbound header set: hop-by-hop headers (RFC 7230 §6.1) plus
 # authorization, which is ours to the platform, not the upstream's.
 _STRIPPED_HEADERS = {
-    "authorization",
+    *GATEWAY_ONLY_HEADERS,
     "host",
     "content-length",
     "connection",
@@ -44,9 +45,9 @@ _STRIPPED_HEADERS = {
 }
 
 
-def _build_url(route: LlmResolvedRoute) -> str:
+def _build_url(route: LLMResolvedRoute) -> str:
     if not route.base_url:
-        raise LlmUpstreamError(
+        raise LLMUpstreamError(
             provider_key=route.provider_key,
             status_code=None,
             detail="route has no base_url for the passthrough adapter",
@@ -57,16 +58,13 @@ def _build_url(route: LlmResolvedRoute) -> str:
 def _outbound_headers(
     *,
     headers: Dict[str, str],
-    route: LlmResolvedRoute,
+    route: LLMResolvedRoute,
     secret: Optional[ResolvedSecret],
 ) -> Dict[str, str]:
     outbound = {k: v for k, v in headers.items() if k.lower() not in _STRIPPED_HEADERS}
 
     if route.headers:
         outbound.update(route.headers)
-
-    if route.config.extra_headers:
-        outbound.update(route.config.extra_headers)
 
     if secret is not None:
         secret = secret.secret
@@ -124,7 +122,7 @@ def _usage_from_body(content: bytes) -> Optional[GatewayUsage]:
     )
 
 
-class PassthroughLlmAdapter(LlmUpstreamInterface):
+class PassthroughLLMAdapter(LLMUpstreamInterface):
     """Relays to an OpenAI-compatible upstream with the body forwarded verbatim
     and only authorization injected. One `httpx.AsyncClient` per adapter
     instance, reused across calls (connection pooling; a streaming response
@@ -137,20 +135,20 @@ class PassthroughLlmAdapter(LlmUpstreamInterface):
     async def relay_chat_completion(
         self,
         *,
-        route: LlmResolvedRoute,
+        route: LLMResolvedRoute,
         secret: Optional[ResolvedSecret],
         #
-        context: LlmCallContext,
+        context: LLMCallContext,
         body: bytes,
         headers: Dict[str, str],
-    ) -> LlmRelayResult:
+    ) -> LLMRelayResult:
         url = _build_url(route)
         outbound_headers = _outbound_headers(
             headers=headers, route=route, secret=secret
         )
         timeout = (
-            route.config.timeout_seconds
-            if route.config.timeout_seconds is not None
+            route.settings.timeout_seconds
+            if route.settings.timeout_seconds is not None
             else _DEFAULT_TIMEOUT_SECONDS
         )
 
@@ -161,13 +159,13 @@ class PassthroughLlmAdapter(LlmUpstreamInterface):
         try:
             response = await self._client.send(request, stream=True)
         except httpx.TimeoutException as exc:
-            raise LlmUpstreamError(
+            raise LLMUpstreamError(
                 provider_key=route.provider_key,
                 status_code=None,
                 detail="upstream timed out",
             ) from exc
         except httpx.HTTPError as exc:
-            raise LlmUpstreamError(
+            raise LLMUpstreamError(
                 provider_key=route.provider_key,
                 status_code=None,
                 detail=str(exc),
@@ -176,13 +174,13 @@ class PassthroughLlmAdapter(LlmUpstreamInterface):
         if response.status_code >= 500:
             detail = (await response.aread()).decode(errors="replace")
             await response.aclose()
-            raise LlmUpstreamError(
+            raise LLMUpstreamError(
                 provider_key=route.provider_key,
                 status_code=response.status_code,
                 detail=detail,
             )
 
-        result = LlmRelayResult(
+        result = LLMRelayResult(
             status_code=response.status_code,
             headers=dict(response.headers),
             body=_empty_body(),
@@ -196,7 +194,7 @@ class PassthroughLlmAdapter(LlmUpstreamInterface):
 
     @staticmethod
     async def _single_chunk_body(
-        *, response: httpx.Response, result: LlmRelayResult
+        *, response: httpx.Response, result: LLMRelayResult
     ) -> AsyncIterator[bytes]:
         try:
             content = await response.aread()
@@ -207,7 +205,7 @@ class PassthroughLlmAdapter(LlmUpstreamInterface):
 
     @staticmethod
     async def _stream_body(
-        *, response: httpx.Response, result: LlmRelayResult
+        *, response: httpx.Response, result: LLMRelayResult
     ) -> AsyncIterator[bytes]:
         # SSE chunk boundaries pass through as httpx yields them — never
         # recombined or re-chunked (specs-wp6.md). Chunks are only inspected for the
