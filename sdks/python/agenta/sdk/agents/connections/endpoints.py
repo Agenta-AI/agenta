@@ -6,7 +6,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from .errors import InvalidConnectionConfigurationError
-from .models import Endpoint, ResolvedConnection, ResolvedCredential
+from .models import Endpoint, GatewayCredentials, ResolvedConnection, ResolvedCredential
 
 _DIRECT_ENDPOINTS: Dict[str, str] = {
     "openai": "https://api.openai.com/v1",
@@ -150,5 +150,61 @@ def build_resolved_connection(
         credentials=credentials,
         environment=environment,
         endpoint=route,
+        input_modalities=input_modalities,
+    )
+
+
+def gateway_target(*, kind: str, provider: str, slug: str) -> Tuple[str, str]:
+    """The D30 ``(namespace, name)`` pair for a chosen vault candidate.
+
+    ``provider_key`` records carry no endpoint row of their own — the gateway already knows
+    the shape (D30's "generated provider set") — so they route through ``standard/{provider}``.
+    ``custom_provider`` records are a stored row (their own base URL), so they route through
+    ``custom/{slug}``.
+    """
+    if kind == "provider_key":
+        return "standard", provider.lower()
+    return "custom", slug
+
+
+def gateway_route(*, namespace: str, name: str, gateway_base_url: str) -> str:
+    """The gateway route base URL (D30): ``{gateway_base}/gateways/llms/{namespace}/{name}``.
+
+    No protocol suffix (``/v1/chat/completions``) — that is the harness's own append, the
+    same split the endpoint document already makes (entities.md §2.4).
+    """
+    return f"{gateway_base_url.rstrip('/')}/gateways/llms/{namespace}/{name}"
+
+
+def build_gateway_resolved_connection(
+    *,
+    provider: str,
+    model: str,
+    deployment: str,
+    namespace: str,
+    name: str,
+    gateway_base_url: str,
+    gateway_credentials_value: str,
+    input_modalities: Optional[List[str]] = None,
+) -> ResolvedConnection:
+    """Build a resolved connection that routes through the gateway (W1/D30/D31).
+
+    No provider secret ever lands here: ``credentials`` stays empty and ``credential_mode``
+    is ``none`` — the gateway holds the provider's secret, not the harness. Our own
+    credentials into the gateway ride ``gateway_credentials`` (``X-AG-Credentials``), never
+    ``credentials``, which stays reserved for a provider's own secret (W1).
+    """
+    return ResolvedConnection(
+        provider=provider,
+        model=model,
+        deployment=deployment,
+        credential_mode="none",
+        credentials=[],
+        endpoint=Endpoint(
+            base_url=gateway_route(
+                namespace=namespace, name=name, gateway_base_url=gateway_base_url
+            )
+        ),
+        gateway_credentials=GatewayCredentials(value=gateway_credentials_value),
         input_modalities=input_modalities,
     )

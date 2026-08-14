@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from agenta.sdk.agents.connections import (
     Connection,
     Endpoint,
+    GatewayCredentials,
     ModelRef,
     ResolvedConnection,
 )
@@ -357,6 +358,46 @@ def test_resolved_connection_rejects_invalid_credential_combinations(
             credential_mode=mode,
             credentials=credentials,
             endpoint=endpoint,
+        )
+
+
+# ------------------------------------------------------- credential_mode "none" + gateway (WP12)
+
+
+def test_credential_mode_none_with_gateway_credentials_is_the_normal_combination():
+    # The gateway-routed shape: no provider secret, our own credentials carry the header.
+    resolved = ResolvedConnection(
+        provider="openai",
+        model="gpt-5.5",
+        credential_mode="none",
+        endpoint=Endpoint(base_url="https://gw.example/gateways/llms/standard/openai"),
+        gateway_credentials=GatewayCredentials(value="Secret token"),
+    )
+    assert resolved.credential_mode == "none"
+    assert resolved.credentials == []
+    assert resolved.gateway_credentials is not None
+
+
+def test_a_provider_secret_alongside_credential_mode_none_is_rejected():
+    # `credentials` and `credential_mode` must still agree (the generic rule that predates
+    # the gateway field): a provider secret cannot ride alongside `credential_mode "none"`,
+    # gateway credentials or not.
+    with pytest.raises(ValidationError):
+        ResolvedConnection(
+            provider="openai",
+            model="gpt-5.5",
+            credential_mode="none",
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "value": "sk-secret",
+                    "usage": "opaque_http",
+                }
+            ],
+            endpoint=Endpoint(
+                base_url="https://gw.example/gateways/llms/standard/openai"
+            ),
+            gateway_credentials=GatewayCredentials(value="Secret token"),
         )
 
 
