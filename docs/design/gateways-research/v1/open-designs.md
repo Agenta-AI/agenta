@@ -673,44 +673,19 @@ needs a denial that fits inside them and still carries the three facts above. Th
 `contract.md`'s open item on expressing a policy denial, and this closes half of it — the content
 is settled even where the envelope is not.
 
-### OD21. OAuth discovery guesses a well-known path instead of reading the 401 that names it
+### OD21. OAuth discovery guesses a well-known path instead of reading the 401 that names it — CLOSED
 
-WP17's `MCPOAuthClient.discover()` finds a `custom` server's protected-resource metadata by
-requesting fixed well-known URIs directly (path-based then root-based
-`/.well-known/oauth-protected-resource`), then does the same for the authorization server's own
-metadata. It never makes the unauthenticated call to the MCP server itself that would return a
-`401` first.
-
-**Both RFC 9728 and the MCP authorization spec route discovery through that `401` on purpose.**
-The resource server is expected to answer an unauthenticated request with `401` plus a
-`WWW-Authenticate` header carrying a `resource_metadata` parameter — the exact URL of its
-protected-resource metadata document. The well-known path is a fallback for servers that do not
-send the header, not the primary mechanism. A client that only tries the well-known path is
-reading the fallback as if it were the rule.
-
-**The concrete failure this produces.** A server whose protected-resource metadata does not live
-at `/.well-known/oauth-protected-resource` (or the path-based variant) — because it publishes the
-document at a different location and relies on the `WWW-Authenticate` header to say where — cannot
-be discovered by this client at all. `discover()` exhausts its guessed URLs, gets a `404` at each,
-and raises `MCPOAuthDiscoveryError`. Nothing in WP17's own test suite catches this: the mock
-authorization server in every test serves the metadata at the guessed well-known path, because the
-test was written against the same assumption the client makes. The gap surfaces only against a
-real server that places its metadata elsewhere, which is exactly the case a mock transport cannot
-exercise.
-
-**The fix, not yet built.** `discover()` should make the unauthenticated probe first, read
-`resource_metadata` from a `401`'s `WWW-Authenticate` header when present, and fall back to the
-well-known URIs only when the header is absent — the same three-tier order
-`OAuthClientProvider._build_protected_resource_discovery_urls` already implements in the SDK
-(header, then path-based well-known, then root-based well-known), which WP17 deliberately did not
-call into (it drives its own two-phase flow rather than the SDK's single-coroutine one) but can
-still read for the ordering.
-
-*Depends on:* nothing — it is a gap in WP17's own `discover()`, fixable in place. *Blocks:*
-nothing yet, but every package downstream of WP17 that assumes "a `custom` URL with OAuth can
-always be discovered" inherits this hole until it closes: WP18's consent flow will show a
-discovery failure for a real server that happens to use the header-only path, with no way for a
-user to tell that apart from a server that genuinely does not support OAuth.
+`MCPOAuthClient.discover()` makes an unauthenticated probe of the MCP server first. When that
+probe returns `401` with a `WWW-Authenticate` header carrying a `resource_metadata` parameter
+(RFC 9728), the client fetches protected-resource metadata from that exact URL. Only when there
+is no `401`, no `WWW-Authenticate` header, or no `resource_metadata` parameter does it fall back
+to the well-known URIs (path-based, then root-based `/.well-known/oauth-protected-resource`) —
+the same three-tier order `mcp.client.auth.oauth2.OAuthClientProvider` uses internally, read for
+ordering only (WP17's reason for not calling into that class directly still holds: it blocks one
+coroutine across a redirect-and-wait, a shape a web deployment's two-separate-HTTP-requests
+callback cannot satisfy). A header URL that itself 404s falls through to the well-known chain
+rather than failing outright. Authorization-server metadata discovery is unchanged — well-known
+only, as no comparable header exists at that step.
 
 ---
 

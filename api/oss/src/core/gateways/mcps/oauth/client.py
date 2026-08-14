@@ -7,6 +7,7 @@ from the SDK's own wire DTOs (`mcp.shared.auth`) and PKCE generator
 two-separate-HTTP-requests callback cannot satisfy (D26).
 """
 
+import re
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode, urljoin, urlparse
 
@@ -36,16 +37,36 @@ def _authorization_base_url(url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def _protected_resource_urls(server_url: str) -> List[str]:
+def _protected_resource_urls(
+    server_url: str, *, resource_metadata_url: Optional[str] = None
+) -> List[str]:
+    urls = []
+    if resource_metadata_url:
+        urls.append(resource_metadata_url)
     parsed = urlparse(server_url)
     base = _authorization_base_url(server_url)
-    urls = []
     if parsed.path and parsed.path != "/":
         urls.append(
             urljoin(base, f"/.well-known/oauth-protected-resource{parsed.path}")
         )
     urls.append(urljoin(base, "/.well-known/oauth-protected-resource"))
     return urls
+
+
+_RESOURCE_METADATA_RE = re.compile(r'resource_metadata=(?:"([^"]+)"|([^\s,]+))')
+
+
+def _resource_metadata_url_from_response(response: httpx.Response) -> Optional[str]:
+    """RFC 9728 s3: a 401's `WWW-Authenticate` names the PRM location directly."""
+    if response.status_code != 401:
+        return None
+    header = response.headers.get("WWW-Authenticate")
+    if not header:
+        return None
+    match = _RESOURCE_METADATA_RE.search(header)
+    if not match:
+        return None
+    return match.group(1) or match.group(2)
 
 
 def _authorization_server_metadata_urls(authorization_server: str) -> List[str]:
@@ -100,7 +121,12 @@ class MCPOAuthClient:
     async def _discover_protected_resource(
         self, client: httpx.AsyncClient, *, server_url: str
     ) -> ProtectedResourceMetadata:
-        for url in _protected_resource_urls(server_url):
+        resource_metadata_url = await self._probe_resource_metadata_url(
+            client, server_url=server_url
+        )
+        for url in _protected_resource_urls(
+            server_url, resource_metadata_url=resource_metadata_url
+        ):
             try:
                 response = await client.get(url)
             except httpx.RequestError:
@@ -114,6 +140,15 @@ class MCPOAuthClient:
         raise MCPOAuthDiscoveryError(
             server_url=server_url, detail="no protected-resource metadata found"
         )
+
+    async def _probe_resource_metadata_url(
+        self, client: httpx.AsyncClient, *, server_url: str
+    ) -> Optional[str]:
+        try:
+            response = await client.get(server_url)
+        except httpx.RequestError:
+            return None
+        return _resource_metadata_url_from_response(response)
 
     async def _discover_authorization_server(
         self, client: httpx.AsyncClient, *, authorization_server: str
