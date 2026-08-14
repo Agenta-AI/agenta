@@ -59,6 +59,7 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.enums import CustomSecretFormat, SecretKind
 from oss.src.core.shared.dtos import Header
 from oss.src.utils.context import AuthScope
+from oss.src.utils.env import env
 
 
 # --- mocks (this package must not subclass the real Postgres DAO or ConnectionsService) --- #
@@ -302,6 +303,10 @@ async def test_list_endpoints_agenta_entry_has_no_id_and_builtin_namespace():
     assert len(agenta) == 1
     assert agenta[0].id is None
     assert agenta[0].namespace.value == "builtin"
+    # The provider segment and the dialable URL are what make the entry reachable —
+    # both were silently dropped once by a rename, because the DTO ignores extras.
+    assert agenta[0].provider_key == "agenta"
+    assert agenta[0].data.route.base_url == env.mock_gateways.mcp_url
 
 
 @pytest.mark.asyncio

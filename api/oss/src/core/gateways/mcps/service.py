@@ -27,6 +27,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointData,
+    MCPEndpointRoute,
     MCPEndpointEdit,
     MCPEndpointQuery,
     MCPRelayAuth,
@@ -243,7 +244,10 @@ class MCPGatewayService:
                 name="Agenta Tools",
                 auth_mode=MCPAuthScheme.NONE,
                 namespace=GatewayEndpointNamespace.BUILTIN,
-                data=MCPEndpointData(url=env.mock_gateways.mcp_url),
+                provider_key=AGENTA_PROVIDER,
+                data=MCPEndpointData(
+                    route=MCPEndpointRoute(base_url=env.mock_gateways.mcp_url)
+                ),
             )
         ]
 
@@ -265,10 +269,12 @@ class MCPGatewayService:
                 MCPAuthScheme.NONE if not connection.has_auth else MCPAuthScheme.OAUTH
             ),
             data=MCPEndpointData(
-                url=_builtin_placeholder_url(
-                    provider=connection.provider_key.value,
-                    integration=connection.integration_key,
-                    slug=connection.slug,
+                route=MCPEndpointRoute(
+                    base_url=_builtin_placeholder_url(
+                        provider=connection.provider_key.value,
+                        integration=connection.integration_key,
+                        slug=connection.slug,
+                    )
                 )
             ),
         )
