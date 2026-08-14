@@ -296,6 +296,56 @@ is the last thing on a stored row that reads `provider_key` (entities.md §2.4).
 split gone, the column decides nothing and becomes a label — at which point its `NOT NULL`
 should go with it.
 
+---
+
+**CLOSED (WP24, phase 0).** All three front doors ship (W3), so every provider below is
+checked against whichever door matches its own wire, not only Chat Completions. Sourced
+from each provider's own current documentation (dated where the fact is recent), not from
+what today's adapter does.
+
+**The headline result is the opposite of the doc's "expected shape" above: nearly
+everything clears, and the reason is that four of the six `_DIRECT_TRANSLATED_PROVIDERS`
+already ship an OpenAI-compatible endpoint of their own, and Anthropic's native wire now
+has a matching front door.** litellm's translated path was carrying providers that do not
+need translation at all — they need a base URL and a bearer header, exactly what the
+passthrough adapter already does. The `passthrough`/`translated` split was never a
+provider-shape boundary; it was "does litellm's default base URL happen to work", which is
+a different question.
+
+| Provider | Q1: accepts the relayed bytes | Q2: URL from route fields | Q3: auth without touching body | Verdict |
+| --- | --- | --- | --- | --- |
+| `anthropic` | Yes — its own wire *is* Messages; reachable at `/v1/messages` now that the door exists. | Yes — fixed base URL, no per-row fields needed. | Yes — `x-api-key` header (Anthropic's own name for the same job as Azure's `api-key`), no `anthropic-version` header injected by us (the caller sends it, same as any other vendor-specific header a harness speaking Anthropic's protocol already knows to send). | **Cleared.** Messages door. |
+| `gemini` | Yes — Google ships an OpenAI-compatible endpoint (`/v1beta/openai/chat/completions`, confirmed current). | Yes — fixed base URL. | Yes — plain bearer `Authorization`. | **Cleared.** Chat Completions door, via the compat endpoint (not `generateContent`). |
+| `cohere` | Yes — Cohere ships a "Compatibility API" (`api.cohere.ai/compatibility/v1`, confirmed current) built for exactly this. | Yes — fixed base URL. | Yes — plain bearer `Authorization`. | **Cleared.** Chat Completions door, via the compat endpoint (not v2 chat). |
+| `deepinfra` | Yes — DeepInfra's documented base URL is already OpenAI-compatible (`api.deepinfra.com/v1/openai`). | Yes — fixed base URL. | Yes — plain bearer `Authorization`. | **Cleared.** Was miscategorized as translated; it was always OpenAI-shaped. |
+| `perplexityai` | Yes — `api.perplexity.ai/chat/completions` is documented as an OpenAI-SDK-compatible alias of Perplexity's own Sonar endpoint. | Yes — fixed base URL. | Yes — plain bearer `Authorization`. | **Cleared.** Same miscategorization as DeepInfra. |
+| `minimax` | Yes — MiniMax documents an OpenAI-compatible Chat Completions route (`api.minimax.io/v1/chat/completions`). | Yes — fixed base URL. | Yes — plain bearer `Authorization`. | **Cleared.** Same miscategorization. |
+| `azure` | Yes — Azure OpenAI's deployed-model wire is the OpenAI Chat Completions body, unchanged. | Yes — `base_url` + `/openai/deployments/{model}/chat/completions` + `?api-version=` from `route.api_version`. The deployment name is `route.model`, matching the existing catalogue convention (entities.md §2.4's Azure example never carries a separate deployment field). | Yes — `api-key` header, not `Authorization`, no signature. | **Cleared,** as the doc expected. |
+| `bedrock` | Yes, via `bedrock-mantle`: AWS's current-generation Bedrock endpoint (`bedrock-mantle.{region}.api.aws`) speaks OpenAI Chat Completions for most models and Anthropic Messages for Claude models, both unmodified bodies. The older `InvokeModel` wire (`/model/{id}/invoke`) still requires an injected `anthropic_version` field for Claude models, which we do not add — a caller building a Bedrock-flavored Messages body itself (D34's "translation moves to the client") can still reach `InvokeModel`, but the mantle path needs nothing extra from the caller and is the one this package wires. | Yes — `https://bedrock-mantle.{region}.api.aws` + protocol path, region from `route.region`. | Yes — **plain bearer**, not SigV4: mantle accepts a Bedrock API key as `Authorization: Bearer <key>` (falling back to SigV4 only when no key is supplied, which this design never does). Confirmed by AWS's own docs and by litellm's `bedrock_mantle` provider module, vendored in this repo. | **Cleared, and simpler than the doc's expected shape** — no signing needed for the deployment this package wires. |
+| `vertex_ai` (Gemini) | Yes — Vertex ships the same OpenAI-compatible layer as the direct Gemini API, at `.../endpoints/openapi/chat/completions`. | Yes — `https://{region}-aiplatform.googleapis.com/v1/projects/{project}/locations/{region}/endpoints/openapi`, region from `route.region`, project from `route.extras["vertex_project"]`. | Yes — bearer, but the token is minted (a service-account OAuth2 access token), never presented as a static secret. Token minting is real work and is the "signing where the scheme is a signature" carve-out D34 names; this package reuses litellm's own Vertex credential helper (`VertexBase.get_access_token_async`) rather than its request/response transformation, so the body is still never touched. | **Cleared.** Chat Completions door. |
+| `vertex_ai` (Claude) | Conditionally — Anthropic's Vertex wire (`:rawPredict`/`:streamRawPredict`) needs an injected `anthropic_version: "vertex-2023-10-16"` field the plain Anthropic Messages API does not use. Same shape as Bedrock's legacy `InvokeModel`: reachable only if the caller builds a Vertex-flavored Messages body itself. | Same as above. | Same as above. | **Not wired by this package.** A caller-side concern per D34; nothing here special-cases it. |
+| `sagemaker` | **No, categorically.** `InvokeEndpoint` has no platform-level request schema — AWS documents it as opaque bytes forwarded verbatim to whatever container the customer deployed. There is no "SageMaker's own wire" to check against a front door; the answer is "maybe", per deployment, which is not a fact this design can pin. | Yes in principle — endpoint name in the URL path, region for the host — but moot given Q1. | Yes — SigV4, real work, allowed. | **Not cleared.** Recorded unreachable: `select_upstream` raises, naming that SageMaker has no fixed protocol rather than naming a specific one it needs. |
+
+**A second finding, not one of the three questions but blocking regardless.** Every
+provider's catalogued model ids (`supported_llm_models`) carry litellm's own routing
+prefix (`"anthropic/claude-sonnet-5"`, `"groq/moonshotai/kimi-k2-instruct-0905"`, …) —
+needed for `litellm.acompletion`'s dispatch, meaningless to the upstream itself. Relaying
+one of these ids byte-for-byte in the request body reaches the real upstream with a model
+id it does not recognise, for every direct provider, not only the six moved off
+`translated` — this was already latent in the existing `passthrough` set (`groq`,
+`together_ai`, `openrouter`, `mistral`). D34 forbids fixing this at relay time (touching
+the body); the fix is upstream of the relay, in what the catalogue advertises. `catalog.py`
+now strips each provider's own litellm prefix from its allowlist, using the SDK's existing
+`litellm_provider_prefixes` table in reverse, so the id a caller copies from the allowlist
+is the id the real upstream expects.
+
+**Moves existing providers only, per spec.** `deepinfra`, `perplexityai` and `minimax` were
+never translated in fact, only in classification — moving them is correcting a
+misclassification, not adding a provider. `sagemaker`'s removal is a correction in the same
+direction: it was never really reachable through `translated` either, since litellm's
+SageMaker handler assumes an OpenAI/HF-TGI-shaped container that is a deployment choice,
+not a platform guarantee — `translated` was silently narrower than its name implied.
+
 ### OD17. Which MCP servers a stateless relay actually reaches
 
 The MCP twin of OD16, and open for the same reason: D8 settled which revision we **build**
