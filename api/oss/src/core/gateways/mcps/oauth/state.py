@@ -25,6 +25,7 @@ class MCPOAuthStatePayload(TypedDict):
     server_url: str
     code_verifier: str
     scopes: List[str]
+    strategy: str
     nonce: str
     ts: int
 
@@ -37,13 +38,18 @@ def make_state(
     code_verifier: str,
     scopes: List[str],
     secret_key: str,
+    strategy: str = "outbound",
 ) -> str:
+    """`strategy` ("outbound" | "document", specs-wp20.md) rides the state so
+    `complete()` rebuilds the same client_info deterministically instead of
+    re-probing reachability at callback time."""
     payload = {
         "project_id": str(project_id),
         "user_id": str(user_id),
         "server_url": server_url,
         "code_verifier": code_verifier,
         "scopes": scopes,
+        "strategy": strategy,
         "nonce": secrets.token_hex(8),
         "ts": int(time.time()),
     }
