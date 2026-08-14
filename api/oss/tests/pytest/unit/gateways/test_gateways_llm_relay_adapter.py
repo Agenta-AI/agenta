@@ -444,10 +444,10 @@ async def test_configured_timeout_overrides_default():
 
 
 @pytest.mark.asyncio
-async def test_bedrock_messages_request_moves_model_from_body_to_url():
-    """D40: the pair. `model` leaves the body (it would be rejected there, decisions.md
-    D40) AND lands in the URL (InvokeModel takes it as a path segment) — both assertions
-    live in one test so the two halves cannot drift apart again."""
+async def test_bedrock_messages_request_composes_mantle_url_and_leaves_body_untouched():
+    """OD19: Bedrock's Messages door moved to bedrock-mantle, which needs no rewrite —
+    the negative space of the Vertex pairing test below. Both assertions (URL, byte-for-
+    byte body including `model`) live in one test so the two halves cannot drift apart."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -481,21 +481,19 @@ async def test_bedrock_messages_request_moves_model_from_body_to_url():
         headers={},
     )
 
-    assert captured["url"] == (
-        "https://bedrock.example/model/anthropic.claude-3-5-sonnet/invoke"
-    )
-    sent = json.loads(captured["content"])
-    assert sent["anthropic_version"] == "bedrock-2023-05-31"
-    assert "model" not in sent
-    assert captured["content"] != body
+    assert captured["url"] == "https://bedrock.example/anthropic/v1/messages"
+    assert captured["content"] == body
 
 
 @pytest.mark.asyncio
-async def test_bedrock_streaming_messages_request_uses_the_stream_action():
+async def test_bedrock_messages_request_forwards_the_anthropic_version_header():
+    """A native Anthropic client sends this header on every Messages call, and mantle
+    wants exactly it — the relay must not strip it (D34: only the caller's own headers
+    reach the upstream, nothing invented)."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        captured["url"] = str(request.url)
+        captured["headers"] = request.headers
         return httpx.Response(200, json={"id": "x", "content": []})
 
     adapter = _adapter(handler)
@@ -506,27 +504,19 @@ async def test_bedrock_streaming_messages_request_uses_the_stream_action():
         base_url="https://bedrock.example",
     )
     context = LLMCallContext(
-        model="anthropic.claude-3-5-sonnet", stream=True, protocol=LLMProtocol.MESSAGES
+        model="anthropic.claude-3-5-sonnet", stream=False, protocol=LLMProtocol.MESSAGES
     )
-    body = json.dumps(
-        {
-            "model": "anthropic.claude-3-5-sonnet",
-            "max_tokens": 1024,
-            "messages": [{"role": "user", "content": "hi"}],
-        }
-    ).encode()
 
     await adapter.relay_chat_completion(
         route=route,
         secret=_custom_secret(extras={"aws_bearer_token_bedrock": "bedrock-token"}),
         context=context,
-        body=body,
-        headers={},
+        body=_body(),
+        headers={"anthropic-version": "2023-06-01"},
     )
 
-    assert captured["url"] == (
-        "https://bedrock.example/model/anthropic.claude-3-5-sonnet/invoke-with-response-stream"
-    )
+    assert captured["headers"]["anthropic-version"] == "2023-06-01"
+    assert captured["headers"]["authorization"] == "Bearer bedrock-token"
 
 
 @pytest.mark.asyncio
@@ -629,10 +619,10 @@ async def test_vertex_streaming_messages_request_uses_the_stream_action():
 
 
 @pytest.mark.asyncio
-async def test_every_deployment_kind_other_than_bedrock_vertex_stays_byte_for_byte_on_messages():
-    """Names the exemption (specs-wp27.md) rather than weakening this file's other
-    byte-for-byte assertions: every non-Bedrock/Vertex kind is untouched, even on the
-    Messages door where the rewrite is gated to apply."""
+async def test_every_deployment_kind_other_than_vertex_stays_byte_for_byte_on_messages():
+    """Names the exemption (specs-wp27.md, OD19) rather than weakening this file's other
+    byte-for-byte assertions: every non-Vertex kind, Bedrock included, is untouched even on
+    the Messages door where the rewrite is gated to apply."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:

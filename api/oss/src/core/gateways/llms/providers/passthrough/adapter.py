@@ -7,8 +7,9 @@ only to lift `usage` for the audit record; the bytes handed back to the caller a
 reconstructed from that parse.
 
 D40 amends D34 with one bounded exception: `static_fields.py`'s literal per-deployment table,
-applied to the request body immediately before it is sent, for Bedrock and Vertex only. Every
-other deployment's request body still travels untouched.
+applied to the request body immediately before it is sent, for Vertex only (OD19 moved
+Bedrock's Messages door to `bedrock-mantle`, which needs no rewrite). Every other
+deployment's request body still travels untouched.
 """
 
 import json

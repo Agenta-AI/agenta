@@ -27,18 +27,6 @@ def _messages_body(**extra) -> bytes:
     return json.dumps(payload).encode()
 
 
-def test_bedrock_adds_anthropic_version_and_removes_model():
-    result = apply_static_fields(
-        deployment_kind=LLMDeploymentKind.BEDROCK,
-        protocol=LLMProtocol.MESSAGES,
-        body=_messages_body(),
-    )
-
-    payload = json.loads(result)
-    assert payload["anthropic_version"] == "bedrock-2023-05-31"
-    assert "model" not in payload
-
-
 def test_vertex_adds_anthropic_version_and_removes_model():
     result = apply_static_fields(
         deployment_kind=LLMDeploymentKind.VERTEX,
@@ -51,30 +39,24 @@ def test_vertex_adds_anthropic_version_and_removes_model():
     assert "model" not in payload
 
 
-@pytest.mark.parametrize(
-    "deployment_kind",
-    [LLMDeploymentKind.BEDROCK, LLMDeploymentKind.VERTEX],
-)
-def test_existing_anthropic_version_is_not_overwritten(deployment_kind):
+def test_existing_anthropic_version_is_not_overwritten():
     """setdefault semantics, mirroring the vendor SDKs: the caller's own value stands."""
     body = _messages_body(anthropic_version="caller-supplied-value")
 
     result = apply_static_fields(
-        deployment_kind=deployment_kind, protocol=LLMProtocol.MESSAGES, body=body
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        protocol=LLMProtocol.MESSAGES,
+        body=body,
     )
 
     assert json.loads(result)["anthropic_version"] == "caller-supplied-value"
 
 
-@pytest.mark.parametrize(
-    "deployment_kind",
-    [LLMDeploymentKind.BEDROCK, LLMDeploymentKind.VERTEX],
-)
-def test_non_messages_protocol_leaves_body_untouched(deployment_kind):
+def test_non_messages_protocol_leaves_vertex_body_untouched():
     body = _messages_body()
 
     result = apply_static_fields(
-        deployment_kind=deployment_kind,
+        deployment_kind=LLMDeploymentKind.VERTEX,
         protocol=LLMProtocol.CHAT_COMPLETIONS,
         body=body,
     )
@@ -88,6 +70,7 @@ def test_non_messages_protocol_leaves_body_untouched(deployment_kind):
         LLMDeploymentKind.DIRECT,
         LLMDeploymentKind.CUSTOM,
         LLMDeploymentKind.AZURE,
+        LLMDeploymentKind.BEDROCK,
         LLMDeploymentKind.SAGEMAKER,
         LLMDeploymentKind.MOCK,
     ],
@@ -106,7 +89,7 @@ def test_unparsable_body_is_returned_unchanged():
     body = b"not json"
 
     result = apply_static_fields(
-        deployment_kind=LLMDeploymentKind.BEDROCK,
+        deployment_kind=LLMDeploymentKind.VERTEX,
         protocol=LLMProtocol.MESSAGES,
         body=body,
     )
@@ -118,7 +101,7 @@ def test_non_object_body_is_returned_unchanged():
     body = json.dumps([1, 2, 3]).encode()
 
     result = apply_static_fields(
-        deployment_kind=LLMDeploymentKind.BEDROCK,
+        deployment_kind=LLMDeploymentKind.VERTEX,
         protocol=LLMProtocol.MESSAGES,
         body=body,
     )
@@ -126,11 +109,10 @@ def test_non_object_body_is_returned_unchanged():
     assert result == body
 
 
-def test_table_has_exactly_bedrock_and_vertex():
-    assert set(STATIC_FIELD_REWRITES.keys()) == {
-        LLMDeploymentKind.BEDROCK,
-        LLMDeploymentKind.VERTEX,
-    }
+def test_table_has_exactly_vertex():
+    """OD19: Bedrock's entry came out — its Messages door moved to bedrock-mantle, which
+    needs no rewrite."""
+    assert set(STATIC_FIELD_REWRITES.keys()) == {LLMDeploymentKind.VERTEX}
 
 
 def test_table_entries_are_literal_data_only():

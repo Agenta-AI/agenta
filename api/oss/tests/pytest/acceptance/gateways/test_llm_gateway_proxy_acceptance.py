@@ -265,11 +265,14 @@ class TestLLMGatewayResponsesAndMessagesDoorsAcceptance:
         assert response.json()["error"]["code"] == "model_not_allowed"
 
 
-# D40 (specs-wp27.md): Bedrock/Vertex on the Messages door are the named byte-for-byte
-# exemption above, and they compose the real InvokeModel/rawPredict paths (routing.py),
-# which the mock upstream does not mount (`providers/mock/app.py` only serves
-# `/v1/{chat/completions,responses,messages}`). Proving the URL+body pair therefore stays
-# a unit test against RelayLLMAdapter directly
-# (test_gateways_llm_relay_adapter.py::test_{bedrock,vertex}_messages_request_moves_model_
-# from_body_to_url) rather than an acceptance test here — there is no upstream in this
-# suite's reach that speaks either real wire.
+# D40/OD19 (specs-wp27.md): Vertex on the Messages door is the named byte-for-byte
+# exemption above, and it composes the real rawPredict path (routing.py), which the mock
+# upstream does not mount (`providers/mock/app.py` only serves
+# `/v1/{chat/completions,responses,messages}`). Bedrock's Messages door now composes
+# bedrock-mantle's own `/anthropic/v1/messages`, also unmounted by the mock. Proving each
+# URL (+, for Vertex, body) pair therefore stays a unit test against RelayLLMAdapter
+# directly
+# (test_gateways_llm_relay_adapter.py::test_{bedrock_messages_request_composes_mantle_url_
+# and_leaves_body_untouched,vertex_messages_request_moves_model_from_body_to_url}) rather
+# than an acceptance test here — there is no upstream in this suite's reach that speaks
+# either real wire.
