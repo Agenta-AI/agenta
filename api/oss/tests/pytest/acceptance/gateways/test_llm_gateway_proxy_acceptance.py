@@ -265,49 +265,11 @@ class TestLLMGatewayResponsesAndMessagesDoorsAcceptance:
         assert response.json()["error"]["code"] == "model_not_allowed"
 
 
-@pytest.mark.acceptance
-class TestBedrockVertexStaticFieldRewriteAcceptance:
-    """D40 (specs-wp27.md): the one named exemption to the byte-for-byte relay above.
-
-    A `bedrock`/`vertex` endpoint still points at the mock upstream — the rewrite is keyed
-    by `deployment_kind` alone, so it fires the same way whether the base_url is a real
-    vendor host or the mock's. What is NOT relayed byte for byte here is deliberate:
-    `model` leaves the body and `anthropic_version` joins it before the mock ever sees the
-    request. Every deployment kind not named in this class keeps the assertion above.
-    """
-
-    @pytest.mark.parametrize("deployment_kind", ["bedrock", "vertex_ai"])
-    def test_messages_door_applies_the_static_field_rewrite(
-        self, authed_api, gateway_api, deployment_kind
-    ):
-        slug = f"wp27-acceptance-{deployment_kind}-{uuid4().hex[:8]}"
-        endpoint = _assert_ok(
-            authed_api(
-                "POST",
-                "/gateways/llms/endpoints/",
-                json={
-                    "endpoint": {
-                        "slug": slug,
-                        "provider_key": None,
-                        "deployment_kind": deployment_kind,
-                        "secret_id": None,
-                        "data": {
-                            "route": {"base_url": _MOCK_BASE_URL},
-                            "models": {"allowlist": ["mock/echo"]},
-                        },
-                    }
-                },
-            )
-        )["endpoint"]
-
-        response = gateway_api(
-            "POST",
-            f"/gateways/llms/custom/{endpoint['slug']}/v1/messages",
-            json={
-                "model": "mock/echo",
-                "max_tokens": 1024,
-                "messages": [{"role": "user", "content": "hi"}],
-            },
-        )
-
-        assert response.status_code == 200
+# D40 (specs-wp27.md): Bedrock/Vertex on the Messages door are the named byte-for-byte
+# exemption above, and they compose the real InvokeModel/rawPredict paths (routing.py),
+# which the mock upstream does not mount (`providers/mock/app.py` only serves
+# `/v1/{chat/completions,responses,messages}`). Proving the URL+body pair therefore stays
+# a unit test against RelayLLMAdapter directly
+# (test_gateways_llm_relay_adapter.py::test_{bedrock,vertex}_messages_request_moves_model_
+# from_body_to_url) rather than an acceptance test here — there is no upstream in this
+# suite's reach that speaks either real wire.

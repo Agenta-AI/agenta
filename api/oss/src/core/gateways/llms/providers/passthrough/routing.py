@@ -131,7 +131,65 @@ _ROUTING: Dict[LLMDeploymentKind, Callable[[LLMResolvedRoute, LLMProtocol], str]
 }
 
 
-def build_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
+# D40: the Messages door reaches Bedrock/Vertex through the real resold-Anthropic
+# operation (InvokeModel, rawPredict), not the OpenAI-compatible door `_bedrock_url` and
+# `_vertex_url` above compose — those two stay exactly as they are for the other doors.
+def _bedrock_messages_url(route: LLMResolvedRoute, *, stream: bool) -> str:
+    if not route.model:
+        raise _no_route(
+            provider_key=route.provider_key,
+            detail="bedrock messages endpoint has no model",
+        )
+    base_url = route.base_url or (
+        f"https://bedrock-runtime.{route.region}.amazonaws.com"
+        if route.region
+        else None
+    )
+    if not base_url:
+        raise _no_route(
+            provider_key=route.provider_key,
+            detail="bedrock endpoint has no region or base_url",
+        )
+    action = "invoke-with-response-stream" if stream else "invoke"
+    return f"{base_url.rstrip('/')}/model/{route.model}/{action}"
+
+
+def _vertex_messages_url(route: LLMResolvedRoute, *, stream: bool) -> str:
+    if not route.model:
+        raise _no_route(
+            provider_key=route.provider_key,
+            detail="vertex messages endpoint has no model",
+        )
+    if route.base_url:
+        base_url = route.base_url
+    else:
+        project = (route.extras or {}).get("vertex_project")
+        if not (route.region and project):
+            raise _no_route(
+                provider_key=route.provider_key,
+                detail="vertex endpoint needs region and extras.vertex_project (or a base_url)",
+            )
+        base_url = (
+            f"https://{route.region}-aiplatform.googleapis.com/v1/projects/{project}"
+            f"/locations/{route.region}"
+        )
+    action = "streamRawPredict" if stream else "rawPredict"
+    return f"{base_url.rstrip('/')}/publishers/anthropic/models/{route.model}:{action}"
+
+
+_MESSAGES_ROUTING: Dict[LLMDeploymentKind, Callable[[LLMResolvedRoute, bool], str]] = {
+    LLMDeploymentKind.BEDROCK: _bedrock_messages_url,
+    LLMDeploymentKind.VERTEX: _vertex_messages_url,
+}
+
+
+def build_url(
+    route: LLMResolvedRoute, protocol: LLMProtocol, *, stream: bool = False
+) -> str:
+    if protocol == LLMProtocol.MESSAGES:
+        messages_strategy = _MESSAGES_ROUTING.get(route.deployment_kind)
+        if messages_strategy is not None:
+            return messages_strategy(route, stream=stream)
     strategy = _ROUTING.get(route.deployment_kind)
     if strategy is None:
         raise _no_route(

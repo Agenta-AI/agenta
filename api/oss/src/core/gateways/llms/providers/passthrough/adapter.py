@@ -151,7 +151,7 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         body: bytes,
         headers: Dict[str, str],
     ) -> LLMRelayResult:
-        url = build_url(route, context.protocol)
+        url = build_url(route, context.protocol, stream=context.stream)
         body = apply_static_fields(
             deployment_kind=route.deployment_kind,
             protocol=context.protocol,
