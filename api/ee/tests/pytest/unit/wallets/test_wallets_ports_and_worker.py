@@ -1,0 +1,44 @@
+from unittest.mock import MagicMock
+
+import pytest
+
+from ee.src.core.wallets.interfaces import WalletCheckPort, WalletSettlementPort
+from ee.src.core.wallets.runtime import get_wallet_settlement_port
+from ee.src.tasks.asyncio.wallets.worker import DebitWorker
+from ee.tests.pytest.utils.wallets.builders import build_debit_command
+
+
+def test_wallet_check_port_body_raises_not_implemented():
+    port = WalletCheckPort()
+    with pytest.raises(NotImplementedError):
+        port.check(organization_id=None, amount_musd=100)
+
+
+@pytest.mark.asyncio
+async def test_wallet_settlement_port_body_raises_not_implemented():
+    port = WalletSettlementPort()
+    with pytest.raises(NotImplementedError):
+        await port.settle(build_debit_command())
+
+
+def test_settlement_port_factory_is_unimplemented():
+    with pytest.raises(NotImplementedError):
+        get_wallet_settlement_port()
+
+
+def test_debit_worker_is_constructible():
+    worker = DebitWorker(
+        settlement_port=WalletSettlementPort(),
+        redis_client=MagicMock(),
+    )
+    assert worker.stream_name == "streams:debits"
+
+
+@pytest.mark.asyncio
+async def test_debit_worker_process_batch_raises_not_implemented():
+    worker = DebitWorker(
+        settlement_port=WalletSettlementPort(),
+        redis_client=MagicMock(),
+    )
+    with pytest.raises(NotImplementedError):
+        await worker.process_batch([])
