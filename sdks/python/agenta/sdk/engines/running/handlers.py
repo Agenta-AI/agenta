@@ -3,19 +3,17 @@ import json
 import math
 import os
 import re
-import socket
-import ipaddress
 import traceback
 from inspect import isawaitable
 from difflib import SequenceMatcher
 from json import dumps, loads
 from typing import Any, Dict, List, Optional, Union, Tuple
-from urllib.parse import urlparse, urlunparse
 
 import httpx
 
 from pydantic import BaseModel, Field
 
+from agenta.sdk.utils import net
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.lazy import (
@@ -90,76 +88,15 @@ if not _HOOK_ALLOW_INSECURE:
     )
 
 
-def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
-    if _HOOK_ALLOW_INSECURE:
-        return False
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
-
-
 def _validate_webhook_url(url: str) -> str:
-    """Validate `url` and resolve it to a single blocked-range-checked literal IP.
-
-    Resolves once here; callers must connect to the returned literal IP (not
-    re-resolve the hostname) so a DNS-rebind between validation and send cannot
-    reach an internal host.
+    """Resolve-once, block-range-checked literal IP, under this handler's own insecure-flag
+    precedent (see `_HOOK_ALLOW_INSECURE` above). Guard logic lives once in `agenta.sdk.utils.net`.
     """
-    if not url:
-        raise ValueError("Webhook URL is required.")
-
-    parsed = urlparse(url)
-    scheme = parsed.scheme.lower()
-    if scheme not in {"http", "https"}:
-        raise ValueError("Webhook URL must use http or https.")
-    if scheme == "http" and not _HOOK_ALLOW_INSECURE:
-        raise ValueError("Webhook URL must use https.")
-    if not parsed.netloc:
-        raise ValueError("Webhook URL must include a host.")
-    if parsed.username or parsed.password:
-        raise ValueError("Webhook URL must not include credentials.")
-
-    hostname = (parsed.hostname or "").lower()
-    if not hostname:
-        raise ValueError("Webhook URL must include a valid hostname.")
-    if hostname in {"localhost", "localhost.localdomain"} and not _HOOK_ALLOW_INSECURE:
-        raise ValueError("Webhook URL hostname is not allowed.")
-
-    try:
-        ip = ipaddress.ip_address(hostname)
-    except ValueError:
-        ip = None
-
-    if ip is not None:
-        if _is_blocked_ip(ip):
-            raise ValueError("Webhook URL resolves to a blocked IP range.")
-        return str(ip)
-
-    try:
-        addresses = [
-            ipaddress.ip_address(info[4][0])
-            for info in socket.getaddrinfo(hostname, None)
-        ]
-    except socket.gaierror as exc:
-        raise ValueError("Webhook URL hostname could not be resolved.") from exc
-
-    if not addresses or any(_is_blocked_ip(addr) for addr in addresses):
-        raise ValueError("Webhook URL resolves to a blocked IP range.")
-
-    return str(addresses[0])
+    return net.validate_endpoint_url(url, allow_insecure=_HOOK_ALLOW_INSECURE)
 
 
 def _pin_webhook_url(url: str, resolved_ip: str) -> Tuple[str, str]:
-    """Swap the URL's host for the literal validated IP; keep hostname for Host/SNI."""
-    parsed = urlparse(url)
-    host_literal = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
-    pinned_netloc = f"{host_literal}:{parsed.port}" if parsed.port else host_literal
-    return urlunparse(parsed._replace(netloc=pinned_netloc)), parsed.hostname or ""
+    return net.pin_url_to_ip(url, resolved_ip)
 
 
 async def _compute_embedding(openai: Any, model: str, input: str) -> List[float]:
