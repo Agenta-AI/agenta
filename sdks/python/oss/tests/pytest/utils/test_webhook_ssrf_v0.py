@@ -96,7 +96,7 @@ class TestValidateWebhookUrlSecureDefault:
 
     def test_hostname_resolving_to_private_ip_rejected(self):
         with patch(
-            "agenta.sdk.workflows.handlers.socket.getaddrinfo",
+            "agenta.sdk.utils.net.socket.getaddrinfo",
             return_value=[(None, None, None, None, ("192.168.1.100", 0))],
         ):
             with pytest.raises(ValueError, match="blocked IP"):
@@ -104,7 +104,7 @@ class TestValidateWebhookUrlSecureDefault:
 
     def test_hostname_resolving_to_public_ip_returns_literal(self):
         with patch(
-            "agenta.sdk.workflows.handlers.socket.getaddrinfo",
+            "agenta.sdk.utils.net.socket.getaddrinfo",
             return_value=[(None, None, None, None, ("93.184.216.34", 0))],
         ):
             assert _validate_webhook_url("https://example.com/hook") == "93.184.216.34"
