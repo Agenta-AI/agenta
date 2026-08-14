@@ -14,13 +14,39 @@ from agenta.sdk.agents.connections import (
     ModelRef,
     ProviderMismatchError,
     RuntimeAuthContext,
+    UnroutableProtocolError,
 )
 from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolver
 from agenta.sdk.agents.platform import connections
 
+# The `connection` fixture pins base_url to this host with no AGENTA_GATEWAY_URL override,
+# so every routed resolution composes its gateway route against it (D30).
+_GATEWAY_BASE = "https://api.x/api"
+
 
 def _credential_environment(resolved) -> dict[str, str]:
     return {item.binding.name: item.value for item in resolved.credentials}
+
+
+def _gateway_route(namespace: str, name: str) -> str:
+    return f"{_GATEWAY_BASE}/gateways/llms/{namespace}/{name}"
+
+
+def _assert_routed_through_gateway(resolved, *, namespace: str, name: str) -> None:
+    """W1/D30: the connected path injects no provider secret; the gateway holds it.
+
+    A vault record no longer distinguishes itself in the resolved output once two records
+    share a (namespace, name) pair (e.g. two `openai` provider keys both route through
+    `standard/openai`) — the gateway, not the SDK, picks the secret server-side. So this
+    only asserts the route and the absence of a provider secret, never which literal vault
+    row was selected.
+    """
+    assert resolved.credential_mode == "none"
+    assert resolved.credentials == []
+    assert resolved.endpoint is not None
+    assert resolved.endpoint.base_url == _gateway_route(namespace, name)
+    assert resolved.gateway_credentials is not None
+    assert resolved.gateway_credentials.value == "Access tok"
 
 
 def _model(
@@ -107,8 +133,7 @@ async def test_resolve_fetches_secrets_and_selects_one_key(fake_http, connection
     assert resolved.provider == "openai"
     assert resolved.model == "gpt-5.5"
     assert resolved.deployment == "direct"
-    assert resolved.credential_mode == "env"
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-prod"}
+    _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
     assert resolved.input_modalities == ["text", "image"]
     assert capture["method"] == "GET"
     assert capture["url"] == "https://api.x/api/secrets/"
@@ -133,7 +158,7 @@ async def test_default_connection_requires_unique_provider_match(fake_http, conn
     resolved = await VaultConnectionResolver(connection).resolve(
         model=_model(slug=None), context=_context()
     )
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-default"}
+    _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
 
 
 async def test_managed_connection_with_empty_key_fails_closed(fake_http, connection):
@@ -182,7 +207,11 @@ async def test_default_connection_picks_the_one_declaring_the_model(
     resolved = await VaultConnectionResolver(connection).resolve(
         model=_model(slug=None), context=_context()
     )
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-b"}
+    # Both candidates route through the same `standard/openai` gateway target — the vault
+    # row picked no longer distinguishes itself in the output (the gateway resolves the
+    # secret server-side). The declaration logic is exercised for its real effect: resolving
+    # at all instead of raising `AmbiguousConnectionError`.
+    _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
 
 
 async def test_an_explicit_model_declaration_beats_a_connection_with_no_list(
@@ -200,7 +229,7 @@ async def test_an_explicit_model_declaration_beats_a_connection_with_no_list(
     resolved = await VaultConnectionResolver(connection).resolve(
         model=_model(slug=None), context=_context()
     )
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-b"}
+    _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
 
 
 async def test_two_connections_declaring_the_same_model_stay_ambiguous(
@@ -264,7 +293,7 @@ async def test_bare_catalog_model_infers_provider(fake_http, connection):
         model=ModelRef.coerce("gpt-4o-mini"), context=_context()
     )
     assert resolved.provider == "openai"
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-prod"}
+    _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
 
 
 async def test_missing_provider_hint_is_harness_correct_for_claude(
@@ -286,38 +315,41 @@ async def test_missing_provider_hint_is_harness_correct_for_claude(
     assert "openai/" not in message
 
 
-async def test_bare_claude_alias_resolves_to_anthropic(fake_http, connection):
+async def test_bare_claude_alias_resolves_to_anthropic_but_has_no_front_door_yet(
+    fake_http, connection
+):
     # F-031: a bare Claude alias from the curated Claude alias list is unambiguously Anthropic,
-    # so the F-017 prefix rule must NOT reject it. It resolves against the vault's anthropic key
-    # the same way the documented `anthropic/haiku` form does, instead of failing loud.
+    # so the F-017 prefix rule must NOT reject it — provider inference still happens. But
+    # Anthropic is Messages-shaped and only Chat Completions is mounted today (D33/D34), so
+    # resolution now fails loud with the named protocol gap instead of silently degrading to
+    # a direct connection.
     fake_http(
         connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
     )
     for alias in ("haiku", "sonnet", "opus[1m]"):
-        resolved = await VaultConnectionResolver(connection).resolve(
-            model=ModelRef.coerce(alias),
-            context=RuntimeAuthContext(harness="claude"),
-        )
-        assert resolved.provider == "anthropic", alias
-        assert resolved.model == alias, alias
-        assert _credential_environment(resolved) == {"ANTHROPIC_API_KEY": "sk-ant"}, (
-            alias
-        )
-        assert resolved.input_modalities == ["text", "image"], alias
+        with pytest.raises(UnroutableProtocolError) as exc:
+            await VaultConnectionResolver(connection).resolve(
+                model=ModelRef.coerce(alias),
+                context=RuntimeAuthContext(harness="claude"),
+            )
+        assert exc.value.provider == "anthropic", alias
 
 
-async def test_bare_claude_dated_id_resolves_to_anthropic(fake_http, connection):
+async def test_bare_claude_dated_id_resolves_to_anthropic_but_has_no_front_door_yet(
+    fake_http, connection
+):
     # F-031: a bare dated Anthropic id (claude-opus-4-8) is also unambiguously Anthropic via the
-    # claude-* naming convention, so it resolves rather than failing loud on a missing prefix.
+    # claude-* naming convention, so provider inference still fires — but the same D33/D34 gap
+    # applies: no Messages front door is mounted yet, so the gateway route fails loud.
     fake_http(
         connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=ModelRef.coerce("claude-opus-4-8"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.provider == "anthropic"
-    assert resolved.model == "claude-opus-4-8"
+    with pytest.raises(UnroutableProtocolError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef.coerce("claude-opus-4-8"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert exc.value.provider == "anthropic"
 
 
 async def test_bare_model_matching_a_candidate_infers_the_provider(
@@ -334,20 +366,16 @@ async def test_bare_model_matching_a_candidate_infers_the_provider(
     resolved = await VaultConnectionResolver(connection).resolve(
         model=ModelRef.coerce("gpt-4o-mini"), context=_context()
     )
-    assert resolved.credential_mode == "env"
+    _assert_routed_through_gateway(resolved, namespace="custom", name="my-gw")
 
 
-@pytest.mark.parametrize(
-    ("provider", "environment_name"),
-    [
-        ("openai", "OPENAI_API_KEY"),
-        ("anthropic", "ANTHROPIC_API_KEY"),
-        ("openrouter", "OPENROUTER_API_KEY"),
-    ],
-)
+@pytest.mark.parametrize("provider", ["openai", "openrouter"])
 async def test_known_direct_custom_provider_uses_direct_deployment(
-    fake_http, connection, provider, environment_name
+    fake_http, connection, provider
 ):
+    # A named custom record for an OpenAI-shaped family still normalizes to `deployment
+    # "direct"`, but the connected path now routes it through `custom/{slug}` on the
+    # gateway rather than injecting the vault's provider-family env var (D4/W1).
     endpoint = "https://93.184.216.34/v1"
     model_id = "vendor/model-v1"
     fake_http(
@@ -372,12 +400,36 @@ async def test_known_direct_custom_provider_uses_direct_deployment(
     assert resolved.deployment == "direct"
     assert resolved.model == model_id
     assert resolved.input_modalities is None
-    assert resolved.endpoint.base_url == endpoint
-    if hasattr(resolved, "plaintext_environment"):
-        environment = resolved.plaintext_environment()
-    else:
-        environment = resolved.env
-    assert environment == {environment_name: "provider-key"}
+    _assert_routed_through_gateway(resolved, namespace="custom", name="custom-direct")
+
+
+async def test_known_direct_custom_provider_for_a_provider_with_no_front_door(
+    fake_http, connection
+):
+    # Anthropic is Messages-shaped; only Chat Completions is mounted today (D33/D34), so a
+    # named Anthropic custom record fails loud instead of silently falling back to a direct
+    # connection.
+    endpoint = "https://93.184.216.34/v1"
+    model_id = "vendor/model-v1"
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "custom-direct",
+                "anthropic",
+                key="provider-key",
+                url=endpoint,
+                models=[model_id],
+            )
+        ],
+    )
+
+    with pytest.raises(UnroutableProtocolError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("custom-direct", provider="anthropic", model=model_id),
+            context=_context(),
+        )
+    assert exc.value.provider == "anthropic"
 
 
 async def test_missing_named_connection_fails_loud(fake_http, connection):
@@ -401,6 +453,8 @@ async def test_provider_mismatch_fails_loud(fake_http, connection):
 async def test_custom_provider_snake_case_extras_normalize_for_bedrock(
     fake_http, connection
 ):
+    # Bedrock has no gateway route composition verified yet (OD16/WP24), so the connected
+    # path fails loud rather than injecting AWS credentials into the harness.
     fake_http(
         connections,
         payload=[
@@ -417,28 +471,17 @@ async def test_custom_provider_snake_case_extras_normalize_for_bedrock(
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model(
-            "my-bedrock", provider="anthropic", model="anthropic.claude-3-5-sonnet"
-        ),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.provider == "anthropic"
-    assert resolved.model == "anthropic.claude-3-5-sonnet"
-    assert resolved.deployment == "bedrock"
-    assert _credential_environment(resolved) == {
-        "AWS_ACCESS_KEY_ID": "AKIA",
-        "AWS_SECRET_ACCESS_KEY": "secret",
-        "AWS_SESSION_TOKEN": "token",
-    }
-    assert resolved.environment == {"AWS_REGION": "us-east-1"}
-    assert {item.usage for item in resolved.credentials} == {"local_use"}
-    assert resolved.endpoint.region == "us-east-1"
+    with pytest.raises(UnroutableProtocolError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model(
+                "my-bedrock", provider="anthropic", model="anthropic.claude-3-5-sonnet"
+            ),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert exc.value.deployment == "bedrock"
 
 
-async def test_bedrock_bearer_is_opaque_http_with_regional_endpoint(
-    fake_http, connection
-):
+async def test_bedrock_bearer_has_no_gateway_route_yet(fake_http, connection):
     fake_http(
         connections,
         payload=[
@@ -453,22 +496,18 @@ async def test_bedrock_bearer_is_opaque_http_with_regional_endpoint(
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model(
-            "my-bedrock", provider="anthropic", model="anthropic.claude-3-5-sonnet"
-        ),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.endpoint.base_url == (
-        "https://bedrock-runtime.eu-west-1.amazonaws.com"
-    )
-    assert _credential_environment(resolved) == {
-        "AWS_BEARER_TOKEN_BEDROCK": "bearer-token"
-    }
-    assert [item.usage for item in resolved.credentials] == ["opaque_http"]
+    with pytest.raises(UnroutableProtocolError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model(
+                "my-bedrock", provider="anthropic", model="anthropic.claude-3-5-sonnet"
+            ),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert exc.value.deployment == "bedrock"
 
 
 async def test_custom_provider_vertex_snake_case_extras(fake_http, connection):
+    # Vertex has no gateway route composition verified yet (OD16/WP24): fails loud.
     fake_http(
         connections,
         payload=[
@@ -484,19 +523,12 @@ async def test_custom_provider_vertex_snake_case_extras(fake_http, connection):
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("my-vertex", provider="anthropic", model="claude-sonnet-4"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.deployment == "vertex_ai"
-    assert _credential_environment(resolved) == {
-        "GOOGLE_APPLICATION_CREDENTIALS": "/adc.json",
-    }
-    assert resolved.environment == {
-        "GOOGLE_CLOUD_PROJECT": "proj",
-        "GOOGLE_CLOUD_LOCATION": "us-central1",
-    }
-    assert [item.usage for item in resolved.credentials] == ["local_use"]
+    with pytest.raises(UnroutableProtocolError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("my-vertex", provider="anthropic", model="claude-sonnet-4"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert exc.value.deployment == "vertex_ai"
 
 
 async def test_vertex_api_key_mode_is_rejected_as_out_of_scope(fake_http, connection):
@@ -524,6 +556,9 @@ async def test_vertex_api_key_mode_is_rejected_as_out_of_scope(fake_http, connec
 
 
 async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connection):
+    # An explicit `provider="anthropic"` on the model makes this an Anthropic-shaped custom
+    # gateway regardless of the vault row's own `data.kind`; that has no front door yet
+    # (D33/D34), so it fails loud instead of injecting `ANTHROPIC_API_KEY`.
     fake_http(
         connections,
         payload=[
@@ -537,13 +572,12 @@ async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connec
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("anthropic-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.deployment == "custom"
-    assert _credential_environment(resolved) == {"ANTHROPIC_API_KEY": "sk-gw"}
-    assert resolved.endpoint.base_url == "https://93.184.216.34/v1"
+    with pytest.raises(UnroutableProtocolError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("anthropic-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert exc.value.provider == "anthropic"
 
 
 async def test_custom_provider_private_url_fails_loud_not_dropped(
@@ -655,9 +689,7 @@ async def test_openai_compatible_custom_normalizes_to_openai(fake_http, connecti
     assert resolved.provider == "openai"
     assert resolved.deployment == "custom"
     assert resolved.model == model_id
-    assert resolved.endpoint.base_url == endpoint
-    assert resolved.credential_mode == "env"
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-oai-compatible"}
+    _assert_routed_through_gateway(resolved, namespace="custom", name="my-ollama")
 
 
 async def test_openai_compatible_custom_missing_url_fails_loud(fake_http, connection):
@@ -691,6 +723,11 @@ async def test_openai_compatible_custom_missing_url_fails_loud(fake_http, connec
 async def test_full_custom_model_key_selects_and_strips_to_backend_model(
     fake_http, connection
 ):
+    # The full `slug/deployment/model` key still selects the right candidate and strips down
+    # to the backend model id before the routability check runs (bedrock has no gateway
+    # route yet, see the bedrock tests above, so this still fails loud — the selection and
+    # stripping logic ran regardless, which is what `UnroutableProtocolError` naming the
+    # right deployment proves).
     fake_http(
         connections,
         payload=[
@@ -706,12 +743,12 @@ async def test_full_custom_model_key_selects_and_strips_to_backend_model(
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=ModelRef.coerce("my-bedrock/bedrock/anthropic.claude-x"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.model == "anthropic.claude-x"
-    assert resolved.deployment == "bedrock"
+    with pytest.raises(UnroutableProtocolError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef.coerce("my-bedrock/bedrock/anthropic.claude-x"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert exc.value.deployment == "bedrock"
 
 
 async def test_resolve_fails_loud_on_http_error(fake_http, connection):
@@ -754,7 +791,7 @@ async def test_saved_slug_selects_one_of_two_keys_for_one_provider(
         model=_model("openai-2-bbbbbbbbbbbb"), context=_context()
     )
 
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-second"}
+    _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
 
 
 async def test_a_slugged_record_still_resolves_provider_only_when_unique(
@@ -771,7 +808,7 @@ async def test_a_slugged_record_still_resolves_provider_only_when_unique(
         model=_model(slug=None), context=_context()
     )
 
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-one"}
+    _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
 
 
 async def test_legacy_record_without_a_slug_stays_addressable_by_provider(
@@ -785,7 +822,7 @@ async def test_legacy_record_without_a_slug_stays_addressable_by_provider(
         resolved = await VaultConnectionResolver(connection).resolve(
             model=model, context=_context()
         )
-        assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-legacy"}
+        _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
 
 
 def test_saved_models_and_harnesses_are_carried_on_the_candidate():
@@ -840,7 +877,7 @@ async def test_saved_models_do_not_filter_resolution_yet(fake_http, connection):
     # The request asks for a model outside the saved list on a harness outside the saved
     # set; enforcement belongs to a later slice, so resolution must not start filtering here.
     assert resolved.model == "gpt-5.5"
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-one"}
+    _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
 
 
 async def test_custom_connection_resolves_by_its_stored_slug(fake_http, connection):
@@ -870,8 +907,12 @@ async def test_custom_connection_resolves_by_its_stored_slug(fake_http, connecti
     )
 
     assert resolved.deployment == "custom"
-    assert resolved.endpoint.base_url == endpoint
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-gw"}
+    # The gateway route is composed from the connection's stable slug, not its display name
+    # (which the endpoint's own stored URL — dropped from the resolved output now that the
+    # gateway holds the secret and dials the upstream — used to carry).
+    _assert_routed_through_gateway(
+        resolved, namespace="custom", name="my-gateway-abcdef123456"
+    )
 
 
 async def test_legacy_custom_connection_without_a_slug_resolves_by_name(
@@ -899,7 +940,7 @@ async def test_legacy_custom_connection_without_a_slug_resolves_by_name(
         context=_context(),
     )
 
-    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-legacy"}
+    _assert_routed_through_gateway(resolved, namespace="custom", name="my-gateway")
 
 
 def test_a_slugged_custom_record_keeps_its_model_key_namespace():
