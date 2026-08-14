@@ -45,6 +45,34 @@ needs `api_version`. It is not a body concern and does not touch `static_fields.
 naming the provider, exactly like every other routing strategy's failure mode — there is no
 guessing a model id from the body, which would reopen the door D34 closes.
 
+**An explicit `base_url` on a Bedrock or Vertex row is ambiguous, and this package does not
+resolve it.** `route.base_url` means two different things depending on which door reads it:
+on CHAT_COMPLETIONS/RESPONSES it is the OpenAI-compatible base that `_bedrock_url`/
+`_vertex_url` append `/chat/completions` or `/responses` to; on MESSAGES it is the base that
+`_bedrock_messages_url`/`_vertex_messages_url` append `/model/{model}/invoke` or
+`/publishers/anthropic/models/{model}:rawPredict` to. Those are different hosts on the real
+services (`bedrock-runtime.*` vs. the OpenAI-compatible `bedrock-mantle` proxy; Vertex's
+`.../locations/{region}` root vs. its `.../endpoints/openapi` address) — one stored string
+cannot be both. **A row that carries an explicit `base_url` and is called through both doors
+will compose a wrong URL on whichever door the string wasn't meant for.**
+
+The fallback paths (no `base_url` set) do not have this problem: each door derives its own
+base independently from `region` (and, for Vertex, `extras.vertex_project`), so a row with no
+`base_url` composes the right host for whichever door it is called through.
+
+**Checked, not fixed here: no registration path or fixture in this codebase currently stores
+a `base_url` for a `BEDROCK`/`VERTEX` row.** `LLMEndpointCreate`/`LLMEndpointRoute`
+(`core/gateways/llms/dtos.py`) accept the field with no per-`deployment_kind` validation, and
+nothing rejects it, but a repo-wide search turned up no seed, fixture, or acceptance test that
+sets one for either kind — every `base_url`-bearing route in the test suite is `DIRECT`,
+`CUSTOM`, or `AZURE`. The ambiguity is real but currently unreached: it is a registration-shape
+question (should the row need one `base_url` per door, or should Bedrock/Vertex rows be
+disallowed from setting one at all and always use the derived host?) for whichever later
+package adds Bedrock/Vertex endpoint registration, not something this package's relay-only
+scope resolves. If that package lets an operator set `base_url` on these two kinds, it needs
+to decide which door's meaning wins, or split the field in two — a single override that must
+mean two different bases is not fixable by adding a second `if` here.
+
 ---
 
 ## Phase 0 — already closed
