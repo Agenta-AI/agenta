@@ -1,14 +1,10 @@
-"""The composition entrypoints: resolve_tools / resolve_mcp / resolve_secrets."""
+"""The composition entrypoints: resolve_tools / resolve_mcp."""
 
 from __future__ import annotations
 
 from typing import Mapping, Sequence
 
-from agenta.sdk.agents.platform import (
-    resolve_provider_keys,
-    resolve_secrets,
-    resolve_tools,
-)
+from agenta.sdk.agents.platform import resolve_tools
 from agenta.sdk.agents.platform import resolve_mcp
 
 
@@ -37,8 +33,3 @@ async def test_resolve_tools_skips_gateway_without_gateway_tools():
 
 async def test_resolve_mcp_empty_returns_empty():
     assert await resolve_mcp([], secret_provider=_EmptySecrets()) == []
-
-
-def test_resolve_secrets_is_the_provider_key_entrypoint():
-    # The third entrypoint is the provider-key fetch (harness/model keys), not named secrets.
-    assert resolve_secrets is resolve_provider_keys

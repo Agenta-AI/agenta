@@ -1,7 +1,7 @@
-"""The three resolution entrypoints, composed over the SDK framework + platform adapters.
+"""The resolution entrypoints, composed over the SDK framework + platform adapters.
 
-Deliberately three separate functions, not one aggregate: a caller resolves only what it
-needs. Each defaults to the Agenta-platform-backed adapters (the connected path) but accepts
+Deliberately separate functions, not one aggregate: a caller resolves only what it needs.
+Each defaults to the Agenta-platform-backed adapters (the connected path) but accepts
 injected adapters, so an offline standalone user can pass an env-backed secret provider and
 no gateway resolver, and a test can pass fakes.
 
@@ -9,12 +9,9 @@ no gateway resolver, and a test can pass fakes.
   specs). Code-tool named secrets are resolved through the secret provider here.
 - ``resolve_mcp`` -> resolved MCP servers (named secrets injected). No deployment flag gate
   here; gating MCP on/off is the caller's concern.
-- ``resolve_secrets`` -> the harness/model provider keys (``agenta.sdk.agents.platform``'s
-  ``resolve_provider_keys``), optional by design. Deprecated: the model-blind whole-vault dump,
-  superseded by ``resolve_connection`` (one connection, fail-loud); kept until the service
-  migrates onto the new resolver.
 - ``resolve_connection`` -> one least-privilege ``ResolvedConnection`` for a single ``ModelRef``,
-  via the secrets-backed ``VaultConnectionResolver`` (fail-loud).
+  via the secrets-backed ``VaultConnectionResolver`` (fail-loud), routed through the gateway
+  and carrying no provider secret (W1/D30).
 """
 
 from __future__ import annotations
@@ -49,10 +46,9 @@ from .connections import VaultConnectionResolver
 from .gateway import AgentaGatewayToolResolver
 from .platform_tools import AgentaPlatformToolResolver
 from .secrets import AgentaNamedSecretProvider
-from .secrets import resolve_provider_keys as resolve_secrets
 from .workflow import AgentaWorkflowToolResolver
 
-__all__ = ["resolve_tools", "resolve_mcp", "resolve_secrets", "resolve_connection"]
+__all__ = ["resolve_tools", "resolve_mcp", "resolve_connection"]
 
 
 async def resolve_tools(
