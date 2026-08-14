@@ -1,5 +1,7 @@
 import {useCallback, useRef, useState} from "react"
 
+import {groupAnnotationsByReferenceId, queryAllAnnotations} from "@agenta/entities/annotation/dto"
+import type {Chunk, Transform} from "@agenta/entities/etl"
 import {exportMatchingTraces} from "@agenta/entities/trace/etl"
 import {
     buildTraceQueryParams,
@@ -34,6 +36,102 @@ const flattenLeafTitles = <T>(columns: ColumnDefs<T>): string[] =>
               ? [column.title]
               : [],
     )
+
+/**
+ * Evaluator columns are the one group whose leaves carry no title (the header cell is hidden
+ * and the cell renders its own label), so `flattenLeafTitles` cannot see them. Their keys ARE
+ * the evaluator slugs, which is what the annotation metrics are grouped by.
+ */
+export const collectEvaluatorSlugs = <T>(columns: ColumnDefs<T>): string[] =>
+    columns.flatMap((column) =>
+        isColumnGroupDef(column)
+            ? String(column.key) === "evaluators"
+                ? column.children.map((child) => String(child.key))
+                : collectEvaluatorSlugs(column.children)
+            : [],
+    )
+
+interface MetricValue {
+    average?: number
+    latest?: boolean
+}
+
+/** Mirrors the cell: booleans read as their latest value, numbers as the average. */
+export const formatEvaluatorMetrics = (
+    metrics: Record<string, MetricValue> | undefined,
+): string => {
+    if (!metrics) return ""
+    return Object.entries(metrics)
+        .map(([name, value]) =>
+            value?.latest !== undefined
+                ? `${name}: ${value.latest ? "True" : "False"}`
+                : `${name}: ${value?.average ?? ""}`,
+        )
+        .join("; ")
+}
+
+const invocationKeyOf = (span: {trace_id?: string; span_id?: string}) =>
+    `${span.trace_id ?? ""}:${span.span_id ?? ""}`
+
+/** Where the transform parks its result for the sink to spread into the CSV row. */
+const METRICS_FIELD = "__evaluatorMetrics"
+
+/**
+ * The ETL enrich transform for evaluator metrics.
+ *
+ * Metrics are not on the span — they are annotations linked to it — so this joins a second
+ * source per chunk: ONE annotations request for every invocation link in the chunk, exactly as
+ * the table's own query does, never one per row. Chunks arrive post-dedup and post-cap, so
+ * nothing is fetched for a row that will not be written.
+ */
+export const makeEvaluatorMetricsEnrichment = <T extends {trace_id?: string; span_id?: string}>({
+    evaluatorSlugs,
+    projectId,
+}: {
+    evaluatorSlugs: string[]
+    projectId?: string
+}): Transform<T, T> => {
+    return async (chunk: Chunk<T>): Promise<Chunk<T>> => {
+        const links = chunk.items
+            .map((span) => ({trace_id: span.trace_id ?? "", span_id: span.span_id ?? ""}))
+            .filter((link) => link.trace_id && link.span_id)
+
+        if (!links.length) return chunk
+
+        let annotations: {links?: unknown}[] = []
+        try {
+            const res = await queryAllAnnotations({projectId, queries: {annotation: {links}}})
+            annotations = res.annotations ?? []
+        } catch (error) {
+            // Losing metrics must not lose the rows: leave the cells empty and keep exporting.
+            console.error("Evaluator metrics for this chunk failed:", error)
+            return chunk
+        }
+
+        const items = chunk.items.map((span) => {
+            const key = invocationKeyOf(span)
+            const matching = annotations.filter((annotation) => {
+                const annotationLinks = annotation.links
+                if (!annotationLinks || typeof annotationLinks !== "object") return false
+                return Object.values(annotationLinks).some(
+                    (link: {trace_id?: string; span_id?: string} | null) =>
+                        `${link?.trace_id ?? ""}:${link?.span_id ?? ""}` === key,
+                )
+            })
+            const grouped = groupAnnotationsByReferenceId(
+                matching as Parameters<typeof groupAnnotationsByReferenceId>[0],
+            ) as Record<string, Record<string, MetricValue>> | undefined
+
+            const cells: Record<string, string> = {}
+            evaluatorSlugs.forEach((slug) => {
+                cells[slug] = formatEvaluatorMetrics(grouped?.[slug])
+            })
+            return {...span, [METRICS_FIELD]: cells}
+        })
+
+        return {...chunk, items}
+    }
+}
 
 export interface UseTracesExportOptions {
     columns: ColumnDefs<TraceRow>
@@ -75,7 +173,12 @@ export const useTracesExport = ({
             flattenLeafTitles(columns).map((title) => (title === "ID" ? "Trace ID" : title)),
         )
         const selected = DEFAULT_TRACE_EXPORT_HEADERS.filter((header) => visibleTitles.has(header))
-        const csvHeaders = selected.length > 0 ? selected : DEFAULT_TRACE_EXPORT_HEADERS
+        const base = selected.length > 0 ? selected : DEFAULT_TRACE_EXPORT_HEADERS
+
+        // Evaluator metrics are not on the span — they are annotations linked to it — so they
+        // are fetched per batch below and appended under their slug.
+        const evaluatorSlugs = collectEvaluatorSlugs(columns)
+        const csvHeaders = [...base, ...evaluatorSlugs]
 
         // Open the native file picker BEFORE starting the scan when the
         // browser supports `showSaveFilePicker` (Chromium). User-cancel of
@@ -133,8 +236,21 @@ export const useTracesExport = ({
         try {
             const {rowCount, limitReached} = await exportMatchingTraces({
                 fetchPage,
+                // Evaluator metrics are correlated data, not row data, so they are joined in the
+                // pipeline's enrich transform — the sink below stays pure encoding.
+                enrich: evaluatorSlugs.length
+                    ? makeEvaluatorMetricsEnrichment({
+                          evaluatorSlugs,
+                          projectId: projectId ?? undefined,
+                      })
+                    : undefined,
                 flushBatch: async (batch) => {
-                    const rows = batch.map(createTraceObject)
+                    const rows = batch.map((span) => ({
+                        ...createTraceObject(span),
+                        ...((span as {__evaluatorMetrics?: Record<string, string>})
+                            .__evaluatorMetrics ?? {}),
+                    }))
+
                     // The writer streams to disk on Chromium and buffers in
                     // memory on Safari / Firefox — at this seam they look
                     // identical to the pipeline, so memory stays bounded by
