@@ -4,9 +4,10 @@
  * Same contract as the CLI, exposed over HTTP so the wrapper can run as its own
  * container (a sidecar) that the Python service calls in-network:
  *
- *   GET  /health -> runner identity ({ status, runner, protocol, engines, harnesses })
- *   POST /stream -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
- *   POST /kill   -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
+ *   GET  /health              -> runner identity ({ status, runner, protocol, engines, harnesses })
+ *   GET  /subscription-status -> one login state per harness (no paths, no credentials)
+ *   POST /stream              -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
+ *   POST /kill                -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
  *
  * Uses Node's built-in http server (no framework dependency).
  *
@@ -59,6 +60,7 @@ import {
 } from "./engines/sandbox_agent/session-identity.ts";
 import { SessionPool } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
+import { subscriptionStatusResponse } from "./subscription-status.ts";
 import {
   assertRunnerToken,
   loadRunnerConfig,
@@ -68,7 +70,11 @@ import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts"
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
-import { cancelStaleInteractions } from "./sessions/interactions.ts";
+import {
+  buildWorkflowReferenceList,
+  cancelStaleInteractions,
+} from "./sessions/interactions.ts";
+import { proposeSessionName } from "./sessions/name.ts";
 import {
   buildPersistingEmitter,
   noteRecordsIncomplete,
@@ -477,11 +483,20 @@ async function runAndStreamWithApiBaseResolved(
     // `controller.abort()` is what makes the control-plane signal actually reach this
     // in-flight run — before this, a session-owned run's controller was never aborted.
     // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
+    //
+    // The beat also proposes the two things a headless session otherwise never gets: a name
+    // (no browser ever renders it, and the browser is the only other title writer) and the
+    // run's workflow references (they ride only a fire-and-forget turn append today, so a
+    // dropped append leaves a row the UI cannot open). Both are fill-once server-side.
     const watchdog = await startAliveWatchdog(
       sessionId,
       turnId,
       runCredential(request),
       () => controller.abort(),
+      {
+        name: proposeSessionName(request),
+        references: buildWorkflowReferenceList(request.runContext?.workflow),
+      },
     );
     aliveWatchdog = watchdog;
     // The heartbeat response already carries the session_streams row id — free, no extra
@@ -651,6 +666,15 @@ export function createRequestListener(
     try {
       if (req.method === "GET" && req.url === "/health") {
         return send(res, 200, runnerInfo());
+      }
+
+      // Deployment state, not project data — but it is still operator state, so it sits behind the
+      // same token gate as /kill and /stream. /health stays the only unauthenticated route.
+      if (req.method === "GET" && req.url === "/subscription-status") {
+        if (!isAuthorized(req)) {
+          return send(res, 401, { ok: false, error: "Unauthorized" });
+        }
+        return send(res, 200, await subscriptionStatusResponse());
       }
 
       if (req.method === "POST" && req.url === "/kill") {

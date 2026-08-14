@@ -19,6 +19,7 @@ const SessionTabLabel = ({
     onRename,
     className,
     style,
+    title,
     ref,
     onEditingChange,
 }: {
@@ -27,6 +28,8 @@ const SessionTabLabel = ({
     className?: string
     /** Styles the resting span (the tag passes its fade mask here). */
     style?: React.CSSProperties
+    /** Hover text for the resting span — the tag spells out its truncated name and shortcut. */
+    title?: string
     ref?: Ref<SessionTabLabelHandle>
     /** Fires on enter/exit of rename mode so the parent can hide its hover actions meanwhile. */
     onEditingChange?: (editing: boolean) => void
@@ -80,7 +83,7 @@ const SessionTabLabel = ({
     }
 
     return (
-        <span className={className} style={style} onDoubleClick={startEditing}>
+        <span className={className} style={style} title={title} onDoubleClick={startEditing}>
             {label}
         </span>
     )

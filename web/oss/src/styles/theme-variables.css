@@ -33,6 +33,7 @@
     --ag-colorPrimary: #242424;
     --ag-colorPrimaryHover: #413f3f;
     --ag-colorPrimaryText: #242424;
+    --ag-colorLinkOnInk: #8ccfff;
     --ag-colorSuccess: #2e7d3a;
     --ag-colorWarning: #8a6400;
     --ag-colorWarningText: #8a6400;
@@ -421,6 +422,7 @@
     --ag-colorPrimary: #d1d151;
     --ag-colorPrimaryHover: #e8e47e;
     --ag-colorPrimaryText: #d1d151;
+    --ag-colorLinkOnInk: #8ccfff;
     --ag-colorSuccess: #49aa19;
     --ag-colorWarning: #d89614;
     --ag-colorWarningText: #d89614;

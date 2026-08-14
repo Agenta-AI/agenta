@@ -147,6 +147,9 @@ const CORE: Row[] = [
     ["colorPrimary", palette.accent.primary],
     ["colorPrimaryHover", palette.accent.primaryHover],
     ["colorPrimaryText", palette.accent.primaryText],
+    // Links on an ink overlay. `colorLink` is an antd seed token and stays out of this list; this
+    // one is ours, because a tooltip is dark in both themes and needs a step that ignores the mode.
+    ["colorLinkOnInk", palette.accent.linkOnInk],
     ["colorSuccess", palette.semantic.success],
     ["colorWarning", palette.semantic.warning],
     ["colorWarningText", palette.semantic.warningText],

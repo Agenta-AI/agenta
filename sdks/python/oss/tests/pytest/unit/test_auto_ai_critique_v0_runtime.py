@@ -151,7 +151,7 @@ async def test_uses_workflow_secret_resolution_for_standard_model(
     )
 
     mocked_secrets.ensure.assert_awaited_once()
-    mocked_secrets.get_settings.assert_called_once_with("gpt-4o-mini")
+    mocked_secrets.get_settings.assert_called_once_with("gpt-4o-mini", connection=None)
 
     kwargs = mocked_llm_call.captured["kwargs"]
     assert kwargs["model"] == "gpt-4o-mini"
@@ -183,7 +183,9 @@ async def test_resolves_custom_provider_model_settings(mocked_secrets, mocked_ll
         outputs="o",
     )
 
-    mocked_secrets.get_settings.assert_called_once_with("my-self-hosted-claude")
+    mocked_secrets.get_settings.assert_called_once_with(
+        "my-self-hosted-claude", connection=None
+    )
 
     kwargs = mocked_llm_call.captured["kwargs"]
     # The compatible model resolved from provider_settings is used, not the raw

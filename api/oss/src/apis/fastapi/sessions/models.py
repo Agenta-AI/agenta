@@ -24,7 +24,8 @@ from oss.src.core.sessions.interactions.dtos import (
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
-from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.shared.dtos import OTelSpanId, Windowing
 from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
 
@@ -61,7 +62,7 @@ class SessionQueryRequest(BaseModel):
     # Canonical explicit set selection. It intersects with turn_references.
     session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
     exclude: Optional[SessionExcludeRequest] = None
-    turn_references: Optional[List[Reference]] = None
+    turn_references: Optional[List[SessionReference]] = None
     # Include ended (killed) sessions so the list keeps resumable history, not just live ones.
     include_ended: bool = False
     # Include archived sessions — off by default (archive hides); on for the archived view.
@@ -72,7 +73,7 @@ class SessionQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
     # Compatibility inputs for the currently released flat predicates.
-    references: Optional[List[Reference]] = None
+    references: Optional[List[SessionReference]] = None
     # Case-insensitive substring match over the session title (`session_streams.name`).
     search: Optional[str] = None
     # Liveness filter (alive ⊇ running ⊇ attached) against the row's mirrored flags.
@@ -295,7 +296,7 @@ class SessionTurnAppendRequest(BaseModel):
     harness_kind: HarnessKind
     agent_session_id: Optional[str] = None
     sandbox_id: Optional[str] = None
-    references: Optional[List[Reference]] = None
+    references: Optional[List[SessionReference]] = None
     trace_id: Optional[UUID] = None
     span_id: Optional[OTelSpanId] = None
     start_time: Optional[datetime] = None

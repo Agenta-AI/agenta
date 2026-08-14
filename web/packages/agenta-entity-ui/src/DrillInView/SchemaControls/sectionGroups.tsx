@@ -68,8 +68,8 @@ export function CollapsibleProviderGroup({
 }: {
     logo?: string | null
     name: string
-    /** Right-aligned summary line, e.g. "2 active · 3 total" or "3 tools". */
-    countText: string
+    /** Right-aligned summary line, e.g. "2 active · 3 total" or "3 tools"; omit to hide it. */
+    countText?: string
     open: boolean
     onToggle: () => void
     /** Per-group add affordance; omit to hide the button (e.g. read-only). */
@@ -116,9 +116,11 @@ export function CollapsibleProviderGroup({
                     {name}
                 </span>
                 {statusTag ? <span className="shrink-0">{statusTag}</span> : null}
-                <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
-                    {countText}
-                </span>
+                {countText ? (
+                    <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
+                        {countText}
+                    </span>
+                ) : null}
                 {onAdd ? (
                     <TooltipProvider>
                         <Tooltip>

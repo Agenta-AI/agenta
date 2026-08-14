@@ -4,21 +4,22 @@
  */
 import type {TriggerConnection} from "@agenta/entities/gatewayTrigger"
 
-// Seed id for a create-mode default-bind — narrower than `extractBoundWorkflowId`, which
-// also accepts artifact-level ids that must not be written back under a variant key.
-export function extractBoundRevId(
-    refs: Record<string, {id?: string | null} | null | undefined> | null | undefined,
-): string | null {
-    return (
-        refs?.application_revision?.id ??
-        refs?.application_variant?.id ??
-        refs?.workflow_revision?.id ??
-        null
-    )
-}
-
 export function connectionName(conn: TriggerConnection | undefined): string {
     return conn?.name || conn?.slug || conn?.integration_key || ""
+}
+
+/**
+ * The Name placeholder, and what gets saved when the field is left empty — "Issue opened —
+ * Bug report". Without it an unnamed trigger renders as its raw id in the triggers table.
+ */
+export function suggestSubscriptionName(
+    eventLabel?: string | null,
+    agentName?: string | null,
+): string {
+    const event = eventLabel?.trim() || ""
+    const agent = agentName?.trim() || ""
+    if (event && agent) return `${event} — ${agent}`
+    return event || agent || ""
 }
 
 // Friendly label for a selector pill/field row: "$.event.attributes.message_user" → "Message user".

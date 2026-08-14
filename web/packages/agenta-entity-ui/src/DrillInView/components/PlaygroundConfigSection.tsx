@@ -327,17 +327,22 @@ function PlaygroundConfigSection({
     }, [])
 
     // ========== COMBINED MODEL / FALLBACK / RETRY CONFIG POPOVER ==========
-    const {configurePopoverContent, handleConfigureOpenChange, isModelConfigOpen, promptModelInfo} =
-        useModelConfigurePopover({
-            activeData,
-            disabled,
-            dispatchUpdate,
-            llmProviderConfig,
-            parameters,
-            revisionId,
-            schema,
-            serverData,
-        })
+    const {
+        configurePopoverContent,
+        handleConfigureOpenChange,
+        isModelConfigOpen,
+        promptModelInfo,
+        selectedModelLabel,
+    } = useModelConfigurePopover({
+        activeData,
+        disabled,
+        dispatchUpdate,
+        llmProviderConfig,
+        parameters,
+        revisionId,
+        schema,
+        serverData,
+    })
 
     // ========== DRILL-IN FIELD SLOTS ==========
     const drillInSlots = useFieldSlots({
@@ -354,6 +359,7 @@ function PlaygroundConfigSection({
         onRefinePrompt,
         parameters,
         promptModelInfo,
+        selectedModelLabel,
         schema,
         setFeedbackMode,
         siblingGroups,

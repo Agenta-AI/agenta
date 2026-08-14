@@ -1,32 +1,59 @@
-/** One subscription row rendered under its provider group in the Triggers section. */
-import {type ReactNode} from "react"
+/** One subscription row under its provider group: provider icon + status, "⋯" actions (run included). */
+import {useState, type ReactNode} from "react"
 
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
+import {Flask} from "@phosphor-icons/react"
+
+import {EventSourcePicker} from "../../../gatewayTrigger/drawers/shared/EventSourcePicker"
+import type {TriggerReferences} from "../../../gatewayTrigger/drawers/shared/RunVersionField"
+import {ProviderLogo} from "../sectionGroups"
 
 import {TriggerActionsMenu} from "./TriggerActionsMenu"
+import {useDriftTag} from "./useDriftTag"
+import {useSubscriptionRun} from "./useSubscriptionRun"
 
-/** A subscription rendered as a child under its provider group: dot + event + actions. */
+/** A subscription rendered as a child under its provider group: icon box + status dot + actions. */
 export function SubscriptionChildRow({
+    logo,
     primary,
     primaryMuted,
     secondary,
     active,
     disabled,
-    runSlot,
+    subscriptionId,
+    runLabel,
+    eventKey,
+    references,
+    playgroundEntityId,
+    runDisabled,
     onOpen,
     menu,
     menuOpen,
     menuContainer,
 }: {
+    logo?: string | null
     primary: string
     primaryMuted?: boolean
     secondary?: string
     active: boolean
     disabled?: boolean
-    /** The "Run in playground" affordance (an event-source picker), supplied by the parent. */
-    runSlot: ReactNode
+    subscriptionId: string
+    /** The subscription's `data.references` — drives the version-drift tag. */
+    references?: TriggerReferences
+    /** Human label for the event source ("Message reaction added"), used in run previews. */
+    runLabel: string
+    eventKey?: string
+    playgroundEntityId: string | null
+    runDisabled?: boolean
     onOpen: () => void
-    /** Composed "⋯" menu body (`DropdownMenuItem` JSX), supplied by the container. */
+    /** Composed "⋯" menu body (`DropdownMenuItem` JSX); the run action is prepended here. */
     menu: ReactNode
     /** Force the "⋯" menu open (forced-open parity stories). */
     menuOpen?: boolean
@@ -34,16 +61,42 @@ export function SubscriptionChildRow({
     menuContainer?: HTMLElement | null
 }) {
     const open = disabled ? undefined : onOpen
+    const [runOpen, setRunOpen] = useState(false)
+    const driftTag = useDriftTag(references, playgroundEntityId)
+    const {recent, refresh, waitForEvent, run} = useSubscriptionRun({
+        subscriptionId,
+        label: runLabel,
+        eventKey,
+        playgroundEntityId,
+    })
+
+    // The run action lives in the "⋯" menu; selecting it opens the event picker anchored below.
+    const composedMenu = (
+        <>
+            <DropdownMenuItem
+                disabled={runDisabled}
+                onSelect={() => {
+                    void refresh()
+                    setRunOpen(true)
+                }}
+            >
+                <Flask size={16} />
+                Run in playground
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {menu}
+        </>
+    )
+
     return (
         <TooltipProvider>
-            {/* Same split as TriggerRow: the `role="button"` region is a SIBLING of the run +
-                ⋯ controls, never their ancestor (axe nested-interactive). Geometry unchanged —
-                the outer flex still supplies the gap-2.5 between the two groups. */}
+            {/* Same split as TriggerRow: the `role="button"` region is a SIBLING of the ⋯ menu,
+                never its ancestor (axe nested-interactive). */}
             <div
-                className={`group flex items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors ${
+                className={`group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 transition-colors ${
                     disabled
                         ? "cursor-default"
-                        : "cursor-pointer hover:bg-[var(--ag-colorFillSecondary)]"
+                        : "cursor-pointer hover:border-[var(--ag-colorBorder)]"
                 }`}
             >
                 <div
@@ -62,23 +115,33 @@ export function SubscriptionChildRow({
                 >
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <span
-                                className={`h-2 w-2 shrink-0 rounded-full ${
-                                    active
-                                        ? "bg-[var(--ag-colorSuccess)]"
-                                        : "bg-[var(--ag-colorTextQuaternary)]"
-                                }`}
-                            />
+                            <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]">
+                                <ProviderLogo logo={logo} size={16} />
+                                <span
+                                    className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-solid border-[var(--ag-colorBgContainer)] ${
+                                        active
+                                            ? "bg-[var(--ag-colorSuccess)]"
+                                            : "bg-[var(--ag-colorTextQuaternary)]"
+                                    }`}
+                                />
+                            </span>
                         </TooltipTrigger>
                         <TooltipContent>{active ? "Active" : "Paused"}</TooltipContent>
                     </Tooltip>
                     <div className="min-w-0 flex-1">
-                        <div
-                            className={`truncate text-xs font-medium ${
-                                primaryMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
-                            }`}
-                        >
-                            {primary}
+                        <div className="flex items-center gap-1.5">
+                            <span
+                                className={`truncate text-xs font-normal ${
+                                    primaryMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                                }`}
+                            >
+                                {primary}
+                            </span>
+                            {driftTag ? (
+                                <span className="ml-0.5 max-w-[170px] shrink-0 truncate rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[12px] text-[var(--ag-colorTextSecondary)]">
+                                    {driftTag}
+                                </span>
+                            ) : null}
                         </div>
                         {secondary ? (
                             <div className="truncate text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
@@ -88,8 +151,34 @@ export function SubscriptionChildRow({
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1" role="presentation">
-                    {runSlot}
-                    <TriggerActionsMenu menu={menu} open={menuOpen} container={menuContainer} />
+                    {runOpen ? (
+                        <EventSourcePicker
+                            defaultOpen
+                            placement="bottomRight"
+                            // Focusable and named, not an aria-hidden span: Radix restores focus
+                            // by calling .focus() on the trigger, which a hidden span can't take.
+                            trigger={
+                                <button type="button" className="sr-only" aria-label="Event source">
+                                    Event source
+                                </button>
+                            }
+                            recentEvents={recent}
+                            onPick={(event) => {
+                                run(event)
+                                setRunOpen(false)
+                            }}
+                            onWaitForEvent={waitForEvent}
+                            onOpenChange={(next) => {
+                                if (!next) setRunOpen(false)
+                            }}
+                            waitHint="trigger it from the app now"
+                        />
+                    ) : null}
+                    <TriggerActionsMenu
+                        menu={composedMenu}
+                        open={menuOpen}
+                        container={menuContainer}
+                    />
                 </div>
             </div>
         </TooltipProvider>

@@ -141,6 +141,24 @@ export function instructionsSourceAppendix(): SystemPromptAppendix {
 }
 
 /**
+ * The path format the chat file-link resolver can identify without guessing.
+ *
+ * THE OBSERVED FAILURE. A model names only `README.md` after working on a nested file. The client
+ * cannot know which file it means when several directories contain that basename. Guessing linked
+ * to the wrong file (#6004), while treating an absolute sandbox path as a web href navigated away
+ * from chat (#5983). The client now understands the full path, so the model must preserve it.
+ */
+export function fileCitationAppendix(): SystemPromptAppendix {
+  return {
+    id: "file-citations",
+    text:
+      "When you mention a local file in your response, use a clickable Markdown link whose " +
+      "target is the file's full absolute path. Do not cite only a basename such as `README.md`. " +
+      "If you do not know the full path, find it before citing the file.",
+  };
+}
+
+/**
  * Codex only: its OWN bundled skills document the wrong workflow, and prose alone loses to them.
  *
  * THE STRUCTURAL PROBLEM, measured. Codex materializes system skills into `CODEX_HOME` at startup,
@@ -244,6 +262,7 @@ export function platformGuidanceAppendix(
   const skillsReadPath = input.skillsPath
     ? skillsReadPathAppendix(input.skillsPath)
     : undefined;
+  const fileCitations = fileCitationAppendix();
   const mount = mountGuidanceServedElsewhere(input)
     ? undefined
     : input.agentMountedPath
@@ -263,6 +282,7 @@ export function platformGuidanceAppendix(
     skills,
     skillsReadPath,
     codexSkills,
+    fileCitations,
     mount,
   ]);
 }
