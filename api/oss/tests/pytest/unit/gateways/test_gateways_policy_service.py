@@ -97,9 +97,9 @@ async def test_authorize_denies_when_check_action_access_raises(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_record_is_a_safe_noop(monkeypatch):
+async def test_record_publishes_one_event(monkeypatch):
     publish = AsyncMock()
-    monkeypatch.setattr("oss.src.core.events.streaming.publish_event", publish)
+    monkeypatch.setattr("oss.src.core.events.utils.publish_event", publish)
 
     result = await _service().record(
         scope=_scope(),
@@ -111,7 +111,7 @@ async def test_record_is_a_safe_noop(monkeypatch):
     )
 
     assert result is None
-    publish.assert_not_called()
+    publish.assert_awaited_once()
 
 
 # --- role wiring (entities.md §9) -------------------------------------------- #

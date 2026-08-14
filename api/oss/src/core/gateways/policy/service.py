@@ -3,13 +3,13 @@
 `authorize()` is the whole of wave 1's decision. There is no entitlement arm (D29):
 every user has both gateways, so a check here would ask a question with one answer —
 what entitlements will express here are limits, which cannot be enforced before
-anything is measured, and ship with metering and billing. `record()` is a wave-1 stub;
-its real body — building the audit event and publishing it — is WP4's
-`policy/audit.py`, landing in wave 2.
+anything is measured, and ship with metering and billing. `record()` builds and
+publishes the audit event via WP4's `policy/audit.py`.
 """
 
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.gateways.policy.audit import publish_gateway_call
 from oss.src.core.gateways.policy.dtos import (
     GatewayOutcome,
     GatewayTarget,
@@ -79,9 +79,11 @@ class GatewayPolicyService:
         decision: PolicyDecision,
         outcome: GatewayOutcome,
     ) -> None:
-        # Wave-1 stub (R4): every relay in WP6/7/8/9 calls this on both the
-        # allow and deny branch, so it must exist and never raise. The real
-        # body — build_gateway_call_attributes + publish_gateway_call — is
-        # WP4's policy/audit.py, not built here.
-        log.debug("gateway policy record stub invoked, no-op in wave 1")
-        return
+        # Every relay in WP6/7/8/9 calls this on both the allow and deny
+        # branch; publish_gateway_call never raises (D22, specs-wp4.md).
+        await publish_gateway_call(
+            scope=scope,
+            target=target,
+            decision=decision,
+            outcome=outcome,
+        )
