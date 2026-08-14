@@ -37,10 +37,13 @@ def test_debit_worker_is_constructible():
 
 
 @pytest.mark.asyncio
-async def test_debit_worker_process_batch_raises_not_implemented():
+async def test_debit_worker_process_batch_on_empty_batch_is_a_noop():
+    # WP-1-03 implements the processing body; see test_wallets_debit_worker.py for the
+    # full deserialize/settle/ACK behaviour.
     worker = DebitWorker(
         settlement_port=WalletSettlementPort(),
         redis_client=MagicMock(),
     )
-    with pytest.raises(NotImplementedError):
-        await worker.process_batch([])
+    count, processed_ids = await worker.process_batch([])
+    assert count == 0
+    assert processed_ids == []

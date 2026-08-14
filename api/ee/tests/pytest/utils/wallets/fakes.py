@@ -12,6 +12,7 @@ from uuid import UUID
 import uuid_utils.compat as uuid_utils
 
 from ee.src.core.wallets.contracts import DebitCommandV1
+from ee.src.core.wallets.interfaces import WalletSettlementPort
 from ee.src.core.wallets.types import (
     CreditCandidateDTO,
     WalletBalanceDTO,
@@ -112,3 +113,29 @@ class FakeWalletsDAO(WalletsDAOInterface):
             )
 
         return created
+
+
+class FakeWalletSettlementPort(WalletSettlementPort):
+    """In-memory `WalletSettlementPort` for `DebitWorker` unit tests. Records every call
+    (in order, with the exact command received) and replays the same idempotency-keyed
+    "financial effect" list it already produced for a duplicate delivery — no second
+    effect — mirroring the real DAO's replay-check without any DB or plan_settlement math.
+    Optionally raises on the next call to simulate a transient settlement failure."""
+
+    def __init__(self):
+        self.calls: List[DebitCommandV1] = []
+        self.effects: Dict[Tuple[UUID, str], int] = {}
+        self.raise_next: Optional[Exception] = None
+
+    async def settle(self, command: DebitCommandV1) -> None:
+        self.calls.append(command)
+
+        if self.raise_next is not None:
+            error, self.raise_next = self.raise_next, None
+            raise error
+
+        key = (command.organization_id, command.idempotency_key)
+        if key in self.effects:
+            return  # replay: no second financial effect
+
+        self.effects[key] = self.effects.get(key, 0) + 1
