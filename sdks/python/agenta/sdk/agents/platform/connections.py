@@ -27,7 +27,6 @@ from ..capabilities import (
 from ..connections.endpoints import (
     build_gateway_resolved_connection,
     build_resolved_connection,
-    gateway_protocol_for,
     gateway_target,
 )
 from ..connections import (
@@ -43,7 +42,6 @@ from ..connections import (
     ProviderMismatchError,
     ResolvedConnection,
     RuntimeAuthContext,
-    UnroutableProtocolError,
     UnsupportedConnectionModeError,
 )
 from ..model_catalog import model_input_modalities
@@ -623,11 +621,6 @@ def _resolve_from_secrets(
     # The gateway holds the provider's secret now (D4/W1): the connected path routes through
     # it rather than injecting `env` into the harness. `env`'s only remaining job above is the
     # fail-loud emptiness check; the value itself never leaves this function.
-    if gateway_protocol_for(provider=provider, deployment=chosen.deployment) is None:
-        # D34 forbids body conversion, so a target with no front door has no other way to
-        # reach it — never fall back to a direct connection (the one outcome worse than an
-        # error: a silent gateway bypass).
-        raise UnroutableProtocolError(provider=provider, deployment=chosen.deployment)
     if not gateway_base_url or not gateway_credentials_value:
         raise ConnectionResolutionError(
             "no Agenta backend configured for gateway connection resolution"

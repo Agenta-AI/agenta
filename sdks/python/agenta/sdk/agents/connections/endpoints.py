@@ -154,34 +154,6 @@ def build_resolved_connection(
     )
 
 
-# D33/D34: only Chat Completions has a mounted front door today
-# (api/oss/src/apis/fastapi/gateways/llms/proxy.py: `/standard/{provider}/v1/chat/completions`,
-# `/custom/{slug}/v1/chat/completions`). Responses and Messages ship with WP23, together. A
-# provider whose upstream does not speak Chat Completions has no relay to reach it through yet
-# and must fail loud rather than fall back to a direct connection (D34: no body conversion, so
-# there is no other way to reach it).
-_CHAT_COMPLETIONS_PROVIDERS = frozenset(
-    {"openai", "mistral", "mistralai", "minimax", "groq", "together_ai", "openrouter"}
-)
-# The two deployments a gateway route can be composed for without a stored endpoint row's own
-# deployment surface (bedrock/vertex/azure need routing OD16 has not verified yet).
-_GATEWAY_ROUTABLE_DEPLOYMENTS = frozenset({"direct", "custom"})
-
-
-def gateway_protocol_for(*, provider: str, deployment: str) -> Optional[str]:
-    """The front-door protocol this (provider, deployment) speaks, or ``None`` if unrouted.
-
-    Deliberately conservative: only the upstreams verified OpenAI-Chat-Completions-shaped are
-    routable today. Everything else needs a front door WP23 has not shipped on this branch
-    (Responses, Messages) or an upstream WP24/OD16 has not cleared (bedrock, vertex, azure).
-    """
-    if deployment not in _GATEWAY_ROUTABLE_DEPLOYMENTS:
-        return None
-    if (provider or "").lower() in _CHAT_COMPLETIONS_PROVIDERS:
-        return "chat_completions"
-    return None
-
-
 def gateway_target(*, kind: str, provider: str, slug: str) -> Tuple[str, str]:
     """The D30 ``(namespace, name)`` pair for a chosen vault candidate.
 

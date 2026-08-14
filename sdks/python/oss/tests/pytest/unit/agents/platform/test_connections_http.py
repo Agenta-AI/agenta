@@ -14,7 +14,6 @@ from agenta.sdk.agents.connections import (
     ModelRef,
     ProviderMismatchError,
     RuntimeAuthContext,
-    UnroutableProtocolError,
 )
 from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolver
 from agenta.sdk.agents.platform import connections
@@ -315,41 +314,38 @@ async def test_missing_provider_hint_is_harness_correct_for_claude(
     assert "openai/" not in message
 
 
-async def test_bare_claude_alias_resolves_to_anthropic_but_has_no_front_door_yet(
+async def test_bare_claude_alias_infers_anthropic_and_routes_through_the_gateway(
     fake_http, connection
 ):
     # F-031: a bare Claude alias from the curated Claude alias list is unambiguously Anthropic,
-    # so the F-017 prefix rule must NOT reject it — provider inference still happens. But
-    # Anthropic is Messages-shaped and only Chat Completions is mounted today (D33/D34), so
-    # resolution now fails loud with the named protocol gap instead of silently degrading to
-    # a direct connection.
+    # so the F-017 prefix rule must NOT reject it — provider inference still happens. The
+    # gateway, not the SDK, decides whether the protocol is servable, so resolution routes.
     fake_http(
         connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
     )
     for alias in ("haiku", "sonnet", "opus[1m]"):
-        with pytest.raises(UnroutableProtocolError) as exc:
-            await VaultConnectionResolver(connection).resolve(
-                model=ModelRef.coerce(alias),
-                context=RuntimeAuthContext(harness="claude"),
-            )
-        assert exc.value.provider == "anthropic", alias
+        resolved = await VaultConnectionResolver(connection).resolve(
+            model=ModelRef.coerce(alias),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+        assert resolved.provider == "anthropic", alias
+        _assert_routed_through_gateway(resolved, namespace="standard", name="anthropic")
 
 
-async def test_bare_claude_dated_id_resolves_to_anthropic_but_has_no_front_door_yet(
+async def test_bare_claude_dated_id_infers_anthropic_and_routes_through_the_gateway(
     fake_http, connection
 ):
     # F-031: a bare dated Anthropic id (claude-opus-4-8) is also unambiguously Anthropic via the
-    # claude-* naming convention, so provider inference still fires — but the same D33/D34 gap
-    # applies: no Messages front door is mounted yet, so the gateway route fails loud.
+    # claude-* naming convention, so provider inference still fires and the route resolves.
     fake_http(
         connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
     )
-    with pytest.raises(UnroutableProtocolError) as exc:
-        await VaultConnectionResolver(connection).resolve(
-            model=ModelRef.coerce("claude-opus-4-8"),
-            context=RuntimeAuthContext(harness="claude"),
-        )
-    assert exc.value.provider == "anthropic"
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef.coerce("claude-opus-4-8"),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.provider == "anthropic"
+    _assert_routed_through_gateway(resolved, namespace="standard", name="anthropic")
 
 
 async def test_bare_model_matching_a_candidate_infers_the_provider(
@@ -403,12 +399,11 @@ async def test_known_direct_custom_provider_uses_direct_deployment(
     _assert_routed_through_gateway(resolved, namespace="custom", name="custom-direct")
 
 
-async def test_known_direct_custom_provider_for_a_provider_with_no_front_door(
+async def test_known_direct_custom_provider_for_anthropic_routes_through_the_gateway(
     fake_http, connection
 ):
-    # Anthropic is Messages-shaped; only Chat Completions is mounted today (D33/D34), so a
-    # named Anthropic custom record fails loud instead of silently falling back to a direct
-    # connection.
+    # A named Anthropic custom record routes through the gateway's custom namespace like any
+    # other custom connection; the gateway, not the SDK, decides the protocol.
     endpoint = "https://93.184.216.34/v1"
     model_id = "vendor/model-v1"
     fake_http(
@@ -424,12 +419,12 @@ async def test_known_direct_custom_provider_for_a_provider_with_no_front_door(
         ],
     )
 
-    with pytest.raises(UnroutableProtocolError) as exc:
-        await VaultConnectionResolver(connection).resolve(
-            model=_model("custom-direct", provider="anthropic", model=model_id),
-            context=_context(),
-        )
-    assert exc.value.provider == "anthropic"
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("custom-direct", provider="anthropic", model=model_id),
+        context=_context(),
+    )
+    assert resolved.provider == "anthropic"
+    _assert_routed_through_gateway(resolved, namespace="custom", name="custom-direct")
 
 
 async def test_missing_named_connection_fails_loud(fake_http, connection):
@@ -453,8 +448,8 @@ async def test_provider_mismatch_fails_loud(fake_http, connection):
 async def test_custom_provider_snake_case_extras_normalize_for_bedrock(
     fake_http, connection
 ):
-    # Bedrock has no gateway route composition verified yet (OD16/WP24), so the connected
-    # path fails loud rather than injecting AWS credentials into the harness.
+    # Bedrock extras normalize the same as any custom connection; the SDK routes it through
+    # the gateway's custom namespace and leaves servability to the gateway.
     fake_http(
         connections,
         payload=[
@@ -471,17 +466,17 @@ async def test_custom_provider_snake_case_extras_normalize_for_bedrock(
             )
         ],
     )
-    with pytest.raises(UnroutableProtocolError) as exc:
-        await VaultConnectionResolver(connection).resolve(
-            model=_model(
-                "my-bedrock", provider="anthropic", model="anthropic.claude-3-5-sonnet"
-            ),
-            context=RuntimeAuthContext(harness="claude"),
-        )
-    assert exc.value.deployment == "bedrock"
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model(
+            "my-bedrock", provider="anthropic", model="anthropic.claude-3-5-sonnet"
+        ),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.deployment == "bedrock"
+    _assert_routed_through_gateway(resolved, namespace="custom", name="my-bedrock")
 
 
-async def test_bedrock_bearer_has_no_gateway_route_yet(fake_http, connection):
+async def test_bedrock_bearer_token_routes_through_the_gateway(fake_http, connection):
     fake_http(
         connections,
         payload=[
@@ -496,18 +491,19 @@ async def test_bedrock_bearer_has_no_gateway_route_yet(fake_http, connection):
             )
         ],
     )
-    with pytest.raises(UnroutableProtocolError) as exc:
-        await VaultConnectionResolver(connection).resolve(
-            model=_model(
-                "my-bedrock", provider="anthropic", model="anthropic.claude-3-5-sonnet"
-            ),
-            context=RuntimeAuthContext(harness="claude"),
-        )
-    assert exc.value.deployment == "bedrock"
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model(
+            "my-bedrock", provider="anthropic", model="anthropic.claude-3-5-sonnet"
+        ),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.deployment == "bedrock"
+    _assert_routed_through_gateway(resolved, namespace="custom", name="my-bedrock")
 
 
 async def test_custom_provider_vertex_snake_case_extras(fake_http, connection):
-    # Vertex has no gateway route composition verified yet (OD16/WP24): fails loud.
+    # Vertex extras normalize the same as any custom connection and route through the
+    # gateway's custom namespace.
     fake_http(
         connections,
         payload=[
@@ -523,12 +519,12 @@ async def test_custom_provider_vertex_snake_case_extras(fake_http, connection):
             )
         ],
     )
-    with pytest.raises(UnroutableProtocolError) as exc:
-        await VaultConnectionResolver(connection).resolve(
-            model=_model("my-vertex", provider="anthropic", model="claude-sonnet-4"),
-            context=RuntimeAuthContext(harness="claude"),
-        )
-    assert exc.value.deployment == "vertex_ai"
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("my-vertex", provider="anthropic", model="claude-sonnet-4"),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.deployment == "vertex_ai"
+    _assert_routed_through_gateway(resolved, namespace="custom", name="my-vertex")
 
 
 async def test_vertex_api_key_mode_is_rejected_as_out_of_scope(fake_http, connection):
@@ -557,8 +553,8 @@ async def test_vertex_api_key_mode_is_rejected_as_out_of_scope(fake_http, connec
 
 async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connection):
     # An explicit `provider="anthropic"` on the model makes this an Anthropic-shaped custom
-    # gateway regardless of the vault row's own `data.kind`; that has no front door yet
-    # (D33/D34), so it fails loud instead of injecting `ANTHROPIC_API_KEY`.
+    # gateway regardless of the vault row's own `data.kind`; it routes through the gateway's
+    # custom namespace instead of injecting `ANTHROPIC_API_KEY`.
     fake_http(
         connections,
         payload=[
@@ -572,12 +568,12 @@ async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connec
             )
         ],
     )
-    with pytest.raises(UnroutableProtocolError) as exc:
-        await VaultConnectionResolver(connection).resolve(
-            model=_model("anthropic-gw", provider="anthropic", model="gpt-5.5"),
-            context=RuntimeAuthContext(harness="claude"),
-        )
-    assert exc.value.provider == "anthropic"
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("anthropic-gw", provider="anthropic", model="gpt-5.5"),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.provider == "anthropic"
+    _assert_routed_through_gateway(resolved, namespace="custom", name="anthropic-gw")
 
 
 async def test_custom_provider_private_url_fails_loud_not_dropped(
@@ -724,10 +720,7 @@ async def test_full_custom_model_key_selects_and_strips_to_backend_model(
     fake_http, connection
 ):
     # The full `slug/deployment/model` key still selects the right candidate and strips down
-    # to the backend model id before the routability check runs (bedrock has no gateway
-    # route yet, see the bedrock tests above, so this still fails loud — the selection and
-    # stripping logic ran regardless, which is what `UnroutableProtocolError` naming the
-    # right deployment proves).
+    # to the backend model id before it routes through the gateway's custom namespace.
     fake_http(
         connections,
         payload=[
@@ -743,12 +736,13 @@ async def test_full_custom_model_key_selects_and_strips_to_backend_model(
             )
         ],
     )
-    with pytest.raises(UnroutableProtocolError) as exc:
-        await VaultConnectionResolver(connection).resolve(
-            model=ModelRef.coerce("my-bedrock/bedrock/anthropic.claude-x"),
-            context=RuntimeAuthContext(harness="claude"),
-        )
-    assert exc.value.deployment == "bedrock"
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef.coerce("my-bedrock/bedrock/anthropic.claude-x"),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.deployment == "bedrock"
+    assert resolved.model == "anthropic.claude-x"
+    _assert_routed_through_gateway(resolved, namespace="custom", name="my-bedrock")
 
 
 async def test_resolve_fails_loud_on_http_error(fake_http, connection):

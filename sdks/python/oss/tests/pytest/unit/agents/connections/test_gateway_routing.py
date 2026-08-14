@@ -12,7 +12,6 @@ import pytest
 
 from agenta.sdk.agents.connections.endpoints import (
     build_gateway_resolved_connection,
-    gateway_protocol_for,
     gateway_route,
     gateway_target,
 )
@@ -50,46 +49,6 @@ def test_gateway_route_strips_a_trailing_slash_on_the_base():
         namespace="custom", name="my-gw", gateway_base_url="https://gw.example/api/"
     )
     assert route == "https://gw.example/api/gateways/llms/custom/my-gw"
-
-
-# ------------------------------------------------------------- gateway_protocol_for (D33/D34)
-
-
-@pytest.mark.parametrize(
-    "provider",
-    [
-        "openai",
-        "OpenAI",
-        "mistral",
-        "mistralai",
-        "minimax",
-        "groq",
-        "together_ai",
-        "openrouter",
-    ],
-)
-def test_chat_completions_providers_are_routable_direct_or_custom(provider):
-    assert (
-        gateway_protocol_for(provider=provider, deployment="direct")
-        == "chat_completions"
-    )
-    assert (
-        gateway_protocol_for(provider=provider, deployment="custom")
-        == "chat_completions"
-    )
-
-
-@pytest.mark.parametrize("provider", ["anthropic", "gemini"])
-def test_providers_with_no_front_door_are_unrouted(provider):
-    # Messages (anthropic) has no mounted route on this branch yet (D33); nothing in this
-    # design gives Gemini a front door at all — both must fail loud, not silently degrade.
-    assert gateway_protocol_for(provider=provider, deployment="direct") is None
-
-
-@pytest.mark.parametrize("deployment", ["bedrock", "vertex", "vertex_ai", "azure"])
-def test_deployments_with_no_verified_route_composition_are_unrouted(deployment):
-    # OD16/WP24 territory: whether these compose a URL from route fields is not decided here.
-    assert gateway_protocol_for(provider="openai", deployment=deployment) is None
 
 
 # --------------------------------------------------------- build_gateway_resolved_connection

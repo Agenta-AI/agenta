@@ -171,26 +171,6 @@ class UnsupportedConnectionModeError(ConnectionResolutionError):
         self.harness = harness
 
 
-class UnroutableProtocolError(ConnectionResolutionError):
-    """Raised when D34 forbids body conversion and no gateway front door speaks the target's
-    protocol yet (D33). The one door mounted today is Chat Completions; a provider whose
-    upstream needs Responses or Messages, or a deployment (bedrock/vertex/azure) whose route
-    composition OD16 has not verified, is not reachable through the gateway. No fallback to a
-    direct connection is offered — that would be exactly the silent gateway bypass this wave
-    exists to close.
-    """
-
-    status_code = 422
-
-    def __init__(self, *, provider: str, deployment: str) -> None:
-        super().__init__(
-            f"provider '{provider}' (deployment '{deployment}') has no gateway front door "
-            "yet; it cannot be routed through the gateway"
-        )
-        self.provider = provider
-        self.deployment = deployment
-
-
 class UnsupportedDeploymentError(ConnectionResolutionError):
     """Raised when the resolved deployment cannot be consumed by the selected harness in v1.
 
