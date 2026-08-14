@@ -34,7 +34,7 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
 - [x] `core/gateways/mcps/service.py`: `MCPGatewayService.__init__(self, *,
       mcp_endpoints_dao, policy, resolver, upstream_registry,
       connections_service)`. `connections_service: ConnectionsService` is
-      required for real (see the three-namespace-merge section below);
+      required for real (see the three-source-merge section below);
       entities.md §8's abbreviated constructor pseudocode omits it, which is a
       gap in the design, not an instruction to mock the integration. Flagged
       for the M2 merge review.
@@ -47,15 +47,16 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
 - [x] `ruff format` && `ruff check --fix`; run tests; fix failures.
 - [x] Commit: "gateways(mcp): MCPGatewayService CRUD delegation".
 
-## service.py — the three-namespace merge
+## service.py — the three-source merge
 
 - [x] Implement `list_endpoints(*, project_id) -> List[MCPEndpoint]`:
       `custom` branch maps `query_endpoints()` rows 1:1.
 - [x] `agenta` branch: a private, service-internal enumeration (not a
       public symbol `entities.md` does not name) of the code-defined
-      agenta entries — in wave 1, the mocks WP5 registers. Implemented as
-      `_agenta_endpoints()`: one entry, slug "tools" (matching D27's own
-      route-grammar example `agenta/tools`), `data.route.base_url=env.mock_gateways.mcp_url`.
+      builtin/agenta entries — in wave 1, the mocks WP5 registers. Implemented as
+      `_agenta_endpoints()`: one entry, slug "tools" (matching D30's own
+      route-grammar example `builtin/agenta/tools`), with `provider_key="agenta"`
+      and `data.route.base_url=env.mock_gateways.mcp_url`.
 - [x] `builtin` branch: call `ConnectionsService.query_connections(
       project_id=project_id, provider_key="composio")`, map each
       `Connection` into an `MCPEndpoint` with `namespace=BUILTIN`,
@@ -76,7 +77,8 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
       is exercised directly by its own unit tests as the seam a future
       per-owner read (WP10's CRUD router, or the D17 connect-affordance
       builder) wires in.
-- [x] Unit test: agenta entries carry no `id`, `namespace=AGENTA`; builtin
+- [x] Unit test: agenta entries carry no `id`, `namespace=BUILTIN` with
+      `provider_key="agenta"` and a dialable `data.route.base_url`; composio
       entries carry `connection_id`/`provider_key`/`integration_key`,
       `namespace=BUILTIN`; custom rows carry `namespace=CUSTOM`; no
       generated entry is ever passed to a DAO write (assert the mock DAO's
@@ -84,7 +86,7 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
 - [x] Unit test: connection-state derivation for each of the four cases
       above (NONE, custom+secret, builtin+valid-connection, custom+no-secret).
 - [x] `ruff format` && `ruff check --fix`; run tests; fix failures.
-- [x] Commit: "gateways(mcp): list_endpoints three-namespace merge".
+- [x] Commit: "gateways(mcp): list_endpoints three-source merge".
 
 ## service.py — relay orchestration
 
@@ -161,7 +163,7 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
       +    upstream_registry=MCPUpstreamRegistry(adapters={
       +        # "http": HttpMCPAdapter(),          # custom: MCPDirectAuth (WP8)
       +        # "composio": ComposioMCPAdapter(),  # builtin: MCPBrokeredAuth (no owner in wave 1)
-      +        "mock": MockMCPAdapter(),  # serves the agenta-namespace mocks (D23, WP5)
+      +        "mock": MockMCPAdapter(),  # serves the builtin/agenta mocks (D23, WP5)
       +    }),
       +)
       ```
@@ -171,7 +173,7 @@ migration, WP2's `SecretsResolverInterface` implementation, WP3's
          `MCPGatewayService.__init__` (as built) raises `TypeError` for a
          missing required keyword argument; `list_endpoints`'s builtin
          branch and `relay`'s builtin target resolution both call through
-         it for real (see the three-namespace-merge section above).
+         it for real (see the three-source-merge section above).
       2. **The `MockMCPAdapter` import is uncommented and the adapter is
          registered under `"mock"`.** Per the coordinator's note on this
          package's landed foundation: WP5's import was left commented with

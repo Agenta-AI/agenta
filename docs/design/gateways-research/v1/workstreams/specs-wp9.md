@@ -98,7 +98,7 @@ class MCPGatewayService:
     async def delete_endpoint(self, *, project_id, endpoint_id) -> bool: ...
     async def query_endpoints(self, *, project_id, endpoint=None, windowing=None) -> List[MCPEndpoint]: ...
     async def list_endpoints(self, *, project_id) -> List[MCPEndpoint]: ...
-    # The three-namespace merge (D27): agenta entries from code, builtin entries
+    # The three-source merge (D30): builtin/agenta entries from code, builtin/composio entries
     # generated from the Composio catalog with their connection state resolved
     # through the existing connections service, custom rows from the DAO.
 
@@ -148,7 +148,7 @@ class MCPEndpointsDAOInterface(ABC):
     async def query_endpoints(self, *, project_id: UUID, endpoint: Optional[MCPEndpointQuery] = None, windowing: Optional[Windowing] = None) -> List[MCPEndpoint]: ...
 ```
 
-### `list_endpoints` — the three-namespace merge (D27, §8)
+### `list_endpoints` — the three-source merge (D30, §8)
 
 The one read that spans namespaces. There is no `catalog.py` under
 `core/gateways/mcps/` (unlike the LLM plane, which has one explicitly —
@@ -257,7 +257,7 @@ exactly:
    route=..., auth=..., context=..., body=..., headers=...)`. The
    namespace→adapter-key mapping (`agenta`→`"mock"` in wave 1 — the wiring
    block's own comment: `"mock": MockMCPAdapter(), # serves the
-   agenta-namespace mocks (D23)`; `builtin`→`"composio"`; `custom`→`"http"`)
+   builtin/agenta mocks (D23)`; `builtin/composio`→`"composio"`; `custom`→`"http"`)
    is a private implementation detail of this file — `entities.md` names no
    public function for it on the MCP plane (contrast the LLM plane's
    `select_upstream`, explicitly named in §7.1). Do not invent a public
@@ -320,9 +320,10 @@ it is not a DTO in §4 and must not be added to `dtos.py`.
   `MCPEndpointsDAOInterface` (an in-memory dict-backed double, not the real
   Postgres DAO). Assert each method calls the right DAO verb with the right
   arguments and returns what the DAO returned.
-- `list_endpoints`'s three-namespace merge — **unit** with mocks for both
+- `list_endpoints`'s three-source merge — **unit** with mocks for both
   the DAO and `ConnectionsService` (a stub returning a canned list of
-  `Connection` rows). Assert: agenta entries appear with `namespace=AGENTA`
+  `Connection` rows). Assert: agenta entries appear with `namespace=BUILTIN`
+  and `provider_key="agenta"`
   and no `id`; builtin entries appear with `namespace=BUILTIN`,
   `connection_id`/`provider_key`/`integration_key` stamped; custom rows
   appear with `namespace=CUSTOM`; no generated entry is ever passed to a
@@ -405,7 +406,7 @@ sibling fragments from `specs-wp6.md`/`specs-wp7.md`/`specs-wp8.md`/`specs-wp10.
 +    upstream_registry=MCPUpstreamRegistry(adapters={
 +        "http": HttpMCPAdapter(),          # custom: MCPDirectAuth (WP8)
 +        "composio": ComposioMCPAdapter(),  # builtin: MCPBrokeredAuth (not wave 1)
-+        "mock": MockMCPAdapter(),          # serves the agenta-namespace mocks (D23, WP5)
++        "mock": MockMCPAdapter(),          # serves the builtin/agenta mocks (D23, WP5)
 +    }),
 +)
 ```

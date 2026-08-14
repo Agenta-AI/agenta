@@ -528,6 +528,7 @@ typed configuration goes in `data`. Applied here:
 
 - **`provider_key`, `deployment_kind`, `auth_mode` are columns.** The management UI filters on
   them (`query_endpoints`), and `auth_mode` decides which service paths are even legal.
+  They are **not the same three columns on both tables** — see below.
 - **`route` is `data`.** Nothing queries it: the route lookup is by slug (§2.3), and two
   endpoints pointing at one URL with different filters is legitimate, so there is no
   uniqueness to enforce. It is read back whole and handed to the adapter — the exact
@@ -542,6 +543,39 @@ typed configuration goes in `data`. Applied here:
   nothing queries it: refresh is lazy, at use time when the token is stale, so there is no
   "expiring soon" worker to feed. A proactive refresh sweep, if one is ever built, promotes
   it to a column then.
+
+### Why the two tables do not carry the same identity columns
+
+`llms_endpoints` has `provider_key` and `deployment_kind` and no `auth_mode`;
+`mcps_endpoints` has `auth_mode` and, on stored rows, neither of the other two. The
+asymmetry is not an oversight, and the reason is the same on both sides: **each table
+stores the axis that varies within it, and omits the one that is fixed by construction.**
+
+**No `auth_mode` on an LLM endpoint, because there is only one mode.** Every model upstream
+authenticates the same way — a key, presented as a header or as a request signature. There
+is no OAuth against an LLM provider and no consent to obtain, so a column recording *how*
+would answer `api_key` on every row that has a secret and `none` on the mocks. `secret_id`
+already carries that distinction: set means authenticated, null means a NONE-scheme target
+(D23). A second column expressing the same bit is a column that can disagree with itself.
+
+**No `provider_key` or `deployment_kind` on a stored MCP endpoint, because a stored MCP
+endpoint has no provider.** The MCP plane's protocol is one protocol over one transport:
+a POST to a URL. `deployment_kind` exists on the LLM plane to say *which wire* — Azure's
+dated API, Bedrock's signed region, an OpenAI-compatible reseller — and it selects the
+adapter. On the MCP plane there is nothing to select: `custom` rows all reach
+`HttpMCPAdapter`, and the only endpoints that *do* name a provider are the generated
+`builtin` ones, whose provider comes from the URL segment or the brokered connection row,
+never from storage.
+
+That is why the MCP DTO carries `provider_key` and `integration_key` as **optional, never
+persisted** fields: they are populated on generated `builtin` entries and are null on every
+row. The DTO is the union of what any endpoint can be; the table is only what a `custom`
+row needs.
+
+**What the two tables do share** is everything the gateway does with an endpoint rather
+than to it: `slug`, `secret_id`, `data`, `flags`, `status`, and the lifecycle columns. The
+identity columns differ because identity is what differs between a model provider and a
+tool server.
 
 ### The shape both planes share
 
@@ -2714,11 +2748,11 @@ class MCPGatewayProxy:
             "/custom/{slug}", self.relay_custom, methods=["POST"],
             operation_id="mcp_gateway_relay_custom",
         )
-        # the same three paths answer GET/DELETE with 405 via
+        # the same two paths answer GET/DELETE with 405 via
         # self.reject_stream_verbs, include_in_schema=False — elided
 ```
 
-The three thin MCP handlers all delegate to `MCPGatewayService.relay` (§8), each passing
+The two thin MCP handlers both delegate to `MCPGatewayService.relay` (§8), each passing
 its namespace and segments; they exist because the routes carry different path
 parameters, not because the behaviour differs.
 

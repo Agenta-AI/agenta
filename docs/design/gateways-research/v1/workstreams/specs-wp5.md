@@ -30,7 +30,7 @@ test behaves identically whether it drives the in-process adapter or the compose
 
 **Explicitly not built here:** the registry that picks `"mock"` for a given `(provider_key,
 deployment)` pair (`select_upstream`, `core/gateways/llms/registry.py` — WP7); the MCP-plane
-equivalent (`core/gateways/mcps/registry.py` — WP9); the `agenta`-namespace code that generates
+equivalent (`core/gateways/mcps/registry.py` — WP9); the `builtin/agenta` code that generates
 the mock MCP server's catalog entry (`core/gateways/mcps/service.py` — WP9); the custom LLM
 endpoint row that points a slug at the mock LLM server's URL (WP1's DAO / WP10's CRUD, seeded by
 whoever owns local-stack fixtures). WP5 supplies the two processes and the classes; it does not
@@ -269,7 +269,7 @@ class MockGatewaysConfig(BaseModel):
 ```
 
 registered on `EnvironSettings` next to `composio` (`env.py` line 1609). WP1/WP10 (the custom LLM
-endpoint row that seeds the mock) and WP9 (the `agenta`-namespace MCP entry) read these; WP5 does
+endpoint row that seeds the mock) and WP9 (the `builtin/agenta` MCP entry) read these; WP5 does
 not consume them itself.
 
 ## `api/entrypoints/routers.py` diff
@@ -375,7 +375,7 @@ be driven to fail on demand."*
 ## Out of scope
 
 - `select_upstream` and the `LLMUpstreamRegistry`/`MCPUpstreamRegistry` classes — WP7 / WP9.
-- The `agenta`-namespace code that turns the mock MCP server's URL into a listed endpoint — WP9's
+- The `builtin/agenta` code that turns the mock MCP server's URL into a listed endpoint — WP9's
   `service.py`.
 - The custom LLM endpoint row that turns the mock LLM server's URL into a reachable
   `custom/{slug}` — WP1's DAO, seeded by whichever package owns local-stack fixtures (WP10 is the

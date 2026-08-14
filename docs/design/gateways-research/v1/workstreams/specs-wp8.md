@@ -14,7 +14,7 @@ transport and domain are different packages."
 
 New:
 - `api/oss/src/apis/fastapi/gateways/mcps/proxy.py` — `MCPGatewayProxy`
-  (§9): three POST routes plus the shared 405 handler for the stream
+  (§9): two POST routes plus the shared 405 handler for the stream
   verbs.
 - `api/oss/src/apis/fastapi/gateways/mcps/utils.py` — `parse_mcp_call_context`
   (§9): the one pure function that reads the caller's request for routing.
@@ -31,29 +31,33 @@ and frozen; `core/gateways/mcps/service.py` and `registry.py` are WP9's.
 Reproduced verbatim from `entities.md` §7.1 and §9. Do not rename, do not
 add routes or parameters not listed here.
 
-### The route grammar — three shapes, three different arities (D27, §2.3)
+### The route grammar — two routes, three shapes (D30, §2.3)
 
 ```text
-/gateways/mcps/builtin/agenta/{slug}                                  agenta/tools
+/gateways/mcps/builtin/agenta/{slug:path}                      builtin/agenta/tools
 /gateways/mcps/builtin/{provider}/{integration}/{connection}  builtin/composio/notion/my-notion
 /gateways/mcps/custom/{slug}                                  custom/acme-notion
 ```
 
-- **`agenta/{slug:path}`** — a **catch-all path parameter**, not a single
-  component. An `agenta` identifier is a slug this codebase owns and may
-  carry `/` separators (`agenta/tools/search` is one endpoint whose slug is
-  `tools/search`, §2.3), so the route parameter must accept `/` inside it.
-  FastAPI's `{slug:path}` converter is the mechanism; a plain `{slug}`
-  component would 404 on the first nested identifier.
-- **`builtin/{provider}/{integration}/{connection}`** — **three fixed path
-  components**, one per segment of the brokered connection's own unique key
-  minus the project (`gateway_connections`'s `(project_id, provider_key,
-  integration_key, slug)`, §2.3). No catch-all: none of the three segments
-  is ever nested.
-- **`custom/{slug}`** — **one fixed path component**. The slug is unique
-  per project (`uq_mcps_endpoints_project_slug`), never nested.
+Both builtin shapes are served by **one** route, `/builtin/{provider}/{rest:path}`:
+the arity differs per provider, and two competing routes cannot share a
+provider segment. `split_builtin_path(provider, rest)` reads each provider's
+own grammar off the tail.
 
-The three routes cannot collide with the CRUD router's paths sharing the
+- **`agenta`** takes the tail whole. An identifier this codebase owns may
+  carry `/` separators (`builtin/agenta/tools/search` is one endpoint whose
+  slug is `tools/search`, §2.3), which is why the route parameter is
+  FastAPI's `{rest:path}` converter — a plain `{slug}` component would 404
+  on the first nested identifier.
+- **`composio`** takes two components, `{integration}/{connection}` — the
+  brokered connection's own unique key minus the project and the provider
+  (`gateway_connections`'s `(project_id, provider_key, integration_key,
+  slug)`, §2.3). Neither is ever nested.
+- **`custom/{slug}`** — its own route, **one fixed path component**. The
+  slug is unique per project (`uq_mcps_endpoints_project_slug`), never
+  nested.
+
+The routes cannot collide with the CRUD router's paths sharing the
 same `/gateways/mcps` prefix (`router.py`, WP10) because every CRUD path
 starts with `endpoints`, and none of `builtin | standard | custom` can
 spell it (§9).
@@ -70,15 +74,11 @@ class MCPGatewayProxy:
         # POST carries JSON-RPC; GET/DELETE answer 405, as the runner's
         # internal tool server already does. No version segment: the MCP
         # protocol is a POST to the endpoint URL itself, revision negotiated
-        # in a header (§2.3). One route per namespace, per the grammar —
-        # agenta takes a catch-all because its slug may be nested; builtin
-        # takes the three fixed components of the connection's unique key.
+        # in a header (§2.3). Two routes: builtin's arity differs per
+        # provider, so its tail is a catch-all that split_builtin_path
+        # divides; custom's slug is a single component.
         self.router.add_api_route(
-            "/agenta/{slug:path}", self.relay_agenta, methods=["POST"],
-            operation_id="mcp_gateway_relay_agenta",
-        )
-        self.router.add_api_route(
-            "/builtin/{provider}/{integration}/{connection}",
+            "/builtin/{provider}/{rest:path}",
             self.relay_builtin, methods=["POST"],
             operation_id="mcp_gateway_relay_builtin",
         )
@@ -86,19 +86,18 @@ class MCPGatewayProxy:
             "/custom/{slug}", self.relay_custom, methods=["POST"],
             operation_id="mcp_gateway_relay_custom",
         )
-        # the same three paths answer GET/DELETE with 405 via
+        # the same two paths answer GET/DELETE with 405 via
         # self.reject_stream_verbs, include_in_schema=False — elided
 ```
 
-The three handlers "are thin ... they exist because the routes carry
+The two handlers "are thin ... they exist because the routes carry
 different path parameters, not because the behaviour differs" (§9): each
 parses headers via `parse_mcp_call_context`, reads `get_auth_scope()`, and
 delegates to `self.service.relay(...)` with its own namespace and path
-segments. `relay_builtin` passes `provider`/`integration` in addition to
-`name` (the `connection` segment); `relay_agenta` and `relay_custom` pass
-only `name` (the slug).
+segments. `relay_builtin` passes `provider`, and `integration` when its
+provider's grammar carries one; `relay_custom` passes only `name` (the slug).
 
-`reject_stream_verbs` answers GET and DELETE on the same three paths with
+`reject_stream_verbs` answers GET and DELETE on the same two paths with
 405, `include_in_schema=False` — the shape the runner's own internal MCP
 server already uses for the Streamable-HTTP stream-management verbs it does
 not implement (`services/runner/src/tools/tool-mcp-http.ts`, lines 367–371:
@@ -339,10 +338,10 @@ anything needing Postgres, Redis or the API is integration or acceptance.
   **unit**. Mount the router in a bare `FastAPI()` app with `TestClient`,
   a mock `MCPGatewayService` (a stub whose `relay()` returns a canned
   `MCPRelayResult` and records its call arguments), and a mock
-  `get_auth_scope()`. Assert: `POST /agenta/tools/search` reaches
-  `relay_agenta` with `name="tools/search"` (proving the catch-all nests
-  correctly); `POST /builtin/composio/notion/my-notion` reaches
-  `relay_builtin` with `provider="composio", integration="notion",
+  `get_auth_scope()`. Assert: `POST /builtin/agenta/tools/search` reaches
+  `relay_builtin` with `provider="agenta", name="tools/search"` (proving the
+  catch-all nests correctly); `POST /builtin/composio/notion/my-notion`
+  reaches the same handler with `provider="composio", integration="notion",
   name="my-notion"`; `POST /custom/acme-notion` reaches `relay_custom` with
   `name="acme-notion"`; `GET`/`DELETE` on any of the three return 405. No
   Postgres, no real service — this is in-process ASGI against a mock,
@@ -376,7 +375,7 @@ POST /gateways/mcps/builtin/agenta/<mock-slug>   {"method":"tools/call","tool":"
 
 - Everything in `core/gateways/mcps/service.py` and `registry.py` — target
   resolution, the allowlist check, secret resolution, the
-  three-namespace `list_endpoints` merge, tool-list filtering by policy —
+  three-source `list_endpoints` merge, tool-list filtering by policy —
   **WP9**.
 - `ComposioMCPAdapter` (the `builtin` south-port adapter) and anything
   touching `MCPBrokeredAuth` — not owned by any wave-1 package; `builtin`

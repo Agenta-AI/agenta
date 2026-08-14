@@ -156,16 +156,15 @@ that file (WP5) or the M2 merge coordinator, not WP8.
       `MCPGatewayService` is not on this branch yet (WP9 unmerged) — imported only under
       `TYPE_CHECKING` with `from __future__ import annotations`, so the module loads with
       no runtime dependency on WP9 and picks up the real type the moment it lands.
-- [x] Register the three POST routes exactly as in `entities.md` §9:
-      `/agenta/{slug:path}` → `relay_agenta`, operation_id
-      `mcp_gateway_relay_agenta`; `/builtin/{provider}/{integration}/{connection}`
-      → `relay_builtin`, operation_id `mcp_gateway_relay_builtin`;
-      `/custom/{slug}` → `relay_custom`, operation_id `mcp_gateway_relay_custom`.
-      Confirm `{slug:path}` (not `{slug}`) on the agenta route — this is the
-      one detail that silently breaks nested agenta identifiers if missed.
-- [x] Register `reject_stream_verbs` on the same three paths for `GET` and
+- [x] Register the two POST routes exactly as in `entities.md` §9:
+      `/builtin/{provider}/{rest:path}` → `relay_builtin`, operation_id
+      `mcp_gateway_relay_builtin`; `/custom/{slug}` → `relay_custom`,
+      operation_id `mcp_gateway_relay_custom`. Builtin's tail is a catch-all
+      because the arity differs per provider — `split_builtin_path` divides
+      it; a plain component silently breaks nested agenta identifiers.
+- [x] Register `reject_stream_verbs` on the same two paths for `GET` and
       `DELETE`, `include_in_schema=False`, returning 405.
-- [x] Implement `relay_agenta`/`relay_builtin`/`relay_custom`: each calls
+- [x] Implement `relay_builtin`/`relay_custom`: each calls
       `get_auth_scope()`, calls `parse_mcp_call_context(headers=...)`, reads
       the raw request body, and delegates to
       `self.service.relay(scope=..., namespace=..., name=..., provider=...,
@@ -210,15 +209,15 @@ that file (WP5) or the M2 merge coordinator, not WP8.
 ## proxy.py tests (unit)
 
 - [x] Unit test (TestClient + mock `MCPGatewayService` + mockd
-      `get_auth_scope()`): `POST /agenta/tools/search` reaches
-      `relay_agenta` with `name="tools/search"` — proves the catch-all
-      nests.
-- [x] Unit test: `POST /builtin/composio/notion/my-notion` reaches
-      `relay_builtin` with `provider="composio"`, `integration="notion"`,
+      `get_auth_scope()`): `POST /builtin/agenta/tools/search` reaches
+      `relay_builtin` with `provider="agenta"`, `name="tools/search"` —
+      proves the catch-all nests.
+- [x] Unit test: `POST /builtin/composio/notion/my-notion` reaches the same
+      handler with `provider="composio"`, `integration="notion"`,
       `name="my-notion"`.
 - [x] Unit test: `POST /custom/acme-notion` reaches `relay_custom` with
       `name="acme-notion"`.
-- [x] Unit test: `GET` and `DELETE` on all three paths return 405.
+- [x] Unit test: `GET` and `DELETE` on both paths return 405.
 - [x] Unit test, revised for the correction above: a parametrized table of all eleven
       mapped causes (`endpoint_not_found`, `policy_denied`, `entitlement_denied`,
       `tool_not_allowed`, `ceiling_exceeded`, `auth_required`, `scope_insufficient`,
