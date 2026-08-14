@@ -15,11 +15,11 @@
   
   ---
   
-<a href="https://youtu.be/Y5l2BPRkKC8?si=HoIflTHFhXKEgyo3">
+<a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
   <img
     width="900"
     alt="Watch the Agenta platform demo"
-    src="https://github.com/user-attachments/assets/93e894fb-2b7a-4190-a1e5-b2c84a907c29"
+    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
   />
 </a>
 
@@ -256,7 +256,7 @@ If Agenta is useful to you, star the repository and tell us what you build.
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-72-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-74-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -360,6 +360,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MarceloAdan73"><img src="https://avatars.githubusercontent.com/u/112431764?v=4?s=100" width="100px;" alt="Marcelo-Palma"/><br /><sub><b>Marcelo-Palma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=MarceloAdan73" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://adekolamanasseh-tech.vercel.app"><img src="https://avatars.githubusercontent.com/u/221562541?v=4?s=100" width="100px;" alt="MannieTech"/><br /><sub><b>MannieTech</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=mannietech15" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/moataz-hjaiji"><img src="https://avatars.githubusercontent.com/u/74058655?v=4?s=100" width="100px;" alt="moataz hjaiji"/><br /><sub><b>moataz hjaiji</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=moataz-hjaiji" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/iamhaseebn"><img src="https://avatars.githubusercontent.com/u/36381672?v=4?s=100" width="100px;" alt="Haseeb Nazir"/><br /><sub><b>Haseeb Nazir</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=iamhaseebn" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

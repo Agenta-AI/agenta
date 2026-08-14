@@ -2272,6 +2272,12 @@ const sidebar: SidebarsConfig = {
           label: "Delete Secret",
           className: "api-method delete",
         },
+        {
+          type: "doc",
+          id: "reference/api/probe-provider",
+          label: "Probe Provider",
+          className: "api-method post",
+        },
       ],
     },
     {
