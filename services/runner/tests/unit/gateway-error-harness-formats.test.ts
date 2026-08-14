@@ -1,12 +1,14 @@
 /**
  * Pins OD18's per-harness findings (open-designs.md): does a harness's SDK preserve the
- * gateway's `{"error":{...}}` refusal body in the text `parseGatewayErrorDetail` scans?
+ * gateway's `{"error":{...}}` refusal body in the text `parseGatewayErrorDetail` scans, and —
+ * when it does not — does the `⟦agenta_code:...⟧` marker the gateway now embeds in every typed
+ * refusal's `message` (`api/oss/src/apis/fastapi/gateways/llms/proxy.py`) survive instead?
  *
  * Pi (`utils/error-body.js`) and the Anthropic SDK (`core/error.js`'s `JSON.stringify`
- * fallback) both fold the full body into the reported message — one shared fixture format
- * below stands in for both. Codex (`codex-rs`'s `extract_error_message`) strips everything but
- * `error.message` before formatting, so no brace survives; that is asserted as `undefined`,
- * not skipped.
+ * fallback) both fold the full body into the reported message — the body path wins for them,
+ * recovering the full `AgentErrorDetail`. Codex (`codex-rs`'s `extract_error_message`) strips
+ * everything but `error.message` — but the marker rides INSIDE that one surviving field, so the
+ * marker fallback recovers `code` (and only `code`) for Codex.
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
@@ -36,11 +38,11 @@ const REFUSALS: Refusal[] = [
   },
   {
     name: "rejected credential",
-    status: 424,
-    code: "upstream_error",
-    message: "401 Unauthorized",
-    type: "api_error",
-    // upstream_error has no fixed next_step (D16: the upstream's own detail passes through).
+    status: 409,
+    code: "secret_invalid",
+    message: "Secret for anthropic:project-42 is invalid",
+    type: "invalid_request_error",
+    nextStep: "reconnect the connection's secret",
   },
   {
     name: "unregistered target",
@@ -68,40 +70,62 @@ const REFUSALS: Refusal[] = [
   },
 ];
 
+// What the gateway actually renders into `message` for a typed refusal (_with_code_marker,
+// proxy.py) -- the marker rides inside the one field every harness examined keeps.
+function markedMessage(r: Refusal): string {
+  return `${r.message} ⟦agenta_code:${r.code}⟧`;
+}
+
 function gatewayBody(r: Refusal): string {
   return JSON.stringify({
-    error: { message: r.message, type: r.type, code: r.code, ...r.extra },
+    error: { message: markedMessage(r), type: r.type, code: r.code, ...r.extra },
   });
 }
 
-describe("Pi / Anthropic-SDK shape (OD18: confirmed to preserve the body)", () => {
+describe("Pi / Anthropic-SDK shape (OD18: body survives -> full detail)", () => {
   for (const r of REFUSALS) {
-    it(`recovers ${r.code} (${r.name}) from a JSON.stringify-embedded body`, () => {
+    it(`recovers the full envelope for ${r.code} (${r.name}) via the body path`, () => {
       // Mirrors `formatProviderError`'s "<status>: <body>" composition (pi-ai's
       // utils/error-body.js) and @anthropic-ai/sdk's `APIError.makeMessage`'s
-      // "<status> <JSON.stringify(errorResponse)>" fallback — both land the full body
-      // verbatim in the text the runner reads.
+      // "<status> <JSON.stringify(errorResponse)>" fallback -- both land the full body
+      // verbatim, marker included, in the text the runner reads.
       const harnessText = `${r.status}: ${gatewayBody(r)}`;
       const detail = parseGatewayErrorDetail(harnessText);
       assert.equal(detail?.code, r.code);
-      assert.equal(detail?.message, r.message);
+      // The body path's `message` is the gateway's raw field, marker and all -- the JSON
+      // parse doesn't know to strip it. Only the marker-only fallback strips it (below).
+      assert.equal(detail?.message, markedMessage(r));
       assert.equal(detail?.retryable, false);
       if (r.nextStep) assert.equal(detail?.next_step, r.nextStep);
     });
   }
 });
 
-describe("Codex shape (OD18: confirmed NOT to preserve the body)", () => {
+describe("Codex shape (OD18: body is stripped -> marker fallback recovers code only)", () => {
   for (const r of REFUSALS) {
-    it(`cannot recover ${r.code} (${r.name}) from codex-rs's stripped format`, () => {
+    it(`recovers ${r.code} (${r.name}) from codex-rs's stripped format via the marker`, () => {
       // codex-rs's `UnexpectedResponseError::extract_error_message`
       // (codex-rs/protocol/src/error.rs, rust-v0.145.0) parses the body as JSON and keeps
-      // ONLY `error.message`, discarding `code`/`type` before formatting this string — no
-      // brace remains for the scan to find. This is the harness OD18 records as unable to
-      // preserve the cause, not a parser gap.
-      const harnessText = `unexpected status ${r.status}: ${r.message}`;
+      // ONLY `error.message`, discarding `code`/`type` before formatting this string -- but
+      // the marker rides inside that surviving `message`, so it comes along for the ride.
+      const harnessText = `unexpected status ${r.status}: ${markedMessage(r)}`;
       const detail = parseGatewayErrorDetail(harnessText);
-      assert.equal(detail, undefined);
+      assert.equal(detail?.code, r.code);
+      // The marker is stripped from the recovered message for display.
+      assert.equal(detail?.message, `unexpected status ${r.status}: ${r.message}`);
+      assert.equal(detail?.retryable, false);
+      // What's still lost on a marker-only harness (WP25 spec): no next_step, no details --
+      // never backfilled from NEXT_STEPS, so a caller can tell "code only" from "full detail"
+      // and degrade to a generic step-up prompt (WP19) instead of a specific one.
+      assert.equal(detail?.next_step, undefined);
+      assert.equal(detail?.details, undefined);
     });
   }
+});
+
+describe("upstream_error: no marker, by design (D16 passthrough)", () => {
+  it("stays undefined when neither the body nor a marker is present", () => {
+    const detail = parseGatewayErrorDetail("unexpected status 401: invalid api key");
+    assert.equal(detail, undefined);
+  });
 });
