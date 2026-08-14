@@ -92,70 +92,67 @@ inside one of them.** One agent writes it on the base branch and everything else
 
 - [ ] **Base branch from the current upstream release branch**, as in wave 1. Re-read the
       branch name; it advances.
-- [ ] **Settle the four rulings below.** Each changes a shape more than one package depends
-      on, so none can be deferred into a worktree.
-- [ ] **Write the wire change** the rulings settle: the credential binding on the runner
-      wire (`services/runner/src/protocol.ts`) and in the SDK
-      (`sdks/python/agenta/sdk/agents/connections/models.py`), plus its materialization
-      point. Declarations and validators only; no caller changes.
-- [ ] **Verify**: a header-bound credential round-trips SDK → wire → runner and is
-      materialized, with a test that fails if any leg drops it. This is the specific failure
-      the shape invites, so it is the specific test the seed owes.
+- [x] **The four rulings below are settled.** Each changed a shape more than one package
+      depends on, so none could be deferred into a worktree.
+- [ ] **Write the gateway-credentials field** (W1) on the runner wire
+      (`services/runner/src/protocol.ts`) and in the SDK
+      (`sdks/python/agenta/sdk/agents/connections/models.py`), with its validator and its
+      materialization. Declarations only; no caller changes.
+- [ ] **Exempt loopback from the https requirement** (W2), as an explicit branch in
+      `ResolvedConnection`'s validator with the reason written on it.
+- [ ] **Add the header echo to both mock upstreams** (W4): one endpoint returning the
+      headers of the request it received, in `core/gateways/{llms,mcps}/providers/mock/app.py`.
+- [ ] **Verify**: the credentials field round-trips SDK → wire → runner and is materialized,
+      with a test that fails if any leg drops it. This is the specific failure the shape
+      invites, so it is the specific test the seed owes.
 - [ ] **Commit, and record the SHA.** Every wave-2 worktree branches from it.
 
-### W1 — What shape the header binding takes, and where it materializes
+### W1 — SETTLED: our credentials are their own field, not a widened binding
 
-`ResolvedCredential.binding` is `EnvironmentCredentialBinding` — a single type, not a union
-— and `ModelCredentialBinding.kind` is `"environment"` on the wire. The MCP side already
-carries `{kind: "header", name}`, so the obvious move is to widen the model side to the same
-union.
+`ResolvedCredential.binding` stays `EnvironmentCredentialBinding`. The gateway's credentials
+travel as a distinct field on `ResolvedConnection` and on `ModelConnection`, carrying the
+header name and the value.
 
-**The trap that makes this a ruling rather than an edit.** `ResolvedConnection.
-plaintext_environment()` is the single materialization point today, and every consumer calls
-it (`agents/interfaces.py`). A header-bound credential has no environment variable, so it
-would validate, serialize, cross the wire, and **silently vanish** at the boundary — the
-same class of failure as a field a model ignores because it does not recognise it. Widening
-the union without moving the materialization point is the wrong half of the change.
+**Why not widen the union.** `ResolvedConnection.plaintext_environment()` is the single
+materialization point and every consumer calls it (`agents/interfaces.py`). A header-bound
+credential has no environment variable, so widening the union without moving materialization
+gives a value that validates, serializes, crosses the wire and **vanishes at the boundary** —
+the same silent-drop class as a field a model ignores because it does not recognise it.
 
-Two shapes, and the choice belongs in the seed:
+**Why a separate field is the honest shape.** These are our credentials, not an upstream's
+secret, and the two are not interchangeable — one authenticates the caller into the gateway,
+the other authenticates the gateway to a provider. `credentials` keeps meaning "the
+provider's secrets"; the new field means "how the harness proves it is us". A harness
+configuration writer then reads exactly one place for the header it must set.
 
-- **Widen the union, split materialization.** `plaintext_environment()` gains a sibling for
-  headers, and every consumer must call both. Symmetric with MCP; the cost is that
-  "materialize this connection" stops being one call, and a consumer that forgets the second
-  one fails silently.
-- **Keep the binding env-only; carry our credentials as their own field.** The gateway's
-  credentials are not the provider's secret and never were — a separate field says so, and
-  the harness configuration writer reads exactly one place for the header it must set. The
-  cost is that the two planes stop looking alike.
+**What the seed owes.** The field on both sides, its validator, and a test that fails if any
+leg of SDK → wire → runner drops it. `credentialMode` keeps its three values and its
+meaning; nothing about the provider's secrets changes.
 
-**Recommendation: the second**, on the grounds that these are our credentials rather than an
-upstream's secret (the vocabulary is not decoration here), and a single field cannot be half
-materialized. Whichever is chosen, the validator must make the silent-drop case impossible.
+### W2 — SETTLED: loopback is exempt from the https requirement, explicitly
 
-### W2 — Whether a loopback gateway is exempt from the https requirement
+`ResolvedConnection` keeps refusing an `opaque_http` credential over plain http, except when
+the host is a loopback address. Written as an explicit branch with the reason on it, not as a
+relaxed regex: the check exists so a provider secret cannot cross a plaintext hop to a remote
+host, and a loopback hop has no remote to cross to. Development stays on http; nothing about
+a deployed gateway changes.
 
-`ResolvedConnection` refuses an `opaque_http` credential unless `endpoint.base_url` is
-https. A gateway on `http://localhost` fails that check, which is every development run.
-Exempt loopback explicitly in the validator, or require TLS in development. WP12 owns the
-file; WP13 and WP14 are the ones that would be blocked by it. Not settling it means every
-wave-2 worktree discovers it separately.
+### W3 — SETTLED: all three front doors, in WP23, together
 
-### W3 — Which front doors WP23 ships, and in which order
+`/v1/chat/completions`, `/v1/responses` and `/v1/messages`. Not sequenced, because the
+sequencing was only ever about which upstreams to unblock first, and the answer is all of
+them. WP24's per-provider verification (OD16) is therefore scoped against the full door set
+from the start rather than re-scoped per door.
 
-WP24's scope is a function of this answer: an upstream is reachable only through a door that
-speaks its protocol (D34), so OD16's per-provider verification cannot be scoped until the
-door set is fixed. `/v1/messages` first is the likely answer — it is what unblocks Anthropic,
-and the Bedrock and Vertex models that take that body — but it is a product call about which
-upstreams matter, not a technical one.
+`/v1/models` stays where it is — it answers from the endpoint's allowlist and is not a
+protocol front door.
 
-### W4 — Who owns the mock upstreams' header echo
+### W4 — SETTLED: the seed owns the mock upstreams' header echo
 
-Two Checkpoint B assertions need a mock that reports the headers it received: that
-`X-AG-Credentials` never reaches an upstream, and that a caller's `Authorization` does when
-no secret resolved. WP5's mocks do not do this and WP5 is closed. Either it reopens for one
-endpoint, or a wave-2 package takes it. It is half a day of work and it is the difference
-between those two rules being pinned by unit tests and being pinned end to end. **Unowned,
-it will not happen.**
+Both mock upstreams gain one endpoint that reports the headers of the request it received.
+It is in the seed rather than a package because two packages' acceptance tests read it and
+neither owns WP5's tree, and because it is the only way the credentials rules are pinned end
+to end rather than in unit tests alone.
 
 ---
 
@@ -172,6 +169,11 @@ WP12 gates three packages; WP4 is independent of all of them and can start on da
 | `gateways-wp15` | `feat/gateways-wp15` | MCP servers on the wire | the runner's MCP server configs |
 | `gateways-wp23` | `feat/gateways-wp23` | Protocol front doors | `apis/fastapi/gateways/llms/proxy.py`, the per-protocol parsers |
 | `gateways-wp24` | `feat/gateways-wp24` | The relay-only south port | `core/gateways/llms/providers/`, `registry.py`, the migration |
+
+Each package has a spec and a task list: [WP4](specs-wp4.md) · [WP12](specs-wp12.md) ·
+[WP13](specs-wp13.md) · [WP14](specs-wp14.md) · [WP15](specs-wp15.md) ·
+[WP23](specs-wp23.md) · [WP24](specs-wp24.md). Read the spec before the tasks, and the tasks
+before touching a file.
 
 **WP12 — SDK connection resolution.** `resolve()` returns a gateway route: provider and
 deployment naming the gateway, `endpoint.base_url` the gateway URL, and our own credentials in place of
@@ -235,6 +237,9 @@ needs already exists, which is why this is the smaller of the two runner package
 
 **M4 — after WP12.** Not deployed. It exists so WP13, WP14 and WP15 branch from one
 resolver rather than three copies of an unmerged one.
+
+**WP15 branches from WP13's wire commit, not from M4.** The two share `protocol.ts`, and a
+shared file edited in parallel is how a stack scrambles.
 
 **M5 → Checkpoint B.** Deploy. All seven packages.
 
