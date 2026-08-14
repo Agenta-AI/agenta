@@ -59,9 +59,10 @@ async def test_provision_general_balance_uses_the_plan_floor_mapping(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_apply_plan_change_mints_no_value_when_mapping_is_zero():
-    """Today's real `allowance_musd_for_plan` mapping (see `plans.py`) is a constant 0
-    for every plan — this exercises the actual production mapping, unpatched."""
+async def test_apply_plan_change_mints_no_value_on_the_zero_allowance_self_hosted_hobby_path():
+    """Both `self_hosted_enterprise` and `cloud_v0_hobby` map to a 0 allowance (see
+    `plans.py`) — this exercises the actual production mapping, unpatched, and proves the
+    zero-allowance path still no-ops even though other plans now move real value."""
     dao = FakeWalletsDAO(
         general_balance=build_general_wallet_balance(balance_musd=1_000, floor_musd=0)
     )
@@ -70,8 +71,8 @@ async def test_apply_plan_change_mints_no_value_when_mapping_is_zero():
     result = await service.apply_plan_change(
         organization_id=dao.general_balance.organization_id,
         idempotency_key="pc-zero-mapping",
-        outgoing_plan="cloud_v0_hobby",
-        incoming_plan="cloud_v0_pro",
+        outgoing_plan="self_hosted_enterprise",
+        incoming_plan="cloud_v0_hobby",
         period_start=PERIOD_START,
         period_end=PERIOD_END,
         now=MID_PERIOD,
@@ -86,6 +87,78 @@ async def test_apply_plan_change_mints_no_value_when_mapping_is_zero():
     # general balance itself is untouched (net zero move); floor is still applied.
     assert dao.general_balance.balance_musd == 1_000
     assert dao.general_balance.floor_musd == 0
+
+
+@pytest.mark.asyncio
+async def test_apply_plan_change_upgrade_hobby_to_pro_moves_real_value():
+    """Real, unpatched `allowance_musd_for_plan` mapping (`plans.py`):
+    `cloud_v0_hobby` -> `cloud_v0_pro` is an upgrade from $0 to $5/period. No outgoing
+    credit exists yet (a fresh hobby organization never minted one), so only the incoming
+    share is prorated: 16 of the remaining 31 days -> $5,000,000 * 16/31, floored."""
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
+    )
+    service = WalletsService(wallets_dao=dao)
+
+    result = await service.apply_plan_change(
+        organization_id=dao.general_balance.organization_id,
+        idempotency_key="pc-upgrade-hobby-to-pro",
+        outgoing_plan="cloud_v0_hobby",
+        incoming_plan="cloud_v0_pro",
+        period_start=PERIOD_START,
+        period_end=PERIOD_END,
+        now=MID_PERIOD,
+    )
+
+    assert result.outgoing_debit_amount_musd == 0  # hobby's own allowance is $0
+    assert (
+        result.incoming_credit_amount_musd == 2_580_645
+    )  # 5_000_000 * 1382400 // 2678400
+    assert result.incoming_credit_id is not None
+    assert dao.general_balance.balance_musd == 2_580_645
+
+
+@pytest.mark.asyncio
+async def test_apply_plan_change_downgrade_business_to_pro_moves_real_value():
+    """Real, unpatched mapping: `cloud_v0_business` ($50/period) -> `cloud_v0_pro`
+    ($5/period) is a downgrade. An active business-tier `plan_allowance` credit is
+    seeded as the outgoing side, so both the outgoing remainder debit and the incoming
+    share are nonzero, and the net general-balance delta is negative (a downgrade moves
+    less value in than it removes)."""
+    outgoing_credit_id = uuid4()
+    outgoing_candidate = build_credit_candidate(
+        wallet_credit_id=outgoing_credit_id, balance_musd=50_000_000
+    )
+    outgoing_balance = build_credit_wallet_balance(
+        wallet_credit_id=outgoing_credit_id, balance_musd=50_000_000
+    )
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(
+            balance_musd=10_000_000, floor_musd=0
+        ),
+        credits=[(outgoing_candidate, outgoing_balance)],
+    )
+    service = WalletsService(wallets_dao=dao)
+
+    result = await service.apply_plan_change(
+        organization_id=dao.general_balance.organization_id,
+        idempotency_key="pc-downgrade-business-to-pro",
+        outgoing_plan="cloud_v0_business",
+        incoming_plan="cloud_v0_pro",
+        period_start=PERIOD_START,
+        period_end=PERIOD_END,
+        now=MID_PERIOD,
+    )
+
+    assert (
+        result.outgoing_debit_amount_musd == 25_806_451
+    )  # 50_000_000 * 1382400 // 2678400
+    assert (
+        result.incoming_credit_amount_musd == 2_580_645
+    )  # 5_000_000 * 1382400 // 2678400
+    net_delta = 2_580_645 - 25_806_451
+    assert net_delta < 0  # a downgrade removes more than it grants
+    assert dao.general_balance.balance_musd == 10_000_000 + net_delta
 
 
 @pytest.mark.asyncio

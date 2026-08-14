@@ -75,3 +75,35 @@ deliveries of the same posting key.
   one measurement and one idempotent core settlement per gateway call.
 
 The detailed node graph is in [wps-1.md](wps-1.md), [ims-1.md](ims-1.md), and [cus-1.md](cus-1.md).
+
+## Delivered beyond the checkpoint 1 kernel: wallet provisioning, proration, and grants
+
+Two follow-on worktrees closed gaps the `IM-1-02` review surfaced, without a new
+migration beyond `ee0000000005` (`core_ee` head remains `ee0000000005`):
+
+- **`WP-1-04` (wallet provisioning + plan-change proration).** Organization creation
+  (`provision_signup_subscription`/`provision_user_subscription` in
+  `ee.src.core.organizations.service`) now provisions the general `wallet_balances` row
+  itself, idempotently, via `WalletsService.provision_general_balance`. Migration
+  `ee0000000005_backfill_wallet_general_balances.py` backfills that row for every
+  organization that predates this change. `WalletsService.apply_plan_change` prorates a
+  mid-period plan change: it debits the outgoing plan's unused allowance remainder out of
+  the active `plan_allowance` credit and mints a new one for the incoming plan's prorated
+  share, both idempotent on the subscription's own `plan_change:{subscription_id}:{period_start}`
+  key. `WalletCheckPort.check` also lost its unused `amount_musd` parameter this wave.
+- **`WP-1-05` (real plan allowances + the grant catalog).** `ee.src.core.wallets.plans`
+  carries real, product-decided per-plan allowance and floor amounts (see
+  `nodes/im-1-02-pipeline/acceptance.md` §"2b" for the table and the date) — proration
+  now moves real value on every plan change, not just zero. `ee.src.core.wallets.grants`
+  adds a catalog of named activities that award wallet credit outside the plan-change
+  path; `WalletsService.award()` is the idempotent entry point, keyed
+  `award:{activity}:organization:{organization_id}` (or `...:reference:{reference}` for a
+  repeatable activity). One catalog entry exists today, `signup` ($1, once per
+  organization, twelve-month expiry, awarded only on the signup path per `report.md`
+  §9.2) — wired into `provision_signup_subscription` only, after the general balance row
+  exists. Adding an activation-milestone, referral, or contribution-award entry later is a
+  new catalog row, not a new code path.
+
+Both worktrees are documented in `nodes/im-1-02-pipeline/acceptance.md`, including the
+integration test suites that were WRITTEN BUT NOT RUN (the review worktrees are not
+allowed to touch the shared EE dev stack) and how to run them against a real deployment.

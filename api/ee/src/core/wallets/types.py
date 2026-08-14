@@ -357,3 +357,29 @@ class WalletsDAOInterface(ABC):
         replay-guard.
         """
         raise NotImplementedError
+
+    @abstractmethod
+    async def award_credit(
+        self,
+        *,
+        organization_id: UUID,
+        idempotency_key: str,
+        credit_kind: str,
+        amount_musd: int,
+        priority: int,
+        end_time: Optional[datetime],
+        now: Optional[datetime] = None,
+    ) -> WalletCreditDTO:
+        """Apply (or replay) one catalog-driven grant award in a single transaction:
+
+        1. Lock the general balance row first, same as `apply_plan_change`.
+        2. Replay guard: an existing `wallet_credits` row whose
+           `data.references.award_idempotency_key` already equals `idempotency_key`
+           means this exact award already happened — return THAT row unchanged, write
+           nothing new. `idempotency_key` is the sole guard; there is no dedicated
+           ledger/side table (see `ee.src.core.wallets.grants.compose_award_idempotency_key`
+           for how callers derive it).
+        3. Otherwise: mint a NEW immutable `wallet_credits` row plus its balance row, and
+           add `amount_musd` to the general balance projection.
+        """
+        raise NotImplementedError

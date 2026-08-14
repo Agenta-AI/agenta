@@ -343,6 +343,31 @@ A credit is the credit-side record; it is not duplicated in `measurements`.
 Expiry, cancellation, and clawback create new wallet debits against the affected credit. They must
 not silently rewrite this arrival row.
 
+**Delivered (`WP-1-04`, `WP-1-05`; no migration beyond `ee0000000005`).** Organization creation
+provisions each organization's general `wallet_balances` row (`wallet_credit_id IS NULL`)
+idempotently; migration `ee0000000005_backfill_wallet_general_balances.py` backfills it for
+organizations that predate this change. A mid-period plan change prorates a `plan_allowance`
+credit: `ee.src.core.wallets.proration.compute_plan_change_proration` computes the outgoing
+remainder debit and the incoming share (pure, DB-free arithmetic), and
+`WalletsDAO.apply_plan_change` applies both — debiting the outgoing credit's balance and minting a
+NEW `wallet_credits` row for the incoming share, never mutating an existing row — idempotent on
+the subscription's `plan_change:{subscription_id}:{period_start}` key.
+
+`ee.src.core.wallets.plans` carries real, PRODUCT-DECIDED (2026-08-14) per-plan allowance and floor
+amounts — see `nodes/im-1-02-pipeline/acceptance.md` §"2b" for the table. Every floor is 0 at
+launch (a hard stop everywhere once the general balance is spent); individual customers get an
+overdraft by hand later.
+
+`ee.src.core.wallets.grants` adds a catalog of named activities (a `GrantRule` per activity code)
+that award wallet credit outside the plan-change path — `WalletsService.award()` is the idempotent
+entry point, keyed `award:{activity_code}:organization:{organization_id}` (once-per-organization)
+or `...:reference:{reference}` (repeatable). One entry exists today: `signup` — $1
+(`credit_kind="award"`, the closest existing `GENERAL_CREDIT_KINDS` entry to `mechanics.md`'s
+`signup_grant`), awarded once per organization on every plan including free, twelve-month expiry
+(`report.md` §9.5/§9.6), wired into the signup organization-creation path only
+(`provision_signup_subscription`, never `provision_user_subscription`/explicit `POST
+/organizations/`, per `report.md` §9.2), after the general balance row already exists.
+
 ### `measurements`
 
 One immutable observation produced by an LLM, MCP, or SBX gateway collector. It preserves what was
