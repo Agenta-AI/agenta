@@ -25,9 +25,10 @@ REFUSALS = [
         "message": "No project secret for anthropic under mode standard",
         "next_step": "configure the connection's secret",
     },
-    {  # rejected credential (the upstream's own 401, D16 pass-through)
-        "code": "upstream_error",
-        "message": "401 Unauthorized",
+    {  # rejected credential (SecretInvalidError -- revoked or refresh failed)
+        "code": "secret_invalid",
+        "message": "Secret for anthropic:project-42 is invalid",
+        "next_step": "reconnect the connection's secret",
     },
     {  # unregistered target
         "code": "endpoint_not_found",
