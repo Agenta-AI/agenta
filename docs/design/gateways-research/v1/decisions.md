@@ -929,10 +929,22 @@ no longer byte-identical: adding and removing a key means re-serializing, and `c
 changes. Byte-for-byte relay stays the rule and the acceptance criterion everywhere else, with these
 two deployments named as the exemption rather than the assertion quietly weakened.
 
-**One thing to probe before implementing, not assume.** Whether these endpoints *reject* a body that
-still carries `model`, or merely ignore it, is not stated in either vendor's documentation. If it is
-ignored, the removal half is unnecessary and the exception shrinks to an injection. Establish it the
-way OD16 established the rest — against the real endpoint — before writing the removal.
+**Whether `model` in the body is rejected or ignored: settled, and it is rejected.** The question
+was whether the removal half is necessary. On Bedrock it is: the Anthropic body there is validated
+against a closed schema, and an unknown key fails the call with
+`Malformed input request: #: extraneous key [model] is not permitted`. That is the same validator
+that produces the widely-reported `extraneous key [stop_sequences]` and `[max_tokens_to_sample]`
+failures, and `model` is attested in it — a client that serialized the native Anthropic body
+straight to `InvokeModel` got exactly that error. Bedrock's own Messages parameter reference lists
+no `model` field in the body.
+
+On Vertex no equivalent rejection is attested either way. The removal happens there regardless,
+because it is the same table entry and removing a field the endpoint does not read costs nothing.
+
+This was established from documentation and attested failures rather than from a live call, which
+is a weaker instrument than OD16's. It is sufficient here because the answer only decided whether
+the package could *shrink*, and it cannot: the removal half is required for at least one of the two
+deployments, so both operations ship.
 
 
 ---

@@ -33,10 +33,15 @@ Read these before planning a package. All four are new since `plan.md`'s wave-3 
 ## Before anything starts
 
 Wave 3 needs no seed. Its serial spine changes shapes one package at a time, and the two
-independent packages touch different files. What it does need is the base branch re-cut from the
-current upstream release branch, as in both prior waves — re-read the branch name, it advances.
+independent packages touch different files.
 
-Wave 3 branches from **C3's predecessor**, `feat/gateways-c2` (`846e8fa15d`), which is IM4.
+The base was checked rather than assumed, as in both prior waves: the current upstream release
+branch is still `release/v0.112.1`, and its tip is already an ancestor of C2 — nothing upstream has
+landed since wave 2 merged, so there is no re-cut to do.
+
+Wave 3 branches from `feat/gateways`, which is **C3's predecessor** `feat/gateways-c2`
+(`846e8fa15d`, IM4) plus the documentation commits that carry this plan. The code is identical; the
+difference is that a package branched here can read its own wave's design.
 
 ---
 
@@ -120,11 +125,13 @@ Vertex's `rawPredict` both resell Anthropic's Messages wire with one fixed struc
 must not be — it rides the URL. D40 permits a static per-deployment table of literal fields added
 and literal fields removed, with nothing computed from the request.
 
-**Phase 0, before any code:** probe both endpoints to establish whether a body that still carries
-`model` is *rejected* or merely *ignored*. Neither vendor's documentation says. If it is ignored,
-the removal half is unnecessary and this package shrinks to an injection. Record the answer beside
-D40. This is the same discipline OD16 used and for the same reason — the alternative is a rewrite
-built on a guess.
+**Phase 0 is closed, and the package does not shrink.** The open question was whether a body that
+still carries `model` is rejected or merely ignored; if ignored, the removal half was unnecessary.
+Bedrock rejects it — its Anthropic body is validated against a closed schema and answers an unknown
+key with `extraneous key [model] is not permitted`, attested by a client that sent the native body
+verbatim. Vertex has no attestation either way, and removes it anyway because it is the same table
+entry. Both operations ship. The answer is recorded under D40 along with the caveat that it came
+from documentation rather than a live call.
 
 The relay stops being byte-identical for these two deployments only. Name them as the exemption in
 the acceptance test rather than weakening the byte-for-byte assertion everywhere.
