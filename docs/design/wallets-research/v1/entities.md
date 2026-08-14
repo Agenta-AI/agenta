@@ -393,6 +393,20 @@ Deliberately deferred (`mechanics.md` §4 names these; do not reuse one of the e
 them when they land): `auto_recharge`, `charge_refund`, `chargeback_reversal`,
 `opening_balance`, `partner_allocation`.
 
+**Two kinds this document previously listed were removed, deliberately.**
+
+`adjustment` is gone from the credit side and stays a `debit_kind`, which is where it is
+actually used. A positive adjustment is better recorded as `correction` when it repairs
+arithmetic, or `goodwill` when a human decided to give value — those say *why*, and
+`adjustment` does not.
+
+`provider_credit` is gone and its removal is **not** a naming variant of anything in the eight.
+It named value funded by a provider grant rather than by us, which is the funding source
+behind this entire project. Nothing produces one today, so nothing broke. But the moment we
+want provider-funded value distinguishable from a promotion in reporting or in a
+reconciliation against a provider invoice, it is a ninth kind, and naming it before rows exist
+is free. Open, and cheap to close either way.
+
 ### `measurements`
 
 One immutable observation produced by an LLM, MCP, or SBX gateway collector. It preserves what was
