@@ -27,15 +27,21 @@ import {
   materializeDaytonaPiSkillSnapshot,
   materializeLocalPiSkillSnapshot,
   PI_SKILL_SNAPSHOT_MARKER,
+  PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
   piSessionWorkspaceDir,
+  piToolSpecsFilePath,
   prepareLocalAgentDir,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
+  resolvePiToolSpecsDelivery,
   uploadDirToSandbox,
+  uploadPiToolSpecsToSandbox,
   writeOtlpAuthFile,
   writePiModelsConfigLocal,
+  writePiToolSpecsFileLocal,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
 import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
 
 const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
@@ -211,11 +217,15 @@ describe("buildPiExtensionEnv", () => {
       ],
     } as AgentRunRequest;
 
+    const relayDir = join(tempDir("agenta-pi-specs-"), "relay");
     const env = buildPiExtensionEnv(request, true, {
-      relayDir: "/tmp/relay",
+      relayDir,
       usageOutPath: "/tmp/usage.json",
       otlpAuthFilePath: "/tmp/otlp-auth",
     });
+    writePiToolSpecsFileLocal(
+      resolvePiToolSpecsDelivery(request.customTools ?? [], relayDir)!,
+    );
 
     assert.equal(env.TRACEPARENT, request.context?.propagation?.traceparent);
     assert.equal(
@@ -226,10 +236,15 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, "/tmp/otlp-auth");
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
     assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, "false");
-    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, relayDir);
     assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
 
-    const specs = JSON.parse(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ?? "[]");
+    // The specs ride a file; env carries only its path (see the E2BIG regression below).
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], `${relayDir}.tool-specs.json`);
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    const specs = JSON.parse(
+      readFileSync(env[PUBLIC_SPECS_FILE_ENV] ?? "", "utf-8"),
+    );
     assert.deepEqual(specs, [
       {
         name: "safe_tool",
@@ -270,7 +285,7 @@ describe("buildPiExtensionEnv", () => {
     );
 
     assert.equal(env.TRACEPARENT, undefined);
-    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
     assert.equal(env[PI_MODEL_PROVIDER_OVERRIDE_ENV], undefined);
   });
@@ -283,7 +298,7 @@ describe("buildPiExtensionEnv", () => {
 
     assert.equal(env.AGENTA_AGENT_BUILTIN_GATING, "1");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
-    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], undefined);
   });
 
   it("always sets the builtin activation env and never a grant list", () => {
@@ -300,25 +315,27 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("accepts snake_case tool schemas from older Python wire payloads", () => {
-    const env = buildPiExtensionEnv(
+    const customTools = [
       {
-        customTools: [
-          {
-            name: "request_connection",
-            kind: "client",
-            input_schema: {
-              type: "object",
-              required: ["integration"],
-              properties: { integration: { type: "string" } },
-            },
-          },
-        ],
-      } as unknown as AgentRunRequest,
+        name: "request_connection",
+        kind: "client",
+        input_schema: {
+          type: "object",
+          required: ["integration"],
+          properties: { integration: { type: "string" } },
+        },
+      },
+    ];
+    const env = buildPiExtensionEnv(
+      { customTools } as unknown as AgentRunRequest,
       false,
       { relayDir: "/tmp/relay" },
     );
 
-    const specs = JSON.parse(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ?? "[]");
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], "/tmp/relay.tool-specs.json");
+    const specs = JSON.parse(
+      resolvePiToolSpecsDelivery(customTools as never, "/tmp/relay")!.contents,
+    );
     assert.deepEqual(specs[0].inputSchema, {
       type: "object",
       required: ["integration"],
@@ -417,6 +434,159 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, undefined);
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
     assert.equal(JSON.stringify(env).includes("trace-token"), false);
+  });
+});
+
+/**
+ * Regression: "Agent run failed: spawn E2BIG". Every hydrated tool spec used to be packed into
+ * ONE env var, and Linux refuses `execve` when any single env string exceeds MAX_ARG_STRLEN
+ * (131,072 bytes) — a session with 44 Composio tools (~250 KB of specs) failed before the harness
+ * process existed. The specs now ride a file whose path is all env carries.
+ */
+const MAX_ARG_STRLEN = 131_072;
+
+/** 44 tools with fat JSON Schemas: the shape that reproduced the failure in production. */
+function fatToolSpecs(count = 44) {
+  return Array.from({ length: count }, (_, i) => ({
+    name: `composio_tool_${i}`,
+    description: `Tool ${i}. ${"description text ".repeat(60)}`,
+    kind: "callback" as const,
+    inputSchema: {
+      type: "object",
+      properties: Object.fromEntries(
+        Array.from({ length: 40 }, (_, f) => [
+          `field_${f}`,
+          {
+            type: "string",
+            description: `Field ${f}. ${"schema prose ".repeat(20)}`,
+          },
+        ]),
+      ),
+    },
+  }));
+}
+
+describe("Pi tool specs delivery", () => {
+  it("keeps a 300 KB tool set out of the env and round-trips it through the file", () => {
+    const relayDir = join(tempDir("agenta-pi-specs-e2big-"), "relay");
+    const customTools = fatToolSpecs();
+    const request = { customTools } as unknown as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, false, { relayDir });
+    const delivery = resolvePiToolSpecsDelivery(customTools as never, relayDir);
+    assert.ok(delivery);
+    writePiToolSpecsFileLocal(delivery);
+
+    assert.ok(
+      Buffer.byteLength(delivery.contents, "utf-8") > 300_000,
+      "the fixture must exceed the single-env-string limit several times over",
+    );
+    for (const [key, value] of Object.entries(env)) {
+      assert.ok(
+        Buffer.byteLength(value, "utf-8") < MAX_ARG_STRLEN,
+        `env ${key} is ${Buffer.byteLength(value, "utf-8")} bytes; execve would fail with E2BIG`,
+      );
+    }
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], piToolSpecsFilePath(relayDir));
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.deepEqual(
+      JSON.parse(readFileSync(env[PUBLIC_SPECS_FILE_ENV] ?? "", "utf-8")),
+      JSON.parse(delivery.contents),
+    );
+    assert.equal(JSON.parse(delivery.contents).length, 44);
+  });
+
+  it("puts the file beside the relay dir, which is cleared every turn", () => {
+    assert.equal(
+      piToolSpecsFilePath("/tmp/agenta/relay/session-1"),
+      "/tmp/agenta/relay/session-1.tool-specs.json",
+    );
+    assert.equal(
+      resolvePiToolSpecsDelivery([], "/tmp/relay"),
+      undefined,
+      "no tools, nothing to deliver",
+    );
+    assert.equal(
+      resolvePiToolSpecsDelivery([{ name: "t" }] as never, undefined),
+      undefined,
+      "no relay dir means no way to execute a tool, so none is advertised",
+    );
+  });
+
+  it("fails loud when the file cannot be written, rather than dropping the tools", () => {
+    const dir = tempDir("agenta-pi-specs-unwritable-");
+    // A FILE where the parent directory must be: mkdir fails with ENOTDIR.
+    const blocked = join(dir, "blocker");
+    writeFileSync(blocked, "not a directory", "utf-8");
+    const delivery = resolvePiToolSpecsDelivery(
+      [{ name: "t" }] as never,
+      join(blocked, "relay"),
+    );
+    assert.ok(delivery);
+
+    assert.throws(
+      () => writePiToolSpecsFileLocal(delivery),
+      (err: Error) => err.message === PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
+    );
+  });
+
+  it("uploads the same bytes to the deterministic in-sandbox path on Daytona", async () => {
+    const writes: Array<{ path: string; contents: string }> = [];
+    const madeDirs: string[] = [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => {
+        madeDirs.push(path);
+      },
+      writeFsFile: async ({ path }: { path: string }, contents: string) => {
+        writes.push({ path, contents });
+      },
+    };
+    const customTools = fatToolSpecs(2);
+    const delivery = resolvePiToolSpecsDelivery(
+      customTools as never,
+      "/home/sandbox/agenta/relay/session-1",
+    );
+    assert.ok(delivery);
+
+    await uploadPiToolSpecsToSandbox(sandbox, delivery);
+
+    assert.deepEqual(madeDirs, ["/home/sandbox/agenta/relay"]);
+    assert.deepEqual(writes, [
+      {
+        path: "/home/sandbox/agenta/relay/session-1.tool-specs.json",
+        contents: delivery.contents,
+      },
+    ]);
+    // The env the sandbox was created with names exactly this path.
+    assert.equal(
+      buildPiExtensionEnv(
+        { customTools } as unknown as AgentRunRequest,
+        false,
+        {
+          relayDir: "/home/sandbox/agenta/relay/session-1",
+        },
+      )[PUBLIC_SPECS_FILE_ENV],
+      writes[0].path,
+    );
+  });
+
+  it("fails loud when the sandbox upload fails", async () => {
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async () => {
+        throw new Error("sandbox is gone");
+      },
+    };
+    const delivery = resolvePiToolSpecsDelivery(
+      [{ name: "t" }] as never,
+      "/home/sandbox/agenta/relay/session-1",
+    );
+    assert.ok(delivery);
+
+    await assert.rejects(
+      uploadPiToolSpecsToSandbox(sandbox, delivery),
+      (err: Error) => err.message === PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
+    );
   });
 });
 
@@ -853,7 +1023,6 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     assert.equal(env.PI_CODING_AGENT_DIR, runDir);
     dirs.push(runDir as string);
   });
-
 });
 
 describe("sandbox uploads", () => {

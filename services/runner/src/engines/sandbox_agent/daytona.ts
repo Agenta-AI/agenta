@@ -2,7 +2,9 @@ import { join } from "node:path";
 
 import { createAcpFetch } from "./acp-fetch.ts";
 import {
+  resolvePiToolSpecsDelivery,
   uploadPiExtensionToSandbox,
+  uploadPiToolSpecsToSandbox,
   uploadSkillsToSandbox,
   uploadSystemPromptToSandbox,
 } from "./pi-assets.ts";
@@ -15,6 +17,7 @@ import {
 import {
   type RunPlan,
   type RunPlanPrompt,
+  type RunPlanTools,
   type RunPlanWorkspace,
 } from "./run-plan.ts";
 
@@ -194,7 +197,8 @@ export async function removePiModelsConfigFromSandbox(
 export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
   plan: Pick<RunPlan, "isPi"> & {
-    workspace: Pick<RunPlanWorkspace, "skillDirs">;
+    workspace: Pick<RunPlanWorkspace, "skillDirs" | "relayDir">;
+    tools: Pick<RunPlanTools, "toolSpecs">;
     prompt: Pick<
       RunPlanPrompt,
       "hasSystemPrompt" | "systemPrompt" | "appendSystemPrompt"
@@ -232,6 +236,17 @@ export async function prepareDaytonaPiAssets({
     DAYTONA_PI_DIR,
     log,
   );
+  // The run's tool specs. The sandbox env map was fixed at creation with the in-sandbox PATH of
+  // this file (`buildPiExtensionEnv`), so the bytes have to arrive here, before the session opens.
+  // They never rode the env itself: one env string holding every hydrated spec overflows Linux's
+  // per-string execve limit and the harness spawn dies with E2BIG (see `piToolSpecsFilePath`).
+  // A failure THROWS and is terminal in the engine's acquire try — a run whose tools silently
+  // vanished is worse than one that stops with a reason.
+  const toolSpecs = resolvePiToolSpecsDelivery(
+    plan.tools.toolSpecs,
+    plan.workspace.relayDir,
+  );
+  if (toolSpecs) await uploadPiToolSpecsToSandbox(sandbox, toolSpecs, log);
   // A models.json plan (a custom provider, or a hand-entered model merged into a built-in one):
   // upload the exact file (overwriting stale) before the session starts. No plan: remove any stale
   // file so a reused sandbox keeps no earlier configuration. Upload failure THROWS here and is

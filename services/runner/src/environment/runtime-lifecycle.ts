@@ -39,7 +39,9 @@ import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
   configurePiSkillSnapshot,
+  resolvePiToolSpecsDelivery,
   writeOtlpAuthFile,
+  writePiToolSpecsFileLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
 import { applyClaudeConnectionEnv } from "../engines/sandbox_agent/runtime-policy.ts";
 import type { AgentRunRequest } from "../protocol.ts";
@@ -207,7 +209,8 @@ export function buildRuntimeEnvironment(
   // specs, scoped env, callback endpoints, and callback auth in runner memory.
   const otlpAuthFilePath =
     p.isPi && !p.isDaytona ? `${p.workspace.relayDir}.otlp-auth` : undefined;
-  const otlpAuthorization = r.telemetry?.exporters?.otlp?.headers?.authorization;
+  const otlpAuthorization =
+    r.telemetry?.exporters?.otlp?.headers?.authorization;
   if (otlpAuthFilePath && otlpAuthorization) {
     writeOtlpAuthFile(otlpAuthFilePath, otlpAuthorization, input.log);
   }
@@ -223,6 +226,17 @@ export function buildRuntimeEnvironment(
         skills: p.workspace.skillDirs.map((skill) => skill.name),
       })
     : {};
+  // The tool specs `buildPiExtensionEnv` just pointed the extension at ride a FILE (they are far
+  // too large for an env string — see `piToolSpecsFilePath`). A local run writes it here, beside
+  // the OTLP bearer file; a Daytona run cannot, because the runner's filesystem is not the
+  // sandbox's, so `prepareDaytonaPiAssets` uploads the same bytes to the same path instead.
+  if (p.isPi && !p.isDaytona) {
+    const toolSpecs = resolvePiToolSpecsDelivery(
+      p.tools.toolSpecs,
+      p.workspace.relayDir,
+    );
+    if (toolSpecs) writePiToolSpecsFileLocal(toolSpecs, input.log);
+  }
   // Daytona builds its provider from `piExtEnv` rather than the local daemon env, so the
   // transcript location has to sit in BOTH slices or Pi and pi-acp disagree about the path.
   if (piSessionDir) piExtEnv.PI_CODING_AGENT_SESSION_DIR = piSessionDir;

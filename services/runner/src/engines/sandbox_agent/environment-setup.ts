@@ -35,6 +35,7 @@ import {
   type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
 import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import { buildRunPlan } from "./run-plan.ts";
 import { configFingerprint } from "./session-identity.ts";
 import type {
@@ -196,7 +197,7 @@ export async function prepareEnvironmentSetup(
   const strictModel = modelResolutionStrict();
   logger(
     `tools=${plan.tools.toolSpecs.length} executableTools=${plan.tools.executableToolSpecs.length} ` +
-      `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
+      `piPublicTools=${piExtEnv[PUBLIC_SPECS_FILE_ENV] ? "yes" : "no"}`,
   );
   if (!plan.isPi && plan.isDaytona) {
     const clientTools = plan.tools.toolSpecs
