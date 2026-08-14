@@ -29,7 +29,7 @@ Restricting it before they have another way simply breaks them.
 removed. Parallel bring-your-own-secrets work wants the same outcome, so ownership has to be
 agreed rather than assumed. Tracked as OR14 in `open-reviews.md`.
 
-## CU2. Remove module-level provider keys from the workflow handler
+## CU2. Remove module-level provider keys from the workflow handler — CLOSED
 
 **What.** One handler assigns provider keys to module-level attributes on the routing library
 before each call, rather than passing them per call. That is process-wide state; in a shared
@@ -41,6 +41,17 @@ connection. Dependency injection through the gateway is what removes the reason 
 **Done.** Nothing assigns to the library's module attributes. Note that the handler in question is
 reported unused and may be deleted outright, which would close this without any work. Tracked as
 OR13.
+
+**Closed, and the "unused" premise was wrong.** `llm_v0` is mounted at `/llm/v0` in
+`services/entrypoints/main.py` and registered under `agenta:builtin:llm:v0` — reachable, not dead
+code. The code-side fix already landed separately (commit `50d6a2b3ed`, "per-entry llm_v0 keys"):
+`_call_llm_with_fallback` no longer does `setattr(litellm, attr, key)` per family; it resolves
+`provider_settings` per LLM entry through `SecretsManager.get_provider_settings_from_workflow` and
+splats them into the per-call `acompletion(**kwargs)`. A repo-wide grep for
+`litellm\.\w+_key\s*=`/`setattr(litellm, ...)` turns up nothing. Added two regression tests to
+`test_llm_v0_provider_key_binding.py`: one asserting the fake litellm module gains no new
+attributes across a call, one running two concurrent calls on different connections and asserting
+neither call's key leaks into the other's kwargs.
 
 ## CU3. Route embeddings through the gateway
 

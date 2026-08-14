@@ -140,17 +140,24 @@ everything goes through the gateway, nothing needs it — and that is the moment
 Track it as the last review of the conversion, not the first. Parallel bring-your-own-secrets
 work wants the same outcome, so coordinate on who closes it.
 
-### OR13. Module-level provider keys — an outcome of the conversion
+### OR13. Module-level provider keys — CLOSED, and the handler is not unused
 
 One handler sets provider keys on module-level attributes of the routing library, which is
 process-wide state and would be a cross-tenant leak in a shared process.
 
 **Not a prerequisite either.** That pattern exists because nothing hands the handler a resolved
-connection; proper injection through the gateway is what removes it. The handler is also
-reported unused and likely to be dropped, which may close this without any work.
+connection; proper injection through the gateway is what removes it.
 
-Review at conversion time that nothing assigns to the library's module attributes, rather than
-scheduling a fix ahead of the gateway.
+**The "reported unused" premise does not hold.** `llm_v0` is registered under
+`agenta:builtin:llm:v0` and mounted at `/llm/v0` in `services/entrypoints/main.py` — a live,
+reachable managed-workflow route, not dead code.
+
+**Verified closed instead.** The module-attribute pattern is gone: `_call_llm_with_fallback`
+resolves `provider_settings` per LLM entry (through the same slug-first resolver the prompt path
+uses) and passes them as call kwargs, with no `setattr(litellm, ...)` anywhere in the tree. This
+landed in commit `50d6a2b3ed` ("per-entry llm_v0 keys"), ahead of and independent of this review.
+Two regression tests were added to `test_llm_v0_provider_key_binding.py` covering the no-module-
+attribute invariant and concurrent-call isolation across two connections.
 
 ### OR15. The audit pipeline is lossy, and compliance is not — NOT GATEWAYS SCOPE
 
