@@ -325,6 +325,11 @@ function isEffectiveSecureEndpoint(baseUrl: string | undefined): boolean {
   }
 }
 
+/** The env var a gateway credential's raw value lands in, for a harness config file (Pi
+ * `models.json`, Codex `config.toml`) to reference by `$VAR` indirection rather than writing
+ * the secret to disk — the same pattern `apiKeyEnv` already uses for provider keys. */
+export const GATEWAY_CREDENTIALS_VALUE_ENV = "AGENTA_GATEWAY_CREDENTIALS_VALUE";
+
 /** The gateway credentials as the header they belong in. The header counterpart of
  * `materializeModelEnvironment`; validated there, materialized here. */
 export function materializeGatewayHeaders(
@@ -429,6 +434,16 @@ export function materializeModelEnvironment(
       return {
         ok: false,
         error: "gateway credentials require an effective HTTPS endpoint",
+      };
+    }
+    // A gateway route carries OUR credentials in place of the provider's; a request naming
+    // both is confused about which one authenticates and is rejected rather than guessed at
+    // (specs-wp13.md Phase 1).
+    if (credentials.length > 0) {
+      return {
+        ok: false,
+        error:
+          "modelConnection cannot combine gateway credentials with provider credentials",
       };
     }
   }

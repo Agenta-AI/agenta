@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
 
@@ -40,12 +40,25 @@ class AgentRunnerConfigurationError(RuntimeError):
 
 
 class AgentRunFailed(RuntimeError):
-    """A runner-reported terminal failure with a stable machine-readable code."""
+    """A runner-reported terminal failure with a stable machine-readable code.
+
+    ``error_detail`` carries the platform's agent-actionable envelope
+    (``{code, message, retryable, next_step?, details?}``, api/AGENTS.md) when the runner
+    recovered one from a gateway data-plane refusal (`gateway-error.ts`
+    `parseGatewayErrorDetail`); absent for every other failure, unchanged from before. When
+    present, ``failure_code`` becomes ITS ``code`` (e.g. ``model_not_allowed``) instead of the
+    generic default, so a caller matching on `failure_code` gets the real cause.
+    """
 
     failure_code: str = "agent_run_failed"
 
-    def __init__(self, message: str) -> None:
+    def __init__(
+        self, message: str, error_detail: Optional[Dict[str, Any]] = None
+    ) -> None:
         self.message = message
+        self.error_detail = error_detail
+        if error_detail and isinstance(error_detail.get("code"), str):
+            self.failure_code = error_detail["code"]
         super().__init__(f"Agent run failed: {message}")
 
 

@@ -1,0 +1,13 @@
+{
+  "ok": false,
+  "error": "gateway-llm: model not allowed: gpt-5.5-experimental",
+  "errorDetail": {
+    "code": "model_not_allowed",
+    "message": "model not allowed: gpt-5.5-experimental",
+    "retryable": false,
+    "next_step": "choose a model the connection allows",
+    "details": {
+      "type": "invalid_request_error"
+    }
+  }
+}

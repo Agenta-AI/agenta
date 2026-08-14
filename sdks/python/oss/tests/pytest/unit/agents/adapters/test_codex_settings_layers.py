@@ -70,6 +70,35 @@ def test_managed_run_renders_file_free_provider_block():
         assert "sk-" not in content
 
 
+def test_gateway_route_renders_base_url_and_env_http_headers():
+    # WP13/D31: a gateway-routed managed connection carries base_url + env_http_headers, mapping
+    # OUR header name to the shared env var — never the raw value.
+    content, config = _config(
+        build_codex_settings_files(
+            {},
+            credential_mode="none",
+            gateway_base_url="https://gw.example.com/gateways/llms/standard/openai",
+            gateway_header="X-AG-Credentials",
+        )
+    )
+    provider = config["model_providers"][MANAGED_PROVIDER_ID]
+    assert (
+        provider["base_url"] == "https://gw.example.com/gateways/llms/standard/openai"
+    )
+    assert provider["env_http_headers"] == {
+        "X-AG-Credentials": "AGENTA_GATEWAY_CREDENTIALS_VALUE"
+    }
+    assert "ApiKey" not in content  # never the raw credential value
+
+
+def test_non_gateway_run_omits_base_url_and_headers():
+    # Byte-identical to before when there is nothing gateway-shaped to add.
+    content, config = _config(build_codex_settings_files({}, credential_mode="env"))
+    provider = config["model_providers"][MANAGED_PROVIDER_ID]
+    assert "base_url" not in provider
+    assert "env_http_headers" not in provider
+
+
 def test_managed_run_places_model_provider_scalar_before_the_table():
     # TOML requires top-level scalars before any table. The provider pointer and any authored scalars
     # must precede the [model_providers.*] table, or tomllib would fold them into it.

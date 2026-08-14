@@ -15,6 +15,8 @@ import {
   materializeModelEnvironment,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 import { requestSecretValues } from "../../src/redaction.ts";
+import { applyClaudeConnectionEnv } from "../../src/engines/sandbox_agent/runtime-policy.ts";
+import { buildPiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
 
 const GOLDEN = loadGolden("model_connection.gateway.json") as ModelConnection;
 
@@ -79,5 +81,63 @@ describe("gateway credentials on the wire", () => {
       request({ ...GOLDEN, endpoint: { baseUrl: "http://localhost:8000" } }),
     );
     assert.equal(loopback.ok, true);
+  });
+
+  it("refuses provider credentials riding alongside a gateway credential", () => {
+    const both = materializeModelEnvironment(
+      request({
+        ...GOLDEN,
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "OPENAI_API_KEY" },
+            value: "sk-should-not-be-here",
+            usage: "opaque_http",
+          },
+        ],
+      }),
+    );
+    assert.equal(both.ok, false);
+  });
+});
+
+describe("gateway credentials, per harness (WP13 Phase 2)", () => {
+  const goldenRequest = request(GOLDEN);
+
+  it("claude: carries the header in ANTHROPIC_CUSTOM_HEADERS, and no provider secret", () => {
+    const env: Record<string, string> = {};
+    applyClaudeConnectionEnv(env, goldenRequest, "claude", () => {});
+    assert.equal(
+      env.ANTHROPIC_CUSTOM_HEADERS,
+      "X-AG-Credentials: ApiKey mock-gateway-credentials",
+    );
+    assert.equal(env.ANTHROPIC_API_KEY, undefined);
+    assert.equal(env.ANTHROPIC_AUTH_TOKEN, undefined);
+  });
+
+  it("pi: carries the header in models.json via $ENV indirection, and no raw value on disk", () => {
+    const piRequest: AgentRunRequest = {
+      ...goldenRequest,
+      harness: "pi_core",
+      connection: { mode: "agenta", slug: "gateway-conn" },
+      model: "gpt-5.5",
+    };
+    const plan = buildPiModelConfigPlan(piRequest, {});
+    assert.ok(plan);
+    assert.deepEqual(plan.headers, {
+      "X-AG-Credentials": "$AGENTA_GATEWAY_CREDENTIALS_VALUE",
+    });
+    assert.equal(
+      JSON.stringify(plan).includes("ApiKey mock-gateway-credentials"),
+      false,
+    );
+  });
+
+  it("claude never sees a provider API key on a gateway connection", () => {
+    const env: Record<string, string> = {};
+    applyClaudeConnectionEnv(env, goldenRequest, "claude", () => {});
+    assert.equal(env.ANTHROPIC_API_KEY, undefined);
+    assert.equal(env.ANTHROPIC_AUTH_TOKEN, undefined);
+    assert.ok(env.ANTHROPIC_CUSTOM_HEADERS);
   });
 });

@@ -71,6 +71,13 @@ MANAGED_PROVIDER_NAME = "Agenta OpenAI"
 # absent on subscription runs.
 MANAGED_PROVIDER_ENV_KEY = "OPENAI_API_KEY"
 
+# OUR gateway credential (D31/W1), not a provider secret: codex's `env_http_headers` maps a header
+# NAME to an env var name and reads the value from its process environment at request time (the
+# same indirection `env_key` already uses for the bearer token), so this file never carries the raw
+# value. Must match the runner's `GATEWAY_CREDENTIALS_VALUE_ENV` (services/runner/src/engines/
+# sandbox_agent/run-plan.ts) — both sides read/write the same env var name.
+GATEWAY_CREDENTIALS_VALUE_ENV = "AGENTA_GATEWAY_CREDENTIALS_VALUE"
+
 
 def _toml_escape(value: str) -> str:
     """Escape backslashes and double quotes for a TOML basic string."""
@@ -91,17 +98,33 @@ def _render_config_toml(scalars: Dict[str, str]) -> str:
     )
 
 
-def _render_managed_provider_table() -> str:
+def _render_managed_provider_table(
+    base_url: Optional[str] = None, gateway_header: Optional[str] = None
+) -> str:
     """Render the file-free managed auth provider table (see the ``MANAGED_PROVIDER_*`` docstring).
 
     A TOML table must follow every top-level scalar, so this is appended AFTER the scalars (which
     include the ``model_provider`` pointer). The secret never appears here; only the env var name.
+
+    ``base_url`` and ``gateway_header`` carry a gateway route (D31/W1): ``base_url`` points codex
+    at the gateway instead of OpenAI's default endpoint, and ``env_http_headers`` (a codex 0.145+
+    field, verified OD14) maps the header NAME to ``GATEWAY_CREDENTIALS_VALUE_ENV`` so codex reads
+    the credential from its process env at request time, exactly like ``env_key`` above. Both
+    absent on a non-gateway connection (byte-identical to before).
     """
-    return (
-        f"\n[model_providers.{MANAGED_PROVIDER_ID}]\n"
-        f'name = "{_toml_escape(MANAGED_PROVIDER_NAME)}"\n'
-        f'env_key = "{_toml_escape(MANAGED_PROVIDER_ENV_KEY)}"\n'
-    )
+    lines = [
+        f"\n[model_providers.{MANAGED_PROVIDER_ID}]\n",
+        f'name = "{_toml_escape(MANAGED_PROVIDER_NAME)}"\n',
+        f'env_key = "{_toml_escape(MANAGED_PROVIDER_ENV_KEY)}"\n',
+    ]
+    if base_url:
+        lines.append(f'base_url = "{_toml_escape(base_url)}"\n')
+    if gateway_header:
+        lines.append(
+            f'env_http_headers = {{ "{_toml_escape(gateway_header)}" = '
+            f'"{_toml_escape(GATEWAY_CREDENTIALS_VALUE_ENV)}" }}\n'
+        )
+    return "".join(lines)
 
 
 def _get(source: Any, key: str) -> Any:
@@ -140,6 +163,8 @@ def build_codex_settings_files(
     tool_specs: Any = None,
     permission_default: PermissionMode = "allow_reads",
     credential_mode: Optional[str] = None,
+    gateway_base_url: Optional[str] = None,
+    gateway_header: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     """Build the Codex ``config.toml`` as one generic ``harnessFiles`` entry, or ``[]`` if none.
 
@@ -160,6 +185,10 @@ def build_codex_settings_files(
 
     When a subscription run has nothing authored or derived either, returns ``[]`` so the runner
     writes no file and that run stays byte-identical to a fileless run.
+
+    ``gateway_base_url``/``gateway_header`` (D31/W1) carry a gateway route onto the managed
+    provider table (see ``_render_managed_provider_table``); both are ignored on a subscription
+    run, which never renders the table at all.
 
     Returns ``[{"path": ".codex/config.toml", "content": <toml str>}]`` or ``[]``.
     """
@@ -193,5 +222,5 @@ def build_codex_settings_files(
 
     content = _render_config_toml(scalars)
     if managed:
-        content += _render_managed_provider_table()
+        content += _render_managed_provider_table(gateway_base_url, gateway_header)
     return [{"path": SETTINGS_PATH, "content": content}]

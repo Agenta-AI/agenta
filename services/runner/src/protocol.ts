@@ -734,6 +734,22 @@ export interface AgentRunRequest {
   streamId?: string;
 }
 
+/**
+ * The platform's agent-actionable error envelope (api/AGENTS.md "Domain-level exceptions"),
+ * carried onto the wire when a run's failure IS one — today, a gateway data-plane refusal
+ * (`model_not_allowed` / `endpoint_inactive` / `ceiling_exceeded` and siblings) relayed back
+ * through a harness's own error text. `code` is the stable lower-snake-case cause; `retryable`
+ * is about replaying the SAME request, never true for a policy/config refusal; `details` carries
+ * every error-specific field (never new top-level fields, matching the platform convention).
+ */
+export interface AgentErrorDetail {
+  code: string;
+  message: string;
+  retryable: boolean;
+  next_step?: string;
+  details?: Record<string, unknown>;
+}
+
 export interface AgentRunResult {
   ok: boolean;
   /** Final assistant text (what the playground renders). */
@@ -752,7 +768,15 @@ export interface AgentRunResult {
   model?: string;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
   traceId?: string;
+  /** Human-facing summary; unchanged shape. Every failure keeps this even when `errorDetail` is
+   * also present, so a caller reading only this field never regresses. */
   error?: string;
+  /**
+   * The same failure, structured, when the runner could recover a gateway refusal's cause from
+   * the harness's own error text (best-effort: absent when it could not — see
+   * `parseGatewayErrorDetail` in `gateway-error.ts`). Never present without `error`.
+   */
+  errorDetail?: AgentErrorDetail;
 }
 
 /**

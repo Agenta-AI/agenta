@@ -127,6 +127,57 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(JSON.stringify(env).includes("PUBLIC_HINT"), false);
   });
 
+  it("a direct-deployment gateway connection carries the base URL and X-AG-Credentials (WP13 reopen)", () => {
+    // The majority case (a plain provider_key vault connection, deployment "direct") is NOT a
+    // named custom-agenta connection, so isPiModelConfigApplicable is false and this extension
+    // override is the only place the gateway route can reach Pi. Before this fix the override
+    // carried baseUrl alone -- no header, so the gateway would refuse the call for missing
+    // credentials with nothing telling the caller why.
+    const request = {
+      harness: "pi_core",
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic" },
+        credentialMode: "none",
+        credentials: [],
+        gatewayCredentials: {
+          header: "X-AG-Credentials",
+          value: "ApiKey mock-gateway-credentials",
+        },
+      },
+    } as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, false);
+
+    assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
+      provider: "anthropic",
+      baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+      headers: { "X-AG-Credentials": "ApiKey mock-gateway-credentials" },
+      apiKey: "agenta-gateway",
+    });
+  });
+
+  it("a non-gateway direct-deployment connection carries no headers or placeholder key (unchanged)", () => {
+    const request = {
+      harness: "pi_core",
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "claude-sonnet-4-5",
+        endpoint: { baseUrl: "https://proxy.example.test/anthropic" },
+        credentialMode: "env",
+        credentials: [],
+      },
+    } as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, false);
+
+    assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
+      provider: "anthropic",
+      baseUrl: "https://proxy.example.test/anthropic",
+    });
+  });
+
   it("rejects malformed provider endpoint overrides", () => {
     const request = (provider: string, baseUrl: string) =>
       ({
