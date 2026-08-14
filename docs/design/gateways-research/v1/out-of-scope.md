@@ -78,3 +78,22 @@ change. No change to either endpoint table.
 across a workspace, or a server whose tokens carry per-user identity the tools actually
 read — a "who am I" call answering differently per member. Neither is worth building for in
 advance; both are unmistakable the moment they arrive.
+
+## Upstreams a relay-only gateway cannot reach
+
+Three exclusions from WP24's per-provider verification (OD16). Each is unreachable for a stated
+reason rather than merely unbuilt, and each is recorded here so it is not rediscovered as a bug.
+
+**SageMaker.** Its invoke API has no platform-level request schema: AWS forwards opaque bytes to
+whatever container the customer deployed. There is no "SageMaker wire" to check a front door
+against, so the answer is per-deployment rather than a fact this design can pin. `select_upstream`
+raises, naming that it has no fixed protocol rather than naming one it needs.
+
+**Bedrock's legacy `InvokeModel` path and Vertex's Claude `rawPredict` path.** Both require an
+`anthropic_version` field inside the request body, which the plain Anthropic Messages API does not
+use. D34 forbids the gateway touching a body, so the gateway cannot add it. Both remain reachable
+by a caller that builds that body itself.
+
+**Both have wired alternatives**, which is why the exclusion costs nothing today: Bedrock through
+its newer `bedrock-mantle` endpoint with a plain bearer key, and Vertex through its
+OpenAI-compatible layer. Neither vendor is unreachable; one path per vendor is.

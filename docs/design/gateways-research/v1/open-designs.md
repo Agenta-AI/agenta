@@ -165,7 +165,19 @@ rather than a gap.
 
 **Blocks the work-package list**, which cannot be sequenced without it.
 
-### OD13. Does a set of direct built-in MCP servers exist from the start
+### OD13. Does a set of direct built-in MCP servers exist from the start — CLOSED
+
+**Yes, and through Composio rather than a curated direct set**, for as long as Composio's own
+terms permit including its servers under `builtin`. That answers the shipping question without
+taking on the per-server catalogue this design was weighing, so the maintenance argument against
+it does not apply.
+
+**One consequence to carry forward rather than forget.** With `builtin` Composio-backed, our own
+OAuth client is still exercised only by a server a user pastes in by hand. That was this design's
+argument for a direct set, and closing it this way does not answer it — it defers it to whatever
+first drives real traffic through the custom path.
+
+The original question, for the record:
 
 `builtin` means Composio-backed (D27), so a user clicks an icon and never types a URL, and nothing
 new is curated. The open part is whether a **small set of servers we reach directly** ships
@@ -238,7 +250,10 @@ between harness and gateway that holds the gateway identity and leaves the harne
 login untouched. Not needed for wave 2 — no harness failed the matrix for wave 2's actual
 requirement (header + override, no subscription combination attempted).
 
-### OD15. Pass-through is not a mode at all — it is the default when nothing overwrites
+### OD15. Pass-through is not a mode at all — it is the default when nothing overwrites — CLOSED
+
+Settled as written below: there is no mode to store, because pass-through is what already happens
+when the gateway has no secret to inject.
 
 The question was where a pass-through target keeps its mode, given that pass-through's
 natural targets are `standard` endpoints, which are generated and have no row (D20). It
@@ -280,7 +295,7 @@ pass-through on a target, so a project cannot quietly split its spend across per
 subscriptions. That is a policy flag rather than a mode, it belongs with the other
 governance flags, and nobody has asked for it.
 
-### OD16. Which upstreams a relay-only gateway actually reaches
+### OD16. Which upstreams a relay-only gateway actually reaches — CLOSED by WP24
 
 D34 forbids body conversion outright and keeps routing and authentication, which settles the
 principle. What is open is the consequence: **which upstreams remain reachable, through
@@ -416,7 +431,14 @@ later, it fails cleanly today (`GET`/`DELETE` refused, `POST` alone is not enoug
 complete a handshake) rather than half-working — the confusing case OD17 flagged did not
 materialize in this set, so re-deciding D8 stays out of scope here as the spec required.
 
-### OD2. Is a user's own secret the norm or the exception — parked
+### OD2. Is a user's own secret the norm or the exception — CLOSED
+
+**Project-level secrets are the model.** User-level secrets are out of scope and recorded as such
+in [`out-of-scope.md`](out-of-scope.md). Whether a user puts their own personal credential into a
+project-level secret rather than an account one is their choice, not a distinction the platform
+draws.
+
+The original framing, for the record:
 
 User-owned secrets are not implemented, so this waits until they are. The mechanism is designed
 in `secrets.md` and the lookup already takes an owner (D10), so nothing is foreclosed.

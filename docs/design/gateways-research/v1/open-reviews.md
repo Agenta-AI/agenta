@@ -152,7 +152,13 @@ reported unused and likely to be dropped, which may close this without any work.
 Review at conversion time that nothing assigns to the library's module attributes, rather than
 scheduling a fix ahead of the gateway.
 
-### OR15. The audit pipeline is lossy, and compliance is not
+### OR15. The audit pipeline is lossy, and compliance is not — NOT GATEWAYS SCOPE
+
+**Ruled out of this workstream.** The drop behaviour is the events domain's existing posture and
+predates the gateways; WP4 emits onto it rather than changing it. If a compliance-grade class of
+event is wanted, that is a change the events domain owns, raised there and not here.
+
+The original finding, for the record:
 
 Found while writing `entities.md`. The events stream the audit record rides (D22) **drops writes**
 under a Redis outage and under its own first-layer quota, and its publish helper swallows
