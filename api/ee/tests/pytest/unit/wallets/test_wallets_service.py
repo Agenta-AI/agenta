@@ -34,96 +34,85 @@ def test_wallets_service_implements_both_ports():
     assert isinstance(service, WalletSettlementPort)
 
 
-def test_check_signature_stays_synchronous():
-    # The seed port contract declares `check` as a plain (non-async) method; the concrete
-    # adapter must honor that signature exactly.
-    assert not inspect.iscoroutinefunction(WalletsService.check)
+def test_check_signature_is_async():
+    # The seed port contract declared `check` as a plain (non-async) method; the concrete
+    # adapter now honors an async contract end to end, matching every other streams:
+    # worker/service in the repo. No thread pool bridges this — see
+    # test_check_never_spawns_a_thread_pool below.
+    assert inspect.iscoroutinefunction(WalletsService.check)
 
 
-def test_check_is_write_free():
+def test_check_never_spawns_a_thread_pool():
+    """Regression: `_run_blocking` (a fresh ThreadPoolExecutor + event loop per call) is
+    gone entirely — `check` is a plain coroutine awaiting the DAO directly."""
+    import ee.src.core.wallets.service as wallets_service_module
+
+    assert not hasattr(wallets_service_module, "_run_blocking")
+    source = inspect.getsource(wallets_service_module)
+    assert "ThreadPoolExecutor" not in source
+    assert "asyncio" not in source
+
+
+@pytest.mark.asyncio
+async def test_check_is_write_free():
     dao = FakeWalletsDAO(
         general_balance=build_general_wallet_balance(balance_musd=1000, floor_musd=0)
     )
     service = WalletsService(wallets_dao=dao)
 
-    allowed = service.check(
-        organization_id=dao.general_balance.organization_id, amount_musd=999_999
-    )
+    allowed = await service.check(organization_id=dao.general_balance.organization_id)
 
     assert allowed is True
     assert dao.settle_calls == 0
     assert dao.debits == []
 
 
-def test_check_allows_when_balance_above_floor():
+@pytest.mark.asyncio
+async def test_check_allows_when_balance_above_floor():
     dao = FakeWalletsDAO(
         general_balance=build_general_wallet_balance(balance_musd=1, floor_musd=0)
     )
     service = WalletsService(wallets_dao=dao)
 
     assert (
-        service.check(
-            organization_id=dao.general_balance.organization_id, amount_musd=100
-        )
-        is True
+        await service.check(organization_id=dao.general_balance.organization_id) is True
     )
 
 
-def test_check_rejects_when_balance_at_floor():
+@pytest.mark.asyncio
+async def test_check_rejects_when_balance_at_floor():
     dao = FakeWalletsDAO(
         general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
     )
     service = WalletsService(wallets_dao=dao)
 
     assert (
-        service.check(
-            organization_id=dao.general_balance.organization_id, amount_musd=1
-        )
+        await service.check(organization_id=dao.general_balance.organization_id)
         is False
     )
 
 
-def test_check_rejects_when_balance_below_floor():
+@pytest.mark.asyncio
+async def test_check_rejects_when_balance_below_floor():
     dao = FakeWalletsDAO(
         general_balance=build_general_wallet_balance(balance_musd=-500, floor_musd=0)
     )
     service = WalletsService(wallets_dao=dao)
 
     assert (
-        service.check(
-            organization_id=dao.general_balance.organization_id, amount_musd=1
-        )
+        await service.check(organization_id=dao.general_balance.organization_id)
         is False
     )
 
 
-def test_check_ignores_requested_amount_in_its_decision():
-    """Non-strict by design: the accept/reject decision depends only on the already-
-    committed balance vs floor, never on the amount_musd of the request being checked."""
-    dao = FakeWalletsDAO(
-        general_balance=build_general_wallet_balance(balance_musd=1, floor_musd=0)
-    )
-    service = WalletsService(wallets_dao=dao)
-
-    small = service.check(
-        organization_id=dao.general_balance.organization_id, amount_musd=1
-    )
-    huge = service.check(
-        organization_id=dao.general_balance.organization_id, amount_musd=10_000_000
-    )
-
-    assert small is True
-    assert huge is True
-
-
-def test_check_allows_when_organization_has_no_wallet_provisioned():
+@pytest.mark.asyncio
+async def test_check_allows_when_organization_has_no_wallet_provisioned():
     dao = FakeWalletsDAO(general_balance=None)
     service = WalletsService(wallets_dao=dao)
 
     assert (
-        service.check(
+        await service.check(
             organization_id=build_general_wallet_balance().organization_id,
-            amount_musd=1,
         )
         is True
     )

@@ -8,10 +8,11 @@ from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 from ee.tests.pytest.utils.wallets.builders import build_debit_command
 
 
-def test_wallet_check_port_body_raises_not_implemented():
+@pytest.mark.asyncio
+async def test_wallet_check_port_body_raises_not_implemented():
     port = WalletCheckPort()
     with pytest.raises(NotImplementedError):
-        port.check(organization_id=None, amount_musd=100)
+        await port.check(organization_id=None)
 
 
 @pytest.mark.asyncio

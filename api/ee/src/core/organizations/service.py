@@ -921,11 +921,40 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
     scope_from,
     Gauge,
 )
+from ee.src.core.wallets.runtime import get_wallets_service  # noqa: E402
 
 
 _subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
 )
+
+
+async def _provision_wallet_general_balance(
+    *,
+    organization_id: UUID,
+    plan: str,
+) -> None:
+    """Idempotent — the partial unique index `uq_wallet_balances_org_general` is the
+    actual guard against a duplicate row, so calling this twice (retry, concurrent
+    creation) is safe. Runs AFTER the organization-creation transaction (and the
+    subscription-provisioning call above it) have already committed, in its own
+    transaction — matching how subscription provisioning itself already runs post-hoc
+    rather than inside `create_organization`'s transaction. A wallet-provisioning failure
+    must not roll back an organization/subscription that already exist; it is safe to
+    retry alone later precisely because it is idempotent.
+    """
+    try:
+        await get_wallets_service().provision_general_balance(
+            organization_id=organization_id,
+            plan=plan,
+        )
+    except Exception as exc:
+        log.error(
+            "[wallets] Failed to provision general balance for organization [%s]: %s",
+            organization_id,
+            exc,
+        )
+        raise
 
 
 async def provision_signup_subscription(
@@ -940,7 +969,7 @@ async def provision_signup_subscription(
     """
 
     try:
-        await _subscription_service.provision_subscription(
+        subscription = await _subscription_service.provision_subscription(
             organization_id=str(organization.id),
             organization_name=organization.name,
             organization_email=organization_email,
@@ -959,6 +988,9 @@ async def provision_signup_subscription(
         scope=scope_from(organization_id=organization.id),
     )
 
+    plan = subscription.plan if subscription is not None else get_default_plan()
+    await _provision_wallet_general_balance(organization_id=organization.id, plan=plan)
+
 
 async def provision_user_subscription(organization: OrganizationDB) -> None:
     """Start the default plan + seed the user gauge for an explicitly-created org.
@@ -966,10 +998,12 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
     Entry point for `POST /organizations/`. Called from OSS via the `is_ee()` seam.
     """
 
+    plan = get_default_plan()
+
     try:
         await _subscription_service.start_plan(
             organization_id=str(organization.id),
-            plan=get_default_plan(),
+            plan=plan,
         )
     except Exception as exc:
         log.error(
@@ -984,3 +1018,5 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
         delta=1,
         scope=scope_from(organization_id=organization.id),
     )
+
+    await _provision_wallet_general_balance(organization_id=organization.id, plan=plan)
