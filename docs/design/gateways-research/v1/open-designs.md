@@ -172,10 +172,10 @@ terms permit including its servers under `builtin`. That answers the shipping qu
 taking on the per-server catalogue this design was weighing, so the maintenance argument against
 it does not apply.
 
-**One consequence to carry forward rather than forget.** With `builtin` Composio-backed, our own
-OAuth client is still exercised only by a server a user pastes in by hand. That was this design's
-argument for a direct set, and closing it this way does not answer it — it defers it to whatever
-first drives real traffic through the custom path.
+**This is the namespace split working, not a gap in it.** Composio brokers the authorization for
+`builtin`; our own OAuth client is what authorizes a `custom` server — one a user brings by URL.
+The two are different suppliers for different namespaces, so "our client is only reached through
+`custom`" is its purpose rather than a shortfall in coverage.
 
 The original question, for the record:
 

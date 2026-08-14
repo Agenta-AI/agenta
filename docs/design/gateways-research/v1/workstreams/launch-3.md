@@ -20,8 +20,9 @@ Read these before planning a package. All four are new since `plan.md`'s wave-3 
   only place a secret can live once a sandbox cannot hold one. Wave 3 exists largely to make that
   registration reachable for OAuth-protected targets.
 - **`builtin` is Composio-backed on the MCP plane (OD13, closed).** No curated direct-server set
-  ships. The consequence to keep in view: our own OAuth client is exercised only by a server a
-  user pastes in by hand, so WP17's code has no high-traffic path proving it.
+  ships. This sets WP17's scope: Composio brokers the authorization for `builtin`, so **our own
+  OAuth client is for `custom` endpoints** — the servers a user brings by URL. Two suppliers, two
+  namespaces, and the client is not a fallback for the Composio path.
 - **The relay never converts a body (D34), and the providers that clears are known (OD16,
   closed).** Anthropic, Gemini, Cohere, DeepInfra, Perplexity, MiniMax, Azure, Bedrock and Vertex
   all clear. SageMaker and two legacy per-vendor paths are recorded in `out-of-scope.md`.
@@ -49,7 +50,8 @@ arms, validator branches (D14). Coordinate with the parallel work adding kinds t
 
 **WP17 — OAuth client.** The official SDK's client provider, with a storage adapter over the
 secrets service rather than its own store, and connect callbacks pointed at the dashboard rather
-than a local browser.
+than a local browser. **Its target is the `custom` namespace** — a server the user brought by URL.
+`builtin` is Composio-brokered and does not pass through this client.
 *Depends on:* WP16. *Blocks:* WP18, WP19, WP20.
 
 **WP18 — Consent flow.** Connecting an OAuth server from the dashboard, with scope selection.
