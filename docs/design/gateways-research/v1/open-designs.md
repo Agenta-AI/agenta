@@ -436,6 +436,67 @@ later, it fails cleanly today (`GET`/`DELETE` refused, `POST` alone is not enoug
 complete a handshake) rather than half-working — the confusing case OD17 flagged did not
 materialize in this set, so re-deciding D8 stays out of scope here as the spec required.
 
+### OD18. Does a harness's SDK preserve the gateway's refusal body in its error text — CLOSED by WP25
+
+OD14 verified that each harness sends OUR credentials header outbound. It said nothing about
+the return trip: whether the JSON body the gateway attaches to a pre-dial refusal
+(`{"error":{"message","type","code",...}}`, `apis/fastapi/gateways/llms/proxy.py`
+`_map_domain_exception`) survives into the text the harness reports, which is the only signal
+`gateway-error.ts`'s `parseGatewayErrorDetail` has to recover the cause from. Verified against
+the same pinned releases OD14 used (`services/runner/package.json`), by reading each harness's
+own error-formatting source rather than by a live call.
+
+1. **Pi (`@earendil-works/pi-ai@0.80.6`, pinned via `pi-coding-agent@0.80.6`). Preserves it.**
+   Two independent paths, both confirmed from source:
+   - The OpenAI-shaped API clients (`api/openai-completions.js`, `api/openai-responses.js`)
+     route every provider error through a shared `normalizeProviderError`/`formatProviderError`
+     pair (`utils/error-body.js`), written explicitly for "endpoints behind a proxy / gateway"
+     (the file's own header comment) — it reads the SDK's parsed body field and
+     `JSON.stringify`s it into the message whenever the SDK's own message does not already
+     carry it.
+   - The Anthropic-shaped client (`api/anthropic-messages.js`) uses `@anthropic-ai/sdk@0.111.0`
+     directly, whose `APIError.makeMessage` (`core/error.js`) falls back to
+     `JSON.stringify(errorResponse)` whenever the parsed body has no top-level `message` key —
+     true for our gateway's `{"error":{...}}` shape, which nests `message` one level down. The
+     full body reaches `error.message` verbatim.
+
+2. **Claude Code (`@agentclientprotocol/claude-agent-acp@0.58.1`, CLI driven by
+   `@anthropic-ai/claude-agent-sdk@0.3.205`). Not independently verifiable from source, and
+   recorded as such rather than assumed.** The ACP bridge itself does not reformat: on a failed
+   turn it forwards the CLI's own `result` string unmodified into `RequestError.internalError`
+   (`dist/acp-agent.js`, the `subtype: "success"` / `is_error` branch). What that string
+   contains is decided inside the Claude Code CLI binary, which `@anthropic-ai/claude-agent-sdk`
+   downloads and runs as a compiled, closed-source executable (`extractFromBunfs.js`) — there is
+   no bundled source to read, matching the limit OD14 hit on the same package for the
+   subscription-login question. Since the CLI is Anthropic's own client against Anthropic's own
+   Messages API, it is a reasonable inference that it shares `@anthropic-ai/sdk`'s
+   body-in-message convention verified above for Pi — but that is an inference, not a reading,
+   and is recorded as unverified per this package's own rule (a harness is a fact, not an
+   assumption). `tests/unit/gateway-error-harness-formats.test.ts` covers the format Pi and the
+   Anthropic SDK are confirmed to produce, exercised as a stand-in for Claude Code's most likely
+   shape, and is flagged in-file as unconfirmed for Claude Code specifically.
+
+3. **Codex (`@openai/codex@0.145.0`, ACP bridge `@agentclientprotocol/codex-acp@1.1.7`). Does
+   NOT preserve it — confirmed, not inferred.** `codex-rs`'s HTTP error path
+   (`codex-rs/protocol/src/error.rs`, `UnexpectedResponseError::extract_error_message`, read at
+   tag `rust-v0.145.0`, matching the pinned npm version) actively parses the response body as
+   JSON and keeps only `error.message`, discarding `code`, `type`, and every other field before
+   formatting `"unexpected status {status}: {message}"`. The ACP bridge forwards that already-
+   stripped string as-is (`dist/index.js`, `createErrorEvent`, `params.error.message`). No brace
+   survives for `parseGatewayErrorDetail`'s scan to find, so `code`/`next_step`/`details` are
+   unrecoverable for this harness by construction, not by a parsing gap. This is the "cannot
+   preserve it" case the wave asked to be recorded rather than silently degraded to: Codex still
+   gets `error` (the plain string, unchanged, and it does contain the human-readable message),
+   it just never gets `errorDetail`.
+
+**Consequence for the runner.** No code changes to `gateway-error.ts`'s parser — it was already
+correct for the bodies that do survive, and there is nothing to parse for the one that does not.
+`tests/unit/gateway-error-harness-formats.test.ts` pins all three findings as tests: two that
+recover a full `AgentErrorDetail` from the Pi/Anthropic-SDK shape, and one that asserts Codex's
+stripped shape yields `undefined` (with a comment pointing here), so a future edit that changes
+either SDK's formatting — or that quietly starts assuming Codex works — fails a test instead of
+degrading silently.
+
 ### OD2. Is a user's own secret the norm or the exception — CLOSED
 
 **Project-level secrets are the model.** User-level secrets are out of scope and recorded as such
