@@ -16,7 +16,7 @@ import {useAtomValue} from "jotai"
 
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 
-import {agentConfigSummary} from "./agentConfigSummary"
+import {agentConfigSummary, formatAdvancedSummary} from "./agentConfigSummary"
 import {agentLatestRevisionAtomFamily} from "./state"
 
 const INSTRUCTIONS_FILE = "AGENTS.md"
@@ -61,12 +61,7 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
     const open = () => goToPlayground(undefined, {appId})
 
     const model = [summary.model, summary.harness].filter(Boolean).join(" · ")
-    const advanced = [
-        summary.sandbox && `Sandbox: ${summary.sandbox.toLowerCase()}`,
-        summary.permissions && `Permissions: ${summary.permissions.toLowerCase()}`,
-    ]
-        .filter(Boolean)
-        .join(" · ")
+    const advanced = formatAdvancedSummary(summary)
 
     // Same order and icons as the playground's config sections, so this reads as a view of that
     // panel rather than a second account of the same settings.
@@ -113,7 +108,7 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
             key: "advanced",
             icon: <SlidersHorizontalIcon size={16} />,
             title: "Advanced",
-            ...stated(advanced || "Defaults"),
+            ...stated(advanced),
         },
     ]
 

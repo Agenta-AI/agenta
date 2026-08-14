@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {agentConfigSummary, prettifyKind} from "./agentConfigSummary"
+import {agentConfigSummary, formatAdvancedSummary, prettifyKind} from "./agentConfigSummary"
 
 // The shape below is a real stored revision's `parameters`, trimmed.
 const parameters = {
@@ -70,5 +70,12 @@ describe("agentConfigSummary", () => {
         expect(prettifyKind("claude_code")).toBe("Claude code")
         expect(prettifyKind("some-future-kind")).toBe("Some future kind")
         expect(prettifyKind(null)).toBeNull()
+    })
+
+    it("keeps the Advanced row summary compact without dropping its values", () => {
+        expect(formatAdvancedSummary({sandbox: "Local", permissions: "Allow reads"})).toBe(
+            "Local sandbox · Allow reads",
+        )
+        expect(formatAdvancedSummary({sandbox: null, permissions: null})).toBe("Defaults")
     })
 })

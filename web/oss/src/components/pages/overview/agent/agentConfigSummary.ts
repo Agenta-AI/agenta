@@ -23,6 +23,16 @@ export interface AgentConfigSummary {
     permissions: string | null
 }
 
+export function formatAdvancedSummary(
+    summary: Pick<AgentConfigSummary, "sandbox" | "permissions">,
+): string {
+    return (
+        [summary.sandbox && `${summary.sandbox} sandbox`, summary.permissions]
+            .filter(Boolean)
+            .join(" · ") || "Defaults"
+    )
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
