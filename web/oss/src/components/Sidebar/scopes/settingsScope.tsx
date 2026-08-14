@@ -7,6 +7,7 @@ import {
     Key,
     Lightning,
     Link,
+    Plugs,
     Receipt,
     ShieldCheck,
     SlidersHorizontal,
@@ -62,6 +63,8 @@ const getSettingsSidebarIcon = (key: SettingsTabKey) => {
             return <Lightning size={14} />
         case "webhooks":
             return <Link size={14} />
+        case "mcpEndpoints":
+            return <Plugs size={14} />
         case "workspace":
             return <UsersThree size={14} />
         case "organizationGeneral":
