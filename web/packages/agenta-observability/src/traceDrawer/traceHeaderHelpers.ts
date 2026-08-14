@@ -1,30 +1,52 @@
-export const getTraceIdFromNode = (node: any): string | null => {
-    if (!node) return null
+interface TraceIdCarrier {
+    trace_id?: string
+    span_id?: string
+    start_time?: string | number
+    startTime?: string | number
+    timestamp?: string | number
+    created_at?: string | number
+    createdAt?: string | number
+    invocationIds?: {trace_id?: string; span_id?: string}
+    node?: {
+        trace_id?: string
+        span_id?: string
+        start_time?: string | number
+        timestamp?: string | number
+        created_at?: string | number
+    }
+    root?: {id?: string}
+}
+
+export const getTraceIdFromNode = (node: unknown): string | null => {
+    if (!node || typeof node !== "object") return null
+    const carrier = node as TraceIdCarrier
     return (
-        node.trace_id ||
-        node.invocationIds?.trace_id ||
-        node.node?.trace_id ||
-        node.root?.id ||
+        carrier.trace_id ||
+        carrier.invocationIds?.trace_id ||
+        carrier.node?.trace_id ||
+        carrier.root?.id ||
         null
     )
 }
 
-export const getSpanIdFromNode = (node: any): string | null => {
-    if (!node) return null
-    return node.span_id || node.invocationIds?.span_id || node.node?.span_id || null
+export const getSpanIdFromNode = (node: unknown): string | null => {
+    if (!node || typeof node !== "object") return null
+    const carrier = node as TraceIdCarrier
+    return carrier.span_id || carrier.invocationIds?.span_id || carrier.node?.span_id || null
 }
 
-export const getNodeTimestamp = (node: any): string | number | null => {
-    if (!node) return null
+export const getNodeTimestamp = (node: unknown): string | number | null => {
+    if (!node || typeof node !== "object") return null
+    const carrier = node as TraceIdCarrier
     return (
-        node.start_time ||
-        node.startTime ||
-        node.timestamp ||
-        node.created_at ||
-        node.createdAt ||
-        node.node?.start_time ||
-        node.node?.timestamp ||
-        node.node?.created_at ||
+        carrier.start_time ||
+        carrier.startTime ||
+        carrier.timestamp ||
+        carrier.created_at ||
+        carrier.createdAt ||
+        carrier.node?.start_time ||
+        carrier.node?.timestamp ||
+        carrier.node?.created_at ||
         null
     )
 }

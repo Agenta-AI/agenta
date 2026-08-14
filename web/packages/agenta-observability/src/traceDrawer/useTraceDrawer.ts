@@ -8,7 +8,7 @@ import {
     traceDrawerQueryAtom,
     traceDrawerResolvedActiveSpanIdAtom,
     traceDrawerTraceIdAtom,
-} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+} from "./traceDrawerStore"
 
 export const useTraceDrawer = () => {
     const traceId = useAtomValue(traceDrawerTraceIdAtom)

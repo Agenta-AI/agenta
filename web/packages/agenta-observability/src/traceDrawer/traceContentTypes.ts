@@ -1,9 +1,9 @@
-import {TraceSpanNode} from "@/oss/services/tracing/types"
+import type {TraceSpanNode} from "../core/traceSpan"
 
 export interface TraceContentProps {
     activeTrace?: TraceSpanNode
-    traceResponse?: any
-    error?: any
+    traceResponse?: unknown
+    error?: unknown
     isLoading?: boolean
     setSelectedTraceId: (val: string) => void
     traces?: TraceSpanNode[]

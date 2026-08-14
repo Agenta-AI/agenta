@@ -191,13 +191,13 @@ const deleteAtPath = (target: unknown, path: string[]) => {
         (isRecord(value) && Object.keys(value).length === 0)
 
     const ancestors: {parent: unknown; segment: string}[] = []
-    let cursor: any = target
+    let cursor: unknown = target
 
     for (let index = 0; index < path.length - 1; index += 1) {
         const segment = path[index]
         if (!cursor || typeof cursor !== "object" || !(segment in cursor)) return
         ancestors.push({parent: cursor, segment})
-        cursor = cursor[segment]
+        cursor = (cursor as Record<string, unknown>)[segment]
     }
 
     const lastSegment = path[path.length - 1]
@@ -206,7 +206,7 @@ const deleteAtPath = (target: unknown, path: string[]) => {
     // Prune only containers emptied by this delete path.
     for (let index = ancestors.length - 1; index >= 0; index -= 1) {
         const {parent, segment} = ancestors[index]
-        const child = (parent as any)?.[segment]
+        const child = (parent as Record<string, unknown> | null)?.[segment]
         if (!isEmptyContainer(child)) break
         removeAtSegment(parent, segment)
     }
@@ -216,7 +216,7 @@ const removeMessageGroupsFromData = (value: unknown, groups: MessageGroup[]): un
     if (!groups.length || isNullish(value)) return value
     if (groups.some((group) => group.path.length === 0)) return undefined
 
-    let cloned: any
+    let cloned: unknown
     try {
         cloned = structuredClone(value)
     } catch {

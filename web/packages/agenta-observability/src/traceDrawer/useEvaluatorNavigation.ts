@@ -1,32 +1,35 @@
 import {useCallback} from "react"
 
-import {useSetAtom} from "jotai"
-import {useRouter} from "next/router"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {closeTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import useURL from "@/oss/hooks/useURL"
+import {traceDrawerNavigate, traceDrawerProjectURLAtom} from "./navigationSeam"
+import {closeTraceDrawerAtom} from "./traceDrawerStore"
 
 interface NavigationTarget {
     href: string
     type: "human" | "auto"
 }
 
-const getEvaluatorIdentifier = (evaluator: any) => {
-    if (!evaluator) return null
-    return evaluator.id
+/**
+ * Callers pass whole evaluator/workflow records whose `flags` differ in shape, so this takes
+ * `unknown` and probes the two fields it needs rather than declaring a type they must match.
+ */
+type FeedbackFlags = {is_feedback?: boolean | null} | null | undefined
+
+const getEvaluatorIdentifier = (evaluator: unknown) =>
+    (evaluator as {id?: string} | null | undefined)?.id ?? null
+
+const isHumanEvaluator = (evaluator: unknown) => {
+    const e = evaluator as {flags?: FeedbackFlags; meta?: FeedbackFlags} | null | undefined
+    return Boolean(e?.flags?.is_feedback || e?.meta?.is_feedback)
 }
 
-const isHumanEvaluator = (evaluator: any) => {
-    return Boolean(evaluator?.flags?.is_feedback || evaluator?.meta?.is_feedback)
-}
-
-const useEvaluatorNavigation = () => {
-    const {projectURL} = useURL()
-    const router = useRouter()
+export const useEvaluatorNavigation = () => {
+    const projectURL = useAtomValue(traceDrawerProjectURLAtom)
     const closeTraceDrawer = useSetAtom(closeTraceDrawerAtom)
 
     const buildEvaluatorTarget = useCallback(
-        (evaluator?: any): NavigationTarget | null => {
+        (evaluator?: unknown): NavigationTarget | null => {
             if (!projectURL || !evaluator) return null
 
             const identifier = getEvaluatorIdentifier(evaluator)
@@ -50,14 +53,14 @@ const useEvaluatorNavigation = () => {
     )
 
     const navigateToEvaluator = useCallback(
-        async (evaluator?: any) => {
+        async (evaluator?: unknown) => {
             const target = buildEvaluatorTarget(evaluator)
             if (!target) return
 
             closeTraceDrawer()
-            await router.push(target.href)
+            await traceDrawerNavigate(target.href)
         },
-        [buildEvaluatorTarget, closeTraceDrawer, router],
+        [buildEvaluatorTarget, closeTraceDrawer],
     )
 
     return {buildEvaluatorTarget, navigateToEvaluator}

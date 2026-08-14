@@ -19,7 +19,9 @@
         "./state": "./src/state/index.ts",
         "./filters": "./src/filters/index.ts",
         "./etl": "./src/etl/adaptiveTracePageFetcher.ts",
-        "./trace": "./src/trace/index.ts"
+        "./trace": "./src/trace/index.ts",
+        "./dto": "./src/dto/index.ts",
+        "./traceDrawer": "./src/traceDrawer/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
@@ -34,7 +36,8 @@
         "jotai-tanstack-query": ">=0.9.0",
         "react": ">=18.0.0",
         "jotai-eager": ">=0.1.0",
-        "fast-deep-equal": ">=3.0.0"
+        "fast-deep-equal": ">=3.0.0",
+        "jotai-immer": ">=0.4.0"
     },
     "devDependencies": {
         "@tanstack/react-query": "5.100.9",

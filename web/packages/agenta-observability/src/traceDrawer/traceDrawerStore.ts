@@ -1,6 +1,8 @@
 import {attachAnnotationsToTraces} from "@agenta/entities/annotation/dto"
 import {transformApiData} from "@agenta/entities/annotation/dto"
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
+import {queryAllAnnotations as queryAllAnnotationsDto} from "@agenta/entities/annotation/dto"
+import {workspaceMembersAtom} from "@agenta/entities/organization"
 import {getNodeById} from "@agenta/entities/trace"
 import {
     fetchPreviewTrace,
@@ -8,17 +10,50 @@ import {
     transformTracingResponse,
 } from "@agenta/entities/trace"
 import type {SpanLink, TracesResponse} from "@agenta/entities/trace"
+import type {TraceSpanNode} from "@agenta/entities/trace"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithImmer} from "jotai-immer"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
-import {queryAllAnnotations} from "@/oss/services/annotations/api"
-import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
-import type {TraceSpanNode} from "@/oss/services/tracing/types"
-import {getOrgValues} from "@/oss/state/org"
-import {projectIdAtom} from "@/oss/state/project"
+import {observabilityTransformer} from "../dto"
+import type {AgentaTreeDTO, TracesWithAnnotations} from "../dto"
+
+/**
+ * These stores accept several response shapes (legacy map, preview trace, annotation link), so
+ * the fields below are genuinely optional at runtime. They were `any` in the app; the package
+ * bans it, and these narrow shapes say the same thing without switching off the checker.
+ */
+type LooseRecord = Record<string, unknown>
+
+interface LooseNode {
+    trace_id?: string
+    span_id?: string
+    span_type?: string
+    invocationIds?: {trace_id?: string; span_id?: string}
+    otel?: {links?: unknown}
+    links?: unknown
+}
+
+/** The response variants `normalizeTracesResponse` branches over. */
+interface LooseTraceResponse {
+    traces?: unknown
+    trace?: unknown
+    tree?: unknown
+    response?: {tree?: unknown; trace?: unknown}
+}
+
+interface LooseLink {
+    trace_id?: string
+    span_id?: string
+    key?: string
+    type?: string
+    source?: string
+    attributes?: LooseRecord
+    context?: {trace_id?: string; span_id?: string}
+    trace?: unknown
+}
 
 export type TraceDrawerSpanLink = SpanLink & {key?: string}
 interface AnnotationLinkTarget {
@@ -27,7 +62,7 @@ interface AnnotationLinkTarget {
     key?: string
     type?: string
     source?: string
-    attributes?: Record<string, any>
+    attributes?: Record<string, unknown>
     trace?: TracesWithAnnotations[]
 }
 // Linked span row surfaced in the linked spans table.
@@ -149,14 +184,15 @@ export const traceDrawerQueryAtom = atomWithQuery((get) => {
     }
 })
 
-const normalizeTracesResponse = (raw: any): TracesResponse | null => {
+const normalizeTracesResponse = (raw: unknown): TracesResponse | null => {
     if (!raw) return null
     if ((raw as TracesResponse).traces) return raw as TracesResponse
-    if ((raw as any).trace) {
-        return {traces: {current: (raw as any).trace}} as unknown as TracesResponse
+    const loose = raw as LooseTraceResponse
+    if (loose.trace) {
+        return {traces: {current: loose.trace}} as unknown as TracesResponse
     }
-    if ((raw as any).response?.trace) {
-        return {traces: {current: (raw as any).response.trace}} as unknown as TracesResponse
+    if (loose.response?.trace) {
+        return {traces: {current: loose.response.trace}} as unknown as TracesResponse
     }
     return null
 }
@@ -182,7 +218,7 @@ export const traceDrawerBaseTracesAtom = atom<TracesWithAnnotations[]>((get) => 
     // agenta `.response.tree`, new typed TracesResponse) and branch at runtime via
     // normalizeTracesResponse. AGE-3788 Phase 7 unifies the FE trace types; until
     // then the loose local mirrors the pre-migration (untyped) handling.
-    const traceResponse: any = get(traceDrawerQueryAtom).data
+    const traceResponse = get(traceDrawerQueryAtom).data as LooseTraceResponse | null | undefined
     const tree = traceResponse?.response?.tree as AgentaTreeDTO | undefined
 
     if (tree) {
@@ -204,17 +240,24 @@ export const traceDrawerFlatBaseTracesAtom = atom<TracesWithAnnotations[]>((get)
 
 // Collects trace/span ids for annotation fetching.
 export const traceDrawerAnnotationLinksAtom = atom<{trace_id: string; span_id: string}[]>((get) =>
-    get(traceDrawerFlatBaseTracesAtom).map((node) => ({
-        trace_id: node?.invocationIds?.trace_id || (node as any)?.trace_id,
-        span_id: node?.invocationIds?.span_id || (node as any)?.span_id,
-    })),
+    get(traceDrawerFlatBaseTracesAtom)
+        .map((node) => ({
+            trace_id: node?.invocationIds?.trace_id || (node as LooseNode)?.trace_id,
+            span_id: node?.invocationIds?.span_id || (node as LooseNode)?.span_id,
+        }))
+        // A node without both ids cannot be annotated; it used to slip through as `undefined`.
+        .filter((link): link is {trace_id: string; span_id: string} =>
+            Boolean(link.trace_id && link.span_id),
+        ),
 )
 
 // Queries annotations for spans displayed in the drawer.
 export const traceDrawerAnnotationsQueryAtom = atomWithQuery((get) => {
     const links = get(traceDrawerAnnotationLinksAtom)
-    const {selectedOrg} = getOrgValues()
-    const members = selectedOrg?.default_workspace?.members || []
+    // Was `getOrgValues().selectedOrg.default_workspace.members` in the app; the package's own
+    // annotations query already reads the same list from this atom.
+    const members = get(workspaceMembersAtom)
+    const projectId = get(projectIdAtom)
 
     return {
         queryKey: ["trace-drawer-annotations", links],
@@ -222,7 +265,10 @@ export const traceDrawerAnnotationsQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: false,
         queryFn: async () => {
             if (!Array.isArray(links) || !links.length) return [] as AnnotationDto[]
-            const res = await queryAllAnnotations({annotation: {links}})
+            const res = await queryAllAnnotationsDto({
+                projectId: projectId ?? undefined,
+                queries: {annotation: {links}},
+            })
             return (
                 res.annotations?.map((a) => transformApiData<AnnotationDto>({data: a, members})) ||
                 []
@@ -257,13 +303,15 @@ export const annotationLinkTargetsAtom = atom<AnnotationLinkTarget[]>((get) => {
     if (!activeSpanId) return []
 
     const traces = get(traceDrawerFlatAnnotatedTracesAtom)
-    const activeTrace = getNodeById(traces as any, activeSpanId)
+    const activeTrace = getNodeById(traces as never, activeSpanId)
     const annotations = get(traceDrawerAnnotationsAtom)
 
     const currentTraceId =
-        (activeTrace as any)?.invocationIds?.trace_id || (activeTrace as any)?.trace_id
+        (activeTrace as LooseNode | null)?.invocationIds?.trace_id ||
+        (activeTrace as LooseNode | null)?.trace_id
     const currentSpanId =
-        (activeTrace as any)?.invocationIds?.span_id || (activeTrace as any)?.span_id
+        (activeTrace as LooseNode | null)?.invocationIds?.span_id ||
+        (activeTrace as LooseNode | null)?.span_id
 
     if (!currentTraceId || !currentSpanId || !Array.isArray(annotations)) return []
 
@@ -310,7 +358,10 @@ export const annotationLinkTracesQueryAtom = atomWithQuery<Record<string, Traces
 
                 const traceResponses = await Promise.all(
                     uniqueTraceIds.map(async (traceId) => {
-                        const response: any = await fetchPreviewTrace(traceId, projectId ?? "")
+                        const response = (await fetchPreviewTrace(
+                            traceId,
+                            projectId ?? "",
+                        )) as LooseTraceResponse
                         const tree = response?.response?.tree as AgentaTreeDTO | undefined
 
                         if (tree) {
@@ -354,8 +405,8 @@ export const linkedSpanTargetsAtom = atom<AnnotationLinkTarget[]>((get) => {
     const unique = new Map<string, AnnotationLinkTarget>()
 
     links.forEach((link) => {
-        const traceId = (link as any)?.trace_id || (link as any)?.context?.trace_id
-        const spanId = (link as any)?.span_id || (link as any)?.context?.span_id
+        const traceId = (link as LooseLink)?.trace_id || (link as LooseLink)?.context?.trace_id
+        const spanId = (link as LooseLink)?.span_id || (link as LooseLink)?.context?.span_id
 
         if (!traceId || !spanId) return
 
@@ -363,11 +414,15 @@ export const linkedSpanTargetsAtom = atom<AnnotationLinkTarget[]>((get) => {
         const next = {
             trace_id: traceId,
             span_id: spanId,
-            key: (link as any)?.key,
-            type: (link as any)?.type || (link as any)?.source,
-            source: (link as any)?.attributes?.source || (link as any)?.source,
-            attributes: (link as any)?.attributes,
-            trace: Array.isArray((link as any)?.trace) ? (link as any).trace : undefined,
+            key: (link as LooseLink)?.key,
+            type: (link as LooseLink)?.type || (link as LooseLink)?.source,
+            source:
+                ((link as LooseLink)?.attributes?.source as string | undefined) ||
+                (link as LooseLink)?.source,
+            attributes: (link as LooseLink)?.attributes,
+            trace: Array.isArray((link as LooseLink)?.trace)
+                ? ((link as LooseLink).trace as TracesWithAnnotations[])
+                : undefined,
         }
         if (unique.has(id)) {
             const existing = unique.get(id) as AnnotationLinkTarget
@@ -409,7 +464,10 @@ export const linkedSpanTracesQueryAtom = atomWithQuery<Record<string, TracesWith
 
                 const traceResponses = await Promise.all(
                     missingTraceIds.map(async (traceId) => {
-                        const response: any = await fetchPreviewTrace(traceId, projectId ?? "")
+                        const response = (await fetchPreviewTrace(
+                            traceId,
+                            projectId ?? "",
+                        )) as LooseTraceResponse
                         const tree = response?.response?.tree as AgentaTreeDTO | undefined
 
                         if (tree) {
@@ -472,7 +530,7 @@ export const linkedSpansAtom = atom<LinkedSpanRow[]>((get) => {
         }
 
         const spanNode =
-            (getNodeById(nodes as any, target.span_id) as TracesWithAnnotations | null) ||
+            (getNodeById(nodes as never, target.span_id) as TracesWithAnnotations | null) ||
             (flattened.find((item) => item.span_id === target.span_id) as
                 | TracesWithAnnotations
                 | undefined)
@@ -482,13 +540,15 @@ export const linkedSpansAtom = atom<LinkedSpanRow[]>((get) => {
         const inferredSource =
             target.source ||
             target.type ||
-            (target.attributes as Record<string, any> | undefined)?.type ||
-            (spanNode as any)?.span_type
+            ((target.attributes as Record<string, unknown> | undefined)?.type as
+                | string
+                | undefined) ||
+            (spanNode as LooseNode | null)?.span_type
 
         rows.push({
             ...(spanNode as TracesWithAnnotations),
-            trace_id: (spanNode as any)?.trace_id || target.trace_id,
-            span_id: (spanNode as any)?.span_id || target.span_id,
+            trace_id: (spanNode as LooseNode | null)?.trace_id || target.trace_id,
+            span_id: (spanNode as LooseNode | null)?.span_id || target.span_id,
             key: `${target.trace_id}-${target.span_id}`,
             linkKey: target.key,
             linkSource: inferredSource || undefined,
@@ -514,8 +574,8 @@ export const traceDrawerGetTraceByIdAtom = atom((get) => {
     const traces = get(senitizedTracesAtom)
     return (id?: string) => {
         if (!id) return undefined
-        const found = getNodeById(traces as any, id)
-        return (found as TracesWithAnnotations) || undefined
+        const found = getNodeById(traces as never, id)
+        return (found as unknown as TracesWithAnnotations) || undefined
     }
 })
 
@@ -542,14 +602,15 @@ export const traceDrawerIsLinkedViewAtom = atom((get) => {
 // ------------------------------------------------------------------
 
 const getReferences = (trace: TracesWithAnnotations | TraceSpanNode | undefined) => {
-    const allReferences: {key?: string; value: Record<string, any>}[] = []
+    const allReferences: {key?: string; value: Record<string, unknown>}[] = []
 
-    const traverseObject = (obj: Record<string, any> | undefined, path = "") => {
+    const traverseObject = (obj: unknown, path = "") => {
         if (!obj || typeof obj !== "object") return
+        const record = obj as Record<string, unknown>
 
-        for (const key in obj) {
+        for (const key in record) {
             if (key === "references") {
-                const references = obj[key]
+                const references = record[key]
 
                 if (Array.isArray(references)) {
                     // Handle array references
@@ -568,13 +629,13 @@ const getReferences = (trace: TracesWithAnnotations | TraceSpanNode | undefined)
                     Object.entries(references).forEach(([refKey, refValue]) => {
                         allReferences.push({
                             key: refKey,
-                            value: refValue as Record<string, any>,
+                            value: refValue as Record<string, unknown>,
                         })
                     })
                 }
-            } else if (typeof obj[key] === "object" && obj[key] !== null) {
+            } else if (typeof record[key] === "object" && record[key] !== null) {
                 // Continue traversing nested objects
-                traverseObject(obj[key], path ? `${path}.${key}` : key)
+                traverseObject(record[key], path ? `${path}.${key}` : key)
             }
         }
     }
@@ -582,11 +643,11 @@ const getReferences = (trace: TracesWithAnnotations | TraceSpanNode | undefined)
     traverseObject(trace)
     if (!allReferences.length) return []
 
-    const unique = new Map<string, Record<string, any>>()
+    const unique = new Map<string, Record<string, unknown>>()
     const seen = new Set<string>()
 
     allReferences.forEach(({key, value}) => {
-        const identifier = value?.id || value?.slug
+        const identifier = (value?.id || value?.slug) as string | undefined
         if (identifier) {
             if (seen.has(identifier)) return
             seen.add(identifier)
@@ -605,22 +666,24 @@ const getReferences = (trace: TracesWithAnnotations | TraceSpanNode | undefined)
 
 // Linked spans and reference metadata for the currently active span.
 export const linksAndReferencesAtom = atom<{
-    links?: Record<string, any>[]
-    references?: Record<string, any>[]
+    links?: AnnotationLinkTarget[]
+    references?: Record<string, unknown>[]
 }>((get) => {
     const activeSpanId = get(traceDrawerActiveSpanIdAtom)
     if (!activeSpanId) return {}
 
     const traces = get(traceDrawerFlatAnnotatedTracesAtom)
-    const activeTrace = getNodeById(traces as any, activeSpanId)
+    const activeTrace = getNodeById(traces as never, activeSpanId)
     const annotatedTraceTree = get(senitizedTracesAtom)
     const annotationLinkTargets = get(annotationLinkTargetsAtom)
     const linkedTraces = get(annotationLinkTracesAtom)
 
     const currentTraceId =
-        (activeTrace as any)?.invocationIds?.trace_id || (activeTrace as any)?.trace_id
+        (activeTrace as LooseNode | null)?.invocationIds?.trace_id ||
+        (activeTrace as LooseNode | null)?.trace_id
     const currentSpanId =
-        (activeTrace as any)?.invocationIds?.span_id || (activeTrace as any)?.span_id
+        (activeTrace as LooseNode | null)?.invocationIds?.span_id ||
+        (activeTrace as LooseNode | null)?.span_id
 
     const mergeLinks = (links: Map<string, AnnotationLinkTarget>, link?: AnnotationLinkTarget) => {
         if (!link?.trace_id || !link?.span_id) return
@@ -650,7 +713,7 @@ export const linksAndReferencesAtom = atom<{
         annotationLinkTargets?.map((target) => {
             const nodes = linkedTraces?.[target.trace_id] || []
             const spanNode =
-                (getNodeById(nodes as any, target.span_id) as TracesWithAnnotations | null) ||
+                (getNodeById(nodes as never, target.span_id) as TracesWithAnnotations | null) ||
                 undefined
 
             const trace = nodes?.length ? nodes : undefined
@@ -668,13 +731,13 @@ export const linksAndReferencesAtom = atom<{
         []) as AnnotationDto[]
 
     annotations.forEach((annotation) => {
-        const annotationLinks = Object.values(annotation?.links || {}) as Record<string, any>[]
+        const annotationLinks = Object.values(annotation?.links || {}) as Record<string, unknown>[]
         const annotationKey = annotation?.meta?.name || annotation?.id
         const annotationType = annotation?.origin || annotation?.kind
 
         annotationLinks.forEach((link) => {
-            const traceId = (link as any)?.trace_id
-            const spanId = (link as any)?.span_id
+            const traceId = (link as LooseLink)?.trace_id
+            const spanId = (link as LooseLink)?.span_id
 
             if (!traceId || !spanId) return
             if (traceId === currentTraceId && spanId === currentSpanId) return
@@ -682,10 +745,11 @@ export const linksAndReferencesAtom = atom<{
             mergeLinks(links, {
                 trace_id: traceId,
                 span_id: spanId,
-                attributes: (link as any)?.attributes,
+                attributes: (link as LooseLink)?.attributes,
                 key: annotationKey,
                 type: annotationType,
-                source: (link as any)?.attributes?.type || annotationType,
+                source:
+                    ((link as LooseLink)?.attributes?.type as string | undefined) || annotationType,
             })
         })
 
@@ -705,23 +769,27 @@ export const linksAndReferencesAtom = atom<{
     })
 
     const spanLinks = [
-        ...(((activeTrace as any)?.otel?.links || []) as SpanLink[]),
-        ...(((activeTrace as any)?.links || []) as SpanLink[]),
+        ...(((activeTrace as LooseNode | null)?.otel?.links || []) as SpanLink[]),
+        ...(((activeTrace as LooseNode | null)?.links || []) as SpanLink[]),
     ]
 
     spanLinks.forEach((link) => {
-        const traceId = (link as any)?.trace_id || (link as any)?.context?.trace_id
-        const spanId = (link as any)?.span_id || (link as any)?.context?.span_id
+        const traceId = (link as LooseLink)?.trace_id || (link as LooseLink)?.context?.trace_id
+        const spanId = (link as LooseLink)?.span_id || (link as LooseLink)?.context?.span_id
         if (!traceId || !spanId) return
         if (traceId === currentTraceId && spanId === currentSpanId) return
 
         mergeLinks(links, {
             trace_id: traceId,
             span_id: spanId,
-            attributes: (link as any)?.attributes,
-            key: (link as any)?.attributes?.key,
-            type: (link as any)?.attributes?.type || (link as any)?.type,
-            source: (link as any)?.attributes?.type || (link as any)?.type,
+            attributes: (link as LooseLink)?.attributes,
+            key: (link as LooseLink)?.attributes?.key as string | undefined,
+            type:
+                ((link as LooseLink)?.attributes?.type as string | undefined) ||
+                (link as LooseLink)?.type,
+            source:
+                ((link as LooseLink)?.attributes?.type as string | undefined) ||
+                (link as LooseLink)?.type,
         })
     })
 

@@ -1,18 +1,25 @@
-export const transformDataInputs = (data: any) => {
+interface RawDataInputs {
+    prompt?: unknown
+    functions?: unknown[]
+    tools?: unknown[]
+    [key: string]: unknown
+}
+
+export const transformDataInputs = (data: RawDataInputs | null | undefined) => {
     if (!data) {
         return {}
     }
 
-    const transformed: Record<string, any> = {}
+    const transformed: Record<string, unknown> = {}
 
     if (data.prompt) {
         transformed.prompt = data.prompt
     }
 
-    const tools: any[] = []
+    const tools: unknown[] = []
 
     if (Array.isArray(data.functions)) {
-        const functions = data.functions.map((item: any) => ({
+        const functions = data.functions.map((item: unknown) => ({
             type: "function",
             function: item,
         }))

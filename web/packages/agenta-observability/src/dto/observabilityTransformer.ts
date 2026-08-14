@@ -1,32 +1,29 @@
 import {sortSpansByStartTime} from "@agenta/entities/trace"
 import {uuidToSpanId, uuidToTraceId} from "@agenta/shared/utils"
 
-import {
-    _AgentaRootsResponse,
-    AgentaNodeDTO,
-    AgentaTreeDTO,
-} from "@/oss/services/observability/types"
+import {_AgentaRootsResponse, AgentaNodeDTO, AgentaTreeDTO} from "./legacyObservabilityTypes"
 
-const normalizeContentFields = (obj: any): void => {
+const normalizeContentFields = (obj: unknown): void => {
     if (Array.isArray(obj)) {
         obj.forEach(normalizeContentFields)
         return
     }
 
     if (obj && typeof obj === "object") {
-        for (const [key, value] of Object.entries(obj)) {
+        const record = obj as Record<string, unknown>
+        for (const [key, value] of Object.entries(record)) {
             if (
                 key === "content" &&
                 Array.isArray(value) &&
                 value.length === 1 &&
                 value[0]?.type === "text"
             ) {
-                if (Array.isArray(obj[key])) {
-                    for (const item of obj[key]) {
+                if (Array.isArray(record[key])) {
+                    for (const item of record[key] as unknown[]) {
                         normalizeContentFields(item)
                     }
                 } else {
-                    obj[key] = value[0].text
+                    record[key] = (value[0] as {text?: unknown}).text
                 }
             } else {
                 normalizeContentFields(value)

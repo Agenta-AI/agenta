@@ -61,10 +61,10 @@ export interface AgentaNodeDTO {
     nodes?: Record<string, AgentaNodeDTO | AgentaNodeDTO[]> | null
 }
 
-type NodeData = Record<string, any>
-type NodeMetrics = Record<string, any>
-type NodeMetadata = Record<string, any>
-type NodeRefs = Record<string, any>
+type NodeData = Record<string, unknown>
+type NodeMetrics = Record<string, unknown>
+type NodeMetadata = Record<string, unknown>
+type NodeRefs = Record<string, unknown>
 interface NodeLinkDTO {
     type: string
     id: string
@@ -74,11 +74,11 @@ interface NodeExceptionDTO {
     type: string
     message?: string | null
     stacktrace?: string | null
-    attributes?: Record<string, any> | null
+    attributes?: Record<string, unknown> | null
 }
 interface NodeOTelExtraDTO {
     kind?: string | null
-    attributes?: Record<string, any> | null
+    attributes?: Record<string, unknown> | null
     events?: NodeOTelEventDTO[] | null
     links?: NodeOTelLinkDTO[] | null
 }
@@ -86,7 +86,7 @@ interface NodeOTelExtraDTO {
 interface NodeOTelEventDTO {
     name: string
     timestamp: string
-    attributes?: Record<string, any> | null
+    attributes?: Record<string, unknown> | null
 }
 
 interface NodeOTelLinkDTO {
@@ -94,7 +94,7 @@ interface NodeOTelLinkDTO {
         trace_id: string
         span_id: string
     }
-    attributes?: Record<string, any> | null
+    attributes?: Record<string, unknown> | null
 }
 
 interface NodeLifecycleDTO {
@@ -145,5 +145,5 @@ export interface NodeStatusDTO {
 
 export type TracesWithAnnotations = _AgentaRootsResponse & {
     annotations: AnnotationDto[] | undefined
-    aggregatedEvaluatorMetrics: Record<string, any>
+    aggregatedEvaluatorMetrics: Record<string, unknown>
 }

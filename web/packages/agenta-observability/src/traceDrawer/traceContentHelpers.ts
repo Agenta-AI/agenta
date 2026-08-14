@@ -1,4 +1,4 @@
-import {TraceSpanNode} from "@/oss/services/tracing/types"
+import type {TraceSpanNode} from "../core/traceSpan"
 
 type TraceSpanNodeWithRawViewFields = TraceSpanNode & {
     spans?: unknown
