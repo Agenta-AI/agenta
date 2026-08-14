@@ -21,9 +21,11 @@ async def test_wallet_settlement_port_body_raises_not_implemented():
         await port.settle(build_debit_command())
 
 
-def test_settlement_port_factory_is_unimplemented():
-    with pytest.raises(NotImplementedError):
-        get_wallet_settlement_port()
+def test_settlement_port_factory_returns_a_settlement_port():
+    # WP-1-01 implements this factory; WP-1-00 only seeded it as unimplemented.
+    port = get_wallet_settlement_port()
+    assert isinstance(port, WalletSettlementPort)
+    assert get_wallet_settlement_port() is port  # process-wide singleton
 
 
 def test_debit_worker_is_constructible():
