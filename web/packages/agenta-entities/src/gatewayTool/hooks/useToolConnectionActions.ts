@@ -7,7 +7,7 @@ import {deleteToolConnection, refreshToolConnection, revokeToolConnection} from 
 // Tools and triggers are independent surfaces over the SAME shared
 // `gateway_connections` rows, so a write here must also invalidate the triggers
 // list — otherwise a connection removed from tools would read as stale there.
-const invalidateConnections = () => {
+export const invalidateToolConnections = () => {
     const queryClient = getHostQueryClient()
     queryClient.invalidateQueries({queryKey: ["tools", "connections"]})
     queryClient.invalidateQueries({queryKey: ["tools", "catalog"]})
@@ -17,20 +17,25 @@ const invalidateConnections = () => {
 export const useToolConnectionActions = () => {
     const handleDelete = useCallback(async (connectionId: string) => {
         await deleteToolConnection(connectionId)
-        invalidateConnections()
+        invalidateToolConnections()
     }, [])
 
     const handleRefresh = useCallback(async (connectionId: string, force?: boolean) => {
         const result = await refreshToolConnection(connectionId, force)
-        invalidateConnections()
+        invalidateToolConnections()
         return result
     }, [])
 
     const handleRevoke = useCallback(async (connectionId: string) => {
         const result = await revokeToolConnection(connectionId)
-        invalidateConnections()
+        invalidateToolConnections()
         return result
     }, [])
 
-    return {handleDelete, handleRefresh, handleRevoke, invalidateConnections}
+    return {
+        handleDelete,
+        handleRefresh,
+        handleRevoke,
+        invalidateConnections: invalidateToolConnections,
+    }
 }

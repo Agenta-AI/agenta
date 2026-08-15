@@ -15,7 +15,12 @@ queryClient.setDefaultOptions({
 let hostClientChecked = false
 
 /**
- * Dev-only: a host that installs its own QueryClient makes every package-layer write a silent no-op.
+ * Dev-only: flags a host whose <QueryClientProvider> client is not the one in `queryClientAtom`.
+ *
+ * Package writes follow the atom, so the two must be the same object. When they diverge the app
+ * runs on two caches — the provider serves one, package writes land in the other — and mutations
+ * read as successful while nothing refreshes. Pre-migration this was phrased as writes dying on
+ * the singleton; that is no longer the mechanism.
  */
 export const assertHostQueryClient = (resolveHostClient: () => QueryClient) => {
     if (hostClientChecked) return
