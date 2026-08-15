@@ -76,9 +76,14 @@ export const useSessionActions = () => {
         (target: SessionActionTarget) => {
             let next = target.name ?? ""
 
+            /**
+             * Resolves only when the rename actually landed, and rejects otherwise, so the
+             * caller can tell the two apart. Returning normally on failure would close the
+             * dialog and throw the typed name away with it.
+             */
             const submit = async () => {
                 const title = next.trim()
-                if (!title) return
+                if (!title) throw new Error("A session name is required")
                 if (isCached(target) && target.appId) {
                     await store.set(renameSessionAtomFamily(target.appId), {
                         id: target.sessionId,
@@ -92,7 +97,7 @@ export const useSessionActions = () => {
                     })
                     if (!ok) {
                         message.error("Couldn't rename this session")
-                        return
+                        throw new Error("Couldn't rename this session")
                     }
                 }
                 revalidate()
@@ -110,20 +115,26 @@ export const useSessionActions = () => {
             const isBlank = () => !next.trim()
 
             /**
-             * Enter has to run the same lifecycle as the button, not just the same handler:
-             * `onOk` keeps the dialog open with the button in its loading state until the
-             * returned promise settles, and leaves it open to retry when the rename fails.
-             *
-             * That loading state also blocks a second *click*, but the field stays focused and
-             * enabled, so Enter needs its own in-flight guard to not fire duplicate renames.
+             * The dialog stays up while the rename is in flight and is only torn down once it
+             * lands, so a failure leaves the typed name on screen to retry. Both confirmation
+             * paths share this one function, which also means one in-flight guard covers them:
+             * the loading button blocks a second click, but the field stays focused and enabled,
+             * so Enter could otherwise fire duplicate renames.
              */
             let pending = false
+
+            /** `update` replaces `okButtonProps` wholesale, so the click handler is re-stated. */
+            const okButtonProps = (props: {loading?: boolean; disabled?: boolean} = {}) => ({
+                disabled: isBlank(),
+                ...props,
+                onClick: () => void confirm(),
+            })
 
             const confirm = async () => {
                 if (pending || isBlank()) return
                 pending = true
                 dialog.current?.update({
-                    okButtonProps: {loading: true},
+                    okButtonProps: okButtonProps({loading: true}),
                     cancelButtonProps: {disabled: true},
                 })
                 try {
@@ -131,7 +142,7 @@ export const useSessionActions = () => {
                     dialog.current?.destroy()
                 } catch {
                     dialog.current?.update({
-                        okButtonProps: {loading: false, disabled: isBlank()},
+                        okButtonProps: okButtonProps({loading: false}),
                         cancelButtonProps: {disabled: false},
                     })
                 } finally {
@@ -149,7 +160,7 @@ export const useSessionActions = () => {
                         className="mt-2"
                         onChange={(event) => {
                             next = event.target.value
-                            dialog.current?.update({okButtonProps: {disabled: isBlank()}})
+                            dialog.current?.update({okButtonProps: okButtonProps()})
                         }}
                         // A one-field modal has to confirm on Enter; without this the only way out
                         // is the mouse.
@@ -157,8 +168,11 @@ export const useSessionActions = () => {
                     />
                 ),
                 okText: "Rename",
-                okButtonProps: {disabled: isBlank()},
-                onOk: submit,
+                // The OK button confirms through `confirm()` too, rather than through `onOk`:
+                // antd spreads `okButtonProps` over its own click handler, so this replaces it.
+                // `onOk`'s only way to hold the dialog open on failure is to return a rejected
+                // promise, which antd re-raises as an unhandled rejection.
+                okButtonProps: okButtonProps(),
             })
         },
         [isCached, message, modal, projectId, revalidate, store],
