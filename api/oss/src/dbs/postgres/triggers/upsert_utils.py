@@ -11,7 +11,7 @@ def build_trigger_delivery_values(
     """Build the column->value mapping used for TriggerDelivery upserts.
 
     Accepts either a DBE instance (with attributes) or a plain dict and filters
-    to the actual table columns. 
+    to the actual table columns.
     """
     column_names = {c.name for c in TriggerDeliveryDBE.__table__.columns}
     forbidden_none_columns = {"id", "created_at", "updated_at", "deleted_at"}
