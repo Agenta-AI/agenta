@@ -35,6 +35,8 @@ export interface SplitPaneProps {
     animate?: boolean
     /** Hide the divider entirely (collapsed rail). The panes stay mounted. */
     barHidden?: boolean
+    /** Let the driven pane grow past `paneSize` — for one-pane layouts where the fill is hidden. */
+    paneGrow?: boolean
     /** Accessible name for the divider — it is focusable whenever `resizable`. */
     barLabel?: string
     onResizeStart?: () => void
@@ -66,6 +68,7 @@ export function SplitPane({
     resizable = true,
     animate = false,
     barHidden = false,
+    paneGrow = false,
     barLabel = "Resize panes",
     onResizeStart,
     onResize,
@@ -183,7 +186,8 @@ export function SplitPane({
             className={cn(
                 // min-w-0: a flex item floors at min-content otherwise, so a pane whose content has
                 // an intrinsic width would refuse to follow `paneSize` down. The basis is the truth.
-                "box-border min-h-0 min-w-0 shrink-0 grow-0 overflow-hidden",
+                "box-border min-h-0 min-w-0 shrink-0 overflow-hidden",
+                paneGrow ? "grow" : "grow-0",
                 animate && !dragging && SLIDE,
                 paneClassName,
             )}
