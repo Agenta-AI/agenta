@@ -62,12 +62,22 @@ const PricingModal = ({onCancelSubscription, ...props}: PricingModalProps) => {
                     onCancelSubscription()
                     return
                 } else if (!subscription || isOnFreePlan) {
-                    const data = await checkoutNewSubscription({
-                        plan: plan.plan,
-                        success_url: `${getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")}${projectURL || ""}/settings?tab=billing`,
-                    })
+                    // Opened NOW, while the click is still the reason a window is appearing —
+                    // a `window.open` after the await is a popup the browser blocks. The tab
+                    // waits blank for the checkout URL, and closes if one never arrives.
+                    const checkoutTab = window.open("", "_blank")
+                    try {
+                        const data = await checkoutNewSubscription({
+                            plan: plan.plan,
+                            success_url: `${getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")}${projectURL || ""}/settings?tab=billing`,
+                        })
 
-                    window.open(data.data.checkout_url, "_blank")
+                        if (checkoutTab) checkoutTab.location.href = data.data.checkout_url
+                        else window.location.assign(data.data.checkout_url)
+                    } catch (error) {
+                        checkoutTab?.close()
+                        throw error
+                    }
                 } else {
                     await switchSubscription({plan: plan.plan})
                 }

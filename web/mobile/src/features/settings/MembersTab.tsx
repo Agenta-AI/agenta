@@ -55,7 +55,11 @@ export const MembersTab = ({
     const [pendingRemoval, setPendingRemoval] = useState<WorkspaceMember | null>(null)
     const [error, setError] = useState<string | null>(null)
 
-    const canWrite = Boolean(organizationId && workspaceId)
+    // NOT a permission check: it only says we know which workspace to write to. Mobile's access
+    // model is deliberately optimistic (`useMobileSettingsAccess`) and the API authorizes — the
+    // desktop's RBAC rule lives in `useWorkspacePermissions`, which this app cannot import and
+    // has no packaged equivalent of yet.
+    const scopeKnown = Boolean(organizationId && workspaceId)
 
     const roles = useQuery({
         queryKey: ["workspace-roles"],
@@ -111,8 +115,8 @@ export const MembersTab = ({
             onSearchChange={onSearchChange}
             signedInUser={signedInUser}
             ownerId={ownerId}
-            canInviteMembers={canWrite}
-            canRemoveMembers={canWrite}
+            canInviteMembers={scopeKnown}
+            canRemoveMembers={scopeKnown}
             onInvite={() => setInviteOpen(true)}
             onRemove={(member) => {
                 setError(null)

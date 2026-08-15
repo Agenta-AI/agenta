@@ -46,7 +46,10 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
 
     const [name, setName] = useState("")
     const [url, setUrl] = useState("")
-    const [eventType, setEventType] = useState<WebhookEventType>(EVENT_OPTIONS[0].value)
+    // The FULL list, not one value: a subscription created on the desktop or through the API
+    // can carry several, and this sheet offers one option — saving must not silently drop the
+    // rest. Picking here is an explicit narrowing to the chosen one.
+    const [eventTypes, setEventTypes] = useState<WebhookEventType[]>([EVENT_OPTIONS[0].value])
     const [authMode, setAuthMode] = useState<AuthMode>("signature")
     const [authValue, setAuthValue] = useState("")
     const [saving, setSaving] = useState(false)
@@ -60,7 +63,11 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
         setSaving(false)
         setName(editing?.name ?? "")
         setUrl(editing?.data?.url ?? "")
-        setEventType(editing?.data?.event_types?.[0] ?? EVENT_OPTIONS[0].value)
+        setEventTypes(
+            editing?.data?.event_types?.length
+                ? [...editing.data.event_types]
+                : [EVENT_OPTIONS[0].value],
+        )
         setAuthMode((editing?.data?.auth_mode as AuthMode) ?? "signature")
         setAuthValue("")
     }, [open, editing])
@@ -75,7 +82,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
         setError(null)
         const data = {
             url: url.trim(),
-            event_types: [eventType],
+            event_types: eventTypes,
             auth_mode: authMode,
         }
         try {
@@ -117,7 +124,10 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
         }
     }
 
-    const canSubmit = Boolean(url.trim()) && !saving
+    // An endpoint that is not an absolute http(s) URL can never receive a delivery, and the
+    // failure surfaces much later as a dead subscription.
+    const urlValid = /^https?:\/\//i.test(url.trim()) && URL.canParse?.(url.trim()) !== false
+    const canSubmit = urlValid && !saving
 
     return (
         <Sheet
@@ -157,8 +167,8 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
 
                     <Field label="Event">
                         <Select
-                            value={eventType}
-                            onValueChange={(next) => setEventType(next as WebhookEventType)}
+                            value={eventTypes[0]}
+                            onValueChange={(next) => setEventTypes([next as WebhookEventType])}
                         >
                             <SelectTrigger className="w-full">
                                 <SelectValue />
@@ -171,6 +181,13 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                                 ))}
                             </SelectContent>
                         </Select>
+                        {eventTypes.length > 1 ? (
+                            <p className="m-0 pt-1 text-xs text-muted-foreground">
+                                Also subscribed to {eventTypes.length - 1} event
+                                {eventTypes.length > 2 ? "s" : ""} this sheet cannot show. They are
+                                kept unless you pick a different event here.
+                            </p>
+                        ) : null}
                     </Field>
 
                     <Field

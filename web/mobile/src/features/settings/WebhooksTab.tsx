@@ -33,6 +33,7 @@ export const WebhooksTab = () => {
     const [deleting, setDeleting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
+    const [copyError, setCopyError] = useState<string | null>(null)
 
     return (
         <WebhooksPage
@@ -74,6 +75,7 @@ export const WebhooksTab = () => {
                         if (!next) {
                             setCreatedSecret(null)
                             setCopied(false)
+                            setCopyError(null)
                         }
                     }}
                 >
@@ -90,12 +92,27 @@ export const WebhooksTab = () => {
                                 {createdSecret}
                             </p>
                         </div>
+                        {copyError ? (
+                            <p role="alert" className="text-destructive m-0 px-4 pt-2 text-xs">
+                                {copyError}
+                            </p>
+                        ) : null}
                         <SheetFooter>
                             <Button
                                 onClick={async () => {
                                     if (!createdSecret) return
-                                    await navigator.clipboard?.writeText(createdSecret)
-                                    setCopied(true)
+                                    // `navigator.clipboard` is undefined outside a secure
+                                    // context, and the optional chain made that resolve as if
+                                    // the copy had worked — on a secret shown exactly once.
+                                    try {
+                                        await navigator.clipboard.writeText(createdSecret)
+                                        setCopyError(null)
+                                        setCopied(true)
+                                    } catch {
+                                        setCopyError(
+                                            "Couldn't copy — select the secret above and copy it",
+                                        )
+                                    }
                                 }}
                             >
                                 {copied ? "Copied" : "Copy secret"}
@@ -105,6 +122,7 @@ export const WebhooksTab = () => {
                                 onClick={() => {
                                     setCreatedSecret(null)
                                     setCopied(false)
+                                    setCopyError(null)
                                 }}
                             >
                                 Done

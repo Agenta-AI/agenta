@@ -53,5 +53,5 @@ export const useConfirmSheet = () => {
         />
     )
 
-    return {confirm, sheet}
+    return {confirm, sheet, close}
 }

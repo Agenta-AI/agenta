@@ -54,12 +54,27 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     )
 }
 
-/** The open tab, from `?tab=`. Anything this app cannot render falls back to Preferences. */
+/**
+ * The open tab, from `?tab=`. Anything this app cannot render — or that this deployment gates
+ * off — falls back to Preferences.
+ *
+ * The value is read from `asPath`, not `router.query`: the Pages Router leaves `query` empty
+ * until it is ready, so a deep link to a tab rendered Preferences for a frame first.
+ */
 export const useActiveSettingsTab = (): SettingsTabKey => {
     const router = useRouter()
-    const requested = typeof router.query.tab === "string" ? router.query.tab : null
+    const access = useMobileSettingsAccess()
 
-    return AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)
-        ? (requested as SettingsTabKey)
-        : "preferences"
+    const fromQuery = typeof router.query.tab === "string" ? router.query.tab : null
+    const fromPath = router.asPath.split("?")[1]
+        ? new URLSearchParams(router.asPath.split("?")[1]).get("tab")
+        : null
+    const requested = fromQuery ?? fromPath
+
+    if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)) return "preferences"
+    if ((requested === "tools" || requested === "triggers") && !access.canShowTools) {
+        return "preferences"
+    }
+    if (requested === "billing" && !access.billingEnabled) return "preferences"
+    return requested as SettingsTabKey
 }

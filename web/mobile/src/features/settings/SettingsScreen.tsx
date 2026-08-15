@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {
     fetchAllOrgsList,
@@ -131,7 +131,10 @@ const TabBody = ({
     })
     // Destructive actions in the shared tool/trigger sections ask for confirmation through an
     // imperative callback (the desktop hands them antd's AlertPopup); this is the sheet version.
-    const {confirm, sheet: confirmSheet} = useConfirmSheet()
+    const {confirm, sheet: confirmSheet, close: closeConfirm} = useConfirmSheet()
+    // A confirmation is about the section that raised it. Leaving the tab abandons that context,
+    // so the sheet must not survive into the next one and act there.
+    useEffect(() => closeConfirm, [tab, closeConfirm])
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
 
