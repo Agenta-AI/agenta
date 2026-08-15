@@ -66,6 +66,11 @@ function withTimeOf(day: DayjsValue, reference: DayjsValue | null, side: "start"
     return day.hour(reference.hour()).minute(reference.minute()).second(reference.second())
 }
 
+/** Splits the flat month grid into weeks so the ARIA grid has rows, not one long cell list. */
+function chunkWeeks(days: DayjsValue[]): DayjsValue[][] {
+    return Array.from({length: Math.ceil(days.length / 7)}, (_, i) => days.slice(i * 7, i * 7 + 7))
+}
+
 function buildMonthGrid(month: DayjsValue, weekStartsOn: number): DayjsValue[] {
     const first = month.startOf("month")
     const lead = (first.day() - weekStartsOn + 7) % 7
@@ -112,6 +117,15 @@ export function DateRangeCalendar({
         (start ?? end ?? dayjs()).startOf("month"),
     )
     const [hovered, setHovered] = React.useState<DayjsValue | null>(null)
+    /**
+     * The single day in the grid's tab order (roving tabindex). Every day used to be
+     * `tabIndex={-1}` with no key handler, so the popover was reachable but the calendar was not
+     * operable at all without a mouse.
+     */
+    const [focusedDay, setFocusedDay] = React.useState<DayjsValue | null>(null)
+    const gridRef = React.useRef<HTMLDivElement>(null)
+    // Focus follows the roving day only after a key moved it, never on open or on hover.
+    const shouldRestoreFocus = React.useRef(false)
 
     const rid = React.useId()
     // Awaiting the closing click of a range — derived, never stored.
@@ -183,6 +197,66 @@ export function DateRangeCalendar({
     const rangeStart = start
     const rangeEnd = previewEnd
 
+    React.useEffect(() => {
+        if (!shouldRestoreFocus.current || !focusedDay) return
+        shouldRestoreFocus.current = false
+        gridRef.current
+            ?.querySelector<HTMLButtonElement>(`[data-day="${focusedDay.format("YYYY-MM-DD")}"]`)
+            ?.focus()
+    }, [focusedDay])
+
+    const activeDay = focusedDay ?? rangeStart ?? rangeEnd ?? viewMonth.startOf("month")
+
+    const moveFocus = React.useCallback(
+        (next: DayjsValue) => {
+            shouldRestoreFocus.current = true
+            setFocusedDay(next)
+            // Stepping past either edge pages the view, so arrows never dead-end at a boundary.
+            if (!next.isSame(viewMonth, "month") && next.isBefore(viewMonth, "month")) {
+                setViewMonth(next.startOf("month"))
+            } else if (next.isAfter(viewMonth.add(1, "month").endOf("month"), "day")) {
+                setViewMonth(next.startOf("month"))
+            }
+        },
+        [viewMonth],
+    )
+
+    const onGridKeyDown = React.useCallback(
+        (event: React.KeyboardEvent<HTMLDivElement>) => {
+            const step: Record<string, number> = {
+                ArrowLeft: -1,
+                ArrowRight: 1,
+                ArrowUp: -7,
+                ArrowDown: 7,
+            }
+            if (event.key in step) {
+                event.preventDefault()
+                moveFocus(activeDay.add(step[event.key], "day"))
+                return
+            }
+            if (event.key === "Home" || event.key === "End") {
+                event.preventDefault()
+                const offset = (activeDay.day() - weekStartsOn + 7) % 7
+                moveFocus(
+                    event.key === "Home"
+                        ? activeDay.subtract(offset, "day")
+                        : activeDay.add(6 - offset, "day"),
+                )
+                return
+            }
+            if (event.key === "PageUp" || event.key === "PageDown") {
+                event.preventDefault()
+                moveFocus(activeDay.add(event.key === "PageUp" ? -1 : 1, "month"))
+                return
+            }
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                selectDay(activeDay)
+            }
+        },
+        [activeDay, moveFocus, selectDay, weekStartsOn],
+    )
+
     const weekdayLabels = React.useMemo(
         () =>
             Array.from({length: 7}, (_, index) =>
@@ -252,7 +326,13 @@ export function DateRangeCalendar({
                     </span>
                 </div>
 
-                <div role="grid" aria-label={month.format("MMMM YYYY")} className="flex flex-col">
+                <div
+                    role="grid"
+                    aria-label={month.format("MMMM YYYY")}
+                    className="flex flex-col"
+                    ref={offset === 0 ? gridRef : undefined}
+                    onKeyDown={offset === 0 ? onGridKeyDown : undefined}
+                >
                     <div role="row" className="grid grid-cols-7">
                         {weekdayLabels.map((label, index) => (
                             <span
@@ -264,60 +344,69 @@ export function DateRangeCalendar({
                             </span>
                         ))}
                     </div>
-                    <div className="grid grid-cols-7">
-                        {days.map((day) => {
-                            const outside = !day.isSame(month, "month")
-                            const disabled = isDisabledDay(day)
-                            const isStart = Boolean(rangeStart && day.isSame(rangeStart, "day"))
-                            const isEnd = Boolean(rangeEnd && day.isSame(rangeEnd, "day"))
-                            const inRange = Boolean(
-                                rangeStart &&
-                                rangeEnd &&
-                                !day.isBefore(rangeStart, "day") &&
-                                !day.isAfter(rangeEnd, "day"),
-                            )
-                            const endpoint = isStart || isEnd
-                            return (
-                                <div
-                                    key={day.valueOf()}
-                                    role="gridcell"
-                                    aria-selected={endpoint || undefined}
-                                    className={cn(
-                                        "flex items-center justify-center py-0.5",
-                                        inRange && !endpoint && "bg-muted",
-                                        inRange && isStart && "rounded-l-control-sm bg-muted",
-                                        inRange && isEnd && "rounded-r-control-sm bg-muted",
-                                    )}
-                                >
-                                    <button
-                                        type="button"
-                                        tabIndex={-1}
-                                        disabled={disabled}
-                                        aria-label={day.format("DD MMM YYYY")}
-                                        onMouseEnter={() => setHovered(day)}
-                                        onMouseLeave={() => setHovered(null)}
-                                        onClick={() => selectDay(day)}
+                    {chunkWeeks(days).map((week) => (
+                        <div role="row" key={week[0].valueOf()} className="grid grid-cols-7">
+                            {week.map((day) => {
+                                const outside = !day.isSame(month, "month")
+                                const disabled = isDisabledDay(day)
+                                const isStart = Boolean(rangeStart && day.isSame(rangeStart, "day"))
+                                const isEnd = Boolean(rangeEnd && day.isSame(rangeEnd, "day"))
+                                const inRange = Boolean(
+                                    rangeStart &&
+                                    rangeEnd &&
+                                    !day.isBefore(rangeStart, "day") &&
+                                    !day.isAfter(rangeEnd, "day"),
+                                )
+                                const endpoint = isStart || isEnd
+                                return (
+                                    <div
+                                        key={day.valueOf()}
+                                        role="gridcell"
+                                        aria-selected={endpoint || undefined}
                                         className={cn(
-                                            // CONTROL_RESET — see button.tsx (preflight is off app-wide).
-                                            "box-border border-0 border-solid bg-transparent p-0 font-[inherit]",
-                                            "flex size-6 cursor-pointer items-center justify-center rounded-control-sm text-field-sm text-foreground transition-colors",
-                                            "hover:bg-secondary",
-                                            outside && "text-placeholder",
-                                            day.isSame(dayjs(), "day") &&
-                                                !endpoint &&
-                                                "border border-solid border-primary",
-                                            endpoint &&
-                                                "bg-primary text-primary-foreground hover:bg-btn-primary-hover",
-                                            disabled &&
-                                                "cursor-not-allowed bg-transparent text-disabled hover:bg-transparent",
+                                            "flex items-center justify-center py-0.5",
+                                            inRange && !endpoint && "bg-muted",
+                                            inRange && isStart && "rounded-l-control-sm bg-muted",
+                                            inRange && isEnd && "rounded-r-control-sm bg-muted",
                                         )}
                                     >
-                                        {day.date()}
-                                    </button>
-                                </div>
-                            )
-                        })}
-                    </div>
+                                        <button
+                                            type="button"
+                                            // Roving tabindex: exactly one day is tabbable.
+                                            tabIndex={
+                                                offset === 0 && day.isSame(activeDay, "day")
+                                                    ? 0
+                                                    : -1
+                                            }
+                                            data-day={day.format("YYYY-MM-DD")}
+                                            disabled={disabled}
+                                            aria-label={day.format("DD MMM YYYY")}
+                                            onFocus={() => setFocusedDay(day)}
+                                            onMouseEnter={() => setHovered(day)}
+                                            onMouseLeave={() => setHovered(null)}
+                                            onClick={() => selectDay(day)}
+                                            className={cn(
+                                                // CONTROL_RESET — see button.tsx (preflight is off app-wide).
+                                                "box-border border-0 border-solid bg-transparent p-0 font-[inherit]",
+                                                "flex size-6 cursor-pointer items-center justify-center rounded-control-sm text-field-sm text-foreground transition-colors",
+                                                "hover:bg-secondary",
+                                                outside && "text-placeholder",
+                                                day.isSame(dayjs(), "day") &&
+                                                    !endpoint &&
+                                                    "border border-solid border-primary",
+                                                endpoint &&
+                                                    "bg-primary text-primary-foreground hover:bg-btn-primary-hover",
+                                                disabled &&
+                                                    "cursor-not-allowed bg-transparent text-disabled hover:bg-transparent",
+                                            )}
+                                        >
+                                            {day.date()}
+                                        </button>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    ))}
                 </div>
             </div>
         )
