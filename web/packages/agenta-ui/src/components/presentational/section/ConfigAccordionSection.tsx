@@ -138,6 +138,8 @@ export interface ConfigAccordionSectionProps {
      * while the title itself truncates, so a long title + badge + summary never overlap.
      */
     titleBadge?: ReactNode
+    /** Keep the title intact and truncate the summary first. @default false */
+    preserveTitle?: boolean
     /** Additional CSS class for the section wrapper. */
     className?: string
     /**
@@ -198,6 +200,7 @@ export function ConfigAccordionSection({
     indicator,
     summaryCollapsedOnly = false,
     titleBadge,
+    preserveTitle = false,
     className,
     headerBand,
     revealOnMount = false,
@@ -371,7 +374,10 @@ export function ConfigAccordionSection({
                             activate()
                         }
                     }}
-                    className="flex min-w-0 items-center gap-2"
+                    className={cn(
+                        "flex items-center gap-2",
+                        preserveTitle ? "shrink-0" : "min-w-0",
+                    )}
                 >
                     {iconAffordance}
                     {/* Title. Base text stays crisp; while `pulse` holds, an accent DUPLICATE laid
@@ -412,10 +418,15 @@ export function ConfigAccordionSection({
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div
+                    className={cn(
+                        "flex items-center gap-2",
+                        preserveTitle ? "min-w-0" : "shrink-0",
+                    )}
+                >
                     {summary && (!summaryCollapsedOnly || !isOpen) ? (
                         // antd `Text type="secondary"` is colorTextDescription, not colorTextSecondary.
-                        <span className="max-w-[220px] truncate text-right text-xs text-colorTextDescription">
+                        <span className="min-w-0 max-w-[220px] truncate text-right text-xs text-colorTextDescription">
                             {summary}
                         </span>
                     ) : null}
