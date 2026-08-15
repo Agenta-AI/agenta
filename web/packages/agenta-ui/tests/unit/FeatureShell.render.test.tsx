@@ -35,24 +35,24 @@ describe("InfiniteVirtualTableFeatureShell", () => {
         const client = new QueryClient()
         const {container} = render(
             <QueryClientProvider client={client}>
-            <InfiniteVirtualTableFeatureShell<Row>
-                tableScope={{scopeId: "test", pageSize: 50}}
-                columns={columns}
-                rowKey="session_id"
-                pagination={{
-                    rows: [],
-                    loadNextPage: () => undefined,
-                    resetPages: () => undefined,
-                    paginationInfo: {
-                        hasMore: false,
-                        nextCursor: null,
-                        nextOffset: null,
-                        isFetching: false,
-                        totalCount: 0,
-                    },
-                }}
-                tableProps={{locale: {emptyText: "No sessions yet"}}}
-            />
+                <InfiniteVirtualTableFeatureShell<Row>
+                    tableScope={{scopeId: "test", pageSize: 50}}
+                    columns={columns}
+                    rowKey="session_id"
+                    pagination={{
+                        rows: [],
+                        loadNextPage: () => undefined,
+                        resetPages: () => undefined,
+                        paginationInfo: {
+                            hasMore: false,
+                            nextCursor: null,
+                            nextOffset: null,
+                            isFetching: false,
+                            totalCount: 0,
+                        },
+                    }}
+                    tableProps={{locale: {emptyText: "No sessions yet"}}}
+                />
             </QueryClientProvider>,
         )
 

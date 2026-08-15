@@ -19,8 +19,7 @@ const openCalendar = () => {
 }
 
 const grid = () => document.querySelector<HTMLElement>('[role="grid"]')!
-const dayButton = (iso: string) =>
-    document.querySelector<HTMLButtonElement>(`[data-day="${iso}"]`)
+const dayButton = (iso: string) => document.querySelector<HTMLButtonElement>(`[data-day="${iso}"]`)
 
 describe("DateRangePicker day grid", () => {
     it("gives the grid rows rather than one flat cell list", () => {

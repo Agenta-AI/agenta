@@ -11,9 +11,7 @@ export default [
             "no-restricted-imports": [
                 "error",
                 {
-                    paths: [
-                        ...restrictedImportPaths,
-                    ],
+                    paths: [...restrictedImportPaths],
                     patterns: [
                         {
                             group: [

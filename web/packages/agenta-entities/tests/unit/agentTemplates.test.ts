@@ -1,6 +1,10 @@
 import {describe, expect, it} from "vitest"
 
-import {AGENT_TEMPLATES, PROVIDERS, TEMPLATE_CATEGORY_ORDER} from "../../src/workflow/agentTemplates"
+import {
+    AGENT_TEMPLATES,
+    PROVIDERS,
+    TEMPLATE_CATEGORY_ORDER,
+} from "../../src/workflow/agentTemplates"
 
 describe("AGENT_TEMPLATES", () => {
     it("has exactly 28 entries", () => {

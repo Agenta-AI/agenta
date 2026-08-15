@@ -93,7 +93,12 @@ describe("VirtualTable render warnings", () => {
 
     it("shows a loading overlay and passes style through", () => {
         const {container, rerender} = render(
-            <VirtualTable<Row> {...base} dataSource={rows(3)} loading style={{cursor: "pointer"}} />,
+            <VirtualTable<Row>
+                {...base}
+                dataSource={rows(3)}
+                loading
+                style={{cursor: "pointer"}}
+            />,
         )
         expect(container.querySelectorAll("[data-table-loading]")).toHaveLength(1)
         expect(container.querySelector(".avt-container")?.getAttribute("style")).toContain(

@@ -5,9 +5,8 @@
  * for labels while still keeping the bare `const` as the written value, and still handles the
  * flat `enum` shape every other consumer uses. Runs under @agenta/entity-ui's vitest runner.
  */
-import {describe, expect, it} from "vitest"
-
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {describe, expect, it} from "vitest"
 
 import {getEnumOptions} from "../../src/DrillInView/SchemaControls/EnumSelectControl"
 

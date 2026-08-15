@@ -8,8 +8,8 @@
  * alone. Nothing covered that before, and a drop here reproduces the "agent has no tools" symptom
  * with every Python test still green.
  */
-import {QueryClient} from "@tanstack/react-query"
 import {projectIdAtom} from "@agenta/shared/state"
+import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
@@ -28,8 +28,8 @@ vi.mock("../../src/workflow/api", async (importOriginal) => {
     }
 })
 
-import {createEphemeralAppFromTemplate} from "../../src/workflow/state/appUtils"
 import {agentCreationPrefsAtom} from "../../src/workflow/state/agentCreationPrefs"
+import {createEphemeralAppFromTemplate} from "../../src/workflow/state/appUtils"
 import {workflowLocalServerDataAtomFamily} from "../../src/workflow/state/store"
 
 const PROJECT_ID = "proj-1"
