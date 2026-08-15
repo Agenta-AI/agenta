@@ -1,21 +1,14 @@
 import {projectIdAtom} from "@agenta/shared/state"
-import {dayjs} from "@agenta/shared/utils/dateTime"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchDashboardAnalytics} from "../api/dashboard"
+import {resolveRangePreset} from "../core/presets"
 import type {AnalyticsRange, DashboardData} from "../core/types"
 
-const DEFAULT_RANGE_DAYS = 30
-
 /** The window every usage surface shares — one picker anywhere moves them all, as before. */
-export const observabilityRangeAtom = atom<AnalyticsRange>({
-    type: "standard",
-    sorted: dayjs().utc().subtract(DEFAULT_RANGE_DAYS, "days").toISOString().split(".")[0],
-    customRange: {},
-    label: "1 month",
-})
+export const observabilityRangeAtom = atom<AnalyticsRange>(resolveRangePreset("1 month"))
 
 /**
  * Keyed by scope: `null` is the whole project (Home's usage strip), an id scopes to one
@@ -54,13 +47,15 @@ export const useObservabilityDashboard = (
 ): ObservabilityDashboardState => {
     const query = useAtomValue(observabilityDashboardQueryAtomFamily(appId))
 
-    const {data, isPending, isFetching, isLoading, error, refetch, fetchStatus} = query
+    const {data, isFetching, error, refetch, fetchStatus} = query
 
     const fetching = fetchStatus === "fetching"
 
     return {
         data: data ?? null,
-        loading: Boolean(fetching || isPending || isLoading),
+        // Not `isPending`: a disabled query (no project yet) is pending forever, which pinned
+        // every usage card to its skeleton. An idle fetch status is the settled state.
+        loading: fetchStatus !== "idle",
         isFetching: Boolean(isFetching) || fetching,
         error,
         refetch,

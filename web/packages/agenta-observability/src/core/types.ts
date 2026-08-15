@@ -35,12 +35,9 @@ export interface DashboardData {
         cost: number
         latency: number
         total_tokens: number
-        prompt_tokens?: number
-        completion_tokens?: number
-        enviornment?: string
-        variant?: string
     }[]
     total_count: number
+    /** A 0..1 fraction, not a percentage — every renderer multiplies. */
     failure_rate: number
     total_cost: number
     avg_cost: number

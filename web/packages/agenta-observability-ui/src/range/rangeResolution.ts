@@ -1,19 +1,17 @@
-import {resolveRangePreset, type SortResult, type SortTypes} from "@agenta/observability"
+import {
+    ALL_TIME_START,
+    resolveRangePreset,
+    type SortResult,
+    type SortTypes,
+} from "@agenta/observability"
 
 export type CustomRange = NonNullable<SortResult["customRange"]>
 
-/**
- * `Sort.tsx` emitted this epoch string for "all time" while `resolveRangePreset` returns `""`.
- * Kept because `fetchDashboardAnalytics` throws on an empty start, and because it keeps the
- * emitted payload byte-identical to the antd original.
- */
-export const ALL_TIME_SENTINEL = "1970-01-01T00:00:00"
+/** @deprecated The epoch start `resolveRangePreset` now returns for "all time" on its own. */
+export const ALL_TIME_SENTINEL = ALL_TIME_START
 
 /** A preset label → the `{type, sorted, customRange, label}` payload the query layer takes. */
-export const resolvePresetRange = (label: SortTypes): SortResult => {
-    const resolved = resolveRangePreset(label)
-    return label === "all time" ? {...resolved, sorted: ALL_TIME_SENTINEL} : resolved
-}
+export const resolvePresetRange = (label: SortTypes): SortResult => resolveRangePreset(label)
 
 /** An explicit start/end → the same payload shape. Empty sides are dropped, as antd's was. */
 export const resolveCustomRange = (range: CustomRange): SortResult => {

@@ -25,12 +25,23 @@ export const ANALYTICS_RANGE_PRESETS: AnalyticsRangePreset[] = [
     {label: "all time"},
 ]
 
+/**
+ * Second-precision UTC, designator kept. The `Z` is load-bearing: the query layer reparses this
+ * string with `dayjs()`, which reads a bare `2026-08-15T17:20:00` as LOCAL time, so dropping it
+ * skewed every preset window by the viewer's offset (three hours in UTC+3).
+ */
+export const toRangeInstant = (value: dayjs.Dayjs): string =>
+    `${value.utc().toISOString().split(".")[0]}Z`
+
+/** "all time" still needs a real start — the analytics fetch throws on an empty one. */
+export const ALL_TIME_START = "1970-01-01T00:00:00Z"
+
 /** A preset label → the resolved window the query takes. */
 export const resolveRangePreset = (label: AnalyticsRangeLabel): AnalyticsRange => {
     const preset = ANALYTICS_RANGE_PRESETS.find((entry) => entry.label === label)
     const sorted =
         preset?.amount && preset.unit
-            ? dayjs().utc().subtract(preset.amount, preset.unit).toISOString().split(".")[0]
-            : ""
+            ? toRangeInstant(dayjs().subtract(preset.amount, preset.unit))
+            : ALL_TIME_START
     return {type: "standard", sorted, customRange: {}, label}
 }
