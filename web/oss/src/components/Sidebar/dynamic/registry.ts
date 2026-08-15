@@ -7,6 +7,7 @@ import {
     // nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
+import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {ChatsCircleIcon, CircleIcon, PushPinIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
@@ -121,6 +122,12 @@ const ENTITIES: SidebarEntity[] = [
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
         kind: "app",
         icon: createElement(RobotIcon, {size: 14}),
+        getIcon: (workflow) =>
+            createElement(AgentGlyph, {
+                workflowId: workflow.id,
+                size: 14,
+                fallback: createElement(RobotIcon, {size: 14}),
+            }),
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
         childPath: (workflow) => `/apps/${workflow.id}/overview`,

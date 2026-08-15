@@ -24,6 +24,7 @@
         "@eslint/js": "^9.39.4",
         "@lexical/eslint-plugin": "^0.46.0",
         "@next/eslint-plugin-next": "15.5.18",
+        "@phosphor-icons/core": "2.1.1",
         "@typescript-eslint/eslint-plugin": "^8.61.0",
         "@typescript-eslint/parser": "^8.61.0",
         "@typescript/native-preview": "7.0.0-dev.20260707.2",
@@ -71,7 +72,8 @@
         "test:datalayer": "pnpm test:revision-centric && pnpm test:apps && pnpm test:environments && pnpm test:deployments && pnpm test:orgs && pnpm test:profile && pnpm test:workspace && pnpm test:project && pnpm test:newPlayground && pnpm test:observability",
         "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
-        "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts && pnpm --filter @agenta/mobile generate:tokens"
+        "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts && pnpm --filter @agenta/mobile generate:tokens",
+        "generate:phosphor-catalog": "tsx scripts/generate-phosphor-catalog.ts && prettier --write packages/agenta-ui/src/agent-icon/catalog.generated.ts"
     },
     "pnpm": {
         "overrides": {

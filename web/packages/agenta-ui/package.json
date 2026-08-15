@@ -41,6 +41,7 @@
         "./drill-in": "./src/drill-in/index.ts",
         "./drawer": "./src/drawer/index.ts",
         "./type-chip": "./src/type-chip/index.ts",
+        "./agent-icon": "./src/agent-icon/index.ts",
         "./ui": "./src/components/ui/index.ts"
     },
     "peerDependencies": {
