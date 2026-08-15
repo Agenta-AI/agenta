@@ -135,7 +135,9 @@ export function DataTable<T>({
                 variant="outline"
                 aria-label={reloadLabel}
                 disabled={reloading}
-                onClick={onReload}
+                // Called with NO arguments: `onReload` is often a cache `mutate`, and handing it
+                // the click event writes that event into the cache as the new data.
+                onClick={() => onReload()}
             >
                 <ArrowClockwise size={14} />
             </Button>
@@ -260,9 +262,34 @@ export function DataTable<T>({
                                               onClick={
                                                   onRowClick ? () => onRowClick(record) : undefined
                                               }
+                                              // A clickable row is a control: reachable by Tab and
+                                              // activated by Enter/Space like the button it stands
+                                              // in for. Without this the whole table is mouse-only.
+                                              role={onRowClick ? "button" : undefined}
+                                              tabIndex={onRowClick ? 0 : undefined}
+                                              onKeyDown={
+                                                  onRowClick
+                                                      ? (event) => {
+                                                            if (
+                                                                event.key !== "Enter" &&
+                                                                event.key !== " "
+                                                            )
+                                                                return
+                                                            // Not a click that bubbled up from a
+                                                            // button inside the row.
+                                                            if (
+                                                                event.target !== event.currentTarget
+                                                            )
+                                                                return
+                                                            event.preventDefault()
+                                                            onRowClick(record)
+                                                        }
+                                                      : undefined
+                                              }
                                               className={clsx(
                                                   "border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary",
-                                                  onRowClick && "cursor-pointer",
+                                                  onRowClick &&
+                                                      "cursor-pointer focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring",
                                                   // The detail row carries the boundary instead.
                                                   detail && "border-b-0",
                                               )}
