@@ -56,7 +56,7 @@ export const SessionListCard = ({
     const applyScope = useSetAtom(applySessionScopeAtom)
 
     // Every link out of this card lands on the set the card was showing, not on a default list.
-    const linkScope = useMemo(() => ({agentId: null, origin}), [origin])
+    const linkScope = useMemo(() => ({agentId: agentId ?? null, origin}), [agentId, origin])
     const handleViewAll = useCallback(() => {
         applyScope(linkScope)
     }, [applyScope, linkScope])

@@ -148,7 +148,9 @@ export const SessionStatusChipsControl = ({
 }) => {
     const {status, setStatus} = useSessionFilters()
     return (
-        <nav
+        <div
+            role="group"
+            aria-label="Filter sessions by status"
             className={`flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
                 className ?? ""
             }`}
@@ -173,7 +175,7 @@ export const SessionStatusChipsControl = ({
                     ) : null}
                 </button>
             ))}
-        </nav>
+        </div>
     )
 }
 
