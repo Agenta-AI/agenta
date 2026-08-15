@@ -318,6 +318,33 @@ Two new regression tests, both verified to FAIL against the code they describe:
   and has no packaged equivalent. Gating optimistically on org-owner would have removed the
   affordance from admins and from every OSS deployment, where the desktop allows all.
 
+### Live verification (2026-08-15, EE dev stack)
+
+Compile-clean on every route that carries these changes: `/w` and `/w/:w/p/:p/settings` on the
+desktop, `settings` / `sessions` / `observability` / `agents` on `/m`. No module or type errors.
+
+The analytics timezone bug was reproduced end to end, and the live probe **narrowed the claim**.
+`POST /spans/analytics/query` echoes `2026-08-14T19:25:45Z` for BOTH the bare and the
+`Z`-suffixed input, so the backend always read it as UTC — the queried window was never wrong,
+and adding the designator carries no wire risk (200 either way).
+
+What WAS wrong is entirely client-side. `fetchDashboardAnalytics` reparses `sorted` with a bare
+`dayjs()` to derive `durationMin`, and in UTC+3 that read 1620 minutes for the 24-hour preset
+instead of 1440. That figure picks the bucket width and the tick format:
+
+| | duration | bucket | tick format |
+|---|---|---|---|
+| before | 1620 min | 60 min | `7_days` |
+| after | 1440 min | 30 min | `24_hours` |
+
+So the "24 hours" dashboard drew hour-wide bars with week-scale tick labels. Real, but a
+rendering-granularity bug rather than the wrong data.
+
+The two migrated endpoints were exercised against the live API with a minted account:
+`GET /keys` returns the array shape `ApiKeyRecord` expects, and the live `/profile` payload
+parses against the new zod schema (it carries `username`, which the schema requires — a mismatch
+there would have logged every user out).
+
 ### Left
 
 The bulk is #5894 (14 doc findings against the stack runbooks), #5889, and the remaining
