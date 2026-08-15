@@ -43,15 +43,14 @@ preference.
 
 ---
 
-## 2. Two decisions to make before you code
+## 2. Decisions
 
-Both block a specific WP. Neither blocks WP0–WP2, so you can start while they resolve.
+D1 is settled and recorded below. D2 still blocks WP5's session half; WP0–WP4 are
+unaffected.
 
-**D1 — `useEvaluatorReference` (blocks WP3).** `EvaluatorMetricsCell` depends on it; it
-drags in `References/atoms/entityReferences`, `cache/referenceCache`, and `jotai-scheduler`.
-Options: (a) move the subtree into `@agenta/entities`, (b) make the evaluator label an
-injected prop so the package cell stays dumb. **(b) is the cheaper default** — measure the
-subtree first, then choose. This is yours to decide; it is an engineering call.
+**D1 — `useEvaluatorReference` — RESOLVED (b).** The evaluator label is an injected prop:
+`EvaluatorMetricsCell` takes `displayName`, the host resolves it, and the 721-LOC
+reference-atom subtree stays in the app. Nothing here blocks WP3.
 
 **D2 — the observability session row (blocks WP5's session half).** No OSS design exists,
 and it is a *different entity* from `@agenta/sessions`. Options: (a) mobile stacks the WP3
@@ -72,7 +71,9 @@ Small, mechanical, no open questions, unblocks everything. Concretely:
 - `sanitizeDataWithBlobUrls` → `@agenta/shared/utils`
 - Add a `workspaceMembersAtom` seam for annotation author attribution
 
-Leave thin re-export shims at every old OSS path. Nothing else in OSS moves in this PR.
+**No value re-export shims.** `web/eslint.config.mjs` bans `export … from "@agenta/*"` in
+`oss/src/**` and `ee/src/**`, so rewrite the call sites to import from the package and delete
+the old OSS module. WP0 rewrote 30 import sites across 25 files — budget for that.
 
 **Do not** move `sessionExistsAtom` — read the note in §3 WP0 of the plan for why.
 
@@ -85,10 +86,12 @@ Leave thin re-export shims at every old OSS path. Nothing else in OSS moves in t
 pnpm lint-fix                                    # required before every commit
 pnpm --filter @agenta/oss exec tsc --noEmit      # the correct OSS tsc invocation
 pnpm turbo run build --filter=@agenta/<package>  # each package you touched
-pnpm --filter @agenta/<package> test             # package unit tests
+pnpm --filter @agenta/<package> test             # where the package defines one
+                                                 # (observability-ui had no test script until
+                                                 #  a harness was added for it)
 
 # antd gate for the new package (must print nothing)
-grep -rn 'antd' web/packages/agenta-observability-ui/src
+grep -rn 'antd' packages/agenta-observability-ui/src
 ```
 
 **Gate on the tsc error *signature diff*, not the count** — a count gate hides a new error

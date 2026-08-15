@@ -1,10 +1,12 @@
 # Observability → packages, antd-free, mobile parity
 
-> **Status:** plan only — nothing built. Written 2026-08-11 in the `sessions-ux` worktree
-> (HEAD was `be2548e35a` when measuring; the worktree has advanced since). Every number
-> below was measured from the tree, not estimated — **re-run §9 before starting.**
-> **Not yet decided:** the observability session row (WP5) and the `useEvaluatorReference`
-> subtree (WP3) — both flagged inline, both need an answer before their WP starts.
+> **Status:** WP0–WP3 landed (empty states deferred within WP3 — see below). Written
+> 2026-08-11 in the `sessions-ux` worktree (HEAD was `be2548e35a` when measuring; the
+> worktree has advanced since). Every number below was measured from the tree, not
+> estimated — **re-run §9 before starting a later WP.**
+> **D1 is resolved:** the evaluator label is an injected prop (`EvaluatorMetricsCell`
+> takes `displayName`), so `useEvaluatorReference` stays in the app. **D2 is still open:**
+> the observability session row (WP5) needs an answer before that WP starts.
 > **To execute this plan, start from `KICKOFF.md` in this directory.**
 > **WP0–WP3 are done** (empty states deferred within WP3 — see below) (§9 re-verified on `079bc20be4`; all numbers reproduced). Corrections it
 > found are folded in below and listed in the table at the end of §9.
@@ -198,8 +200,9 @@ Move the OSS modules the observability atoms depend on down into `@agenta/entiti
 
 ### WP1 — `@agenta/observability` grows into the full state layer
 
-Move `state/newObservability/**` into the package. OSS paths become re-export shims so
-nothing else in OSS moves in this PR.
+Move `state/newObservability/**` into the package. Call sites are rewritten to import from
+the package and the old OSS module is deleted — see the correction under WP0: value
+re-export shims are banned by lint, so "nothing else in OSS moves in this PR" does not hold.
 
 New package layout:
 
@@ -327,7 +330,7 @@ Every cell's non-package imports, checked individually. Most are clean; four are
 
 | Cell(s) | Extra OSS deps | Resolution |
 | --- | --- | --- |
-| `NodeNameCell`, `AvatarTreeContent`, `StatusRenderer`, `CostCell`, `DurationCell`, `UsageCell`, `TimestampCell` | none beyond `state/newObservability` (WP1) + `spanTypeStyles` (WP2 split) | **clean — port as-is** |
+| `NodeNameCell`, `AvatarTreeContent`, `StatusRenderer`, `CostCell`, `DurationCell`, `UsageCell`, `TimestampCell` | none beyond `state/newObservability` (WP1) + `spanTypeStyles` (WP3 split) | **clean — port as-is** |
 | 8 of the 10 session cells | `state/newObservability/atoms/queries` only (WP1) | clean |
 | `FirstInputCell`, `LastOutputCell` | `sanitizeDataWithBlobUrls` | moved to `@agenta/shared/utils` in WP0 |
 | `EvaluatorMetricsCell` | `LabelValuePill` (antd-free ✓), `booleanValueColorClass`, `useProjectData`, **`useEvaluatorReference`** | **D1 RESOLVED — inject the label.** `References/atoms/entityReferences` measured at **721 LOC**, far too much to drag into a cell. The packaged cell takes `displayName?: string`; OSS keeps a ~20-line wrapper that resolves it via `useEvaluatorReference`. `LabelValuePill` had exactly ONE consumer so it moved into the package too; `booleanValueColorClass` (2 lines) was inlined |
@@ -639,11 +642,12 @@ grep -h 'from "' web/oss/src/state/newObservability/atoms/*.ts \
   | sed 's/.*from "//;s/".*//' | sort -u | grep '@/oss'
 
 # §3 WP3 — per-cell OSS coupling (the audit table)
-cd web/oss/src/components/pages/observability
-for f in components/*.tsx components/SessionsTable/components/Cells/*.tsx; do
-  d=$(grep -h '@/oss/' "$f" | sed 's/.*"\(@\/oss[^"]*\)".*/\1/' | tr '\n' ' ')
-  [ -n "$d" ] && echo "$f → $d"
-done
+# Subshell: every other block here runs from the repository root, so the `cd` must not leak.
+( cd web/oss/src/components/pages/observability
+  for f in components/*.tsx components/SessionsTable/components/Cells/*.tsx; do
+    d=$(grep -h '@/oss/' "$f" | sed 's/.*"\(@\/oss[^"]*\)".*/\1/' | tr '\n' ' ')
+    [ -n "$d" ] && echo "$f → $d"
+  done )
 
 # §8 the table
 D=web/packages/agenta-ui/src/InfiniteVirtualTable

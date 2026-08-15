@@ -11,16 +11,13 @@ first — they are the difference between five agents helping and five agents co
 
 Start **one** new Claude Code session and paste:
 
-> Read
-> `/Users/ardaerzin/Documents/GitHub/agenta_open_source/.claude/worktrees/sessions-ux/docs/design/observability-chrome/KICKOFF.md`,
-> then
-> `/Users/ardaerzin/Documents/GitHub/agenta_open_source/.claude/worktrees/sessions-ux/docs/design/observability-chrome/plan.md`.
-> Work in
-> `/Users/ardaerzin/Documents/GitHub/agenta_open_source/.claude/worktrees/sessions-ux` on branch
-> `obs/wp3-observability-ui`.
+> Read `docs/design/observability-chrome/KICKOFF.md`, then
+> `docs/design/observability-chrome/plan.md`.
+> Work in this worktree, on the branch it already has checked out — confirm both with
+> `git rev-parse --show-toplevel` and `git branch --show-current` before you start.
 > Execute the chrome conversion. Dispatch the waves in §3 using sub-agents, sending each wave's
 > agents in a single message so they run in parallel, using the prompts in
-> `/Users/ardaerzin/Documents/GitHub/agenta_open_source/.claude/worktrees/sessions-ux/docs/design/observability-chrome/agent-prompts.md`
+> `docs/design/observability-chrome/agent-prompts.md`
 > verbatim as their payloads. Report back after each wave before starting the next.
 
 That session is the **orchestrator**. It does not write component code itself — it dispatches,
@@ -123,8 +120,9 @@ Dispatch P0-A and P0-B together. Both are self-contained and block later tracks.
 the conventions of the existing files there (Radix + `cn` from `../../utils/styles`). It
 replaces antd `DatePicker` in `web/oss/src/components/Filters/Sort.tsx` — read that file's
 custom-range branch first. It must emit `{startTime, endTime}` as ISO strings.
-`@agenta/ui` has no date library today; `dayjs` is used repo-wide. Choose, justify in a comment,
-and add the dependency explicitly. Do not edit `ui/index.ts`; report the export line instead.*
+Take `dayjs` through the shared wrapper (`@agenta/shared/utils/dateTime`) rather than adding a
+direct dependency — that is what shipped, and it keeps one date surface across the packages. Do
+not edit `ui/index.ts`; report the export line instead.*
 
 **P0-B prompt sketch:** *Decide whether `@agenta/ui/src/components/ui/cascader.tsx` can replace
 antd `TreeSelect` at `web/oss/src/components/Filters/Filters.tsx:1395`, which renders
@@ -160,10 +158,11 @@ cd web
 pnpm lint-fix
 pnpm --filter @agenta/oss exec tsc --noEmit > /tmp/t.txt 2>&1; echo "exit=$?"
 pnpm turbo run build lint --filter=@agenta/<package>
-pnpm --filter @agenta/<package> test
+pnpm --filter @agenta/<package> test   # only where the package defines a test script
 
-# antd gate for both UI packages (must print nothing)
-grep -rn 'from "antd"\|from "@ant-design' web/packages/agenta-observability-ui/src
+# antd gate for both UI packages (must print nothing).
+# Paths are relative to web/ — this block already ran `cd web`.
+grep -rn 'from "antd"\|from "@ant-design' packages/agenta-observability-ui/src
 ```
 
 **Capture `$?` directly into a file. Never pipe tsc to `head`/`grep` and read the exit code** —

@@ -9,7 +9,7 @@ Wave 3 (I, alone). T5 anytime **except** during Wave 3.
 **Prepend this preamble to every prompt:**
 
 > You are working in the Agenta monorepo at
-> `/Users/ardaerzin/Documents/GitHub/agenta_open_source/.claude/worktrees/sessions-ux`, on
+> the repository worktree you were started in, on
 > branch `obs/wp3-observability-ui`. Frontend lives under `web/`.
 >
 > Before you start, read: `docs/design/observability-chrome/plan.md`,
@@ -162,7 +162,9 @@ Wave 3 (I, alone). T5 anytime **except** during Wave 3.
 > pure parts. These replace most of `web/oss/src/components/Filters/Filters.tsx` (1,983 LOC).
 > **Read it first.** Do not edit it.
 >
-> Your scope is the dialog shell and the generic filter row:
+> Your scope is the dialog shell, the generic filter row, and `FilterTagsInput.tsx` — the
+> multi-VALUE tags input (antd `mode="tags"`) the generic row needs. The export handoff lists
+> it under T3, so it is yours; do not leave it unowned:
 > - **Shell** (from ~line 840): the popover container, heading, `+ Add`, `Clear`, `Cancel`,
 >   `Apply`. Use `popover` from `@agenta/ui/ui` and `EnhancedButton`.
 > - **Generic row:** field menu (antd `Dropdown` + `MenuProps` → `dropdown-menu` from
