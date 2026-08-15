@@ -1,5 +1,13 @@
 # Restack the sessions-UX work onto `release/v0.112.0`
 
+> **HISTORICAL — superseded by [`execute-stacked-prs.md`](./execute-stacked-prs.md).**
+>
+> This file records the state on 2026-08-10, *before* the stack was built, and every figure in
+> it has since moved: 88 commits became 83, "no lane branches" became 29, "no open PRs" became
+> #5865–#5893, and the 17 `@agenta/mobile` TypeScript errors were resolved. Read it for the
+> reasoning that produced the plan; do NOT follow its commands or trust its numbers. The runbook
+> that reflects what was actually done is `execute-stacked-prs.md`.
+
 ## State of the world (verified, 2026-08-10)
 
 | fact | value |
@@ -54,7 +62,7 @@ In dependency order — each depends only on lanes below it.
 | `pkg/ui-data-table` | `DataTable` in `@agenta/ui` + per-row detail + the responsive header fixes | `82aa890`, `550f58d`, `81e8f13`, `710d401`, `5897dfc` |
 | `pkg/shared-edition-gates` | `isEE`/`isToolsEnabled`/`isBillingEnabled` into `@agenta/shared/api`; 15 call sites repointed | `998a53e`, `edf8952` |
 | `pkg/entities-organization` | org + workspace API and types into `@agenta/entities/organization` | `76b9531` |
-| `pkg/settings-spine` | `@agenta/settings` + `@agenta/settings-ui`; Preferences, Account, API keys, secrets, vault, webhooks, projects | `eb45a4e`, `6fa6d45`, `e9733a8`, `51892a4`, `e5d02b2`, `f87c2c7`, `f84d10f`, `ff5e9f0`, `675003 3`, `7d5b56f`, `88de93a`, `babcb59`, `190f7e6` |
+| `pkg/settings-spine` | `@agenta/settings` + `@agenta/settings-ui`; Preferences, Account, API keys, secrets, vault, webhooks, projects | `eb45a4e`, `6fa6d45`, `e9733a8`, `51892a4`, `e5d02b2`, `f87c2c7`, `f84d10f`, `ff5e9f0`, `6750033`, `7d5b56f`, `88de93a`, `babcb59`, `190f7e6` |
 | `oss/drop-reexport-shims` | removes 24 app-layer re-export stubs; repoints ~60 call sites | `102a320` |
 | `pkg/settings-org-pages` | Members, Organizations, Access Controls, Domains, SSO | `06e67c0`, `8d5c308`, `714884a`, `e5de1cd`, `bd3cc1a`, `45896f2`, `fd30503`, `a7ff686`, `5ef55f9` |
 | `pkg/entity-ui-form-engine` | `SchemaForm` + `SubscriptionForm` off antd `Form` onto `@rc-component/form` | `e2db4ba` |
@@ -85,7 +93,9 @@ working-tree technique in the same section, not hunk assignment.
 Work in this order. Commit nothing to a lane until the lane below it is verified.
 
 1. **Snapshot first.** `but oplog snapshot -m "pre-restack"` if the repo is in GitButler
-   workspace mode; otherwise `git branch backup/pre-restack-112 pkg/settings-spine`. This is
+   workspace mode; otherwise `git branch backup/pre-stack-112 pkg/settings-spine`. (One name
+   across both runbooks — `execute-stacked-prs.md` verifies `backup/pre-stack-112`, and a
+   recovery point nobody checks for is not a recovery point.) This is
    the only safe recovery point and you will want it.
 2. **Confirm the base.** `git fetch origin release/v0.112.0`. Everything stacks on that ref,
    not on `main`.
@@ -97,8 +107,10 @@ Work in this order. Commit nothing to a lane until the lane below it is verified
    per-lane diff check.
 5. **Split the commits that touch two lanes.** `fd30503` is the clearest: it adds the Domains
    and SSO sections to the package *and* wires them into `/m`. Make the tree the package
-   lane's version, commit that, then edit to add the mobile delta and amend it into the
-   mobile lane. Do not try to assign hunks.
+   lane's version and commit that; then, ON THE MOBILE LANE, edit in the mobile delta and make
+   a NEW commit there. Do not amend — amending rewrites a commit the lanes above already build
+   on, so every one of them has to be rebased and the diffs you just verified go stale.
+   Do not try to assign hunks.
 6. **Gates, then push.** Only after every lane's diff is clean.
 7. **Open PRs** bottom-up, each based on the lane below.
 
@@ -113,7 +125,8 @@ tree** (`git show <lane>:<file>`), then the next.
 
 - `pnpm lint-fix` from `web/` — 24/24.
 - `tsc --noEmit` = 0 for `@agenta/ui`, `@agenta/settings-ui`, `@agenta/entities`, `@agenta/oss`,
-  `@agenta/ee`, `@agenta/mobile`.
+  `@agenta/ee`, `@agenta/mobile` — the same list `execute-stacked-prs.md` gates on, so a lane
+  that passes there passes here.
 - Per lane, `git diff --name-only <lane-below>..<lane>` must list exactly that lane's files.
 - PR bases: bottom = `release/v0.112.0`, each other = the lane below.
 

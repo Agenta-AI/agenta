@@ -60,12 +60,19 @@ Drop every lane with 0. For the rest, list the surviving commits
 (`git show --stat`). **Trust the file lists, not the commit subjects** — the previous mapping was
 built from subjects and that is exactly where it went wrong.
 
-Then map this session's 50 commits (`git log --oneline origin/release/v0.112.0..HEAD`, the newest
-50) onto lanes. `restack-onto-112.md` has a proposed grouping; treat it as a hypothesis to check
-per commit, not as truth.
+Then map this session's commits onto lanes. Select them by RANGE, never by count:
 
-**Their commits are not contiguous.** You cannot cut this history at branch points; you must
-cherry-pick per lane.
+```bash
+git log --oneline --no-merges origin/release/v0.112.0..HEAD
+```
+
+Do not take "the newest 50" — the commits are **not contiguous**, so any positional slice both
+picks up commits that belong to someone else and drops session commits that fall outside it. The
+range against the base is the only definition that stays correct as the branch moves.
+
+`restack-onto-112.md` has a proposed grouping; treat it as a hypothesis to check per commit, not
+as truth. Because the commits are not contiguous you cannot cut this history at branch points;
+you must cherry-pick per lane.
 
 ## Phase 2 — build the lanes
 
@@ -73,10 +80,12 @@ One linear line, each lane on top of the one below:
 
 ```bash
 base=origin/release/v0.112.0
-git checkout -b <lane-1> $base
+# `-B`, not `-b`: Phase 1 found 29 lane branches already present, and `-b` fails outright on an
+# existing name. `-B` resets the lane to the point you meant to start it from.
+git checkout -B <lane-1> $base
 git cherry-pick <its commits, oldest first>
 # verify, then
-git checkout -b <lane-2> <lane-1>
+git checkout -B <lane-2> <lane-1>
 ...
 ```
 
@@ -101,10 +110,15 @@ the PR body — a package change riding with its consumer is honest; a half-appl
 ```bash
 cd web
 pnpm lint-fix                                   # 24/24
+set -euo pipefail
 for p in @agenta/shared @agenta/ui @agenta/entities @agenta/entity-ui @agenta/settings-ui \
          @agenta/oss @agenta/ee @agenta/mobile; do
-  echo "$p: $(pnpm --filter $p exec tsc --noEmit 2>&1 | grep -c 'error TS')"
-done                                            # all 0
+  # Run tsc DIRECTLY so its exit status is the gate. Counting `error TS` lines instead hides
+  # every failure that prints no such line (a config error, a crash, an OOM) behind a count of
+  # zero, and `grep` supplies the pipeline status even when `pnpm` failed.
+  echo "== $p"
+  pnpm --filter "$p" exec tsc --noEmit
+done
 ```
 
 Run `lint-fix` **before** staging, not after committing. Prettier reflows imports once a
@@ -141,7 +155,15 @@ gh pr comment <number> --body "@coderabbitai review"
 ## Phase 5 — verify the stack on GitHub
 
 For each PR, the **Files changed** tab must show only that lane's files. If it shows the lane
-below's too, the base is wrong — fix with `gh pr edit <n> --base <correct>`, no need to re-push.
+below's too, the base is wrong. Fix it with the REST route, NOT `gh pr edit` — that command fails
+on this repo with a GraphQL error about deprecated Projects (classic), as the trap list below
+records:
+
+```bash
+gh api -X PATCH repos/Agenta-AI/agenta/pulls/<n> -f base=<correct-branch>
+```
+
+No re-push is needed.
 
 ## Known traps from the session that produced this
 
@@ -149,6 +171,10 @@ below's too, the base is wrong — fix with `gh pr edit <n> --base <correct>`, n
   sits on a divergent parent; doing this reverted 276 files and deleted a directory another agent
   had just added. To apply a stash's changes, use `git diff <stash>^ <stash> -- <paths>` and
   `git apply --3way`.
+- **A `git stash -u` keeps untracked files in a THIRD parent, `<stash>^3`.** They are not in the
+  stash commit itself, so restoring only from `<stash>` silently drops every new file — which is
+  exactly the lane-isolation step where new files matter most. Restore them explicitly:
+  `git checkout '<stash>^3' -- <paths>`.
 - **`rebase -i` / `add -i` are unavailable here.** To fold a change into a non-tip commit:
   `git reset --soft HEAD~1`, unstage what does not belong, `git add` what does,
   `git commit --amend --no-edit`, then recreate the dropped commit.

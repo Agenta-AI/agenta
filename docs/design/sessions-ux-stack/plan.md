@@ -23,6 +23,12 @@ main
                                      └─ oss/seed-attachments  #5776   ← published top
 ```
 
+> **HISTORICAL SNAPSHOT.** The figures below were true when this plan was written and have all
+> moved since: the work was carved into 29 lane branches and opened as PRs #5865–#5893, and the
+> stack was rebuilt onto `release/v0.112.0`. Read this for the lane *design* — the file lists per
+> lane are still the reference — but take counts, branch names and "uncommitted" state from
+> [`execute-stacked-prs.md`](./execute-stacked-prs.md), which records what was actually done.
+
 Local `HEAD` vs that top: **+211 / −11**. Concretely:
 
 | | |
