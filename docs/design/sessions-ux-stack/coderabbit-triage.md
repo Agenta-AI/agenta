@@ -345,6 +345,44 @@ The two migrated endpoints were exercised against the live API with a minted acc
 parses against the new zod schema (it carries `username`, which the schema requires — a mismatch
 there would have logged every user out).
 
+### Browser verification (2026-08-16, gstack Chromium, EE dev stack)
+
+Driven against the live app with a real session.
+
+**#5882 double-mount — CONFIRMED with a before/after on the running app.** Counting mounted
+nodes in the open session workspace, with the fix and then with `SessionWorkspace.tsx` reverted
+to its pre-fix version and hot-reloaded:
+
+| | `[contenteditable]` | Lexical editors | `[data-slot=split-pane]` |
+|---|---|---|---|
+| before the fix | **2** | **2** | 1 |
+| after | 1 | 1 | 1 |
+
+Two composers and two editors mounted at once — the two chat engines, observed rather than
+argued. The file was restored immediately after (`git status` clean).
+
+**#5893 webhook event types — CONFIRMED with real data.** Created a subscription carrying two
+event types through the API, opened it in the mobile edit sheet (which showed the new "Also
+subscribed to 1 event this sheet cannot show" note), saved WITHOUT touching the event field, and
+re-queried: both types still present. The old `event_types: [eventType]` would have returned one.
+
+**#5893 endpoint validation — CONFIRMED discriminating.** Submit stays disabled for `not-a-url`
+and `ftp://x.com/h`, enables for `https://example.com/hooks/agenta`. The old gate
+(`Boolean(url.trim())`) would have enabled the first two.
+
+**#5892 project rename — CONFIRMED.** Clearing the field leaves it empty and disables Save.
+Under the old `value={name || project.project_name}` an empty value is impossible to observe.
+
+**CORRECTION — one claimed dark-mode bug was not real.** I said `AgentConfigHeader`'s
+`bg-[var(--ag-c-FFFFFF)]` rendered white in dark mode. It does not: the compat shim is
+theme-aware, resolving to `#141414` in dark and `#fff` in light — identical to the
+`bg-colorBgContainer` I replaced it with. That change is hygiene (the `--ag-c-*` literals are
+banned), not a fix, and the commit message for `74f8917` overstates it.
+
+The sibling claim holds: `--ag-c-13C2C2` is `#13c2c2` in BOTH themes, while
+`--ag-preset-cyan-text` is `#006d75` light / `#33bcb7` dark. That icon really was a fixed cyan
+that ignored the theme.
+
 ### Left
 
 The bulk is #5894 (14 doc findings against the stack runbooks), #5889, and the remaining
