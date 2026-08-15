@@ -27,17 +27,16 @@ COPY docker/run-turbo-build.sh /usr/local/bin/run-turbo-build.sh
 
 RUN chmod +x /usr/local/bin/run-turbo-build.sh
 
-# Manifests first (change less often than source): the mobile app plus the
-# @agenta/* workspace closure it links (chat → entities/playground/shared;
-# entities → sdk/api-client/shared/ui) so `pnpm install` resolves the
-# workspace: deps.
+# Manifests first (change less often than source), for EVERY workspace package —
+# the same `--parents` copy the oss and ee images use.
+#
+# This used to hand-list the closure mobile links, and it silently fell behind it:
+# `@agenta/chat` imports `@agenta/entity-ui/tool-permission`, entity-ui was not on
+# the list, and the image build died with TS2307 on a subpath that resolves fine
+# everywhere else. A list that has to be updated by hand whenever a package grows a
+# dependency is a list that will drift again.
 COPY mobile/package.json ./mobile/package.json
-COPY packages/agenta-shared/package.json ./packages/agenta-shared/
-COPY packages/agenta-ui/package.json ./packages/agenta-ui/
-COPY packages/agenta-entities/package.json ./packages/agenta-entities/
-COPY packages/agenta-playground/package.json ./packages/agenta-playground/
-COPY packages/agenta-chat/package.json ./packages/agenta-chat/
-COPY packages/agenta-sdk/package.json ./packages/agenta-sdk/
+COPY --parents packages/*/package.json ./
 
 # `agenta-api-client` runs `tsc` as a `prepare` lifecycle script during
 # install, so its full source must be present before `pnpm install` runs.
@@ -49,16 +48,9 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --offline
 
-# Shared package config (required by the package tsconfigs), then the
-# workspace package sources for the same closure.
-COPY packages/tsconfig.base.json ./packages/
-COPY packages/css-modules.d.ts ./packages/
-COPY packages/agenta-shared/ ./packages/agenta-shared/
-COPY packages/agenta-ui/ ./packages/agenta-ui/
-COPY packages/agenta-entities/ ./packages/agenta-entities/
-COPY packages/agenta-playground/ ./packages/agenta-playground/
-COPY packages/agenta-chat/ ./packages/agenta-chat/
-COPY packages/agenta-sdk/ ./packages/agenta-sdk/
+# Then the package sources. Turbo still builds only what `--filter=@agenta/mobile`
+# needs; copying them all just keeps the image from depending on a hand-kept list.
+COPY packages/ ./packages/
 
 COPY mobile/ ./mobile/
 
