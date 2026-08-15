@@ -16,7 +16,11 @@ const state = vi.hoisted(() => ({
     serverParams: null as unknown,
 }))
 
-vi.mock("jotai", () => ({
+// Only the two readers this file steers are replaced; everything else stays real, because the
+// dock now composes package code whose jotai surface this mock cannot track (each missing export
+// failed the file with a "not defined on the jotai mock" that says nothing about the dock).
+vi.mock("jotai", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("jotai")>()),
     atom: (init: unknown) => ({init}),
     // The dock reads the layout atom; the commit body reads the workflow molecule's selector,
     // which the mock below stamps so the two are told apart.
@@ -30,13 +34,8 @@ vi.mock("@agenta/ui", () => ({
     HeightCollapse: ({children}: {children?: unknown}) => <div>{children}</div>,
 }))
 
-vi.mock("@phosphor-icons/react", () => ({
-    ArrowSquareOut: () => <i />,
-    CaretDown: () => <i />,
-    CaretRight: () => <i />,
-    ChatText: () => <i />,
-    ShieldCheck: () => <i />,
-}))
+// The real icon module. It used to be mocked with a hand-listed set, which broke the whole file
+// the moment the component reached for one more icon — a failure that says nothing about the dock.
 
 vi.mock("antd", () => {
     const Button = ({children}: {children?: unknown}) => <button type="button">{children}</button>
@@ -58,8 +57,24 @@ vi.mock("@agenta/chat/hooks", () => ({
 
 vi.mock("../assets/constants", () => ({isAgentChatSteerEnabled: () => false}))
 
+// Both selectors: the dock reads `serverConfiguration`, and the approval model reaches for
+// `configuration` through the package. A mock missing either fails the file with a "not a
+// function" that says nothing about the dock.
 vi.mock("@agenta/entities/workflow", () => ({
-    workflowMolecule: {selectors: {serverConfiguration: (id: string) => ({serverConfigFor: id})}},
+    workflowMolecule: {
+        selectors: {
+            serverConfiguration: (id: string) => ({serverConfigFor: id}),
+            configuration: (id: string) => ({configFor: id}),
+        },
+        // `useAlwaysAllowTool` writes through this one.
+        actions: {updateConfiguration: {write: () => undefined}},
+    },
+}))
+
+// The always-allow affordance is the package's, with its own unit test; this file is about what
+// the dock renders. Same stub the wiring test uses.
+vi.mock("@agenta/chat/hooks", () => ({
+    useAlwaysAllowTool: () => ({infoFor: () => null, grant: () => undefined}),
 }))
 
 vi.mock("@agenta/entities/workflow/commitDiff", () => ({

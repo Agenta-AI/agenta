@@ -4,7 +4,6 @@ import {
     CALL_DESCRIPTION_MAX_LENGTH,
     canonicalToolName,
     extractCallDescription,
-    partToolName,
     resolveToolDisplay,
 } from "./toolDisplay"
 
@@ -84,16 +83,6 @@ describe("extractCallDescription", () => {
         const result = extractCallDescription({description})
 
         expect(result).toEqual({text: description, truncated: false})
-    })
-})
-
-describe("partToolName", () => {
-    it("strips the tool- prefix from a typed part", () => {
-        expect(partToolName({type: "tool-commit_revision"} as never)).toBe("commit_revision")
-    })
-
-    it("reads toolName off a dynamic part", () => {
-        expect(partToolName({type: "dynamic-tool", toolName: "test_run"} as never)).toBe("test_run")
     })
 })
 

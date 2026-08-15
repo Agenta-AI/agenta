@@ -20,9 +20,9 @@ import {
 import {atom} from "jotai"
 
 import {routerAppIdAtom} from "@/oss/state/app"
-import {urlAtom} from "@/oss/state/url"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {selectedOrgAtom} from "@/oss/state/org"
+import {urlAtom} from "@/oss/state/url"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 const ossObservabilityScopeAtom = atom<ObservabilityScope>((get) => ({

@@ -1,5 +1,6 @@
 import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
+import {setTraceDrawerActiveSpanAtom} from "@agenta/observability/traceDrawer"
 import {AUTO_REFRESH_INTERVAL} from "@agenta/observability-ui"
 import {
     getDefaultHiddenObservabilityColumnKeys,
@@ -12,7 +13,6 @@ import type {TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
-import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {TraceSpanNode} from "@/oss/services/tracing/types"

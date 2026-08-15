@@ -10,13 +10,13 @@
  * while a slot contract is necessarily loose, and this is the one place that knows what the
  * drawer passes.
  */
-import {hasAppReference} from "@agenta/playground"
-import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {bindTraceDrawerPlaygroundActions} from "@agenta/observability/traceDrawer"
 import {
     configureTraceDrawerReferences,
     type TraceDrawerReferenceSlots,
 } from "@agenta/observability-ui/traceDrawer"
+import {hasAppReference} from "@agenta/playground"
+import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {getDefaultStore} from "jotai"
 
 import {TraceSpanDrillInView} from "@/oss/components/DrillInView"

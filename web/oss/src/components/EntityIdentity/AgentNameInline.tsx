@@ -1,7 +1,7 @@
 import {useRef, useState} from "react"
 
-import {PencilSimple} from "@phosphor-icons/react"
 import {Input} from "@agenta/ui/ui"
+import {PencilSimple} from "@phosphor-icons/react"
 
 import {useRenameApp} from "./useRenameApp"
 

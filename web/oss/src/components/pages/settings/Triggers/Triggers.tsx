@@ -1,6 +1,7 @@
 import {TriggerDeliveriesDrawer} from "@agenta/entity-ui/gatewayTrigger"
-import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {TriggerSchedulesSection, TriggerSubscriptionsSection} from "@agenta/settings-ui"
+
+import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 
 import GatewayTriggersSection from "./components/GatewayTriggersSection"
 

@@ -1,22 +1,19 @@
 import {PropsWithChildren, useRef} from "react"
 
-import {useQueryClient} from "@tanstack/react-query"
-import {Provider, getDefaultStore, useSetAtom} from "jotai"
-import {useHydrateAtoms} from "jotai/react/utils"
-import {queryClientAtom} from "jotai-tanstack-query"
-import dynamic from "next/dynamic"
-
-import AgSWRConfig from "../lib/api/SWRConfig"
-
-import {useRouter} from "next/router"
-
 import {
     bindTraceDrawerClearParams,
     bindTraceDrawerNavigate,
     bindTraceDrawerSetQueryParam,
 } from "@agenta/observability/traceDrawer"
+import {useQueryClient} from "@tanstack/react-query"
+import {Provider, getDefaultStore, useSetAtom} from "jotai"
+import {useHydrateAtoms} from "jotai/react/utils"
+import {queryClientAtom} from "jotai-tanstack-query"
+import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {registerTraceDrawerReferenceSlots} from "../components/SharedDrawers/TraceDrawer/registerReferenceSlots"
+import AgSWRConfig from "../lib/api/SWRConfig"
 
 import {bindObservabilityHostAtoms} from "./observability"
 import UserListener from "./profile/UserListener"

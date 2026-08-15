@@ -32,6 +32,7 @@ import {
     filesDrawerOpenAtomFamily,
     filesDrawerStagedAtomFamily,
 } from "@agenta/entity-ui/drive"
+import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {modal} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
@@ -41,7 +42,6 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
-import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 
