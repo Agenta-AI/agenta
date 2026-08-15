@@ -41,6 +41,7 @@ export default function IntegrationGrid({onSelect}: Props) {
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-colorTextTertiary"
                 />
                 <Input
+                    aria-label="Search integrations"
                     placeholder="Search integrations…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -76,7 +77,7 @@ function IntegrationCard({
         <button
             type="button"
             onClick={onClick}
-            className="cursor-pointer rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left hover:border-colorPrimary"
+            className="cursor-pointer rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left outline-none hover:border-colorPrimary focus-visible:border-colorPrimary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"
         >
             <div className="flex items-start gap-3">
                 {/* Catalog logos are remote and arbitrary; next/image would need every host

@@ -1,4 +1,5 @@
 import {TriggerDeliveriesDrawer} from "@agenta/entity-ui/gatewayTrigger"
+import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {TriggerSchedulesSection, TriggerSubscriptionsSection} from "@agenta/settings-ui"
 
 import GatewayTriggersSection from "./components/GatewayTriggersSection"
@@ -8,8 +9,8 @@ export default function Triggers() {
     return (
         <div className="flex flex-col">
             <GatewayTriggersSection />
-            <TriggerSubscriptionsSection />
-            <TriggerSchedulesSection />
+            <TriggerSubscriptionsSection confirm={AlertPopup} />
+            <TriggerSchedulesSection confirm={AlertPopup} />
             {/* One shared deliveries drawer for both subscriptions and schedules
                 (both bind the same atom; rendering it once avoids a duplicate). */}
             <TriggerDeliveriesDrawer />

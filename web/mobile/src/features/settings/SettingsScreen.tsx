@@ -197,8 +197,8 @@ const TabBody = ({
             return (
                 <div className="flex flex-col gap-8">
                     <TriggerConnectionsSection confirm={confirm} />
-                    <TriggerSubscriptionsSection />
-                    <TriggerSchedulesSection />
+                    <TriggerSubscriptionsSection confirm={confirm} />
+                    <TriggerSchedulesSection confirm={confirm} />
                     {confirmSheet}
                 </div>
             )

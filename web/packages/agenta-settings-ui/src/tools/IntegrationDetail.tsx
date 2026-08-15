@@ -3,6 +3,8 @@ import {useState} from "react"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowLeft, Plus} from "@phosphor-icons/react"
 
+import type {ConfirmDestructive} from "../confirm"
+
 import ActionsList from "./ActionsList"
 import ConnectionsList from "./ConnectionsList"
 import ConnectModal from "./ConnectModal"
@@ -12,7 +14,7 @@ interface Props {
     integrationKey: string
     onBack: () => void
     /** Passed through to the connections list for its delete confirmation. */
-    confirm?: (args: {title: string; message: string; onOk: () => void | Promise<void>}) => void
+    confirm?: ConfirmDestructive
 }
 
 export default function IntegrationDetail({integrationKey, onBack, confirm}: Props) {
