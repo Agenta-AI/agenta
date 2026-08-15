@@ -189,8 +189,12 @@ const ReplayScreen = ({
                         workspaceId={workspaceId}
                         agentId={agentId}
                     />
+                    {/* Why there is no composer. The session may still name an agent (the link
+                        carries it) and only be missing a revision — don't claim it has none. */}
                     <p className="text-muted-foreground border-colorBorderSecondary m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-xs">
-                        Read-only — this session has no agent to message yet.
+                        {agentId
+                            ? "Read-only — this agent has no revision to message yet."
+                            : "Read-only — this session has no agent to message yet."}
                     </p>
                     {running ? (
                         <div className="border-border shrink-0 border-b px-4 py-2">

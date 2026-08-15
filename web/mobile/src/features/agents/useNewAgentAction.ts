@@ -9,7 +9,7 @@ import {useCreateAgent} from "@agenta/home-ui"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {stashPendingTaskAtom} from "../home/pendingTask"
+import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
 /**
  * Create an agent from this app, over the SHARED mint+commit core — blank, or seeded from a
@@ -27,6 +27,7 @@ export const useNewAgentAction = (base: string) => {
     const [error, setError] = useState<string | null>(null)
     const createAgent = useCreateAgent({onError: setError})
     const stashTask = useSetAtom(stashPendingTaskAtom)
+    const dropTask = useSetAtom(takePendingTaskAtom)
 
     const run = useCallback(
         async (params?: {name?: string; seedMessage?: string}) => {
@@ -43,17 +44,28 @@ export const useNewAgentAction = (base: string) => {
             void invalidateWorkflowsListCache()
 
             const seed = params?.seedMessage?.trim()
-            if (!seed) {
-                await router.push(`${base}/agents/${created.appId}`)
-                return
+            const sessionId = seed ? crypto.randomUUID() : null
+            if (sessionId) {
+                // The session does not exist server-side until its first turn — mint the id, stash
+                // the instruction, and let the chat screen's engine send it once.
+                stashTask({sessionId, task: {agentId: created.appId, text: seed as string}})
             }
-            // The session does not exist server-side until its first turn — mint the id, stash the
-            // instruction, and let the chat screen's engine send it once.
-            const sessionId = crypto.randomUUID()
-            stashTask({sessionId, task: {agentId: created.appId, text: seed}})
-            await router.push(`${base}/sessions/${sessionId}?agent=${created.appId}`)
+
+            try {
+                await router.push(
+                    sessionId
+                        ? `${base}/sessions/${sessionId}?agent=${created.appId}`
+                        : `${base}/agents/${created.appId}`,
+                )
+            } catch {
+                // The agent exists; only the navigation failed. Release the latch, or the button
+                // stays dead for the rest of the mount.
+                if (sessionId) dropTask(sessionId)
+                setError("Agent created, but couldn't open it — find it under Agents")
+                setCreating(false)
+            }
         },
-        [base, createAgent, creating, router, stashTask],
+        [base, createAgent, creating, dropTask, router, stashTask],
     )
 
     const create = useCallback(() => void run(), [run])

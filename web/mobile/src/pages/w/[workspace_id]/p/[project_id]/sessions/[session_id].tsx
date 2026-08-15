@@ -24,7 +24,7 @@ export default function SessionPage() {
             projectId={projectId}
             workspaceId={workspaceId}
             // A session Home just minted has no turns to name its agent — the link carries it.
-            agentId={typeof agent === "string" ? agent : undefined}
+            agentId={typeof agent === "string" && agent ? agent : undefined}
         />
     )
 }

@@ -5,7 +5,7 @@ import {HomeTaskComposer} from "@agenta/home-ui"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {stashPendingTaskAtom} from "../home/pendingTask"
+import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
 /**
  * The agent overview's composer — Home's composer pinned to this agent (no picker: the route
@@ -25,6 +25,7 @@ export const AgentComposer = ({
 }) => {
     const router = useRouter()
     const stash = useSetAtom(stashPendingTaskAtom)
+    const dropPendingTask = useSetAtom(takePendingTaskAtom)
     const [sessionId] = useState(() => crypto.randomUUID())
     const attachments = useComposerAttachments({sessionId})
 
@@ -32,8 +33,17 @@ export const AgentComposer = ({
         const staged = attachments.files
         const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
         stash({sessionId, task: {agentId, text, parts}})
+        try {
+            await router.push(`${base}/sessions/${sessionId}?agent=${agentId}`)
+        } catch (error) {
+            // The chat route never mounted, so drop the stash — otherwise the task replays the
+            // next time this session id is opened. Attachments stay staged, still sendable.
+            dropPendingTask(sessionId)
+            console.error("[AgentComposer] could not open the session", error)
+            return
+        }
+        // Cleared only once the destination is committed to.
         attachments.clearAttachments(staged.map((file) => file.uid))
-        await router.push(`${base}/sessions/${sessionId}?agent=${agentId}`)
     }
 
     return (

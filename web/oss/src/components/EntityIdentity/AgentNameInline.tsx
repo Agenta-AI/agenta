@@ -1,7 +1,7 @@
-import {useState} from "react"
+import {useRef, useState} from "react"
 
 import {PencilSimple} from "@phosphor-icons/react"
-import {Input, Typography} from "antd"
+import {Input} from "@agenta/ui/ui"
 
 import {useRenameApp} from "./useRenameApp"
 
@@ -24,14 +24,18 @@ const AgentNameInline = ({workflowId, name, onRenamed}: AgentNameInlineProps) =>
     const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState(name)
     const [error, setError] = useState<string | null>(null)
+    /** Escape must win the race with the blur that unmounting the field fires. */
+    const cancelled = useRef(false)
 
     const startEditing = () => {
         setDraft(name)
         setError(null)
+        cancelled.current = false
         setEditing(true)
     }
 
     const commit = async () => {
+        if (cancelled.current) return
         const next = draft.trim()
         if (!next || next === name) {
             setEditing(false)
@@ -51,19 +55,25 @@ const AgentNameInline = ({workflowId, name, onRenamed}: AgentNameInlineProps) =>
             <div className="flex min-w-0 flex-col">
                 <Input
                     autoFocus
+                    aria-label="Agent name"
                     value={draft}
-                    status={error ? "error" : undefined}
+                    aria-invalid={error ? true : undefined}
                     onChange={(e) => {
                         setDraft(e.target.value)
                         if (error) setError(null)
                     }}
-                    onPressEnter={commit}
                     onBlur={commit}
                     onKeyDown={(e) => {
-                        if (e.key === "Escape") setEditing(false)
+                        if (e.key === "Enter") {
+                            e.preventDefault()
+                            void commit()
+                        } else if (e.key === "Escape") {
+                            cancelled.current = true
+                            setEditing(false)
+                        }
                     }}
                     onFocus={(e) => e.target.select()}
-                    className="!h-6 !w-32 !text-[14px] !font-[600]"
+                    className="h-6 w-32 text-[14px] font-[600]"
                 />
                 {error && <span className="mt-0.5 text-xs text-colorError">{error}</span>}
             </div>
@@ -72,22 +82,26 @@ const AgentNameInline = ({workflowId, name, onRenamed}: AgentNameInlineProps) =>
 
     return (
         <div className="group/name flex min-w-0 items-center gap-1">
-            <Typography
+            <span
                 className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600] cursor-pointer"
                 onDoubleClick={startEditing}
                 title="Double-click to rename"
             >
                 {name || "Agent"}
-            </Typography>
+            </span>
 
-            <PencilSimple
-                size={13}
-                className="shrink-0 opacity-0 transition-opacity hover:opacity-100 group-hover/name:opacity-100 cursor-pointer"
+            {/* A real button, so the rename is reachable without a double-click. */}
+            <button
+                type="button"
+                aria-label="Rename agent"
+                className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring group-hover/name:opacity-100"
                 onClick={(e) => {
                     e.stopPropagation()
                     startEditing()
                 }}
-            />
+            >
+                <PencilSimple size={13} />
+            </button>
         </div>
     )
 }
