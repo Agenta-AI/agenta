@@ -57,7 +57,7 @@ export const AgentPageHeader = ({
             {name ? (
                 <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                     <SimpleTooltip title="Agent">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-[var(--ag-c-13C2C2)]">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-[var(--ag-preset-cyan-text)]">
                             <Robot size={15} weight="fill" />
                         </span>
                     </SimpleTooltip>

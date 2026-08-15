@@ -41,9 +41,15 @@ const CommitVariantChangesButton = ({
                 cloneElement(
                     children as React.ReactElement<{
                         onClick: () => void
+                        "aria-disabled"?: boolean
                     }>,
                     {
+                        // A host trigger gets the SAME dirty guard the default button has —
+                        // cloning only `onClick` let a custom trigger commit a clean revision.
+                        // `aria-disabled` rather than `disabled`: the child may not be a control.
+                        "aria-disabled": disabled || undefined,
                         onClick: () => {
+                            if (disabled) return
                             setIsDeployModalOpen(true)
                         },
                     },

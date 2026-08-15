@@ -23,6 +23,7 @@ import {currentWorkflowContextAtom, playgroundEarlyAgentStateAtom} from "@/oss/s
 
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
+import {useCommitHostAdapter} from "../../Modals/CommitVariantChangesModal/assets/useCommitHostAdapter"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
 
 import {PlaygroundVariantConfigHeaderProps} from "./types"
@@ -153,6 +154,7 @@ const PlaygroundVariantConfigHeader = ({
         [_variantId, deployedIn, isLatestRevision],
     )
 
+    const commitHost = useCommitHostAdapter()
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const removeEntity = useSetAtom(playgroundController.actions.removeEntity)
 
@@ -192,6 +194,10 @@ const PlaygroundVariantConfigHeader = ({
             <AgentConfigHeader
                 revisionId={variantId}
                 className={className}
+                // The header owns the commit button here, so it needs the same host adapter the
+                // OSS commit button carries — without it an agent commit leaves this app's
+                // registry and evaluator lists stale and skips the onboarding event.
+                {...commitHost}
                 deploy={
                     isEvaluatorEntity ? null : (
                         <DeployVariantButton
