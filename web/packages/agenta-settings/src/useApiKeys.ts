@@ -62,9 +62,9 @@ export const useApiKeys = ({
         }
         setListing(true)
         fetchAllListApiKeys(workspaceId)
-            .then((res) => {
+            .then((records) => {
                 setKeys(
-                    ((res.data ?? []) as ApiKey[]).map((key) => ({
+                    (records as ApiKey[]).map((key) => ({
                         ...key,
                         key: key.prefix,
                         id: key.prefix,
@@ -104,9 +104,9 @@ export const useApiKeys = ({
         }
         setCreating(true)
         try {
-            const {data} = await createApiKey(workspaceId)
+            const created = await createApiKey(workspaceId)
             list()
-            onCreated(data as string)
+            onCreated(created)
         } catch (error) {
             console.error(error)
         } finally {

@@ -1964,6 +1964,9 @@ importers:
       '@agenta/navigation':
         specifier: workspace:../agenta-navigation
         version: link:../agenta-navigation
+      '@agenta/sdk':
+        specifier: workspace:../agenta-sdk
+        version: link:../agenta-sdk
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared

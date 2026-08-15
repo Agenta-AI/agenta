@@ -1,11 +1,30 @@
-import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {getUsersClient} from "@agenta/sdk/resources"
 import type {User} from "@agenta/shared/types"
 import {useQuery} from "@tanstack/react-query"
+import {z} from "zod"
 
-/** GET the signed-in user. `ignoreAxiosError` suppresses the global toast for callers that
- * handle 401 themselves (the desktop treats it as "signed out", not a failure). */
-export const fetchProfile = async (ignoreAxiosError = false) =>
-    axios.get(`${getAgentaApiUrl()}/profile`, {_ignoreError: ignoreAxiosError} as never)
+import {safeParseWithLogging} from "../shared"
+
+/**
+ * Fern types `/profile` as `unknown` (the backend allows extra fields), so the shape is pinned
+ * here. Validation at the boundary is what turns that `unknown` into a `User`.
+ */
+const userSchema = z.object({
+    id: z.string(),
+    uid: z.string(),
+    username: z.string(),
+    email: z.string(),
+})
+
+/** Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
+const isUnauthorized = (error: unknown): boolean =>
+    (error as {statusCode?: number} | null)?.statusCode === 401
+
+/** GET the signed-in user, or null when the response does not describe one. */
+export const fetchProfile = async (): Promise<User | null> => {
+    const data = await getUsersClient().fetchUserProfile()
+    return safeParseWithLogging(userSchema, data, "[fetchProfile]") ?? null
+}
 
 /**
  * Permanently delete the signed-in account (an EE capability). Removes the user and the
@@ -14,7 +33,7 @@ export const fetchProfile = async (ignoreAxiosError = false) =>
  * expected to sign out once it resolves.
  */
 export const deleteAccount = async (): Promise<void> => {
-    await axios.delete(`${getAgentaApiUrl()}/profile`)
+    await getUsersClient().deleteUserAccount()
 }
 
 export interface UseProfileOptions {
@@ -34,10 +53,9 @@ export const useProfile = ({enabled = true}: UseProfileOptions = {}) => {
         queryKey: ["profile"],
         queryFn: async () => {
             try {
-                const res = await fetchProfile(true)
-                return (res?.data as User) ?? null
+                return await fetchProfile()
             } catch (error) {
-                if ((error as {response?: {status?: number}})?.response?.status === 401) return null
+                if (isUnauthorized(error)) return null
                 throw error
             }
         },

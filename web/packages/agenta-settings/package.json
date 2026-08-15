@@ -18,6 +18,7 @@
     },
     "dependencies": {
         "@agenta/navigation": "workspace:../agenta-navigation",
+        "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10"

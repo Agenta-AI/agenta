@@ -76,7 +76,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
             }
 
             if (finalWorkspaceId) {
-                const {data} = await createApiKey(finalWorkspaceId, false, projectId)
+                const data = await createApiKey(finalWorkspaceId, projectId)
                 onApiKeyChange(data)
                 message.success("Successfully generated API Key")
             } else {
