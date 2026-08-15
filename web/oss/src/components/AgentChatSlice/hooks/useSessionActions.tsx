@@ -113,9 +113,15 @@ export const useSessionActions = () => {
              * Enter has to run the same lifecycle as the button, not just the same handler:
              * `onOk` keeps the dialog open with the button in its loading state until the
              * returned promise settles, and leaves it open to retry when the rename fails.
+             *
+             * That loading state also blocks a second *click*, but the field stays focused and
+             * enabled, so Enter needs its own in-flight guard to not fire duplicate renames.
              */
+            let pending = false
+
             const confirm = async () => {
-                if (isBlank()) return
+                if (pending || isBlank()) return
+                pending = true
                 dialog.current?.update({
                     okButtonProps: {loading: true},
                     cancelButtonProps: {disabled: true},
@@ -128,6 +134,8 @@ export const useSessionActions = () => {
                         okButtonProps: {loading: false, disabled: isBlank()},
                         cancelButtonProps: {disabled: false},
                     })
+                } finally {
+                    pending = false
                 }
             }
 
