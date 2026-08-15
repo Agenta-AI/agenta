@@ -45,17 +45,32 @@ export interface AgentGlyphProps {
     fallback: ReactNode
     /** Draw the glyph bare, with no tinted box (sidebar tree rows). */
     bare?: boolean
+    /** Menus clone their icon to stamp a class on it (antd hangs the icon→label gap off
+     * `.ant-menu-item-icon`), so this has to arrive on the root element. */
+    className?: string
 }
 
-/** The bare-glyph case as a component, for call sites that render through a non-hook seam (the
- * sidebar registry's `getIcon`). */
-export const AgentGlyph = ({workflowId, size, fallback, bare = true}: AgentGlyphProps) => {
+/**
+ * The bare-glyph case as a component, for call sites that render through a non-hook seam (the
+ * sidebar registry's `getIcon`).
+ *
+ * ALWAYS one real element, never a fragment: a fragment silently swallows the className a menu
+ * clones onto it, which cost the sidebar rows their icon→label gap.
+ */
+export const AgentGlyph = ({
+    workflowId,
+    size,
+    fallback,
+    bare = true,
+    className,
+}: AgentGlyphProps) => {
     const chrome = useAgentIconChrome(workflowId, {size, fallbackGlyph: fallback, bare})
 
-    if (!chrome.style) return <>{chrome.glyph}</>
-
     return (
-        <span className={`flex items-center ${chrome.className}`} style={chrome.style}>
+        <span
+            className={["flex items-center", chrome.className, className].filter(Boolean).join(" ")}
+            style={chrome.style}
+        >
             {chrome.glyph}
         </span>
     )
