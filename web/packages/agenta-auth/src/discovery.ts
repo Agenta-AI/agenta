@@ -4,10 +4,19 @@
  * email domain and only the backend knows it. Same endpoint and payload shape
  * the desktop uses (web/oss/src/pages/auth/[[...path]].tsx → /auth/discover).
  */
-import {safeParseWithLogging} from "@agenta/entities/shared"
 import {z} from "zod"
 
-import {getApiUrl} from "../env"
+import {authApiUrl} from "./runtime"
+
+/** Local logged parse — @agenta/auth sits below @agenta/entities, so no shared helper. */
+const parseWithLogging = <T>(schema: z.ZodType<T>, value: unknown, tag: string): T | null => {
+    const result = schema.safeParse(value)
+    if (!result.success) {
+        console.error(`${tag} response failed validation`, result.error)
+        return null
+    }
+    return result.data
+}
 
 export interface DiscoveredSsoProvider {
     id: string
@@ -53,7 +62,7 @@ const ssoDiscoverySchema = z.object({
 
 /** Pull the usable SSO providers out of a /auth/discover payload. */
 export function parseDiscoveredSso(payload: unknown): DiscoveredSsoProvider[] {
-    const parsed = safeParseWithLogging(ssoDiscoverySchema, payload, "[discoverSsoProviders]")
+    const parsed = parseWithLogging(ssoDiscoverySchema, payload, "[discoverSsoProviders]")
     const providers = parsed?.methods?.sso?.providers
     if (!providers) return []
     return providers.flatMap((record) => {
@@ -75,7 +84,7 @@ export type SsoDiscoveryResult =
 /** Ask the backend which org SSO connections accept `email`. */
 export async function discoverSsoProviders(email: string): Promise<SsoDiscoveryResult> {
     try {
-        const response = await fetch(`${getApiUrl()}/auth/discover`, {
+        const response = await fetch(`${authApiUrl()}/auth/discover`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             credentials: "include",

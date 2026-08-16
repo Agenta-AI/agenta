@@ -1,6 +1,17 @@
-import {beforeEach, describe, expect, it} from "vitest"
+import {beforeEach, describe, expect, it, vi} from "vitest"
 
-import {isEmailMethod, readLastAuthMethod, writeLastAuthMethod} from "./lastAuthMethod"
+import {isEmailMethod, readLastAuthMethod, writeLastAuthMethod} from "../../src/lastAuthMethod"
+
+// The package's vitest env is node; localStorage is all this module touches.
+const store = new Map<string, string>()
+vi.stubGlobal("window", {
+    localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+        removeItem: (key: string) => void store.delete(key),
+        clear: () => store.clear(),
+    },
+})
 
 describe("lastAuthMethod", () => {
     beforeEach(() => {

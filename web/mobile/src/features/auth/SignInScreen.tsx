@@ -1,18 +1,25 @@
 import {useEffect, useState} from "react"
 
+import {
+    AuthDivider,
+    EmailPasswordForm,
+    OtpVerifyForm,
+    PasswordlessRequestForm,
+    SocialAuthButtons,
+    type AuthMessage,
+} from "@agenta/auth-ui"
+
 import {AgentaLogo} from "@/components/AgentaLogo"
 import {
     getEmailSignInMode,
     isOidcEnabled,
     listOidcProviders,
+    startOidcSignIn,
     type EmailSignInMode,
     type OidcProvider,
 } from "@/lib/auth"
 
-import {AuthDivider} from "./AuthDivider"
-import {EmailOtpForm} from "./EmailOtpForm"
-import {EmailPasswordForm} from "./EmailPasswordForm"
-import {OidcProviderButtons} from "./OidcProviderButtons"
+import {providerIcon} from "./providerIcons"
 import {SsoDiscoveryForm} from "./SsoDiscoveryForm"
 import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
 import {NoAuthMethods} from "./states/NoAuthMethods"
@@ -25,11 +32,20 @@ interface ResolvedMethods {
     ssoDiscovery: boolean
 }
 
-/** Every method this deployment enables: password OR one-time code, social, org SSO. */
+const EMPTY_MESSAGE = {} as AuthMessage
+
+/**
+ * Every method this deployment enables: password OR one-time code, social, org SSO — the
+ * same components (and the same auth.css design) as the desktop sign-in, on mobile's shell.
+ */
 export const SignInScreen = () => {
     const onSuccess = useAuthSuccess()
     // Methods read window.__env — resolve after mount so SSR markup never differs.
     const [methods, setMethods] = useState<ResolvedMethods | null>(null)
+    const [message, setMessage] = useState<Partial<AuthMessage>>(EMPTY_MESSAGE)
+    const [email, setEmail] = useState("")
+    const [codeSent, setCodeSent] = useState(false)
+    const [oidcLoading, setOidcLoading] = useState(false)
     useEffect(
         () =>
             setMethods({
@@ -39,6 +55,15 @@ export const SignInScreen = () => {
             }),
         [],
     )
+
+    const startProvider = async (providerId: string) => {
+        if (oidcLoading) return
+        setOidcLoading(true)
+        // Resolves only on failure — success navigates away.
+        await startOidcSignIn(providerId)
+        setOidcLoading(false)
+        setMessage({message: "Could not reach that provider. Try again.", type: "error"})
+    }
 
     let body
     if (methods === null) {
@@ -52,13 +77,43 @@ export const SignInScreen = () => {
     } else {
         const emailBlock =
             methods.mode === "password" ? (
-                <EmailPasswordForm onSuccess={onSuccess} />
+                <EmailPasswordForm
+                    message={message}
+                    setMessage={setMessage}
+                    onSuccess={async () => onSuccess()}
+                />
             ) : methods.mode === "otp" ? (
-                <EmailOtpForm onSuccess={onSuccess} />
+                codeSent ? (
+                    <OtpVerifyForm
+                        email={email}
+                        message={message}
+                        setMessage={setMessage}
+                        onSuccess={async () => onSuccess()}
+                        onRestart={() => {
+                            setCodeSent(false)
+                            setMessage(EMPTY_MESSAGE)
+                        }}
+                    />
+                ) : (
+                    <PasswordlessRequestForm
+                        email={email}
+                        setEmail={setEmail}
+                        message={message}
+                        setMessage={setMessage}
+                        onCodeSent={() => setCodeSent(true)}
+                    />
+                )
             ) : null
         body = (
             <div className="flex w-full flex-col gap-4">
-                <OidcProviderButtons providers={methods.providers} />
+                <SocialAuthButtons
+                    providers={methods.providers.map((provider) => ({
+                        ...provider,
+                        icon: providerIcon(provider.id),
+                    }))}
+                    onSelect={(providerId) => void startProvider(providerId)}
+                    isLoading={oidcLoading}
+                />
                 {methods.providers.length > 0 && emailBlock ? <AuthDivider /> : null}
                 {emailBlock}
                 {methods.ssoDiscovery ? <SsoDiscoveryForm /> : null}
@@ -67,10 +122,10 @@ export const SignInScreen = () => {
     }
 
     return (
-        <div className="bg-background text-foreground flex min-h-dvh flex-col items-center justify-center gap-8 p-6">
+        <div className="auth-redesign flex min-h-dvh flex-col items-center justify-center gap-8 p-6">
             <header className="flex flex-col items-center gap-3">
-                <AgentaLogo className="text-foreground h-6 w-auto" />
-                <p className="text-muted-foreground text-xs">Sign in or create an account.</p>
+                <AgentaLogo className="h-6 w-auto text-[var(--a-heading)]" />
+                <p className="auth-subline m-0">Sign in or create an account.</p>
             </header>
             <div className="flex w-full max-w-sm flex-col items-center gap-4">{body}</div>
         </div>
