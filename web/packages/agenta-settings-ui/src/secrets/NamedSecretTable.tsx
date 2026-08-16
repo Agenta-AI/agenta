@@ -183,7 +183,9 @@ export const NamedSecretTable = ({
             })}
 
             {renderDeleteDialog?.({
-                selectedProvider: selectedSecret as unknown as LlmProvider | null,
+                // `NamedSecretRow extends LlmProvider`, so this needs no cast — the double
+                // assertion that was here would have hidden a real mismatch if the types drifted.
+                selectedProvider: selectedSecret,
                 open: isDeleteModalOpen,
                 onClose: () => {
                     setSelectedSecret(null)
