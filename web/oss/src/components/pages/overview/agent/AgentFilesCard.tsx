@@ -8,12 +8,11 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
-import {agentMountQueryFamily} from "@/oss/components/Drives/agentDrive"
-import {AGENT_FILES_DIR, useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
+import {AGENT_FILES_DIR, agentMountQueryFamily, useSessionDrive} from "@agenta/entities/drive"
 
 // The whole drive explorer, pulled in only once the drawer is actually opened.
 const FilesDrawer = dynamic(
-    () => import("@/oss/components/Drives/FilesDrawer").then((mod) => mod.FilesDrawer),
+    () => import("@agenta/entity-ui/drive").then((mod) => mod.FilesDrawer),
     {ssr: false},
 )
 
