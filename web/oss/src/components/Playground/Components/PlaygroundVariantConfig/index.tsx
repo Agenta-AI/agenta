@@ -20,7 +20,7 @@ import {
     type ConfigViewMode,
 } from "@agenta/entity-ui"
 import {hasPendingHydrationAtomFamily, isAgentModeAtomFamily} from "@agenta/playground"
-import {Select} from "antd"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
@@ -240,17 +240,21 @@ const PlaygroundVariantConfig: React.FC<
     const viewModeSelector = useMemo(
         () => (
             <Select
-                size="small"
-                variant="borderless"
                 value={viewMode}
-                onChange={setViewMode}
-                options={[
-                    {label: "Form", value: "form"},
-                    {label: "JSON", value: "json"},
-                    {label: "YAML", value: "yaml"},
-                ]}
-                className="w-[90px] [&_.ant-select-selector]:!px-1 text-xs"
-            />
+                onValueChange={(value) => setViewMode(value as ConfigViewMode)}
+            >
+                <SelectTrigger
+                    size="sm"
+                    className="w-[90px] border-transparent bg-transparent px-1 text-xs shadow-none"
+                >
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="form">Form</SelectItem>
+                    <SelectItem value="json">JSON</SelectItem>
+                    <SelectItem value="yaml">YAML</SelectItem>
+                </SelectContent>
+            </Select>
         ),
         [viewMode, setViewMode],
     )

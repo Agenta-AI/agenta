@@ -3,8 +3,8 @@ import {useLayoutEffect, useRef, useState} from "react"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
+import {Button} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 /**
@@ -90,8 +90,8 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                             </div>
                         </div>
                         <Button
-                            type="text"
-                            className="!h-6 shrink-0 !px-2 !text-xs"
+                            variant="ghost"
+                            className="h-6 shrink-0 px-2 text-xs"
                             onClick={() => setSignal(null)}
                         >
                             Dismiss

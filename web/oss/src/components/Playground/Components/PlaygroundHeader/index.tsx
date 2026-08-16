@@ -19,21 +19,30 @@ import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agent
 import {playgroundController, isAgentModeAtomFamily} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {textColors} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
-import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
-import {Check, Gavel, GearSix, PencilSimple, Plus, Robot} from "@phosphor-icons/react"
 import {
     Button,
-    Divider,
-    Dropdown,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
     Segmented,
-    Space,
-    Tag,
-    Tooltip,
-    Typography,
-    message,
-    type MenuProps,
-} from "antd"
+    SimpleTooltip,
+} from "@agenta/ui/ui"
+import {
+    CaretDown,
+    Check,
+    DotsThree,
+    Gavel,
+    GearSix,
+    PencilSimple,
+    Plus,
+    Robot,
+    X,
+} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -69,12 +78,21 @@ import RunEvaluationButton from "./RunEvaluationButton"
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
     loading: () => (
-        <Space.Compact size="small">
-            <Button className="flex items-center gap-1" icon={<Plus size={14} />} disabled>
+        <span className="inline-flex">
+            <Button variant="outline" size="sm" disabled className="rounded-r-none">
+                <Plus size={14} />
                 Compare
             </Button>
-            <Button icon={<DownOutlined style={{fontSize: 10}} />} disabled />
-        </Space.Compact>
+            <Button
+                variant="outline"
+                size="icon-sm"
+                disabled
+                aria-label="Compare options"
+                className="-ml-px rounded-l-none"
+            >
+                <CaretDown size={10} />
+            </Button>
+        </span>
     ),
 })
 
@@ -159,14 +177,8 @@ const EvaluatorTag: React.FC<{
     }, [evaluatorName, runnableData])
 
     return (
-        <Tag
-            closable
-            closeIcon={<CloseOutlined style={{fontSize: 10}} />}
-            onClose={(e) => {
-                e.preventDefault()
-                onDisconnect(node.id)
-            }}
-            className="flex items-center gap-1 !mr-0 max-w-[160px]"
+        <span
+            className="flex max-w-[160px] items-center gap-1 rounded border border-solid border-colorBorder bg-colorFillQuaternary px-[7px] text-xs leading-5 text-colorText"
             style={
                 color
                     ? {
@@ -178,7 +190,15 @@ const EvaluatorTag: React.FC<{
             }
         >
             <span className="truncate">{label}</span>
-        </Tag>
+            <button
+                type="button"
+                aria-label={`Disconnect ${typeof label === "string" ? label : "evaluator"}`}
+                onClick={() => onDisconnect(node.id)}
+                className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-inherit opacity-60 hover:opacity-100"
+            >
+                <X size={10} />
+            </button>
+        </span>
     )
 }
 
@@ -284,58 +304,52 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const itemEstimate = useAtomValue(agentChatItemEstimateAtom)
     const setItemEstimate = useSetAtom(agentChatItemEstimateAtom)
 
-    const settingsMenuItems: MenuProps["items"] = useMemo(
+    interface SettingsMenuGroup {
+        key: string
+        label: string
+        children: {
+            key: string
+            label: string
+            checked: boolean
+            disabled?: boolean
+            onClick: () => void
+        }[]
+    }
+    const settingsMenuItems: SettingsMenuGroup[] = useMemo(
         () => [
             ...(virtualizationAvailable
                 ? [
                       {
                           key: "virtualization",
-                          type: "group" as const,
                           label: "Virtualization (spike)",
                           children: [
                               {
                                   key: "virt-enable",
                                   label: "Virtualize messages",
-                                  icon: virtualize ? (
-                                      <Check size={14} />
-                                  ) : (
-                                      <span className="inline-block w-[14px]" />
-                                  ),
+                                  checked: virtualize,
                                   onClick: () => setVirtualize(!virtualize),
                               },
                           ],
                       },
                       {
                           key: "virt-overscan",
-                          type: "group" as const,
                           label: "Overscan",
                           children: AGENT_CHAT_OVERSCAN_OPTIONS.map((option) => ({
                               key: `overscan-${option.value}`,
                               label: option.label,
                               disabled: !virtualize,
-                              icon:
-                                  overscan === option.value ? (
-                                      <Check size={14} />
-                                  ) : (
-                                      <span className="inline-block w-[14px]" />
-                                  ),
+                              checked: overscan === option.value,
                               onClick: () => setOverscan(option.value),
                           })),
                       },
                       {
                           key: "virt-estimate",
-                          type: "group" as const,
                           label: "Row estimate",
                           children: AGENT_CHAT_ITEM_ESTIMATE_OPTIONS.map((option) => ({
                               key: `estimate-${option.value}`,
                               label: option.label,
                               disabled: !virtualize,
-                              icon:
-                                  itemEstimate === option.value ? (
-                                      <Check size={14} />
-                                  ) : (
-                                      <span className="inline-block w-[14px]" />
-                                  ),
+                              checked: itemEstimate === option.value,
                               onClick: () => setItemEstimate(option.value),
                           })),
                       },
@@ -640,36 +654,27 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
             >
                 <div className="flex shrink-0 items-center gap-2">
                     {currentWorkflow?.flags?.is_custom ? (
-                        <Dropdown
-                            trigger={["click"]}
-                            styles={{
-                                root: {
-                                    width: 180,
-                                },
-                            }}
-                            menu={{
-                                items: [
-                                    ...[
-                                        {
-                                            key: "configure",
-                                            label: "Configure workflow",
-                                            icon: <PencilSimple size={16} />,
-                                            onClick: openModal,
-                                        },
-                                    ],
-                                ],
-                            }}
-                        >
-                            <Button type="text" icon={<MoreOutlined />} />
-                        </Dropdown>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" aria-label="Workflow options">
+                                    <DotsThree size={16} />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-[180px]">
+                                <DropdownMenuItem onSelect={openModal}>
+                                    <PencilSimple size={16} />
+                                    Configure workflow
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     ) : null}
                     {isAgentWorkflow ? (
                         <div className="flex min-w-0 items-center gap-2">
-                            <Tooltip title="Agent">
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
+                            <SimpleTooltip title="Agent">
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-cyan-6">
                                     <Robot size={15} weight="fill" />
                                 </span>
-                            </Tooltip>
+                            </SimpleTooltip>
                             {renameWorkflowId ? (
                                 <AgentNameInline
                                     workflowId={renameWorkflowId}
@@ -677,21 +682,24 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     onRenamed={setDisplayAgentName}
                                 />
                             ) : (
-                                <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+                                <span className="truncate whitespace-nowrap text-[16px] font-[600] leading-[18px] text-colorText">
                                     {agentName || "Agent"}
-                                </Typography>
+                                </span>
                             )}
                             {rootEntityId ? (
                                 <>
-                                    <Divider orientation="vertical" className="!mx-1 h-5" />
+                                    <span
+                                        aria-hidden
+                                        className="mx-1 h-5 w-px shrink-0 bg-colorBorderSecondary"
+                                    />
                                     <AgentRevisionSelector variantId={rootEntityId} />
                                 </>
                             ) : null}
                         </div>
                     ) : (
-                        <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+                        <span className="whitespace-nowrap text-[16px] font-[600] leading-[18px] text-colorText">
                             Playground
-                        </Typography>
+                        </span>
                     )}
                 </div>
 
@@ -718,13 +726,16 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     )}
                     {showEvalActions && (
                         <>
-                            <Divider orientation="vertical" className="!mx-0 h-5" />
+                            <span
+                                aria-hidden
+                                className="mx-0 h-5 w-px shrink-0 bg-colorBorderSecondary"
+                            />
                             <span
                                 className="relative inline-flex"
                                 onPointerEnter={handleActivateEvaluatorPicker}
                                 onFocus={handleActivateEvaluatorPicker}
                             >
-                                <Tooltip title="Add evaluators to automatically score outputs in the playground.">
+                                <SimpleTooltip title="Add evaluators to automatically score outputs in the playground.">
                                     <span>
                                         <EntityPicker<WorkflowRevisionSelectionResult>
                                             variant="popover-cascader"
@@ -755,8 +766,8 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                                 connectedEvaluatorNodes.length > 0 ? (
                                                     <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
                                                         <Button
-                                                            size="small"
-                                                            danger
+                                                            variant="destructive-outline"
+                                                            size="sm"
                                                             className="w-full"
                                                             onClick={handleDisconnectAll}
                                                         >
@@ -767,7 +778,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                             }
                                         />
                                     </span>
-                                </Tooltip>
+                                </SimpleTooltip>
                                 <EvaluatorTemplateDropdown
                                     onSelect={handleTemplateSelect}
                                     open={templateDropdownOpen}
@@ -779,21 +790,28 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             </span>
                             <TestsetDropdown />
                             {isProjectLevelPlayground ? (
-                                <Tooltip title="Compare mode is unavailable in project-level playground">
-                                    <Space.Compact size="small">
+                                <SimpleTooltip title="Compare mode is unavailable in project-level playground">
+                                    <span className="inline-flex">
                                         <Button
-                                            className="flex items-center gap-1"
-                                            icon={<Plus size={14} />}
+                                            variant="outline"
+                                            size="sm"
                                             disabled
+                                            className="rounded-r-none"
                                         >
+                                            <Plus size={14} />
                                             Compare
                                         </Button>
                                         <Button
-                                            icon={<DownOutlined style={{fontSize: 10}} />}
+                                            variant="outline"
+                                            size="icon-sm"
                                             disabled
-                                        />
-                                    </Space.Compact>
-                                </Tooltip>
+                                            aria-label="Compare options"
+                                            className="-ml-px rounded-l-none"
+                                        >
+                                            <CaretDown size={10} />
+                                        </Button>
+                                    </span>
+                                </SimpleTooltip>
                             ) : (
                                 <SelectVariant
                                     showAsCompare
@@ -815,19 +833,40 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     {label: "Chat", value: "chat"},
                                 ]}
                             />
-                            {(settingsMenuItems?.length ?? 0) > 0 && (
-                                <Dropdown
-                                    trigger={["click"]}
-                                    placement="bottomRight"
-                                    styles={{root: {width: 180}}}
-                                    menu={{items: settingsMenuItems}}
-                                >
-                                    <Button
-                                        type="text"
-                                        icon={<GearSix size={16} />}
-                                        aria-label="Playground settings"
-                                    />
-                                </Dropdown>
+                            {settingsMenuItems.length > 0 && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            aria-label="Playground settings"
+                                        >
+                                            <GearSix size={16} />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-[200px]">
+                                        {settingsMenuItems.map((group, index) => (
+                                            <React.Fragment key={group.key}>
+                                                {index > 0 ? <DropdownMenuSeparator /> : null}
+                                                <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+                                                {group.children.map((item) => (
+                                                    <DropdownMenuItem
+                                                        key={item.key}
+                                                        disabled={item.disabled}
+                                                        onSelect={item.onClick}
+                                                    >
+                                                        {item.checked ? (
+                                                            <Check size={14} />
+                                                        ) : (
+                                                            <span className="inline-block w-[14px]" />
+                                                        )}
+                                                        {item.label}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </React.Fragment>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             )}
                         </>
                     )}

@@ -4,7 +4,7 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {createWorkflowRevisionAdapter} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
-import {Tooltip} from "antd"
+import {SimpleTooltip} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -65,8 +65,8 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                 borderlessTrigger
             />
             {variantRevision !== null && variantRevision !== undefined && (
-                <Tooltip
-                    styles={{root: {maxWidth: 360}}}
+                <SimpleTooltip
+                    className="max-w-[360px]"
                     title={
                         commitMessage ? (
                             <div className="flex flex-col gap-1">
@@ -85,9 +85,9 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                     <span className="cursor-default rounded bg-[var(--ant-color-fill-secondary)] px-1.5 py-0.5 text-xs text-[var(--ant-color-text-secondary)]">
                         v{variantRevision}
                     </span>
-                </Tooltip>
+                </SimpleTooltip>
             )}
-            <Tooltip title={hasChanges ? "Draft — unsaved changes" : "Saved"}>
+            <SimpleTooltip title={hasChanges ? "Draft — unsaved changes" : "Saved"}>
                 <span className="flex items-center gap-1.5 text-xs text-[var(--ant-color-text-tertiary)]">
                     <span
                         className="h-[7px] w-[7px] rounded-full"
@@ -99,7 +99,7 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                     />
                     {hasChanges ? "Draft" : "Saved"}
                 </span>
-            </Tooltip>
+            </SimpleTooltip>
         </div>
     )
 }

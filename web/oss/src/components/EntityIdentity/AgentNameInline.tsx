@@ -1,7 +1,7 @@
 import {useState} from "react"
 
+import {Input} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Input, Typography} from "antd"
 
 import {useRenameApp} from "./useRenameApp"
 
@@ -51,15 +51,19 @@ const AgentNameInline = ({workflowId, name, onRenamed}: AgentNameInlineProps) =>
             <div className="flex min-w-0 flex-col">
                 <Input
                     autoFocus
+                    size="sm"
                     value={draft}
-                    status={error ? "error" : undefined}
+                    aria-invalid={error ? true : undefined}
                     onChange={(e) => {
                         setDraft(e.target.value)
                         if (error) setError(null)
                     }}
-                    onPressEnter={commit}
                     onBlur={commit}
                     onKeyDown={(e) => {
+                        // Let the IME keep the Enter that confirms a composition candidate
+                        // (CJK, etc.) — committing there would rename to a half-typed name.
+                        if (e.nativeEvent.isComposing) return
+                        if (e.key === "Enter") void commit()
                         if (e.key === "Escape") setEditing(false)
                     }}
                     onFocus={(e) => e.target.select()}
@@ -72,13 +76,13 @@ const AgentNameInline = ({workflowId, name, onRenamed}: AgentNameInlineProps) =>
 
     return (
         <div className="group/name flex min-w-0 items-center gap-1">
-            <Typography
-                className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600] cursor-pointer"
+            <span
+                className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600] text-colorText cursor-pointer"
                 onDoubleClick={startEditing}
                 title="Double-click to rename"
             >
                 {name || "Agent"}
-            </Typography>
+            </span>
 
             <PencilSimple
                 size={13}
