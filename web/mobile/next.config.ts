@@ -13,11 +13,18 @@ const nextConfig: NextConfig = {
     // transpile the full dependency closure (chat → entities/playground/shared;
     // entities → sdk/api-client/shared/ui). Same mechanism as web/oss.
     transpilePackages: [
+        "@agenta/auth",
+        "@agenta/auth-ui",
         "@agenta/sdk",
         "@agentaai/api-client",
         "@agenta/shared",
         "@agenta/ui",
         "@agenta/entities",
+        "@agenta/entity-ui",
+        "@agenta/navigation",
+        "@agenta/navigation-ui",
+        "@agenta/sessions",
+        "@agenta/sessions-ui",
         "@agenta/playground",
         "@agenta/chat",
     ],

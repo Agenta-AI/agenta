@@ -140,6 +140,13 @@ export const shadow = {
         light: antd("boxShadowDrawerBottom"),
         dark: "0 -1px 0 0 rgba(255, 255, 255, 0.16), 0 -6px 16px 0 rgba(0, 0, 0, 0.44), 0 -3px 6px -4px rgba(0, 0, 0, 0.52), 0 -9px 28px 8px rgba(0, 0, 0, 0.28)",
     },
+    // antd Switch `handleShadow`. antd itself has no dark variant, but its light value is a
+    // near-black green tint that all but vanishes on a dark track — dark gets the same drop at
+    // the opacity the other dark shadows use.
+    switchHandle: {
+        light: "0 2px 4px 0 rgba(0, 35, 11, 0.2)",
+        dark: "0 2px 4px 0 rgba(0, 0, 0, 0.45)",
+    },
 } satisfies Record<string, Pair>
 
 // Component-level dark overrides (antd `components` map).

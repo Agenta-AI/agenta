@@ -16,8 +16,10 @@ interface ScreenScaffoldProps {
  *
  * `h-dvh` + an `overflow-y-auto` middle keeps scrolling inside the list rather than the
  * document — a `min-h-dvh` page scrolls its own header off-screen on iOS, which is the bug this
- * exists to prevent. The bottom-most element owns the safe-area inset, so the scroller only
- * pads for it when there is no footer.
+ * exists to prevent. The bottom-most element owns the bottom safe-area inset, so the scroller
+ * only pads for it when there is no footer. The column itself owns the TOP inset: the app
+ * declares `viewport-fit=cover`, so without this the pinned header sits under the status bar
+ * in fullscreen/standalone contexts (zero in in-browser Safari, where env() resolves to 0).
  */
 export const ScreenScaffold = ({
     header,
@@ -26,7 +28,7 @@ export const ScreenScaffold = ({
     onScroll,
     children,
 }: ScreenScaffoldProps) => (
-    <div className="bg-background text-foreground flex h-dvh flex-col">
+    <div className="bg-background text-foreground flex h-dvh flex-col pt-[env(safe-area-inset-top)]">
         {header}
         <div
             ref={scrollRef}
