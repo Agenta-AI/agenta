@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {readLastAuthMethod} from "@agenta/auth"
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
 import {
     AppleOutlined,
@@ -20,7 +21,6 @@ import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-re
 import {useLocalStorage} from "usehooks-ts"
 
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
-import {readLastAuthMethod} from "@/oss/components/pages/auth/assets/lastAuthMethod"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"

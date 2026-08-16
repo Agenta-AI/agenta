@@ -1,6 +1,7 @@
 import {useEffect, useMemo} from "react"
 
 import {assistantTurnNumbers} from "@agenta/chat/model"
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {type UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -11,7 +12,6 @@ import {
     inspectorTargetAtom,
     openInspectorTurnAtom,
 } from "../components/Inspector/state"
-import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 /**
  * Turn Inspector wiring for one session: whether the panel is open, which turn it targets, and the

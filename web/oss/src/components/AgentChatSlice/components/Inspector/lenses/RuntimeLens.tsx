@@ -6,23 +6,23 @@
  * Quick Look as everywhere else). Runtime is always session-level — a focused turn doesn't change
  * live facts.
  */
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {Broadcast, CaretRight, CircleNotch, Database, FolderSimple} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
-import {AnimatePresence, MotionConfig, motion} from "motion/react"
-
+import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
+import {humanSize} from "@agenta/entities/drive"
+import {driveHasMixedOrigins, useSessionDriveSummary} from "@agenta/entities/drive"
 import {
     DriveFileRow,
     DriveRetryButton,
     DriveWarningBadge,
     SKELETON_ROW_COUNT,
 } from "@agenta/entity-ui/drive"
-import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
 import {useDriveArtifactId} from "@agenta/entity-ui/drive"
-import {humanSize} from "@agenta/entities/drive"
 import {driveQuickLookAtomFamily} from "@agenta/entity-ui/drive"
 import {filesDrawerOpenAtomFamily} from "@agenta/entity-ui/drive"
-import {driveHasMixedOrigins, useSessionDriveSummary} from "@agenta/entities/drive"
+import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {Broadcast, CaretRight, CircleNotch, Database, FolderSimple} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
+
 import StatesTab from "@/oss/components/SessionInspector/tabs/StatesTab"
 import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
 

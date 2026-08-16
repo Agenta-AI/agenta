@@ -13,6 +13,8 @@ import {
     ConnectionStatusBadge,
     ToolExecutionDrawer,
 } from "@agenta/entity-ui/gatewayTool"
+import {useStaticTable} from "@agenta/settings"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
@@ -24,9 +26,7 @@ import {Button, Input, message, Tag, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 const AUTH_SCHEME_LABELS: Record<string, string> = {
     oauth: "OAuth",

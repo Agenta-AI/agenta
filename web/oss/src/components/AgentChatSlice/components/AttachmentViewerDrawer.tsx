@@ -3,11 +3,10 @@ import {useEffect, useMemo, useState} from "react"
 // The shared viewable-kind predicate lives with the attachment rules in @agenta/chat.
 import {isViewable} from "@agenta/chat/assets"
 import type {StagedUpload as UploadFile} from "@agenta/chat/model"
+import {type SessionDriveData} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
-
 import {type DriveFileSource, DriveFileSourceContext} from "@agenta/entity-ui/drive"
 import {FilesDrawer} from "@agenta/entity-ui/drive"
-import {type SessionDriveData} from "@agenta/entities/drive"
 
 /**
  * Previews the composer's attachments in the shared Files drawer — the same tree + viewer used for

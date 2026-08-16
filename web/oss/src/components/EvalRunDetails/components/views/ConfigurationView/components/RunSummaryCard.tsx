@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {getEvaluationsClient} from "@agenta/sdk/resources"
+import {formatDate24} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
 import {Button, Input, Skeleton, Tag, Typography} from "antd"
@@ -9,7 +10,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {CopyIconButton, middleTruncateId} from "@/oss/components/References/ReferenceTag"
-import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 
 import {effectiveProjectIdAtom} from "../../../../atoms/run"

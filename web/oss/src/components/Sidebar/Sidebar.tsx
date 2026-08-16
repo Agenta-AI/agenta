@@ -1,14 +1,14 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
-import {SidebarShell} from "@agenta/navigation-ui"
-import {useAtomValue, useSetAtom} from "jotai"
-
 import {
     clearSidebarPopupGroupsAtom,
     setSidebarPopupGroupOpenAtom,
     sidebarCollapsedAtom,
     sidebarOpenGroupsAtomFamily,
-} from "@/oss/lib/atoms/sidebar"
+} from "@agenta/navigation"
+import {SidebarShell} from "@agenta/navigation-ui"
+import {useAtomValue, useSetAtom} from "jotai"
+
 import {appAsPathAtom} from "@/oss/state/appState"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"

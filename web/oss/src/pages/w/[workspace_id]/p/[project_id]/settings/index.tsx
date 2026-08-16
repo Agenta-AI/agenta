@@ -1,9 +1,5 @@
 import {useCallback, useEffect, useMemo} from "react"
 
-import {Tag} from "antd"
-import {useAtomValue} from "jotai"
-import dynamic from "next/dynamic"
-
 import {
     DEFAULT_SETTINGS_TAB,
     getSettingsTabDescription,
@@ -11,8 +7,12 @@ import {
     getSettingsTabLabel,
     resolveSettingsTab,
     type SettingsTabKey,
-} from "@/oss/components/pages/settings/assets/navigation"
-import SettingsPageShell from "@/oss/components/pages/settings/components/SettingsPageShell"
+} from "@agenta/settings"
+import {SettingsPageShell} from "@agenta/settings-ui"
+import {Tag} from "antd"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
+
 import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import PageTitle from "@/oss/components/PageTitle"
 import {useQueryParam} from "@/oss/hooks/useQuery"

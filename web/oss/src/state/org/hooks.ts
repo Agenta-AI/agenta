@@ -1,5 +1,7 @@
 import {useCallback} from "react"
 
+import {fetchAllProjects} from "@agenta/entities/project"
+import type {ProjectsResponse} from "@agenta/entities/project"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useSetAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -7,8 +9,6 @@ import {useRouter} from "next/router"
 import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
 import type {OrgDetails} from "@/oss/lib/Types"
 import {fetchSingleOrg} from "@/oss/services/organization/api"
-import {fetchAllProjects} from "@/oss/services/project"
-import type {ProjectsResponse} from "@/oss/services/project/types"
 import {requestNavigationAtom} from "@/oss/state/appState"
 import {settingsTabAtom} from "@/oss/state/settings"
 

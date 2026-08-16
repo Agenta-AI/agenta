@@ -1,11 +1,10 @@
 import {useState} from "react"
 
+import {deleteWebhookAtom} from "@agenta/entities/webhook"
+import {webhookToDeleteAtom} from "@agenta/entities/webhook"
 import {EnhancedModal} from "@agenta/ui"
 import {message} from "antd"
 import {useAtom, useSetAtom} from "jotai"
-
-import {deleteWebhookAtom} from "@/oss/state/webhooks/atoms"
-import {webhookToDeleteAtom} from "@/oss/state/webhooks/state"
 
 const DeleteWebhookModal = () => {
     const deleteWebhookSubscription = useSetAtom(deleteWebhookAtom)

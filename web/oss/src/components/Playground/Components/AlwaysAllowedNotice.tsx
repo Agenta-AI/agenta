@@ -1,12 +1,11 @@
 import {useEffect, useRef} from "react"
 
+import {useAlwaysAllowTool} from "@agenta/chat/hooks"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
 import {Button} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, ShieldCheck, X} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
-
-import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
 
 /**
  * "Always allowed" notice — the draft-blue counterpart of {@link AgentCommitNotice}, pinned to the

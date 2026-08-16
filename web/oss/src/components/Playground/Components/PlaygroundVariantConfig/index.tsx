@@ -26,6 +26,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import dynamic from "next/dynamic"
 
+import {useChatScopeSessionId} from "@/oss/components/Drives/useChatScopeSessionId"
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
@@ -35,7 +36,6 @@ import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeade
 import type {VariantConfigComponentProps} from "./types"
 
 const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {ssr: false})
-import {useChatScopeSessionId} from "@/oss/components/Drives/useChatScopeSessionId"
 
 // Files region body (flat file listing) — lazy: it pulls in the drive drawer.
 const StorageSection = dynamic(

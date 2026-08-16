@@ -1,12 +1,12 @@
-import type {RouteLayer} from "@/oss/state/appState"
-
-import type {SidebarScope} from "../engine/types"
-
+import type {SidebarScope} from "@agenta/navigation"
 import {
     MAIN_SIDEBAR_SCOPE_ID,
     SETTINGS_SIDEBAR_SCOPE_ID,
     WORKFLOW_SIDEBAR_SCOPE_ID,
-} from "./constants"
+} from "@agenta/navigation"
+
+import type {RouteLayer} from "@/oss/state/appState"
+
 import {mainSidebarScope} from "./mainScope"
 import {createSettingsSidebarScope} from "./settingsScope"
 import {createWorkflowSidebarScope} from "./workflowScope"

@@ -13,6 +13,7 @@ import {
     toolRowKey,
 } from "@agenta/chat/state"
 import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
+import {DriveFileCard} from "@agenta/entity-ui/drive"
 import {HeightCollapse} from "@agenta/ui"
 import {
     CaretRight,
@@ -27,13 +28,7 @@ import {
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {DriveFileCard} from "@agenta/entity-ui/drive"
-
-import {
-    extractCallDescription,
-    resolveToolDisplay,
-    type ToolDisplay,
-} from "../assets/toolDisplay"
+import {extractCallDescription, resolveToolDisplay, type ToolDisplay} from "../assets/toolDisplay"
 
 // A tool has finished when it produced output, errored, or was denied. Everything else
 // (preparing input, running, awaiting/just-answered an approval) is still in flight.

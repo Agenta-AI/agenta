@@ -1,11 +1,11 @@
 import {useMemo} from "react"
 
+import {formatDate} from "@agenta/shared/utils/dateTime"
 import {ArchiveIcon, GearSix, Note, Copy, PencilSimple} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
 
 import type {TestsetTableRow} from "../atoms/tableStore"
 import LatestCommitMessage from "../components/LatestCommitMessage"

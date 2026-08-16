@@ -40,12 +40,12 @@ vi.mock("@agenta/entity-ui/modals", () => ({
     ),
 }))
 
-vi.mock("@/oss/hooks/useAlwaysAllowTool", () => ({
+vi.mock("@agenta/chat/hooks", () => ({
     useAlwaysAllowTool: () => ({infoFor: () => null, grant: () => undefined}),
 }))
 
 const {default: ApprovalDock, getPendingApprovals} = await import("./ApprovalDock")
-const {chatPanelMaximizedAtom} = await import("../state/panelLayout")
+const {chatPanelMaximizedAtom} = await import("@agenta/chat/state")
 
 /** The turn shape the egress produces: the gated tool part, plus the manifest as a sibling. */
 const assistantTurn = (input: unknown, manifest?: unknown, toolName = "commit_revision") => [

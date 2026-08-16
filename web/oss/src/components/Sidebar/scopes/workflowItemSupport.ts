@@ -1,4 +1,4 @@
-import type {SidebarConfig, SidebarWorkflowCategory} from "../engine/types"
+import type {SidebarConfig, SidebarWorkflowCategory} from "@agenta/navigation"
 
 export const filterWorkflowSidebarItems = (
     items: SidebarConfig[],

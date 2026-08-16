@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
 import AppMessageContext from "@agenta/ui/app-message"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
@@ -24,7 +25,6 @@ import {urlAtom} from "@/oss/state/url"
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
-import {SETTINGS_SIDEBAR_SCOPE_ID} from "../Sidebar/scopes/constants"
 import {resolveSidebarLastPath} from "../Sidebar/scopes/sidebarLastPath"
 import {resolveSidebarView} from "../Sidebar/scopes/viewRegistry"
 import type {SidebarView} from "../Sidebar/types"
