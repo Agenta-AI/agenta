@@ -1,18 +1,20 @@
-import {useEffect, useMemo} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import {useAgentConversation} from "@agenta/chat/hooks"
 import {getPendingApprovals} from "@agenta/chat/model"
 import {Button} from "@agenta/ui/ui"
+import {useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {StatusTag} from "@/components/StatusTag"
 
+import {takePendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 
 import {ApprovalDock} from "./ApprovalDock"
-import {ChatHeader} from "./ChatHeader"
 import {Composer} from "./Composer"
+import {SessionTabs} from "./SessionTabs"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
@@ -38,6 +40,8 @@ export const LiveConversation = ({
     projectId,
     workspaceId,
     running,
+    agentId,
+    embedded = false,
 }: {
     entityId: string
     sessionId: string
@@ -45,8 +49,31 @@ export const LiveConversation = ({
     workspaceId: string
     /** Backend liveness (cross-device) — shows the running strip even when this device idles. */
     running: boolean
+    /** Scopes the session tab rail to this agent's sessions. */
+    agentId?: string | null
+    /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
+    embedded?: boolean
 }) => {
     const conversation = useAgentConversation({entityId, sessionId})
+
+    // A task started from Home lands here as a stashed message: the session did not exist when
+    // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
+    // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
+    // until hydration settles, or the engine would send into a transcript it is still filling.
+    //
+    // The guard stores the session it fired FOR, not a boolean: the workspace keeps this component
+    // mounted across a session change, and a boolean would still read `true` for the new session —
+    // its stashed task would never be taken, never sent, and never recoverable.
+    const takePendingTask = useSetAtom(takePendingTaskAtom)
+    const sentPendingTaskFor = useRef<string | null>(null)
+    const {isHydrating, send} = conversation
+    useEffect(() => {
+        if (sentPendingTaskFor.current === sessionId || isHydrating) return
+        const task = takePendingTask(sessionId)
+        if (!task) return
+        sentPendingTaskFor.current = sessionId
+        void send({text: task.text, parts: task.parts})
+    }, [isHydrating, send, sessionId, takePendingTask])
 
     // Push-invalidation: a records change (another device's turn, a steer resume) folds into
     // the engine's transcript under its adopt guards.
@@ -124,63 +151,72 @@ export const LiveConversation = ({
         )
     }
 
-    return (
+    const scaffold = (
+        <ScreenScaffold
+            scrollRef={autoScroll.ref}
+            onScroll={autoScroll.onScroll}
+            embedded={embedded}
+            header={
+                <>
+                    <SessionTabs
+                        sessionId={sessionId}
+                        projectId={projectId}
+                        workspaceId={workspaceId}
+                        agentId={agentId}
+                    />
+                    {running || streamingHere ? (
+                        <div className="border-border shrink-0 border-b px-4 py-2">
+                            <ContentRail className="flex items-center justify-between">
+                                <StatusTag tone="running" dot>
+                                    running
+                                </StatusTag>
+                                {streamingHere ? (
+                                    <Button
+                                        variant="outline"
+                                        className="min-h-8"
+                                        onClick={conversation.stop}
+                                    >
+                                        Stop
+                                    </Button>
+                                ) : (
+                                    <StopButton sessionId={sessionId} projectId={projectId} />
+                                )}
+                            </ContentRail>
+                        </div>
+                    ) : null}
+                </>
+            }
+            footer={
+                <div>
+                    {pendingApprovals.length > 0 ? (
+                        <ApprovalDock
+                            approvals={pendingApprovals}
+                            actions={approvalActions}
+                            entityId={entityId}
+                            bottomMost={false}
+                        />
+                    ) : null}
+                    <Composer
+                        sessionId={sessionId}
+                        onSend={({text, parts}) => conversation.send({text, parts})}
+                        disabled={conversation.isHydrating}
+                        waitingOnUser={pendingApprovals.length > 0}
+                        streaming={streamingHere}
+                        onStop={conversation.stop}
+                    />
+                </div>
+            }
+        >
+            {body}
+        </ScreenScaffold>
+    )
+
+    // Embedded: the workspace owns the shell and the pane geometry.
+    return embedded ? (
+        scaffold
+    ) : (
         <AppShell workspaceId={workspaceId} projectId={projectId}>
-            <ScreenScaffold
-                scrollRef={autoScroll.ref}
-                onScroll={autoScroll.onScroll}
-                header={
-                    <>
-                        <ChatHeader
-                            sessionId={sessionId}
-                            projectId={projectId}
-                            workspaceId={workspaceId}
-                        />
-                        {running || streamingHere ? (
-                            <div className="border-border shrink-0 border-b px-4 py-2">
-                                <ContentRail className="flex items-center justify-between">
-                                    <StatusTag tone="running" dot>
-                                        running
-                                    </StatusTag>
-                                    {streamingHere ? (
-                                        <Button
-                                            variant="outline"
-                                            className="min-h-8"
-                                            onClick={conversation.stop}
-                                        >
-                                            Stop
-                                        </Button>
-                                    ) : (
-                                        <StopButton sessionId={sessionId} projectId={projectId} />
-                                    )}
-                                </ContentRail>
-                            </div>
-                        ) : null}
-                    </>
-                }
-                footer={
-                    <div>
-                        {pendingApprovals.length > 0 ? (
-                            <ApprovalDock
-                                approvals={pendingApprovals}
-                                actions={approvalActions}
-                                entityId={entityId}
-                                bottomMost={false}
-                            />
-                        ) : null}
-                        <Composer
-                            sessionId={sessionId}
-                            onSend={({text, parts}) => conversation.send({text, parts})}
-                            disabled={conversation.isHydrating}
-                            waitingOnUser={pendingApprovals.length > 0}
-                            streaming={streamingHere}
-                            onStop={conversation.stop}
-                        />
-                    </div>
-                }
-            >
-                {body}
-            </ScreenScaffold>
+            {scaffold}
         </AppShell>
     )
 }

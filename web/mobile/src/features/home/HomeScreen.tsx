@@ -2,66 +2,62 @@ import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {NextTriggersSection} from "@agenta/entity-ui/agent"
-import type {SessionRowVm} from "@agenta/sessions/row"
-import {SessionCardList} from "@agenta/sessions-ui"
+import {AgentsPanel, HomeOverview, UsageCard, type AgentsPanelEntry} from "@agenta/home-ui"
 import {useAtomValue} from "jotai"
-import Link from "next/link"
 import {useRouter} from "next/router"
 
-import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {INLINE_LINK} from "@/lib/interactive"
 
+import {NewAgentAction} from "../agents/NewAgentAction"
+import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
-import {AgentListRow} from "./AgentListRow"
-import {HomeSectionEmpty, HomeSectionSkeleton} from "./states/HomeStates"
-
-const Section = ({
-    title,
-    viewAllHref,
-    children,
-}: {
-    title: string
-    viewAllHref?: string
-    children: React.ReactNode
-}) => (
-    <section className="flex flex-col">
-        <div className="flex items-center justify-between px-4 pb-1 pt-4">
-            <h2 className="m-0 text-xs font-semibold uppercase tracking-wide">{title}</h2>
-            {viewAllHref ? (
-                <Link
-                    href={viewAllHref}
-                    className={`text-muted-foreground text-xs no-underline ${INLINE_LINK}`}
-                >
-                    View all →
-                </Link>
-            ) : null}
-        </div>
-        {children}
-    </section>
-)
+import {HomeComposer} from "./HomeComposer"
+import {HomeSectionEmpty} from "./states/HomeStates"
 
 /**
- * The project's home — the mobile version of the desktop `/apps` page: what needs you
- * (waiting, pinned, recent sessions) and the automation runs, both straight from the shared
- * card hooks, so every rule matches the desktop columns.
+ * The project's home — the SHARED page (`@agenta/home-ui`), the same one the desktop app
+ * renders: the hero, then what is in flight (sessions, automation runs), with what you could
+ * start (agents, next triggers, usage) in the rail beside it at lg and beneath it on a phone.
+ *
+ * The composer mints a session id, stashes the task and navigates to the chat route, which is
+ * where the conversation engine lives — the first send is what creates the session server-side.
  */
 export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; projectId: string}) => {
     useBindProjectContext(projectId)
     const project = useCurrentProject(workspaceId, projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const router = useRouter()
-    const openRow = (vm: SessionRowVm) => void router.push(`${base}/sessions/${vm.id}`)
+    const sessionMenu = useSessionRowMenu(base)
+    const newAgent = useNewAgentAction(base)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
     const agentNames = useMemo(
         () => new Map(agents.map((agent) => [agent.id, agent.name || agent.slug || "Agent"])),
         [agents],
+    )
+
+    // Rename/archive/playground have no mobile surface, so their menu entries are simply not
+    // offered — the card renders without them rather than with dead actions.
+    const agentEntries = useMemo<AgentsPanelEntry[]>(
+        () =>
+            agents.map((agent) => ({
+                agent: {
+                    id: agent.id,
+                    name: agent.name || agent.slug || "Untitled agent",
+                    description: agent.description,
+                    updatedAt: agent.updated_at ?? undefined,
+                },
+                createdAt: agent.created_at ?? undefined,
+                onOpenOverview: () => void router.push(`${base}/agents/${agent.id}`),
+            })),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [agents, base],
     )
 
     return (
@@ -70,67 +66,48 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className="border-border shrink-0 border-b px-4 pb-3 pt-2">
-                            <ContentRail className="flex items-center gap-2 lg:max-w-5xl">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 text-sm font-semibold">
-                                    {project?.project_name ?? "Home"}
-                                </h1>
-                            </ContentRail>
+                        <div className="border-border flex shrink-0 items-center gap-2 border-b px-4 pb-3 pt-2 lg:hidden">
+                            <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                            <h1 className="m-0 text-sm font-semibold">
+                                {project?.project_name ?? "Home"}
+                            </h1>
                         </div>
                     }
                 >
-                    {/* One column on a phone; two side-by-side at lg — what needs you (sessions,
-                    agents) next to what runs on its own (triggers, automation runs). */}
-                    <ContentRail className="pb-6 lg:grid lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:gap-x-10">
-                        <Section title="Sessions" viewAllHref={`${base}/sessions`}>
-                            {/* The SHARED list — the same rows, grouping and working pins as desktop Home;
-                                touch keeps the pin always visible (no hover). */}
-                            <div className="px-2">
-                                <SessionCardList
-                                    withPinned
-                                    limit={5}
-                                    emptyText="Your conversations will show up here."
-                                    onOpenRow={openRow}
-                                    alwaysShowPin
-                                />
-                            </div>
-                        </Section>
-
-                        <Section title="Your agents">
-                            {agentsQuery.isPending ? (
-                                <HomeSectionSkeleton />
-                            ) : agents.length === 0 ? (
-                                <HomeSectionEmpty text="Agents you create will show up here." />
-                            ) : (
-                                agents.map((agent) => (
-                                    <AgentListRow
-                                        key={agent.id}
-                                        agent={agent}
-                                        href={`${base}/agents/${agent.id}`}
-                                    />
-                                ))
-                            )}
-                        </Section>
-
-                        {/* The shared antd-free section — trigger data, cadence naming, minute clock all
-                    come with it; only the display-name map is ours. */}
-                        <div className="px-2 pt-2">
-                            <NextTriggersSection agentNames={agentNames} />
-                        </div>
-
-                        <Section title="Automation runs">
-                            <div className="px-2">
-                                <SessionCardList
-                                    origin="trigger"
-                                    limit={3}
-                                    emptyText="Runs your triggers start will show up here."
-                                    onOpenRow={openRow}
-                                    alwaysShowPin
-                                />
-                            </div>
-                        </Section>
-                    </ContentRail>
+                    <HomeOverview
+                        title="What do you want to do?"
+                        action={
+                            <NewAgentAction
+                                create={() => void newAgent.create()}
+                                createFromTemplate={newAgent.createFromTemplate}
+                                base={base}
+                                align="end"
+                                creating={newAgent.creating}
+                                error={newAgent.error}
+                            />
+                        }
+                        composer={
+                            agents.length > 0 ? <HomeComposer agents={agents} base={base} /> : null
+                        }
+                        sessionsHref={`${base}/sessions`}
+                        onOpenSession={sessionMenu.open}
+                        sessionMenuFor={sessionMenu.menuFor}
+                        onSessionMenuSelect={sessionMenu.onMenuSelect}
+                        alwaysShowPin
+                        agentsPanel={
+                            <AgentsPanel
+                                entries={agentEntries}
+                                loading={agentsQuery.isPending}
+                                allAgentsHref={`${base}/agents`}
+                                onNewAgent={() => void newAgent.create()}
+                                empty={
+                                    <HomeSectionEmpty text="Agents you create will show up here." />
+                                }
+                            />
+                        }
+                        triggersPanel={<NextTriggersSection agentNames={agentNames} />}
+                        usagePanel={<UsageCard />}
+                    />
                 </ScreenScaffold>
             </AppShell>
         </>

@@ -5,6 +5,7 @@ import {
     createExecutedToolIdentityCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
+import {useAtomValue} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -15,8 +16,10 @@ import {AppShell} from "../nav/AppShell"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
-import {ChatHeader} from "./ChatHeader"
 import {LiveConversation} from "./LiveConversation"
+import {selectedRevisionAtomFamily} from "./selectedRevision"
+import {SessionTabs} from "./SessionTabs"
+import {SessionWorkspace} from "./SessionWorkspace"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
@@ -32,73 +35,78 @@ import {watchAwarePollMs} from "./watchRelay"
  * The chat screen router — mount it with `key={sessionId}` so per-session state resets.
  *
  * Once the session's agent resolves (owning workflow → latest revision), the LIVE screen mounts:
- * the shared conversation engine with sending, streaming, and engine-routed approvals. For a
- * session with no turns (nothing to invoke) — or one whose agent lookup fails — the read-only
- * replay below keeps working exactly as before.
- *
- * WHILE the lookup is in flight neither answer is known, so neither screen mounts: committing to
- * the replay would tell the user a session with a perfectly good agent is read-only, and then
- * throw its transcript away when the resolution landed.
+ * the shared conversation engine with sending, streaming, and engine-routed approvals. Until it
+ * resolves — or for a session with no turns (nothing to invoke) — the read-only replay below
+ * keeps working exactly as before.
  */
 export const ChatScreen = ({
     sessionId,
     projectId,
     workspaceId,
+    agentId,
 }: {
     sessionId: string
     projectId: string
     workspaceId: string
+    /** Route-supplied agent for a session with no turns yet (started from Home's composer). */
+    agentId?: string
 }) => {
     // Every @agenta/* entity query gates on the shared session+project atoms; without this a
     // DIRECT load of a session URL leaves the workflow molecule disabled — the engine still
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
-    const {entityId, resolving} = useAgentEntity(sessionId, projectId)
+    const {
+        entityId: latestEntityId,
+        agentId: resolvedAgentId,
+        resolving,
+    } = useAgentEntity(sessionId, projectId, agentId)
+    // A revision picked in the top bar pins the workspace to it — config AND the conversation's
+    // invocation target, as on the desktop. Unpinned, the agent's latest is what runs.
+    const pinnedRevisionId = useAtomValue(selectedRevisionAtomFamily(sessionId))
+    const entityId = pinnedRevisionId ?? latestEntityId
     const liveness = useLivenessPoll(projectId)
     const running = Boolean(
         liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
     )
-
-    // `resolving` is query-PENDING, not fetching: a cached answer renders immediately and a
-    // background refetch never flips the screen back to loading. Both queries are enabled
-    // unconditionally here (the page guards the params), so this always settles.
-    if (resolving) {
-        return (
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <ChatHeader
-                            sessionId={sessionId}
-                            projectId={projectId}
-                            workspaceId={workspaceId}
-                        />
-                    }
-                >
-                    <ChatLoading />
-                </ScreenScaffold>
-            </AppShell>
-        )
-    }
-
-    if (entityId) {
-        return (
-            <LiveConversation
-                key={entityId}
-                entityId={entityId}
-                sessionId={sessionId}
-                projectId={projectId}
-                workspaceId={workspaceId}
-                running={running}
-            />
-        )
-    }
-    return (
-        <ReplayScreen
+    // The conversation is ALWAYS mounted — the mode only decides what sits beside it (and, on a
+    // narrow frame, which of the two is on screen). Unmounting it on a mode flip would drop a
+    // streaming turn.
+    // Until the agent query settles, `entityId` is null for an agent-backed session too — so
+    // committing to the replay branch here would tell the user the session is read-only when it
+    // is not. `resolving` is query-PENDING, not fetching: a cached answer renders immediately.
+    const chat = resolving ? (
+        <ChatLoading />
+    ) : entityId ? (
+        <LiveConversation
+            key={entityId}
+            embedded
+            entityId={entityId}
             sessionId={sessionId}
             projectId={projectId}
             workspaceId={workspaceId}
             running={running}
+            agentId={resolvedAgentId}
+        />
+    ) : (
+        <ReplayScreen
+            embedded
+            sessionId={sessionId}
+            projectId={projectId}
+            workspaceId={workspaceId}
+            running={running}
+            agentId={resolvedAgentId}
+        />
+    )
+
+    return (
+        <SessionWorkspace
+            entityId={entityId}
+            agentId={resolvedAgentId}
+            sessionId={sessionId}
+            workspaceId={workspaceId}
+            projectId={projectId}
+            chat={chat}
         />
     )
 }
@@ -109,11 +117,17 @@ const ReplayScreen = ({
     projectId,
     workspaceId,
     running,
+    agentId,
+    embedded = false,
 }: {
     sessionId: string
     projectId: string
     workspaceId: string
     running: boolean
+    /** Scopes the session tab rail to this agent's sessions. */
+    agentId?: string | null
+    /** Rendered inside a workspace pane — the shell belongs to the parent. */
+    embedded?: boolean
 }) => {
     // Tightened records cadence only while this foregrounded screen shows a running or pending
     // turn; derived from the previous render's messages, so it settles one render behind.
@@ -162,41 +176,56 @@ const ReplayScreen = ({
         )
     }
 
-    return (
+    const scaffold = (
+        <ScreenScaffold
+            scrollRef={autoScroll.ref}
+            onScroll={autoScroll.onScroll}
+            embedded={embedded}
+            header={
+                <>
+                    <SessionTabs
+                        sessionId={sessionId}
+                        projectId={projectId}
+                        workspaceId={workspaceId}
+                        agentId={agentId}
+                    />
+                    {/* Two different dead ends land here: no agent on the session at all, or an
+                        agent that resolved but has no revision to invoke. Naming the wrong one
+                        sends the user looking for a problem they do not have. */}
+                    <p className="text-muted-foreground border-colorBorderSecondary m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-xs">
+                        {agentId
+                            ? "Read-only — this session's agent has no revision to run yet."
+                            : "Read-only — this session has no agent to message yet."}
+                    </p>
+                    {running ? (
+                        <div className="border-border shrink-0 border-b px-4 py-2">
+                            <ContentRail className="flex items-center justify-between">
+                                <StatusTag tone="running" dot>
+                                    running
+                                </StatusTag>
+                                <StopButton sessionId={sessionId} projectId={projectId} />
+                            </ContentRail>
+                        </div>
+                    ) : null}
+                </>
+            }
+            // Only a rendering dock counts as a footer — it owns the safe-area inset, and
+            // ApprovalDock renders nothing when no gate is pending.
+            footer={
+                pendingApprovals.length > 0 ? (
+                    <ApprovalDock approvals={pendingApprovals} actions={approvals} />
+                ) : undefined
+            }
+        >
+            {body}
+        </ScreenScaffold>
+    )
+
+    return embedded ? (
+        scaffold
+    ) : (
         <AppShell workspaceId={workspaceId} projectId={projectId}>
-            <ScreenScaffold
-                scrollRef={autoScroll.ref}
-                onScroll={autoScroll.onScroll}
-                header={
-                    <>
-                        <ChatHeader
-                            sessionId={sessionId}
-                            projectId={projectId}
-                            workspaceId={workspaceId}
-                            subtitle="Read-only — this session has no agent to message yet."
-                        />
-                        {running ? (
-                            <div className="border-border shrink-0 border-b px-4 py-2">
-                                <ContentRail className="flex items-center justify-between">
-                                    <StatusTag tone="running" dot>
-                                        running
-                                    </StatusTag>
-                                    <StopButton sessionId={sessionId} projectId={projectId} />
-                                </ContentRail>
-                            </div>
-                        ) : null}
-                    </>
-                }
-                // Only a rendering dock counts as a footer — it owns the safe-area inset, and
-                // ApprovalDock renders nothing when no gate is pending.
-                footer={
-                    pendingApprovals.length > 0 ? (
-                        <ApprovalDock approvals={pendingApprovals} actions={approvals} />
-                    ) : undefined
-                }
-            >
-                {body}
-            </ScreenScaffold>
+            {scaffold}
         </AppShell>
     )
 }

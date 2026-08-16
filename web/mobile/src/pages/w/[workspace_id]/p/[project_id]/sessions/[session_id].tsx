@@ -4,7 +4,12 @@ import {ChatScreen} from "@/features/chat/ChatScreen"
 
 export default function SessionPage() {
     const router = useRouter()
-    const {workspace_id: workspaceId, project_id: projectId, session_id: sessionId} = router.query
+    const {
+        workspace_id: workspaceId,
+        project_id: projectId,
+        session_id: sessionId,
+        agent,
+    } = router.query
     if (
         typeof workspaceId !== "string" ||
         typeof projectId !== "string" ||
@@ -18,6 +23,8 @@ export default function SessionPage() {
             sessionId={sessionId}
             projectId={projectId}
             workspaceId={workspaceId}
+            // A session Home just minted has no turns to name its agent — the link carries it.
+            agentId={typeof agent === "string" ? agent : undefined}
         />
     )
 }
