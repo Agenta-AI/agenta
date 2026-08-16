@@ -57,6 +57,7 @@ services:
             #
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
+            - ../../../web/oss/scripts:/app/oss/scripts
             - ../../../web/packages:/app/packages
             - nextjs-oss-cache:/app/oss/.next/cache
             - turbo-oss-cache:/app/.turbo
