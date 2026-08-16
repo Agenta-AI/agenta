@@ -257,6 +257,12 @@ const NavMenuImpl = ({
                         >
                             {item.icon}
                             {!collapsed ? <span>{item.title}</span> : null}
+                            {/* A group in a vertical section (the bottom rail) renders HERE, not
+                                through RowLabel — the suffix has to be drawn on both paths or
+                                Help & Docs loses its version label. */}
+                            {item.suffix && !collapsed ? (
+                                <span className="ml-auto shrink-0 pl-2">{item.suffix}</span>
+                            ) : null}
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent

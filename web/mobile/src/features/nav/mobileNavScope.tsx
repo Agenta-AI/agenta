@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import type {SidebarScope, SidebarSection, SidebarSelection} from "@agenta/navigation"
-import {SidebarLogo} from "@agenta/navigation-ui"
+import {SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
 
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from "./useMobileNavItems"
@@ -40,6 +40,11 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         )
     }
 
+    // The rail collapses at lg+ exactly as the desktop's does, so it carries the same toggle.
+    const Header = ({collapsed}: {collapsed: boolean}) => (
+        <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton />} />
+    )
+
     const AfterBottom = () => (
         <DrawerProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
     )
@@ -48,7 +53,7 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         id: MOBILE_NAV_SCOPE_ID,
         useSelection,
         useSections,
-        header: SidebarLogo,
+        header: Header,
         afterBottom: AfterBottom,
     }
 }

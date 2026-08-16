@@ -1,24 +1,20 @@
 import {useCallback, useEffect} from "react"
 
-import {AgentOverviewLayout} from "@agenta/entity-ui/agent"
-import {PanelScroll, PanelSurface} from "@agenta/ui/components/presentational"
+import {AgentOverviewBody} from "@agenta/entity-ui/agent"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
-import NextTriggersSection from "@/oss/components/NextTriggers"
-import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
+import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
 import {
     SeedAttachButton,
     SeedAttachmentChips,
     useSeedAttachments,
 } from "@/oss/components/SeedAttachments"
 import UsageSummary from "@/oss/components/UsageSummary"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
-
-import AgentConfigurationCard from "./AgentConfigurationCard"
-import AgentFilesCard from "./AgentFilesCard"
 
 interface Props {
     appId: string
@@ -55,9 +51,24 @@ const AgentOverview = ({appId, agentName}: Props) => {
     }, [requestFullHeight])
 
     // "View all" stays on this agent's rail rather than dropping you on the project list with a
-    // filter you then have to trust.
-    const {appURL} = useURL()
-    const sessionsHref = appURL ? `${appURL}/sessions` : undefined
+    // filter you then have to trust. That route needs the app id to have reached URL state, which
+    // lags the project's; until it does the project list — which DOES take the agent as a filter,
+    // hence the flag below — stands in, so the affordance never links to `""` (the current route,
+    // i.e. a click that does nothing). While even the project is unresolved there is no honest
+    // target and the cards render without one, rather than holding the whole page for it.
+    const {appURL, projectURL} = useURL()
+    const sessionsHref = appURL
+        ? `${appURL}/sessions`
+        : projectURL
+          ? `${projectURL}/sessions`
+          : undefined
+
+    const verbs = useSessionCardVerbs()
+    const {goToPlayground} = usePlaygroundNavigation()
+    const openConfig = useCallback(
+        () => goToPlayground(undefined, {appId}),
+        [goToPlayground, appId],
+    )
 
     const attachments = useSeedAttachments()
 
@@ -71,13 +82,14 @@ const AgentOverview = ({appId, agentName}: Props) => {
     )
 
     return (
-        // Below `lg` the columns stack and the page itself scrolls; at `lg` each column takes the
-        // frame's height and scrolls on its own, so reading a long session list never carries the
-        // configuration rail off screen with it.
-        <AgentOverviewLayout
-            scroll
-            main={
-                <>
+        <AgentOverviewBody
+            agentId={appId}
+            sessionsHref={sessionsHref}
+            sessionsHrefScopesAgent={Boolean(appURL)}
+            onEditConfig={openConfig}
+            usage={<UsageSummary variant="strip" />}
+            {...verbs}
+            composer={
                 <RichChatInput
                     // The column scrolls, so every child of it is shrinkable by default and this
                     // one collapsed to a hairline under the title once the lists overflowed.
@@ -104,54 +116,10 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     textSizeClassName="text-sm"
                     placeholder={
                         agentName
-                            ? `Ask ${agentName}… — starts a new session`
-                            : "Describe a task — starts a new session"
+                            ? `Ask ${agentName}\u2026 \u2014 starts a new session`
+                            : "Describe a task \u2014 starts a new session"
                     }
                 />
-
-                {/* Bare, on the page background — the rail opposite is the page's one defined
-                    object, and two sheets facing each other read as equal weight. */}
-                <div className="flex flex-col gap-10">
-                    <SessionListCard
-                        withPinned
-                        agentId={appId}
-                        // Same sensible limit Home settles on; the rest reveal in place.
-                        limit={6}
-                        title="Sessions"
-                        emptyText="Conversations with this agent will show up here."
-                        viewAllHref={sessionsHref}
-                    />
-
-                    {/* Co-equal with Sessions, not a filter of it: an automation run is one the
-                        user configured but did not start. A toggle would hide one of the two
-                        behind a click, which ranks them. */}
-                    <SessionListCard
-                        withPinned
-                        agentId={appId}
-                        origin="trigger"
-                        title="Automation runs"
-                        emptyText="Runs from automations bound to this agent will show up here."
-                        limit={5}
-                        minHeightClassName="min-h-[100px]"
-                        viewAllHref={sessionsHref}
-                    />
-                </div>
-                </>
-            }
-            rail={
-                <PanelSurface className="flex max-h-full min-h-0 flex-col">
-                    <PanelScroll>
-                        <AgentConfigurationCard appId={appId} />
-
-                        <AgentFilesCard appId={appId} />
-
-                        {/* Scoped to this agent. Automation RUNS below say what already happened;
-                            an agent whose schedule quietly stopped looks identical there. */}
-                        <NextTriggersSection agentId={appId} />
-
-                        <UsageSummary variant="strip" />
-                    </PanelScroll>
-                </PanelSurface>
             }
         />
     )

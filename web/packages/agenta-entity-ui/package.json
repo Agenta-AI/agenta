@@ -35,6 +35,7 @@
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/sessions-ui": "workspace:../agenta-sessions-ui",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",

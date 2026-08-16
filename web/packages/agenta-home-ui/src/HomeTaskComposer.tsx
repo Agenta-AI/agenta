@@ -23,6 +23,13 @@ export interface HomeTaskComposerProps {
     onStart: (input: {agentId: string; text: string}) => void | Promise<void>
     /** Host extras left of the paperclip (voice mic, context budget). */
     extraPrefix?: ReactNode
+    /**
+     * Pin the composer to one agent and drop the picker — an agent's own page already answers
+     * "which agent", and a picker there would let you send from it to a different one.
+     */
+    fixedAgentId?: string
+    /** Placeholder override; a pinned host names the agent it is talking to. */
+    placeholder?: string
 }
 
 /**
@@ -42,6 +49,8 @@ export const HomeTaskComposer = ({
     attachments,
     onStart,
     extraPrefix,
+    fixedAgentId,
+    placeholder = "Describe the task, or start the conversation…",
 }: HomeTaskComposerProps) => {
     const [agentId, setAgentId] = useState<string | null>(null)
     // Only so a failed start can put the message back — the editor clears itself on submit,
@@ -49,15 +58,17 @@ export const HomeTaskComposer = ({
     const inputRef = useRef<RichChatInputHandle | null>(null)
 
     // Default to the most recently touched agent — the one you're most likely to want next. A
-    // selection is only honoured while it is still in the roster: an agent archived, re-created
-    // under a new id, or lost to a project switch must not keep Send enabled and hand `onStart`
-    // an id that no longer resolves (and would render the trigger as a label-less robot icon).
+    // pinned `fixedAgentId` is the surface's own agent and always wins. A user selection is only
+    // honoured while it is still in the roster: an agent archived, re-created under a new id, or
+    // lost to a project switch must not keep Send enabled and hand `onStart` an id that no longer
+    // resolves (and would render the trigger as a label-less robot icon).
     const effectiveAgentId = useMemo(
         () =>
+            fixedAgentId ??
             (agentId && agents.some((agent) => agent.id === agentId) ? agentId : null) ??
             agents[0]?.id ??
             null,
-        [agentId, agents],
+        [fixedAgentId, agentId, agents],
     )
     const selectedName = useMemo(
         () => agents.find((agent) => agent.id === effectiveAgentId)?.name,
@@ -85,32 +96,36 @@ export const HomeTaskComposer = ({
                 }
             }}
             attachments={attachments}
-            placeholder="Describe the task, or start the conversation…"
+            placeholder={placeholder}
             disabled={!effectiveAgentId}
             extraPrefix={
-                <span className="flex items-center gap-1">
-                    <Select value={effectiveAgentId ?? undefined} onValueChange={setAgentId}>
-                        <SelectTrigger
-                            aria-label="Agent"
-                            className="min-w-40 border-0 bg-transparent px-1 shadow-none"
-                        >
-                            <SelectValue placeholder="Select an agent">
-                                <span className="inline-flex items-center gap-1.5">
-                                    <RobotIcon size={14} className="text-colorTextTertiary" />
-                                    {selectedName}
-                                </span>
-                            </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                            {agents.map((agent) => (
-                                <SelectItem key={agent.id} value={agent.id}>
-                                    {agent.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    {extraPrefix}
-                </span>
+                fixedAgentId ? (
+                    extraPrefix
+                ) : (
+                    <span className="flex items-center gap-1">
+                        <Select value={effectiveAgentId ?? undefined} onValueChange={setAgentId}>
+                            <SelectTrigger
+                                aria-label="Agent"
+                                className="min-w-40 border-0 bg-transparent px-1 shadow-none"
+                            >
+                                <SelectValue placeholder="Select an agent">
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <RobotIcon size={14} className="text-colorTextTertiary" />
+                                        {selectedName}
+                                    </span>
+                                </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {agents.map((agent) => (
+                                    <SelectItem key={agent.id} value={agent.id}>
+                                        {agent.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {extraPrefix}
+                    </span>
+                )
             }
         />
     )

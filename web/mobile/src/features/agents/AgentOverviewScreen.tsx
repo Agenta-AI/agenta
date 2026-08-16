@@ -1,13 +1,8 @@
 import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {
-    AgentConfigSummaryCard,
-    agentAvatar,
-    AgentOverviewLayout,
-    NextTriggersSection,
-} from "@agenta/entity-ui/agent"
-import {SessionCardList} from "@agenta/sessions-ui"
+import {AgentActionsMenu, AgentOverviewBody, agentAvatar} from "@agenta/entity-ui/agent"
+import {UsageCard} from "@agenta/home-ui"
 import {useAtomValue} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -19,7 +14,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
-import {AgentOverviewSection} from "./AgentOverviewSection"
+import {AgentComposer} from "./AgentComposer"
 
 /**
  * One agent's overview — the mobile face of the desktop agent overview page: this agent's
@@ -56,8 +51,9 @@ export const AgentOverviewScreen = ({
             <PageTitle parts={[name, "Agents"]} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
+                    fill
                     header={
-                        <div className="border-border shrink-0 border-b px-2 pb-3 pt-2">
+                        <div className="border-border shrink-0 border-b px-2 pb-3 pt-2 lg:px-16">
                             <ContentRail className="flex items-center gap-2 lg:max-w-none">
                                 {/* Nav is the drawer, as on every other screen — not a per-screen
                                     back button. Home is one drawer entry away. */}
@@ -68,70 +64,52 @@ export const AgentOverviewScreen = ({
                                 >
                                     {avatar.initials}
                                 </span>
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-sm font-semibold">
+                                {/* No `flex-1`: the title sizes to its text so the kebab sits
+                                    beside it, as on the desktop, instead of being pushed to the
+                                    far edge. `min-w-0` still lets a long name truncate. */}
+                                <h1 className="m-0 min-w-0 truncate text-sm font-semibold">
                                     {name}
                                 </h1>
+                                {/* The same verbs the desktop header offers; rename and delete
+                                    fall through to the shared implementations here, since /m has
+                                    no app-management modals of its own.
+
+                                    Held back until the record lands, like every other agent fact
+                                    on this screen: until then `name` is the "Agent" placeholder,
+                                    so a rename would open seeded with it and the destructive
+                                    verbs would act on an agent whose name and slug are unknown. */}
+                                {agent ? (
+                                    <AgentActionsMenu
+                                        agent={{id: agentId, name, slug: agent.slug}}
+                                    />
+                                ) : null}
                             </ContentRail>
                         </div>
                     }
                 >
-                    {/* The SHARED arrangement the desktop overview uses — activity left, the
-                        agent's own state as a rail. `gap-0` below lg keeps the phone's stacked
-                        rhythm, which the sections already own through their own padding. */}
-                    <ContentRail className="lg:max-w-none">
-                        <AgentOverviewLayout
-                            className="gap-0 lg:gap-6"
-                            main={
-                                <>
-                                    <AgentOverviewSection
-                                        title="Sessions"
-                                        viewAllHref={`${base}/sessions`}
-                                    >
-                                        <div className="px-2">
-                                            <SessionCardList
-                                                withPinned
-                                                agentId={agentId}
-                                                limit={6}
-                                                emptyText="Conversations with this agent will show up here."
-                                                onOpenRow={sessionMenu.open}
-                                                menuFor={sessionMenu.menuFor}
-                                                onMenuSelect={sessionMenu.onMenuSelect}
-                                                alwaysShowPin
-                                            />
-                                        </div>
-                                    </AgentOverviewSection>
-
-                                    <AgentOverviewSection title="Automation runs">
-                                        <div className="px-2">
-                                            <SessionCardList
-                                                origin="trigger"
-                                                agentId={agentId}
-                                                limit={5}
-                                                emptyText="Runs from automations bound to this agent will show up here."
-                                                onOpenRow={sessionMenu.open}
-                                                menuFor={sessionMenu.menuFor}
-                                                onMenuSelect={sessionMenu.onMenuSelect}
-                                                alwaysShowPin
-                                            />
-                                        </div>
-                                    </AgentOverviewSection>
-                                </>
+                    {/* THE shared overview body — the same cards, order and chrome the desktop
+                        page renders. Read-only host: configuration is edited in the desktop
+                        playground, so no `onEditConfig`. */}
+                    {/* `flex flex-col` is load-bearing: the body's columns size off `flex-1` +
+                        `h-full`, so a plain block here leaves them with no definite height and
+                        the left column scrolls inside a stunted box. */}
+                    <ContentRail className="flex min-h-0 flex-1 flex-col px-2 pb-4 pt-2 lg:max-w-none lg:px-16 lg:pb-6 lg:pt-5">
+                        {/* `sessionsHref` is the PROJECT-wide list — /m has no agent-scoped
+                            sessions route — hence no `sessionsHrefScopesAgent`: the cards hand
+                            this agent over as a filter, or "View all" lands on a list of
+                            everyone else's sessions too. */}
+                        <AgentOverviewBody
+                            alwaysShowPin
+                            composer={
+                                <AgentComposer agentId={agentId} agentName={name} base={base} />
                             }
-                            rail={
-                                <>
-                                    {/* Scoped to this agent; automation RUNS say what already happened. */}
-                                    <div className="px-2 pt-2 lg:pt-0">
-                                        <NextTriggersSection
-                                            agentId={agentId}
-                                            agentNames={agentNames}
-                                        />
-                                    </div>
-
-                                    <div className="px-2 pb-6 pt-2">
-                                        <AgentConfigSummaryCard appId={agentId} />
-                                    </div>
-                                </>
-                            }
+                            agentId={agentId}
+                            agentNames={agentNames}
+                            usage={<UsageCard appId={agentId} />}
+                            sessionsHref={`${base}/sessions`}
+                            onOpenRow={sessionMenu.open}
+                            menuFor={sessionMenu.menuFor}
+                            onMenuSelect={sessionMenu.onMenuSelect}
                         />
                     </ContentRail>
                 </ScreenScaffold>

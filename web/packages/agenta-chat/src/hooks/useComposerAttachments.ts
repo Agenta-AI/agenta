@@ -281,6 +281,19 @@ export const useComposerAttachments = ({
         setAttachmentsOpen(false)
     }
 
+    /**
+     * Put back what a send consumed when that send did not go through — a hand-off whose
+     * navigation failed, say. The entries are already uploaded, so they return settled rather
+     * than through `addFiles`, which would re-upload them as second attachments. Idempotent:
+     * anything already back in the tray is left where it is.
+     */
+    const restoreAttachments = (restored: StagedFile[]) => {
+        setFiles((prev) => [
+            ...restored.filter((file) => !prev.some((row) => row.uid === file.uid)),
+            ...prev,
+        ])
+    }
+
     return {
         uploadsEnabled,
         files,
@@ -300,6 +313,7 @@ export const useComposerAttachments = ({
         uploadExtraFiles,
         uploads,
         clearAttachments,
+        restoreAttachments,
         bindDropTarget,
     }
 }
