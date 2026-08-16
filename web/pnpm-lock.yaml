@@ -1328,6 +1328,9 @@ importers:
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@rc-component/form':
+        specifier: ^1.8.1
+        version: 1.8.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@tanstack/react-query':
         specifier: '>=5.0.0'
         version: 5.100.9(react@19.2.6)
