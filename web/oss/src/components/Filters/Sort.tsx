@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import type {SortResult, SortTypes} from "@agenta/observability"
 import {Calendar, CaretRight, Clock} from "@phosphor-icons/react"
 import type {SelectProps} from "antd"
 import {Button, DatePicker, Divider, Popover, Typography} from "antd"
@@ -44,25 +45,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-export interface SortResult {
-    type: "custom" | "standard"
-    sorted: string
-    customRange?: {startTime?: string; endTime?: string}
-    label?: SortTypes
-}
-export type SortTypes =
-    | "30 mins"
-    | "1 hour"
-    | "6 hours"
-    | "24 hours"
-    | "3 days"
-    | "7 days"
-    | "14 days"
-    | "1 month"
-    | "3 months"
-    | "all time"
-    | "custom"
-    | ""
+export type {SortResult, SortTypes}
+
 interface SortPresetMeta {
     label: SortTypes
     amount?: number

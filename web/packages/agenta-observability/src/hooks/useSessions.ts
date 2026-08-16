@@ -11,14 +11,14 @@ import {
     selectedTraceIdAtom,
     sortAtom,
     traceTabsAtom,
-} from "../atoms/controls"
+} from "../state/controls"
 import {
     filteredSessionIdsAtom,
     sessionCountAtom,
     sessionsLoadingAtom,
     sessionsQueryAtom,
     sessionsSpansQueryAtom,
-} from "../atoms/queries"
+} from "../state/queries"
 
 export const useSessions = () => {
     const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)

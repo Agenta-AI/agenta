@@ -15,9 +15,8 @@
  * disk.
  */
 
+import {downloadCsv} from "@agenta/shared/utils"
 import Papa from "papaparse"
-
-import {downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 
 /**
  * Subset of `FileSystemWritableFileStream` we actually call. Declared

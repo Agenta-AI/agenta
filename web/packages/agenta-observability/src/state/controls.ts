@@ -6,63 +6,23 @@ import dayjs from "dayjs"
 import {atom} from "jotai"
 import {atomFamily, atomWithStorage} from "jotai/utils"
 
-import type {SortResult} from "@/oss/components/Filters/Sort"
-import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
-import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
-import type {Filter} from "@/oss/lib/Types"
-import {currentWorkflowContextAtom} from "@/oss/state/workflow"
+import {SESSIONS_PAGE_SIZE, TRACES_PAGE_SIZE} from "../core/constants"
+import type {
+    Filter,
+    ObservabilityTabInfo,
+    SortResult,
+    TraceTabTypes,
+    TraceTypeChoice,
+} from "../core/types"
 
-import {routerAppIdAtom} from "../../app"
-import {SESSIONS_PAGE_SIZE, TRACES_PAGE_SIZE} from "../constants"
+import {observabilityScopeAtom, observabilityWorkflowContextAtom} from "./seams"
 
-export type TraceTabTypes = "trace" | "span" | "chat"
-export type ObservabilityTabInfo = "traces" | "sessions"
+const routeAppIdAtom = atom((get) => get(observabilityScopeAtom).routeAppId)
 
 export const DEFAULT_SORT: SortResult = {
     type: "standard",
     sorted: dayjs().utc().subtract(24, "hours").toISOString().split(".")[0],
 }
-
-const HAS_RECEIVED_TRACES_STORAGE_KEY = "agenta:observability:has-received-traces"
-const HAS_RECEIVED_SESSIONS_STORAGE_KEY = "agenta:observability:has-received-sessions"
-
-const createHasReceivedTracesStorageKey = (userId: string) =>
-    `${HAS_RECEIVED_TRACES_STORAGE_KEY}:${userId}`
-const createHasReceivedSessionsStorageKey = (userId: string) =>
-    `${HAS_RECEIVED_SESSIONS_STORAGE_KEY}:${userId}`
-
-const hasReceivedTracesAtomFamily = atomFamily((userId: string) =>
-    atomWithStorage<boolean>(createHasReceivedTracesStorageKey(userId), false),
-)
-const hasReceivedSessionsAtomFamily = atomFamily((userId: string) =>
-    atomWithStorage<boolean>(createHasReceivedSessionsStorageKey(userId), false),
-)
-
-export const hasReceivedTracesAtom = atom(
-    (get) => {
-        const userId = get(onboardingStorageUserIdAtom)
-        if (!userId) return false
-        return get(hasReceivedTracesAtomFamily(userId))
-    },
-    (get, set, next: boolean) => {
-        const userId = get(onboardingStorageUserIdAtom)
-        if (!userId) return
-        set(hasReceivedTracesAtomFamily(userId), next)
-    },
-)
-
-export const hasReceivedSessionsAtom = atom(
-    (get) => {
-        const userId = get(onboardingStorageUserIdAtom)
-        if (!userId) return false
-        return get(hasReceivedSessionsAtomFamily(userId))
-    },
-    (get, set, next: boolean) => {
-        const userId = get(onboardingStorageUserIdAtom)
-        if (!userId) return
-        set(hasReceivedSessionsAtomFamily(userId), next)
-    },
-)
 
 // Global active tab state
 export const observabilityTabAtom = atom<ObservabilityTabInfo>("traces")
@@ -78,24 +38,6 @@ export const limitAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
 export const sortAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
     atom<SortResult>(DEFAULT_SORT as SortResult),
 )
-/**
- * User's intent for the `trace_type` filter. Tagged union — explicit
- * semantics instead of the dual-atom (default-enabled + filters-array) dance
- * that preceded it, where state could revert silently on re-derivations.
- *
- *   - `"default"`  — user has never touched trace_type → fall back to
- *                    `defaultTraceTypeForWorkflow(workflowKind, tab)`.
- *   - `"value"`    — user picked a specific value (annotation or invocation).
- *   - `"cleared"`  — user explicitly removed the trace_type filter.
- *
- * The effective trace_type is derived in `effectiveTraceTypeAtomFamily`;
- * downstream atoms (scope filter, query body) read that derived value.
- */
-export type TraceTypeChoice =
-    | {kind: "default"}
-    | {kind: "value"; value: "annotation" | "invocation"}
-    | {kind: "cleared"}
-
 // --- Persisted filter state (per app, per tab) -------------------------------
 //
 // Filter selections are persisted across reloads so users don't have to
@@ -158,11 +100,11 @@ const writeTabState = (
 export const traceTypeChoiceAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
     atom(
         (get): TraceTypeChoice => {
-            const appKey = get(routerAppIdAtom) || GLOBAL_SCOPE_KEY
+            const appKey = get(routeAppIdAtom) || GLOBAL_SCOPE_KEY
             return readTabState(get(filtersByAppAtom), appKey, tab).traceTypeChoice
         },
         (get, set, next: TraceTypeChoice) => {
-            const appKey = get(routerAppIdAtom) || GLOBAL_SCOPE_KEY
+            const appKey = get(routeAppIdAtom) || GLOBAL_SCOPE_KEY
             const all = get(filtersByAppAtom)
             const current = readTabState(all, appKey, tab)
             set(
@@ -184,7 +126,7 @@ export const effectiveTraceTypeAtomFamily = atomFamily((tab: ObservabilityTabInf
         if (choice.kind === "cleared") return null
         if (choice.kind === "value") return choice.value
         // default — look up the per-workflow-kind default
-        const workflowCtx = get(currentWorkflowContextAtom)
+        const workflowCtx = get(observabilityWorkflowContextAtom)
         const def = defaultTraceTypeForWorkflow(workflowCtx.workflowKind, tab)
         if (def === "annotation" || def === "invocation") return def
         return null
@@ -196,11 +138,11 @@ export const effectiveTraceTypeAtomFamily = atomFamily((tab: ObservabilityTabInf
 export const userFiltersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
     atom(
         (get): Filter[] => {
-            const appKey = get(routerAppIdAtom) || GLOBAL_SCOPE_KEY
+            const appKey = get(routeAppIdAtom) || GLOBAL_SCOPE_KEY
             return readTabState(get(filtersByAppAtom), appKey, tab).userFilters
         },
         (get, set, next: Filter[]) => {
-            const appKey = get(routerAppIdAtom) || GLOBAL_SCOPE_KEY
+            const appKey = get(routeAppIdAtom) || GLOBAL_SCOPE_KEY
             const all = get(filtersByAppAtom)
             const current = readTabState(all, appKey, tab)
             set(filtersByAppAtom, writeTabState(all, appKey, tab, {...current, userFilters: next}))
@@ -268,9 +210,9 @@ export const sortAtom = atom(
 export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
     atom(
         (get) => {
-            const appId = get(routerAppIdAtom)
+            const appId = get(routeAppIdAtom)
             const userFilters = get(userFiltersAtomFamily(tab))
-            const workflowCtx = get(currentWorkflowContextAtom)
+            const workflowCtx = get(observabilityWorkflowContextAtom)
             const effectiveTraceType = get(effectiveTraceTypeAtomFamily(tab))
 
             // Build the trace_type filter row (if any)
@@ -316,12 +258,11 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
         },
         (get, set, update: Filter[] | ((prev: Filter[]) => Filter[])) => {
             const currentCombined = get(filtersAtomFamily(tab))
-            const nextCombined =
-                typeof update === "function" ? (update as any)(currentCombined) : update
+            const nextCombined = typeof update === "function" ? update(currentCombined) : update
             const normalizedNext = nextCombined || []
 
             // Strip the permanent scope filter — it's regenerated, not stored.
-            const nextNonPermanent = normalizedNext.filter((f: Filter) => !(f as any).isPermanent)
+            const nextNonPermanent = normalizedNext.filter((f: Filter) => !f.isPermanent)
 
             // Split the incoming non-permanent filters: trace_type → choice
             // atom, everything else → userFilters atom.
@@ -391,7 +332,6 @@ export const filtersAtom = atom(
 export const selectedTraceIdAtom = atom<string>("")
 export const selectedNodeAtom = atom<string>("")
 export const selectedRowKeysAtom = atom<Key[]>([])
-export const testsetDrawerDataAtom = atom<TestsetTraceData[]>([])
 export const isAnnotationsSectionOpenAtom = atom<boolean>(true)
 
 // Activity mode control: false = "all activity" (stable, first_active), true = "latest activity" (unstable, last_active)

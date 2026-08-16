@@ -1,5 +1,4 @@
-import type {FilterItem} from "@/oss/components/Filters/types"
-import type {Filter} from "@/oss/lib/Types"
+import type {Filter, FilterValue} from "../core/types"
 
 export const parseNumericString = (raw: string) => {
     const trimmed = raw.trim()
@@ -9,7 +8,7 @@ export const parseNumericString = (raw: string) => {
     return Number.isNaN(parsed) ? raw : parsed
 }
 
-export const coerceNumericValue = (value: FilterItem["value"]): Filter["value"] => {
+export const coerceNumericValue = (value: FilterValue): Filter["value"] => {
     if (Array.isArray(value)) {
         return value.map((item) =>
             typeof item === "string"
@@ -17,17 +16,17 @@ export const coerceNumericValue = (value: FilterItem["value"]): Filter["value"] 
                 : Array.isArray(item)
                   ? coerceNumericValue(item)
                   : typeof item === "object" && item !== null
-                    ? coerceNumericValue(item as any)
+                    ? coerceNumericValue(item as FilterValue)
                     : item,
-        )
+        ) as Filter["value"]
     }
 
     if (typeof value === "object" && value !== null) {
-        return Object.entries(value).reduce<Record<string, any>>((acc, [key, val]) => {
+        return Object.entries(value).reduce<Record<string, unknown>>((acc, [key, val]) => {
             if (typeof val === "string") {
                 acc[key] = parseNumericString(val)
             } else if (Array.isArray(val) || (typeof val === "object" && val !== null)) {
-                acc[key] = coerceNumericValue(val as any)
+                acc[key] = coerceNumericValue(val as FilterValue)
             } else {
                 acc[key] = val
             }

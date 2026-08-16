@@ -1,3 +1,4 @@
+import type {Filter, FilterConditions, FilterValue} from "@agenta/observability"
 import type {GlobalToken} from "antd"
 import type {StaticImageData} from "next/image"
 
@@ -112,42 +113,9 @@ export interface Environment {
     updated_at?: string | null
 }
 
-export type FilterValue =
-    | string
-    | number
-    | boolean
-    | Record<string, any>
-    | (string | number | boolean | Record<string, any>)[]
-
-export interface Filter {
-    field: string
-    key?: string
-    operator: FilterConditions
-    value: FilterValue
-    isPermanent?: boolean
-}
-
-export type FilterConditions =
-    | "contains"
-    | "matches"
-    | "like"
-    | "startswith"
-    | "endswith"
-    | "exists"
-    | "not_exists"
-    | "eq"
-    | "neq"
-    | "gt"
-    | "lt"
-    | "gte"
-    | "lte"
-    | "between"
-    | "in"
-    | "not_in"
-    | "is"
-    | "is_not"
-    | "btwn"
-    | ""
+// The filter model belongs to the observability query layer; re-exported here
+// (type-only, so nothing lands in the bundle) for the app's existing callers.
+export type {Filter, FilterConditions, FilterValue}
 
 export interface AuthErrorMsgType {
     message: string

@@ -1,3 +1,13 @@
+import type {AnnotationDto} from "@agenta/entities/annotation/dto"
+import {
+    attachAnnotationsToTraces,
+    groupAnnotationsByReferenceId,
+} from "@agenta/entities/annotation/dto"
+import {transformApiData} from "@agenta/entities/annotation/dto"
+import {queryAllAnnotations} from "@agenta/entities/annotation/dto"
+import {workspaceMembersAtom} from "@agenta/entities/organization"
+import {getNodeById} from "@agenta/entities/trace"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import deepEqual from "fast-deep-equal"
@@ -6,21 +16,8 @@ import {atomFamily, selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
 
-import {
-    attachAnnotationsToTraces,
-    groupAnnotationsByReferenceId,
-} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
-import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
-import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {getNodeById} from "@/oss/lib/traces/observability_helpers"
-import {queryAllAnnotations} from "@/oss/services/annotations/api"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
-import {getOrgValues} from "@/oss/state/org"
-import {projectIdAtom} from "@/oss/state/project"
-import {currentWorkflowContextAtom} from "@/oss/state/workflow"
-
-import {sessionExistsAtom} from "../../session"
+import {buildTraceQueryParams, executeTraceQuery, mergeConditions} from "../api/queryHelpers"
+import type {TraceSpanNode} from "../core/traceSpan"
 
 import {
     filtersAtomFamily,
@@ -33,12 +30,24 @@ import {
     traceTabsAtomFamily,
     userFiltersAtomFamily,
 } from "./controls"
-import {buildTraceQueryParams, executeTraceQuery, mergeConditions} from "./queryHelpers"
+import {observabilityScopeAtom, observabilityWorkflowContextAtom} from "./seams"
+
+/** Minimal runtime shape of `attributes.ag` (backend extra="allow" data). */
+interface AgAttributes {
+    metrics?: {
+        tokens?: {cumulative?: {total?: number}; incremental?: {total?: number}}
+        costs?: {cumulative?: {total?: number}; incremental?: {total?: number}}
+    }
+    data?: {inputs?: unknown; outputs?: unknown}
+    session?: {id?: string}
+}
+
+const agOf = (span?: TraceSpanNode) => span?.attributes?.ag as AgAttributes | undefined
 
 // Traces query ----------------------------------------------------------------
 export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
-    const appId = get(selectedAppIdAtom)
-    const workflowCtx = get(currentWorkflowContextAtom)
+    const appId = get(observabilityScopeAtom).appId
+    const workflowCtx = get(observabilityWorkflowContextAtom)
     // `fetchAllPreviewTraces` writes the legacy `?application_id=` URL param
     // off this value. For app workflows that's correct (and redundant with the
     // body filter that also pins `references.application.id`). For evaluator
@@ -56,7 +65,7 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
     const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
         buildTraceQueryParams(filters, sort, traceTabs, limit)
 
-    const sessionExists = get(sessionExistsAtom)
+    const sessionExists = get(sessionAtom)
 
     // Wait for workflow context to settle before firing the query. While
     // `workflowCtx.isResolving` is true, `effectiveAppId` falls through to
@@ -78,6 +87,7 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
                 params,
                 pageParam: pageParam as {newest?: string} | undefined,
                 appId: effectiveAppId as string,
+                projectId: projectId ?? "",
                 isHasAnnotationSelected,
                 hasAnnotationConditions,
                 hasAnnotationOperator,
@@ -85,7 +95,11 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
         enabled: enabledFlag,
 
         getNextPageParam: (lastPage, _pages) => {
-            const page = lastPage as any
+            const page = lastPage as {
+                annotationPageSize?: number
+                traces: unknown[]
+                nextCursor?: string
+            }
             const pageSize = page.annotationPageSize ?? page.traces.length
             return pageSize === limit && page.nextCursor
                 ? {newest: page.nextCursor as string}
@@ -156,14 +170,17 @@ export const annotationLinksAtom = eagerAtom((get) =>
 // Annotations query ------------------------------------------------------------
 export const annotationsQueryAtom = atomWithQuery((get) => {
     const links = get(annotationLinksAtom)
-    const {selectedOrg} = getOrgValues()
-    const members = selectedOrg?.default_workspace?.members || []
+    const members = get(workspaceMembersAtom)
+    const projectId = get(projectIdAtom)
 
     return {
         queryKey: ["annotations", links],
         queryFn: async () => {
             if (Array.isArray(links) && !links.length) return [] as AnnotationDto[]
-            const res = await queryAllAnnotations({annotation: {links}})
+            const res = await queryAllAnnotations({
+                projectId: projectId ?? undefined,
+                queries: {annotation: {links}},
+            })
             return (
                 res.annotations?.map((a) => transformApiData<AnnotationDto>({data: a, members})) ||
                 []
@@ -262,9 +279,15 @@ export const formattedUsageAtomFamily = atomFamily((tokens?: number) =>
     atom(() => formatTokenUsage(tokens)),
 )
 
+interface SessionsPage {
+    session_ids: string[]
+    count: number
+    nextWindowing?: {newest?: string; oldest?: string}
+}
+
 // Session queries -------------------------------------------------------------
 export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
-    const appId = get(selectedAppIdAtom)
+    const appId = get(observabilityScopeAtom).appId
 
     const projectId = get(projectIdAtom)
 
@@ -284,7 +307,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
     }
 
     const limit = get(limitAtomFamily("sessions"))
-    const sessionExists = get(sessionExistsAtom)
+    const sessionExists = get(sessionAtom)
     const realtimeMode = get(realtimeModeAtomFamily("sessions"))
 
     return {
@@ -327,19 +350,20 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
         },
         enabled: sessionExists && Boolean(appId || projectId),
 
-        getNextPageParam: (lastPage: any) => {
+        getNextPageParam: (lastPageRaw) => {
             // Disable pagination in realtime mode (latest activity shows fixed LIMIT items)
             if (realtimeMode) {
                 return undefined
             }
 
+            const lastPage = lastPageRaw as SessionsPage
             // Use the windowing object from response for time-based pagination
             const hasMore = lastPage.session_ids.length === limit && lastPage.nextWindowing
             if (!hasMore) return undefined
 
             return {
-                newest: lastPage.nextWindowing.newest,
-                oldest: lastPage.nextWindowing.oldest,
+                newest: lastPage.nextWindowing?.newest,
+                oldest: lastPage.nextWindowing?.oldest,
             }
         },
 
@@ -351,7 +375,7 @@ export const sessionIdsAtom = selectAtom(
     sessionsQueryAtom,
     (query) => {
         const pages = query.data?.pages ?? []
-        const sessionIds = pages.flatMap((page: any) => page.session_ids || [])
+        const sessionIds = pages.flatMap((page) => (page as SessionsPage).session_ids || [])
         return Array.from(new Set(sessionIds))
     },
     deepEqual,
@@ -359,7 +383,7 @@ export const sessionIdsAtom = selectAtom(
 
 export const sessionCountAtom = selectAtom(
     sessionsQueryAtom,
-    (query) => (query.data?.pages?.[0] as any)?.count ?? 0,
+    (query) => (query.data?.pages?.[0] as SessionsPage | undefined)?.count ?? 0,
 )
 
 export const filteredSessionIdsAtom = atom((get) => {
@@ -370,7 +394,7 @@ export const filteredSessionIdsAtom = atom((get) => {
 
 // Session Spans ---------------------------------------------------------------
 export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
-    const appId = get(selectedAppIdAtom)
+    const appId = get(observabilityScopeAtom).appId
     const filters = get(userFiltersAtomFamily("sessions"))
     const traceTabs = get(traceTabsAtomFamily("sessions"))
     const projectId = get(projectIdAtom)
@@ -380,7 +404,7 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
     const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
         buildTraceQueryParams(filters, undefined, traceTabs, undefined)
 
-    const sessionExists = get(sessionExistsAtom)
+    const sessionExists = get(sessionAtom)
 
     return {
         queryKey: ["session_spans", projectId, appId, params, JSON.stringify(sessionIds)],
@@ -414,6 +438,7 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     params: specificParams,
                     pageParam: pageParam as {newest?: string} | undefined,
                     appId: appId as string,
+                    projectId: projectId ?? "",
                     isHasAnnotationSelected,
                     hasAnnotationConditions,
                     hasAnnotationOperator,
@@ -450,7 +475,11 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
         enabled: sessionExists && Boolean(appId || projectId) && sessionIds.length > 0,
 
         getNextPageParam: (lastPage, _pages) => {
-            const page = lastPage as any
+            const page = lastPage as {
+                annotationPageSize?: number
+                traces: unknown[]
+                nextCursor?: string
+            }
             const pageSize = page.annotationPageSize ?? page.traces.length
             return pageSize === limit && page.nextCursor
                 ? {newest: page.nextCursor as string}
@@ -479,7 +508,7 @@ export const sessionsSpansAtom = selectAtom(
                 // with a per-session filter). Fall back to the attribute path for any
                 // legacy/other caller that still serialises `ag.session.id`. (AGE-3788)
                 const sessionId = ((trace as TraceSpanNode & {__sessionId?: string}).__sessionId ||
-                    (trace.attributes as any)?.ag?.session?.id) as string
+                    agOf(trace)?.session?.id) as string
 
                 if (sessionId) {
                     if (!grouped[sessionId]) grouped[sessionId] = []
@@ -563,9 +592,10 @@ export const sessionUsageAtomFamily = atomFamily((sessionId: string) =>
         const traces = get(sessionTracesAtomFamily(sessionId))
         return traces.reduce((acc, trace) => {
             const attrs = trace.attributes || {}
+            const ag = agOf(trace)
             const tokens =
-                (attrs as any)?.ag?.metrics?.tokens?.incremental?.total ||
-                (attrs as any)?.ag?.metrics?.tokens?.cumulative?.total ||
+                ag?.metrics?.tokens?.incremental?.total ||
+                ag?.metrics?.tokens?.cumulative?.total ||
                 (attrs["ag.usage.total_tokens"] as number) ||
                 (attrs["total_tokens"] as number) ||
                 0
@@ -578,11 +608,9 @@ export const sessionCostAtomFamily = atomFamily((sessionId: string) =>
     atom((get) => {
         const traces = get(sessionTracesAtomFamily(sessionId))
         return traces.reduce((acc, trace) => {
-            const attrs = trace.attributes || {}
+            const ag = agOf(trace)
             const cost =
-                (attrs as any)?.ag?.metrics?.costs?.incremental?.total ||
-                (attrs as any)?.ag?.metrics?.costs?.cumulative?.total ||
-                0
+                ag?.metrics?.costs?.incremental?.total || ag?.metrics?.costs?.cumulative?.total || 0
             return acc + (Number(cost) || 0)
         }, 0)
     }),
@@ -593,7 +621,7 @@ export const sessionFirstInputAtomFamily = atomFamily((sessionId: string) =>
         const sorted = get(sessionSortedTracesAtomFamily(sessionId))
         if (!sorted.length) return undefined
         const firstTrace = sorted[0]
-        return (firstTrace.attributes as any)?.ag?.data?.inputs
+        return agOf(firstTrace)?.data?.inputs
     }),
 )
 
@@ -609,7 +637,7 @@ const traceDisplayOutput = (root: TraceSpanNode): unknown => {
     const visit = (node: TraceSpanNode) => {
         if (agentOutput !== undefined) return
         if (node.span_type === "agent") {
-            const out = (node.attributes as any)?.ag?.data?.outputs
+            const out = agOf(node)?.data?.outputs
             if (out !== undefined) agentOutput = out
         }
         node.children?.forEach((child) => visit(child as TraceSpanNode))
@@ -617,7 +645,7 @@ const traceDisplayOutput = (root: TraceSpanNode): unknown => {
     visit(root)
     if (agentOutput !== undefined) return agentOutput
 
-    const rootOutput = (root.attributes as any)?.ag?.data?.outputs
+    const rootOutput = agOf(root)?.data?.outputs
     return typeof rootOutput === "string" && GENERATOR_REPR.test(rootOutput)
         ? undefined
         : rootOutput
