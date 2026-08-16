@@ -143,6 +143,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../packages/agenta-entity-ui
         version: link:../packages/agenta-entity-ui
+      '@agenta/observability-ui':
+        specifier: workspace:../packages/agenta-observability-ui
+        version: link:../packages/agenta-observability-ui
       '@agenta/oss':
         specifier: workspace:../oss
         version: link:../oss
@@ -390,6 +393,9 @@ importers:
       '@agenta/observability':
         specifier: workspace:../packages/agenta-observability
         version: link:../packages/agenta-observability
+      '@agenta/observability-ui':
+        specifier: workspace:../packages/agenta-observability-ui
+        version: link:../packages/agenta-observability-ui
       '@agenta/playground':
         specifier: workspace:../packages/agenta-playground
         version: link:../packages/agenta-playground
@@ -559,6 +565,9 @@ importers:
       '@agenta/observability':
         specifier: workspace:../packages/agenta-observability
         version: link:../packages/agenta-observability
+      '@agenta/observability-ui':
+        specifier: workspace:../packages/agenta-observability-ui
+        version: link:../packages/agenta-observability-ui
       '@agenta/playground':
         specifier: workspace:../packages/agenta-playground
         version: link:../packages/agenta-playground
@@ -1617,6 +1626,9 @@ importers:
       dayjs:
         specifier: ^1.11.20
         version: 1.11.20
+      papaparse:
+        specifier: ^5.5.3
+        version: 5.5.3
     devDependencies:
       '@tanstack/react-query':
         specifier: 5.100.9
@@ -1624,12 +1636,24 @@ importers:
       '@types/node':
         specifier: ^20.19.20
         version: 20.19.39
+      '@types/papaparse':
+        specifier: ^5.3.14
+        version: 5.5.2
       '@types/react':
         specifier: ^19.0.10
         version: 19.2.14
+      '@vitest/coverage-v8':
+        specifier: ^4.1.4
+        version: 4.1.6(vitest@4.1.6)
+      fast-deep-equal:
+        specifier: ^3.1.3
+        version: 3.1.3
       jotai:
         specifier: ^2.15.0
         version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      jotai-eager:
+        specifier: ^0.2.6
+        version: 0.2.6(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
       jotai-family:
         specifier: ^1.0.1
         version: 1.0.1(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
@@ -1645,6 +1669,49 @@ importers:
       vitest:
         specifier: ^4.1.4
         version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+
+  packages/agenta-observability-ui:
+    dependencies:
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
+      '@agenta/observability':
+        specifier: workspace:../agenta-observability
+        version: link:../agenta-observability
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      motion:
+        specifier: ^12.0.0
+        version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+    devDependencies:
+      '@tanstack/react-query':
+        specifier: 5.100.9
+        version: 5.100.9(react@19.2.6)
+      '@types/node':
+        specifier: ^20.19.20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      jotai:
+        specifier: ^2.15.0
+        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   packages/agenta-playground:
     dependencies:
@@ -2007,6 +2074,9 @@ importers:
       '@ant-design/icons':
         specifier: ^6.1.0
         version: 6.2.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@cloudflare/stream-react':
+        specifier: ^1.9.3
+        version: 1.9.3(react@19.2.6)
       '@lexical/code':
         specifier: ^0.46.0
         version: 0.46.0(typescript@5.9.3)

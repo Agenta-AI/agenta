@@ -24,6 +24,7 @@
         "@agenta/chat": "workspace:../packages/agenta-chat",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
+        "@agenta/observability-ui": "workspace:../packages/agenta-observability-ui",
         "@agenta/oss": "workspace:../oss",
         "@agenta/playground": "workspace:../packages/agenta-playground",
         "@agenta/playground-ui": "workspace:../packages/agenta-playground-ui",

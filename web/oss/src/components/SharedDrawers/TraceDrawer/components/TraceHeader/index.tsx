@@ -7,6 +7,7 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@agenta/entities/trace"
+import {buildTraceUrlParams as buildTraceQueryParams} from "@agenta/observability"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
@@ -20,8 +21,7 @@ import {
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
-import {useObservability} from "@/oss/state/newObservability"
-import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTraceQueryParams"
+import {useObservability} from "@/oss/state/observability"
 import {getProjectValues} from "@/oss/state/project"
 
 import {getNodeTimestamp, getSpanIdFromNode, getTraceIdFromNode, toISOString} from "./assets/helper"

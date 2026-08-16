@@ -1,13 +1,6 @@
 import {useMemo} from "react"
 
 import {traceSpanMolecule} from "@agenta/entities/trace"
-import {Space} from "antd"
-import {useAtomValue} from "jotai"
-
-import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
-import ResultTag from "@/oss/components/ResultTag/ResultTag"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     spanDataInputsAtomFamily,
     spanDataInternalsAtomFamily,
@@ -16,7 +9,14 @@ import {
     spanExceptionAtomFamily,
     spanMetaConfigurationAtomFamily,
     spanNodeTypeAtomFamily,
-} from "@/oss/state/newObservability/selectors/tracing"
+} from "@agenta/observability"
+import {Space} from "antd"
+import {useAtomValue} from "jotai"
+
+import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
+import ResultTag from "@/oss/components/ResultTag/ResultTag"
+import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import AccordionTreePanel from "../../../AccordionTreePanel"
 

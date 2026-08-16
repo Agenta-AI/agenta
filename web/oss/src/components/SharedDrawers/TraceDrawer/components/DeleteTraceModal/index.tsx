@@ -6,7 +6,7 @@ import {Modal} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import Router from "next/router"
 
-import {useObservability} from "@/oss/state/newObservability"
+import {useObservability} from "@/oss/state/observability"
 import {getProjectValues} from "@/oss/state/project"
 import {traceIdAtom} from "@/oss/state/url/trace"
 

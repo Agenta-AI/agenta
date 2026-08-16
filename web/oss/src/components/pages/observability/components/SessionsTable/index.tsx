@@ -1,5 +1,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {SESSIONS_PAGE_SIZE} from "@agenta/observability"
+import {useSessions} from "@agenta/observability"
+import {SessionStoreProvider} from "@agenta/observability-ui"
+import {EmptySessions} from "@agenta/observability-ui"
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
@@ -8,16 +12,12 @@ import dynamic from "next/dynamic"
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
-import {SESSIONS_PAGE_SIZE} from "@/oss/state/newObservability"
-import {hasReceivedSessionsAtom} from "@/oss/state/newObservability/atoms/controls"
-import {useSessions} from "@/oss/state/newObservability/hooks/useSessions"
+import {hasReceivedSessionsAtom} from "@/oss/state/observability"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
-import EmptySessions from "./assets/EmptySessions"
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
-import {SessionStoreProvider} from "./assets/sessionCellStore"
 
 const ObservabilityHeader = dynamic(() => import("../../components/ObservabilityHeader"), {
     ssr: false,

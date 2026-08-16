@@ -37,6 +37,7 @@
 @source "../../node_modules/@agenta/playground/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/chat/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/sessions/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/observability-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/sessions-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/home-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/settings/src/**/*.{ts,tsx}";

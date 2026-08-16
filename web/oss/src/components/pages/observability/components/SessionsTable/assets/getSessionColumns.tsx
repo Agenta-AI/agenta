@@ -1,19 +1,18 @@
 import {Key} from "react"
 
-import {ColumnVisibilityMenuTrigger, type ExtendedColumn} from "@agenta/ui/table"
-
 import {
-    DurationCell,
     EndTimeCell,
     FirstInputCell,
     LastOutputCell,
+    SessionDurationCell as DurationCell,
     SessionIdCell,
     StartTimeCell,
     TotalCostCell,
     TotalLatencyCell,
     TotalUsageCell,
     TracesCountCell,
-} from "../components/Cells"
+} from "@agenta/observability-ui"
+import {ColumnVisibilityMenuTrigger, type ExtendedColumn} from "@agenta/ui/table"
 
 export interface SessionRow {
     session_id: string

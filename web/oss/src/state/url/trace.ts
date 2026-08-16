@@ -1,3 +1,4 @@
+import {selectedNodeAtom, selectedTraceIdAtom} from "@agenta/observability"
 import {atom, getDefaultStore} from "jotai"
 import Router from "next/router"
 
@@ -7,7 +8,6 @@ import {
     setTraceDrawerActiveSpanAtom,
     traceDrawerAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {selectedNodeAtom, selectedTraceIdAtom} from "@/oss/state/newObservability/atoms/controls"
 
 import {isTraceSupportedRoute} from "./routeMatchers"
 

@@ -1,28 +1,28 @@
 import type {Key} from "react"
 
-import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
-import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {ColumnVisibilityMenuTrigger, type ExtendedColumn} from "@agenta/ui/table"
-import {Tag} from "antd"
-import {ColumnsType} from "antd/es/table"
-
-import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     getCost,
     getLatency,
     getTokens,
     getTraceInputs,
     getTraceOutputs,
-} from "@/oss/state/newObservability"
+} from "@agenta/observability"
+import {CostCell} from "@agenta/observability-ui"
+import {DurationCell} from "@agenta/observability-ui"
+import {NodeNameCell} from "@agenta/observability-ui"
+import {StatusRenderer} from "@agenta/observability-ui"
+import {TimestampCell} from "@agenta/observability-ui"
+import {UsageCell} from "@agenta/observability-ui"
+import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
+import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
+import {ColumnVisibilityMenuTrigger, type ExtendedColumn} from "@agenta/ui/table"
+import {Tag} from "antd"
+import {ColumnsType} from "antd/es/table"
 
-import CostCell from "../components/CostCell"
-import DurationCell from "../components/DurationCell"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
+
 import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"
-import NodeNameCell from "../components/NodeNameCell"
-import StatusRenderer from "../components/StatusRenderer"
-import TimestampCell from "../components/TimestampCell"
-import UsageCell from "../components/UsageCell"
 
 interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]
