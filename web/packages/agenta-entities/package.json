@@ -31,6 +31,7 @@
     "exports": {
         ".": "./src/index.ts",
         "./annotation": "./src/annotation/index.ts",
+        "./annotation/dto": "./src/annotation/dto/index.ts",
         "./appRevision": "./src/appRevision/index.ts",
         "./appRevision/snapshotAdapter": "./src/appRevision/snapshotAdapter.ts",
         "./appRevision/state": "./src/appRevision/state/index.ts",

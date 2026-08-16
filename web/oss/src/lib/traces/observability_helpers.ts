@@ -6,7 +6,6 @@ import {
     AgentaNodeDTO,
     AgentaTreeDTO,
 } from "@/oss/services/observability/types"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 const normalizeContentFields = (obj: any): void => {
     if (Array.isArray(obj)) {
@@ -84,39 +83,3 @@ export const buildNodeTree = ({parent, ...node}: AgentaNodeDTO) => ({
     tree: node?.tree?.id || node?.trace_id,
     nodes: [{...node}],
 })
-
-export const getNodeById = (
-    nodes: TraceSpanNode[] | TraceSpanNode,
-    id: string,
-): TraceSpanNode | null => {
-    if (nodes && !Array.isArray(nodes) && nodes.span_id === id) {
-        return nodes
-    }
-
-    if (nodes) {
-        for (const value of Object.values(nodes)) {
-            if (Array.isArray(value)) {
-                for (const node of value) {
-                    if (node.span_id === id) {
-                        return node
-                    }
-
-                    if (node.children) {
-                        const foundNode = getNodeById(node.children, id)
-                        if (foundNode) return foundNode
-                    }
-                }
-            } else {
-                if (value.span_id === id) {
-                    return value
-                }
-
-                if (value.children) {
-                    const foundNode = getNodeById(value.children, id)
-                    if (foundNode) return foundNode
-                }
-            }
-        }
-    }
-    return null
-}

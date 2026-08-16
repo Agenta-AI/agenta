@@ -1,4 +1,29 @@
-import {AnnotationDto} from "../types"
+import type {AnnotationDto} from "./types"
+
+export interface GroupedOutputs {
+    metrics: Record<string, number | boolean>
+    notes: Record<string, string>
+    extra: Record<string, unknown>
+}
+
+export interface AnnotationMetricValue {
+    value: number | boolean
+    user: string
+}
+
+export interface AggregatedAnnotationMetric {
+    average?: number
+    latest?: boolean
+    annotations: AnnotationMetricValue[]
+}
+
+/** evaluator slug → metric name → aggregate */
+export type AggregatedEvaluatorMetrics = Record<string, Record<string, AggregatedAnnotationMetric>>
+
+export interface AnnotationAttachments {
+    annotations: AnnotationDto[]
+    aggregatedEvaluatorMetrics: AggregatedEvaluatorMetrics
+}
 
 /**
  * Generates a formatted span UUID string from an annotation object.
@@ -32,14 +57,14 @@ export const spanUuidFromAnnotation = (annotation: AnnotationDto) => {
     return `${tracePart}-${spanUuidPart}`
 }
 
-export const groupOutputValues = (outputs: Record<string, any>): Record<string, any> => {
-    const grouped: Record<string, any> = {
+export const groupOutputValues = (outputs: Record<string, unknown>): GroupedOutputs => {
+    const grouped: GroupedOutputs = {
         metrics: {},
         notes: {},
         extra: {}, // we need the other data type info to add those in the endpoint when updating annotations
     }
 
-    function recurse(obj: Record<string, any>) {
+    function recurse(obj: Record<string, unknown>) {
         for (const [key, value] of Object.entries(obj)) {
             if (value === null) continue
 
@@ -76,11 +101,8 @@ export const groupOutputValues = (outputs: Record<string, any>): Record<string, 
  */
 export const groupAnnotationsByReferenceId = (
     annotations: AnnotationDto[],
-): Record<string, Record<string, {average?: number; latest?: boolean; annotations: any[]}>> => {
-    const grouped: Record<
-        string,
-        Record<string, {values: {value: number | boolean; user: string}[]}>
-    > = {}
+): AggregatedEvaluatorMetrics => {
+    const grouped: Record<string, Record<string, {values: AnnotationMetricValue[]}>> = {}
 
     for (const annotation of annotations) {
         const evaluatorSlot = annotation.references?.evaluator?.slug
@@ -90,7 +112,11 @@ export const groupAnnotationsByReferenceId = (
             grouped[evaluatorSlot] = {}
         }
 
-        const metrics = annotation.data?.outputs?.metrics || {}
+        const rawMetrics = annotation.data?.outputs?.metrics
+        const metrics: Record<string, unknown> =
+            rawMetrics && typeof rawMetrics === "object" && !Array.isArray(rawMetrics)
+                ? rawMetrics
+                : {}
         for (const [metricName, value] of Object.entries(metrics)) {
             if (typeof value !== "number" && typeof value !== "boolean") continue
 
@@ -106,10 +132,7 @@ export const groupAnnotationsByReferenceId = (
     }
 
     // Final processing
-    const result: Record<
-        string,
-        Record<string, {average?: number; latest?: boolean; annotations: any[]}>
-    > = {}
+    const result: AggregatedEvaluatorMetrics = {}
 
     for (const [evaluatorSlot, metricsGroup] of Object.entries(grouped)) {
         result[evaluatorSlot] = {}
@@ -153,16 +176,25 @@ export const groupAnnotationsByReferenceId = (
     return result
 }
 
-export function attachAnnotationsToTraces(traces: any[], annotations: AnnotationDto[] = []) {
-    function attach(trace: any): any {
-        const invocationIds = trace.invocationIds
+interface AnnotatableTrace {
+    invocationIds?: {trace_id?: string; span_id?: string} | null
+    children?: unknown[] | null
+}
+
+export function attachAnnotationsToTraces<T>(
+    traces: T[],
+    annotations: AnnotationDto[] = [],
+): (T & AnnotationAttachments)[] {
+    function attach(trace: T): T & AnnotationAttachments {
+        const node = trace as AnnotatableTrace
+        const invocationIds = node.invocationIds
 
         const matchingAnnotations = annotations.filter((annotation: AnnotationDto) => {
             // Check if annotation links to this trace via ANY link key (including "invocation" and dynamic keys like "test-xxx")
             if (annotation.links && typeof annotation.links === "object") {
                 const linkValues = Object.values(annotation.links)
                 return linkValues.some(
-                    (link: any) =>
+                    (link) =>
                         link?.trace_id === (invocationIds?.trace_id || "") &&
                         link?.span_id === (invocationIds?.span_id || ""),
                 )
@@ -174,7 +206,7 @@ export function attachAnnotationsToTraces(traces: any[], annotations: Annotation
             ...trace,
             annotations: matchingAnnotations,
             aggregatedEvaluatorMetrics: groupAnnotationsByReferenceId(matchingAnnotations),
-            children: trace.children?.map(attach),
+            children: node.children?.map((child) => attach(child as T)),
         }
     }
     return traces.map(attach)
