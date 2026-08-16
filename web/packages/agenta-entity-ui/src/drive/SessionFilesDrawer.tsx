@@ -12,7 +12,7 @@ import {useMemo} from "react"
 import {type DroppedFile} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {atom, useAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {type DriveId} from "./DriveExplorer"
 import {useDriveArtifactId} from "./driveSessionContext"

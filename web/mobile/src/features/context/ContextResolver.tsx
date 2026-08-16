@@ -79,7 +79,7 @@ export const ContextResolver = () => {
 
     return (
         <>
-            <PageTitle parts={["Agenta"]} />
+            <PageTitle />
             <ScreenScaffold>{body}</ScreenScaffold>
         </>
     )

@@ -23,11 +23,13 @@
         "@phosphor-icons/react": "^2.1.10",
         "clsx": "^2.1.1",
         "jotai": "^2.16.1",
+        "jotai-family": "^1.0.1",
         "jotai-tanstack-query": "^0.11.0"
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",
-        "jotai": ">=2.0.0",
+        "jotai": ">=2.9.0",
+        "jotai-family": ">=0.1.0",
         "next": ">=14.0.0",
         "react": ">=18.0.0"
     },
@@ -36,6 +38,7 @@
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
         "jotai": "^2.15.0",
+        "jotai-family": "^1.0.1",
         "next": "15.5.18",
         "react": "^19.0.0",
         "typescript": "^5.9.3"

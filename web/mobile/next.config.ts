@@ -65,7 +65,18 @@ const nextConfig: NextConfig = {
                   root: path.resolve(__dirname, ".."),
               },
           }
-        : {}),
+        : ({
+              // Optional zod-alternative peers the AI SDK guards with try/catch; ignoring
+              // them silences the build warning. Production-only: dev runs Turbopack.
+              webpack: (config, {webpack}) => {
+                  config.plugins.push(
+                      new webpack.IgnorePlugin({
+                          resourceRegExp: /^(effect|arktype|@valibot\/to-json-schema)$/,
+                      }),
+                  )
+                  return config
+              },
+          } satisfies NextConfig)),
 }
 
 export default nextConfig

@@ -71,7 +71,7 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
             )}
             renderDeleteDialog={({open, onClose, onSubmit, pending, project}) => (
                 <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-                    <SheetContent side="bottom">
+                    <SheetContent side="responsive">
                         <SheetHeader>
                             <SheetTitle>Delete project</SheetTitle>
                             <SheetDescription>This cannot be undone.</SheetDescription>
@@ -122,36 +122,29 @@ const NameSheet = ({
     onValueChange: (value: string) => void
     onClose: () => void
     onSubmit: () => void
-}) => {
-    const isEmpty = !value.trim()
-
-    return (
-        <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-            <SheetContent side="bottom">
-                <SheetHeader>
-                    <SheetTitle>{title}</SheetTitle>
-                    {description ? <SheetDescription>{description}</SheetDescription> : null}
-                </SheetHeader>
-                <div className="px-4">
-                    <Input
-                        autoFocus
-                        value={value}
-                        onChange={(event) => onValueChange(event.target.value)}
-                        placeholder="Project name"
-                    />
-                    {touched && isEmpty ? (
-                        <p className="m-0 pt-2 text-xs text-colorError">A name is required.</p>
-                    ) : null}
-                </div>
-                <SheetFooter>
-                    <Button disabled={pending || isEmpty} onClick={onSubmit}>
-                        {submitLabel}
-                    </Button>
-                    <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
-                    </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
-    )
-}
+}) => (
+    <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
+        <SheetContent side="responsive">
+            <SheetHeader>
+                <SheetTitle>{title}</SheetTitle>
+                {description ? <SheetDescription>{description}</SheetDescription> : null}
+            </SheetHeader>
+            <div className="px-4">
+                <Input
+                    autoFocus
+                    value={value}
+                    onChange={(event) => onValueChange(event.target.value)}
+                    placeholder="Project name"
+                />
+            </div>
+            <SheetFooter>
+                <Button disabled={pending || !value.trim()} onClick={onSubmit}>
+                    {submitLabel}
+                </Button>
+                <Button variant="outline" onClick={onClose} disabled={pending}>
+                    Cancel
+                </Button>
+            </SheetFooter>
+        </SheetContent>
+    </Sheet>
+)

@@ -6,7 +6,6 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {AssistantMarkdown} from "../chat/AssistantMarkdown"
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 
 import {useNewAgentAction} from "./useNewAgentAction"
@@ -29,14 +28,13 @@ export const AgentTemplateDetailScreen = ({
     templateKey: string
 }) => {
     useBindProjectContext(projectId)
-    const project = useCurrentProject(workspaceId, projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
     const template = agentTemplateByKey(templateKey)
 
     return (
         <>
-            <PageTitle parts={[template?.name ?? "Template", project?.project_name]} />
+            <PageTitle title="Templates" context={template?.name} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill

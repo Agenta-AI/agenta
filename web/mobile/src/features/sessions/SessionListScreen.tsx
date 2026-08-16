@@ -12,7 +12,6 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -29,7 +28,6 @@ export const SessionListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
-    const project = useCurrentProject(workspaceId, projectId)
     const router = useRouter()
     const list = useSessionsList()
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
@@ -47,7 +45,7 @@ export const SessionListScreen = ({
 
     return (
         <>
-            <PageTitle parts={["Sessions", project?.project_name]} />
+            <PageTitle title="Sessions" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 {/* Two shells over the same filter atoms, swapped at `lg`: the rail beside the
                     results where there is room, the compact bar on a phone — where the rail's

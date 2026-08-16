@@ -22,16 +22,13 @@ import {
     type AuthFlagKey,
     DomainsSection,
     GatewayToolsSection,
-    NamedSecretTable,
     OrganizationsPage,
     SsoProvidersSection,
     TriggerConnectionsSection,
     TriggerSchedulesSection,
     TriggerSubscriptionsSection,
-    SecretProviderTable,
     SettingsPageShell,
     useEntitlements,
-    WebhooksPage,
 } from "@agenta/settings-ui"
 import {useThemeMode} from "@agenta/ui/theme"
 import {useQuery} from "@tanstack/react-query"
@@ -42,19 +39,22 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AccountTab} from "./AccountTab"
 import {BillingTab} from "./BillingTab"
+import {LlmProvidersTab} from "./LlmProvidersTab"
 import {MembersTab} from "./MembersTab"
 import {isNestedSettingsNavEnabled} from "./nestedNav"
 import {PreferencesTab} from "./PreferencesTab"
 import {ProjectsTab} from "./ProjectsTab"
+import {SecretsTab} from "./SecretsTab"
 import {useSettingsNavScope} from "./settingsNavScope"
 import {SettingsTabRail} from "./SettingsTabRail"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
+import {useConfirmSheet} from "./useConfirmSheet"
+import {WebhooksTab} from "./WebhooksTab"
 
 const THEME_OPTIONS = [
     {mode: "light", label: "Light"},
@@ -130,6 +130,10 @@ const TabBody = ({
         enabled:
             access.isEE && (tab === "organization" || tab === "auditLog" || tab === "workspace"),
     })
+    // Destructive actions in the shared tool/trigger sections ask for confirmation through an
+    // imperative callback (the desktop hands them antd's AlertPopup); this is the sheet version.
+    // Scoped to the open tab, so leaving it drops anything staged there.
+    const {confirm, sheet: confirmSheet} = useConfirmSheet(tab)
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
 
@@ -184,14 +188,9 @@ const TabBody = ({
                 />
             )
         case "llms":
-            return (
-                <div className="flex flex-col gap-8">
-                    <SecretProviderTable type="standard" />
-                    <SecretProviderTable type="custom" />
-                </div>
-            )
+            return <LlmProvidersTab />
         case "secrets":
-            return <NamedSecretTable />
+            return <SecretsTab />
         // No date-range picker — the desktop's preset picker is its own. The entitlement gate
         // is the desktop's, so a plan without Audit Log reads the same on both.
         case "auditLog":
@@ -204,17 +203,26 @@ const TabBody = ({
         case "billing":
             return <BillingTab projectId={projectId} />
         case "webhooks":
-            return <WebhooksPage />
-        // Read-only: the create/edit drawers still render antd forms, which have no
-        // ConfigProvider here and would come out light on a dark page.
+            return <WebhooksTab />
+        // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry
+        // no antd theming and render correctly here. Both gate on access at the boundary, not
+        // only in the rail — otherwise a typed `?tab=tools` reaches writable controls.
         case "tools":
-            return <GatewayToolsSection readOnly />
+            if (!access.canShowTools) return null
+            return (
+                <>
+                    <GatewayToolsSection confirm={confirm} />
+                    {confirmSheet}
+                </>
+            )
         case "triggers":
+            if (!access.canShowTriggers) return null
             return (
                 <div className="flex flex-col gap-8">
-                    <TriggerConnectionsSection readOnly />
-                    <TriggerSubscriptionsSection readOnly />
-                    <TriggerSchedulesSection readOnly />
+                    <TriggerConnectionsSection confirm={confirm} />
+                    <TriggerSubscriptionsSection />
+                    <TriggerSchedulesSection />
+                    {confirmSheet}
                 </div>
             )
         case "projects":
@@ -346,7 +354,6 @@ export const SettingsScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const router = useRouter()
-    const project = useCurrentProject(workspaceId, projectId)
     const {themeMode, setMode} = useThemeMode()
     const {user} = useProfile()
 
@@ -392,7 +399,7 @@ export const SettingsScreen = ({
 
     return (
         <>
-            <PageTitle parts={["Settings", project?.project_name]} />
+            <PageTitle title="Settings" />
             <AppShell
                 workspaceId={workspaceId}
                 projectId={projectId}
@@ -409,14 +416,19 @@ export const SettingsScreen = ({
                                 </ContentRail>
                             </div>
                         ) : (
-                            // Takeover has no top bar. Below lg the rail is a drawer, so the page
-                            // still needs the one way into it — the hamburger, nothing else.
+                            // Takeover has no top bar of its own. Below lg the rail is a drawer,
+                            // so the page needs the way into it — and a name beside it, or the
+                            // bar reads as a stray button. "Settings", not the tab: the tab's
+                            // own title is the page heading directly underneath.
                             <div className="border-border shrink-0 border-0 border-b border-solid px-2 py-2 lg:hidden">
-                                <NavDrawer
-                                    workspaceId={workspaceId}
-                                    projectId={projectId}
-                                    scope={settingsScope}
-                                />
+                                <div className="flex items-center gap-2">
+                                    <NavDrawer
+                                        workspaceId={workspaceId}
+                                        projectId={projectId}
+                                        scope={settingsScope}
+                                    />
+                                    <h1 className="m-0 text-sm font-semibold">Settings</h1>
+                                </div>
                             </div>
                         )
                     }

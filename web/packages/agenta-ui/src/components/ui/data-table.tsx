@@ -148,8 +148,35 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
     const showSkeleton = loading && rows.length === 0
     const showEmpty = !loading && rows.length === 0
-    const hasToolbar = Boolean(search || filters || onReload || primaryActions)
-    const hasHeader = Boolean(title) || hasToolbar
+    const hasFilterRow = Boolean(search || filters)
+    const hasActions = Boolean(onReload || primaryActions)
+    const hasHeader = Boolean(title) || hasFilterRow || hasActions
+
+    const reloadButton = onReload ? (
+        <SimpleTooltip title={reloadLabel}>
+            <Button
+                variant="outline"
+                aria-label={reloadLabel}
+                disabled={reloading}
+                onClick={() => onReload()}
+            >
+                <ArrowClockwise size={14} />
+            </Button>
+        </SimpleTooltip>
+    ) : null
+
+    // The empty state carries its own call to action, and on a phone the two sit far enough
+    // apart to read as different controls — so show only that one.
+    const primaryGroup = primaryActions ? (
+        <div
+            className={clsx(
+                "flex items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1",
+                showEmpty && empty && "max-sm:hidden",
+            )}
+        >
+            {primaryActions}
+        </div>
+    ) : null
 
     return (
         <div className={clsx("flex min-w-0 flex-col gap-2", className)}>
@@ -165,41 +192,47 @@ export function DataTable<T>({
                             "sticky top-[var(--ag-sticky-top,0px)] z-10 bg-colorBgContainer pb-2 pt-2",
                     )}
                 >
-                    {title ? <div>{title}</div> : null}
+                    {title || (hasActions && !hasFilterRow) ? (
+                        // `min-h` holds the row's height when a host suppresses the actions (a
+                        // read-only surface), so the rhythm from header to table does not
+                        // change tab to tab.
+                        //
+                        // Reload keeps the title's line at every width — an icon button does not
+                        // earn a row of its own. The primary button is wide enough to want one,
+                        // so below sm it wraps full-width; from sm it rejoins the line.
+                        <div className="flex min-h-control flex-wrap items-start gap-2">
+                            {title ? <div className="min-w-0 flex-1">{title}</div> : null}
+                            {title || !hasFilterRow ? (
+                                <>
+                                    {reloadButton ? (
+                                        <div className="shrink-0">{reloadButton}</div>
+                                    ) : null}
+                                    {primaryGroup}
+                                </>
+                            ) : null}
+                        </div>
+                    ) : null}
 
-                    {hasToolbar ? (
-                        // One shape for every list: search then filters on the left, reload
-                        // then the primary buttons on the right. `min-h` holds the row's
-                        // height when a host suppresses the actions (a read-only surface),
-                        // so the rhythm from header to table does not change tab to tab.
+                    {hasFilterRow ? (
+                        // Search then filters on the left; the actions join this row only when
+                        // there is no title above to carry them.
                         <div className="flex min-h-control flex-wrap items-center gap-2">
                             {search ? (
                                 <Input
                                     placeholder={search.placeholder}
-                                    className="w-[260px]"
+                                    className="w-full sm:w-[260px]"
                                     value={search.value}
                                     onChange={(event) => search.onChange(event.target.value)}
                                     disabled={search.disabled}
                                 />
                             ) : null}
                             {filters}
-                            <div className="ml-auto flex items-center gap-2">
-                                {onReload ? (
-                                    <SimpleTooltip title={reloadLabel}>
-                                        <Button
-                                            variant="outline"
-                                            aria-label={reloadLabel}
-                                            disabled={reloading}
-                                            // Callers pass zero-arg reloaders; bound directly, React would hand
-                                            // them the click event.
-                                            onClick={() => onReload()}
-                                        >
-                                            <ArrowClockwise size={14} />
-                                        </Button>
-                                    </SimpleTooltip>
-                                ) : null}
-                                {primaryActions}
-                            </div>
+                            {title ? null : (
+                                <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+                                    {reloadButton}
+                                    {primaryGroup}
+                                </div>
+                            )}
                         </div>
                     ) : null}
                 </div>
@@ -329,7 +362,7 @@ export function DataTable<T>({
                     </tbody>
                 </table>
 
-                {showEmpty ? <div className="px-3 py-8">{empty}</div> : null}
+                {showEmpty ? <div className="px-3 py-5 sm:py-8">{empty}</div> : null}
             </div>
         </div>
     )

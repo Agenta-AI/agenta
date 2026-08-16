@@ -135,7 +135,7 @@ export const MembersTab = ({
             }}
         >
             <Sheet open={inviteOpen} onOpenChange={(next) => (next ? undefined : closeInvite())}>
-                <SheetContent side="bottom">
+                <SheetContent side="responsive">
                     <SheetHeader>
                         <SheetTitle>Invite members</SheetTitle>
                         <SheetDescription>
@@ -193,7 +193,7 @@ export const MembersTab = ({
                 open={Boolean(pendingRemoval)}
                 onOpenChange={(next) => (next ? undefined : setPendingRemoval(null))}
             >
-                <SheetContent side="bottom">
+                <SheetContent side="responsive">
                     <SheetHeader>
                         <SheetTitle>Remove member</SheetTitle>
                         <SheetDescription>They lose access to this organization.</SheetDescription>

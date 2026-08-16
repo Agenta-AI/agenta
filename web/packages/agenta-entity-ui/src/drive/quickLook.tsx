@@ -10,7 +10,7 @@
  * keeps each conversation's preview to itself.
  */
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 export const driveQuickLookAtomFamily = atomFamily((_sessionId: string) =>
     atom<{path: string} | null>(null),
