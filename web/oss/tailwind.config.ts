@@ -147,6 +147,8 @@ export const createConfig = (content: string[] = []): Config => {
             "../packages/agenta-sessions/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-sessions-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-home-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-settings/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-settings-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-navigation/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-navigation-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-auth-ui/src/**/*.{js,ts,jsx,tsx}",

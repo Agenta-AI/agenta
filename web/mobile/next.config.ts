@@ -25,6 +25,8 @@ const nextConfig: NextConfig = {
         "@agenta/navigation-ui",
         "@agenta/sessions",
         "@agenta/sessions-ui",
+        "@agenta/settings",
+        "@agenta/settings-ui",
         "@agenta/home-ui",
         "@agenta/observability",
         "@agenta/playground",
