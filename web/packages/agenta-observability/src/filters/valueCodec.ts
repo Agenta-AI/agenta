@@ -1,5 +1,5 @@
-import {Filter} from "@/oss/lib/Types"
-import {coerceNumericValue} from "@/oss/state/newObservability"
+import type {Filter} from "../core/types"
+import {coerceNumericValue} from "../utils/filterCoercion"
 
 import {ScalarType, ValueShape, valueShapeFor} from "./operatorRegistry"
 
@@ -22,8 +22,8 @@ const toStringList = (v: unknown): string[] => {
 
 const toNumberPair = (v: unknown): number[] => {
     const out: number[] = []
-    const push = (raw: any) => {
-        const n = coerceNumericValue(raw) as any
+    const push = (raw: unknown) => {
+        const n = coerceNumericValue(raw as Filter["value"])
         if (typeof n === "number" && Number.isFinite(n)) out.push(n)
     }
     if (Array.isArray(v)) v.slice(0, 2).forEach(push)
@@ -47,8 +47,8 @@ const toNumberPair = (v: unknown): number[] => {
 export interface NormalizerCtx {
     fieldType: ScalarType
     opId: Filter["operator"]
-    toExternal?: (normalized: any) => any
-    toUI?: (external: any) => any
+    toExternal?: (normalized: unknown) => unknown
+    toUI?: (external: unknown) => unknown
 }
 
 export const normalizeValue = (raw: unknown, shape: ValueShape, t: ScalarType) => {
@@ -67,10 +67,10 @@ export const normalizeValue = (raw: unknown, shape: ValueShape, t: ScalarType) =
         return t === "number" ? list.map(coerceNumericValue) : list
     }
     if (Array.isArray(raw)) return raw[0] ?? ""
-    return t === "number" ? coerceNumericValue(raw as any) : (raw ?? "")
+    return t === "number" ? coerceNumericValue(raw as Filter["value"]) : (raw ?? "")
 }
 
-export const toUIValue = (external: any, shape: ValueShape) => {
+export const toUIValue = (external: unknown, shape: ValueShape) => {
     if (shape === "none") return ""
     if (shape === "range") return Array.isArray(external) ? external : []
     if (shape === "list") return Array.isArray(external) ? external : toStringList(external)
@@ -81,5 +81,5 @@ export const normalizeFilter = (f: Filter, ctx: NormalizerCtx): Filter => {
     const shape = valueShapeFor(ctx.opId, ctx.fieldType)
     const normalized = normalizeValue(f.value, shape, ctx.fieldType)
     const value = ctx.toExternal ? ctx.toExternal(normalized) : normalized
-    return {...f, value}
+    return {...f, value: value as Filter["value"]}
 }

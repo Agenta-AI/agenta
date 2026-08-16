@@ -1,5 +1,6 @@
-import {SelectOption} from "@/oss/components/Filters/types"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
+import type {TraceSpanNode} from "../core/traceSpan"
+
+import type {SelectOption} from "./types"
 
 export type AttributeKeyTreeOption = SelectOption & {
     children?: AttributeKeyTreeOption[]

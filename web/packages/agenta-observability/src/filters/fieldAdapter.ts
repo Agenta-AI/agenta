@@ -1,9 +1,8 @@
-import {FilterLeaf, FilterGroup, FilterMenuNode} from "@/oss/components/Filters/types"
-import {FilterConditions} from "@/oss/lib/Types"
+import type {Filter, FilterConditions} from "../core/types"
 
-import {FILTER_COLUMNS} from "../constants"
-
+import {FILTER_COLUMNS} from "./filterColumns"
 import {ScalarType, getOperatorsForType} from "./operatorRegistry"
+import type {FilterGroup, FilterLeaf, FilterMenuNode, SelectOption} from "./types"
 
 export interface FieldConfig {
     optionKey: string
@@ -14,13 +13,13 @@ export interface FieldConfig {
     operatorOptions?: {value: FilterConditions; label: string}[]
     keyInput?: {
         kind: "none" | "text" | "select"
-        options?: any[]
+        options?: SelectOption[]
         placeholder?: string
         usesAttributeKeyTree?: boolean
         treePath?: string
     }
-    valueInput?: {kind: "none" | "text" | "select"; options?: any[]; placeholder?: string}
-    defaultValue?: any
+    valueInput?: {kind: "none" | "text" | "select"; options?: SelectOption[]; placeholder?: string}
+    defaultValue?: Filter["value"]
     disableValueInput?: boolean
     valueDisplayText?: string
     queryKey?: string
@@ -33,8 +32,8 @@ export interface FieldConfig {
      */
     referenceCategory?: string
     // reference/application/evaluator transforms
-    toExternal?: (normalized: any) => any
-    toUI?: (external: any) => any
+    toExternal?: (normalized: unknown) => Filter["value"]
+    toUI?: (external: unknown) => Filter["value"]
 }
 
 const toScalar = (leaf: FilterLeaf): ScalarType => leaf.type as ScalarType
@@ -64,10 +63,10 @@ const walk = (nodes: FilterMenuNode[], acc: FieldConfig[]) => {
                 ? leaf.keyInput.kind === "select"
                     ? {
                           kind: "select",
-                          options: (leaf as any).keyInput?.options,
+                          options: leaf.keyInput.options,
                           placeholder: leaf.keyInput.placeholder,
-                          usesAttributeKeyTree: (leaf as any).keyInput?.usesAttributeKeyTree,
-                          treePath: (leaf as any).keyInput?.treePath,
+                          usesAttributeKeyTree: leaf.keyInput.usesAttributeKeyTree,
+                          treePath: leaf.keyInput.treePath,
                       }
                     : leaf.keyInput.kind === "text"
                       ? {
@@ -80,8 +79,9 @@ const walk = (nodes: FilterMenuNode[], acc: FieldConfig[]) => {
                 ? {kind: "none"}
                 : leaf.valueInput
                   ? {
-                        kind: leaf.valueInput.kind as any,
-                        options: (leaf as any).valueInput?.options,
+                        kind: leaf.valueInput.kind,
+                        options:
+                            leaf.valueInput.kind === "select" ? leaf.valueInput.options : undefined,
                         placeholder:
                             leaf.valueInput.kind === "text"
                                 ? leaf.valueInput.placeholder
@@ -98,7 +98,7 @@ const walk = (nodes: FilterMenuNode[], acc: FieldConfig[]) => {
 
         // references/application/evaluator → keep simple mapper
         if (leaf.referenceCategory && leaf.referenceProperty) {
-            cfg.toExternal = (normalized: any) => {
+            cfg.toExternal = (normalized: unknown) => {
                 const entries = Array.isArray(normalized)
                     ? normalized
                     : normalized
@@ -118,23 +118,25 @@ const walk = (nodes: FilterMenuNode[], acc: FieldConfig[]) => {
                         : {...withKey, [leaf.referenceProperty!]: String(v)},
                 )
             }
-            cfg.toUI = (external: any) => {
+            cfg.toUI = (external: unknown) => {
                 const arr = Array.isArray(external) ? external : external ? [external] : []
                 // De-dup by extracted value. References can OR-match across
                 // slots in a single condition (e.g.,
                 // `[{id:X, key:eval}, {id:X, key:app}]` for "match this entity
                 // in either slot"). Without de-dup the UI shows the same id
                 // twice. The backend keeps the rich shape via `toExternal`.
-                const mapped = arr.map((e: any) =>
-                    e && typeof e === "object" ? (e[leaf.referenceProperty!] ?? "") : e,
+                const mapped = arr.map((e: unknown) =>
+                    e && typeof e === "object"
+                        ? ((e as Record<string, unknown>)[leaf.referenceProperty!] ?? "")
+                        : e,
                 )
                 const seen = new Set<string>()
-                const out: any[] = []
+                const out: Filter["value"][] = []
                 for (const v of mapped) {
                     const key = typeof v === "string" ? v : JSON.stringify(v)
                     if (seen.has(key)) continue
                     seen.add(key)
-                    out.push(v)
+                    out.push(v as Filter["value"])
                 }
                 return out
             }

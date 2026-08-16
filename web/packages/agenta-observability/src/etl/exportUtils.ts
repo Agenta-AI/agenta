@@ -2,14 +2,8 @@ import type {TraceSpan} from "@agenta/entities/trace"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 
-import type {TraceSpanNode} from "@/oss/services/tracing/types"
-import {
-    getAgDataInputs,
-    getAgDataOutputs,
-    getCost,
-    getLatency,
-    getTokens,
-} from "@/oss/state/newObservability/selectors/tracing"
+import type {TraceSpanNode} from "../core/traceSpan"
+import {getAgDataInputs, getAgDataOutputs, getCost, getLatency, getTokens} from "../state/selectors"
 
 export const DEFAULT_TRACE_EXPORT_HEADERS = [
     "Trace ID",

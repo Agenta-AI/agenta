@@ -1,4 +1,4 @@
-import type {FilterValue} from "@/oss/lib/Types"
+import type {FilterValue} from "../core/types"
 
 type ReferenceCategory =
     | "reference"
@@ -44,7 +44,7 @@ const detectPropertyFromValue = (entry: Record<string, unknown>): string => {
 
 export const parseReferenceKey = (
     rawKey?: string,
-    rawValue?: any,
+    rawValue?: unknown,
 ): {category: ReferenceCategory; property: string} => {
     if (typeof rawKey === "string" && rawKey.trim() !== "") {
         const [categoryPart, propertyPart] = rawKey.split(".")

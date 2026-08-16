@@ -1,4 +1,4 @@
-import {FilterConditions} from "@/oss/lib/Types"
+import type {FilterConditions} from "../core/types"
 
 export type ScalarType = "string" | "number" | "exists"
 export type ValueShape = "none" | "single" | "list" | "range"

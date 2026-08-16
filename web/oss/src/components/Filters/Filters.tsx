@@ -2,6 +2,11 @@ import {useMemo, useState} from "react"
 
 import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
 import {useEnsureEvaluatorEnrichment} from "@agenta/entity-ui/selection"
+import {FieldConfig, fieldConfigByOptionKey} from "@agenta/observability"
+import {getOperator, valueShapeFor} from "@agenta/observability"
+import {planInputs} from "@agenta/observability"
+import {normalizeFilter, toUIValue} from "@agenta/observability"
+import {NUM_OPS, STRING_EQU_AND_CONTAINS_OPS, STRING_EQU_OPS} from "@agenta/observability"
 import {
     ArrowClockwiseIcon,
     CaretDownIcon,
@@ -26,28 +31,10 @@ import {
 import {useAtomValue} from "jotai"
 import isEqual from "lodash/isEqual"
 
-import {
-    FieldConfig,
-    fieldConfigByOptionKey,
-} from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
-import {
-    getOperator,
-    valueShapeFor,
-} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
-import {planInputs} from "@/oss/components/pages/observability/assets/filters/rulesEngine"
-import {
-    normalizeFilter,
-    toUIValue,
-} from "@/oss/components/pages/observability/assets/filters/valueCodec"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {Filter, FilterConditions} from "@/oss/lib/Types"
 
 import CustomAntdBadge from "../CustomUIs/CustomAntdBadge"
-import {
-    NUM_OPS,
-    STRING_EQU_AND_CONTAINS_OPS,
-    STRING_EQU_OPS,
-} from "../pages/observability/assets/utils"
 
 import {
     buildCustomTreeNode,
@@ -463,7 +450,7 @@ const Filters: React.FC<Props> = ({
                     fc.baseField === "events" &&
                     (operator === "exists" || operator === "not_exists")
 
-                let valueToSend = value
+                let valueToSend: Filter["value"] | undefined = value
                 if (fc.optionKey === "custom") {
                     const vt = customValueType ?? "string"
                     const effType = vt === "number" ? "number" : "string"
@@ -526,7 +513,7 @@ const Filters: React.FC<Props> = ({
                 const filterForNormalization: Filter = {
                     field: fc.baseField,
                     operator,
-                    value: valueToSend,
+                    value: valueToSend ?? "",
                 }
                 if (keyForFilter) filterForNormalization.key = keyForFilter
                 const normalized = normalizeFilter(filterForNormalization, {
