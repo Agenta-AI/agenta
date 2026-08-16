@@ -6,7 +6,7 @@
 // drop the transcript store without its watermark (the two must never diverge).
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
-import {atomWithStorage, createJSONStorage} from "jotai/utils"
+import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
 import type {SessionRunStatus} from "../model/sessionStatus"
