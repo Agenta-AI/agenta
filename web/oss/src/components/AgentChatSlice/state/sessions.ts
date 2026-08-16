@@ -245,6 +245,24 @@ export const closeSessionAtomFamily = atomFamily((key: string) =>
 )
 
 /**
+ * Hand-arrange a scope's tabs. The tab strip persists its order here, exactly as it persists which
+ * sessions are open — tab order IS the open-ids order.
+ *
+ * The incoming list is intersected with what is actually open, and anything open but missing from it
+ * is kept (appended): a drop reorders tabs, it never closes one, and a stale list from a racing
+ * render must not drop a tab that opened in between.
+ */
+export const reorderSessionsAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, ids: string[]) => {
+        const open = currentOpenIds(get, key)
+        const openSet = new Set(open)
+        const next = ids.filter((id) => openSet.has(id))
+        const missing = open.filter((id) => !next.includes(id))
+        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: [...next, ...missing]})
+    }),
+)
+
+/**
  * Drop every closed husk (never-initiated, untitled, no messages) from a scope's history. Open tabs
  * are never touched, so a blank in-progress tab survives. Run once on panel mount to clear husks
  * accumulated before the close-time cleanup existed, and any that outlived a reload (when the

@@ -35,14 +35,22 @@ import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeade
 import type {VariantConfigComponentProps} from "./types"
 
 const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {ssr: false})
+import {useChatScopeSessionId} from "@/oss/components/Drives/useChatScopeSessionId"
+
 // Files region body (flat file listing) — lazy: it pulls in the drive drawer.
-const StorageSection = dynamic(() => import("@/oss/components/Drives/StorageSection"), {
-    ssr: false,
-})
+const StorageSection = dynamic(
+    () => import("@agenta/entity-ui/drive").then((mod) => mod.StorageSection),
+    {
+        ssr: false,
+    },
+)
 // Files header count + browse entry, slotted into the operational panel's Files header bar.
-const StorageFilesHeader = dynamic(() => import("@/oss/components/Drives/StorageFilesHeader"), {
-    ssr: false,
-})
+const StorageFilesHeader = dynamic(
+    () => import("@agenta/entity-ui/drive").then((mod) => mod.StorageFilesHeader),
+    {
+        ssr: false,
+    },
+)
 
 // Stable empty catalog read for non-evaluator workflows (avoids the templates fetch).
 const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
@@ -80,6 +88,8 @@ const PlaygroundVariantConfig: React.FC<
 }) => {
     // Gate rendering until pending draft hydrations are applied.
     // Prevents flash of unedited content when reloading with draft patches in the URL.
+    // The drive the Files region shows belongs to the open conversation (a desktop tab concept).
+    const chatSessionId = useChatScopeSessionId()
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(variantId))
 
     // The agent config panel is a read-only summary that edits via section drawers, so the
@@ -349,8 +359,12 @@ const PlaygroundVariantConfig: React.FC<
                     <AgentOperationsSections
                         revisionId={variantId}
                         sticky={!embedded}
-                        storage={<StorageSection revisionId={variantId} />}
-                        storageHeader={<StorageFilesHeader revisionId={variantId} />}
+                        storage={
+                            <StorageSection revisionId={variantId} sessionId={chatSessionId} />
+                        }
+                        storageHeader={
+                            <StorageFilesHeader revisionId={variantId} sessionId={chatSessionId} />
+                        }
                     />
                 ))}
         </div>

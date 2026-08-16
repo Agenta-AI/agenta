@@ -1,10 +1,9 @@
-/** The whole filters panel, bound to the shared filter atoms; the host supplies its agent list. */
+/** The whole filters panel, bound to the shared filter atoms; the host supplies its agent list.
+ *  The rail box belongs to `FilterRailLayout`, not here. */
 import type {ReactNode} from "react"
 
-import {useSessionFilters} from "@agenta/sessions/state"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
-
 import {
+    SessionAgentControl,
     SessionArchivedControl,
     SessionModeControl,
     SessionSearchControl,
@@ -17,9 +16,12 @@ const RailLabel = ({children}: {children: ReactNode}) => (
     </h2>
 )
 
-const ALL_AGENTS = "__all__"
-
 export interface SessionFiltersPanelProps {
+    /**
+     * Before the title — a surface with no page chrome of its own puts its nav entry here (mobile's
+     * drawer trigger), instead of a second bar that repeats this title.
+     */
+    leading?: ReactNode
     title?: string
     waitingCount: number | undefined
     /** The agent roster for the picker; empty/omitted hides it (as does `hideAgentFilter`). */
@@ -30,25 +32,24 @@ export interface SessionFiltersPanelProps {
 }
 
 export const SessionFiltersPanel = ({
+    leading,
     title,
     waitingCount,
     agents,
     hideAgentFilter,
     className,
 }: SessionFiltersPanelProps) => {
-    const {agentId, setAgentId} = useSessionFilters()
-
     return (
-        <aside
-            className={
-                className ??
-                "box-border flex w-full shrink-0 flex-col gap-6 overflow-y-auto border-0 border-solid border-colorBorderSecondary px-6 py-6 lg:w-[280px] lg:border-r lg:bg-colorFillQuaternary"
-            }
-        >
-            {title ? (
-                <h1 className="m-0 text-[24px] font-semibold leading-tight text-colorText">
-                    {title}
-                </h1>
+        <div className={`flex min-w-0 flex-col gap-6 ${className ?? ""}`}>
+            {title || leading ? (
+                <div className="flex min-w-0 items-center gap-2">
+                    {leading}
+                    {title ? (
+                        <h1 className="m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-tight text-colorText">
+                            {title}
+                        </h1>
+                    ) : null}
+                </div>
             ) : null}
 
             <SessionSearchControl />
@@ -58,22 +59,7 @@ export const SessionFiltersPanel = ({
             {hideAgentFilter || !agents?.length ? null : (
                 <section className="flex flex-col gap-2">
                     <RailLabel>Agent</RailLabel>
-                    <Select
-                        value={agentId ?? ALL_AGENTS}
-                        onValueChange={(value) => setAgentId(value === ALL_AGENTS ? null : value)}
-                    >
-                        <SelectTrigger className="w-full">
-                            <SelectValue placeholder="All agents" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={ALL_AGENTS}>All agents</SelectItem>
-                            {agents.map((agent) => (
-                                <SelectItem key={agent.id} value={agent.id}>
-                                    {agent.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <SessionAgentControl agents={agents} />
                 </section>
             )}
 
@@ -87,6 +73,6 @@ export const SessionFiltersPanel = ({
                 <RailLabel>Include</RailLabel>
                 <SessionArchivedControl />
             </section>
-        </aside>
+        </div>
     )
 }

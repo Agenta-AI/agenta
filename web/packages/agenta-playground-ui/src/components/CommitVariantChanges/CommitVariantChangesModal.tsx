@@ -2,28 +2,18 @@ import {useCallback, useMemo} from "react"
 
 import {publishMutationAtom} from "@agenta/entities/runnable"
 import {workflowMolecule, createWorkflowFromEphemeralAtom} from "@agenta/entities/workflow"
-import {EntityCommitModal} from "@agenta/entity-ui"
+import {EntityCommitModal} from "@agenta/entity-ui/modals"
 import type {
     CommitSubmitParams,
     CommitCreateFieldsConfig,
     CommitDeployOption,
-} from "@agenta/entity-ui"
+} from "@agenta/entity-ui/modals"
 import {playgroundController} from "@agenta/playground"
 import {environmentColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {
-    evaluatorsPaginatedStore,
-    clearEvaluatorWorkflowCache,
-} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
-import {
-    registryPaginatedStore,
-    clearRegistryVariantNameCache,
-} from "@/oss/components/VariantsComponents/store/registryStore"
-import {selectedAppIdAtom} from "@/oss/state/app"
-
-import {CommitVariantChangesModalProps} from "./assets/types"
+import {CommitVariantChangesModalProps} from "./types"
 
 const EVALUATOR_CREATE_FIELDS: CommitCreateFieldsConfig = {nameLabel: "Evaluator name"}
 const APP_CREATE_FIELDS: CommitCreateFieldsConfig = {nameLabel: "App name"}
@@ -35,6 +25,8 @@ const VARIANT_CREATE_FIELDS: CommitCreateFieldsConfig = {
 const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     variantId,
     onSuccess,
+    appId,
+    onAfterCommit,
     ...props
 }) => {
     const {onCancel, open} = props
@@ -44,7 +36,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(variantId || ""))
     const isApplication = useAtomValue(workflowMolecule.selectors.isApplication(variantId || ""))
 
-    const appId = useAtomValue(selectedAppIdAtom)
+    // The host supplies it: the desktop from its selected app, an agent-scoped surface directly.
     const commitRevision = useSetAtom(playgroundController.actions.commitRevision)
     const createVariant = useSetAtom(playgroundController.actions.createVariant)
     const createFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
@@ -137,10 +129,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     }
                 }
 
-                clearRegistryVariantNameCache()
-                clearEvaluatorWorkflowCache()
-                getDefaultStore().set(registryPaginatedStore.actions.refresh)
-                getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
+                onAfterCommit?.()
                 onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
                 return {success: true, newRevisionId: result.newRevisionId}
             }
@@ -183,10 +172,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     deployMessage,
                 )
 
-                clearRegistryVariantNameCache()
-                clearEvaluatorWorkflowCache()
-                getDefaultStore().set(registryPaginatedStore.actions.refresh)
-                getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
+                onAfterCommit?.()
                 onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
                 return {success: true, newRevisionId: result.newRevisionId}
             }
@@ -212,10 +198,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 deployMessage,
             )
 
-            clearRegistryVariantNameCache()
-            clearEvaluatorWorkflowCache()
-            getDefaultStore().set(registryPaginatedStore.actions.refresh)
-            getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
+            onAfterCommit?.()
             onSuccess?.({revisionId: result.newRevisionId, variantId: variantSlug ?? undefined})
             return {success: true, newRevisionId: result.newRevisionId}
         },
@@ -227,6 +210,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             variantName,
             variantSlug,
             deployRevision,
+            onAfterCommit,
             onSuccess,
             commitRevision,
         ],

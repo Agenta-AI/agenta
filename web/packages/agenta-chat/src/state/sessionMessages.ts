@@ -6,28 +6,21 @@
 // drop the transcript store without its watermark (the two must never diverge).
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
-import {atomFamily, atomWithStorage, createJSONStorage} from "jotai/utils"
+import {atomFamily, atomWithStorage} from "jotai/utils"
 
 import type {SessionRunStatus} from "../model/sessionStatus"
+
+import {tabLocalStorage} from "./tabStorage"
 
 // `getOnInit: true` — read localStorage synchronously on init. Without it the atom starts as
 // the empty default `{}` on every mount and only hydrates afterwards, so a mount-time seed
 // read would see an empty store on every reload.
 const STORAGE_OPTS = {getOnInit: true} as const
 
-/**
- * localStorage WITHOUT jotai's cross-browser-tab sync. The default storage subscribes to the
- * `storage` event, so a write in one browser tab replaced these records live in every other one —
- * and since the open-tab list drives the antd `Tabs` items, an incoming replacement UNMOUNTED a
- * streaming conversation, orphaning its `useChat` stream mid-turn (the in-flight transcript is not
- * persisted until the stream settles, so it was lost). Each browser tab now owns its view; storage
- * is still shared, so a reload picks up whatever was last written.
- */
-const tabLocalStorage = <T>() => {
-    const storage = createJSONStorage<T>()
-    delete storage.subscribe
-    return storage
-}
+// The stores below use `tabLocalStorage` (see ./tabStorage): a write in one browser tab must not
+// replace these records live in every other one. The open-tab list drives the antd `Tabs` items, so
+// an incoming replacement UNMOUNTED a streaming conversation, orphaning its `useChat` stream mid-turn
+// (the in-flight transcript is not persisted until the stream settles, so it was lost).
 
 /**
  * The pre-`:v2` stores. Nothing reads them any more — the key bump below is precisely how the

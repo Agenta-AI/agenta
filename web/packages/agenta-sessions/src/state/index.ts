@@ -12,6 +12,7 @@ export {
     type SessionStatusFilter,
 } from "./filters"
 export {pinnedSessionIdsAtom, isSessionPinnedAtom, toggleSessionPinAtom} from "./pins"
+export {sessionTabOrderAtomFamily, setSessionTabOrderAtom, applySessionTabOrder} from "./tabOrder"
 export {
     useSessionList,
     useActionableInteractions,
@@ -33,3 +34,4 @@ export {
     type UseSessionCardListArgs,
 } from "./useSessionCardList"
 export {pendingSessionOpenAtom, type PendingSessionOpen} from "./pendingSessionOpen"
+export {useWaitingByAgent} from "./waitingByAgent"
