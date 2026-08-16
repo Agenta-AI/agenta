@@ -13,27 +13,37 @@ import {
     ConnectionStatusBadge,
     ToolExecutionDrawer,
 } from "@agenta/entity-ui/gatewayTool"
-import {useStaticTable} from "@agenta/settings"
+import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {formatDay} from "@agenta/shared/utils/dateTime"
+import {message} from "@agenta/ui/app-message"
+import {Tag} from "@agenta/ui/components/presentational"
 import {
-    createStandardColumns,
-    InfiniteVirtualTableFeatureShell,
-    type StandardColumnDef,
-} from "@agenta/ui/table"
-import {EmptyState} from "@agenta/ui/ui"
+    Button,
+    DataTable,
+    EmptyState,
+    Input,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    type DataTableColumn,
+} from "@agenta/ui/ui"
 import {ArrowClockwise, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
-import {Button, Input, message, Tag, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
-
-import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 
 const AUTH_SCHEME_LABELS: Record<string, string> = {
     oauth: "OAuth",
     api_key: "API Key",
 }
 
-export default function GatewayToolsSection() {
+export interface GatewayToolsSectionProps {
+    /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
+    confirm?: (args: {title: string; message: string; onOk: () => void | Promise<void>}) => void
+    /** Hides connect/run and skips the catalog drawer, whose schema form is still antd-backed. */
+    readOnly?: boolean
+}
+
+export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSectionProps) {
     const {connections, isLoading, refetch} = useToolConnectionsQuery()
     const {handleDelete, handleRefresh, handleRevoke, invalidateConnections} =
         useToolConnectionActions()
@@ -142,7 +152,7 @@ export default function GatewayToolsSection() {
 
     const confirmDelete = useCallback(
         (connection: ToolConnection) => {
-            AlertPopup({
+            confirm?.({
                 title: "Delete Connection",
                 message:
                     "Are you sure you want to delete this connection? This action is irreversible.",
@@ -157,12 +167,12 @@ export default function GatewayToolsSection() {
                 },
             })
         },
-        [handleDelete],
+        [confirm, handleDelete],
     )
 
     const confirmRevoke = useCallback(
         (connection: ToolConnection) => {
-            AlertPopup({
+            confirm?.({
                 title: "Revoke Connection",
                 message:
                     "This will mark the connection as invalid. You can refresh it later to reactivate.",
@@ -177,7 +187,7 @@ export default function GatewayToolsSection() {
                 },
             })
         },
-        [handleRevoke],
+        [confirm, handleRevoke],
     )
 
     interface ToolRow extends ToolConnection {
@@ -199,88 +209,85 @@ export default function GatewayToolsSection() {
         )
     }, [connections, searchTerm])
 
-    const columns = useMemo(
-        () =>
-            createStandardColumns<ToolRow>([
-                {
-                    type: "text",
-                    key: "name",
-                    title: "Name",
-                    width: 200,
-                    fixed: "left",
-                    render: (_value, record) => (
-                        <Typography.Text>{record.name || record.slug}</Typography.Text>
-                    ),
+    const columns = useMemo<DataTableColumn<ToolRow>[]>(
+        () => [
+            {
+                key: "name",
+                title: "Name",
+                width: 200,
+                render: (record) => <span>{record.name || record.slug}</span>,
+            },
+            {
+                key: "integration_key",
+                title: "Tool",
+                width: 180,
+                render: (record) => <Tag>{record.integration_key}</Tag>,
+            },
+            {key: "slug", title: "Slug", width: 250, mono: true, render: (r) => r.slug},
+            {
+                key: "auth_scheme",
+                title: "Auth",
+                width: 120,
+                render: (record) => {
+                    const scheme =
+                        typeof record.data?.auth_scheme === "string"
+                            ? record.data.auth_scheme
+                            : undefined
+                    if (!scheme) return <span className="text-colorTextSecondary">—</span>
+                    return <Tag>{AUTH_SCHEME_LABELS[scheme] ?? scheme}</Tag>
                 },
-                {
-                    type: "text",
-                    key: "integration_key",
-                    title: "Tool",
-                    width: 180,
-                    render: (_value, record) => (
-                        <Tag
-                            bordered={false}
-                            color="default"
-                            className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                        >
-                            {record.integration_key}
-                        </Tag>
-                    ),
-                },
-                // The slug is what you reference in code, so it gets its own copy button.
-                {type: "slug", key: "slug", title: "Slug", width: 250},
-                {
-                    type: "text",
-                    key: "auth_scheme",
-                    title: "Auth",
-                    width: 120,
-                    render: (_value, record) => {
-                        const scheme =
-                            typeof record.data?.auth_scheme === "string"
-                                ? record.data.auth_scheme
-                                : undefined
-                        if (!scheme) return <Typography.Text type="secondary">—</Typography.Text>
-                        return <Tag>{AUTH_SCHEME_LABELS[scheme] ?? scheme}</Tag>
-                    },
-                },
-                {
-                    type: "text",
-                    key: "status",
-                    title: "Status",
-                    width: 150,
-                    render: (_value, record) => <ConnectionStatusBadge connection={record} />,
-                },
-                {
-                    type: "text",
-                    key: "created_at",
-                    title: "Connected",
-                    width: 160,
-                    render: (_value, record) =>
-                        record.created_at
-                            ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
-                            : "-",
-                },
-                {
-                    type: "actions",
-                    showCopyId: false,
-                    items: [
+            },
+            {
+                key: "status",
+                title: "Status",
+                width: 150,
+                render: (record) => <ConnectionStatusBadge connection={record} />,
+            },
+            {
+                key: "created_at",
+                title: "Connected",
+                width: 160,
+                render: (record) =>
+                    record.created_at
+                        ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
+                        : "-",
+            },
+        ],
+        [],
+    )
+    return (
+        <>
+            <section className="flex flex-col">
+                <DataTable<ToolRow>
+                    className="ph-no-capture"
+                    // No section title: Tools is a single-section page, so the page header
+                    // already says what this is.
+                    columns={columns}
+                    rows={rows}
+                    rowKey={(record) => record.key}
+                    loading={isLoading}
+                    onRowClick={readOnly ? undefined : openExecution}
+                    actions={(record) => [
                         {
                             key: "run",
+                            hidden: readOnly,
                             label: "Run tool",
                             icon: <Play size={16} />,
-                            onClick: (record: ToolRow) => openExecution(record),
+                            onClick: () => openExecution(record),
                         },
                         {
                             key: "refresh",
+                            hidden: readOnly,
                             label: "Refresh",
                             icon: <ArrowClockwise size={16} />,
-                            onClick: (record: ToolRow) => onRefresh(record),
+                            onClick: () => onRefresh(record),
                         },
                         {
                             key: "revoke",
                             label: "Revoke",
                             icon: <XCircle size={16} />,
-                            onClick: (record: ToolRow) => confirmRevoke(record),
+                            hidden: !confirm,
+                            onClick: () => confirmRevoke(record),
                         },
                         {type: "divider"},
                         {
@@ -288,34 +295,14 @@ export default function GatewayToolsSection() {
                             label: "Delete",
                             icon: <Trash size={16} />,
                             danger: true,
-                            onClick: (record: ToolRow) => confirmDelete(record),
+                            hidden: !confirm,
+                            onClick: () => confirmDelete(record),
                         },
-                    ],
-                } satisfies StandardColumnDef<ToolRow>,
-            ]),
-        [confirmDelete, confirmRevoke, onRefresh, openExecution],
-    )
-
-    const {tableScope, pagination} = useStaticTable<ToolRow>("settings-tools", rows, {
-        loading: isLoading,
-    })
-    return (
-        <>
-            <section className="flex flex-col">
-                <InfiniteVirtualTableFeatureShell<ToolRow>
-                    className="ph-no-capture"
-                    tableScope={tableScope}
-                    autoHeight={false}
-                    // No section title: Tools is a single-section page, so the page header
-                    // already says what this is.
-                    columns={columns}
-                    rowKey={(record) => record.key}
-                    pagination={pagination}
+                    ]}
                     filters={
-                        <Input.Search
+                        <Input
                             placeholder="Search tools"
                             className="w-[260px]"
-                            allowClear
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             disabled={isLoading}
@@ -323,66 +310,61 @@ export default function GatewayToolsSection() {
                     }
                     primaryActions={
                         <>
-                            <Tooltip title="Reload all connections">
-                                <Button
-                                    icon={<ArrowClockwise size={14} />}
-                                    type="default"
-                                    aria-label="Reload all connections"
-                                    loading={reloading}
-                                    onClick={reloadAll}
-                                />
-                            </Tooltip>
-                            <Button
-                                icon={<Plus size={14} />}
-                                type="primary"
-                                disabled={isLoading}
-                                onClick={() => setCatalogOpen(true)}
-                            >
-                                Connect tool
-                            </Button>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            aria-label="Reload all connections"
+                                            disabled={reloading}
+                                            onClick={reloadAll}
+                                        >
+                                            <ArrowClockwise size={14} />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Reload all connections</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                            {readOnly ? null : (
+                                <Button disabled={isLoading} onClick={() => setCatalogOpen(true)}>
+                                    <Plus size={14} />
+                                    Connect tool
+                                </Button>
+                            )}
                         </>
                     }
-                    tableProps={{
-                        size: "small",
-                        bordered: true,
-                        tableLayout: "fixed",
-                        locale: {
-                            emptyText: searchTerm.trim() ? (
-                                <EmptyState
-                                    image="simple"
-                                    description={`No tools match “${searchTerm.trim()}”`}
-                                />
-                            ) : (
-                                <EmptyState
-                                    image="simple"
-                                    description={
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-xs font-medium text-colorText">
-                                                No tools connected yet
-                                            </span>
-                                            <span>Connect a tool to let your agents call it.</span>
-                                        </div>
-                                    }
-                                >
-                                    <Button
-                                        icon={<Plus size={14} />}
-                                        onClick={() => setCatalogOpen(true)}
-                                    >
+                    empty={
+                        searchTerm.trim() ? (
+                            <EmptyState
+                                image="simple"
+                                description={`No tools match “${searchTerm.trim()}”`}
+                            />
+                        ) : (
+                            <EmptyState
+                                image="simple"
+                                description={
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-medium text-colorText">
+                                            No tools connected yet
+                                        </span>
+                                        <span>Connect a tool to let your agents call it.</span>
+                                    </div>
+                                }
+                            >
+                                {readOnly ? null : (
+                                    <Button variant="outline" onClick={() => setCatalogOpen(true)}>
+                                        <Plus size={14} />
                                         Connect tool
                                     </Button>
-                                </EmptyState>
-                            ),
-                        },
-                        onRow: (record: ToolRow) => ({
-                            onClick: () => openExecution(record),
-                            className: "cursor-pointer",
-                        }),
-                    }}
+                                )}
+                            </EmptyState>
+                        )
+                    }
                 />
             </section>
 
-            <CatalogDrawer onConnectionCreated={refetch} />
-            <ToolExecutionDrawer />
+            {readOnly ? null : <CatalogDrawer onConnectionCreated={refetch} />}
+            {readOnly ? null : <ToolExecutionDrawer />}
         </>
     )
 }

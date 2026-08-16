@@ -4,10 +4,9 @@ import {ProjectOrgSwitcherView, type SwitcherEntry} from "@agenta/navigation-ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {signOut} from "@/lib/auth"
-import {clearLastContext, fetchProjects, writeLastContext} from "@/lib/context"
-import {queryClient} from "@/lib/queryClient"
+import {fetchProjects, writeLastContext} from "@/lib/context"
 
+import {useLogout} from "../auth/useLogout"
 import {groupByWorkspace} from "../context/workspaceGroups"
 
 /**
@@ -23,6 +22,7 @@ export const DrawerProjectSwitcher = ({
     projectId: string
 }) => {
     const router = useRouter()
+    const logout = useLogout()
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
@@ -71,13 +71,6 @@ export const DrawerProjectSwitcher = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [groups, workspaceId],
     )
-
-    const logout = async () => {
-        await signOut()
-        clearLastContext()
-        await queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
-        void router.replace("/auth")
-    }
 
     const [panelContainer, setPanelContainer] = useState<HTMLElement | null>(null)
 

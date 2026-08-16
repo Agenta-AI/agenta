@@ -1,3 +1,4 @@
+import {deleteAccount} from "@agenta/entities/profile"
 import {AccountPage} from "@agenta/settings-ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Trash} from "@phosphor-icons/react"
@@ -5,7 +6,6 @@ import {useMutation} from "@tanstack/react-query"
 import {message} from "antd"
 
 import {useSession} from "@/oss/hooks/useSession"
-import {deleteAccount} from "@/oss/services/profile"
 import {useProfileData} from "@/oss/state/profile"
 
 /** OSS binding: the shared account page, with this app's delete call and confirm modal. */

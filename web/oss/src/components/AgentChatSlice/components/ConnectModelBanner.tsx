@@ -1,11 +1,10 @@
+import {RevealCollapse} from "@agenta/chat/components"
 import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import {Lock} from "lucide-react"
-
-import RevealCollapse from "./RevealCollapse"
 
 /**
  * Set-up-your-key prompt shown above the composer while the project vault is empty (see `gateActive`

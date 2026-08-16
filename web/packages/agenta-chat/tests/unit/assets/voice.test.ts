@@ -1,10 +1,9 @@
+import {getEnv} from "@agenta/shared/api"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+import {isAgentVoiceInputAvailable} from "../../../src/assets/voice"
 
-import {isAgentVoiceInputAvailable} from "./constants"
-
-vi.mock("@/oss/lib/helpers/dynamicEnv", () => ({getEnv: vi.fn(() => "")}))
+vi.mock("@agenta/shared/api", () => ({getEnv: vi.fn(() => "")}))
 
 const mockedGetEnv = vi.mocked(getEnv)
 

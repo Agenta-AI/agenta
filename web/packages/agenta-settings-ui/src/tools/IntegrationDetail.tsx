@@ -1,28 +1,28 @@
 import {useState} from "react"
 
+import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowLeft, Plus} from "@phosphor-icons/react"
-import {Button, Spin, Typography} from "antd"
-import Image from "next/image"
-
-import {useIntegrationDetail} from "../hooks/useIntegrationDetail"
 
 import ActionsList from "./ActionsList"
 import ConnectionsList from "./ConnectionsList"
 import ConnectModal from "./ConnectModal"
+import {useIntegrationDetail} from "./hooks/useIntegrationDetail"
 
 interface Props {
     integrationKey: string
     onBack: () => void
+    /** Passed through to the connections list for its delete confirmation. */
+    confirm?: (args: {title: string; message: string; onOk: () => void | Promise<void>}) => void
 }
 
-export default function IntegrationDetail({integrationKey, onBack}: Props) {
+export default function IntegrationDetail({integrationKey, onBack, confirm}: Props) {
     const {integration, connections, actions, isLoading} = useIntegrationDetail(integrationKey)
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
 
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Spin />
+                <Spinner />
             </div>
         )
     }
@@ -33,30 +33,22 @@ export default function IntegrationDetail({integrationKey, onBack}: Props) {
         <section className="flex flex-col gap-6">
             {/* Header */}
             <div className="flex items-center gap-3">
-                <Button
-                    type="text"
-                    aria-label="Go back"
-                    icon={<ArrowLeft size={16} />}
-                    onClick={onBack}
-                />
+                <Button variant="ghost" aria-label="Go back" onClick={onBack}>
+                    <ArrowLeft size={16} />
+                </Button>
                 {integration.logo && (
-                    <Image
+                    <img
                         src={integration.logo}
                         alt={integration.name}
-                        width={32}
-                        height={32}
-                        className="w-8 h-8 rounded object-contain"
-                        unoptimized
+                        className="size-8 rounded object-contain"
                     />
                 )}
                 <div>
-                    <Typography.Title level={5} className="!mb-0">
-                        {integration.name}
-                    </Typography.Title>
+                    <h2 className="m-0 text-base font-medium text-colorText">{integration.name}</h2>
                     {integration.description && (
-                        <Typography.Text type="secondary" className="text-xs">
+                        <p className="m-0 text-xs text-colorTextSecondary">
                             {integration.description}
-                        </Typography.Text>
+                        </p>
                     )}
                 </div>
             </div>
@@ -64,24 +56,24 @@ export default function IntegrationDetail({integrationKey, onBack}: Props) {
             {/* Connections section */}
             <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                    <Typography.Text className="text-sm font-medium">Connections</Typography.Text>
-                    <Button
-                        type="primary"
-                        size="small"
-                        icon={<Plus size={14} />}
-                        onClick={() => setIsConnectModalOpen(true)}
-                    >
+                    <span className="text-xs font-medium text-colorText">Connections</span>
+                    <Button size="sm" onClick={() => setIsConnectModalOpen(true)}>
+                        <Plus size={14} />
                         Connect
                     </Button>
                 </div>
-                <ConnectionsList integrationKey={integrationKey} connections={connections} />
+                <ConnectionsList
+                    integrationKey={integrationKey}
+                    connections={connections}
+                    confirm={confirm}
+                />
             </div>
 
             {/* Actions section */}
             <div className="flex flex-col gap-2">
-                <Typography.Text className="text-sm font-medium">
+                <span className="text-xs font-medium text-colorText">
                     Available Actions ({integration.actions_count})
-                </Typography.Text>
+                </span>
                 <ActionsList actions={actions} />
             </div>
 

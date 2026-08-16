@@ -1,11 +1,10 @@
 import {type RefObject, useState} from "react"
 
+import {agentVoiceInputEnabledAtom} from "@agenta/shared/state"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useAtomValue} from "jotai"
 
-import {agentVoiceInputEnabledAtom} from "@/oss/state/settings/featureFlags"
-
-import {isAgentVoiceInputAvailable} from "../assets/constants"
+import {isAgentVoiceInputAvailable} from "../assets/voice"
 
 import {useAudioRecorder} from "./useAudioRecorder"
 

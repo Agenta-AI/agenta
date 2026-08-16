@@ -13,7 +13,7 @@ import {
     useAgentChatQueue,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
-import {useAgentModelKeyStatus} from "@agenta/chat/hooks"
+import {useAgentModelKeyStatus, useVoiceComposer} from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
@@ -64,7 +64,6 @@ import {useScrollIntent} from "./hooks/useScrollIntent"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
-import {useVoiceComposer} from "./hooks/useVoiceComposer"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
