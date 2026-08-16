@@ -1,11 +1,11 @@
 import {FC} from "react"
 
+import {isBillingEnabled} from "@agenta/shared/api"
 import {Lock} from "@phosphor-icons/react"
 import {Card, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 
-import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {appIdentifiersAtom} from "@/oss/state/appState/atoms"
 
 const {Title, Text} = Typography

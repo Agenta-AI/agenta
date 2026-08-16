@@ -1,9 +1,9 @@
 import {useMemo} from "react"
 
 import type {SettingsAccess} from "@agenta/settings"
+import {isBillingEnabled, isEE, isToolsEnabled} from "@agenta/shared/api"
 
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
-import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 

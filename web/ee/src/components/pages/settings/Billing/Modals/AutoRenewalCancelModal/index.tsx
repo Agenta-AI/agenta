@@ -1,19 +1,17 @@
+/**
+ * The cancel-auto-renewal dialog. The questionnaire is `@agenta/settings-ui`'s; confirming
+ * the cancellation is this host's call.
+ */
+
 import {useCallback, useState} from "react"
 
+import {CancelSubscriptionReasons, CANCEL_REASON_OTHER} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
-import {EnhancedModal} from "@agenta/ui/components/modal"
-import dynamic from "next/dynamic"
+import {EnhancedModal, type EnhancedModalProps} from "@agenta/ui/components/modal"
 
 import {cancelSubscription, useSubscriptionData, useUsageData} from "@/oss/services/billing"
 
-import {AutoRenewalCancelModalProps} from "./assets/types"
-
-const AutoRenewalCancelModalContent = dynamic(
-    () => import("./assets/AutoRenewalCancelModalContent"),
-    {ssr: false},
-)
-
-const AutoRenewalCancelModal = ({...props}: AutoRenewalCancelModalProps) => {
+const AutoRenewalCancelModal = ({...props}: EnhancedModalProps) => {
     const [selectOption, setSelectOption] = useState("")
     const [inputOption, setInputOption] = useState("")
     const [isLoading, setIsLoading] = useState(false)
@@ -46,7 +44,7 @@ const AutoRenewalCancelModal = ({...props}: AutoRenewalCancelModalProps) => {
         } finally {
             setIsLoading(false)
         }
-    }, [mutateSubscription, mutateUsage, cancelSubscription])
+    }, [mutateSubscription, mutateUsage, props.onCancel])
 
     return (
         <EnhancedModal
@@ -56,16 +54,19 @@ const AutoRenewalCancelModal = ({...props}: AutoRenewalCancelModalProps) => {
             confirmLoading={isLoading}
             onOk={onConfirmCancel}
             okButtonProps={{
-                disabled: !selectOption || (selectOption == "something-else" && !inputOption),
+                disabled: !selectOption || (selectOption === CANCEL_REASON_OTHER && !inputOption),
             }}
-            afterClose={() => setSelectOption("")}
+            afterClose={() => {
+                setSelectOption("")
+                setInputOption("")
+            }}
             {...props}
         >
-            <AutoRenewalCancelModalContent
+            <CancelSubscriptionReasons
                 value={selectOption}
-                onChange={(e) => setSelectOption(e.target.value)}
-                inputValue={inputOption}
-                onChangeInput={(e) => setInputOption(e.target.value)}
+                onChange={setSelectOption}
+                otherReason={inputOption}
+                onOtherReasonChange={setInputOption}
             />
         </EnhancedModal>
     )

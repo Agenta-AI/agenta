@@ -16,6 +16,46 @@ export {
     type ProjectDialogState,
 } from "./projects/ProjectsPage"
 export {MembersPage, type MembersPageProps} from "./members/MembersPage"
+export {
+    resolveWorkspacePermissions,
+    CLOSED_WORKSPACE_PERMISSIONS,
+    type WorkspacePermissionInput,
+    type WorkspacePermissions,
+} from "./members/workspacePermissions"
+export {AuditLogPage, type AuditLogPageProps} from "./audit/AuditLogPage"
+export {BillingPage, type BillingPageProps} from "./billing/BillingPage"
+export {PricingPlans, type PricingPlansProps} from "./billing/PricingPlans"
+export {
+    CancelSubscriptionReasons,
+    CANCEL_REASONS,
+    CANCEL_REASON_OTHER,
+    type CancelSubscriptionReasonsProps,
+} from "./billing/CancelSubscriptionReasons"
+export {default as UsageProgressBar, type UsageProgressBarProps} from "./billing/UsageProgressBar"
+export {
+    fetchBillingUsage,
+    fetchBillingPlans,
+    fetchBillingPricing,
+    switchBillingPlan,
+    cancelBillingSubscription,
+    checkoutBillingSubscription,
+    openBillingPortal,
+} from "./billing/api"
+export {reserveTab, type ReservedTab} from "./billing/reserveTab"
+export {
+    useBillingCatalog,
+    type BillingCatalog,
+    type UseBillingCatalogParams,
+} from "./billing/useBillingCatalog"
+export type {
+    BillingSubscription,
+    BillingUsage,
+    BillingUsageMetric,
+    BillingUsagePeriod,
+    BillingUsageScope,
+    BillingPlanOption,
+    BillingPlanPrice,
+} from "./billing/types"
 export {OrganizationsPage, type OrganizationsPageProps} from "./organizations/OrganizationsPage"
 export {
     AccessControlsSection,
@@ -24,6 +64,20 @@ export {
 } from "./access/AccessControlsSection"
 export {SettingToggleRow, type SettingToggleRowProps} from "./access/SettingToggleRow"
 export {UpgradeNotice, type UpgradeNoticeProps} from "./access/UpgradeNotice"
+export {
+    AccessUpgradeNotice,
+    type AccessUpgradeNoticeProps,
+    type AccessFeature,
+} from "./access/AccessUpgradeNotice"
+export {
+    useEntitlements,
+    useBillingSubscription,
+    fetchAccessPlans,
+    fetchCurrentSubscription,
+    type Entitlements,
+    type PlanFlags,
+    type PlansCatalog,
+} from "./access/entitlements"
 export {DomainsSection, type DomainsSectionProps} from "./access/DomainsSection"
 export {SsoProvidersSection, type SsoProvidersSectionProps} from "./access/SsoProvidersSection"
 export {

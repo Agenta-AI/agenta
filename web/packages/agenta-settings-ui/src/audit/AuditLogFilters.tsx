@@ -6,33 +6,23 @@
  * page-1 fetch.
  */
 
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useState, type ReactNode} from "react"
 
 import {
     EventType,
     type EventType as EventTypeValue,
+    type EventTimestampRange,
     eventIdFilterAtom,
     eventTimestampRangeFilterAtom,
     eventTypeFilterAtom,
     requestIdFilterAtom,
     requestTypeFilterAtom,
 } from "@agenta/entities/event"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Cascader} from "@agenta/ui/ui"
-import {ArrowsClockwiseIcon} from "@phosphor-icons/react"
-import {Input} from "antd"
+import {Cascader, Input, type CascaderOption} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
-
-import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
 
 const HIDDEN_EVENT_TYPE_PREFIXES = ["applications.revisions.", "evaluators.revisions."]
 const HIDDEN_EVENT_TYPES = ["unknown"]
-
-interface EventTypeOption {
-    label: string
-    value: string
-    children?: EventTypeOption[]
-}
 
 const VISIBLE_EVENT_TYPES = Object.values(EventType).filter(
     (value) =>
@@ -40,7 +30,7 @@ const VISIBLE_EVENT_TYPES = Object.values(EventType).filter(
         !HIDDEN_EVENT_TYPE_PREFIXES.some((prefix) => value.startsWith(prefix)),
 )
 
-const EVENT_TYPE_OPTIONS = VISIBLE_EVENT_TYPES.reduce<EventTypeOption[]>((options, eventType) => {
+const EVENT_TYPE_OPTIONS = VISIBLE_EVENT_TYPES.reduce<CascaderOption[]>((options, eventType) => {
     const segments = eventType.split(".")
     let level = options
 
@@ -76,11 +66,24 @@ const renderEventTypePath = (labels: string[]) => (
 const ID_DEBOUNCE_MS = 400
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-interface AuditLogFiltersProps {
-    onRefresh: () => void
+export interface AuditLogFiltersProps {
+    /**
+     * Hands the table a refresh that first flushes the debounced id draft, so a reload
+     * clicked straight after typing uses the value on screen. The control itself lives in
+     * the table's toolbar, where every list keeps its reload.
+     */
+    registerRefresh: (refresh: () => void) => void
+    /**
+     * The date-range control. The desktop's picker carries its own presets and calendar; a
+     * host without one simply gets the default 24-hour window.
+     */
+    renderDateRange?: (state: {
+        value: EventTimestampRange | null
+        onChange: (next: EventTimestampRange | null) => void
+    }) => ReactNode
 }
 
-const AuditLogFilters = ({onRefresh}: AuditLogFiltersProps) => {
+export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFiltersProps) => {
     const [timestampRange, setTimestampRange] = useAtom(eventTimestampRangeFilterAtom)
     const [eventType, setEventType] = useAtom(eventTypeFilterAtom)
     const [eventId, setEventId] = useAtom(eventIdFilterAtom)
@@ -109,20 +112,13 @@ const AuditLogFilters = ({onRefresh}: AuditLogFiltersProps) => {
 
     // Flush the debounced id before refreshing so a refresh clicked right after
     // typing uses the value on screen rather than the previously committed one.
-    const handleRefresh = useCallback(() => {
-        commitEventId()
-        onRefresh()
-    }, [commitEventId, onRefresh])
+    useEffect(() => {
+        registerRefresh(commitEventId)
+    }, [commitEventId, registerRefresh])
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            <EnhancedButton
-                aria-label="Refresh audit log data"
-                icon={<ArrowsClockwiseIcon size={14} className="mt-[0.8px]" />}
-                onClick={handleRefresh}
-                tooltipProps={{title: "Refresh data"}}
-            />
-            <QuickDateRangePicker value={timestampRange} onChange={setTimestampRange} />
+            {renderDateRange?.({value: timestampRange, onChange: setTimestampRange})}
             <Cascader
                 allowClear
                 showSearch
@@ -140,7 +136,6 @@ const AuditLogFilters = ({onRefresh}: AuditLogFiltersProps) => {
                 options={EVENT_TYPE_OPTIONS}
             />
             <Input
-                allowClear
                 className="w-[290px] font-mono"
                 placeholder="ID"
                 value={eventIdDraft}

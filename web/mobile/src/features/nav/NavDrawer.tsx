@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily} from "@agenta/navigation"
 import {SidebarShell} from "@agenta/navigation-ui"
 import {atom} from "jotai"
@@ -22,9 +23,19 @@ const drawerExpandedAtom = atom(false)
  * rail's own width. The hamburger hides at lg where the rail takes over, so a viewport never
  * shows both entries to the same nav.
  */
-export const NavDrawer = ({workspaceId, projectId}: {workspaceId: string; projectId: string}) => {
+export const NavDrawer = ({
+    workspaceId,
+    projectId,
+    scope: scopeOverride,
+}: {
+    workspaceId: string
+    projectId: string
+    /** Replaces the main nav where a screen takes the rail over (settings). */
+    scope?: SidebarScope
+}) => {
     const [open, setOpen] = useState(false)
-    const scope = useMobileNavScope(workspaceId, projectId)
+    const mainScope = useMobileNavScope(workspaceId, projectId)
+    const scope = scopeOverride ?? mainScope
     const router = useRouter()
 
     return (
@@ -44,6 +55,7 @@ export const NavDrawer = ({workspaceId, projectId}: {workspaceId: string; projec
                     <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
                 <SidebarShell
+                    key={scope.id}
                     collapsedAtom={drawerExpandedAtom}
                     currentPath={router.asPath}
                     openGroupsAtomFamily={sidebarOpenGroupsAtomFamily}

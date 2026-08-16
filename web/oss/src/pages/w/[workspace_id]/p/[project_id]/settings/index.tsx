@@ -77,8 +77,14 @@ interface SettingsProps {
     AuditLogComponent?: React.ComponentType
 }
 
-/** Tabs that render a form rather than a table, so they cap at 640 inside the page column. */
+/** Tabs that render a form rather than a table, so they cap at 640 instead of 1120. */
 const FORM_TABS = new Set<SettingsTabKey>(["account", "preferences"])
+
+/**
+ * Tabs whose table is wider than the 1120 cap every other table tab gets — the Audit Log
+ * carries a timestamp, a dotted event type and a full UUID on one row.
+ */
+const FULL_WIDTH_TABS = new Set<SettingsTabKey>(["auditLog"])
 
 export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
@@ -185,9 +191,13 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 title={title}
                 description={getSettingsTabDescription(resolvedTab, settingsAccess)}
                 docs={getSettingsTabDocs(resolvedTab)}
-                variant={FORM_TABS.has(resolvedTab) ? "form" : "full"}
-                // Audit Log's virtual table needs a bounded parent to scroll internally.
-                fullHeight={resolvedTab === "auditLog"}
+                variant={
+                    FORM_TABS.has(resolvedTab)
+                        ? "form"
+                        : FULL_WIDTH_TABS.has(resolvedTab)
+                          ? "full"
+                          : "table"
+                }
             >
                 {content}
             </SettingsPageShell>

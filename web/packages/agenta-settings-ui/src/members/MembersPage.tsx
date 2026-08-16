@@ -4,7 +4,7 @@ import {useMemo} from "react"
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, Input, type DataTableColumn} from "@agenta/ui/ui"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 interface MemberRow extends WorkspaceMember {
@@ -160,15 +160,12 @@ export const MembersPage = ({
                         onClick: () => onRemove?.(record),
                     },
                 ]}
-                filters={
-                    <Input
-                        placeholder="Search members"
-                        className="w-[260px]"
-                        value={searchTerm}
-                        onChange={(event) => onSearchChange(event.target.value)}
-                        disabled={loading}
-                    />
-                }
+                search={{
+                    placeholder: "Search members",
+                    value: searchTerm,
+                    onChange: onSearchChange,
+                    disabled: loading,
+                }}
                 primaryActions={inviteButton()}
                 empty={
                     searchTerm.trim() ? (

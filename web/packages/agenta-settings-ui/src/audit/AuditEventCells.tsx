@@ -13,14 +13,12 @@
 
 import type {Event} from "@agenta/entities/event"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {dayjs} from "@agenta/shared/utils"
-import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {Tag, Tooltip} from "antd"
+import {CopyButton, Tag} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
-import {UserReference} from "@/oss/components/References/UserReference"
-
-const Dash = () => <span className="text-xs text-gray-400">—</span>
+export const Dash = () => <span className="text-xs text-colorTextTertiary">—</span>
 
 /** Actor user id from `attributes.user_id`, if present. */
 const readActor = (event: Event): string | null => {
@@ -39,12 +37,15 @@ export const EventTimestampCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
+    // A `title` rather than a Tooltip: the row is clickable, and a hover card over
+    // every timestamp in a 50-row page fights the click target for no gain.
     return (
-        <Tooltip title={dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss.SSS")}>
-            <Tag className="m-0 font-mono text-xs whitespace-nowrap" bordered>
-                {dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss")}
-            </Tag>
-        </Tooltip>
+        <Tag
+            className="m-0 whitespace-nowrap font-mono text-xs"
+            title={dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss.SSS")}
+        >
+            {dayjs(event.timestamp).format("YYYY-MM-DD HH:mm:ss")}
+        </Tag>
     )
 }
 
@@ -53,21 +54,30 @@ export const EventTypeCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
-    return (
-        <Tag className="m-0 font-mono text-xs" bordered>
-            {event.event_type}
-        </Tag>
-    )
+    return <Tag className="m-0 font-mono text-xs">{event.event_type}</Tag>
 }
 
 /** Actor — the user who triggered the event, resolved to a name/avatar. */
 export const ActorCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
-    if (!event) return <Dash />
+    const actor = event ? readActor(event) : null
 
-    // min-w-0 + truncate lets the resolved name ellipsize inside the narrow
-    // User column instead of overflowing the cell.
-    return <UserReference userId={readActor(event)} className="min-w-0 [&_*]:truncate" />
+    // Falls back to the raw id rather than a dash: an actor who has left the workspace no
+    // longer resolves to a name, and on a host that never registers a member list nothing
+    // resolves at all — the id still says who.
+    // The wrapper does the ellipsizing: `truncate` needs a block box, and the resolved form
+    // is an inline-flex row, so it can't carry the rule itself.
+    return (
+        <div className="min-w-0 truncate">
+            <UserAuthorLabel
+                userId={actor}
+                showAvatar
+                showYouLabel
+                fallback={actor ?? "—"}
+                className="min-w-0 [&_*]:truncate"
+            />
+        </div>
+    )
 }
 
 /** Count — number of items the event touched (`attributes.count`). */
@@ -78,11 +88,7 @@ export const CountCell = ({eventId}: {eventId: string}) => {
     const count = readCount(event)
     if (count === null) return <Dash />
 
-    return (
-        <Tag className="m-0 font-mono text-xs tabular-nums" bordered>
-            {count}
-        </Tag>
-    )
+    return <Tag className="m-0 font-mono text-xs tabular-nums">{count}</Tag>
 }
 
 /** Event id (UUID) — the unique identifier of this audit event. */
@@ -90,11 +96,19 @@ export const EventIdCell = ({eventId}: {eventId: string}) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
+    // stopPropagation: the row opens the drawer, and copying an id is not that.
     return (
-        <TooltipWithCopyAction copyText={event.event_id || ""} title="Copy event id">
-            <Tag className="m-0 font-mono text-xs whitespace-nowrap" bordered>
-                {event.event_id}
-            </Tag>
-        </TooltipWithCopyAction>
+        <div className="flex min-w-0 items-center gap-1">
+            <span className="truncate font-mono text-xs">{event.event_id}</span>
+            <CopyButton
+                text={event.event_id || ""}
+                buttonText={null}
+                icon
+                stopPropagation
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Copy event id"
+            />
+        </div>
     )
 }

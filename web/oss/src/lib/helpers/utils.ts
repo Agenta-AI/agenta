@@ -1,3 +1,4 @@
+import {isEE} from "@agenta/shared/api"
 import type {LlmProvider} from "@agenta/shared/types"
 import {
     dataUriToObjectUrl,
@@ -16,8 +17,6 @@ import {v4 as uuidv4} from "uuid"
 import {waitForValidURL} from "@/oss/state/url"
 
 import {GenericObject} from "../Types"
-
-import {isEE} from "./isEE"
 
 export const isDemo = () => {
     return isEE()

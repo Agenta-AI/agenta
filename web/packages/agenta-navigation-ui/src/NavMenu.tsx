@@ -88,6 +88,16 @@ const linkClickHandler =
         item.onClick?.(event)
     }
 
+/**
+ * A row's own click handler. Linked rows are driven by their stretched anchor instead; a
+ * linkless row in a controlled scope (the settings rail) has nothing else to click.
+ */
+const rowClickHandler = (item: NavItem, onItemSelect?: NavMenuProps["onItemSelect"]) => {
+    if (item.link || item.disabled || item.inert) return undefined
+    if (onItemSelect) return (event: MouseEvent) => onItemSelect(item.key, event)
+    return item.onClick
+}
+
 const RowLabel = ({
     item,
     onItemSelect,
@@ -146,7 +156,7 @@ const LeafRow = ({
             item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
             selected && ROW_SELECTED,
         )}
-        onClick={item.link || item.disabled ? undefined : item.onClick}
+        onClick={rowClickHandler(item, onItemSelect)}
     >
         {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
         <RowLabel item={item} onItemSelect={onItemSelect} />
@@ -226,7 +236,7 @@ const NavMenuImpl = ({
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                             )}
-                            onClick={item.link || item.disabled ? undefined : item.onClick}
+                            onClick={rowClickHandler(item, onItemSelect)}
                         >
                             {item.icon}
                             {item.link && !item.disabled ? (

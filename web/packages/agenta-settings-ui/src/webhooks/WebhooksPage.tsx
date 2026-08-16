@@ -10,18 +10,8 @@ import {
 } from "@agenta/entities/webhook"
 import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
-import {
-    Button,
-    DataTable,
-    EmptyState,
-    Input,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
-import {ArrowClockwise, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
+import {PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 
 const isGitHubApiUrl = (url?: string | null): boolean => {
@@ -227,7 +217,7 @@ export const WebhooksPage = ({
                 rows={rows}
                 rowKey={(record) => record.key}
                 loading={isLoading}
-                onRowClick={handleEdit}
+                onRowClick={renderDrawer ? handleEdit : undefined}
                 actions={(record) => [
                     {
                         key: "test",
@@ -240,6 +230,8 @@ export const WebhooksPage = ({
                         key: "edit",
                         label: "Edit",
                         icon: <PencilSimpleLine size={16} />,
+                        // The form is the host's drawer; without one this opens nothing.
+                        hidden: !renderDrawer,
                         onClick: () => handleEdit(record),
                     },
                     {type: "divider"},
@@ -248,40 +240,26 @@ export const WebhooksPage = ({
                         label: "Delete",
                         icon: <Trash size={16} />,
                         danger: true,
+                        hidden: !renderDeleteDialog,
                         onClick: () => handleDeleteClick(record),
                     },
                 ]}
-                filters={
-                    <Input
-                        placeholder="Search webhooks"
-                        className="w-[260px]"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        disabled={isLoading}
-                    />
-                }
+                search={{
+                    placeholder: "Search webhooks",
+                    value: searchTerm,
+                    onChange: setSearchTerm,
+                    disabled: isLoading,
+                }}
+                onReload={reloadAll}
+                reloading={reloading}
+                reloadLabel="Reload all webhooks"
                 primaryActions={
-                    <>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        aria-label="Reload all webhooks"
-                                        disabled={reloading}
-                                        onClick={reloadAll}
-                                    >
-                                        <ArrowClockwise size={14} />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Reload all webhooks</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                    renderDrawer ? (
                         <Button onClick={handleCreate} disabled={isLoading}>
                             <Plus size={14} />
                             Subscribe
                         </Button>
-                    </>
+                    ) : null
                 }
                 empty={
                     searchTerm.trim() ? (
@@ -304,10 +282,12 @@ export const WebhooksPage = ({
                                 </div>
                             }
                         >
-                            <Button variant="outline" onClick={handleCreate}>
-                                <Plus size={14} />
-                                Subscribe
-                            </Button>
+                            {renderDrawer ? (
+                                <Button variant="outline" onClick={handleCreate}>
+                                    <Plus size={14} />
+                                    Subscribe
+                                </Button>
+                            ) : null}
                         </EmptyState>
                     )
                 }

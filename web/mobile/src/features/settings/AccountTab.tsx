@@ -53,10 +53,7 @@ export const AccountTab = ({
                         if (!next) onClose()
                     }}
                 >
-                    <SheetContent
-                        side="bottom"
-                        className="max-h-[85vh] gap-0 overflow-y-auto rounded-t-2xl"
-                    >
+                    <SheetContent side="bottom">
                         <SheetHeader>
                             <SheetTitle>Delete account</SheetTitle>
                             <SheetDescription>This cannot be undone.</SheetDescription>

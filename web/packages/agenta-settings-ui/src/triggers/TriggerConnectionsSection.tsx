@@ -13,16 +13,7 @@ import {TriggerCatalogDrawer, TriggerEventsDrawer} from "@agenta/entity-ui/gatew
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components/presentational"
-import {
-    Button,
-    DataTable,
-    EmptyState,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowClockwise, Lightning, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -230,23 +221,11 @@ export default function TriggerConnectionsSection({
                     }
                     columns={columns}
                     rowKey={(record) => record.key}
+                    onReload={reloadAll}
+                    reloading={reloading}
+                    reloadLabel="Reload all connections"
                     primaryActions={
                         <>
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            aria-label="Reload all connections"
-                                            disabled={reloading}
-                                            onClick={reloadAll}
-                                        >
-                                            <ArrowClockwise size={14} />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Reload all connections</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
                             {readOnly ? null : (
                                 <Button disabled={isLoading} onClick={() => setCatalogOpen(true)}>
                                     <Plus size={14} />

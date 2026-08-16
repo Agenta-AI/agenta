@@ -36,9 +36,9 @@ export const SettingToggleRow = ({
         <div className="flex-1 pr-8">
             <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-colorText">{title}</span>
-                {/* SimpleTooltip carries its own TooltipProvider — the convention in @agenta/ui,
-                    which mounts one per tooltip rather than a single app-level provider. The
-                    trigger is a button so it opens on focus and closes on Escape, not hover only. */}
+                {/* SimpleTooltip carries its own provider — the convention in @agenta/ui, which mounts
+                    one per tooltip. The trigger is a button so it opens on focus and closes on
+                    Escape, not on hover only. */}
                 {tooltip ? (
                     <SimpleTooltip title={tooltip}>
                         <button
