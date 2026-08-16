@@ -52,4 +52,6 @@ export interface ClientToolHandlerProps {
     /** Retry cap (elicitation): an earlier part in this turn already auto-settled as a
      * degradation — the widget PARKS (visible notice, no auto-settle) instead of looping. */
     degradedEarlierInTurn?: boolean
+    /** The turn is still streaming, so `input` is NOT final — a widget must not validate it yet. */
+    turnStreaming?: boolean
 }

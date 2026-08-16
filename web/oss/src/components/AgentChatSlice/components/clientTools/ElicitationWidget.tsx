@@ -118,7 +118,12 @@ const SubmittedAnswers = ({
     )
 }
 
-const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHandlerProps) => {
+const ElicitationWidget = ({
+    meta,
+    settle,
+    degradedEarlierInTurn,
+    turnStreaming,
+}: ClientToolHandlerProps) => {
     const [form] = Form.useForm()
     const formRef = useRef<SchemaFormHandle>(null)
     const modifierKey = useModifierKey()
@@ -141,15 +146,19 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     })
     const requiredReady = missingRequired.length === 0
 
+    // The runner surfaces a tool call before its args and refreshes them incrementally, so
+    // mid-stream a payload reads malformed while it is merely unfinished (#5949).
+    const inputFinal = turnStreaming !== true
+
     // Degradation: invalid payload auto-settles errorText ONCE per turn; a repeat malformed
     // emission parks instead (visible notice, no auto-settle) — no settle→resume→re-emit loop.
-    const parked = !parsed.ok && degradedEarlierInTurn === true
+    const parked = inputFinal && !parsed.ok && degradedEarlierInTurn === true
     const settledRef = useRef(false)
     useEffect(() => {
-        if (parsed.ok || parked || settledRef.current || meta.settled) return
+        if (!inputFinal || parsed.ok || parked || settledRef.current || meta.settled) return
         settledRef.current = true
         settle({errorText: buildDegradationErrorText(parsed.reason)})
-    }, [parsed, parked, meta.settled, settle])
+    }, [inputFinal, parsed, parked, meta.settled, settle])
 
     // Draft persistence: typed values live only in antd Form state, so a reload would lose them.
     const draftKey = draftKeyFor(meta.toolCallId)
