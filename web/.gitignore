@@ -1,1 +1,4 @@
 .turbo
+# Generated on install by @agenta/ui prepare (scripts/generate-catalog.ts).
+# ~12k lines of Phosphor path data; regenerated, never reviewed.
+packages/agenta-ui/src/agent-icon/catalog.generated.ts

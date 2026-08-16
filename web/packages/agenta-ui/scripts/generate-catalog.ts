@@ -9,22 +9,37 @@
  * Only the `regular` weight is read, which is what enforces the outline-only rule — no other
  * weight exists in the output.
  *
- * Run: pnpm generate:phosphor-catalog   (from web/)
+ * NOT committed. `prepare` runs it on every `pnpm install`, the way @agentaai/api-client builds
+ * its dist/ — a 12k-line generated file in every diff is not worth the convenience of tracking it.
+ *
+ * Run: pnpm --filter @agenta/ui generate:icons   (or just `pnpm install`)
  */
-import {readdirSync, readFileSync, mkdirSync, writeFileSync} from "fs"
+import {existsSync, readdirSync, readFileSync, mkdirSync, writeFileSync} from "fs"
+import {createRequire} from "module"
 import {dirname, resolve as pathResolve} from "path"
 import {fileURLToPath} from "url"
 
 import {icons} from "@phosphor-icons/core"
 
-const HERE = dirname(fileURLToPath(import.meta.url)) // web/scripts
-const WEB = pathResolve(HERE, "..") // web
-const ASSETS = pathResolve(WEB, "node_modules/@phosphor-icons/core/assets/regular")
-const OUT = pathResolve(WEB, "packages/agenta-ui/src/agent-icon/catalog.generated.ts")
+const HERE = dirname(fileURLToPath(import.meta.url)) // packages/agenta-ui/scripts
+const PKG = pathResolve(HERE, "..") // packages/agenta-ui
+// The package does not export ./package.json, so locate it via its main entry: dist/ and assets/
+// are siblings.
+const ASSETS = pathResolve(
+    createRequire(import.meta.url).resolve("@phosphor-icons/core"),
+    "../../assets/regular",
+)
+const OUT = pathResolve(PKG, "src/agent-icon/catalog.generated.ts")
 
 /** Everything between the outer `<svg …>` and `</svg>` — the shapes, without the wrapper. */
 const innerMarkup = (svg: string): string =>
     svg.replace(/^[\s\S]*?<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "")
+
+if (!existsSync(ASSETS)) {
+    throw new Error(
+        `@phosphor-icons/core assets not found at ${ASSETS}. Run \`pnpm install\` in web/ first.`,
+    )
+}
 
 const available = new Set(
     readdirSync(ASSETS)
@@ -84,6 +99,6 @@ mkdirSync(dirname(OUT), {recursive: true})
 writeFileSync(OUT, file, "utf8")
 
 const kb = Math.round(Buffer.byteLength(file) / 1024)
-console.log(`wrote ${entries.length} icons (${kb} KB) → ${OUT.replace(WEB + "/", "")}`)
+console.log(`wrote ${entries.length} icons (${kb} KB) → ${OUT.replace(PKG + "/", "")}`)
 if (missing.length)
     console.warn(`skipped ${missing.length} with no regular asset: ${missing.join(", ")}`)
