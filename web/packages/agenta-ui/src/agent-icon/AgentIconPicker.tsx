@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent} from "react"
 
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
 import {SearchInput} from "../components/ui/input-composed"
@@ -32,6 +33,7 @@ export interface AgentIconPickerProps {
 const COLUMNS = 8
 const CELL = 32
 const GAP = 2
+const GRID_H = 184
 const CONIC = "conic-gradient(#d61010,#faad14,#389e0d,#0e7490,#1668dc,#7c3aed,#d61010)"
 
 const SWATCH_BASE = "size-5 shrink-0 cursor-pointer rounded-full p-0"
@@ -228,7 +230,9 @@ const IconGrid = ({
     })
 
     return (
-        <div ref={scrollRef} className="max-h-[184px] overflow-y-auto px-2 pb-2">
+        // Fixed, not max: a two-result search would otherwise collapse the panel and move
+        // everything under the pointer.
+        <div ref={scrollRef} className="overflow-y-auto px-2 pb-2" style={{height: GRID_H}}>
             <div className="relative w-full" style={{height: virtualizer.getTotalSize()}}>
                 {virtualizer.getVirtualItems().map((row) => (
                     <div
@@ -391,8 +395,17 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                     </div>
 
                     {filtered.length === 0 ? (
-                        <div className="px-3 pb-3.5 text-[12px] text-colorTextTertiary">
-                            No icons match “{search}”.
+                        <div
+                            className="flex flex-col items-center justify-center gap-1 px-6 text-center"
+                            style={{height: GRID_H}}
+                        >
+                            <MagnifyingGlassIcon size={20} className="text-colorTextTertiary" />
+                            <span className="text-[13px] font-medium text-colorText">
+                                No icons found
+                            </span>
+                            <span className="max-w-full truncate text-[12px] text-colorTextTertiary">
+                                Nothing matches “{search}”
+                            </span>
                         </div>
                     ) : (
                         <IconGrid
