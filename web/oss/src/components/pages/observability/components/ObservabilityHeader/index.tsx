@@ -17,37 +17,29 @@ import {
     PICKER_CANCELLED,
     reconcileFilterRows,
 } from "@agenta/observability"
+import type {Filter as PackagedFilter} from "@agenta/observability"
+import type {FilterItem} from "@agenta/observability/filters"
+import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
-import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
-import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
-import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
 import Papa from "papaparse"
 
-import {SortResult} from "@/oss/components/Filters/Sort"
-import type {FilterItem} from "@/oss/components/Filters/types"
+import AnnotatedFilterDialog from "@/oss/components/Filters/AnnotatedFilterDialog"
 import {FILTER_COLUMN_ICONS} from "@/oss/components/pages/observability/assets/filterColumnIcons"
 import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
-import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
+import {KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
 import {useObservability} from "@/oss/state/observability"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 import {ObservabilityHeaderProps} from "../../assets/types"
-import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 import {useBatchAddTracesToQueue} from "./useBatchAddTracesToQueue"
-
-const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
-const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
 const DeleteTraceModal = dynamic(
     () => import("@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal"),
@@ -56,71 +48,19 @@ const DeleteTraceModal = dynamic(
     },
 )
 
-const AutoRefreshControl: React.FC<{
-    checked: boolean
-    onChange: (checked: boolean) => void
-    resetTrigger?: number
-}> = ({checked, onChange, resetTrigger}) => {
-    const [progress, setProgress] = useState(0)
-    const [key, setKey] = useState(0)
-
-    // Reset animation when resetTrigger changes
-    useEffect(() => {
-        if (checked && resetTrigger !== undefined) {
-            setProgress(0)
-            setKey((prev) => prev + 1)
-        }
-    }, [resetTrigger, checked])
-
-    useEffect(() => {
-        if (!checked) {
-            setProgress(0)
-            return
-        }
-
-        // Start fresh animation
-        setProgress(0)
-
-        const startTime = Date.now()
-        const interval = setInterval(() => {
-            const elapsed = Date.now() - startTime
-            const newProgress = Math.min((elapsed / AUTO_REFRESH_INTERVAL) * 100, 100)
-            setProgress(newProgress)
-        }, 100) // Update every 100ms for smooth animation
-
-        return () => clearInterval(interval)
-    }, [checked, key])
-
-    return (
-        <Space size="small" className="ml-4">
-            <Switch size="small" checked={checked} onChange={onChange} />
-            <div className="relative inline-block">
-                <Typography.Text style={{fontSize: 12}} className="text-gray-600">
-                    auto-refresh
-                </Typography.Text>
-                {checked && (
-                    <div
-                        className="absolute bottom-0 left-0 h-[2px] bg-gray-600 transition-[width] duration-100"
-                        style={{width: `${progress}%`}}
-                    />
-                )}
-            </div>
-        </Space>
-    )
-}
-
+/**
+ * The observability / sessions chrome. The controls themselves live in
+ * `@agenta/observability-ui`'s `ObservabilityToolbar`; this file keeps the app-only wiring —
+ * the CSV export pipeline, the delete modal, the add-to-testset / add-to-queue menu, and the
+ * filter dialog's column set — and hands them down as slots and callbacks.
+ */
 const ObservabilityHeader = ({
     columns,
     componentType,
     isLoading: propsLoading,
     onRefresh,
-    realtimeMode,
-    setRealtimeMode,
-    autoRefresh: propsAutoRefresh,
-    setAutoRefresh: propsSetAutoRefresh,
-    refreshTrigger: propsRefreshTrigger,
+    refreshTrigger,
 }: ObservabilityHeaderProps) => {
-    const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0)
     const [isExporting, setIsExporting] = useState(false)
     const exportAbortRef = useRef<AbortController | null>(null)
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
@@ -130,28 +70,19 @@ const ObservabilityHeader = ({
     const {
         traces,
         isLoading: isTraceLoading,
-        searchQuery,
         setSearchQuery,
         traceTabs,
         setTraceTabs,
         filters,
         setFilters,
         sort,
-        setSort,
         selectedRowKeys,
         setSelectedRowKeys,
         setTestsetDrawerData,
         fetchAnnotations,
         fetchTraces,
-        autoRefresh: hookAutoRefresh,
-        setAutoRefresh: hookSetAutoRefresh,
     } = useObservability()
-    const queryClient = useAtomValue(queryClientAtom)
     const runBatchAdd = useBatchAddTracesToQueue()
-
-    // Use props if provided (sessions), otherwise use hook (traces)
-    const autoRefresh = propsAutoRefresh ?? hookAutoRefresh
-    const setAutoRefresh = propsSetAutoRefresh ?? hookSetAutoRefresh
 
     const isLoading = propsLoading || isTraceLoading
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
@@ -188,58 +119,15 @@ const ObservabilityHeader = ({
         [],
     )
 
-    const updateFilter = useCallback(
-        ({field, operator, value}: {field: string; operator: FilterConditions; value: string}) => {
-            setFilters((prevFilters) => {
-                const otherFilters = prevFilters.filter((f) => f.field !== field)
-                return value ? [...otherFilters, {field, operator, value}] : otherFilters
-            })
+    const onApplyFilter = useCallback(
+        (newFilters: PackagedFilter[]) => {
+            setFilters(newFilters)
         },
         [setFilters],
     )
 
-    const onSearchChange = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
-            const query = e.target.value
-            setSearchQuery(query)
-
-            if (!query) {
-                setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "content"))
-            }
-        },
-        [setSearchQuery, setFilters],
-    )
-
-    const onSearchQueryApply = useCallback(() => {
-        if (searchQuery) {
-            updateFilter({
-                field: "content",
-                operator: "contains",
-                value: searchQuery,
-            })
-        }
-    }, [searchQuery, updateFilter])
-
-    const onSearchClear = useCallback(() => {
-        const isSearchFilterExist = filters.some((item) => item.field === "content")
-
-        if (isSearchFilterExist) {
-            setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "content"))
-        }
-    }, [filters])
-
-    // Sync searchQuery with filters state
-    useLazyEffect(() => {
-        const dataFilter = filters.find((f) => f.field === "content")
-        setSearchQuery(dataFilter && typeof dataFilter.value === "string" ? dataFilter.value : "")
-    }, [filters])
-
-    const onApplyFilter = useCallback((newFilters: Filter[]) => {
-        setFilters(newFilters)
-    }, [])
-
     const onClearFilter = useCallback(
-        (filter: Filter[]) => {
+        (filter: PackagedFilter[]) => {
             setFilters(filter)
             setSearchQuery("")
             if (traceTabs === "chat") {
@@ -248,43 +136,6 @@ const ObservabilityHeader = ({
         },
         [setFilters, setSearchQuery, setTraceTabs, traceTabs],
     )
-
-    const onTraceTabChange = useCallback(
-        (e: RadioChangeEvent) => {
-            const selectedTab = e.target.value
-            queryClient.removeQueries({queryKey: ["tracing"]})
-            setTraceTabs(selectedTab)
-
-            if (selectedTab === "chat") {
-                updateFilter({
-                    field: "span_type",
-                    operator: "is",
-                    value: selectedTab,
-                })
-            } else {
-                const isSpanTypeFilterExist = filters.some(
-                    (item) => item.field === "span_type" && item.value === "chat",
-                )
-
-                if (isSpanTypeFilterExist) {
-                    setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "span_type"))
-                }
-            }
-        },
-        [filters, updateFilter, queryClient, setTraceTabs, setFilters],
-    )
-
-    // Sync traceTabs with filters state
-    useLazyEffect(() => {
-        const spanTypeFilter = filters.find((f) => f.field === "span_type")?.value
-        setTraceTabs((prev) =>
-            spanTypeFilter === "chat" ? "chat" : prev == "chat" ? "trace" : prev,
-        )
-    }, [filters])
-
-    const onSortApply = useCallback(({type, sorted, customRange}: SortResult) => {
-        setSort({type, sorted, customRange})
-    }, [])
 
     const getTestsetTraceData = useCallback(() => {
         if (!traces?.length) return []
@@ -443,20 +294,16 @@ const ObservabilityHeader = ({
             exportAbortRef.current = null
             setIsExporting(false)
         }
-    }, [canExportData, columns, filters, sort, traceTabs, traces])
+    }, [canExportData, columns, filters, sort, traceTabs, traces, projectId])
 
-    const handleRefresh = async () => {
+    const handleRefresh = useCallback(async () => {
         if (componentType === "sessions") {
             await onRefresh?.()
         } else {
             await Promise.all([fetchAnnotations(), fetchTraces()])
             invalidateEvaluatorsListCache()
         }
-        setInternalRefreshTrigger((prev) => prev + 1)
-    }
-
-    // Use external refresh trigger if provided (from parent auto-refresh), otherwise use internal
-    const refreshTrigger = propsRefreshTrigger ?? internalRefreshTrigger
+    }, [componentType, onRefresh, fetchAnnotations, fetchTraces])
 
     const onDelete = useCallback(() => {
         setDeleteModalState({
@@ -536,139 +383,74 @@ const ObservabilityHeader = ({
         void onExport()
     }, [isExporting, onExport])
 
-    const renderTraceSecondaryActions = (size: "small" | "middle" = "middle") => {
-        if (componentType !== "traces") return null
+    const filtersSlot = useMemo(
+        () => (
+            <AnnotatedFilterDialog
+                filterData={filters}
+                columns={filterColumns}
+                onApplyFilter={onApplyFilter}
+                onClearFilter={onClearFilter}
+                reconcileFilterRows={reconcileRows}
+            />
+        ),
+        [filters, filterColumns, onApplyFilter, onClearFilter, reconcileRows],
+    )
 
-        return (
-            <Space size="small">
-                {canExportData ? (
-                    <Button
-                        type="text"
-                        size={size}
-                        aria-label={isExporting ? "Cancel export" : "Export traces"}
-                        onClick={handleExportClick}
-                        icon={<ExportIcon size={14} />}
-                        disabled={!isExporting && traces.length === 0}
-                    >
-                        {isExporting ? "Cancel export" : "Export"}
-                    </Button>
-                ) : null}
-                <Tooltip
-                    title={selectedRowKeys.length === 0 ? "Select traces to delete" : undefined}
-                >
-                    <span>
-                        <Button
-                            type="text"
-                            size={size}
-                            danger
-                            aria-label="Delete selected traces"
-                            onClick={onDelete}
-                            icon={<TrashIcon size={14} />}
-                            disabled={selectedRowKeys.length === 0}
-                        >
-                            Delete
-                        </Button>
-                    </span>
-                </Tooltip>
-            </Space>
-        )
-    }
+    const actionsSlot = useMemo(
+        () =>
+            componentType === "traces" ? (
+                <AddActionsDropdown
+                    dataTour="create-testset-button"
+                    testsetAction={{
+                        onSelect: getTestsetTraceData,
+                        disabled: traces.length === 0 || selectedRowKeys.length === 0,
+                    }}
+                    queueAction={{
+                        itemType: "traces",
+                        itemIds: selectedTraceIds,
+                        label:
+                            selectedTraceIds.length > 0
+                                ? `Add ${selectedTraceIds.length} selected to queue`
+                                : "Add selected to queue",
+                        disabled: traces.length === 0 || selectedTraceIds.length === 0,
+                        onItemsAdded: handleQueueItemsAdded,
+                    }}
+                    queueAllMatchingAction={{
+                        label: "Add all matching filter to queue",
+                        disabled: traces.length === 0,
+                        onBeforeOpen: onAddAllMatchingBeforeOpen,
+                        onQueueSelected: onAddAllMatchingQueueSelected,
+                    }}
+                />
+            ) : null,
+        [
+            componentType,
+            getTestsetTraceData,
+            traces.length,
+            selectedRowKeys.length,
+            selectedTraceIds,
+            handleQueueItemsAdded,
+            onAddAllMatchingBeforeOpen,
+            onAddAllMatchingQueueSelected,
+        ],
+    )
 
     return (
         <>
-            <section className="flex justify-between gap-2 flex-col">
-                <div className="w-full flex items-center gap-2 justify-between">
-                    <div className="flex items-center gap-1">
-                        <EnhancedButton
-                            aria-label="Refresh data"
-                            icon={
-                                <ArrowsClockwiseIcon
-                                    size={14}
-                                    className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
-                                />
-                            }
-                            onClick={handleRefresh}
-                            tooltipProps={{title: "Refresh data"}}
-                        />
-                        <Input.Search
-                            aria-label="Search observability data"
-                            placeholder="Search"
-                            value={searchQuery}
-                            onChange={onSearchChange}
-                            onPressEnter={onSearchQueryApply}
-                            onSearch={onSearchClear}
-                            className="w-[320px] shrink-0"
-                            allowClear
-                        />
-
-                        <Filters
-                            filterData={filters}
-                            columns={filterColumns}
-                            onApplyFilter={onApplyFilter}
-                            onClearFilter={onClearFilter}
-                            reconcileFilterRows={reconcileRows}
-                        />
-
-                        <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
-
-                        <AutoRefreshControl
-                            checked={autoRefresh}
-                            onChange={setAutoRefresh}
-                            resetTrigger={refreshTrigger}
-                        />
-                    </div>
-                </div>
-                {componentType === "traces" ? (
-                    <div className="w-full flex items-center justify-between">
-                        <Space>
-                            <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                                <Radio.Button value="trace">Root</Radio.Button>
-                                <Radio.Button value="chat">LLM</Radio.Button>
-                                <Radio.Button value="span">All</Radio.Button>
-                            </Radio.Group>
-                        </Space>
-                        <Space>
-                            {renderTraceSecondaryActions()}
-                            <AddActionsDropdown
-                                dataTour="create-testset-button"
-                                testsetAction={{
-                                    onSelect: getTestsetTraceData,
-                                    disabled: traces.length === 0 || selectedRowKeys.length === 0,
-                                }}
-                                queueAction={{
-                                    itemType: "traces",
-                                    itemIds: selectedTraceIds,
-                                    label:
-                                        selectedTraceIds.length > 0
-                                            ? `Add ${selectedTraceIds.length} selected to queue`
-                                            : "Add selected to queue",
-                                    disabled: traces.length === 0 || selectedTraceIds.length === 0,
-                                    onItemsAdded: handleQueueItemsAdded,
-                                }}
-                                queueAllMatchingAction={{
-                                    label: "Add all matching filter to queue",
-                                    disabled: traces.length === 0,
-                                    onBeforeOpen: onAddAllMatchingBeforeOpen,
-                                    onQueueSelected: onAddAllMatchingQueueSelected,
-                                }}
-                            />
-                        </Space>
-                    </div>
-                ) : null}
-                {componentType === "sessions" && setRealtimeMode ? (
-                    <div className="w-full flex items-center justify-end">
-                        <Space>
-                            <Radio.Group
-                                value={realtimeMode ? "latest" : "all"}
-                                onChange={(e) => setRealtimeMode(e.target.value === "latest")}
-                            >
-                                <Radio.Button value="all">All activity</Radio.Button>
-                                <Radio.Button value="latest">Latest activity</Radio.Button>
-                            </Radio.Group>
-                        </Space>
-                    </div>
-                ) : null}
-            </section>
+            <ObservabilityToolbar
+                componentType={componentType}
+                isLoading={isLoading}
+                onRefresh={handleRefresh}
+                refreshTrigger={refreshTrigger}
+                onExport={
+                    componentType === "traces" && canExportData ? handleExportClick : undefined
+                }
+                isExporting={isExporting}
+                onDelete={componentType === "traces" ? onDelete : undefined}
+                filtersSlot={filtersSlot}
+                sortSlot={<ObservabilityRangePicker />}
+                actionsSlot={actionsSlot}
+            />
             <DeleteTraceModal />
         </>
     )

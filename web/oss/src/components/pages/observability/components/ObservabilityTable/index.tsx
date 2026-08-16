@@ -1,6 +1,7 @@
 import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
 import {annotationEvaluatorSlugsAtom} from "@agenta/observability"
+import {AUTO_REFRESH_INTERVAL} from "@agenta/observability-ui"
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
@@ -19,7 +20,6 @@ import {
     getObservabilityColumns,
     type TraceRow,
 } from "../../assets/getObservabilityColumns"
-import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 const ObservabilityHeader = dynamic(() => import("../ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("../EmptyObservability"), {ssr: false})

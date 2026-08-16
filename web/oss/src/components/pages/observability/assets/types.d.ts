@@ -4,15 +4,11 @@ import {ColumnsType} from "antd/es/table"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 export interface ObservabilityHeaderProps {
+    /** Only the CSV export pipeline reads this — it derives the header row from the column titles. */
     columns: ColumnsType<any>
     componentType: "traces" | "sessions"
     isLoading?: boolean
     onRefresh?: () => void | Promise<void>
-    // Session-specific props
-    realtimeMode?: boolean
-    setRealtimeMode?: (value: boolean) => void
-    autoRefresh?: boolean
-    setAutoRefresh?: (value: boolean) => void
     refreshTrigger?: number
 }
 
