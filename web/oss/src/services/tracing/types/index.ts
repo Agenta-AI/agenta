@@ -9,34 +9,4 @@ export interface TraceSpanNode extends EntityTraceSpanNode {
     annotations?: AnnotationDto[]
 }
 
-// AGE-3788: `TracingDashboardData` (the old success/error bucket split returned
-// by the deprecated `/tracing/spans/analytics`) was removed. The dashboard now
-// reads spec-based metric buckets from `/spans/analytics/query` via the entities
-// `AnalyticsResponse` type; `analyticsToGeneration` maps them onto
-// `GenerationDashboardData` below.
-
-export interface GenerationDashboardData {
-    data: {
-        timestamp: number | string
-        success_count: number
-        failure_count: number
-        cost: number
-        latency: number
-        total_tokens: number
-        // The new `/spans/analytics/query` metrics do not split tokens by
-        // prompt/completion and carry no environment/variant per bucket. These
-        // were never populated by the legacy transform either and are unread by
-        // the observability dashboard, so they are optional.
-        prompt_tokens?: number
-        completion_tokens?: number
-        enviornment?: string
-        variant?: string
-    }[]
-    total_count: number
-    failure_rate: number
-    total_cost: number
-    avg_cost: number
-    avg_latency: number
-    total_tokens: number
-    avg_tokens: number
-}
+// Import `DashboardData` from @agenta/observability.
