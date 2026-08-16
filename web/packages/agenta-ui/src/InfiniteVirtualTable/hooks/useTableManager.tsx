@@ -1,12 +1,12 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {Key, MouseEvent, ReactNode, RefObject} from "react"
 
-import {Grid} from "antd"
 import type {WritableAtom} from "jotai"
 import {useAtom} from "jotai"
 import {atom} from "jotai"
 
 import {SearchInput} from "../../components/ui/input-composed"
+import {useIsNarrowScreen} from "../../hooks/useMediaQuery"
 import {cn} from "../../utils/styles"
 import type {ColumnDefs} from "../columnDef"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
@@ -233,9 +233,7 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     exportDisabledTooltip = "Select items to export",
     exportFilename = "table-export.csv",
 }: UseTableManagerConfig<T>): UseTableManagerReturn<T> {
-    // Responsive breakpoints
-    const screens = Grid.useBreakpoint()
-    const isNarrowScreen = !screens.lg
+    const isNarrowScreen = useIsNarrowScreen()
 
     // Normalize search config
     const searchConfig = search === true ? {} : search || undefined
