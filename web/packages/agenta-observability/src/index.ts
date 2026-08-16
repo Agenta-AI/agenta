@@ -102,3 +102,8 @@ export {
 export {withRateLimitRetry, type RateLimitRetryOptions} from "./etl/withRateLimitRetry"
 export * from "./etl/exportWriter"
 export {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "./etl/exportUtils"
+
+// ============================================================================
+// Trace tree shaping — shared by the desktop drawer and the mobile trace list
+// ============================================================================
+export * from "./trace"

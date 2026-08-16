@@ -1,6 +1,6 @@
 import React from "react"
 
-import {SpanVisibilityMode} from "../TraceTree/assets/spanVisibility"
+import type {SpanVisibilityMode} from "@agenta/observability"
 
 export interface TraceTreeSettingsState {
     latency: boolean

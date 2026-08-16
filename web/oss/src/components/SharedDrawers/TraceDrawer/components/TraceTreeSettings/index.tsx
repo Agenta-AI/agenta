@@ -1,10 +1,9 @@
 import {ReactNode} from "react"
 
+import {SPAN_VISIBILITY_OPTIONS, type SpanVisibilityMode} from "@agenta/observability"
 import {Check} from "@phosphor-icons/react"
 import {Divider, Switch, Typography} from "antd"
 import clsx from "clsx"
-
-import {SPAN_VISIBILITY_OPTIONS, SpanVisibilityMode} from "../TraceTree/assets/spanVisibility"
 
 import {TraceTreeSettingsProps} from "./types"
 
