@@ -124,6 +124,13 @@ const RowLabel = ({
     )
 }
 
+/** A group heading inside a submenu — a label over the rows below it, never a row itself. */
+const GroupLabelRow = ({title}: {title: ReactNode}) => (
+    <p className="m-0 mx-auto w-[94%] px-3 pb-0.5 pt-2 text-[10px] uppercase tracking-wide text-colorTextTertiary select-none">
+        {title}
+    </p>
+)
+
 const LeafRow = ({
     item,
     selected,
@@ -158,7 +165,7 @@ const FlyoutChildren = ({
 }) => (
     <>
         {items.map((child) =>
-            child.isPlaceholder ? (
+            child.isPlaceholder || child.isGroupLabel ? (
                 <DropdownMenuLabel key={child.key} className="text-xs text-colorTextTertiary">
                     {child.title}
                 </DropdownMenuLabel>
@@ -319,6 +326,10 @@ const NavMenuImpl = ({
                     </HeightCollapse>
                 </Fragment>
             )
+        }
+
+        if (item.isGroupLabel) {
+            return <GroupLabelRow key={item.key} title={item.title} />
         }
 
         return (

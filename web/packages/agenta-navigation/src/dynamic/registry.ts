@@ -87,7 +87,9 @@ const ENTITIES: SidebarEntity[] = [
                 title: session.name ?? undefined,
             })
         },
-        getGroup: (session) => (session.pinned ? "Pinned" : null),
+        // Both halves are named or neither is: a lone "Pinned" heading over an unlabelled
+        // remainder reads as a stray row. The resolver drops both when nothing is pinned.
+        getGroup: (session) => (session.pinned ? "Pinned" : "Recent"),
         getIcon: (session) =>
             session.pinned
                 ? createElement(PushPinIcon, {size: 14, weight: "fill"})

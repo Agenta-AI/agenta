@@ -4,6 +4,8 @@
  * a mobile drawer compose the same pieces; data and routing arrive as props.
  */
 export {NavMenu, type NavItem, type NavMenuMode, type NavMenuProps} from "./NavMenu"
+export {default as SidebarShell} from "./SidebarShell"
+export {SidebarLogo} from "./SidebarLogo"
 export {SidebarSelectionButton, type SidebarSelectionButtonProps} from "./SidebarSelectionButton"
 export {SidebarBackButton, type SidebarBackButtonProps} from "./SidebarBackButton"
 export {SidebarSkeletonLoader} from "./SidebarSkeletonLoader"

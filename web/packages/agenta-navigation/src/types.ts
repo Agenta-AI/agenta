@@ -23,6 +23,8 @@ export interface SidebarConfig {
     isDynamic?: boolean
     isLoading?: boolean
     isPlaceholder?: boolean
+    /** A heading over the items below it, not a row: no icon, no hover, no click target. */
+    isGroupLabel?: boolean
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Workflow categories that support this item. Omit to support every category. */
@@ -80,4 +82,8 @@ export interface SidebarShellProps {
     openGroupsAtomFamily: (scopeId: string) => WritableAtom<string[] | undefined, [string[]], void>
     scope: SidebarScope
     theme?: "light" | "dark"
+    /** Extra classes on the rail's outer frame — mounts differ (docked rail vs drawer sheet). */
+    className?: string
+    /** Called when a nav link is clicked; the drawer mount uses it to close itself. */
+    onNavigate?: () => void
 }

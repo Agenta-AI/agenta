@@ -1,10 +1,15 @@
 import React, {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
-import {NavMenu} from "@agenta/navigation-ui"
+import {
+    filterVisibleSections,
+    type SidebarConfig,
+    type SidebarScope,
+    type SidebarSection,
+    type SidebarShellProps,
+} from "@agenta/navigation"
 import {useAtom} from "jotai"
 
-import type {SidebarConfig, SidebarScope, SidebarSection, SidebarShellProps} from "./types"
-import {filterVisibleSections} from "./visibility"
+import {NavMenu} from "./NavMenu"
 
 class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {hasError: boolean}> {
     state = {hasError: false}
@@ -104,22 +109,6 @@ const findDefaultOpenKeys = (items: SidebarConfig[]) => {
     return keys
 }
 
-const findNavigableGroupKeys = (items: SidebarConfig[]) => {
-    const keys = new Set<string>()
-
-    const visit = (nodes: SidebarConfig[]) => {
-        nodes.forEach((item) => {
-            if (item.submenu?.length) {
-                if (item.link) keys.add(item.key)
-                visit(item.submenu)
-            }
-        })
-    }
-
-    visit(items)
-    return keys
-}
-
 const uniqueKeys = (keys: string[]) => Array.from(new Set(keys))
 
 const haveSameKeys = (left: string[], right: string[]) =>
@@ -141,6 +130,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     openGroupsAtomFamily,
     scope,
     theme,
+    className,
+    onNavigate,
 }) => {
     const [collapsed] = useAtom(collapsedAtom)
     const openGroupsAtom = useMemo(
@@ -182,7 +173,6 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 : routeOpenKeys,
         [allItems, routeOpenKeys, selectedKey, selection.mode],
     )
-    const navigableGroupKeys = useMemo(() => findNavigableGroupKeys(allItems), [allItems])
     const persistedOrDefaultOpenGroups = persistedOpenGroups ?? defaultOpenKeys
     const openKeys = useMemo(
         () => uniqueKeys(persistedOrDefaultOpenGroups),
@@ -206,19 +196,6 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         selectedKey,
         setPersistedOpenGroups,
     ])
-
-    const handleOpenChange = useCallback(
-        (keys: string[]) => {
-            const requestedKeys = new Set(keys)
-            const nextOpenKeys = uniqueKeys([
-                ...keys.filter((key) => !navigableGroupKeys.has(key)),
-                ...persistedOrDefaultOpenGroups.filter((key) => navigableGroupKeys.has(key)),
-            ]).filter((key) => requestedKeys.has(key) || navigableGroupKeys.has(key))
-
-            setPersistedOpenGroups(nextOpenKeys)
-        },
-        [navigableGroupKeys, persistedOrDefaultOpenGroups, setPersistedOpenGroups],
-    )
 
     const handleToggleOpenKey = useCallback(
         (key: string) => {
@@ -263,12 +240,30 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const topSections = visibleSections.filter((section) => section.placement !== "bottom")
     const bottomSections = visibleSections.filter((section) => section.placement === "bottom")
 
+    // Navigation notifies the host (the drawer closes itself); expand toggles and group
+    // headers must not — hence the anchor check rather than a blanket click handler.
+    const handleFrameClick = onNavigate
+        ? (event: React.MouseEvent<HTMLDivElement>) => {
+              if ((event.target as HTMLElement).closest("a")) onNavigate()
+          }
+        : undefined
+
     return (
-        <div className="border-0 border-r border-solid border-[var(--ag-shell-line)]">
+        <div
+            className={[
+                "border-0 border-r border-solid border-[var(--ag-shell-line)]",
+                className ?? "",
+            ]
+                .join(" ")
+                .trim()}
+            onClick={handleFrameClick}
+        >
             <aside
                 data-theme={theme}
                 className={[
-                    "sticky top-0 bottom-0 h-screen bg-[var(--ag-sidebar-bg)] transition-all duration-300",
+                    // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
+                    // document-scrolling routes; 0px everywhere else.
+                    "sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
                     collapsed ? "w-[48px]" : "w-[236px]",
                 ].join(" ")}
             >
