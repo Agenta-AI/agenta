@@ -9,45 +9,45 @@ This module provides React components for LLM provider logos. Each icon is a pur
 ## Quick Start
 
 ```tsx
-import {LLMIconMap, OpenAi, Anthropic} from '@agenta/ui'
+import {LLMIconMap, OpenAi, Anthropic} from "@agenta/ui"
 
 // Using the map
 function ProviderIcon({provider}: {provider: string}) {
-  const Icon = LLMIconMap[provider]
-  if (!Icon) return null
-  return <Icon className="w-4 h-4" />
+    const Icon = LLMIconMap[provider]
+    if (!Icon) return null
+    return <Icon className="w-4 h-4" />
 }
 
 // Direct import
 function OpenAIIcon() {
-  return <OpenAi className="w-6 h-6" />
+    return <OpenAi className="w-6 h-6" />
 }
 ```
 
 ## Available Providers
 
-| Provider Name | Component |
-|--------------|-----------|
-| OpenAI | `OpenAi` |
-| Anthropic | `Anthropic` |
-| Google Gemini | `Gemini` |
-| Google Vertex AI | `Vertex` |
-| AWS Bedrock | `Bedrock` |
-| AWS SageMaker | `Sagemaker` |
-| Azure OpenAI | `Azure` |
-| Mistral AI | `Mistral` |
-| Cohere | `Cerebus` |
-| Together AI | `Together` |
-| OpenRouter | `OpenRouter` |
-| Groq | `Groq` |
-| Perplexity AI | `Perplexity` |
-| Anyscale | `AnyScale` |
-| DeepInfra | `DeepInfra` |
-| Aleph Alpha | `AlephAlpha` |
-| Fireworks | `Fireworks` |
-| Lepton | `Lepton` |
-| Replicate | `Replicate` |
-| xAI | `XAI` |
+| Provider Name    | Component    |
+| ---------------- | ------------ |
+| OpenAI           | `OpenAi`     |
+| Anthropic        | `Anthropic`  |
+| Google Gemini    | `Gemini`     |
+| Google Vertex AI | `Vertex`     |
+| AWS Bedrock      | `Bedrock`    |
+| AWS SageMaker    | `Sagemaker`  |
+| Azure OpenAI     | `Azure`      |
+| Mistral AI       | `Mistral`    |
+| Cohere           | `Cerebus`    |
+| Together AI      | `Together`   |
+| OpenRouter       | `OpenRouter` |
+| Groq             | `Groq`       |
+| Perplexity AI    | `Perplexity` |
+| Anyscale         | `AnyScale`   |
+| DeepInfra        | `DeepInfra`  |
+| Aleph Alpha      | `AlephAlpha` |
+| Fireworks        | `Fireworks`  |
+| Lepton           | `Lepton`     |
+| Replicate        | `Replicate`  |
+| xAI              | `XAI`        |
 
 ## API Reference
 

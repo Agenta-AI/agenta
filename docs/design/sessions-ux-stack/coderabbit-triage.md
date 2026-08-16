@@ -383,6 +383,22 @@ The sibling claim holds: `--ag-c-13C2C2` is `#13c2c2` in BOTH themes, while
 `--ag-preset-cyan-text` is `#006d75` light / `#33bcb7` dark. That icon really was a fixed cyan
 that ignored the theme.
 
+### Not actionable at the call site (verified)
+
+| finding | why |
+|---|---|
+| #5876 route mount downloads through Fern | `MountsClient` exposes no download method — `GET /mounts/{id}/files/download` is not in the generated spec. Needs codegen, not a call-site change. Axios also carries the progress and blob handling this path relies on. |
+| #5893 secret sheets should treat an empty field as "keep stored" | `createStandardSecret` THROWS on a missing `key` (`atoms.ts`: "Missing key for provider"). The write path has no partial update, so the rule `WebhookFormSheet` uses cannot be applied here without backend support. |
+| #5878 ungrouped entries as a labelled group | Reads as correct: `null` counts toward `distinctGroups` precisely so a part-pinned list shows the "Pinned" heading that separates it from the rest. Changing it would drop that heading. |
+
+### Stale on current code (checked, not fixed)
+
+`jotai-family` is declared by every package that imports it · `--ag-c-0517290F` and `error: any`
+are already gone from the settings package · `--ant-font-size-heading-*` has no usages left ·
+`workspaceId` is already passed to `useApiKeys` · `RowActions` already returns null for an empty
+menu (only the empty COLUMN remained, now fixed) · `TooltipProvider` already wraps the toggle-row
+tooltip (only its unfocusable trigger remained, now fixed).
+
 ### Left
 
 The bulk is #5894 (14 doc findings against the stack runbooks), #5889, and the remaining

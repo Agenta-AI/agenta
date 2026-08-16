@@ -34,7 +34,7 @@ const CopiedToast = ({open, text, onDone}: {open: boolean; text: string; onDone:
                 visible ? "opacity-100" : "opacity-0"
             }`}
         >
-            <Check size={15} strokeWidth={2.4} className="shrink-0 text-[var(--ant-lime-6)]" />
+            <Check size={15} strokeWidth={2.4} className="shrink-0 text-colorSuccess" />
             {text}
         </div>,
         document.body,

@@ -211,6 +211,9 @@ const TabBody = ({
         // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry
         // no antd theming and render correctly here.
         case "tools":
+            // Gated here too, not only in `useActiveSettingsTab`: a render boundary that trusts
+            // the router is one refactor away from rendering a disabled surface.
+            if (!access.canShowTools) return null
             return (
                 <>
                     <GatewayToolsSection confirm={confirm} />
@@ -218,6 +221,7 @@ const TabBody = ({
                 </>
             )
         case "triggers":
+            if (!access.canShowTriggers) return null
             return (
                 <div className="flex flex-col gap-8">
                     <TriggerConnectionsSection confirm={confirm} />

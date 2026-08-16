@@ -56,8 +56,12 @@
     --ag-controlOutline: rgba(5, 23, 41, 0.1);
     --ag-errorOutline: rgba(214, 16, 16, 0.06);
     --ag-colorWhite: #ffffff;
-    --ag-boxShadowTertiary: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
-    --ag-boxShadowSecondary: 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
+    --ag-boxShadowTertiary:
+        0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02),
+        0 2px 4px 0 rgba(0, 0, 0, 0.02);
+    --ag-boxShadowSecondary:
+        0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12),
+        0 9px 28px 8px rgba(0, 0, 0, 0.05);
 
     /* --- scales --- */
     --ag-zinc-1: #f5f7fa;
@@ -409,8 +413,12 @@
     --ag-controlOutline: rgba(251, 251, 96, 0.29);
     --ag-errorOutline: rgba(238, 38, 56, 0.11);
     --ag-colorWhite: #ffffff;
-    --ag-boxShadowTertiary: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 1px 6px -1px rgba(0, 0, 0, 0.20), 0 2px 4px 0 rgba(0, 0, 0, 0.20);
-    --ag-boxShadowSecondary: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28);
+    --ag-boxShadowTertiary:
+        0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px 0 rgba(0, 0, 0, 0.3),
+        0 1px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+    --ag-boxShadowSecondary:
+        0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44),
+        0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28);
 
     /* --- scales --- */
     --ag-zinc-1: #242424;
@@ -630,7 +638,7 @@
     --ag-strip-card-hover-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.45);
     --ag-shell-rail-bg: #101010;
     --ag-shell-line: #2c2c2c;
-    --ag-scroll-thumb: rgba(255, 255, 255, 0.20);
+    --ag-scroll-thumb: rgba(255, 255, 255, 0.2);
     --ag-scroll-thumb-hover: rgba(255, 255, 255, 0.34);
     --ag-sidebar-bg: var(--ag-shell-rail-bg);
 
