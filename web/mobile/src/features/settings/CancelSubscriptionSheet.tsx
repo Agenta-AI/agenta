@@ -1,6 +1,10 @@
 import {useState} from "react"
 
-import {cancelBillingSubscription} from "@agenta/settings-ui"
+import {
+    cancelBillingSubscription,
+    CancelSubscriptionReasons,
+    CANCEL_REASON_OTHER,
+} from "@agenta/settings-ui"
 
 import {Button} from "@/components/ui/button"
 import {
@@ -19,13 +23,14 @@ interface Props {
     onChanged: () => void
 }
 
-/**
- * Ends auto-renewal. No exit questionnaire: `POST /billing/subscription/cancel` takes nothing
- * but the project, so asking why would collect an answer with nowhere to go.
- */
+/** Ends auto-renewal, after asking why. */
 export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChanged}: Props) => {
+    const [reason, setReason] = useState("")
+    const [otherReason, setOtherReason] = useState("")
     const [cancelling, setCancelling] = useState(false)
     const [error, setError] = useState<string | null>(null)
+
+    const canConfirm = Boolean(reason) && (reason !== CANCEL_REASON_OTHER || Boolean(otherReason))
 
     const confirm = async () => {
         setError(null)
@@ -34,6 +39,8 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
             await cancelBillingSubscription(projectId)
             onChanged()
             onOpenChange(false)
+            setReason("")
+            setOtherReason("")
         } catch {
             setError("We couldn't cancel your subscription. Try again, or contact support.")
         } finally {
@@ -51,15 +58,18 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
                     </SheetDescription>
                 </SheetHeader>
                 <div className="px-4">
-                    <p className="m-0 text-xs text-colorTextSecondary">
-                        Your organization moves to the free plan when the period ends.
-                    </p>
-                    {error ? <p className="m-0 pt-2 text-xs text-colorError">{error}</p> : null}
+                    <CancelSubscriptionReasons
+                        value={reason}
+                        onChange={setReason}
+                        otherReason={otherReason}
+                        onOtherReasonChange={setOtherReason}
+                    />
+                    {error ? <p className="m-0 pt-2 text-sm text-colorError">{error}</p> : null}
                 </div>
                 <SheetFooter>
                     <Button
                         variant="destructive"
-                        disabled={cancelling}
+                        disabled={!canConfirm || cancelling}
                         onClick={() => void confirm()}
                     >
                         {cancelling ? "Cancelling…" : "Confirm"}

@@ -72,17 +72,8 @@ export const AgentOverviewScreen = ({
                                 </h1>
                                 {/* The same verbs the desktop header offers; rename and delete
                                     fall through to the shared implementations here, since /m has
-                                    no app-management modals of its own.
-
-                                    Held back until the record lands, like every other agent fact
-                                    on this screen: until then `name` is the "Agent" placeholder,
-                                    so a rename would open seeded with it and the destructive
-                                    verbs would act on an agent whose name and slug are unknown. */}
-                                {agent ? (
-                                    <AgentActionsMenu
-                                        agent={{id: agentId, name, slug: agent.slug}}
-                                    />
-                                ) : null}
+                                    no app-management modals of its own. */}
+                                <AgentActionsMenu agent={{id: agentId, name, slug: agent?.slug}} />
                             </ContentRail>
                         </div>
                     }
@@ -94,10 +85,6 @@ export const AgentOverviewScreen = ({
                         `h-full`, so a plain block here leaves them with no definite height and
                         the left column scrolls inside a stunted box. */}
                     <ContentRail className="flex min-h-0 flex-1 flex-col px-2 pb-4 pt-2 lg:max-w-none lg:px-16 lg:pb-6 lg:pt-5">
-                        {/* `sessionsHref` is the PROJECT-wide list — /m has no agent-scoped
-                            sessions route — hence no `sessionsHrefScopesAgent`: the cards hand
-                            this agent over as a filter, or "View all" lands on a list of
-                            everyone else's sessions too. */}
                         <AgentOverviewBody
                             alwaysShowPin
                             composer={

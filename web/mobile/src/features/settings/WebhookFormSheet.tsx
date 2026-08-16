@@ -31,16 +31,6 @@ const EVENT_OPTIONS: {label: string; value: WebhookEventType}[] = [
 
 type AuthMode = "signature" | "authorization"
 
-/** Only http(s) endpoints are deliverable — anything else fails at the first attempt. */
-const isHttpUrl = (raw: string) => {
-    try {
-        const {protocol} = new URL(raw)
-        return protocol === "http:" || protocol === "https:"
-    } catch {
-        return false
-    }
-}
-
 /**
  * Subscribe an endpoint, or edit one. Covers the `webhook` provider — a URL of your own,
  * signed or bearer-authorised. GitHub dispatch subscriptions are desktop-only: they are a
@@ -57,9 +47,6 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
     const [name, setName] = useState("")
     const [url, setUrl] = useState("")
     const [eventType, setEventType] = useState<WebhookEventType>(EVENT_OPTIONS[0].value)
-    // Types this sheet has no control for — a subscription made elsewhere can carry several.
-    // They ride along untouched so an edit here never silently unsubscribes anything.
-    const [extraEventTypes, setExtraEventTypes] = useState<WebhookEventType[]>([])
     const [authMode, setAuthMode] = useState<AuthMode>("signature")
     const [authValue, setAuthValue] = useState("")
     const [saving, setSaving] = useState(false)
@@ -73,9 +60,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
         setSaving(false)
         setName(editing?.name ?? "")
         setUrl(editing?.data?.url ?? "")
-        const storedTypes = editing?.data?.event_types ?? []
-        setEventType(storedTypes[0] ?? EVENT_OPTIONS[0].value)
-        setExtraEventTypes(storedTypes.slice(1))
+        setEventType(editing?.data?.event_types?.[0] ?? EVENT_OPTIONS[0].value)
         setAuthMode((editing?.data?.auth_mode as AuthMode) ?? "signature")
         setAuthValue("")
     }, [open, editing])
@@ -90,7 +75,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
         setError(null)
         const data = {
             url: url.trim(),
-            event_types: [eventType, ...extraEventTypes.filter((type) => type !== eventType)],
+            event_types: [eventType],
             auth_mode: authMode,
         }
         try {
@@ -119,22 +104,9 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                             : {}),
                     },
                 })
-                // A signed subscription mints a secret the backend returns exactly once. Only
-                // `secret` is that value — `secret_id` names the stored record and verifies
-                // nothing, so it is never a stand-in.
-                const secret = created.subscription?.secret
-                if (authMode === "signature") {
-                    if (!secret) {
-                        // The subscription exists, so refresh the list; but say the secret is
-                        // missing rather than show an id the user would sign against and fail.
-                        onSuccess()
-                        setError(
-                            "Subscribed, but Agenta returned no signing secret. Delete this subscription and create it again to get one.",
-                        )
-                        return
-                    }
-                    setCreatedSecret(secret)
-                }
+                // A signed subscription mints a secret the backend returns exactly once.
+                const secret = created.subscription?.secret || created.subscription?.secret_id
+                if (authMode === "signature" && secret) setCreatedSecret(secret)
             }
             onSuccess()
             close()
@@ -145,12 +117,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
         }
     }
 
-    // Reported only once something has been typed, so an untouched form is not scolded.
-    const urlError =
-        url.trim() && !isHttpUrl(url.trim())
-            ? "Enter a full URL, including http:// or https://."
-            : null
-    const canSubmit = isHttpUrl(url.trim()) && !saving
+    const canSubmit = Boolean(url.trim()) && !saving
 
     return (
         <Sheet
@@ -185,23 +152,10 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                             placeholder="https://example.com/hooks/agenta"
                             autoComplete="off"
                             spellCheck={false}
-                            aria-invalid={Boolean(urlError)}
                         />
-                        {urlError ? (
-                            <span className="text-xs text-colorError">{urlError}</span>
-                        ) : null}
                     </Field>
 
-                    <Field
-                        label="Event"
-                        hint={
-                            extraEventTypes.length
-                                ? `Also subscribed to ${extraEventTypes.length} event type${
-                                      extraEventTypes.length === 1 ? "" : "s"
-                                  } this app cannot edit. Saving keeps them.`
-                                : undefined
-                        }
-                    >
+                    <Field label="Event">
                         <Select
                             value={eventType}
                             onValueChange={(next) => setEventType(next as WebhookEventType)}

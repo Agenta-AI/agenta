@@ -87,10 +87,8 @@ export const resolveChildren = (
     const visibleRefs = refs.slice(0, entity.maxItems)
     // A heading only earns its row when it separates something: with one group (everything pinned,
     // or nothing pinned) it labels the whole list and says nothing the list does not.
-    // ...and only when EVERY visible ref is named: one heading above an unlabelled remainder
-    // reads as a stray row, so an entity that groups just some of its refs gets no headings.
-    const groups = visibleRefs.map((ref) => entity.getGroup?.(ref) ?? null)
-    const groupsAreInformative = groups.every(Boolean) && new Set(groups).size > 1
+    const distinctGroups = new Set(visibleRefs.map((ref) => entity.getGroup?.(ref) ?? null))
+    const groupsAreInformative = distinctGroups.size > 1
     const children: SidebarConfig[] = []
     let currentGroup: string | null = null
     for (const ref of visibleRefs) {

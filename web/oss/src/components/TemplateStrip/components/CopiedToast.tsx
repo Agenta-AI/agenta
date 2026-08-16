@@ -34,10 +34,7 @@ const CopiedToast = ({open, text, onDone}: {open: boolean; text: string; onDone:
                 visible ? "opacity-100" : "opacity-0"
             }`}
         >
-            {/* The success role, not a palette pick: `--ag-colorSuccess` is themed (and defined
-                in the shared token layer mobile imports), where `--ant-lime-6` exists only where
-                antd's CSS-var theme is injected. */}
-            <Check size={15} strokeWidth={2.4} className="shrink-0 text-[var(--ag-colorSuccess)]" />
+            <Check size={15} strokeWidth={2.4} className="shrink-0 text-[var(--ant-lime-6)]" />
             {text}
         </div>,
         document.body,

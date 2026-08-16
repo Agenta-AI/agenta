@@ -10,17 +10,8 @@ import {NextTriggersSection} from "./NextTriggersSection"
 
 export interface AgentOverviewBodyProps {
     agentId: string
-    /**
-     * Where both list cards' "View all" lands. Omit while the host's routing is unresolved — the
-     * cards then render the header affordances without a target, rather than linking to `""`.
-     */
-    sessionsHref?: string
-    /**
-     * `sessionsHref` is this agent's OWN sessions route, so it re-applies the agent scope itself
-     * and the cards must hand over a scope with the agent CLEARED. Leave off for a project-level
-     * route, where the agent has to travel as a filter or the list opens showing every agent.
-     */
-    sessionsHrefScopesAgent?: boolean
+    /** Where both list cards' "View all" lands. */
+    sessionsHref: string
     /**
      * The start-a-session composer, above the lists. Host-owned because starting a session is:
      * the desktop opens the playground transport, mobile routes to its chat screen.
@@ -50,7 +41,6 @@ export interface AgentOverviewBodyProps {
 export const AgentOverviewBody = ({
     agentId,
     sessionsHref,
-    sessionsHrefScopesAgent,
     composer,
     onEditConfig,
     usage,
@@ -75,7 +65,6 @@ export const AgentOverviewBody = ({
                         limit={6}
                         emptyText="Conversations with this agent will show up here."
                         viewAllHref={sessionsHref}
-                        viewAllScopesAgent={sessionsHrefScopesAgent}
                         alwaysShowPin={alwaysShowPin}
                         onOpenRow={onOpenRow}
                         menuFor={menuFor}
@@ -92,7 +81,6 @@ export const AgentOverviewBody = ({
                         minHeightClassName="min-h-[100px]"
                         emptyText="Runs from automations bound to this agent will show up here."
                         viewAllHref={sessionsHref}
-                        viewAllScopesAgent={sessionsHrefScopesAgent}
                         alwaysShowPin={alwaysShowPin}
                         onOpenRow={onOpenRow}
                         menuFor={menuFor}

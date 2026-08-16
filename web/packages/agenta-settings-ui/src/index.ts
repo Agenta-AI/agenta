@@ -16,12 +16,6 @@ export {
     type ProjectDialogState,
 } from "./projects/ProjectsPage"
 export {MembersPage, type MembersPageProps} from "./members/MembersPage"
-export {
-    resolveWorkspacePermissions,
-    CLOSED_WORKSPACE_PERMISSIONS,
-    type WorkspacePermissionInput,
-    type WorkspacePermissions,
-} from "./members/workspacePermissions"
 export {AuditLogPage, type AuditLogPageProps} from "./audit/AuditLogPage"
 export {BillingPage, type BillingPageProps} from "./billing/BillingPage"
 export {PricingPlans, type PricingPlansProps} from "./billing/PricingPlans"
@@ -41,7 +35,6 @@ export {
     checkoutBillingSubscription,
     openBillingPortal,
 } from "./billing/api"
-export {reserveTab, type ReservedTab} from "./billing/reserveTab"
 export {
     useBillingCatalog,
     type BillingCatalog,

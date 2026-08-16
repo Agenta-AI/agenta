@@ -6,7 +6,6 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchDashboardAnalytics} from "../api/dashboard"
-import {toRangeStart} from "../core/presets"
 import type {AnalyticsRange, DashboardData} from "../core/types"
 
 dayjs.extend(utc)
@@ -16,7 +15,7 @@ const DEFAULT_RANGE_DAYS = 30
 /** The window every usage surface shares — one picker anywhere moves them all, as before. */
 export const observabilityRangeAtom = atom<AnalyticsRange>({
     type: "standard",
-    sorted: toRangeStart(dayjs().utc().subtract(DEFAULT_RANGE_DAYS, "days")),
+    sorted: dayjs().utc().subtract(DEFAULT_RANGE_DAYS, "days").toISOString().split(".")[0],
     customRange: {},
     label: "1 month",
 })
@@ -58,16 +57,13 @@ export const useObservabilityDashboard = (
 ): ObservabilityDashboardState => {
     const query = useAtomValue(observabilityDashboardQueryAtomFamily(appId))
 
-    const {data, isFetching, isLoading, error, refetch, fetchStatus} = query
+    const {data, isPending, isFetching, isLoading, error, refetch, fetchStatus} = query
 
     const fetching = fetchStatus === "fetching"
 
     return {
         data: data ?? null,
-        // Not `isPending`: a disabled query (no project yet) stays pending forever with
-        // `fetchStatus: "idle"`, which would leave the dashboard spinning before a project
-        // resolves. `isLoading` is `isPending && isFetching`, so it clears with the fetch.
-        loading: Boolean(fetching || isLoading),
+        loading: Boolean(fetching || isPending || isLoading),
         isFetching: Boolean(isFetching) || fetching,
         error,
         refetch,

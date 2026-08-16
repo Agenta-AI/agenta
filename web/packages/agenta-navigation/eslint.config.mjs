@@ -3,7 +3,7 @@
  * allowed (they orchestrate state), rendering is not — rails, drawers, and rows live in the
  * apps and @agenta/ui. The antd ban is the package's contract with the mobile app.
  */
-import base from "../eslint.config.mjs"
+import base, {restrictedImportPaths} from "../eslint.config.mjs"
 
 export default [
     ...base,
@@ -12,6 +12,7 @@ export default [
             "no-restricted-imports": [
                 "error",
                 {
+                    paths: [...restrictedImportPaths],
                     patterns: [
                         {
                             group: [

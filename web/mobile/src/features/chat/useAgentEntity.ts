@@ -12,10 +12,6 @@ import {useQuery} from "@tanstack/react-query"
  * Null while resolving or for a session with no turns yet (no references → nothing to invoke);
  * the composer disables itself on null. `fallbackAgentId` covers exactly that case for a
  * session Home just minted: it has no turns to name its agent, so the route carries it.
- *
- * The fallback arrives from the URL (`?agent=…`), so it gets the SAME `isValidUUID` gate the
- * queried reference does — otherwise `?agent=anything` reaches a revision request that cannot
- * succeed and leaves a junk key in the query cache.
  */
 export const useAgentEntity = (
     sessionId: string,
@@ -35,8 +31,7 @@ export const useAgentEntity = (
         staleTime: 60_000,
         refetchOnWindowFocus: false,
     })
-    const fallback = fallbackAgentId && isValidUUID(fallbackAgentId) ? fallbackAgentId : null
-    const agentId = agentQuery.data ?? fallback
+    const agentId = agentQuery.data ?? fallbackAgentId ?? null
 
     const revisionQuery = useQuery({
         queryKey: ["mobile", "agent-latest-revision", projectId, agentId],

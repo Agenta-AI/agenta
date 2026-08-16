@@ -33,13 +33,6 @@ export const WebhooksTab = () => {
     const [deleting, setDeleting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
-    const [copyError, setCopyError] = useState<string | null>(null)
-
-    const closeReveal = () => {
-        setCreatedSecret(null)
-        setCopied(false)
-        setCopyError(null)
-    }
 
     return (
         <WebhooksPage
@@ -78,7 +71,10 @@ export const WebhooksTab = () => {
                 <Sheet
                     open={Boolean(createdSecret)}
                     onOpenChange={(next) => {
-                        if (!next) closeReveal()
+                        if (!next) {
+                            setCreatedSecret(null)
+                            setCopied(false)
+                        }
                     }}
                 >
                     <SheetContent side="responsive">
@@ -93,35 +89,24 @@ export const WebhooksTab = () => {
                             <p className="m-0 break-all rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs">
                                 {createdSecret}
                             </p>
-                            {copyError ? (
-                                <p className="m-0 pt-2 text-sm text-colorError">{copyError}</p>
-                            ) : null}
                         </div>
                         <SheetFooter>
                             <Button
                                 onClick={async () => {
                                     if (!createdSecret) return
-                                    setCopyError(null)
-                                    try {
-                                        // The clipboard API is absent outside a secure context
-                                        // and rejects when permission is denied — the secret is
-                                        // shown once, so a false "Copied" loses it.
-                                        if (!navigator.clipboard?.writeText) {
-                                            throw new Error("Clipboard unavailable")
-                                        }
-                                        await navigator.clipboard.writeText(createdSecret)
-                                        setCopied(true)
-                                    } catch {
-                                        setCopied(false)
-                                        setCopyError(
-                                            "Could not copy. Select the secret above and copy it by hand before closing.",
-                                        )
-                                    }
+                                    await navigator.clipboard?.writeText(createdSecret)
+                                    setCopied(true)
                                 }}
                             >
                                 {copied ? "Copied" : "Copy secret"}
                             </Button>
-                            <Button variant="outline" onClick={closeReveal}>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setCreatedSecret(null)
+                                    setCopied(false)
+                                }}
+                            >
                                 Done
                             </Button>
                         </SheetFooter>

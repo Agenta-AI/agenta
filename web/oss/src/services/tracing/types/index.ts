@@ -9,4 +9,5 @@ export interface TraceSpanNode extends EntityTraceSpanNode {
     annotations?: AnnotationDto[]
 }
 
-// Import `DashboardData` from @agenta/observability.
+// AGE-3788: the dashboard shape and the transform onto it moved to @agenta/observability
+// (shared with mobile) — import `DashboardData` from there.

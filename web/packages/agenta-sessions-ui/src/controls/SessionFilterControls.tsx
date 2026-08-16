@@ -148,12 +148,7 @@ export const SessionStatusChipsControl = ({
 }) => {
     const {status, setStatus} = useSessionFilters()
     return (
-        // A filter strip is not navigation: `<nav>` would register an unnamed navigation landmark
-        // for it. Same named group as {@link SessionStatusListControl}, and each chip states its own
-        // pressed state.
-        <div
-            role="group"
-            aria-label="Filter sessions by status"
+        <nav
             className={`flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
                 className ?? ""
             }`}
@@ -178,7 +173,7 @@ export const SessionStatusChipsControl = ({
                     ) : null}
                 </button>
             ))}
-        </div>
+        </nav>
     )
 }
 

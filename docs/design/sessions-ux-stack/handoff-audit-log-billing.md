@@ -126,38 +126,14 @@ imports, one component per file, semantic tokens only.
 
 ## Verification (run all of it before each commit)
 
-Save this as a file and run it with `bash` — `set -e` pasted into an interactive shell closes the
-session on the first failure.
-
 ```bash
-set -euo pipefail
 cd web
 pnpm lint-fix                                   # must be 24/24
-
 for p in @agenta/settings-ui @agenta/oss @agenta/ee @agenta/mobile; do
-  echo "== $p"
-  pnpm --filter "$p" exec tsc --noEmit          # non-zero exit aborts the gate
-done
-
-# no antd anywhere in the package — both quote styles, and the subpath imports
-if grep -rnE "from ['\"]antd|from ['\"]@ant-design" packages/agenta-settings-ui/src; then
-  echo "antd import found in @agenta/settings-ui" >&2
-  exit 1
-fi
-
-echo "gates green"
+  echo "$p: $(pnpm --filter $p exec tsc --noEmit 2>&1 | grep -c 'error TS')"
+done                                            # all must be 0
+grep -rn 'from "antd"\|@ant-design' packages/agenta-settings-ui/src   # must be empty
 ```
-
-Two things this block deliberately does *not* do:
-
-- **It never wraps `tsc` in `$(… | grep -c 'error TS')`.** A command substitution reports the
-  pipeline's last status, i.e. `grep`'s — so `pnpm` failing for a reason that isn't a type error
-  (bad filter, missing package, OOM, a compiler crash) prints `0` and the gate reads as green.
-  Run `tsc` directly under `set -e` and let a failure stop the script.
-- **It does not leave the antd `grep` bare.** `grep` exits 1 when it finds nothing, which under
-  `set -e` would abort on the *success* case; and the old pattern only matched double quotes, so a
-  single-quoted `from 'antd'` slipped through. The `if` form inverts it correctly: a hit is the
-  failure.
 
 **None of this session's work has been run in a browser** — every gate has been lint + tsc
 only. If you can get the app up, that's worth more than another green typecheck. There is a

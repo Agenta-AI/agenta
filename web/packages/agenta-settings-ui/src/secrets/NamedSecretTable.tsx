@@ -1,7 +1,6 @@
 import {useMemo, useState} from "react"
 
 import {CustomSecretFormat, useVaultSecret, type NamedSecretRow} from "@agenta/entities/secret"
-import {useStaticTable} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {Tag} from "@agenta/ui/components/presentational"
@@ -127,7 +126,8 @@ export const NamedSecretTable = ({
                     reloading={loading}
                     reloadLabel="Reload secrets"
                     primaryActions={
-                        // Absent rather than dead: without the host's form it opens nothing.
+                        // The form is the host's; without one this would open nothing, so it
+                        // is absent rather than dead.
                         renderConfigureDialog ? (
                             <Button
                                 disabled={loading}
@@ -183,9 +183,7 @@ export const NamedSecretTable = ({
             })}
 
             {renderDeleteDialog?.({
-                // `NamedSecretRow extends LlmProvider`, so the row IS the provider shape the
-                // registry's delete dialog takes — no cast needed.
-                selectedProvider: selectedSecret,
+                selectedProvider: selectedSecret as unknown as LlmProvider | null,
                 open: isDeleteModalOpen,
                 onClose: () => {
                     setSelectedSecret(null)

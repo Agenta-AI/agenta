@@ -1,5 +1,17 @@
-/** Two gates, both the host's to answer: `view_events` shows the tab, the audit
- * entitlement shows the table. */
+/**
+ * Audit Log — Settings Page
+ *
+ * Lists platform events from `POST /events/query` in a paginated table with a
+ * right-side detail drawer.
+ *
+ * Two-gate access model:
+ *   - Tab VISIBILITY is a permission check (`view_events`), handled by the
+ *     settings sidebar / page (`canViewEvents`).
+ *   - Page CONTENT is gated by the audit entitlement: with it the table
+ *     renders, without it an upgrade notice stands in its place.
+ *
+ * Both gates are the host's to resolve — this page only takes their answers.
+ */
 
 import {useState, type ReactNode} from "react"
 

@@ -20,6 +20,7 @@
         ".": "./src/index.ts",
         "./api": "./src/api/index.ts",
         "./api/env": "./src/api/env.ts",
+        "./api/hostQueryClient": "./src/api/hostQueryClient.ts",
         "./api/persist": "./src/api/persist/index.ts",
         "./hooks": "./src/hooks/index.ts",
         "./schemas": "./src/schemas/index.ts",
@@ -49,7 +50,7 @@
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",
         "axios": ">=1.13.5 <2.0.0",
-        "jotai": ">=2.9.0",
+        "jotai": ">=2.0.0",
         "jotai-family": ">=0.1.0",
         "jotai-tanstack-query": ">=0.9.0",
         "react": ">=18.0.0"

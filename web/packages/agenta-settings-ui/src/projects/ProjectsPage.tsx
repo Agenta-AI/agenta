@@ -65,9 +65,6 @@ export const ProjectsPage = ({
         return projects.filter((project) => project.workspace_id === workspaceId)
     }, [projects, workspaceId])
     const canDeleteProjects = scopedProjects.length > 1
-    // Create, rename and delete all need a dialog from the host. A host that brings none (mobile)
-    // gets the list read-only rather than affordances that open nothing.
-    const canEdit = Boolean(renderCreateDialog || renderRenameDialog || renderDeleteDialog)
 
     const rows = useMemo<ProjectRow[]>(() => {
         const all = scopedProjects.map((project) => ({...project, key: project.project_id}))
@@ -206,43 +203,6 @@ export const ProjectsPage = ({
         [],
     )
 
-    const rowActions = useCallback(
-        (record: ProjectRow): (DataTableAction<ProjectRow> | {type: "divider"})[] => [
-            {
-                key: "rename",
-                label: "Rename",
-                icon: <PencilSimpleLine size={16} />,
-                onClick: () => openRenameModal(record),
-            },
-            {
-                key: "default",
-                label: "Set as default",
-                icon: <CheckCircle size={16} />,
-                hidden: Boolean(record.is_default_project),
-                disabled: defaultMutation.isPending,
-                onClick: () => handleMakeDefault(record),
-            },
-            {type: "divider"},
-            {
-                key: "delete",
-                label: "Delete project",
-                icon: <Trash size={16} />,
-                danger: true,
-                // The last project in a workspace cannot be removed, and the default project
-                // must be reassigned first.
-                disabled: !canDeleteProjects || Boolean(record.is_default_project),
-                onClick: () => handleDelete(record),
-            },
-        ],
-        [
-            canDeleteProjects,
-            defaultMutation.isPending,
-            handleDelete,
-            handleMakeDefault,
-            openRenameModal,
-        ],
-    )
-
     return (
         <div className="flex flex-col gap-2">
             <DataTable<ProjectRow>
@@ -284,12 +244,10 @@ export const ProjectsPage = ({
                     disabled: isLoading,
                 }}
                 primaryActions={
-                    canEdit ? (
-                        <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
-                            <Plus size={14} />
-                            New project
-                        </Button>
-                    ) : null
+                    <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
+                        <Plus size={14} />
+                        New project
+                    </Button>
                 }
                 empty={
                     searchTerm.trim() ? (
@@ -312,12 +270,10 @@ export const ProjectsPage = ({
                                 </div>
                             }
                         >
-                            {canEdit ? (
-                                <Button variant="outline" onClick={() => setCreateModalOpen(true)}>
-                                    <Plus size={14} />
-                                    New project
-                                </Button>
-                            ) : null}
+                            <Button variant="outline" onClick={() => setCreateModalOpen(true)}>
+                                <Plus size={14} />
+                                New project
+                            </Button>
                         </EmptyState>
                     )
                 }

@@ -25,14 +25,8 @@ export interface SsoProvidersSectionProps {
     children?: ReactNode
 }
 
-/**
- * A provider carries two flags and the API stamps both: `is_valid` is "authenticated" (the test
- * call succeeded), `is_active` is "live". Creating one sets both to false; testing sets both from
- * the result. The desktop read a third, `is_enabled`, that the API never serves — so its
- * "Disabled" branch was dead. An absent flag means not-yet-validated, hence fail-closed.
- */
-const isActive = (provider: OrganizationProvider) => provider.flags?.is_active === true
-const isValid = (provider: OrganizationProvider) => provider.flags?.is_valid === true
+const isEnabled = (provider: OrganizationProvider) => provider.flags?.is_enabled !== false
+const isValid = (provider: OrganizationProvider) => provider.flags?.is_valid !== false
 
 /** The identity providers members can sign in through. */
 export const SsoProvidersSection = ({
@@ -72,13 +66,11 @@ export const SsoProvidersSection = ({
                 title: "Status",
                 width: 140,
                 render: (record) => {
-                    // Not yet authenticated reads as Pending — the setup detail below the row
-                    // says what is left to do. Authenticated but not live is Disabled.
-                    if (!isValid(record)) return <StatusIndicator tone="warning" label="Pending" />
-                    return isActive(record) ? (
+                    if (!isEnabled(record)) return <StatusIndicator label="Disabled" />
+                    return isValid(record) ? (
                         <StatusIndicator tone="success" label="Active" />
                     ) : (
-                        <StatusIndicator label="Disabled" />
+                        <StatusIndicator tone="warning" label="Pending" />
                     )
                 },
             },
@@ -87,7 +79,7 @@ export const SsoProvidersSection = ({
                 title: "",
                 width: 100,
                 render: (record) =>
-                    (!isActive(record) || !isValid(record)) && onEnable ? (
+                    (!isEnabled(record) || !isValid(record)) && onEnable ? (
                         <Button size="sm" disabled={enabling} onClick={() => onEnable(record)}>
                             Enable
                         </Button>

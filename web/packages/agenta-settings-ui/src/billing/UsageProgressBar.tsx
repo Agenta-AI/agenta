@@ -54,8 +54,7 @@ const UsageProgressBar = ({
             <span className="inline-flex items-center gap-1 font-medium capitalize text-colorTextSecondary">
                 {prettifyLabel(label)}
                 {suffix}
-                {/* A zero limit is "unknown", rendered as "-" below — nothing to warn about. */}
-                {!isUnlimited && limit > 0 && value >= limit ? (
+                {!isUnlimited && value >= limit ? (
                     <WarningIcon weight="fill" className="text-colorWarning" />
                 ) : null}
             </span>

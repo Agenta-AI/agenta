@@ -82,12 +82,11 @@ export interface OrganizationProvider {
     organization_id: string
     name?: string | null
     description?: string | null
-    // Backend serves free-form dicts (OrganizationProviderResponse.flags/settings).
-    // `is_valid` = the test call authenticated; `is_active` = the provider is live. Both are
-    // stamped false on create and rewritten on every test.
+    // Backend serves free-form dicts (OrganizationProviderResponse.flags/settings)
     flags: {
         is_valid?: boolean
         is_active?: boolean
+        is_enabled?: boolean
     }
     settings: OrganizationProviderSettings
     created_at: string

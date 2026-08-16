@@ -51,17 +51,9 @@ const AgentOverview = ({appId, agentName}: Props) => {
     }, [requestFullHeight])
 
     // "View all" stays on this agent's rail rather than dropping you on the project list with a
-    // filter you then have to trust. That route needs the app id to have reached URL state, which
-    // lags the project's; until it does the project list — which DOES take the agent as a filter,
-    // hence the flag below — stands in, so the affordance never links to `""` (the current route,
-    // i.e. a click that does nothing). While even the project is unresolved there is no honest
-    // target and the cards render without one, rather than holding the whole page for it.
-    const {appURL, projectURL} = useURL()
-    const sessionsHref = appURL
-        ? `${appURL}/sessions`
-        : projectURL
-          ? `${projectURL}/sessions`
-          : undefined
+    // filter you then have to trust.
+    const {appURL} = useURL()
+    const sessionsHref = appURL ? `${appURL}/sessions` : undefined
 
     const verbs = useSessionCardVerbs()
     const {goToPlayground} = usePlaygroundNavigation()
@@ -84,8 +76,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
     return (
         <AgentOverviewBody
             agentId={appId}
-            sessionsHref={sessionsHref}
-            sessionsHrefScopesAgent={Boolean(appURL)}
+            sessionsHref={sessionsHref ?? ""}
             onEditConfig={openConfig}
             usage={<UsageSummary variant="strip" />}
             {...verbs}

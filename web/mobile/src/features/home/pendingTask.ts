@@ -25,17 +25,6 @@ export const stashPendingTaskAtom = atom(
     },
 )
 
-/**
- * Undo a stash whose navigation never landed. Without this the task sits under a session id the
- * user was never taken to — and would fire unannounced at whoever opens that id later.
- */
-export const dropPendingTaskAtom = atom(null, (get, set, sessionId: string) => {
-    const tasks = get(pendingTasksAtom)
-    if (!(sessionId in tasks)) return
-    const {[sessionId]: _dropped, ...rest} = tasks
-    set(pendingTasksAtom, rest)
-})
-
 export const takePendingTaskAtom = atom(null, (get, set, sessionId: string) => {
     const tasks = get(pendingTasksAtom)
     const task = tasks[sessionId]

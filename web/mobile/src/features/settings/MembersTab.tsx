@@ -6,8 +6,7 @@ import {
     inviteToWorkspace,
     removeFromWorkspace,
 } from "@agenta/entities/organization"
-import {MembersPage, resolveWorkspacePermissions} from "@agenta/settings-ui"
-import {isEE} from "@agenta/shared/api"
+import {MembersPage} from "@agenta/settings-ui"
 import {useMutation, useQuery} from "@tanstack/react-query"
 
 import {Button} from "@/components/ui/button"
@@ -31,10 +30,6 @@ interface Props {
     ownerId?: string | null
     organizationId?: string | null
     workspaceId?: string | null
-    /** EE only enforces RBAC when the plan includes it; OSS always does. */
-    hasRBAC?: boolean
-    /** Entitlements or the roster still in flight — until they land nothing is offered. */
-    permissionsLoading?: boolean
     onChanged: () => void
 }
 
@@ -52,8 +47,6 @@ export const MembersTab = ({
     ownerId,
     organizationId,
     workspaceId,
-    hasRBAC = false,
-    permissionsLoading = false,
     onChanged,
 }: Props) => {
     const [inviteOpen, setInviteOpen] = useState(false)
@@ -62,15 +55,7 @@ export const MembersTab = ({
     const [pendingRemoval, setPendingRemoval] = useState<WorkspaceMember | null>(null)
     const [error, setError] = useState<string | null>(null)
 
-    // The viewer's own row in the roster carries their roles, so the desktop's rule resolves
-    // here without a second request. Ids being present is not a permission.
-    const {canInviteMembers, canRemoveMembers} = resolveWorkspacePermissions({
-        members,
-        user: signedInUser,
-        ownerId,
-        rbacActive: !isEE() || hasRBAC,
-        ready: !loading && !permissionsLoading && Boolean(organizationId && workspaceId),
-    })
+    const canWrite = Boolean(organizationId && workspaceId)
 
     const roles = useQuery({
         queryKey: ["workspace-roles"],
@@ -126,8 +111,8 @@ export const MembersTab = ({
             onSearchChange={onSearchChange}
             signedInUser={signedInUser}
             ownerId={ownerId}
-            canInviteMembers={canInviteMembers}
-            canRemoveMembers={canRemoveMembers}
+            canInviteMembers={canWrite}
+            canRemoveMembers={canWrite}
             onInvite={() => setInviteOpen(true)}
             onRemove={(member) => {
                 setError(null)

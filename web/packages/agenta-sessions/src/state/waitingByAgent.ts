@@ -36,19 +36,12 @@ export function useWaitingByAgent(): Map<string, number> {
         enabled: waitingIds.length > 0,
     })
 
-    // `useSessionList` sets `placeholderData: keepPreviousData`, so `data` outlives the ids it was
-    // fetched for. Two cases, both of which would report sessions that are no longer waiting:
-    // nothing is waiting (the query is DISABLED, so the last waiting page would stand forever), and
-    // the id set changed but its fetch hasn't landed yet. Count only rows the current ids produced.
-    const isStale = waitingIds.length === 0 || waitingQuery.isPlaceholderData
-
     return useMemo(() => {
         const counts = new Map<string, number>()
-        if (isStale) return counts
         for (const row of rowsFromPages(waitingQuery.data?.pages)) {
             const appId = sessionOpenTarget(row)?.appId
             if (appId) counts.set(appId, (counts.get(appId) ?? 0) + 1)
         }
         return counts
-    }, [isStale, waitingQuery.data?.pages])
+    }, [waitingQuery.data?.pages])
 }

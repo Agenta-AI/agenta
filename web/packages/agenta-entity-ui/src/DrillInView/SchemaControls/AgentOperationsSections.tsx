@@ -27,7 +27,7 @@ import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSec
 const barClass = (sticky: boolean) =>
     `h-[48px] flex items-center justify-between overflow-hidden ${
         sticky ? "sticky top-0 z-[10]" : ""
-    } w-full border-b border-colorBorderSecondary py-2 px-4 bg-colorBgContainer bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))]`
+    } w-full border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))]`
 const titleClass = "text-[13px] font-semibold text-colorText"
 
 /**

@@ -27,11 +27,9 @@ export interface AgentConfigHeaderProps {
  * Deploy, ghost kebab.
  *
  * Agent config below is a borderless summary, so the bar needs to read as a header. It gets a
- * subtly tinted surface (vs the plain content): an opaque container base (`bg-colorBgContainer`,
- * the background-color) with the translucent fill layered on top (background-image), so this
- * sticky header stays opaque and scrolled content cannot bleed through it. The base names the
- * CONTAINER role outright — it used to go through the `--ag-c-FFFFFF` codemod shim, which only
- * stops being white in dark mode because that shim happens to alias it to this same role.
+ * subtly tinted surface (vs the plain content): an opaque container base (background-color) with
+ * the translucent fill layered on top (background-image), so this sticky header stays opaque and
+ * scrolled content cannot bleed through it.
  */
 export const AgentConfigHeader = ({
     revisionId,
@@ -46,7 +44,7 @@ export const AgentConfigHeader = ({
     <section
         className={`h-[48px] flex items-center justify-between overflow-hidden ${
             embedded ? "grow" : "sticky top-0 z-[10] w-full"
-        } border-b border-colorBorderSecondary py-2 px-4 bg-colorBgContainer bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))] ${
+        } border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))] ${
             className ?? ""
         }`}
     >

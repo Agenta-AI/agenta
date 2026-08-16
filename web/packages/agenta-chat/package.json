@@ -39,7 +39,7 @@
     "peerDependencies": {
         "@ai-sdk/react": ">=3.0.0-beta.0",
         "ai": ">=6.0.0-beta.0",
-        "jotai": ">=2.9.0",
+        "jotai": ">=2.0.0",
         "jotai-family": ">=0.1.0",
         "react": ">=18.0.0"
     },

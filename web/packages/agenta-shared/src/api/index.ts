@@ -31,3 +31,4 @@ export type {
     InternalAxiosRequestConfig,
 } from "axios"
 export {queryClient} from "./queryClient"
+export {getHostQueryClient} from "./hostQueryClient"

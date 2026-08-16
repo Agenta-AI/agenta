@@ -24,19 +24,9 @@ const CommitVariantChangesButton = ({
     const isEphemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(variantId || ""))
 
     // Ephemeral entities are always "ready" (no dirty check needed — they need to be created)
-    const dirtyGuard = !variantId || (!isEphemeral && !hasChanges)
-    // ONE effective value for both branches. A caller may only tighten the guard, never loosen it:
-    // the custom-child branch renders whatever it was given (it cannot be disabled), and in the
-    // standard branch `{...props}` used to spread AFTER `disabled` and overrode it. Either way an
-    // unchanged persisted variant could open the commit modal on a host that passed `disabled={false}`.
-    const isDisabled = dirtyGuard || Boolean(props.disabled)
+    const disabled = !variantId || (!isEphemeral && !hasChanges)
     const resolvedLabel = isEphemeral ? "Create" : label
     const resolvedIcon = isEphemeral ? <Plus size={14} /> : <FloppyDiskBack size={14} />
-    // The handler carries the guard too, so it holds whichever branch renders.
-    const openModal = useCallback(() => {
-        if (isDisabled) return
-        setIsDeployModalOpen(true)
-    }, [isDisabled])
     const handleSuccess = useCallback(
         (payload?: {revisionId?: string; variantId?: string}) => {
             onCommitted?.()
@@ -53,17 +43,18 @@ const CommitVariantChangesButton = ({
                         onClick: () => void
                     }>,
                     {
-                        onClick: openModal,
+                        onClick: () => {
+                            setIsDeployModalOpen(true)
+                        },
                     },
                 )
             ) : (
                 <EnhancedButton
                     type="text"
                     icon={icon && resolvedIcon}
-                    onClick={openModal}
+                    onClick={() => setIsDeployModalOpen(true)}
+                    disabled={disabled}
                     {...props}
-                    // AFTER the spread: `disabled` is the package's call, not the host's.
-                    disabled={isDisabled}
                 >
                     {resolvedLabel}
                 </EnhancedButton>

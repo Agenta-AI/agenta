@@ -1,9 +1,8 @@
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useMemo} from "react"
 
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {formatDay} from "@agenta/shared/utils/dateTime"
-import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components/presentational"
 import {DataTable, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
@@ -41,30 +40,11 @@ export default function ConnectionsList({integrationKey, connections, confirm}: 
         })
     }
 
-    // The popup-closed poll outlives the handler that starts it, so it has to be reachable from
-    // outside: an unmount while the popup is still open would otherwise leave an interval running
-    // for the life of the page, invalidating queries against a dead component.
-    const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-    const stopPoll = useCallback(() => {
-        if (pollTimerRef.current === null) return
-        clearInterval(pollTimerRef.current)
-        pollTimerRef.current = null
-    }, [])
-
-    useEffect(() => stopPoll, [stopPoll])
-
     const onRefresh = async (connection: ToolConnection) => {
         if (!connection.id) return
 
-        let redirectUrl: string | undefined
-        try {
-            const result = await handleRefresh(connection.id)
-            redirectUrl = getRedirectUrl(result.connection)
-        } catch {
-            message.error("Failed to refresh connection")
-            return
-        }
+        const result = await handleRefresh(connection.id)
+        const redirectUrl = getRedirectUrl(result.connection)
 
         if (!redirectUrl) return
 
@@ -76,10 +56,9 @@ export default function ConnectionsList({integrationKey, connections, confirm}: 
 
         if (!popup) return
 
-        stopPoll()
-        pollTimerRef.current = setInterval(() => {
+        const pollTimer = setInterval(() => {
             if (popup.closed) {
-                stopPoll()
+                clearInterval(pollTimer)
                 window.focus()
                 invalidate()
             }

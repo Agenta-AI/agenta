@@ -33,39 +33,25 @@ export const useNewAgentAction = (base: string) => {
             if (creating) return
             setCreating(true)
             setError(null)
-            // Every exit from here has to clear `creating` — a rejected create, or a navigation
-            // that never lands, would otherwise leave the button spinning with no way back.
-            try {
-                const created = await createAgent({name: params?.name})
-                if (!created) return
-                // The agents list is a filtered view over the workflows list query; invalidate it
-                // or the new agent is missing from the roster until something else refetches.
-                void invalidateWorkflowsListCache()
-
-                const seed = params?.seedMessage?.trim()
-                let target = `${base}/agents/${created.appId}`
-                if (seed) {
-                    // The session does not exist server-side until its first turn — mint the id,
-                    // stash the instruction, and let the chat screen's engine send it once.
-                    const sessionId = crypto.randomUUID()
-                    stashTask({sessionId, task: {agentId: created.appId, text: seed}})
-                    target = `${base}/sessions/${sessionId}?agent=${created.appId}`
-                }
-                // `router.push` resolves false on a cancelled route change and rejects on a real
-                // navigation failure; either way the agent EXISTS, so say so rather than looking
-                // like the create failed.
-                const opened = await router.push(target).then(
-                    (ok) => ok,
-                    () => false,
-                )
-                if (!opened) {
-                    setError("The agent was created, but opening it failed. Find it in the roster.")
-                }
-            } catch (error_) {
-                setError(error_ instanceof Error ? error_.message : "Could not create the agent.")
-            } finally {
+            const created = await createAgent({name: params?.name})
+            if (!created) {
                 setCreating(false)
+                return
             }
+            // The agents list is a filtered view over the workflows list query; invalidate it or the
+            // new agent is missing from the roster until something else refetches.
+            void invalidateWorkflowsListCache()
+
+            const seed = params?.seedMessage?.trim()
+            if (!seed) {
+                await router.push(`${base}/agents/${created.appId}`)
+                return
+            }
+            // The session does not exist server-side until its first turn — mint the id, stash the
+            // instruction, and let the chat screen's engine send it once.
+            const sessionId = crypto.randomUUID()
+            stashTask({sessionId, task: {agentId: created.appId, text: seed}})
+            await router.push(`${base}/sessions/${sessionId}?agent=${created.appId}`)
         },
         [base, createAgent, creating, router, stashTask],
     )

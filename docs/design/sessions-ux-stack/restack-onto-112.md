@@ -1,18 +1,6 @@
 # Restack the sessions-UX work onto `release/v0.112.0`
 
-> **Superseded — historical. Do not execute this file.**
-> `execute-stacked-prs.md` is the live runbook and the record of what actually happened. This
-> document is the earlier snapshot from the same day, taken *before* the stack was built, and its
-> state table is now wrong in every row: it reports 88 commits, no lane branches and no PRs, while
-> the stack that exists is 83 commits across 29 lane branches with PRs `#5865`–`#5893` open (plus
-> `#5894` for these docs). Its `@agenta/mobile` TypeScript warning has also settled.
->
-> Kept for two things that are still useful and are not repeated elsewhere: the reasoning for
-> basing on 112 rather than `main`, and the per-commit lane hypothesis below — which
-> `execute-stacked-prs.md` checked against the branches and partly overturned. Read it as a
-> proposal, never as instructions: running it now would rebuild lanes that already have open PRs.
-
-## State of the world (verified 2026-08-10, superseded — see the banner above)
+## State of the world (verified, 2026-08-10)
 
 | fact | value |
 |---|---|
@@ -66,7 +54,7 @@ In dependency order — each depends only on lanes below it.
 | `pkg/ui-data-table` | `DataTable` in `@agenta/ui` + per-row detail + the responsive header fixes | `82aa890`, `550f58d`, `81e8f13`, `710d401`, `5897dfc` |
 | `pkg/shared-edition-gates` | `isEE`/`isToolsEnabled`/`isBillingEnabled` into `@agenta/shared/api`; 15 call sites repointed | `998a53e`, `edf8952` |
 | `pkg/entities-organization` | org + workspace API and types into `@agenta/entities/organization` | `76b9531` |
-| `pkg/settings-spine` | `@agenta/settings` + `@agenta/settings-ui`; Preferences, Account, API keys, secrets, vault, webhooks, projects | `eb45a4e`, `6fa6d45`, `e9733a8`, `51892a4`, `e5d02b2`, `f87c2c7`, `f84d10f`, `ff5e9f0`, `6750033`, `7d5b56f`, `88de93a`, `babcb59`, `190f7e6` |
+| `pkg/settings-spine` | `@agenta/settings` + `@agenta/settings-ui`; Preferences, Account, API keys, secrets, vault, webhooks, projects | `eb45a4e`, `6fa6d45`, `e9733a8`, `51892a4`, `e5d02b2`, `f87c2c7`, `f84d10f`, `ff5e9f0`, `675003 3`, `7d5b56f`, `88de93a`, `babcb59`, `190f7e6` |
 | `oss/drop-reexport-shims` | removes 24 app-layer re-export stubs; repoints ~60 call sites | `102a320` |
 | `pkg/settings-org-pages` | Members, Organizations, Access Controls, Domains, SSO | `06e67c0`, `8d5c308`, `714884a`, `e5de1cd`, `bd3cc1a`, `45896f2`, `fd30503`, `a7ff686`, `5ef55f9` |
 | `pkg/entity-ui-form-engine` | `SchemaForm` + `SubscriptionForm` off antd `Form` onto `@rc-component/form` | `e2db4ba` |
@@ -78,19 +66,6 @@ In dependency order — each depends only on lanes below it.
 
 `pkg/entity-ui-form-engine` must land **before** `mobile/settings` — the mobile Tools/Triggers
 tabs are only writable because that migration removed antd from the drawers.
-
-Every SHA above is abbreviated; validate before use, because at least one was mistyped here
-(`6750033` was written as two tokens). Under `set -euo pipefail`:
-
-```bash
-set -euo pipefail
-for s in <the SHAs for one lane>; do git rev-parse --verify "$s^{commit}" >/dev/null; done
-echo "all SHAs resolve"
-```
-
-The `pkg/settings-spine` row lists 13 commits; the lane as built holds 12
-(`execute-stacked-prs.md`). The branches won that disagreement — one commit was folded into a
-neighbouring lane. Another reason to treat this table as a hypothesis.
 
 ## Mechanics
 
@@ -110,11 +85,8 @@ working-tree technique in the same section, not hunk assignment.
 Work in this order. Commit nothing to a lane until the lane below it is verified.
 
 1. **Snapshot first.** `but oplog snapshot -m "pre-restack"` if the repo is in GitButler
-   workspace mode; otherwise `git branch backup/pre-stack-112 pkg/settings-spine`. This is
-   the only safe recovery point and you will want it. **`backup/pre-stack-112` is the one
-   canonical name** — `execute-stacked-prs.md` Phase 0 verifies exactly that ref, and an earlier
-   draft of this file called it `backup/pre-restack-112`, so a recovery point created under the
-   old name satisfies neither runbook's check.
+   workspace mode; otherwise `git branch backup/pre-restack-112 pkg/settings-spine`. This is
+   the only safe recovery point and you will want it.
 2. **Confirm the base.** `git fetch origin release/v0.112.0`. Everything stacks on that ref,
    not on `main`.
 3. **Rebase the 20 existing lanes** onto it, bottom-up, in the listed order. After each:
@@ -124,25 +96,9 @@ Work in this order. Commit nothing to a lane until the lane below it is verified
 4. **Build the 12 new lanes** from the 50 commits, using git-stash isolation (below). Same
    per-lane diff check.
 5. **Split the commits that touch two lanes.** `fd30503` is the clearest: it adds the Domains
-   and SSO sections to the package *and* wires them into `/m`. Do not try to assign hunks. Use
-   sequential working-tree states, and note that the second half is a **new commit on the upper
-   lane**, not an amend:
-
-   ```bash
-   set -euo pipefail
-   git checkout <package-lane>
-   # make the tree the package lane's version of the file, then
-   git commit -m "<package half>"
-   git checkout -b <mobile-lane> <package-lane>       # upper lane branches off the lower one
-   # edit the same file to add the /m delta, then
-   git commit -m "<mobile half>"
-   ```
-
-   **Never `git commit --amend` here.** Amend rewrites *the commit you are standing on* — on the
-   package lane that folds the mobile delta into the lower lane (so the upper lane's PR shows an
-   empty diff and the lower lane's shows mobile files it should not own), and it rewrites a
-   commit every lane above has already built on. `execute-stacked-prs.md` §"Commits that span two
-   lanes" says the same thing.
+   and SSO sections to the package *and* wires them into `/m`. Make the tree the package
+   lane's version, commit that, then edit to add the mobile delta and amend it into the
+   mobile lane. Do not try to assign hunks.
 6. **Gates, then push.** Only after every lane's diff is clean.
 7. **Open PRs** bottom-up, each based on the lane below.
 
@@ -156,12 +112,8 @@ tree** (`git show <lane>:<file>`), then the next.
 ## Before pushing
 
 - `pnpm lint-fix` from `web/` — 24/24.
-- `tsc --noEmit` = 0 for **all eight** packages the stack touches: `@agenta/shared`, `@agenta/ui`,
-  `@agenta/entities`, `@agenta/entity-ui`, `@agenta/settings-ui`, `@agenta/oss`, `@agenta/ee`,
-  `@agenta/mobile`. (An earlier version of this list omitted `@agenta/shared` and
-  `@agenta/entity-ui`, so the gate could pass with two packages never compiled. Use the loop in
-  `execute-stacked-prs.md` Phase 3 — it runs `tsc` directly under `set -euo pipefail` rather than
-  counting `error TS` lines, so a failed `pnpm` cannot read as zero errors.)
+- `tsc --noEmit` = 0 for `@agenta/ui`, `@agenta/settings-ui`, `@agenta/entities`, `@agenta/oss`,
+  `@agenta/ee`, `@agenta/mobile`.
 - Per lane, `git diff --name-only <lane-below>..<lane>` must list exactly that lane's files.
 - PR bases: bottom = `release/v0.112.0`, each other = the lane below.
 

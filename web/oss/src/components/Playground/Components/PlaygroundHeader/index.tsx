@@ -269,17 +269,15 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
     // non-agent stack and unmounting it on reload.
     const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
     const isAgentWorkflow = nodeIsAgent || earlyAgentState === "agent"
-    // Neutral until CONFIRMED: non-agent only when a definitive signal says so — the early app-id
-    // query resolved to non-agent, OR the root revision has fully SETTLED (not pending) and isn't an
-    // agent. The `!isPending` guard is what prevents the agent-reload flash: without it,
-    // `hasRootNode && !nodeIsAgent` is true during the flags-load window (node graph resolved,
-    // is_agent not yet loaded) and the non-agent chrome pops in then vanishes.
-    const isConfirmedNonAgent =
+    // Neutral until CONFIRMED prompt: show the eval chrome only when a definitive signal says
+    // non-agent — the early app-id query resolved to non-agent, OR the root revision has fully
+    // SETTLED (not pending) and isn't an agent. The `!isPending` guard is what prevents the
+    // agent-reload flash: without it, `hasRootNode && !nodeIsAgent` is true during the flags-load
+    // window (node graph resolved, is_agent not yet loaded) and the eval stack pops in then vanishes.
+    const showEvalActions =
         !isAgentWorkflow &&
         (earlyAgentState === "non-agent" ||
             (hasRootNode && !nodeIsAgent && !rootEntityQuery.isPending))
-    // The eval stack is non-agent chrome, so it rides the same confirmation.
-    const showEvalActions = isConfirmedNonAgent
 
     // Pre-commit onboarding: the playground is the "what do you want to build?" surface, so the
     // Build/Chat mode switch + settings cog are noise (there's nothing to configure or chat yet). They
@@ -658,11 +656,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
             <AgentPageHeader
                 className={className}
                 leading={leading}
-                // Same confirmation the eval stack waits for: `isAgentWorkflow` is false while
-                // agent-ness is merely UNKNOWN, so a plain negation flashed "Playground" on every
-                // agent reload and then swapped it for the agent identity. Neither slot fills until
-                // one of the two signals is definitive; the bar just holds its space until then.
-                title={isConfirmedNonAgent ? "Playground" : undefined}
+                title={isAgentWorkflow ? undefined : "Playground"}
                 name={
                     isAgentWorkflow ? (
                         renameWorkflowId ? (

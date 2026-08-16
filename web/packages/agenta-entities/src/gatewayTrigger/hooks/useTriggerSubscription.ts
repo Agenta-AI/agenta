@@ -1,6 +1,6 @@
 import {useCallback, useState} from "react"
 
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -24,7 +24,7 @@ import type {
 import {applySubscriptionActiveOptimistic} from "../state/optimistic"
 
 const invalidateSubscriptions = () => {
-    queryClient.invalidateQueries({queryKey: ["triggers", "subscriptions"]})
+    getHostQueryClient().invalidateQueries({queryKey: ["triggers", "subscriptions"]})
 }
 
 // Single subscription (used to source the full PUT body before editing).

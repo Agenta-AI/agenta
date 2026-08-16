@@ -78,7 +78,7 @@ export const SessionFiltersBar = ({
                         <button
                             type="button"
                             aria-label="Filters"
-                            className="box-border flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-colorFillQuaternary px-2.5 text-sm text-colorTextSecondary outline-none transition-colors hover:bg-colorFillSecondary hover:text-colorText focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"
+                            className="box-border flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-colorFillQuaternary px-2.5 text-sm text-colorTextSecondary"
                         >
                             <FunnelIcon size={16} weight={activeCount ? "fill" : "regular"} />
                             Filters
@@ -111,21 +111,18 @@ export const SessionFiltersBar = ({
                                 <SessionArchivedControl />
                             </section>
                         </div>
-                        {/* Only what the sheet SHOWS: clearing must not wipe the search and status
-                            the bar still shows, nor the agent filter on a surface that hides the
-                            picker (an agent-scoped page fixes it from the route — dropping it there
-                            would silently widen the list to every agent). `activeCount` counts the
-                            same set, so the button's enabled state and its effect agree. */}
+                        {/* Only these three live in the sheet, so clearing here must not also wipe
+                            the search and status the bar still shows. */}
                         <SheetFooter className="pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
                             <button
                                 type="button"
                                 disabled={!activeCount}
                                 onClick={() => {
-                                    if (showAgent) setAgentId(null)
+                                    setAgentId(null)
                                     setMode(false)
                                     setIncludeArchived(false)
                                 }}
-                                className="box-border cursor-pointer rounded-lg border-0 bg-transparent px-3 py-1.5 text-sm text-colorTextSecondary outline-none transition-colors enabled:hover:bg-colorFillQuaternary enabled:hover:text-colorText focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring disabled:cursor-default disabled:text-colorTextQuaternary"
+                                className="box-border cursor-pointer rounded-lg border-0 bg-transparent px-3 py-1.5 text-sm text-colorTextSecondary disabled:cursor-default disabled:text-colorTextQuaternary"
                             >
                                 Clear
                             </button>

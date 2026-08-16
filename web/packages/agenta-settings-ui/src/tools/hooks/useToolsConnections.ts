@@ -6,7 +6,7 @@ import {
     refreshToolConnection,
     type ToolConnectionCreatePayload,
 } from "@agenta/entities/gatewayTool"
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 
 const DEFAULT_PROVIDER = "composio"
 
@@ -19,6 +19,7 @@ export interface CreateConnectionInput {
 
 export const useToolsConnections = (integrationKey: string) => {
     const invalidate = useCallback(() => {
+        const queryClient = getHostQueryClient()
         queryClient.invalidateQueries({
             queryKey: ["tools", "integrationDetail", DEFAULT_PROVIDER, integrationKey],
         })

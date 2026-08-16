@@ -26,8 +26,7 @@ interface Props {
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
 export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
-    // `null` is "untouched", which is what lets a cleared field stay cleared.
-    const [name, setName] = useState<string | null>(null)
+    const [name, setName] = useState("")
 
     return (
         <ProjectsPage
@@ -41,14 +40,13 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
                     description="Projects group your agents, datasets and deployments."
                     submitLabel="Create"
                     pending={pending}
-                    value={name ?? ""}
-                    touched={name !== null}
+                    value={name}
                     onValueChange={setName}
                     onClose={() => {
-                        setName(null)
+                        setName("")
                         onClose()
                     }}
-                    onSubmit={() => onSubmit({name: (name ?? "").trim()})}
+                    onSubmit={() => onSubmit({name: name.trim()})}
                 />
             )}
             renderRenameDialog={({open, onClose, onSubmit, pending, project}) => (
@@ -57,16 +55,17 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
                     title="Rename project"
                     submitLabel="Save"
                     pending={pending}
-                    // The sheet mounts before a row is chosen; the row's name seeds an
-                    // untouched field only.
-                    value={name ?? project?.project_name ?? ""}
-                    touched={name !== null}
+                    // The sheet mounts before a row is chosen, so fall back to the row's name
+                    // until the field is edited.
+                    value={name || (project?.project_name ?? "")}
                     onValueChange={setName}
                     onClose={() => {
-                        setName(null)
+                        setName("")
                         onClose()
                     }}
-                    onSubmit={() => onSubmit({name: (name ?? project?.project_name ?? "").trim()})}
+                    onSubmit={() =>
+                        onSubmit({name: (name || (project?.project_name ?? "")).trim()})
+                    }
                 />
             )}
             renderDeleteDialog={({open, onClose, onSubmit, pending, project}) => (
@@ -106,7 +105,6 @@ const NameSheet = ({
     submitLabel,
     pending,
     value,
-    touched,
     onValueChange,
     onClose,
     onSubmit,
@@ -117,8 +115,6 @@ const NameSheet = ({
     submitLabel: string
     pending: boolean
     value: string
-    /** The field has been typed in, so an empty one is the user's doing and worth saying. */
-    touched: boolean
     onValueChange: (value: string) => void
     onClose: () => void
     onSubmit: () => void

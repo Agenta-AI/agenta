@@ -127,47 +127,27 @@ const TabBody = ({
     // on both surfaces instead of /m quietly showing controls the plan does not include.
     const entitlements = useEntitlements({
         projectId,
-        enabled:
-            access.isEE && (tab === "organization" || tab === "auditLog" || tab === "workspace"),
+        enabled: access.isEE && (tab === "organization" || tab === "auditLog"),
     })
     // Destructive actions in the shared tool/trigger sections ask for confirmation through an
     // imperative callback (the desktop hands them antd's AlertPopup); this is the sheet version.
-    // Scoped to the open tab, so leaving it drops anything staged there.
-    const {confirm, sheet: confirmSheet} = useConfirmSheet(tab)
+    const {confirm, sheet: confirmSheet} = useConfirmSheet()
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
 
     const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
     const [lastSavedFlag, setLastSavedFlag] = useState<AuthFlagKey | null>(null)
-    const [flagError, setFlagError] = useState<string | null>(null)
     const setFlag = async (flag: AuthFlagKey, value: boolean) => {
         if (!organizationId) return
         setSavingFlag(flag)
-        setFlagError(null)
-        setLastSavedFlag(null)
         try {
             await updateOrganization(organizationId, {flags: {[flag]: value}})
             await org.refetch()
             setLastSavedFlag(flag)
-        } catch (error) {
-            // The switches are driven by the server's flags, never by local state, so a failed
-            // write needs no revert — the row simply stays where it was. Which reads as a dead
-            // toggle unless we say why.
-            setFlagError(
-                error instanceof Error && error.message
-                    ? error.message
-                    : "Could not save that setting. Try again.",
-            )
         } finally {
             setSavingFlag(null)
         }
     }
-    // "Saved" is a transient marker; without this it sits on the row for the rest of the session.
-    useEffect(() => {
-        if (!lastSavedFlag) return
-        const timer = window.setTimeout(() => setLastSavedFlag(null), 3000)
-        return () => window.clearTimeout(timer)
-    }, [lastSavedFlag])
 
     switch (tab) {
         case "preferences":
@@ -205,10 +185,8 @@ const TabBody = ({
         case "webhooks":
             return <WebhooksTab />
         // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry
-        // no antd theming and render correctly here. Both gate on access at the boundary, not
-        // only in the rail — otherwise a typed `?tab=tools` reaches writable controls.
+        // no antd theming and render correctly here.
         case "tools":
-            if (!access.canShowTools) return null
             return (
                 <>
                     <GatewayToolsSection confirm={confirm} />
@@ -216,7 +194,6 @@ const TabBody = ({
                 </>
             )
         case "triggers":
-            if (!access.canShowTriggers) return null
             return (
                 <div className="flex flex-col gap-8">
                     <TriggerConnectionsSection confirm={confirm} />
@@ -244,8 +221,6 @@ const TabBody = ({
                     ownerId={org.data?.owner_id}
                     organizationId={organizationId}
                     workspaceId={org.data?.default_workspace?.id}
-                    hasRBAC={entitlements.hasRBAC}
-                    permissionsLoading={entitlements.isLoading}
                     onChanged={() => void org.refetch()}
                 />
             )
@@ -261,20 +236,6 @@ const TabBody = ({
                 />
             )
         case "organization": {
-            // This tab's org id comes from the projects list, so both queries are its loading
-            // state — and a disabled query stays `pending` forever, hence the explicit id check.
-            if (projects.isPending || (organizationId && org.isPending))
-                return <SettingsSectionSkeleton />
-            if (projects.isError || org.isError)
-                return (
-                    <SettingsLoadError
-                        text="Could not load this organization's settings."
-                        onRetry={() => {
-                            void projects.refetch()
-                            void org.refetch()
-                        }}
-                    />
-                )
             const flags = org.data?.flags as OrganizationFlags | undefined
             // Waiting on entitlements too: every `has*` reads false until they land, so
             // rendering now would flash the locked state at an entitled organization.
@@ -368,31 +329,27 @@ export const SettingsScreen = ({
         [router],
     )
 
-    // Held until the router resolves `?tab=`, so a direct load opens its tab rather than
-    // rendering Preferences and starting its queries first.
     const content = (
         <div className="min-w-0 flex-1 overflow-y-auto">
             {/* No content cap: the desktop's 640/1120 caps left every section floating in a
                 wide empty column here. */}
             <SettingsPageShell
                 variant="full"
-                title={active ? getSettingsTabLabel(active, access) : "Settings"}
-                description={active ? getSettingsTabDescription(active, access) : ""}
+                title={getSettingsTabLabel(active, access)}
+                description={getSettingsTabDescription(active, access)}
             >
-                {active ? (
-                    <TabBody
-                        tab={active}
-                        access={access}
-                        user={user}
-                        workspaceId={workspaceId}
-                        projectId={projectId}
-                        theme={{
-                            options: THEME_OPTIONS,
-                            mode: themeMode,
-                            onSelect: (mode) => setMode(mode as typeof themeMode),
-                        }}
-                    />
-                ) : null}
+                <TabBody
+                    tab={active}
+                    access={access}
+                    user={user}
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    theme={{
+                        options: THEME_OPTIONS,
+                        mode: themeMode,
+                        onSelect: (mode) => setMode(mode as typeof themeMode),
+                    }}
+                />
             </SettingsPageShell>
         </div>
     )

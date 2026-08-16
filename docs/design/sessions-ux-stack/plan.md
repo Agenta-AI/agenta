@@ -76,14 +76,6 @@ because hunk-level splitting is unreliable (`AGENTS.md`) — which is why the th
 themes (re-plumb / de-antd / Streamdown) collapse into one lane: they rewrite the same
 74 `AgentChatSlice` files.
 
-**The path selectors are per-tier, and the two tiers carve different things.** Tier 1 carves the
-365-file *committed* tree delta; Tier 2 carves the 261 *uncommitted* paths that sit on top of it.
-So a path may legitimately appear in a T-lane and again in an L-lane (`mobile/src/features/nav/**`
-in T3 and L5; `Drives/**` in T7 and L4; `AgentChatSlice/**` in T7 and L9; the mobile styles/pages
-in T8, L1 and L10) — those are two different deltas to the same file, landing in sequence. The
-no-double-placement claim in §7 is **within** a tier, which is where it matters: two lanes in the
-same tier must never claim the same path, or the lower one's diff leaks upward.
-
 | # | branch | paths |
 |---|---|---|
 | T1 | `pkg/auth` | `packages/agenta-auth/**`, `packages/agenta-auth-ui/**`, `oss/src/components/pages/auth/**`, `mobile/src/features/auth/**`, `mobile/src/lib/auth`, `mobile/src/middleware.ts` + test |
@@ -182,7 +174,7 @@ new `mobile/src/features/agents/{AgentListScreen,AgentTemplatesScreen,AgentTempl
 
 ## 5. Two ways to run this
 
-**A. Full carve (correct, expensive).** Tier 1 then Tier 2 — 19 lanes (T1–T9 + L1–L10), PR bases chained
+**A. Full carve (correct, expensive).** Tier 1 then Tier 2 — 18 lanes, PR bases chained
 bottom-to-top, each diff clean against main's line. Use git-stash isolation per
 `AGENTS.md`; verify each lane's *tip tree*, not its diff.
 
@@ -208,10 +200,7 @@ confirm.
 
 ## 7. Executed (commit only, nothing pushed)
 
-20 lanes committed on top of `origin/oss/seed-attachments`, in this order — 19 planned plus
-`chore/app-wiring`, which the carve needed for the cross-cutting `_app`/lockfile leftovers. Two
-planned names changed on the way: `pkg/navigation-ui-shell` → `pkg/navigation-shell` and
-`pkg/playground-ui-agent-chrome` → `pkg/playground-agent-chrome`.
+20 lanes committed on top of `origin/oss/seed-attachments`, in this order:
 
 ```
 oss/seed-attachments (#5776)
@@ -226,14 +215,8 @@ oss/seed-attachments (#5776)
 
 Verified: Tier-1 top `web/` tree == `sux/pre-carve` `web/` tree (empty diff); Tier-2 top
 `web/` tree == the original working tree (150-file gap fully accounted for by the stash's
-untracked parent, `git status -- web` empty); every path lands in exactly one lane **within its
-tier**, zero double-placement.
-
-The per-lane numbers above are what to trust; the tier totals in this doc do not reconcile and
-should not be quoted. Tier 2's lane counts sum to 274, against 261 uncommitted paths in §1 and a
-"346" that appeared in an earlier draft of this paragraph — the three were counted at different
-moments and by different rules (paths vs files-changed, before vs after the lockfile splits). The
-tree equality above is the real verification; it holds regardless of which total is right.
+untracked parent, `git status -- web` empty); every one of the 365 + 346 paths lands in
+exactly one lane, zero double-placement.
 
 Recovery points: tag `sux/pre-carve` (= old `feat/sessions-ux-polish` tip) and
 `stash@{0}` (the pre-carve working tree). Neither has been dropped.

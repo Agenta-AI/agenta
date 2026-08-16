@@ -1,7 +1,7 @@
 import {useCallback, useRef, useState} from "react"
 
 import {createToolConnection, fetchToolConnection} from "@agenta/entities/gatewayTool"
-import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
+import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
 import {
@@ -83,6 +83,7 @@ export default function ConnectDrawer({
     }, [onClose, integrationName, buildDefaultSlug])
 
     const invalidateConnections = useCallback(() => {
+        const queryClient = getHostQueryClient()
         queryClient.invalidateQueries({queryKey: ["tools", "connections"]})
         queryClient.invalidateQueries({queryKey: ["tools", "catalog"]})
     }, [])

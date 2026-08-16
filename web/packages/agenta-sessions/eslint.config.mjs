@@ -2,7 +2,7 @@
  * @agenta/sessions is HEADLESS: orchestration only, zero UI imports. The bans below are the
  * package's contract — mobile consumes these hooks without pulling antd or web components.
  */
-import base from "../eslint.config.mjs"
+import base, {restrictedImportPaths} from "../eslint.config.mjs"
 
 export default [
     ...base,
@@ -12,11 +12,7 @@ export default [
                 "error",
                 {
                     paths: [
-                        {
-                            name: "@agenta/sdk",
-                            message:
-                                "Import per-resource accessors from '@agenta/sdk/resources' — the root barrel bundles all 27 Fern resource clients.",
-                        },
+                        ...restrictedImportPaths,
                     ],
                     patterns: [
                         {
