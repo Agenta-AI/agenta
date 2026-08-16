@@ -16,16 +16,20 @@
 // Deliberately omitted (desktop-only): the model-key composer gate — compose `useAgentModelKeyStatus` in the skin instead.
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {revalidateSessionMountsAtom, revalidateSessionRecordsAtom} from "@agenta/entities/session"
+import {
+    revalidateSessionMountsAtom,
+    revalidateSessionRecordsAtom,
+    shouldAdoptServerTranscript,
+} from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
     type LiveAgentInteraction,
-} from "@agenta/playground"
+} from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import {useChat} from "@ai-sdk/react"
-import type {UIMessage} from "ai"
+import type {FileUIPart, UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"
 
 import {filesToParts} from "../assets/files"
@@ -45,6 +49,7 @@ import {clearSessionFresh, composerDraftBySession, isSessionFresh} from "../stat
 import {
     persistSessionMessagesAtom,
     sessionMessagesAtom,
+    sessionRecordCountsReadAtom,
     setSessionStatusAtom,
 } from "../state/sessionMessages"
 import {AgentChatTransport} from "../transport/AgentChatTransport"
@@ -60,6 +65,8 @@ const ignoreStreamRejection = () => {}
 export interface SendInput {
     text: string
     files?: File[]
+    /** Prebuilt file parts (server-uploaded attachment references) — appended after `files`. */
+    parts?: FileUIPart[]
 }
 
 /** The pure scan result of a rewind request; the skin renders any confirm UI and then calls
@@ -127,6 +134,10 @@ export interface AgentConversation {
     approvals: ApprovalDock
     /** Settle a parked client tool part (widgets call this; the resume predicate auto-resends). */
     sendToolOutput: (args: ToolOutputSettleInput) => void
+    /** Re-fetch the durable records and adopt the server transcript under the same guards as
+     * revalidate-on-open (never mid-stream, only when strictly ahead). Wire push signals — a
+     * session watch relay, a foreground event — to this. */
+    revalidate: () => void
 }
 
 /**
@@ -158,6 +169,16 @@ export const useAgentConversation = ({
     // Restored (not live-streamed) message ids — the orphaned-resume detection reads this, and a
     // skin can use it to skip entrance animations for restored rows.
     const restoredIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
+    // How many durable records the transcript we're RENDERING was built from — the exact test for
+    // "has the server moved on?" (#5530). A message count cannot see a turn grow IN PLACE:
+    // `transcriptToMessages` folds a paused turn into its resume and only closes a message on
+    // `done`, so a mid-approval snapshot and the completed turn have the SAME message count, and a
+    // count-only guard rejects the finished server copy forever. Seeded from the watermark the
+    // cached transcript was persisted with; cleared when a live turn supersedes it (we can't know
+    // what the server logged for that one), so the next open re-syncs from the log.
+    const recordWatermarkRef = useRef<number | undefined>(
+        store.get(sessionRecordCountsReadAtom)[sessionId],
+    )
 
     // `useChat` pins its `Chat` (and thus this transport) for the life of the session `id`; it is
     // NOT recreated when `entityId` changes. So the request builder must read the CURRENT entity
@@ -252,6 +273,44 @@ export const useAgentConversation = ({
     // Set when server hydration for a KNOWN (non-fresh, uncached) session returns no records —
     // its durable history was pruned by retention or never persisted.
     const [historyUnavailable, setHistoryUnavailable] = useState(false)
+
+    /**
+     * THE adoption guard — one implementation for every path that can hand us a server transcript
+     * (hydration, its background revalidation, revalidate-on-open, and the pushed `revalidate`).
+     * They used to carry near-identical copies that had already drifted (only one cleared the
+     * history-unavailable notice) and all of them compared MESSAGE COUNTS only, so an in-place turn
+     * completion — an approval resolving into the same assistant message — was silently skipped.
+     * The rule itself is the shared `shouldAdoptServerTranscript`: the record watermark is the
+     * trigger, the message count only a floor. Returns whether it adopted.
+     */
+    const adoptServerTranscript = useCallback(
+        (transcript: SessionTranscript | null): boolean => {
+            if (!transcript) return false
+            const {messages: serverMsgs, recordCount} = transcript
+            const adopt = shouldAdoptServerTranscript({
+                serverRecordCount: recordCount,
+                serverMessageCount: serverMsgs.length,
+                localMessageCount: messagesRef.current.length,
+                watermark: recordWatermarkRef.current,
+                busy: busyRef.current,
+            })
+            if (!adopt) return false
+            serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
+            // Adopting a non-empty server transcript settles the question the notice asks, so it
+            // clears here for every path (the revalidate copy did this, the hydration one didn't).
+            setHistoryUnavailable(false)
+            // Written synchronously, ahead of any React commit: `messagesRef` lags a commit behind,
+            // so two deliveries landing back-to-back (the disk-restored result and the background
+            // refetch) can both see the pre-adoption transcript. It is this watermark, not the
+            // on-screen length, that keeps the guard order-independent.
+            recordWatermarkRef.current = recordCount
+            setMessages(serverMsgs)
+            persistMessages({id: sessionId, messages: serverMsgs, recordCount})
+            return true
+        },
+        [persistMessages, sessionId, setMessages],
+    )
+
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
         // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
@@ -263,34 +322,28 @@ export const useAgentConversation = ({
         // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
+        // The background refetch can land BEFORE the promise handler below runs (both are
+        // microtasks racing) and `messagesRef` only catches up on the next commit — so record here,
+        // not from what's on screen, that real history was already adopted.
+        let adopted = false
         // Post-restore revalidation: the first result may be the disk-restored log (paints
         // instantly); when the guaranteed background refetch lands, adopt it under the same
-        // guards as the revalidate-on-open effect below — never mid-stream, only when ahead.
-        const adoptRefreshed = ({messages: freshMsgs, recordCount}: SessionTranscript) => {
-            if (cancelled || busyRef.current) return
-            if (freshMsgs.length <= messagesRef.current.length) return
-            freshMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
-            // The restore said "no records" but the server has some — clear the notice.
-            setHistoryUnavailable(false)
-            setMessages(freshMsgs)
-            persistMessages({id: sessionId, messages: freshMsgs, recordCount})
-        }
-        loadSessionMessages(sessionId, adoptRefreshed)
+        // guard as every other path.
+        loadSessionMessages(sessionId, (fresh) => {
+            if (cancelled) return
+            if (adoptServerTranscript(fresh)) adopted = true
+        })
             .then((transcript) => {
                 if (cancelled) return
                 if (!transcript || transcript.messages.length === 0) {
                     // Known session, but the server has no records for it → history was pruned or
-                    // never persisted. Flag it so the skin shows the "unavailable" notice.
-                    setHistoryUnavailable(true)
+                    // never persisted. Flag it so the skin shows the "unavailable" notice — unless
+                    // a refetch already landed real history, which this stale first result must
+                    // not blank out.
+                    if (!adopted) setHistoryUnavailable(true)
                     return
                 }
-                transcript.messages.forEach((m) => restoredIdsRef.current.add(m.id))
-                setMessages(transcript.messages)
-                persistMessages({
-                    id: sessionId,
-                    messages: transcript.messages,
-                    recordCount: transcript.recordCount,
-                })
+                adoptServerTranscript(transcript)
             })
             .finally(() => {
                 if (!cancelled) setIsHydrating(false)
@@ -302,26 +355,17 @@ export const useAgentConversation = ({
     }, [sessionId])
 
     // Revalidate-on-open: a cached session paints instantly from localStorage; in the background
-    // we refetch the durable records ONCE and adopt the server transcript ONLY IF it's strictly
-    // ahead of what we're showing (a turn finished on another device). We never clobber a
-    // transcript that's live (`busyRef`), or that the server isn't strictly ahead of — so a local
-    // optimistic/unsent tail is safe. Reconciliation is by message COUNT, not content.
+    // we refetch the durable records ONCE and adopt the server transcript when the RECORD LOG has
+    // grown past what the cached transcript was built from. We never clobber a transcript that's
+    // live (`busyRef`), and never trade a longer local tail for a shorter server one — so a local
+    // optimistic/unsent tail is safe.
     useEffect(() => {
         if (initialMessages.length === 0 || isSessionFresh(sessionId)) return
         // As above: no persistent ref, so StrictMode's double-mount re-runs the revalidation.
         let cancelled = false
         const adopt = (transcript: SessionTranscript | null) => {
-            if (cancelled || !transcript || transcript.messages.length === 0) return
-            const serverMsgs = transcript.messages
-            const prev = messagesRef.current
-            if (busyRef.current || serverMsgs.length <= prev.length) return
-            serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
-            setMessages(serverMsgs)
-            persistMessages({
-                id: sessionId,
-                messages: serverMsgs,
-                recordCount: transcript.recordCount,
-            })
+            if (cancelled) return
+            adoptServerTranscript(transcript)
         }
         // The first result may itself be the disk-restored records log; the callback re-applies
         // the same guarded adoption when the guaranteed background revalidation lands.
@@ -457,10 +501,20 @@ export const useAgentConversation = ({
         })
     }, [error, setMessages])
 
-    // Persist the conversation whenever its stream settles (skip mid-stream).
+    // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
+    // records the runner logged for it — so drop the watermark and let the next open re-sync from
+    // the durable log. MUST stay declared above the persist effect: on the commit where `status`
+    // flips to "submitted", effects run in declaration order, so clearing here is what stops the
+    // persist below from filing a locally-extended transcript under a server watermark.
+    useEffect(() => {
+        if (status === "submitted" || status === "streaming") recordWatermarkRef.current = undefined
+    }, [status])
+
+    // Persist the conversation whenever its stream settles (skip mid-stream), under whatever
+    // watermark the rendered transcript still stands on (undefined once a live turn extended it).
     useEffect(() => {
         if (status === "streaming") return
-        persistMessages({id: sessionId, messages})
+        persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
     }, [messages, status, sessionId, persistMessages])
 
     // Bound the in-message expand-state store: on settle, drop entries whose owning message is
@@ -475,6 +529,12 @@ export const useAgentConversation = ({
         for (const key of expandedKeysForMessages(messages)) live.add(key)
         pruneExpanded(live)
     }, [messages, status, store, pruneExpanded])
+
+    // Push-signal revalidation: same guarded adoption as revalidate-on-open, callable at any
+    // time (a watch relay tick, app foregrounding). Guards make it idempotent and stream-safe.
+    const revalidate = useCallback(() => {
+        void loadSessionMessages(sessionId, adoptServerTranscript).then(adoptServerTranscript)
+    }, [adoptServerTranscript, sessionId])
 
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const handleStop = useCallback(() => {
@@ -491,14 +551,16 @@ export const useAgentConversation = ({
     }, [sessionId, stop])
 
     const send = useCallback(
-        async ({text, files}: SendInput) => {
+        async ({text, files, parts}: SendInput) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
-            if (!trimmed && fileObjs.length === 0) return
+            const refParts = parts ?? []
+            if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
             // Send what encoded. A file that cannot be read no longer takes the text and the
             // other attachments down with it (`filesToParts` settles each file separately).
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
-            const fileParts = encoded?.parts.length ? encoded.parts : undefined
+            const merged = [...(encoded?.parts ?? []), ...refParts]
+            const fileParts = merged.length ? merged : undefined
             if (encoded?.rejections.length) {
                 console.warn("[useAgentConversation] attachments could not be read:", {
                     files: encoded.rejections.map((r) => r.name),
@@ -580,5 +642,6 @@ export const useAgentConversation = ({
         clearQueue,
         approvals,
         sendToolOutput,
+        revalidate,
     }
 }

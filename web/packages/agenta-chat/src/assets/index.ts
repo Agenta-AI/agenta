@@ -1,6 +1,7 @@
 export * from "./toolFormat"
 export * from "./trace"
 export * from "./attachmentRules"
+export * from "./attachmentTransport"
 export * from "./files"
 export * from "./rewind"
 export * from "./transcriptToMessages"

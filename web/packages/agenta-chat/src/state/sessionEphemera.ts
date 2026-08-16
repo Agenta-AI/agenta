@@ -2,13 +2,13 @@
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
 // PR deletes it. Keep byte-parity if either side changes.
 // Adaptations:
-//  (a) `attachmentsBySession` is typed `Map<string, PendingAttachment[]>` (../model/attachments)
+//  (a) `attachmentsBySession` holds the staged upload-tray entries (`StagedUpload`)
 //      instead of the desktop's upload-widget file type — the package must not depend on that
 //      desktop UI toolkit.
 //  (b) the desktop's per-session virtualized-list scroll/row-height snapshot map and its cleanup
 //      in `clearSessionEphemera` are OMITTED entirely — that state is desktop-only, and the
 //      package must not depend on the desktop's list-virtualization library either.
-import type {PendingAttachment} from "../model/attachments"
+import type {StagedUpload} from "../model"
 
 /**
  * Per-session in-memory ephemera that must survive pane remounts (route re-entry, tab
@@ -26,7 +26,7 @@ import type {PendingAttachment} from "../model/attachments"
 export const composerDraftBySession = new Map<string, string>()
 
 /** Pending (not yet sent) attachments per session — same lifetime as the drafts. */
-export const attachmentsBySession = new Map<string, PendingAttachment[]>()
+export const attachmentsBySession = new Map<string, StagedUpload<unknown>[]>()
 
 /**
  * Sessions created brand-new in this browser and not yet run. A never-run local session has no

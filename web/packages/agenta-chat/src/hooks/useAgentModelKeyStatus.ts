@@ -1,7 +1,4 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/hooks/useAgentModelKeyStatus.ts
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
-// Adaptations: none — every import already resolves to an allowed package dep.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useMemo} from "react"
 
 import {
