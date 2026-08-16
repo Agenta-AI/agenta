@@ -2,6 +2,7 @@ import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {buildRenderMap} from "@agenta/playground"
+import {nowTickAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {Actions, Bubble, FileCard, type ActionsProps} from "@ant-design/x"
@@ -39,7 +40,7 @@ import {
     setExpandedAtom,
 } from "../state/expandState"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
-import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
+import {messageCreatedAtAtomFamily, timeAgo} from "../state/sessions"
 
 import AudioPlayer from "./AudioPlayer"
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"

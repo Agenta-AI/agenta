@@ -164,5 +164,5 @@ skills-lock.json
 !web/storybook/.storybook/
 !web/storybook/.storybook/**
 
-# @agenta/sessions test artifacts (vitest writes a junit report on every run).
-web/packages/agenta-sessions/test-results/
+# Test artifacts in any workspace (vitest/playwright write a junit report on every run).
+test-results/

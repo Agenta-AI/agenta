@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {agentConfigSummary, prettifyKind} from "./agentConfigSummary"
+import {agentConfigSummary, prettifyKind} from "../../src/agent/agentConfigSummary"
 
 // The shape below is a real stored revision's `parameters`, trimmed.
 const parameters = {

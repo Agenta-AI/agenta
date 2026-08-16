@@ -8,7 +8,7 @@ import {
 } from "@agenta/sessions/state"
 import {useAtomValue} from "jotai"
 
-import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
+import {sessionOpenTarget} from "@agenta/sessions/row"
 import {projectIdAtom} from "@/oss/state/project"
 
 /**

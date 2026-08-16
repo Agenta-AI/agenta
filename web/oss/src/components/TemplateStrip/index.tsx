@@ -185,9 +185,8 @@ const TemplateStrip = ({
                                 label: `${category} · ${countFor(category)}`,
                                 onClick: () => {
                                     setActiveCategory(category)
-                                    // A new category starts folded; grid/scroll calls don't
-                                    // apply in this list layout.
-                                    setShowAllRows(false)
+                                    setGridPage(0)
+                                    resetScroll()
                                 },
                             })),
                         }}

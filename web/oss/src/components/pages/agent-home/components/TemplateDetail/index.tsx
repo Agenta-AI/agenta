@@ -21,9 +21,9 @@ const SectionLabel = ({children}: {children: React.ReactNode}) => (
  * One template, in full.
  *
  * Everything here is a field the template already declares — connections and their scopes, the
- * tools it calls, its AGENTS.md, when it fires, its example session (labelled as an example).
- * The design's usage counter, "saves ~2h/week" and last-updated date have nothing behind them,
- * so they are absent rather than invented.
+ * tools it calls, its AGENTS.md, when it fires. The design's usage counter, "saves ~2h/week" and
+ * last-updated date have nothing behind them, so they are absent rather than invented; an example
+ * session would be authored fiction per template and is a separate decision.
  */
 const TemplateDetail = ({templateKey}: {templateKey: string}) => {
     const {baseAppURL} = useURL()

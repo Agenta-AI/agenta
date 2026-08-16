@@ -2,13 +2,11 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {PanelScroll, PanelSurface} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
-import {Typography} from "antd"
-import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {App, Typography} from "antd"
+import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
@@ -16,13 +14,17 @@ import NewAgentButton from "@/oss/components/NewAgentButton"
 import NextTriggersSection from "@/oss/components/NextTriggers"
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
 import TemplateStrip from "@/oss/components/TemplateStrip"
+import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
+import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
+import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 import StripComposer from "@/oss/components/TemplateStrip/components/StripComposer"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import UsageSummary from "@/oss/components/UsageSummary"
 import useURL from "@/oss/hooks/useURL"
-import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {HERO, RETURNING_HERO} from "./assets/constants"
+import {captureFirstAgentIntent, classifyAgentIntent} from "./assets/onboardingAnalytics"
 import {AGENT_TEMPLATES, type AgentTemplate} from "./assets/templates"
 import HomeAutomationsSection from "./components/HomeAutomationsSection"
 import HomeSessionsSection from "./components/HomeSessionsSection"
@@ -30,7 +32,6 @@ import HomeTaskComposer from "./components/HomeTaskComposer"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
 import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
-import {useCreateAgentFromTemplate} from "./hooks/useCreateAgentFromTemplate"
 
 /**
  * The strip-era home layout (TEMPLATE_STRIP_MODE on): hero + composer (chip-docked) +
@@ -46,8 +47,11 @@ const StripHome: React.FC = () => {
     // Home creates, navigates to the playground, and auto-sends (owner decision).
     const {onCreate} = useAgentHomeActions(composerRef, {autoSendSeed: true})
     const {firstRunOverride, creatingAgent} = useAgentHomeVariants()
+    const posthog = usePostHogAg()
     const {baseAppURL} = useURL()
     const router = useRouter()
+    const {message} = App.useApp()
+    const [toastOpen, setToastOpen] = useState(false)
     // Create is a multi-step async round-trip; on success we navigate away, so we keep the
     // spinner running (only reset on failure) rather than flashing the label back mid-navigation.
     const [loading, setLoading] = useState(false)
@@ -56,28 +60,11 @@ const StripHome: React.FC = () => {
     useAtomValue(appTemplatesQueryAtom)
 
     const agents = useAtomValue(agentsWorkflowsAtom)
-    const requestFullHeight = useSetAtom(layoutFullHeightRequestAtom)
     const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
     const isFirstRun = firstRunOverride ?? (!agentsLoading && agents.length === 0)
     // The create-an-agent surface IS the first-run surface — describe it, pick a template, send.
     // A returning user gets there via `?new=1` rather than through the task composer.
     const firstRun = isFirstRun || creatingAgent
-
-    const templateParam = Array.isArray(router.query.template)
-        ? router.query.template[0]
-        : router.query.template
-    // "Blank agent" from the New agent menu asks for one thing: describe it. The templates below
-    // were the answer to a question this path already declined, so the composer stands alone and
-    // centres. First run and `?template=` still show them — there the strip is the offer.
-    const blankCreate = creatingAgent && !templateParam
-
-    // Only the centred first-run document wants the layout's bounded frame. The workspace scrolls
-    // with the page, so it must NOT ask — see `layoutFullHeightRequestAtom`.
-    useEffect(() => {
-        if (!firstRun) return
-        requestFullHeight(true)
-        return () => requestFullHeight(false)
-    }, [firstRun, requestFullHeight])
 
     const provenance = useTemplateProvenance({
         composerApi: {
@@ -85,9 +72,6 @@ const StripHome: React.FC = () => {
             getText: () => composerRef.current?.getMarkdown() ?? "",
         },
     })
-
-    // A card here IS the create action — no composer step, no second confirmation.
-    const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("create")
 
     const handlePick = useCallback(
         (template: AgentTemplate) => {
@@ -97,23 +81,32 @@ const StripHome: React.FC = () => {
                 void router.push(`${baseAppURL}?new=1&template=${template.key}`)
                 return
             }
-            void createFromTemplate(template)
+            provenance.pick(template)
+            captureFirstAgentIntent(posthog, {
+                source: "template",
+                properties: {
+                    template: template.name,
+                    templateId: template.key,
+                    templateCategory: template.category,
+                    mode: "strip",
+                    surface: "home",
+                },
+                intentValue: template.category || template.name,
+            })
         },
-        [firstRun, router, baseAppURL, createFromTemplate],
+        [firstRun, router, baseAppURL, provenance.pick, posthog],
     )
 
-    // Seed once PER TEMPLATE KEY: a boolean guard blocked every template after the first,
-    // because this surface stays mounted across ?template= navigations.
-    const seededTemplate = useRef<string | null>(null)
+    // Seed once when the create surface is opened with a template already chosen.
+    const seededTemplate = useRef(false)
+    const templateParam = Array.isArray(router.query.template)
+        ? router.query.template[0]
+        : router.query.template
     useEffect(() => {
-        if (!templateParam) {
-            seededTemplate.current = null
-            return
-        }
-        if (seededTemplate.current === templateParam) return
+        if (seededTemplate.current || !templateParam) return
         const template = AGENT_TEMPLATES.find((entry) => entry.key === templateParam)
         if (!template) return
-        seededTemplate.current = templateParam
+        seededTemplate.current = true
         provenance.pick(template)
     }, [templateParam, provenance.pick])
 
@@ -127,30 +120,47 @@ const StripHome: React.FC = () => {
         [loading, onCreate, provenance.resolveTemplateName],
     )
 
-    return (
-        <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")}>
-            {/* First run stays a centered document in the layout's bounded frame — one question,
-                one answer, nothing to resume yet — and scrolls inside it.
+    const handleCodingAgentCopy = useCallback(async () => {
+        const text = composerRef.current?.getMarkdown().trim() ?? ""
+        try {
+            await navigator.clipboard.writeText(buildCodingAgentClipboard(text))
+            setToastOpen(true)
+        } catch {
+            message.error("Couldn't copy — copy it manually")
+            return
+        }
+        captureFirstAgentIntent(posthog, {
+            source: "composer",
+            properties: {action: "coding_agent_copy"},
+            intentValue: classifyAgentIntent(text),
+        })
+    }, [message, posthog])
 
-                The workspace scrolls with the PAGE instead: one scrollbar, the browser's own,
-                wherever the pointer is. Only the rail is pinned, and it scrolls internally just
-                when it outgrows the viewport. `items-start` is what lets it: a stretched flex
-                item is as tall as the row and has nothing to travel within. */}
+    return (
+        <PageLayout className="grow min-h-0 !pb-0">
+            {/* First run stays a centered document — one question, one answer, nothing to
+                resume yet — and scrolls inside the frame rather than moving the page. A
+                returning user gets a workspace: two columns that fill the frame and scroll
+                independently, so starting work and resuming it are both always on screen
+                instead of one being scrolled past.
+
+                Both fill the layout's own full-height frame (`isFullHeight`, which is what
+                puts the `100dvh` calc on the content wrapper) instead of restating a viewport
+                height here. Asserting one locally on a route the layout thinks is a normal
+                flowing document gave the body its own scrollbar underneath the columns'. */}
             <div
                 className={
                     firstRun
-                        ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto"
-                        : "flex w-full flex-1 items-start gap-10"
+                        ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto px-6 pb-20 pt-14"
+                        : "flex min-h-0 w-full flex-1 gap-10 overflow-hidden pb-6 pl-14 pr-10 pt-8"
                 }
             >
                 <div
                     className={
                         firstRun
-                            ? // `my-auto` (not `justify-center`) so the block still centres when it
-                              // outgrows the frame without clipping its top out of the scroller.
-                              `flex w-full flex-col ${blankCreate ? "my-auto" : ""}`
+                            ? "flex w-full flex-col"
                             : // `min-w-0` or a wide table would push the column past its share.
-                              "box-border flex min-w-0 flex-1 flex-col gap-14"
+                              "box-border flex min-w-0 flex-1 flex-col gap-14 overflow-y-auto pr-4"
                     }
                 >
                     <div
@@ -188,16 +198,14 @@ const StripHome: React.FC = () => {
                         >
                             <Typography.Title
                                 level={2}
-                                className={`!m-0 ${
-                                    firstRun
-                                        ? "!text-[30px] !leading-tight"
-                                        : "!text-[24px] !leading-8"
+                                className={`!m-0 !leading-tight ${
+                                    firstRun ? "!text-[30px]" : "!text-[20px]"
                                 }`}
                             >
                                 {firstRun ? HERO.title : RETURNING_HERO.title}
                             </Typography.Title>
                             {firstRun ? (
-                                <Typography.Text className="!text-base !text-[var(--ag-colorTextSecondary)]">
+                                <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
                                     {HERO.subtitle}
                                 </Typography.Text>
                             ) : null}
@@ -222,6 +230,7 @@ const StripHome: React.FC = () => {
                                 <StripComposer
                                     composerRef={composerRef}
                                     onCreate={handleCreate}
+                                    onCodingAgentCopy={handleCodingAgentCopy}
                                     composerClassName={provenance.composerClassName}
                                     onTextChange={provenance.onComposerTextChange}
                                     loading={loading}
@@ -233,16 +242,13 @@ const StripHome: React.FC = () => {
                     </div>
 
                     {firstRun ? (
-                        blankCreate ? null : (
-                            <TemplateStrip
-                                className="mt-20"
-                                surface="home"
-                                layout="grid"
-                                selectedTemplateKey={provenance.selectedTemplateKey}
-                                onPick={handlePick}
-                                pendingTemplateKey={pendingKey}
-                            />
-                        )
+                        <TemplateStrip
+                            className="mt-20"
+                            surface="home"
+                            layout="grid"
+                            selectedTemplateKey={provenance.selectedTemplateKey}
+                            onPick={handlePick}
+                        />
                     ) : (
                         // EXPERIMENT: the columns' contents are swapped. What's in flight takes
                         // the wide column under the composer; the templates strip and the agents
@@ -256,22 +262,14 @@ const StripHome: React.FC = () => {
                     )}
                 </div>
 
-                {/* Right column, post-swap: what you could start. It scrolls up with the page
-                    first and only pins on arrival — which is what the offset buys: sticky pins
-                    the moment the element reaches `top`, so an offset equal to its resting y
-                    (the 56px gutter) would pin it from scroll zero and it would never travel.
-                    16px leaves it 40px of travel and a little air once pinned. The cap is what
-                    lets `PanelScroll` inside take over when the rail outgrows the viewport.
+                {/* Right column, post-swap: what you could start. Scrolls on its own.
 
                     A third of the width rather than a fixed 400px, which held its proportion
                     only at one screen size — it read as a third on a large display and as a
-                    slab on a laptop.
-
-                    `--ag-demo-banner-h` is the layout's fixed demo banner (0 outside a demo
-                    workspace): without it the banner covered the pinned rail's top 22px. */}
+                    slab on a laptop. */}
                 {!firstRun ? (
-                    <div className="sticky top-[calc(1rem+var(--ag-demo-banner-h,0px))] box-border flex max-h-[calc(100vh-3rem-var(--ag-demo-banner-h,0px))] min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
-                        <PanelSurface>
+                    <div className="box-border flex min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
+                        <PanelSurface className="flex max-h-full min-h-0 flex-col">
                             <PanelScroll>
                                 {/* Rows, not the scroller: a 238px card and a six-tab category
                                     row both need width this column doesn't have. */}
@@ -296,6 +294,12 @@ const StripHome: React.FC = () => {
                     </div>
                 ) : null}
             </div>
+
+            <CopiedToast
+                open={toastOpen}
+                text={STRIP_COPY.copiedToast}
+                onDone={() => setToastOpen(false)}
+            />
         </PageLayout>
     )
 }

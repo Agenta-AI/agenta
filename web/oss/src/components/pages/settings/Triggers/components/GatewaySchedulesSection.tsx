@@ -147,13 +147,9 @@ export default function GatewaySchedulesSection() {
                     key: "workflow",
                     title: "Bound workflow",
                     width: 180,
-                    render: (_value, record) => {
-                        return (
-                            <BoundWorkflowCell
-                                wfId={triggerBoundAgentId(record.data?.references)}
-                            />
-                        )
-                    },
+                    render: (_value, record) => (
+                        <BoundWorkflowCell wfId={triggerBoundAgentId(record.data?.references)} />
+                    ),
                 },
                 {
                     type: "text",

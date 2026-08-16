@@ -1,5 +1,4 @@
-import {PlusIcon} from "@phosphor-icons/react"
-import {Empty, Skeleton} from "antd"
+import {AgentCardGrid} from "@agenta/entity-ui/agent"
 
 import AgentCard from "@/oss/components/AgentCard"
 import type {AgentColumnActions} from "@/oss/components/pages/agent-home/components/YourAgentsTable/columns"
@@ -7,12 +6,8 @@ import {useWaitingByAgent} from "@/oss/components/pages/agent-home/components/Yo
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 
 /**
- * The agents roster as a card grid.
- *
- * The table it replaces put five columns behind a horizontal scroll, so reading an agent meant
- * scrolling sideways past provenance to reach whether anything is blocked. A card is one agent at
- * a glance, and the create affordance is the grid's last cell rather than a control set apart from
- * the things it creates.
+ * The agents roster — the SHARED card grid shell (`@agenta/entity-ui/agent`) with the app's
+ * mapped cards: the roster rows, the waiting badge, and the shared action set.
  */
 const AgentsGrid = ({
     rows,
@@ -27,16 +22,8 @@ const AgentsGrid = ({
 }) => {
     const waitingByAgent = useWaitingByAgent()
 
-    if (isLoading && rows.length === 0) {
-        return <Skeleton active paragraph={{rows: 6}} title={false} />
-    }
-
-    // `pt-5` is the room the grid variant's overhanging avatar needs. It belongs to the grid, not
-    // to each card — on the card it left the avatar-less dashed cell misaligned.
     return (
-        // auto-rows-fr: every row the same height. The h-full cards stretch to their row, and
-        // the create cell's min-h made the LAST row taller than the rest without it.
-        <div className="grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-4 gap-y-10 pt-5">
+        <AgentCardGrid isLoading={isLoading} count={rows.length} onCreate={onCreate}>
             {rows.map((record) => (
                 <AgentCard
                     key={record.key}
@@ -46,24 +33,7 @@ const AgentsGrid = ({
                     actions={actions}
                 />
             ))}
-
-            {/* Dashed, so it reads as a slot to fill rather than an agent that exists. */}
-            <button
-                type="button"
-                onClick={onCreate}
-                className="box-border flex h-full min-h-[148px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-transparent p-5 text-center transition-colors hover:border-colorPrimary"
-            >
-                <PlusIcon size={18} className="text-colorTextTertiary" />
-                <span className="text-sm text-colorText">New agent</span>
-                <span className="text-xs text-colorTextTertiary">start blank</span>
-            </button>
-
-            {!isLoading && rows.length === 0 ? (
-                <div className="col-span-full">
-                    <Empty description="No agents yet" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                </div>
-            ) : null}
-        </div>
+        </AgentCardGrid>
     )
 }
 
