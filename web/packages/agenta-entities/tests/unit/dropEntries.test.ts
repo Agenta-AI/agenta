@@ -1,21 +1,19 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
+import {axios} from "@agenta/shared/api"
 
-import {uploadMountFile} from "./driveMedia"
+import {uploadMountFile} from "../../src/drive/driveMedia"
 import {
     collectDropEntry,
     type DropEntry,
     type DropEntryReader,
     readDroppedFiles,
-} from "./dropEntries"
+} from "../../src/drive/dropEntries"
 
-vi.mock("@/oss/lib/api/assets/axiosConfig", () => ({
-    default: {post: vi.fn(), get: vi.fn()},
-}))
-
-vi.mock("@/oss/lib/helpers/api", () => ({
+vi.mock("@agenta/shared/api", () => ({
+    axios: {post: vi.fn(), get: vi.fn()},
     getAgentaApiUrl: vi.fn(() => "https://api.example.test"),
+    getAuthToken: vi.fn(async () => undefined),
 }))
 
 const file = (name: string) => new File([name], name, {type: "text/plain"})

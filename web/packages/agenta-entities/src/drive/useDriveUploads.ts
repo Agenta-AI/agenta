@@ -13,9 +13,8 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {type MountFile} from "@agenta/entities/session"
 
-import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
-
-import {type StagedTileItem} from "./DrivePendingTiles"
+import {isAgentFileUploadsEnabled} from "./driveFlags"
+import {type StagedTileItem} from "./driveTypes"
 import {type DroppedFile} from "./dropEntries"
 import {useDriveDrop} from "./useDriveDrop"
 import {useImagePreviews} from "./useImagePreviews"
