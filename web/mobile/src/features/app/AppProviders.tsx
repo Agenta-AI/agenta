@@ -10,6 +10,7 @@ import {ensureAuthInit} from "@/lib/auth"
 import {getApiUrl} from "@/lib/env"
 import {queryClient} from "@/lib/queryClient"
 
+import {AuthGate} from "./AuthGate"
 import {ContextSync} from "./ContextSync"
 
 // Module scope, like the desktop _app: __env.js is beforeInteractive, so
@@ -31,6 +32,7 @@ export const AppProviders = ({children}: PropsWithChildren) => (
         <Provider store={getDefaultStore()}>
             <HydrateAtoms>
                 <ContextSync />
+                <AuthGate />
                 {children}
             </HydrateAtoms>
         </Provider>

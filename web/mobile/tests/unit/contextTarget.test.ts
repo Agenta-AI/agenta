@@ -22,9 +22,9 @@ const group = (workspaceId: string, projectIds: string[]): WorkspaceGroup => ({
 
 const input = (overrides: Partial<ContextTargetInput> = {}): ContextTargetInput => ({
     ready: true,
-    switching: false,
     shortcut: null,
     groups: [],
+    groupsLoaded: true,
     desktopLastUsed: {},
     ...overrides,
 })
@@ -32,12 +32,41 @@ const input = (overrides: Partial<ContextTargetInput> = {}): ContextTargetInput 
 describe("selectContextTarget", () => {
     it("forwards to the remembered pair", () => {
         const shortcut = {workspaceId: "w1", projectId: "p1"}
-        expect(selectContextTarget(input({shortcut}))).toEqual(shortcut)
+        expect(selectContextTarget(input({shortcut, groups: [group("w1", ["p1", "p2"])]}))).toEqual(
+            shortcut,
+        )
+    })
+
+    it("forwards to the remembered pair before the projects have loaded", () => {
+        const shortcut = {workspaceId: "w1", projectId: "p1"}
+        expect(selectContextTarget(input({shortcut, groupsLoaded: false}))).toEqual(shortcut)
+    })
+
+    it("drops a remembered pair the loaded tree no longer holds", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    shortcut: {workspaceId: "w1", projectId: "deleted"},
+                    groups: [group("w1", ["p1"])],
+                    desktopLastUsed: {},
+                }),
+            ),
+        ).toEqual({workspaceId: "w1", projectId: "p1"})
+    })
+
+    it("drops a remembered pair whose workspace is gone, following desktop continuity", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    shortcut: {workspaceId: "gone", projectId: "p1"},
+                    groups: [group("w1", ["p1", "p2"])],
+                    desktopLastUsed: {w1: "p2"},
+                }),
+            ),
+        ).toEqual({workspaceId: "w1", projectId: "p2"})
     })
 
     it("decides nothing until the router is ready", () => {
-        // The guard that keeps `?switch=1` reachable: a forward decided on the first render,
-        // before the query string parses, would skip the switch intent entirely.
         expect(
             selectContextTarget(
                 input({ready: false, shortcut: {workspaceId: "w1", projectId: "p1"}}),
@@ -45,35 +74,11 @@ describe("selectContextTarget", () => {
         ).toBeNull()
     })
 
-    it("suppresses the remembered pair while switching", () => {
-        expect(
-            selectContextTarget(
-                input({switching: true, shortcut: {workspaceId: "w1", projectId: "p1"}}),
-            ),
-        ).toBeNull()
-    })
-
-    it("suppresses every other shortcut while switching", () => {
-        expect(
-            selectContextTarget(
-                input({
-                    switching: true,
-                    groups: [group("w1", ["p1"])],
-                    desktopLastUsed: {w1: "p1"},
-                }),
-            ),
-        ).toBeNull()
-    })
-
-    it("forwards when there is exactly one project to choose", () => {
+    it("forwards to the only project", () => {
         expect(selectContextTarget(input({groups: [group("w1", ["p1"])]}))).toEqual({
             workspaceId: "w1",
             projectId: "p1",
         })
-    })
-
-    it("shows the picker when a workspace holds several projects", () => {
-        expect(selectContextTarget(input({groups: [group("w1", ["p1", "p2"])]}))).toBeNull()
     })
 
     it("follows the desktop's last-used pair", () => {
@@ -84,17 +89,22 @@ describe("selectContextTarget", () => {
         ).toEqual({workspaceId: "w1", projectId: "p2"})
     })
 
-    it("ignores a desktop pair whose project is gone", () => {
+    it("falls back to the first project when a desktop pair's project is gone", () => {
+        // There is no picker page: land somewhere and let the drawer correct it.
         expect(
             selectContextTarget(
                 input({groups: [group("w1", ["p1", "p2"])], desktopLastUsed: {w1: "deleted"}}),
             ),
-        ).toBeNull()
+        ).toEqual({workspaceId: "w1", projectId: "p1"})
     })
 
-    it("shows the picker when several workspaces are in play", () => {
+    it("defaults to the first workspace's first project", () => {
         expect(
             selectContextTarget(input({groups: [group("w1", ["p1"]), group("w2", ["p2"])]})),
-        ).toBeNull()
+        ).toEqual({workspaceId: "w1", projectId: "p1"})
+    })
+
+    it("resolves nothing for an account with no projects", () => {
+        expect(selectContextTarget(input())).toBeNull()
     })
 })

@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
 import {useMutation} from "@tanstack/react-query"
-import {App, Form} from "antd"
+import {App} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import Session from "supertokens-auth-react/recipe/session"
@@ -104,7 +104,6 @@ export const useProjectOrgSwitcher = () => {
 
     // ── Create project ─────────────────────────────────────────────────────
     const [createProjectOpen, setCreateProjectOpen] = useState(false)
-    const [createProjectForm] = Form.useForm<{name: string}>()
 
     const navigateToProject = useCallback(
         (workspaceId: string, projectId: string, organizationId?: string | null) => {
@@ -130,7 +129,6 @@ export const useProjectOrgSwitcher = () => {
         },
         onSuccess: (createdProject) => {
             message.success("Project created")
-            createProjectForm.resetFields()
             setCreateProjectOpen(false)
             // Only a real workspace id routes correctly; org id would build /w/<orgId>/... .
             const workspaceKey = createdProject?.workspace_id || currentWorkspaceId || ""
@@ -151,7 +149,6 @@ export const useProjectOrgSwitcher = () => {
 
     // ── Create organization ────────────────────────────────────────────────
     const [createOrgOpen, setCreateOrgOpen] = useState(false)
-    const [createOrgForm] = Form.useForm<{name: string}>()
 
     const createOrgMutation = useMutation({
         mutationFn: async (values: {name: string}) => {
@@ -160,7 +157,6 @@ export const useProjectOrgSwitcher = () => {
         },
         onSuccess: async (createdOrg) => {
             message.success("Organization created")
-            createOrgForm.resetFields()
             setCreateOrgOpen(false)
             await refetch()
             if (createdOrg?.id) await changeSelectedOrg(createdOrg.id)
@@ -267,22 +263,20 @@ export const useProjectOrgSwitcher = () => {
         () => ({
             open: createProjectOpen,
             setOpen: setCreateProjectOpen,
-            form: createProjectForm,
-            submit: (values: {name: string}) => createProjectMutation.mutate(values),
+            submit: (name: string) => createProjectMutation.mutate({name}),
             isPending: createProjectMutation.isPending,
         }),
-        [createProjectOpen, createProjectForm, createProjectMutation],
+        [createProjectOpen, createProjectMutation],
     )
 
     const createOrg = useMemo(
         () => ({
             open: createOrgOpen,
             setOpen: setCreateOrgOpen,
-            form: createOrgForm,
-            submit: (values: {name: string}) => createOrgMutation.mutate(values),
+            submit: (name: string) => createOrgMutation.mutate({name}),
             isPending: createOrgMutation.isPending,
         }),
-        [createOrgOpen, createOrgForm, createOrgMutation],
+        [createOrgOpen, createOrgMutation],
     )
 
     return {
