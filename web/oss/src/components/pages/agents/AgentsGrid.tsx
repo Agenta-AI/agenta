@@ -1,13 +1,14 @@
-import {AgentCardGrid} from "@agenta/entity-ui/agent"
+import {AgentRosterGrid, type AgentRosterEntry} from "@agenta/entity-ui/agent"
+import {useWaitingByAgent} from "@agenta/sessions/state"
 
-import AgentCard from "@/oss/components/AgentCard"
+import AgentActivityCell from "@/oss/components/pages/agent-home/components/YourAgentsTable/AgentActivityCell"
 import type {AgentColumnActions} from "@/oss/components/pages/agent-home/components/YourAgentsTable/columns"
-import {useWaitingByAgent} from "@/oss/components/pages/agent-home/components/YourAgentsTable/useAgentActivity"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
+import UserReference from "@/oss/components/References/UserReference"
 
 /**
- * The agents roster — the SHARED card grid shell (`@agenta/entity-ui/agent`) with the app's
- * mapped cards: the roster rows, the waiting badge, and the shared action set.
+ * The agents roster — the SHARED roster grid (`@agenta/entity-ui/agent`) with this app's row
+ * mapping, its verbs, and the two data-connected cells the package deliberately does not own.
  */
 const AgentsGrid = ({
     rows,
@@ -21,19 +22,37 @@ const AgentsGrid = ({
     onCreate: () => void
 }) => {
     const waitingByAgent = useWaitingByAgent()
+    // The card's neutral shape; `record` is recovered by id for the action callbacks.
+    const agents: AgentRosterEntry[] = rows.map((record) => ({
+        id: record.workflowId,
+        name: record.name,
+        description: record.description,
+        updatedAt: record.updatedAt,
+    }))
+    const rowById = new Map(rows.map((record) => [record.workflowId, record] as const))
+    const withRow = (fn: (record: AppWorkflowRow) => void) => (agent: AgentRosterEntry) => {
+        const record = rowById.get(agent.id)
+        if (record) fn(record)
+    }
 
     return (
-        <AgentCardGrid isLoading={isLoading} count={rows.length} onCreate={onCreate}>
-            {rows.map((record) => (
-                <AgentCard
-                    key={record.key}
-                    variant="grid"
-                    record={record}
-                    waiting={waitingByAgent.get(record.workflowId) ?? 0}
-                    actions={actions}
-                />
-            ))}
-        </AgentCardGrid>
+        <AgentRosterGrid
+            agents={agents}
+            isLoading={isLoading}
+            waitingByAgent={waitingByAgent}
+            onCreate={onCreate}
+            onOpenOverview={withRow((record) => actions.onOpen(record))}
+            onOpenPlayground={withRow((record) => actions.onOpenPlayground(record))}
+            onRename={withRow((record) => actions.onRename(record))}
+            onArchive={withRow((record) => actions.onArchive(record))}
+            renderActivity={(agent) => <AgentActivityCell agentId={agent.id} />}
+            renderOwner={(agent) => {
+                const record = rowById.get(agent.id)
+                return record?.createdById ? (
+                    <UserReference userId={record.createdById} className="truncate" />
+                ) : null
+            }}
+        />
     )
 }
 

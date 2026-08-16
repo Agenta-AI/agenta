@@ -117,3 +117,9 @@ export {
     type SessionFileActivityEntry,
     type FileActivityEffect,
 } from "./state/fileActivity"
+export {
+    clearSessionFresh,
+    freshSessionIds,
+    isSessionFresh,
+    markSessionFresh,
+} from "./core/freshSessions"

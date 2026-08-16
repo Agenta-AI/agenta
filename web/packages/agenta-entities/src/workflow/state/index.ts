@@ -275,3 +275,5 @@ export {
     ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./agentCreationPrefs"
+
+export {agentRosterSearchAtom, matchesAgentQuery} from "./agentRoster"

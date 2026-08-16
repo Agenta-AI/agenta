@@ -59,9 +59,11 @@ export interface AgentCardProps {
     activity?: ReactNode
     owner?: ReactNode
     onOpenOverview: () => void
-    onOpenPlayground: () => void
-    onRename: () => void
-    onArchive: () => void
+    /** Omit any of these and its menu entry disappears — a surface that cannot do it must not
+     * offer it. With none of them the card opens the overview and carries no menu at all. */
+    onOpenPlayground?: () => void
+    onRename?: () => void
+    onArchive?: () => void
 }
 
 /**
@@ -132,6 +134,11 @@ export const AgentCard = ({
         </span>
     ) : null
 
+    // The card's default open affordance is the playground where there is one; otherwise the
+    // overview is the only thing this surface can open.
+    const open = onOpenPlayground ?? onOpenOverview
+    const hasMenu = Boolean(onOpenPlayground || onRename || onArchive)
+
     const menu = (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -150,19 +157,27 @@ export const AgentCard = ({
                     <Note size={16} />
                     Open overview
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onOpenPlayground}>
-                    <Rocket size={16} />
-                    Open in playground
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onRename}>
-                    <PencilSimple size={16} />
-                    Rename
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={onArchive}>
-                    <Trash size={16} />
-                    Archive
-                </DropdownMenuItem>
+                {onOpenPlayground ? (
+                    <DropdownMenuItem onSelect={onOpenPlayground}>
+                        <Rocket size={16} />
+                        Open in playground
+                    </DropdownMenuItem>
+                ) : null}
+                {onRename ? (
+                    <DropdownMenuItem onSelect={onRename}>
+                        <PencilSimple size={16} />
+                        Rename
+                    </DropdownMenuItem>
+                ) : null}
+                {onArchive ? (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onSelect={onArchive}>
+                            <Trash size={16} />
+                            Archive
+                        </DropdownMenuItem>
+                    </>
+                ) : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )
@@ -171,14 +186,14 @@ export const AgentCard = ({
         <div
             role="button"
             tabIndex={0}
-            onClick={onOpenPlayground}
+            onClick={open}
             onKeyDown={(event) => {
                 // Only the card itself: the kebab inside it handles its own keys, and Space on a
                 // container that does not preventDefault also scrolls the page.
                 if (event.target !== event.currentTarget) return
                 if (event.key !== "Enter" && event.key !== " ") return
                 event.preventDefault()
-                onOpenPlayground()
+                open()
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${
                 isGrid
@@ -194,7 +209,7 @@ export const AgentCard = ({
                 <>
                     <div className="flex items-start justify-between gap-2">
                         {title}
-                        {menu}
+                        {hasMenu ? menu : null}
                     </div>
                     {description}
                     {/* Footer: who made it and when it last ran. The design's integration badges
@@ -219,7 +234,7 @@ export const AgentCard = ({
                         {title}
                         {description}
                     </div>
-                    {menu}
+                    {hasMenu ? menu : null}
                 </div>
             )}
         </div>

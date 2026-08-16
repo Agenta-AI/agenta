@@ -1,15 +1,14 @@
 import {useState} from "react"
 
+import {PROVIDERS, templateToolCount, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {CollapsibleProviderGroup, SubSectionHeader} from "@agenta/entity-ui/drawers/shared"
-
-import {PROVIDERS, templateToolCount, type AgentTemplate} from "../../assets/templates"
 
 /**
  * Read-only preview of the tools a template uses, grouped by provider — mirrors the agent config
  * panel's Tools section (uppercase "Connected apps" header → collapsible provider cards → per-tool
  * rows) but without the edit/add affordances. First provider group is expanded by default.
  */
-const ToolsPreview = ({template}: {template: AgentTemplate}) => {
+const ToolsPreview = ({template}: {template: AgentStarterTemplate}) => {
     const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
         Object.fromEntries(template.requiredIntegrations.map((i, idx) => [i.slug, idx === 0])),
     )
