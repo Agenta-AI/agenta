@@ -25,8 +25,18 @@ vi.mock("@agenta/entities/workflow", async () => {
     const params = {
         agent: {instructions: "You are a friendly hello-world agent. Greet the user warmly."},
     }
+    // Both selectors: the dock reads `serverConfiguration`, and the approval model reaches for
+    // `configuration` through the package. A mock missing either one fails the whole file with a
+    // "not a function" that says nothing about the wiring under test.
     return {
-        workflowMolecule: {selectors: {serverConfiguration: () => atom(params)}},
+        workflowMolecule: {
+            selectors: {
+                serverConfiguration: () => atom(params),
+                configuration: () => atom(params),
+            },
+            // `useAlwaysAllowTool` writes through this one.
+            actions: {updateConfiguration: atom(null, () => undefined)},
+        },
     }
 })
 
@@ -44,7 +54,10 @@ vi.mock("@agenta/chat/hooks", () => ({
     useAlwaysAllowTool: () => ({infoFor: () => null, grant: () => undefined}),
 }))
 
-const {default: ApprovalDock, getPendingApprovals} = await import("./ApprovalDock")
+const {default: ApprovalDock} = await import("./ApprovalDock")
+// `getPendingApprovals` moved to the package with the rest of the approval model; the dock only
+// renders what it returns.
+const {getPendingApprovals} = await import("@agenta/chat/model")
 const {chatPanelMaximizedAtom} = await import("@agenta/chat/state")
 
 /** The turn shape the egress produces: the gated tool part, plus the manifest as a sibling. */

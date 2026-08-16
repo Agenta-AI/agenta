@@ -11,6 +11,12 @@ import {
 } from "react"
 
 import {traceSpanMolecule} from "@agenta/entities/trace"
+import {
+    buildDecodedJsonOutput,
+    normalizeEscapedLineBreaks,
+    parseStructuredJson,
+} from "@agenta/observability-ui/drillIn"
+import {getDefaultJsonViewMode} from "@agenta/observability-ui/drillIn"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {
     CopyButton,
@@ -41,15 +47,10 @@ import dynamic from "next/dynamic"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 
-import {
-    buildDecodedJsonOutput,
-    normalizeEscapedLineBreaks,
-    parseStructuredJson,
-} from "./decodedJsonHelpers"
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
 import {PrettyJsonView} from "./PrettyJsonView"
-import {getDefaultJsonViewMode} from "./viewModes"
+
 const ImagePreview = dynamic(() => import("@agenta/ui").then((mod) => mod.ImagePreview), {
     ssr: false,
 })

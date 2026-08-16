@@ -1,6 +1,6 @@
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import {getStringOrJson} from "@agenta/shared/utils"
-import dayjs from "dayjs"
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 

@@ -3,7 +3,6 @@ import {catalogPersister} from "@agenta/shared/api/persist"
 import {logAtom} from "@agenta/shared/state"
 import type {User} from "@agenta/shared/types"
 import type {QueryKey} from "@tanstack/react-query"
-import type {AxiosError} from "axios"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 import Router from "next/router"
@@ -21,10 +20,10 @@ export const profileQueryAtom = atomWithQuery<User | null>((get) => ({
         }
 
         try {
-            const res = await fetchProfile()
-            return (res?.data as User) ?? null
+            return await fetchProfile()
         } catch (error) {
-            if ((error as AxiosError)?.response?.status === 401) {
+            // Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`.
+            if ((error as {statusCode?: number} | null)?.statusCode === 401) {
                 return null
             }
             throw error

@@ -114,6 +114,7 @@
     --ag-controlOutline: rgba(5, 23, 41, 0.1);
     --ag-errorOutline: rgba(214, 16, 16, 0.06);
     --ag-colorFillQuaternary: rgba(5, 23, 41, 0.02);
+    --switch-handle-shadow: 0 2px 4px 0 rgba(0, 35, 11, 0.2);
     --ag-composer-border: #e7e8eb;
     --ag-composer-focus: #c2d54a;
     --ag-composer-placeholder: #767b82;
@@ -241,6 +242,7 @@
     --ag-controlOutline: rgba(251, 251, 96, 0.29);
     --ag-errorOutline: rgba(238, 38, 56, 0.11);
     --ag-colorFillQuaternary: rgba(255, 255, 255, 0.04);
+    --switch-handle-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.45);
     --ag-composer-border: #2a2c30;
     --ag-composer-focus: rgba(194, 213, 74, 0.45);
     --ag-composer-placeholder: #7e828a;

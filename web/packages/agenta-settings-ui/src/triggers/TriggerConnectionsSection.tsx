@@ -17,11 +17,13 @@ import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui
 import {ArrowClockwise, Lightning, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
+import type {ConfirmDestructive} from "../confirm"
+
 const DEFAULT_PROVIDER = "composio"
 
 export interface TriggerConnectionsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
-    confirm?: (args: {title: string; message: string; onOk: () => Promise<void>}) => void
+    confirm?: ConfirmDestructive
     /** Hides connect/refresh and skips the catalog drawer. */
     readOnly?: boolean
 }

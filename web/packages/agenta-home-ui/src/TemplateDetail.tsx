@@ -8,7 +8,12 @@
  * session is labelled as illustrative, because an authored run presented as a real one is a lie
  * about what the agent has done for someone.
  *
- * Two shells, swapped at `lg`. Beside the results there is room for the shared `FilterRailLayout`:
+ * Two shells, swapped at `lg` — and only ONE is ever in the tree. They share `identity`, `meta`
+ * and `body` as element variables, so rendering both and hiding one with `lg:hidden` mounted each
+ * of them twice: the host's markdown renderer parsed the whole AGENTS.md twice on every render,
+ * and the Use button existed twice.
+ *
+ * Beside the results there is room for the shared `FilterRailLayout`:
  * identity and the decision live in the rail, the reading half scrolls beside it. On a phone that
  * rail is the whole viewport and the reading half is a slit, so the page becomes what it is — one
  * scrolling document — with only the Use button pinned, as a footer bar.
@@ -20,6 +25,7 @@ import type {ReactNode} from "react"
 
 import {PROVIDERS, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {EnhancedButton, FilterRailLayout, Tag} from "@agenta/ui/components/presentational"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {EmptyState, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, LightningIcon} from "@phosphor-icons/react"
 import Link from "next/link"
@@ -63,6 +69,10 @@ export const TemplateDetail = ({
     busy = false,
     renderMarkdown,
 }: TemplateDetailProps) => {
+    // Which shell to build. Declared before the early return below, because hooks cannot sit
+    // after one. Tailwind's `lg`; client-only, so the first paint is the phone shell.
+    const wide = useMediaQuery("(min-width: 1024px)")
+
     if (!template) {
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center p-6">
@@ -246,12 +256,12 @@ export const TemplateDetail = ({
         </div>
     )
 
-    return (
-        <>
-            {/* Phone: one document between two pinned bars — the way back and which template you
-                are reading on top, the decision at the bottom. Everything else scrolls, instead of
-                a rail that eats the screen to keep the same two things in view. */}
-            <div className="flex min-h-0 flex-1 flex-col lg:hidden">
+    if (!wide) {
+        // Phone: one document between two pinned bars — the way back and which template you are
+        // reading on top, the decision at the bottom. Everything else scrolls, instead of a rail
+        // that eats the screen to keep the same two things in view.
+        return (
+            <div className="flex min-h-0 flex-1 flex-col">
                 <div className="box-border flex shrink-0 items-center gap-2 border-x-0 border-b border-t-0 border-solid border-colorBorderSecondary px-3 py-2">
                     <Link
                         href={allTemplatesHref}
@@ -273,22 +283,23 @@ export const TemplateDetail = ({
                     {useButton(true)}
                 </div>
             </div>
+        )
+    }
 
-            <FilterRailLayout
-                className="hidden lg:flex"
-                railClassName="lg:w-[344px]"
-                contentClassName="overflow-y-auto px-6 py-6 lg:pl-10"
-                rail={
-                    <>
-                        {backLink}
-                        {identity}
-                        {useButton()}
-                        {meta}
-                    </>
-                }
-            >
-                {body}
-            </FilterRailLayout>
-        </>
+    return (
+        <FilterRailLayout
+            railClassName="lg:w-[344px]"
+            contentClassName="overflow-y-auto px-6 py-6 lg:pl-10"
+            rail={
+                <>
+                    {backLink}
+                    {identity}
+                    {useButton()}
+                    {meta}
+                </>
+            }
+        >
+            {body}
+        </FilterRailLayout>
     )
 }

@@ -3,9 +3,12 @@ import {useMemo} from "react"
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {formatDay} from "@agenta/shared/utils/dateTime"
+import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components/presentational"
 import {DataTable, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
+
+import type {ConfirmDestructive} from "../confirm"
 
 import {useToolsConnections} from "./hooks/useToolsConnections"
 
@@ -13,7 +16,7 @@ interface Props {
     integrationKey: string
     connections: ToolConnection[]
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
-    confirm?: (args: {title: string; message: string; onOk: () => void | Promise<void>}) => void
+    confirm?: ConfirmDestructive
 }
 
 const getRedirectUrl = (connection: ToolConnection | null | undefined): string | undefined => {
@@ -43,7 +46,15 @@ export default function ConnectionsList({integrationKey, connections, confirm}: 
     const onRefresh = async (connection: ToolConnection) => {
         if (!connection.id) return
 
-        const result = await handleRefresh(connection.id)
+        let result: Awaited<ReturnType<typeof handleRefresh>>
+        try {
+            result = await handleRefresh(connection.id)
+        } catch {
+            // Nothing awaits this handler, so a rejected refresh would be silent — the row would
+            // simply never change state.
+            message.error("Couldn't refresh the connection")
+            return
+        }
         const redirectUrl = getRedirectUrl(result.connection)
 
         if (!redirectUrl) return

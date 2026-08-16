@@ -53,7 +53,9 @@ export const EmptyPlaceholder = ({
             ) : null}
             {secondaryCta ? (
                 <>
-                    <span className="text-colorText">Or</span>
+                    {/* The separator only makes sense between two CTAs; a secondary-only state
+                        used to render an orphaned "Or". */}
+                    {primaryCta ? <span className="text-colorText">Or</span> : null}
                     <EnhancedButton
                         size={secondaryCta.size ?? "large"}
                         icon={secondaryCta.icon}

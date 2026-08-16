@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {ProjectsPage} from "@agenta/settings-ui"
@@ -26,8 +26,6 @@ interface Props {
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
 export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
-    const [name, setName] = useState("")
-
     return (
         <ProjectsPage
             projects={projects}
@@ -40,13 +38,8 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
                     description="Projects group your agents, datasets and deployments."
                     submitLabel="Create"
                     pending={pending}
-                    value={name}
-                    onValueChange={setName}
-                    onClose={() => {
-                        setName("")
-                        onClose()
-                    }}
-                    onSubmit={() => onSubmit({name: name.trim()})}
+                    onClose={onClose}
+                    onSubmit={(name) => onSubmit({name})}
                 />
             )}
             renderRenameDialog={({open, onClose, onSubmit, pending, project}) => (
@@ -55,17 +48,9 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
                     title="Rename project"
                     submitLabel="Save"
                     pending={pending}
-                    // The sheet mounts before a row is chosen, so fall back to the row's name
-                    // until the field is edited.
-                    value={name || (project?.project_name ?? "")}
-                    onValueChange={setName}
-                    onClose={() => {
-                        setName("")
-                        onClose()
-                    }}
-                    onSubmit={() =>
-                        onSubmit({name: (name || (project?.project_name ?? "")).trim()})
-                    }
+                    initialValue={project?.project_name ?? ""}
+                    onClose={onClose}
+                    onSubmit={(name) => onSubmit({name})}
                 />
             )}
             renderDeleteDialog={({open, onClose, onSubmit, pending, project}) => (
@@ -98,14 +83,18 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
     )
 }
 
+/**
+ * Owns the draft itself, seeded from `initialValue` each time it opens. It used to render
+ * `value || initialValue`, which meant clearing the field silently put the old name back —
+ * uncleanable, and Save then sent the name the user had just deleted.
+ */
 const NameSheet = ({
     open,
     title,
     description,
     submitLabel,
     pending,
-    value,
-    onValueChange,
+    initialValue = "",
     onClose,
     onSubmit,
 }: {
@@ -114,33 +103,43 @@ const NameSheet = ({
     description?: string
     submitLabel: string
     pending: boolean
-    value: string
-    onValueChange: (value: string) => void
+    initialValue?: string
     onClose: () => void
-    onSubmit: () => void
-}) => (
-    <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-        <SheetContent side="responsive">
-            <SheetHeader>
-                <SheetTitle>{title}</SheetTitle>
-                {description ? <SheetDescription>{description}</SheetDescription> : null}
-            </SheetHeader>
-            <div className="px-4">
-                <Input
-                    autoFocus
-                    value={value}
-                    onChange={(event) => onValueChange(event.target.value)}
-                    placeholder="Project name"
-                />
-            </div>
-            <SheetFooter>
-                <Button disabled={pending || !value.trim()} onClick={onSubmit}>
-                    {submitLabel}
-                </Button>
-                <Button variant="outline" onClick={onClose} disabled={pending}>
-                    Cancel
-                </Button>
-            </SheetFooter>
-        </SheetContent>
-    </Sheet>
-)
+    onSubmit: (name: string) => void
+}) => {
+    const [value, setValue] = useState(initialValue)
+
+    useEffect(() => {
+        if (open) setValue(initialValue)
+    }, [open, initialValue])
+
+    return (
+        <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
+            <SheetContent side="responsive">
+                <SheetHeader>
+                    <SheetTitle>{title}</SheetTitle>
+                    {description ? <SheetDescription>{description}</SheetDescription> : null}
+                </SheetHeader>
+                <div className="px-4">
+                    <Input
+                        autoFocus
+                        value={value}
+                        onChange={(event) => setValue(event.target.value)}
+                        placeholder="Project name"
+                    />
+                </div>
+                <SheetFooter>
+                    <Button
+                        disabled={pending || !value.trim()}
+                        onClick={() => onSubmit(value.trim())}
+                    >
+                        {submitLabel}
+                    </Button>
+                    <Button variant="outline" onClick={onClose} disabled={pending}>
+                        Cancel
+                    </Button>
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
+    )
+}

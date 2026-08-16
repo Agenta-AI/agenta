@@ -8,7 +8,8 @@
 
 import type {ReactNode} from "react"
 
-import type {ColumnDef} from "../InfiniteVirtualTable/columnDef"
+import type {ColumnDef, ColumnDefs} from "../InfiniteVirtualTable/columnDef"
+import {isColumnGroupDef} from "../InfiniteVirtualTable/columnDef"
 
 // ============================================================================
 // TYPES
@@ -55,7 +56,7 @@ export interface GroupColumnsOptions<T, C extends GroupableColumn = GroupableCol
 const DEFAULT_MAX_DEPTH = 1
 
 /** Internal column type with ordering metadata for sorting during grouping */
-type OrderedColumn<T> = ColumnDef<T> & {__order?: number}
+type OrderedColumn<T> = ColumnDefs<T>[number] & {__order?: number}
 
 /**
  * Check if a column key indicates it belongs to a group
@@ -99,12 +100,12 @@ function isExpandedColumn(col: GroupableColumn): boolean {
 /**
  * Count leaf columns in a nested column structure
  */
-function countLeafColumns<T>(columns: ColumnDef<T>[]): number {
+function countLeafColumns<T>(columns: ColumnDefs<T>): number {
     let count = 0
     columns.forEach((col) => {
-        const children = (col as ColumnDef<T> & {children?: ColumnDef<T>[]}).children
-        if (children && children.length > 0) {
-            count += countLeafColumns(children)
+        // The guard replaces a cast that widened a leaf just to look for children.
+        if (isColumnGroupDef(col) && col.children.length > 0) {
+            count += countLeafColumns(col.children)
         } else {
             count += 1
         }
@@ -124,7 +125,7 @@ function groupColumnsRecursive<T, C extends GroupableColumn>(
     options: GroupColumnsOptions<T, C> | undefined,
     parentPath: string,
     currentDepth: number,
-): ColumnDef<T>[] {
+): ColumnDefs<T> {
     const {
         collapsedGroups,
         onGroupHeaderClick,
@@ -133,7 +134,7 @@ function groupColumnsRecursive<T, C extends GroupableColumn>(
         maxDepth = DEFAULT_MAX_DEPTH,
     } = options ?? {}
 
-    const result: ColumnDef<T>[] = []
+    const result: ColumnDefs<T> = []
     const groupMap = new Map<string, {columns: C[]; order: number}>()
     let orderCounter = 0
 
@@ -253,6 +254,8 @@ export function groupColumns<T, C extends GroupableColumn = GroupableColumn>(
     columns: C[],
     createColumnDef: (col: C, displayName: string) => ColumnDef<T>,
     options?: GroupColumnsOptions<T, C>,
-): ColumnDef<T>[] {
+): ColumnDefs<T> {
+    // Groups are structurally assignable to leaves, so the old ColumnDef<T>[] return
+    // typechecked while being false. Callers that narrow need isColumnGroupDef.
     return groupColumnsRecursive(columns, createColumnDef, options, "", 0)
 }

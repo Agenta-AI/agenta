@@ -41,7 +41,7 @@ export const SessionsPane = ({
                         type="button"
                         aria-label="New session"
                         onClick={() => void router.push(`${base}/agents/${agentId}`)}
-                        className="text-colorTextSecondary hover:text-colorText -m-2 cursor-pointer border-0 bg-transparent p-2"
+                        className="text-colorTextSecondary hover:text-colorText focus-visible:text-colorText -m-2 cursor-pointer rounded-md border-0 bg-transparent p-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     >
                         <Plus size={16} />
                     </button>

@@ -17,14 +17,44 @@ export const AVT = {
     row: "avt-row",
     cell: "avt-cell",
     headerCell: "avt-head-cell",
+    resizeHandle: "avt-resize-handle",
+    expandedRow: "avt-expanded-row",
+    expandCell: "avt-expand-cell",
+    selectionCol: "avt-selection-col",
 } as const
 
 export type AvtClass = (typeof AVT)[keyof typeof AVT]
+
+/**
+ * The selectors to query, AVT first.
+ *
+ * Since the antd `<Table>` branch was deleted the rendered DOM carries only `avt-*`, so the
+ * `.ant-table-*` half of each pair now matches nothing here. It stays as the second half
+ * because a host may still mount an antd table through the legacy column adapter, and because
+ * a selector that silently resolves to `null` is exactly how the scroll container quietly
+ * fell back to the wrong element.
+ */
+export const DOM_SELECTOR = {
+    container: `.${AVT.container}, .ant-table-container`,
+    body: `.${AVT.body}, .ant-table-tbody-virtual-holder, .ant-table-body`,
+    header: `.${AVT.header}, .ant-table-thead`,
+    headerCellWithKey: `.${AVT.header} th[data-column-key], .ant-table-thead th[data-column-key]`,
+    selectionCol: `colgroup col.${AVT.selectionCol}, colgroup col.ant-table-selection-col`,
+    headerSelectionCell: `.${AVT.header} th.${AVT.selectionCol}, .ant-table-thead th.ant-table-selection-column`,
+} as const
 
 export const ANTD_SELECTOR = {
     container: ".ant-table-container",
     body: ".ant-table-body",
     bodyInner: ".ant-table-body-inner",
+    /**
+     * What the scrolling body actually is. This table always renders `virtual`, and in that
+     * mode antd emits the virtual holder INSTEAD of `.ant-table-body` — so the plain selector
+     * above matches nothing here. Kept separate from `body` so stamping the hook does not
+     * change what `useScrollContainer` resolves, which has always fallen through to the
+     * container.
+     */
+    bodyForStamp: ".ant-table-tbody-virtual-holder, .ant-table-body",
     header: ".ant-table-thead",
     headerCellWithKey: ".ant-table-thead th[data-column-key]",
     headerSelectionCell: ".ant-table-thead th.ant-table-selection-column",
@@ -37,7 +67,7 @@ export const ANTD_SELECTOR = {
 /** Structural nodes rendered once per table, so a mount-time stamp is enough. */
 const STAMPED: [selector: string, className: string][] = [
     [ANTD_SELECTOR.container, AVT.container],
-    [ANTD_SELECTOR.body, AVT.body],
+    [ANTD_SELECTOR.bodyForStamp, AVT.body],
     [ANTD_SELECTOR.header, AVT.header],
 ]
 

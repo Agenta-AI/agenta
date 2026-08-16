@@ -90,11 +90,16 @@ labels must keep coming from there so the two rails cannot drift.
 When the flag is off:
 - The sidebar renders the settings scope instead of `mobileNavScope` — header becomes
   `← Back` (returns to the last non-settings route), footer unchanged.
-- `ScreenScaffold` gets **no** `header` — drop the `NavDrawer` + `<h1>Settings</h1>` row.
+- `ScreenScaffold` drops the `<h1>Settings</h1>` row **from `lg` up**, where the rail is
+  persistent and the page needs no second title.
+- **Keep the `lg:hidden` header with its `NavDrawer` trigger.** Below `lg` the sidebar IS the
+  drawer, so removing the trigger in takeover mode leaves a phone with no way to open the
+  settings navigation at all — the takeover would hide the very thing it took over. The shipped
+  `SettingsScreen.tsx` keeps this row for exactly that reason.
 - The content pane renders `SettingsPageShell` alone, exactly as OSS does.
-- On a phone the sidebar is a drawer, so "takeover" means the *drawer's* contents change; the
-  content pane is full-width either way. Check both breakpoints — `lg:` is where OSS's rail
-  becomes persistent.
+- So "takeover" means the *drawer's contents* change on a phone and the *rail's contents* change
+  from `lg` up; the content pane is full-width either way. Check both breakpoints — `lg:` is
+  where OSS's rail becomes persistent.
 
 When the flag is on: today's nested rail, unchanged.
 
@@ -116,10 +121,15 @@ are exercisable. A reviewer should be able to flip one env var and see the other
 
 ```bash
 cd web
+set -euo pipefail
 pnpm lint-fix                                   # must be 24/24
 for p in @agenta/settings @agenta/navigation @agenta/oss @agenta/ee @agenta/mobile; do
-  echo "$p: $(pnpm --filter $p exec tsc --noEmit 2>&1 | grep -c 'error TS')"
-done                                            # all must be 0
+  # tsc's exit status IS the gate. `grep -c` inside a command substitution reports zero for any
+  # failure that prints no `error TS` line and hands the pipeline `grep`'s status, so a compiler
+  # that crashed or never ran reads as a pass.
+  echo "== $p"
+  pnpm --filter "$p" exec tsc --noEmit
+done
 ```
 
 Then **actually look at it** — this is a layout change and static gates say nothing about it:

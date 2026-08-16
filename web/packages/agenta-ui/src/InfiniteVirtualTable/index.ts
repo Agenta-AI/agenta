@@ -137,7 +137,9 @@ export type {
     ColumnSorterConfig,
 } from "./columnDef"
 export {toAntdColumns, fromAntdColumns} from "./antdColumns"
-export {AVT, ANTD_SELECTOR, stampTableDom, type AvtClass} from "./tableDom"
+// ANTD_SELECTOR is deliberately NOT exported: it is an internal fallback, and with the antd
+// table gone these selectors match nothing in our own DOM. No consumer used it.
+export {AVT, stampTableDom, type AvtClass} from "./tableDom"
 export {renderTableMenuItems, type TableMenuItem} from "./tableMenu"
 export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
 
@@ -218,3 +220,18 @@ export type {
 
 export {defaultHeaderVariant, detectColumnTypes} from "./utils/detectColumnTypes"
 export type {ColumnTypeInfo, ColumnTypePrimitive, ColumnRenderHint} from "./utils/detectColumnTypes"
+export {
+    VirtualTable,
+    type VirtualTableProps,
+    type VirtualTableHandle,
+} from "./components/VirtualTable"
+export {
+    distributeColumnWidths,
+    type DistributableColumn,
+    type DistributeArgs,
+} from "./distributeColumnWidths"
+export {
+    default as useVirtualTableRowSelection,
+    type VirtualTableRowSelectionProps,
+} from "./hooks/useVirtualTableRowSelection"
+export {toTanstackColumns, sourceOf, type ColumnMeta} from "./tanstackColumns"

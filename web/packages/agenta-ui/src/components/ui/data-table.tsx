@@ -125,6 +125,13 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
     const showSkeleton = loading && rows.length === 0
     const showEmpty = !loading && rows.length === 0
+    // `RowActions` already renders nothing when every item is hidden, but the COLUMN was keyed on
+    // `actions` being defined — so a read-only host (one that passes the prop but no verb
+    // callbacks, which is every shared settings view on `/m`) got a dead 48px column with an
+    // empty header and empty cells in every row.
+    const actionsColumn =
+        actions &&
+        rows.some((record) => actions(record).some((item) => !("type" in item) && !item.hidden))
     const hasFilterRow = Boolean(search || filters)
     const hasActions = Boolean(onReload || primaryActions)
     const hasHeader = Boolean(title) || hasFilterRow || hasActions
@@ -135,7 +142,9 @@ export function DataTable<T>({
                 variant="outline"
                 aria-label={reloadLabel}
                 disabled={reloading}
-                onClick={onReload}
+                // Called with NO arguments: `onReload` is often a cache `mutate`, and handing it
+                // the click event writes that event into the cache as the new data.
+                onClick={() => onReload()}
             >
                 <ArrowClockwise size={14} />
             </Button>
@@ -234,7 +243,7 @@ export function DataTable<T>({
                                     {column.title}
                                 </th>
                             ))}
-                            {actions ? <th className={clsx(CELL, "w-12")} /> : null}
+                            {actionsColumn ? <th className={clsx(CELL, "w-12")} /> : null}
                         </tr>
                     </thead>
                     <tbody>
@@ -249,7 +258,7 @@ export function DataTable<T>({
                                               <SkeletonBlock active className="h-4 w-3/4" />
                                           </td>
                                       ))}
-                                      {actions ? <td className={CELL} /> : null}
+                                      {actionsColumn ? <td className={CELL} /> : null}
                                   </tr>
                               ))
                             : rows.map((record) => {
@@ -260,9 +269,34 @@ export function DataTable<T>({
                                               onClick={
                                                   onRowClick ? () => onRowClick(record) : undefined
                                               }
+                                              // A clickable row is a control: reachable by Tab and
+                                              // activated by Enter/Space like the button it stands
+                                              // in for. Without this the whole table is mouse-only.
+                                              role={onRowClick ? "button" : undefined}
+                                              tabIndex={onRowClick ? 0 : undefined}
+                                              onKeyDown={
+                                                  onRowClick
+                                                      ? (event) => {
+                                                            if (
+                                                                event.key !== "Enter" &&
+                                                                event.key !== " "
+                                                            )
+                                                                return
+                                                            // Not a click that bubbled up from a
+                                                            // button inside the row.
+                                                            if (
+                                                                event.target !== event.currentTarget
+                                                            )
+                                                                return
+                                                            event.preventDefault()
+                                                            onRowClick(record)
+                                                        }
+                                                      : undefined
+                                              }
                                               className={clsx(
                                                   "border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary",
-                                                  onRowClick && "cursor-pointer",
+                                                  onRowClick &&
+                                                      "cursor-pointer focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring",
                                                   // The detail row carries the boundary instead.
                                                   detail && "border-b-0",
                                               )}
@@ -283,7 +317,7 @@ export function DataTable<T>({
                                                       {column.render(record)}
                                                   </td>
                                               ))}
-                                              {actions ? (
+                                              {actionsColumn ? (
                                                   <td
                                                       className={clsx(CELL, "text-right")}
                                                       onClick={(event) => event.stopPropagation()}
@@ -298,7 +332,9 @@ export function DataTable<T>({
                                           {detail ? (
                                               <tr className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0">
                                                   <td
-                                                      colSpan={columns.length + (actions ? 1 : 0)}
+                                                      colSpan={
+                                                          columns.length + (actionsColumn ? 1 : 0)
+                                                      }
                                                       className="px-3 pb-3 pt-0"
                                                   >
                                                       {detail}

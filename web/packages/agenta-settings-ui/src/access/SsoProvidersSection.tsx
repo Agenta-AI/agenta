@@ -25,8 +25,15 @@ export interface SsoProvidersSectionProps {
     children?: ReactNode
 }
 
-const isEnabled = (provider: OrganizationProvider) => provider.flags?.is_enabled !== false
-const isValid = (provider: OrganizationProvider) => provider.flags?.is_valid !== false
+/**
+ * Both read the flag the BACKEND reads, the way it reads it. `EnableSsoUseCase` gates on
+ * `(provider.flags or {}).get("is_active") and .get("is_valid")` — truthy, so an omitted flag
+ * means NOT active. This used to test `is_enabled !== false`, which is both a different flag and
+ * the opposite default: a provider the backend refuses to enable SSO with rendered here as
+ * enabled and verified.
+ */
+const isEnabled = (provider: OrganizationProvider) => provider.flags?.is_active === true
+const isValid = (provider: OrganizationProvider) => provider.flags?.is_valid === true
 
 /** The identity providers members can sign in through. */
 export const SsoProvidersSection = ({

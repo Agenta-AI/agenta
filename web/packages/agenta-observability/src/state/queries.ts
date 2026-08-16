@@ -174,7 +174,9 @@ export const annotationsQueryAtom = atomWithQuery((get) => {
     const projectId = get(projectIdAtom)
 
     return {
-        queryKey: ["annotations", links],
+        // projectId scopes the request, so it must scope the cache too — otherwise a
+        // project switch with the same links reuses the previous project's annotations.
+        queryKey: ["annotations", projectId, links],
         queryFn: async () => {
             if (Array.isArray(links) && !links.length) return [] as AnnotationDto[]
             const res = await queryAllAnnotations({
@@ -593,11 +595,13 @@ export const sessionUsageAtomFamily = atomFamily((sessionId: string) =>
         return traces.reduce((acc, trace) => {
             const attrs = trace.attributes || {}
             const ag = agOf(trace)
+            // `??`, not `||`: a real incremental total of 0 must not fall through to the
+            // cumulative one, which would double-count a span that reported no new tokens.
             const tokens =
-                ag?.metrics?.tokens?.incremental?.total ||
-                ag?.metrics?.tokens?.cumulative?.total ||
-                (attrs["ag.usage.total_tokens"] as number) ||
-                (attrs["total_tokens"] as number) ||
+                ag?.metrics?.tokens?.incremental?.total ??
+                ag?.metrics?.tokens?.cumulative?.total ??
+                (attrs["ag.usage.total_tokens"] as number) ??
+                (attrs["total_tokens"] as number) ??
                 0
             return acc + (Number(tokens) || 0)
         }, 0)
@@ -610,7 +614,7 @@ export const sessionCostAtomFamily = atomFamily((sessionId: string) =>
         return traces.reduce((acc, trace) => {
             const ag = agOf(trace)
             const cost =
-                ag?.metrics?.costs?.incremental?.total || ag?.metrics?.costs?.cumulative?.total || 0
+                ag?.metrics?.costs?.incremental?.total ?? ag?.metrics?.costs?.cumulative?.total ?? 0
             return acc + (Number(cost) || 0)
         }, 0)
     }),

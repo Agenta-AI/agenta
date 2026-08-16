@@ -12,9 +12,11 @@ import type {BillingPlanOption} from "./types"
 const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 
 const formatPrice = (plan: BillingPlanOption) => {
-    if (!plan.price) return "Contact us"
-    const prefix = plan.price.base?.starting_at ? "Starts at " : ""
-    return `${prefix}$${plan.price.base?.amount} /month`
+    // A priced plan whose base amount is missing rendered "$undefined /month".
+    const amount = plan.price?.base?.amount
+    if (amount == null) return "Contact us"
+    const prefix = plan.price?.base?.starting_at ? "Starts at " : ""
+    return `${prefix}$${amount} /month`
 }
 
 export interface PricingPlansProps {

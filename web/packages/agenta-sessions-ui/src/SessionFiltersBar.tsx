@@ -78,7 +78,7 @@ export const SessionFiltersBar = ({
                         <button
                             type="button"
                             aria-label="Filters"
-                            className="box-border flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-colorFillQuaternary px-2.5 text-sm text-colorTextSecondary"
+                            className="box-border flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-colorFillQuaternary px-2.5 text-sm text-colorTextSecondary outline-none transition-colors hover:bg-colorFillSecondary hover:text-colorText focus-visible:text-colorText focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"
                         >
                             <FunnelIcon size={16} weight={activeCount ? "fill" : "regular"} />
                             Filters
@@ -118,7 +118,10 @@ export const SessionFiltersBar = ({
                                 type="button"
                                 disabled={!activeCount}
                                 onClick={() => {
-                                    setAgentId(null)
+                                    // Only what this sheet actually offers: on an agent-scoped
+                                    // page the agent comes from the route, and clearing it would
+                                    // silently widen the list past the page it belongs to.
+                                    if (showAgent) setAgentId(null)
                                     setMode(false)
                                     setIncludeArchived(false)
                                 }}

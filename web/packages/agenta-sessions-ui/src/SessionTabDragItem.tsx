@@ -17,7 +17,7 @@
  * Motion props pass through: the desktop's chips animate their width + gap margin on enter/exit and
  * track themselves into view via `onUpdate`, and that keeps working while they are drag slots.
  */
-import {useCallback, useRef, useState, type ReactNode, type Ref} from "react"
+import {useCallback, useEffect, useRef, useState, type ReactNode, type Ref} from "react"
 
 import clsx from "clsx"
 import {Reorder, useDragControls, type HTMLMotionProps} from "motion/react"
@@ -58,6 +58,10 @@ export const SessionTabDragItem = ({
         if (pressTimer.current) clearTimeout(pressTimer.current)
         pressTimer.current = null
     }, [])
+
+    // A tab unmounted mid-press (a session closed under the finger) would otherwise fire its
+    // long-press into a dead drag controller.
+    useEffect(() => clearPress, [clearPress])
 
     const onPointerDown = useCallback(
         (event: React.PointerEvent<HTMLDivElement>) => {

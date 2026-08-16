@@ -16,6 +16,10 @@ export interface StagedTileItem {
     id: string
     name: string
     file: File
-    /** Object URL for an image preview, else null (icon fallback). Owned by DriveExplorer. */
+    /**
+     * Object URL for an image preview, else null (icon fallback). Derived and revoked by
+     * `useImagePreviews`, which the upload hooks (`useMountUpload`, `useDriveUploads`) fold in —
+     * NOT by `DriveExplorer`, which only reads it.
+     */
     previewUrl: string | null
 }

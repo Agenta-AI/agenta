@@ -130,4 +130,28 @@ export {
 // Trace row — the compact span presentation both surfaces render
 // ============================================================================
 export {TraceRow, type TraceRowProps, type TraceRowMetrics} from "./trace/TraceRow"
+export {default as AddActionsDropdown} from "./actions"
+export * from "./actions/types"
+export {default as DeleteTraceModal, type DeleteTraceModalProps} from "./delete"
+export {deleteTraceModalAtom} from "./delete/store/atom"
+export {useTracesExport, type UseTracesExportOptions} from "./table/useTracesExport"
+export {
+    collectEvaluatorSlugsFromTraces,
+    orderEvaluatorSlugs,
+    useEvaluatorSlugs,
+} from "./columns/useEvaluatorSlugs"
+export {
+    ObservabilitySessionsTable,
+    type ObservabilitySessionsTableProps,
+} from "./table/ObservabilitySessionsTable"
+export {getSessionColumns, type SessionRow} from "./columns/getSessionColumns"
+export {
+    ObservabilityTracesTable,
+    type ObservabilityTracesTableProps,
+} from "./table/ObservabilityTracesTable"
 export {ObservabilityList, type ObservabilityListProps} from "./list/ObservabilityList"
+export {
+    getObservabilityColumns,
+    getDefaultHiddenObservabilityColumnKeys,
+    type TraceRow as ObservabilityTraceRow,
+} from "./columns/getObservabilityColumns"

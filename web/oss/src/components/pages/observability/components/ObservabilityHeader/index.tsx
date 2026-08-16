@@ -1,36 +1,33 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo} from "react"
 
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
 import {getNodeById} from "@agenta/entities/trace"
-import {exportMatchingTraces} from "@agenta/entities/trace/etl"
 import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
 import {
     buildAttributeKeyTreeOptions,
     buildTraceQueryParams,
-    createAdaptiveTracePageFetcher,
-    createExportWriter,
-    createTraceObject,
-    DEFAULT_TRACE_EXPORT_HEADERS,
     fieldConfigByOptionKey,
     getAgData,
     getFilterColumns,
-    PICKER_CANCELLED,
     reconcileFilterRows,
 } from "@agenta/observability"
 import type {Filter as PackagedFilter} from "@agenta/observability"
 import type {FilterItem} from "@agenta/observability/filters"
-import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
+import {
+    ObservabilityRangePicker,
+    ObservabilityToolbar,
+    useTracesExport,
+    DeleteTraceModal,
+    AddActionsDropdown,
+} from "@agenta/observability-ui"
+import {deleteTraceModalAtom} from "@agenta/observability-ui"
 import {projectIdAtom} from "@agenta/shared/state"
-import {message, modal} from "@agenta/ui/app-message"
+import {modal} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
-import Papa from "papaparse"
 
 import AnnotatedFilterDialog from "@/oss/components/Filters/AnnotatedFilterDialog"
 import {FILTER_COLUMN_ICONS} from "@/oss/components/pages/observability/assets/filterColumnIcons"
-import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
-import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
@@ -40,13 +37,6 @@ import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 import {ObservabilityHeaderProps} from "../../assets/types"
 
 import {useBatchAddTracesToQueue} from "./useBatchAddTracesToQueue"
-
-const DeleteTraceModal = dynamic(
-    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal"),
-    {
-        ssr: false,
-    },
-)
 
 /**
  * The observability / sessions chrome. The controls themselves live in
@@ -61,8 +51,6 @@ const ObservabilityHeader = ({
     onRefresh,
     refreshTrigger,
 }: ObservabilityHeaderProps) => {
-    const [isExporting, setIsExporting] = useState(false)
-    const exportAbortRef = useRef<AbortController | null>(null)
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
     const {canExportData} = useProjectPermissions()
     const projectId = useAtomValue(projectIdAtom)
@@ -83,6 +71,16 @@ const ObservabilityHeader = ({
         fetchTraces,
     } = useObservability()
     const runBatchAdd = useBatchAddTracesToQueue()
+
+    const {onExport: handleExportClick, isExporting} = useTracesExport({
+        columns,
+        canExportData,
+        resolveAppId: () => getAppValues().currentApp?.id || "",
+        resolveFilename: () => {
+            const {currentApp} = getAppValues()
+            return `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
+        },
+    })
 
     const isLoading = propsLoading || isTraceLoading
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
@@ -110,13 +108,6 @@ const ObservabilityHeader = ({
                 ),
             ),
         [traces, selectedRowKeys],
-    )
-
-    useEffect(
-        () => () => {
-            exportAbortRef.current?.abort()
-        },
-        [],
     )
 
     const onApplyFilter = useCallback(
@@ -150,151 +141,6 @@ const ObservabilityHeader = ({
             setTestsetDrawerData(extractData as TestsetTraceData[])
         }
     }, [traces, selectedRowKeys, setTestsetDrawerData])
-
-    const onExport = useCallback(async () => {
-        const exportKey = "observability-export"
-
-        if (!canExportData) return
-        if (!traces.length) return
-
-        const {currentApp} = getAppValues()
-        const appId = currentApp?.id || ""
-        const filename = `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
-
-        const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
-            buildTraceQueryParams(filters, sort, traceTabs, undefined)
-
-        const headers =
-            columns
-                .map((col) => {
-                    if (col.title === "ID") return "Trace ID"
-                    return typeof col.title === "string" ? col.title : null
-                })
-                .filter((header): header is string => Boolean(header)) || []
-        const csvHeaders = headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS
-
-        // Open the native file picker BEFORE starting the scan when the
-        // browser supports `showSaveFilePicker` (Chromium). User-cancel of
-        // the picker bails before any request is fired. On Safari / Firefox
-        // this falls back to the buffered Blob path — same UX as before.
-        const writer = await createExportWriter({filename, headers: csvHeaders})
-        if (writer === PICKER_CANCELLED) return
-
-        const controller = new AbortController()
-        exportAbortRef.current = controller
-
-        setIsExporting(true)
-        message.loading({
-            content: "Preparing export",
-            key: exportKey,
-            duration: 0,
-        })
-
-        // Last reported row count — kept so a rate-limit pause can keep
-        // showing progress while the scan is paused for backoff.
-        let lastRowCount = 0
-
-        // Shared adaptive fetcher: bucket-aware proactive pacing + 429
-        // retry as the safety net. The queue scan uses the same helper —
-        // both pipelines now pace from the live bucket signal instead of
-        // an arbitrary constant.
-        const fetchPage = createAdaptiveTracePageFetcher({
-            params,
-            appId,
-            projectId: projectId ?? "",
-            isHasAnnotationSelected,
-            hasAnnotationConditions,
-            hasAnnotationOperator,
-            signal: controller.signal,
-            onRateLimitPause: (delayMs) => {
-                message.loading({
-                    content:
-                        `Rate limited — pausing for ${Math.ceil(delayMs / 1000)}s` +
-                        ` (exported ${lastRowCount.toLocaleString()} rows so far)`,
-                    key: exportKey,
-                    duration: 0,
-                })
-            },
-        })
-
-        try {
-            const {rowCount, limitReached} = await exportMatchingTraces({
-                fetchPage,
-                flushBatch: async (batch) => {
-                    const rows = batch.map(createTraceObject)
-                    // The writer streams to disk on Chromium and buffers in
-                    // memory on Safari / Firefox — at this seam they look
-                    // identical to the pipeline, so memory stays bounded by
-                    // one batch on supported browsers.
-                    await writer.write(
-                        "\r\n" +
-                            Papa.unparse(
-                                {fields: csvHeaders, data: rows},
-                                {header: false, escapeFormulae: true},
-                            ),
-                    )
-                },
-                signal: controller.signal,
-                // All pacing is done inside `fetchPage` based on the live
-                // bucket state — disable the source-level fixed delay.
-                pageDelayMs: 0,
-                onProgress: ({rows}) => {
-                    lastRowCount = rows
-                    message.loading({
-                        content: `Exporting ${rows.toLocaleString()} rows`,
-                        key: exportKey,
-                        duration: 0,
-                    })
-                },
-            })
-
-            // `finalize(0)` aborts the streaming writable so no header-only
-            // file is left on disk, and is a no-op on the buffered path.
-            await writer.finalize(rowCount)
-
-            if (!rowCount) {
-                message.info({
-                    content: "No traces to export",
-                    key: exportKey,
-                })
-                return
-            }
-
-            if (limitReached) {
-                message.warning({
-                    content: `Export limit reached. Downloaded first ${rowCount.toLocaleString()} rows.`,
-                    key: exportKey,
-                    duration: 5,
-                })
-            } else {
-                message.success({
-                    content: `Exported ${rowCount.toLocaleString()} rows`,
-                    key: exportKey,
-                })
-            }
-        } catch (error) {
-            // Discard any partial bytes already streamed to disk / buffered.
-            await writer.abort().catch(() => {})
-
-            if ((error as Error).name === "AbortError") {
-                message.info({
-                    content: "Export cancelled",
-                    key: exportKey,
-                })
-
-                return
-            }
-
-            console.error("Export error:", error)
-            message.error({
-                content: "Export failed",
-                key: exportKey,
-            })
-        } finally {
-            exportAbortRef.current = null
-            setIsExporting(false)
-        }
-    }, [canExportData, columns, filters, sort, traceTabs, traces, projectId])
 
     const handleRefresh = useCallback(async () => {
         if (componentType === "sessions") {
@@ -373,15 +219,6 @@ const ObservabilityHeader = ({
         },
         [filters, sort, traceTabs, runBatchAdd, projectId],
     )
-
-    const handleExportClick = useCallback(() => {
-        if (isExporting) {
-            exportAbortRef.current?.abort()
-            return
-        }
-
-        void onExport()
-    }, [isExporting, onExport])
 
     const filtersSlot = useMemo(
         () => (

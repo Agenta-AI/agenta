@@ -18,9 +18,7 @@ const read = (): ThemeModeValue => {
     }
 }
 
-const prefersDark = () =>
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-color-scheme: dark)").matches === true
+const DARK_QUERY = "(prefers-color-scheme: dark)"
 
 /**
  * THE theme-mode controller: the stored preference, the theme it resolves to, and the `.dark`
@@ -32,13 +30,26 @@ const prefersDark = () =>
  */
 export const useThemeMode = () => {
     const [themeMode, setThemeMode] = useState<ThemeModeValue>("system")
+    const [systemDark, setSystemDark] = useState(false)
 
     // Read after mount: the value is client-only, and the boot script has already applied the
     // class, so hydrating from it here would mismatch the server render.
     useEffect(() => setThemeMode(read()), [])
 
+    // The OS preference is STATE, not a render-time `matchMedia` read: re-setting the mode to
+    // "system" on a change is a no-op write React bails out of, so the page only flipped on
+    // reload. Listening unconditionally also makes switching back to "system" resolve at once.
+    useEffect(() => {
+        if (typeof window === "undefined" || !window.matchMedia) return
+        const query = window.matchMedia(DARK_QUERY)
+        setSystemDark(query.matches)
+        const sync = (event: MediaQueryListEvent) => setSystemDark(event.matches)
+        query.addEventListener("change", sync)
+        return () => query.removeEventListener("change", sync)
+    }, [])
+
     const resolved: "light" | "dark" =
-        themeMode === "system" ? (prefersDark() ? "dark" : "light") : themeMode
+        themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode
 
     useEffect(() => {
         if (typeof document === "undefined") return
@@ -46,15 +57,6 @@ export const useThemeMode = () => {
         root.classList.toggle("dark", resolved === "dark")
         root.style.colorScheme = resolved
     }, [resolved])
-
-    // Follow the OS while the choice is "system" — otherwise the page only flips on reload.
-    useEffect(() => {
-        if (themeMode !== "system" || typeof window === "undefined") return
-        const query = window.matchMedia("(prefers-color-scheme: dark)")
-        const sync = () => setThemeMode("system")
-        query.addEventListener("change", sync)
-        return () => query.removeEventListener("change", sync)
-    }, [themeMode])
 
     const setMode = useCallback((next: ThemeModeValue) => {
         setThemeMode(next)

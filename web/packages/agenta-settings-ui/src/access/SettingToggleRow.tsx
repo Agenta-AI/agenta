@@ -48,10 +48,17 @@ export const SettingToggleRow = ({
                 {tooltip ? (
                     <TooltipProvider>
                         <Tooltip>
+                            {/* A button, not a span: the tooltip carries the only explanation of
+                                what the toggle does, and a span cannot be reached by keyboard, so
+                                that explanation was mouse-only. */}
                             <TooltipTrigger asChild>
-                                <span className="cursor-help text-colorTextTertiary">
+                                <button
+                                    type="button"
+                                    aria-label={`About ${title}`}
+                                    className="flex cursor-help items-center border-0 bg-transparent p-0 text-colorTextTertiary outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"
+                                >
                                     <Info size={16} />
-                                </span>
+                                </button>
                             </TooltipTrigger>
                             <TooltipContent>{tooltip}</TooltipContent>
                         </Tooltip>

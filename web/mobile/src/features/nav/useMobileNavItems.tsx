@@ -12,6 +12,7 @@ import {
 import {atom, useAtomValue} from "jotai"
 import {unwrap} from "jotai/utils"
 import {
+    Activity,
     Bot,
     CalendarClock,
     Circle,
@@ -86,6 +87,12 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 title: "Agents",
                 icon: createElement(Bot, {size: 16}),
                 link: `${projectURL}/agents`,
+            },
+            {
+                key: "mobile-observability",
+                title: "Observability",
+                icon: createElement(Activity, {size: 16}),
+                link: `${projectURL}/observability`,
             },
         ],
         [source, projectURL],

@@ -128,10 +128,15 @@ imports, one component per file, semantic tokens only.
 
 ```bash
 cd web
+set -euo pipefail
 pnpm lint-fix                                   # must be 24/24
 for p in @agenta/settings-ui @agenta/oss @agenta/ee @agenta/mobile; do
-  echo "$p: $(pnpm --filter $p exec tsc --noEmit 2>&1 | grep -c 'error TS')"
-done                                            # all must be 0
+  # tsc's own exit status is the gate. Counting `error TS` lines inside a command substitution
+  # reports zero for every failure that prints no such line, and takes its status from `grep`
+  # rather than from `pnpm` — so a compiler that crashed reads as a pass.
+  echo "== $p"
+  pnpm --filter "$p" exec tsc --noEmit
+done
 grep -rn 'from "antd"\|@ant-design' packages/agenta-settings-ui/src   # must be empty
 ```
 

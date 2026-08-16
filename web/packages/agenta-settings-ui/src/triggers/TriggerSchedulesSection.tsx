@@ -18,6 +18,8 @@ import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui
 import {ListChecks, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import type {DestructiveConfirmProps} from "../confirm"
+
 // Resolve the bound workflow's display name from its artifact; fall back to the id.
 function BoundWorkflowCell({wfId}: {wfId: string | null}) {
     const name = useAtomValue(
@@ -31,12 +33,15 @@ function BoundWorkflowCell({wfId}: {wfId: string | null}) {
     )
 }
 
-export interface TriggerSchedulesSectionProps {
+export interface TriggerSchedulesSectionProps extends DestructiveConfirmProps {
     /** Hides create/edit and skips the drawer, which is still antd-backed. */
     readOnly?: boolean
 }
 
-export default function TriggerSchedulesSection({readOnly}: TriggerSchedulesSectionProps = {}) {
+export default function TriggerSchedulesSection({
+    confirm,
+    readOnly,
+}: TriggerSchedulesSectionProps = {}) {
     const {schedules, isLoading, refetch} = useTriggerSchedules()
     const {remove, setActive, isMutating} = useTriggerSchedule()
     const openDrawer = useSetAtom(triggerScheduleDrawerAtom)
@@ -59,17 +64,27 @@ export default function TriggerSchedulesSection({readOnly}: TriggerSchedulesSect
         [openDrawer],
     )
 
+    // Deleting a schedule is irreversible, so it asks first — the same host `confirm` seam the
+    // tool and trigger connection sections already use. Without a host confirm it stays inert
+    // rather than deleting silently.
     const handleDelete = useCallback(
-        async (record: TriggerSchedule) => {
+        (record: TriggerSchedule) => {
             if (!record.id) return
-            try {
-                await remove(record.id)
-                message.success("Schedule deleted")
-            } catch {
-                message.error("Failed to delete schedule")
-            }
+            confirm?.({
+                title: "Delete schedule",
+                message:
+                    "Are you sure you want to delete this schedule? This action is irreversible.",
+                onOk: async () => {
+                    try {
+                        await remove(record.id as string)
+                        message.success("Schedule deleted")
+                    } catch {
+                        message.error("Failed to delete schedule")
+                    }
+                },
+            })
         },
-        [remove],
+        [confirm, remove],
     )
 
     const handleToggle = useCallback(

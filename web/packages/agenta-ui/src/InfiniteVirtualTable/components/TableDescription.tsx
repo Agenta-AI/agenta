@@ -37,7 +37,8 @@ const TableDescription = ({children, className, maxWidth = "prose"}: TableDescri
     return (
         <p
             className={cn(
-                "mb-0 text-colorTextSecondary",
+                // Preflight is off in this app, so the native <p> top margin comes back too.
+                "m-0 text-colorTextSecondary",
                 maxWidthClass,
                 "line-clamp-2 h-10",
                 className,

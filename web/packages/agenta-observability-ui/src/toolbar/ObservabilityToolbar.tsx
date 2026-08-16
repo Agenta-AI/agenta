@@ -66,7 +66,9 @@ export const ObservabilityToolbar = ({
     return (
         <section className={clsx("flex justify-between gap-2 flex-col", className)}>
             <div className="w-full flex items-center gap-2 justify-between">
-                <div className="flex items-center gap-1">
+                {/* Wraps rather than overflowing: this toolbar serves phone widths too, where a
+                    single row runs the range picker and auto-refresh off the right edge. */}
+                <div className="flex flex-wrap items-center gap-1 min-w-0">
                     <RefreshButton isLoading={isLoading} onClick={handleRefresh} />
                     <ToolbarSearch />
                     {filtersSlot}

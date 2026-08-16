@@ -51,7 +51,7 @@ export const EmptySessions = ({showOnboarding = true}: {showOnboarding?: boolean
                 primaryCta={{
                     size: "middle",
                     text: "Getting started with sessions",
-                    onClick: () => window.open(SESSIONS_DOCS_URL, "_blank"),
+                    onClick: () => window.open(SESSIONS_DOCS_URL, "_blank", "noopener,noreferrer"),
                 }}
             />
         </div>

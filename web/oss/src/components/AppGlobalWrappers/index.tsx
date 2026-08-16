@@ -27,7 +27,7 @@ const EntityModalsProvider = dynamic(
 )
 
 const TraceDrawer = dynamic(
-    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceDrawer"),
+    () => import("@agenta/observability-ui/traceDrawer").then((m) => m.TraceDrawer),
     {ssr: false},
 )
 

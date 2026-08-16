@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     Button,
@@ -53,17 +53,28 @@ export default function ConnectModal({
     const [slug, setSlug] = useState("")
     const [name, setName] = useState("")
     const [slugError, setSlugError] = useState<string | null>(null)
+    const [createError, setCreateError] = useState<string | null>(null)
+
+    /** The OAuth popup watcher. Held in a ref so unmount and a retry can both stop it. */
+    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const clearPoll = useCallback(() => {
+        if (pollRef.current) clearInterval(pollRef.current)
+        pollRef.current = null
+    }, [])
+    useEffect(() => clearPoll, [clearPoll])
 
     const availableModes = resolveAvailableModes(authSchemes)
     const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
 
     const handleClose = useCallback(() => {
+        clearPoll()
         setSlug("")
         setName("")
         setSlugError(null)
+        setCreateError(null)
         setLoading(false)
         onClose()
-    }, [onClose])
+    }, [clearPoll, onClose])
 
     const handleSubmit = useCallback(async () => {
         if (!slug.trim()) {
@@ -71,6 +82,7 @@ export default function ConnectModal({
             return
         }
         setSlugError(null)
+        setCreateError(null)
 
         try {
             setLoading(true)
@@ -100,9 +112,13 @@ export default function ConnectModal({
                     return
                 }
 
-                const pollTimer = setInterval(() => {
+                // Tracked so unmounting the modal (or starting a second connect) stops the
+                // poll — an untracked interval outlives the dialog and keeps polling a popup
+                // handle nobody is watching.
+                clearPoll()
+                pollRef.current = setInterval(() => {
                     if (popup.closed) {
-                        clearInterval(pollTimer)
+                        clearPoll()
                         window.focus()
                         invalidate()
                         handleClose()
@@ -112,10 +128,13 @@ export default function ConnectModal({
                 // No-auth toolkit: connection created immediately, no redirect.
                 handleClose()
             }
-        } catch {
+        } catch (error) {
             setLoading(false)
+            setCreateError(
+                error instanceof Error ? error.message : "Couldn't create the connection",
+            )
         }
-    }, [slug, name, selectedMode, handleCreate, handleClose, invalidate])
+    }, [slug, name, selectedMode, clearPoll, handleCreate, handleClose, invalidate])
 
     return (
         <Dialog open={open} onOpenChange={(next) => (next ? undefined : handleClose())}>
@@ -165,6 +184,12 @@ export default function ConnectModal({
                             </Select>
                         </Field>
                     )}
+
+                    {createError ? (
+                        <p role="alert" className="m-0 text-xs text-colorError">
+                            {createError}
+                        </p>
+                    ) : null}
                 </div>
 
                 <DialogFooter>

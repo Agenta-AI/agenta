@@ -1,4 +1,4 @@
-import {useCallback, useRef} from "react"
+import {useCallback} from "react"
 
 import {
     createEphemeralAppFromTemplate,
@@ -40,15 +40,19 @@ export interface UseCreateAgentOptions {
  *
  * A re-entry latch protects every caller (home button, composer, template cards) from a rapid
  * double-click minting two agents; the UI-level disabled/loading guards don't cover every path.
+ * It is MODULE-scoped on purpose: a ref would only latch one component, and the double-mint this
+ * guards against is two surfaces firing at once (a template card under the home button) as much
+ * as one button pressed twice.
  */
+let creating = false
+
 export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
     const commitFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
-    const inFlightRef = useRef(false)
 
     return useCallback(
         async ({name, entityId}: CreateAgentParams = {}): Promise<CreatedAgent | null> => {
-            if (inFlightRef.current) return null
-            inFlightRef.current = true
+            if (creating) return null
+            creating = true
             try {
                 const agentName = name?.trim() || "New agent"
                 const ephemeralId =
@@ -97,7 +101,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                 onError?.(extractApiErrorMessage(error))
                 return null
             } finally {
-                inFlightRef.current = false
+                creating = false
             }
         },
         [commitFromEphemeral, onError],

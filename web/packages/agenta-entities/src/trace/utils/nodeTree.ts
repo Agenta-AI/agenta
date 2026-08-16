@@ -14,34 +14,23 @@ export const getNodeById = <T extends SpanNodeLike>(
     nodes: T[] | T | null | undefined,
     id: string,
 ): T | null => {
-    if (nodes && !Array.isArray(nodes) && nodes.span_id === id) {
-        return nodes
-    }
+    if (!nodes) return null
 
-    if (nodes) {
-        for (const value of Object.values(nodes) as (T | T[])[]) {
-            if (Array.isArray(value)) {
-                for (const node of value) {
-                    if (node.span_id === id) {
-                        return node
-                    }
+    // Only `children` is traversed. Iterating `Object.values(node)` also walked metadata such as
+    // `invocationIds` and `otel.links`, which carry a `span_id` of their own — so a lookup could
+    // return a link bag instead of the span it belongs to.
+    const roots = Array.isArray(nodes) ? nodes : [nodes]
 
-                    if (node.children) {
-                        const foundNode = getNodeById(node.children as T[], id)
-                        if (foundNode) return foundNode
-                    }
-                }
-            } else {
-                if (value?.span_id === id) {
-                    return value
-                }
+    for (const node of roots) {
+        if (!node) continue
+        if (node.span_id === id) return node
 
-                if (value?.children) {
-                    const foundNode = getNodeById(value.children as T[], id)
-                    if (foundNode) return foundNode
-                }
-            }
+        const children = node.children
+        if (Array.isArray(children)) {
+            const found = getNodeById(children as T[], id)
+            if (found) return found
         }
     }
+
     return null
 }

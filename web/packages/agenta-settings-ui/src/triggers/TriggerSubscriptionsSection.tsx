@@ -34,12 +34,15 @@ import {
 } from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
-export interface TriggerSubscriptionsSectionProps {
+import type {DestructiveConfirmProps} from "../confirm"
+
+export interface TriggerSubscriptionsSectionProps extends DestructiveConfirmProps {
     /** Hides create/edit and skips the drawer, whose form is still antd-backed. */
     readOnly?: boolean
 }
 
 export default function TriggerSubscriptionsSection({
+    confirm,
     readOnly,
 }: TriggerSubscriptionsSectionProps = {}) {
     const {subscriptions, isLoading, refetch} = useTriggerSubscriptions()
@@ -73,17 +76,25 @@ export default function TriggerSubscriptionsSection({
         [openDrawer],
     )
 
+    // Revoke and delete both ask first, through the host `confirm` seam the connection sections
+    // already use. Without a host confirm they stay inert rather than firing silently.
     const handleRevoke = useCallback(
-        async (record: TriggerSubscription) => {
+        (record: TriggerSubscription) => {
             if (!record.id) return
-            try {
-                await revoke(record.id)
-                message.success("Subscription revoked")
-            } catch {
-                message.error("Failed to revoke subscription")
-            }
+            confirm?.({
+                title: "Revoke subscription",
+                message: "This stops deliveries to this subscription. You can re-create it later.",
+                onOk: async () => {
+                    try {
+                        await revoke(record.id as string)
+                        message.success("Subscription revoked")
+                    } catch {
+                        message.error("Failed to revoke subscription")
+                    }
+                },
+            })
         },
-        [revoke],
+        [confirm, revoke],
     )
 
     const handleRefresh = useCallback(
@@ -100,16 +111,23 @@ export default function TriggerSubscriptionsSection({
     )
 
     const handleDelete = useCallback(
-        async (record: TriggerSubscription) => {
+        (record: TriggerSubscription) => {
             if (!record.id) return
-            try {
-                await remove(record.id)
-                message.success("Subscription deleted")
-            } catch {
-                message.error("Failed to delete subscription")
-            }
+            confirm?.({
+                title: "Delete subscription",
+                message:
+                    "Are you sure you want to delete this subscription? This action is irreversible.",
+                onOk: async () => {
+                    try {
+                        await remove(record.id as string)
+                        message.success("Subscription deleted")
+                    } catch {
+                        message.error("Failed to delete subscription")
+                    }
+                },
+            })
         },
-        [remove],
+        [confirm, remove],
     )
 
     const handleToggle = useCallback(

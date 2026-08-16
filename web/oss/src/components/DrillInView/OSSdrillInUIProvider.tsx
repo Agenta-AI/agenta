@@ -38,12 +38,12 @@ import {
     type GatewayToolsBridge,
     type WorkflowReferenceBridge,
 } from "@agenta/entity-ui/drill-in"
+import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {isToolsEnabled} from "@agenta/shared/api"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore, useSetAtom} from "jotai"
 
-import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
 import {isDemo} from "@/oss/lib/helpers/utils"
 

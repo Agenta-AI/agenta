@@ -17,6 +17,8 @@ export interface HomeTaskComposerProps {
     attachments: ReturnType<typeof useComposerAttachments>
     /** Start the task. Called only with a resolved agent. */
     onStart: (input: {agentId: string; text: string}) => void | Promise<void>
+    /** A rejected `onStart`. Without it the failure is swallowed — the composer has no toast. */
+    onStartError?: (error: unknown) => void
     /** Host extras left of the paperclip (voice mic, context budget). */
     extraPrefix?: ReactNode
     /**
@@ -44,6 +46,7 @@ export const HomeTaskComposer = ({
     agents,
     attachments,
     onStart,
+    onStartError,
     extraPrefix,
     fixedAgentId,
     placeholder = "Describe the task, or start the conversation…",
@@ -51,7 +54,10 @@ export const HomeTaskComposer = ({
     const [agentId, setAgentId] = useState<string | null>(null)
 
     // Default to the most recently touched agent — the one you're most likely to want next.
-    const effectiveAgentId = fixedAgentId ?? agentId ?? agents[0]?.id ?? null
+    // A pick only counts while it is still in the list: an agent deleted (or filtered out) under
+    // the composer otherwise left the trigger blank and sent the task to an agent that is gone.
+    const picked = agentId && agents.some((agent) => agent.id === agentId) ? agentId : null
+    const effectiveAgentId = fixedAgentId ?? picked ?? agents[0]?.id ?? null
     const selectedName = useMemo(
         () => agents.find((agent) => agent.id === effectiveAgentId)?.name,
         [agents, effectiveAgentId],
@@ -61,7 +67,13 @@ export const HomeTaskComposer = ({
         <ChatComposer
             onSubmit={async (text) => {
                 if (!effectiveAgentId) return
-                await onStart({agentId: effectiveAgentId, text})
+                try {
+                    await onStart({agentId: effectiveAgentId, text})
+                } catch (error) {
+                    // `ChatComposer.onSubmit` is fire-and-forget, so a rejecting host would
+                    // surface as an unhandled rejection and nothing else.
+                    onStartError?.(error)
+                }
             }}
             attachments={attachments}
             placeholder={placeholder}

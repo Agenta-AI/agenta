@@ -53,7 +53,9 @@ export const BillingTab = ({projectId}: Props) => {
         setOpeningPortal(true)
         try {
             const portalUrl = await openBillingPortal()
-            if (portalUrl) window.open(portalUrl, "_blank")
+            // Navigate this tab rather than `window.open` after an await: mobile browsers block a
+            // popup that is no longer attributable to the tap. Stripe returns the viewer here.
+            if (portalUrl) window.location.assign(portalUrl)
         } finally {
             setOpeningPortal(false)
         }

@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {
     fetchAllOrgsList,
@@ -53,6 +53,11 @@ import {SecretsTab} from "./SecretsTab"
 import {useSettingsNavScope} from "./settingsNavScope"
 import {SettingsTabRail} from "./SettingsTabRail"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
+import {
+    OrganizationError,
+    OrganizationLoading,
+    OrganizationNoFlags,
+} from "./states/OrganizationStates"
 import {useConfirmSheet} from "./useConfirmSheet"
 import {WebhooksTab} from "./WebhooksTab"
 
@@ -131,19 +136,38 @@ const TabBody = ({
     })
     // Destructive actions in the shared tool/trigger sections ask for confirmation through an
     // imperative callback (the desktop hands them antd's AlertPopup); this is the sheet version.
-    const {confirm, sheet: confirmSheet} = useConfirmSheet()
+    const {confirm, sheet: confirmSheet, close: closeConfirm} = useConfirmSheet()
+    // A confirmation is about the section that raised it. Leaving the tab abandons that context,
+    // so the sheet must not survive into the next one and act there.
+    useEffect(() => closeConfirm, [tab, closeConfirm])
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
 
     const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
     const [lastSavedFlag, setLastSavedFlag] = useState<AuthFlagKey | null>(null)
+    const [flagError, setFlagError] = useState<string | null>(null)
+    // The success tick is a confirmation, not a state — it used to be set and never cleared, so
+    // it sat on the last-saved row for the rest of the session.
+    useEffect(() => {
+        if (!lastSavedFlag) return
+        const timer = setTimeout(() => setLastSavedFlag(null), 3_000)
+        return () => clearTimeout(timer)
+    }, [lastSavedFlag])
     const setFlag = async (flag: AuthFlagKey, value: boolean) => {
         if (!organizationId) return
         setSavingFlag(flag)
+        setFlagError(null)
+        setLastSavedFlag(null)
         try {
             await updateOrganization(organizationId, {flags: {[flag]: value}})
             await org.refetch()
             setLastSavedFlag(flag)
+        } catch (error) {
+            // Without this the request failed, the refetch put the switch back, and the only
+            // signal was a toggle that silently flipped itself.
+            setFlagError(
+                error instanceof Error ? error.message : "Couldn't save that setting — try again",
+            )
         } finally {
             setSavingFlag(null)
         }
@@ -187,6 +211,9 @@ const TabBody = ({
         // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry
         // no antd theming and render correctly here.
         case "tools":
+            // Gated here too, not only in `useActiveSettingsTab`: a render boundary that trusts
+            // the router is one refactor away from rendering a disabled surface.
+            if (!access.canShowTools) return null
             return (
                 <>
                     <GatewayToolsSection confirm={confirm} />
@@ -194,11 +221,12 @@ const TabBody = ({
                 </>
             )
         case "triggers":
+            if (!access.canShowTriggers) return null
             return (
                 <div className="flex flex-col gap-8">
                     <TriggerConnectionsSection confirm={confirm} />
-                    <TriggerSubscriptionsSection />
-                    <TriggerSchedulesSection />
+                    <TriggerSubscriptionsSection confirm={confirm} />
+                    <TriggerSchedulesSection confirm={confirm} />
                     {confirmSheet}
                 </div>
             )
@@ -239,7 +267,9 @@ const TabBody = ({
             const flags = org.data?.flags as OrganizationFlags | undefined
             // Waiting on entitlements too: every `has*` reads false until they land, so
             // rendering now would flash the locked state at an entitled organization.
-            if (!flags || entitlements.isLoading) return null
+            if (org.isPending || entitlements.isLoading) return <OrganizationLoading />
+            if (org.isError) return <OrganizationError onRetry={() => void org.refetch()} />
+            if (!flags) return <OrganizationNoFlags />
             const domainList = domains.data ?? []
             const providerList = providers.data ?? []
             const orgSlug = org.data?.slug
@@ -260,6 +290,7 @@ const TabBody = ({
                             onFlagChange={(flag, value) => void setFlag(flag, value)}
                             updating={Boolean(savingFlag)}
                             lastSavedFlag={lastSavedFlag}
+                            error={flagError}
                             hasActiveVerifiedProvider={providerList.some(
                                 (provider) => provider.flags?.is_active && provider.flags?.is_valid,
                             )}

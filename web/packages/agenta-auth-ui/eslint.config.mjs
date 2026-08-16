@@ -15,7 +15,13 @@ export default [
                     paths: [...restrictedImportPaths],
                     patterns: [
                         {
-                            group: ["antd", "antd/*", "@ant-design/*", "@agenta/ui", "@agenta/ui/*"],
+                            group: [
+                                "antd",
+                                "antd/*",
+                                "@ant-design/*",
+                                "@agenta/ui",
+                                "@agenta/ui/*",
+                            ],
                             message:
                                 "@agenta/auth-ui is antd-free and component-library-free — plain elements with semantic token classes only.",
                         },

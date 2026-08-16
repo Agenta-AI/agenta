@@ -2,12 +2,10 @@ import type {CSSProperties, Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Export, Trash} from "@phosphor-icons/react"
-// The last antd component in this package besides <Table>. @agenta/ui has no Pagination
-// primitive, and one page (application management) renders paginationMode="paginated".
-import {Pagination} from "antd"
 
 import {Button} from "../../components/ui/button"
 import {LoadingButton} from "../../components/ui/button-composed"
+import {Pagination} from "../../components/ui/pagination"
 import {Tabs, TabsList, TabsTrigger} from "../../components/ui/tabs"
 import {SimpleTooltip} from "../../components/ui/tooltip-composed"
 import {useIsNarrowScreen} from "../../hooks/useMediaQuery"

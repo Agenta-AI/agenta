@@ -673,7 +673,9 @@ export const validateFilterRow = (item: FilterItem, fieldMap: FilterFieldMap): R
     const needsKey = !!field.keyInput && field.keyInput.kind !== "none"
     if (needsKey && (!item.key || item.key === "")) return {isValid: false}
 
-    const hidesValue = getOperator(operatorValue).hidesValue || field.valueInput?.kind === "none"
+    // `getOperator` returns undefined for an operator in the union but absent from OPERATORS;
+    // dereferencing it threw during validation and took the dialog's render with it.
+    const hidesValue = getOperator(operatorValue)?.hidesValue || field.valueInput?.kind === "none"
     if (hidesValue) return {isValid: true}
 
     const effType: ScalarType =

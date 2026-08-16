@@ -2,11 +2,12 @@
 import type {Key} from "react"
 
 import {defaultTraceTypeForWorkflow} from "@agenta/entities/workflow"
-import dayjs from "dayjs"
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import {atom} from "jotai"
 import {atomFamily, atomWithStorage} from "jotai/utils"
 
 import {SESSIONS_PAGE_SIZE, TRACES_PAGE_SIZE} from "../core/constants"
+import {toRangeInstant} from "../core/presets"
 import type {
     Filter,
     ObservabilityTabInfo,
@@ -21,7 +22,7 @@ const routeAppIdAtom = atom((get) => get(observabilityScopeAtom).routeAppId)
 
 export const DEFAULT_SORT: SortResult = {
     type: "standard",
-    sorted: dayjs().utc().subtract(24, "hours").toISOString().split(".")[0],
+    sorted: toRangeInstant(dayjs().subtract(24, "hours")),
 }
 
 // Global active tab state

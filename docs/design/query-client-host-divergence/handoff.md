@@ -21,17 +21,21 @@ client cannot silently break every package mutation again.
 
 ## Where to work
 
-Worktree `.claude/worktrees/sessions-ux`, currently on branch `docs/sessions-ux-stack` (top of a
-30-PR stack, PRs #5865–#5894). Before touching anything:
+> **Historical, as written 2026-08-11:** this began in the `sessions-ux` worktree on branch
+> `docs/sessions-ux-stack`, at the top of the 30-PR stack #5865–#5894, with the mobile fix sitting
+> uncommitted. None of that is still true — the work landed on `fix/package-query-client` (PR
+> #5915). Treat the branch and dirty-state expectations below as a record of the starting point,
+> not as a precondition to reproduce.
+
+Confirm where you actually are before touching anything:
 
 ```bash
-cd .claude/worktrees/sessions-ux
-git status --porcelain          # expect: M web/mobile/src/lib/queryClient.ts, ?? docs/design/query-client-host-divergence/
-git log --oneline -1
+git rev-parse --show-toplevel
+git branch --show-current
+git status --porcelain
 ```
 
-That modified mobile file is the already-verified fix — **do not revert it**, and do not fold your
-work into it. Ask where the mobile fix should land before committing it.
+The mobile `queryClient.ts` change was the already-verified fix — **do not revert it**.
 
 **Correction (2026-08-10):** an earlier version of this file said to branch off
 `release/v0.112.0`. That is wrong and will not build. Eight of the packages this work touches

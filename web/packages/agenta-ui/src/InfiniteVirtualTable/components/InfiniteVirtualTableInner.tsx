@@ -2,7 +2,6 @@ import {
     type Key,
     memo,
     type MouseEvent,
-    type Ref,
     useCallback,
     useEffect,
     useId,
@@ -12,12 +11,10 @@ import {
     useState,
 } from "react"
 
-import {Table} from "antd"
-import type {TableProps, TableRef} from "antd/es/table"
+import type {TableProps} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import {cn} from "../../utils/styles"
-import {toAntdColumns} from "../antdColumns"
 import {
     deleteColumnViewportVisibilityAtom,
     setColumnUserVisibilityAtom,
@@ -31,16 +28,15 @@ import useColumnVisibilityControlsBuilder from "../hooks/useColumnVisibilityCont
 import useContainerResize from "../hooks/useContainerResize"
 import useExpandableRows from "../hooks/useExpandableRows"
 import useHeaderViewportVisibility from "../hooks/useHeaderViewportVisibility"
-import useInfiniteScroll from "../hooks/useInfiniteScroll"
 import useScrollContainer from "../hooks/useScrollContainer"
 import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useTableKeyboardShortcuts from "../hooks/useTableKeyboardShortcuts"
 import {shouldIgnoreRowClick} from "../hooks/useTableManager"
-import useTableRowSelection from "../hooks/useTableRowSelection"
 import {useTypeChipColumns} from "../hooks/useTypeChipColumns"
 import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
+import useVirtualTableRowSelection from "../hooks/useVirtualTableRowSelection"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
-import {ANTD_SELECTOR, AVT, stampTableDom} from "../tableDom"
+import {AVT, DOM_SELECTOR, stampTableDom} from "../tableDom"
 import type {InfiniteVirtualTableProps} from "../types"
 import {
     buildColumnDescendantMap,
@@ -48,6 +44,8 @@ import {
     mergeHandlers,
     shallowEqual,
 } from "../utils/columnUtils"
+
+import {VirtualTable} from "./VirtualTable"
 
 const scopeUsageCounts = new Map<string, number>()
 
@@ -115,7 +113,6 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     }, [onHeaderHeightChange, tableHeaderHeight])
 
     // Use extracted hook for infinite scroll handling
-    const handleScroll = useInfiniteScroll({loadMore, scrollThreshold})
 
     const scrollX = containerSize.width
     const scrollY = containerSize.height
@@ -191,7 +188,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             return
         }
         const headerCells = Array.from(
-            container.querySelectorAll<HTMLTableCellElement>(ANTD_SELECTOR.headerCellWithKey),
+            container.querySelectorAll<HTMLTableCellElement>(DOM_SELECTOR.headerCellWithKey),
         ).filter((cell) => Number(cell.getAttribute("colspan") ?? "1") === 1)
         if (!headerCells.length) {
             columnDomRefs.current = new Map()
@@ -327,9 +324,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
 
         const tables = container.querySelectorAll<HTMLTableElement>(".ant-table table")
         tables.forEach((table) => {
-            const selectionCol = table.querySelector<HTMLTableColElement>(
-                ANTD_SELECTOR.selectionCol,
-            )
+            const selectionCol = table.querySelector<HTMLTableColElement>(DOM_SELECTOR.selectionCol)
             if (selectionCol) {
                 selectionCol.style.width = widthPx
                 selectionCol.style.minWidth = widthPx
@@ -338,7 +333,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         })
 
         const headerCells = container.querySelectorAll<HTMLTableCellElement>(
-            ANTD_SELECTOR.headerSelectionCell,
+            DOM_SELECTOR.headerSelectionCell,
         )
         headerCells.forEach((cell) => {
             cell.style.width = widthPx
@@ -353,6 +348,24 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     )
     const computedScrollX = computedTotalWidth + selectionColumnWidth
 
+    // Row heights are measured after mount, so this is only the virtualizer's first guess.
+    const ENGINE_ROW_HEIGHT = 48
+
+    // antd accepts a string key or a function; VirtualTable takes a function.
+    const resolveRowKey = useCallback(
+        (record: RecordType, index: number) =>
+            typeof rowKey === "function"
+                ? rowKey(record, index)
+                : ((record as Record<string, Key>)[rowKey as string] ?? index),
+        [rowKey],
+    )
+
+    const virtualSelection = useVirtualTableRowSelection<RecordType>({
+        rowSelection,
+        dataSource,
+        rowKey: resolveRowKey,
+    })
+
     const resolvedTableProps = useMemo<TableProps<RecordType>>(
         () => tableProps ?? ({} as TableProps<RecordType>),
         [tableProps],
@@ -365,7 +378,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             return
         }
         const headerEl =
-            container.querySelector<HTMLElement>(ANTD_SELECTOR.header) ??
+            container.querySelector<HTMLElement>(DOM_SELECTOR.header) ??
             container.querySelector<HTMLElement>("table thead")
         if (!headerEl) {
             setTableHeaderHeight(null)
@@ -410,7 +423,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         const headerHeight =
             (typeof tableHeaderHeight === "number" && Number.isFinite(tableHeaderHeight)
                 ? tableHeaderHeight
-                : (containerRef.current?.querySelector(ANTD_SELECTOR.header) as HTMLElement | null)
+                : (containerRef.current?.querySelector(DOM_SELECTOR.header) as HTMLElement | null)
                       ?.offsetHeight) ?? null
 
         const computedY = Math.max((scrollY ?? 0) - (headerHeight ?? 0), 0)
@@ -666,8 +679,6 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         disableInteractiveClickGuard,
     ])
 
-    const tableRowSelection = useTableRowSelection(rowSelection)
-
     // Expandable rows support
     const expandableConfig = useExpandableRows({
         config: expandable,
@@ -675,26 +686,20 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     })
 
     // Build expandable prop for Ant Design Table
-    const tableExpandable = useMemo(() => {
-        if (!expandable) return undefined
-        return {
-            expandedRowKeys: expandableConfig.expandedRowKeys,
-            onExpand: expandableConfig.onExpand,
-            expandedRowRender: expandableConfig.expandedRowRender,
-            expandIcon: expandableConfig.expandIcon,
-            rowExpandable: expandableConfig.rowExpandable,
-            columnWidth: expandableConfig.expandColumnWidth,
-            fixed: expandableConfig.expandFixed,
-        }
-    }, [expandable, expandableConfig])
+    // antd tracks expansion as a key list; TanStack as a record.
+    const virtualExpandedState = useMemo(() => {
+        const keys = expandableConfig.expandedRowKeys ?? []
+        return Object.fromEntries(keys.map((key: Key) => [String(key), true]))
+    }, [expandableConfig.expandedRowKeys])
 
     const columnVisibilityVersion = version
-    const tableComponentRef = tableRef as unknown as Ref<TableRef>
 
     // Stable class hooks for app code, so a consumer's selector does not depend on antd's DOM.
     // The structural nodes exist for the table's lifetime; rows and cells get theirs from
     // rowClassName and the column adapter, because virtualization recycles them.
-    useEffect(() => {
+    // Layout effect, not effect: consumers query avt-* right after mount, and useEffect would
+    // let the first painted frame go out unstamped.
+    useLayoutEffect(() => {
         stampTableDom(containerRef.current)
     }, [dataSource])
 
@@ -749,23 +754,56 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                             containerClassName,
                         )}
                     >
-                        <Table<RecordType>
-                            ref={tableComponentRef}
-                            className={tableClassName}
-                            columns={toAntdColumns(finalColumns)}
+                        <VirtualTable<RecordType>
+                            className={cn(tableClassName, finalTableProps.className)}
+                            columns={finalColumns}
                             dataSource={dataSource}
-                            rowKey={rowKey}
-                            pagination={false}
-                            onScroll={handleScroll}
-                            rowSelection={tableRowSelection}
-                            expandable={tableExpandable}
-                            {...tablePropsWithShortcuts}
-                            rowClassName={rowClassName}
-                            scroll={{
-                                x: scrollConfig.x,
-                                y: scrollConfig.y,
-                            }}
-                            virtual
+                            rowKey={resolveRowKey}
+                            rowHeight={ENGINE_ROW_HEIGHT}
+                            height={typeof scrollConfig.y === "number" ? scrollConfig.y : undefined}
+                            loadMore={loadMore}
+                            scrollThreshold={scrollThreshold}
+                            rowClassName={
+                                // antd's RowClassName takes (record, index, indent).
+                                typeof rowClassName === "function"
+                                    ? (record, index) => rowClassName(record, index, 0)
+                                    : undefined
+                            }
+                            loading={Boolean(finalTableProps.loading)}
+                            style={finalTableProps.style}
+                            emptyText={
+                                // antd allows a render function here; VirtualTable takes a node.
+                                typeof finalTableProps.locale?.emptyText === "function"
+                                    ? finalTableProps.locale.emptyText()
+                                    : finalTableProps.locale?.emptyText
+                            }
+                            size={
+                                // antd's SizeType is wider than Table accepts. Pass only the
+                                // real values through; undefined must stay undefined so
+                                // VirtualTable's default density applies.
+                                finalTableProps.size === "small" ||
+                                finalTableProps.size === "middle" ||
+                                finalTableProps.size === "large"
+                                    ? finalTableProps.size
+                                    : undefined
+                            }
+                            bordered={finalTableProps.bordered}
+                            enableColumnResizing={resizableEnabled}
+                            tableRef={tableRef}
+                            // Row clicks (and the interactive-click guard) are composed the
+                            // same way for both engines; without this, rows are inert here.
+                            onRow={(record, index) => mergedOnRow(record, index) ?? {}}
+                            // antd's table stretches columns to fill the container; without
+                            // this the tanstack engine would leave the surplus unused.
+                            autoLayout
+                            {...(virtualSelection ?? {})}
+                            {...(expandable
+                                ? {
+                                      expanded: virtualExpandedState,
+                                      renderExpandedRow: (record) =>
+                                          expandableConfig.expandedRowRender?.(record),
+                                  }
+                                : {})}
                         />
                     </div>
                 </ColumnVisibilityFlagProvider>

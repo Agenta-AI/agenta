@@ -1,6 +1,11 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
-import {createApiKey, deleteApiKey, fetchAllListApiKeys} from "./api/apiKeys"
+import {getHostQueryClient} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import {useAtomValue} from "jotai"
+
+import {createApiKey, deleteApiKey} from "./api/apiKeys"
+import {apiKeysQueryAtomFamily, apiKeysQueryKey} from "./apiKeysQuery"
 
 export interface ApiKey {
     prefix: string
@@ -50,34 +55,26 @@ export const useApiKeys = ({
     onCreated,
     onWorkspacePending,
 }: UseApiKeysOptions) => {
-    const [keys, setKeys] = useState<ApiKeyRow[]>([])
-    const [listing, setListing] = useState(false)
     const [creating, setCreating] = useState(false)
     const [deleting, setDeleting] = useState(false)
 
-    const list = useCallback(() => {
-        if (!canView || !workspaceId.trim()) {
-            setKeys([])
-            return
-        }
-        setListing(true)
-        fetchAllListApiKeys(workspaceId)
-            .then((res) => {
-                setKeys(
-                    ((res.data ?? []) as ApiKey[]).map((key) => ({
-                        ...key,
-                        key: key.prefix,
-                        id: key.prefix,
-                    })),
-                )
-            })
-            .catch(console.error)
-            .finally(() => setListing(false))
-    }, [canView, workspaceId])
+    const projectId = useAtomValue(projectIdAtom)
+    const query = useAtomValue(
+        useMemo(() => apiKeysQueryAtomFamily(canView ? workspaceId : ""), [canView, workspaceId]),
+    )
+    const keys = useMemo<ApiKeyRow[]>(
+        () => (canView ? (query.data ?? []) : []),
+        [canView, query.data],
+    )
+    // A disabled query is pending forever, so it cannot stand in for "loading".
+    const listing = query.fetchStatus === "fetching"
 
-    useEffect(() => {
-        list()
-    }, [list])
+    /** Refetch after a mutation. The cache is the list now, so nothing writes rows by hand. */
+    const list = useCallback(() => {
+        void getHostQueryClient().invalidateQueries({
+            queryKey: apiKeysQueryKey(workspaceId, projectId),
+        })
+    }, [projectId, workspaceId])
 
     const remove = useCallback(
         async (prefix: string) => {
@@ -86,14 +83,14 @@ export const useApiKeys = ({
             setDeleting(true)
             try {
                 await deleteApiKey(prefix)
-                setKeys((current) => current.filter((key) => key.prefix !== prefix))
+                list()
             } catch (error) {
                 console.error(error)
             } finally {
                 setDeleting(false)
             }
         },
-        [canEdit, confirmDelete],
+        [canEdit, confirmDelete, list],
     )
 
     const create = useCallback(async () => {
@@ -104,9 +101,9 @@ export const useApiKeys = ({
         }
         setCreating(true)
         try {
-            const {data} = await createApiKey(workspaceId)
+            const created = await createApiKey(workspaceId)
             list()
-            onCreated(data as string)
+            onCreated(created)
         } catch (error) {
             console.error(error)
         } finally {

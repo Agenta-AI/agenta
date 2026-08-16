@@ -1,5 +1,5 @@
 import type {AnalyticsResponse} from "@agenta/entities/trace"
-import dayjs from "dayjs"
+import {dayjs} from "@agenta/shared/utils/dateTime"
 
 import type {DashboardData} from "./types"
 

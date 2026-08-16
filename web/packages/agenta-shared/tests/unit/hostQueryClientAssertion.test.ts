@@ -83,3 +83,39 @@ describe("assertHostQueryClient", () => {
         expect(error).not.toHaveBeenCalled()
     })
 })
+
+/**
+ * The tests above call `assertHostQueryClient` directly, which leaves the accessor every package
+ * write actually goes through untested. `getHostQueryClient()` reads `queryClientAtom` from the
+ * default jotai store — that read is the contract, so it gets its own coverage.
+ */
+describe("getHostQueryClient", () => {
+    it("returns whatever the host hydrated into queryClientAtom", async () => {
+        const {getDefaultStore} = await import("jotai")
+        const {queryClientAtom} = await import("jotai-tanstack-query")
+        const {getHostQueryClient} = await import("../../src/api/hostQueryClient")
+
+        const hostClient = new QueryClient()
+        getDefaultStore().set(queryClientAtom, hostClient)
+
+        expect(getHostQueryClient()).toBe(hostClient)
+    })
+
+    it("follows the atom when the host swaps its client", async () => {
+        const {getDefaultStore} = await import("jotai")
+        const {queryClientAtom} = await import("jotai-tanstack-query")
+        const {getHostQueryClient} = await import("../../src/api/hostQueryClient")
+
+        const first = new QueryClient()
+        const second = new QueryClient()
+        const store = getDefaultStore()
+
+        store.set(queryClientAtom, first)
+        expect(getHostQueryClient()).toBe(first)
+
+        // Resolved per call, never cached at module scope — that is what makes a late
+        // hydration work instead of pinning the first client forever.
+        store.set(queryClientAtom, second)
+        expect(getHostQueryClient()).toBe(second)
+    })
+})

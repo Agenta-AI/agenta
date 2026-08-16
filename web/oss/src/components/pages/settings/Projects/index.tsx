@@ -28,10 +28,11 @@ const ProjectsSettings = () => {
                     title="Create project"
                     open={open}
                     okText="Create"
-                    onCancel={() => {
-                        onClose()
-                        createForm.resetFields()
-                    }}
+                    // `afterClose`, not `onCancel`: closing by a successful create also closes the
+                    // dialog, and resetting only on cancel left the last project's name sitting in
+                    // the field the next time it opened.
+                    afterClose={() => createForm.resetFields()}
+                    onCancel={onClose}
                     onOk={() => createForm.submit()}
                     confirmLoading={pending}
                 >
@@ -62,10 +63,8 @@ const ProjectsSettings = () => {
                     afterOpenChange={(visible) => {
                         if (visible) renameForm.setFieldsValue({name: project?.project_name})
                     }}
-                    onCancel={() => {
-                        onClose()
-                        renameForm.resetFields()
-                    }}
+                    afterClose={() => renameForm.resetFields()}
+                    onCancel={onClose}
                     onOk={() => renameForm.submit()}
                     confirmLoading={pending}
                 >

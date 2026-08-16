@@ -21,6 +21,8 @@ import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui
 import {ArrowClockwise, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
+import type {ConfirmDestructive} from "../confirm"
+
 const AUTH_SCHEME_LABELS: Record<string, string> = {
     oauth: "OAuth",
     api_key: "API Key",
@@ -28,7 +30,7 @@ const AUTH_SCHEME_LABELS: Record<string, string> = {
 
 export interface GatewayToolsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
-    confirm?: (args: {title: string; message: string; onOk: () => void | Promise<void>}) => void
+    confirm?: ConfirmDestructive
     /** Hides connect/run and skips the catalog drawer, whose schema form is still antd-backed. */
     readOnly?: boolean
 }

@@ -13,11 +13,16 @@ import {
     type ObservabilityScope,
     type ObservabilityWorkflowContext,
 } from "@agenta/observability"
+import {
+    bindTraceDrawerBaseAppURLAtom,
+    bindTraceDrawerProjectURLAtom,
+} from "@agenta/observability/traceDrawer"
 import {atom} from "jotai"
 
 import {routerAppIdAtom} from "@/oss/state/app"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {selectedOrgAtom} from "@/oss/state/org"
+import {urlAtom} from "@/oss/state/url"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 const ossObservabilityScopeAtom = atom<ObservabilityScope>((get) => ({
@@ -38,8 +43,14 @@ const ossWorkspaceMembersAtom = atom<WorkspaceMember[]>(
     (get) => get(selectedOrgAtom)?.default_workspace?.members ?? [],
 )
 
+// The trace drawer links out to evaluators/apps; it needs this app's project URL.
+const ossProjectURLAtom = atom<string>((get) => get(urlAtom).projectURL ?? "")
+const ossBaseAppURLAtom = atom<string>((get) => get(urlAtom).baseAppURL ?? "")
+
 /** Written once, at provider mount. */
 export const bindObservabilityHostAtoms = atom(null, (_get, set) => {
+    set(bindTraceDrawerProjectURLAtom, ossProjectURLAtom)
+    set(bindTraceDrawerBaseAppURLAtom, ossBaseAppURLAtom)
     set(bindObservabilityScopeAtom, ossObservabilityScopeAtom)
     set(bindObservabilityWorkflowContextAtom, ossObservabilityWorkflowContextAtom)
     set(bindWorkspaceMembersAtom, ossWorkspaceMembersAtom)

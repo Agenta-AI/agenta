@@ -23,7 +23,7 @@
     "peerDependencies": {
         "next": ">=14.0.0",
         "react": ">=18.0.0",
-        "jotai": ">=2.0.0"
+        "jotai": ">=2.9.0"
     },
     "devDependencies": {
         "@types/node": "^20.19.20",

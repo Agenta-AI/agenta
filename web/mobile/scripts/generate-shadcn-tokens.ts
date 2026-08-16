@@ -85,10 +85,7 @@ const VARS: Record<string, [string, string]> = {
     // The danger callout on Settings › Account (shared `AccountPage`) draws its box with this
     // pair; without the border half the callout read as a bare tinted block on mobile.
     colorErrorBorder: [color(p.semantic.errorBorder.light), color(p.semantic.errorBorder.dark)],
-    controlItemBgHover: [
-        color(p.fill.quaternary.light),
-        color(p.fill.quaternary.dark),
-    ],
+    controlItemBgHover: [color(p.fill.quaternary.light), color(p.fill.quaternary.dark)],
     // The overlay/status vocabulary the kit's PORTALED surfaces paint with — Tooltip
     // (colorBgSpotlight + colorTextLightSolid), DropdownMenu/Select (colorSplit separators) and the
     // session/status dots (colorInfo). Every one was undefined on mobile: a tooltip rendered as
@@ -166,7 +163,10 @@ const VARS: Record<string, [string, string]> = {
         color(p.playgroundSurface.raised.light),
         color(p.playgroundSurface.raised.dark),
     ],
-    "ag-surface-card": [color(p.playgroundSurface.card.light), color(p.playgroundSurface.card.dark)],
+    "ag-surface-card": [
+        color(p.playgroundSurface.card.light),
+        color(p.playgroundSurface.card.dark),
+    ],
     "ag-surface-card-border": [
         color(p.playgroundSurface.cardBorder.light),
         color(p.playgroundSurface.cardBorder.dark),
@@ -183,7 +183,10 @@ const VARS: Record<string, [string, string]> = {
         color(p.playgroundSurface.canvas.light),
         color(p.playgroundSurface.canvas.dark),
     ],
-    "ag-surface-chat": [color(p.playgroundSurface.chat.light), color(p.playgroundSurface.chat.dark)],
+    "ag-surface-chat": [
+        color(p.playgroundSurface.chat.light),
+        color(p.playgroundSurface.chat.dark),
+    ],
     "ag-surface-chat-border": [
         color(p.playgroundSurface.chatBorder.light),
         color(p.playgroundSurface.chatBorder.dark),

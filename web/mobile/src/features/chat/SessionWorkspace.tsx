@@ -1,6 +1,7 @@
 import {useState, type ReactNode} from "react"
 
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {SplitPane} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -22,12 +23,15 @@ const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane
  * SAME `chatPanelMaximizedAtom` that decides the mode: "chat" maximizes the conversation (config
  * collapsed to 0, session rail in its place), "build" is the two-panel edit view.
  *
- * The conversation is ALWAYS mounted — the mode only decides what sits beside it — so switching
- * modes never drops a streaming turn.
+ * The conversation is ALWAYS mounted EXACTLY ONCE — the mode only decides what sits beside it, and
+ * the width only decides the geometry — so neither a mode switch nor a rotation drops a streaming
+ * turn. That is why both widths drive the SAME `SplitPane` rather than two sibling containers: a
+ * node rendered in two containers mounts twice even when one is CSS-hidden, which ran two chat
+ * engines at once.
  *
  * Pane geometry is the desktop's: 440 default and max, 300 min, controlled px so a drag persists
- * for the mount. Below `lg` there is no room for two panes, so the frame drops to one and the mode
- * picks which.
+ * for the mount. Below `md` there is no room for two panes (300 pane + 420 fill), so the split
+ * collapses to one visible pane and the mode picks which.
  */
 export const SessionWorkspace = ({
     entityId,
@@ -49,6 +53,8 @@ export const SessionWorkspace = ({
     const base = `/w/${workspaceId}/p/${projectId}`
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     const showBuild = !chatMaximized && Boolean(entityId)
+    // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
+    const twoPane = useMediaQuery("(min-width: 768px)")
     // Controlled px, as on the desktop: the dragged width persists for the mount; 440 is the
     // config panel's cap and its default.
     const [paneSize, setPaneSize] = useState(440)
@@ -76,22 +82,21 @@ export const SessionWorkspace = ({
                     projectId={projectId}
                 />
 
-                {/* Below md: one pane, chosen by the mode — the split's 300px pane + 420px fill
-                    minimums do not fit, and forcing them would leave the conversation unreadable. */}
-                <div className="flex min-h-0 min-w-0 flex-1 md:hidden">
-                    <div className={showBuild ? "min-w-0 flex-1" : "hidden"}>{pane}</div>
-                    <div className={`ag-canvas ${showBuild ? "hidden" : "min-w-0 flex-1"}`}>
-                        {chat}
-                    </div>
-                </div>
-
-                <div className="hidden min-h-0 min-w-0 flex-1 md:block">
+                {/* One split at every width. On a phone the pane it does not show is CSS-hidden
+                    rather than dropped, which is what keeps both halves mounted exactly once. */}
+                <div className="min-h-0 min-w-0 flex-1">
                     <SplitPane
                         paneSide="start"
-                        paneSize={paneSize}
+                        paneSize={twoPane ? paneSize : 0}
                         paneMin={300}
                         paneMax={440}
                         fillMin={420}
+                        // Phone: no divider, no drag, and the visible half takes the full width.
+                        barHidden={!twoPane}
+                        resizable={twoPane}
+                        paneGrow={!twoPane && showBuild}
+                        paneClassName={!twoPane && !showBuild ? "hidden" : undefined}
+                        fillClassName={!twoPane && showBuild ? "hidden" : undefined}
                         // Controlled width: the drag must write through per tick, or the pane only
                         // snaps at pointer-up.
                         onResize={(size) => setPaneSize(size)}

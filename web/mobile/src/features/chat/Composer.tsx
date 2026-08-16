@@ -45,6 +45,7 @@ export const Composer = ({
 }) => {
     const attachments = useComposerAttachments({sessionId})
     const richInputRef = useRef<RichChatInputHandle | null>(null)
+    const sending = useRef(false)
     const presets = useMotionPresets()
 
     /**
@@ -52,6 +53,18 @@ export const Composer = ({
      * they upload here before the send — the same seam the desktop dock uses.
      */
     const submit = async (text: string, extraFiles: File[] = []) => {
+        // Enter and the send button (and a voice take completing) can all fire while an upload
+        // is still in flight; a second pass would re-send the same staged tray.
+        if (sending.current) return
+        sending.current = true
+        try {
+            await runSubmit(text, extraFiles)
+        } finally {
+            sending.current = false
+        }
+    }
+
+    const runSubmit = async (text: string, extraFiles: File[] = []) => {
         const staged = attachments.files
         const uploadedExtras = extraFiles.length
             ? await attachments.uploadExtraFiles(extraFiles)

@@ -102,9 +102,9 @@ describe("collapse / explode annotation any-evaluator rows", () => {
             ...row("accuracy"),
             value: [{evaluator: "e1", feedback: {field: "accuracy"}}],
         }
-        expect(collapseAnnotationAnyEvaluatorRowsFromProps([scoped, scoped], getField)).toHaveLength(
-            2,
-        )
+        expect(
+            collapseAnnotationAnyEvaluatorRowsFromProps([scoped, scoped], getField),
+        ).toHaveLength(2)
         expect(explodeAnnotationAnyEvaluatorRows([scoped])).toHaveLength(1)
     })
 
@@ -135,10 +135,7 @@ describe("buildFieldMenuItems", () => {
         expect(entries[0]).toMatchObject({kind: "leaf", key: "status", disabled: false})
         const group = entries[1]
         if (group.kind !== "group") throw new Error("expected a group")
-        expect(group.children.map((child) => child.key)).toEqual([
-            "application.id",
-            "evaluator.id",
-        ])
+        expect(group.children.map((child) => child.key)).toEqual(["application.id", "evaluator.id"])
         // The header commits the group's first leaf (antd `onTitleClick`).
         expect(group.defaultValue).toBe("application.id")
     })
@@ -225,9 +222,9 @@ describe("resolveFieldForFilter", () => {
     const map = mapOf(APP, EVALUATOR)
 
     it("prefers an exact option-key hit", () => {
-        expect(
-            resolveFieldForFilter({field: "evaluator.id", operator: "is", value: ""}, map),
-        ).toBe(EVALUATOR)
+        expect(resolveFieldForFilter({field: "evaluator.id", operator: "is", value: ""}, map)).toBe(
+            EVALUATOR,
+        )
     })
 
     it("disambiguates the references family by attributes.key", () => {
@@ -334,7 +331,12 @@ describe("validateFilterRow", () => {
         keyInput: {kind: "select", options: []},
         operatorIds: ["is"],
     })
-    const EXISTS = fc({optionKey: "events", baseField: "events", type: "exists", operatorIds: ["exists"]})
+    const EXISTS = fc({
+        optionKey: "events",
+        baseField: "events",
+        type: "exists",
+        operatorIds: ["exists"],
+    })
     const map = mapOf(TEXT, NUMBER, NEEDS_KEY, EXISTS)
 
     const check = (item: FilterItem) => validateFilterRow(item, map)
@@ -345,12 +347,12 @@ describe("validateFilterRow", () => {
 
     it("requires a field, an operator and a value", () => {
         expect(check({field: "", operator: "", value: ""}).isValid).toBe(false)
-        expect(check({field: "name", selectedField: "name", operator: "", value: "x"}).isValid).toBe(
-            false,
-        )
-        expect(check({field: "name", selectedField: "name", operator: "is", value: ""}).isValid).toBe(
-            false,
-        )
+        expect(
+            check({field: "name", selectedField: "name", operator: "", value: "x"}).isValid,
+        ).toBe(false)
+        expect(
+            check({field: "name", selectedField: "name", operator: "is", value: ""}).isValid,
+        ).toBe(false)
         expect(
             check({field: "name", selectedField: "name", operator: "is", value: "x"}).isValid,
         ).toBe(true)
@@ -373,14 +375,15 @@ describe("validateFilterRow", () => {
 
     it("skips the value check when the operator hides it", () => {
         expect(
-            check({field: "events", selectedField: "events", operator: "exists", value: ""}).isValid,
+            check({field: "events", selectedField: "events", operator: "exists", value: ""})
+                .isValid,
         ).toBe(true)
     })
 
     it("flags a non-numeric value on a numeric field", () => {
-        expect(
-            check({field: "cost", selectedField: "cost", operator: "gt", value: "abc"}),
-        ).toEqual({isValid: false, valueInvalid: true})
+        expect(check({field: "cost", selectedField: "cost", operator: "gt", value: "abc"})).toEqual(
+            {isValid: false, valueInvalid: true},
+        )
     })
 
     // The range branch is unreachable today: no registry operator declares
@@ -398,7 +401,12 @@ describe("validateFilterRow", () => {
 describe("effectiveFieldForRow", () => {
     it("derives the custom field's operators and value input from the row's value type", () => {
         const CUSTOM = fc({optionKey: "custom", baseField: "custom"})
-        const row: FilterItem = {field: "custom", operator: "", value: "", customValueType: "boolean"}
+        const row: FilterItem = {
+            field: "custom",
+            operator: "",
+            value: "",
+            customValueType: "boolean",
+        }
         const effective = effectiveFieldForRow(CUSTOM, row)
         expect(effective?.operatorIds).toEqual(["is", "is_not"])
         expect(effective?.valueInput?.kind).toBe("select")

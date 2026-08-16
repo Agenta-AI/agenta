@@ -10,68 +10,76 @@ import {
     type IconProps,
 } from "@phosphor-icons/react"
 
+/**
+ * Span-type chip colours.
+ *
+ * Every value is a generated `--ag-*` token from `palette.ts`. The map used `--ant-*` instead,
+ * which antd's ConfigProvider emits at runtime — so on an antd-free host (`/m`) those resolved
+ * to nothing and the chips lost their background and text colour entirely. The `preset-*` pairs
+ * are the supported hue contract and carry their own dark values.
+ */
 export const spanTypeStyles: Record<
     SpanCategory,
     {bgColor: string; color: string; icon: ComponentType<IconProps>}
 > = {
     ["agent"]: {
-        bgColor: "var(--ant-blue-1)",
-        color: "var(--ant-blue-5)",
+        bgColor: "var(--ag-preset-blue-bg)",
+        color: "var(--ag-preset-blue-text)",
         icon: Gear,
     },
     ["workflow"]: {
-        color: "var(--ant-color-text-secondary)",
-        bgColor: "var(--ant-color-fill-secondary)",
+        color: "var(--ag-colorTextSecondary)",
+        bgColor: "var(--ag-colorFillSecondary)",
         icon: TreeStructureIcon,
     },
     ["chain"]: {
-        bgColor: "var(--ant-blue-1)",
-        color: "var(--ant-blue-5)",
+        bgColor: "var(--ag-preset-blue-bg)",
+        color: "var(--ag-preset-blue-text)",
         icon: Gear,
     },
     ["task"]: {
         bgColor: "var(--ag-zinc-2)",
-        color: "var(--ant-color-text-secondary)",
+        color: "var(--ag-colorTextSecondary)",
         icon: TreeStructureIcon,
     },
     ["tool"]: {
-        bgColor: "var(--ant-purple-1)",
-        color: "var(--ant-purple-5)",
+        bgColor: "var(--ag-preset-purple-bg)",
+        color: "var(--ag-preset-purple-text)",
         icon: Download,
     },
     ["embedding"]: {
-        bgColor: "var(--ant-gold-1)",
-        color: "var(--ant-gold-7)",
+        bgColor: "var(--ag-preset-gold-bg)",
+        color: "var(--ag-preset-gold-text)",
         icon: LineSegments,
     },
     ["completion"]: {
-        bgColor: "var(--ant-cyan-1)",
-        color: "var(--ant-cyan-6)",
+        bgColor: "var(--ag-preset-cyan-bg)",
+        color: "var(--ag-preset-cyan-text)",
         icon: Sparkle,
     },
     ["query"]: {
-        bgColor: "var(--ant-gold-1)",
-        color: "var(--ant-gold-7)",
+        bgColor: "var(--ag-preset-gold-bg)",
+        color: "var(--ag-preset-gold-text)",
         icon: LineSegments,
     },
     ["chat"]: {
-        bgColor: "var(--ant-cyan-1)",
-        color: "var(--ant-cyan-6)",
+        bgColor: "var(--ag-preset-cyan-bg)",
+        color: "var(--ag-preset-cyan-text)",
         icon: Sparkle,
     },
     ["rerank"]: {
-        bgColor: "var(--ant-gold-1)",
-        color: "var(--ant-gold-7)",
+        bgColor: "var(--ag-preset-gold-bg)",
+        color: "var(--ag-preset-gold-text)",
         icon: LineSegments,
     },
     ["llm"]: {
-        bgColor: "var(--ant-cyan-1)",
-        color: "var(--ant-cyan-6)",
+        bgColor: "var(--ag-preset-cyan-bg)",
+        color: "var(--ag-preset-cyan-text)",
         icon: Sparkle,
     },
     ["unknown"]: {
         bgColor: "var(--ag-zinc-1)",
-        color: "var(--ant-color-text-secondary)",
+        color: "var(--ag-colorTextSecondary)",
         icon: TreeStructureIcon,
     },
 }

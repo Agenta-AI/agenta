@@ -1,5 +1,5 @@
 import {fetchSpansAnalytics} from "@agenta/entities/trace"
-import dayjs from "dayjs"
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import utc from "dayjs/plugin/utc"
 
 import {analyticsToDashboard, calculateIntervalFromDuration} from "../core/analytics"
