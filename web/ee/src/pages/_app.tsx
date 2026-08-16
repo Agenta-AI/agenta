@@ -1,4 +1,4 @@
-import "@/oss/assets/custom-resize-handle.css"
+import "@agenta/ui/custom-resize-handle.css"
 import "@/oss/styles/globals.css"
 import "react-resizable/css/styles.css"
 // Streamdown's token-animation keyframes ([data-sd-animate]) — without this the streaming

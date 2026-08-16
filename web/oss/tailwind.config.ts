@@ -144,7 +144,16 @@ export const createConfig = (content: string[] = []): Config => {
             "../packages/agenta-entities/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-sessions/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-sessions-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-home-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-navigation/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-navigation-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-auth-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-chat/src/**/*.{js,ts,jsx,tsx}",
+            // Streamdown ships class-based typography; Tailwind only generates what it scans.
+            // Resolved from the workspace store, so the glob works from both oss and ee.
+            "../node_modules/.pnpm/streamdown@*/node_modules/streamdown/dist/*.js",
             ...content,
         ],
         theme: {
@@ -272,8 +281,6 @@ export const createConfig = (content: string[] = []): Config => {
                     ...controlScale.borderRadius,
                 },
                 fontSize: {
-                    // `secondary` step of the type scale. `sm` stays stock 14/20 (`body`).
-                    xs: ["13px", {lineHeight: "18px"}],
                     "tremor-label": ["0.75rem", {lineHeight: "1rem"}],
                     "tremor-default": ["0.875rem", {lineHeight: "1.25rem"}],
                     "tremor-title": ["1.125rem", {lineHeight: "1.75rem"}],

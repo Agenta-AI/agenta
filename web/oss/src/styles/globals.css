@@ -1,8 +1,9 @@
-@import "./theme-variables.css";
+@import "@agenta/ui/theme-variables.css";
 @import "@agenta/auth-ui/auth.css";
+@import "@agenta/ui/surfaces.css";
 @import "./animations.css";
-@import "./editor-theme.css";
-@import "./code-editor-styles.css";
+@import "@agenta/ui/editor-theme.css";
+@import "@agenta/ui/code-editor-styles.css";
 @import "./human-evals.css";
 @import "./loading.css";
 @import "./evaluations.css";
@@ -243,70 +244,8 @@ body {
    Semantic surfaces for the panel-contrast treatment. Multi-value shadows + fill + border are set
    together here (more reliable than Tailwind arbitrary-value shadows) and reference the per-theme
    ladder in theme-variables.css. Roles invert by theme automatically via the token values. */
-.ag-app-ground {
-    background: var(--ag-surface-app);
-}
-.ag-panel-raised {
-    background: var(--ag-surface-raised);
-    box-shadow: var(--ag-surface-raised-shadow);
-}
-.ag-canvas {
-    background: var(--ag-surface-canvas);
-}
-.ag-surface-card {
-    background: var(--ag-surface-card);
-    border: 1px solid var(--ag-surface-card-border);
-    box-shadow: var(--ag-surface-card-shadow);
-}
-.ag-surface-chat {
-    background: var(--ag-surface-chat);
-    border: 1px solid var(--ag-surface-chat-border);
-    box-shadow: var(--ag-surface-chat-shadow);
-}
-.ag-surface-inset {
-    background: var(--ag-surface-inset);
-    border: 1px solid var(--ag-surface-inset-border);
-}
-/* Right-docked Turn inspector: a raised panel floating above the recessed chat canvas — raised
-   tone + a left seam + a soft left-edge shadow so it reads as sitting on top. */
-.ag-inspector-panel {
-    background: var(--ag-surface-raised);
-    border-left: 1px solid var(--ag-surface-divider);
-    box-shadow: var(--ag-surface-inspector-shadow);
-}
-.ag-surface-chip {
-    background: var(--ag-surface-chip);
-    border: 1px solid var(--ag-surface-chip-border);
-}
-.ag-surface-error-well {
-    background: var(--ag-surface-error-well);
-    border: 1px solid var(--ag-surface-error-well-border);
-}
-/* Status chips — the only semantic colour in the treatment (kept subtle). */
-.ag-status-error {
-    background: var(--ag-status-error-bg);
-    border: 1px solid var(--ag-status-error-border);
-    color: var(--ag-status-error-text);
-}
-.ag-status-success {
-    background: var(--ag-status-success-bg);
-    border: 1px solid var(--ag-status-success-border);
-    color: var(--ag-status-success-text);
-}
-/* List-row hover fill (session rows, etc.). */
-.ag-row-hover:hover {
-    background: var(--ag-surface-row-hover);
-}
-/* Selected list row — a lifted card surface with a simple, muted accent bar on the LEFT edge only.
-   Square (no radius) so the bar reads as a crisp full-height edge and never hooks the corner (the
-   old rounded 2px bar did, and read harsh in dark mode). Pairs with a base `border border-solid`. */
-.ag-surface-selected {
-    background: var(--ag-surface-card);
-    border-color: transparent;
-    border-left: 2px solid color-mix(in srgb, var(--ag-surface-accent) 55%, transparent);
-    border-radius: 0;
-    box-shadow: var(--ag-surface-card-shadow);
-}
+/* The surface ladder lives in @agenta/ui/surfaces.css (imported at the top) — the mobile
+   app renders the same panels and must not carry a second copy of these rules. */
 
 /* ── Drawers: top elevation tier (dark mode only) ──────────────────────────────────────────────
    The agent config/create drawers (Model & harness, AGENTS.md, tool/MCP/skill, schedule,
@@ -1016,60 +955,4 @@ html::-webkit-scrollbar-thumb:vertical:hover,
 /* Quiet scrollbars. The gutter is reserved at the thumb's width whether or not the
    content overflows, so revealing the thumb never shifts the content, and the thumb
    only appears while the pointer or focus is inside the scroller. */
-.ag-scroll-quiet {
-    scrollbar-gutter: stable;
-}
-
-/* Same split as above: the standard properties would otherwise switch off this class's own
-   WebKit rules in Chromium. */
-@supports not selector(::-webkit-scrollbar) {
-    .ag-scroll-quiet {
-        scrollbar-width: thin;
-        scrollbar-color: transparent transparent;
-    }
-
-    .ag-scroll-quiet:hover,
-    .ag-scroll-quiet:focus-within {
-        scrollbar-color: var(--ag-scroll-thumb) transparent;
-    }
-}
-
-.ag-scroll-quiet::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-.ag-scroll-quiet::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.ag-scroll-quiet::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    background-image: none;
-    background-clip: content-box;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    transition: background-color 150ms ease;
-}
-
-.ag-scroll-quiet:hover::-webkit-scrollbar-thumb,
-.ag-scroll-quiet:focus-within::-webkit-scrollbar-thumb {
-    background-color: var(--ag-scroll-thumb);
-}
-
-.ag-scroll-quiet::-webkit-scrollbar-thumb:hover {
-    background-color: var(--ag-scroll-thumb-hover);
-}
-
-/* Scrollers whose sticky headers have to reach the panel edge. A reserved gutter would cut
-   every header short by the scrollbar's width, and the content box is the only place the
-   browser will paint, so this panel keeps no scrollbar at all: full-width rows, and no shift
-   when the content grows past the viewport. */
-.ag-scroll-no-bar {
-    scrollbar-width: none;
-}
-
-.ag-scroll-no-bar::-webkit-scrollbar {
-    width: 0;
-    height: 0;
-}
+/* Quiet/hidden scrollbar helpers moved to @agenta/ui/surfaces.css. */
