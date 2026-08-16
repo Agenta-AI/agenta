@@ -1,6 +1,6 @@
 import {useLayoutEffect, useRef} from "react"
 
-import type {ColumnsType} from "antd/es/table"
+import type {ColumnDefs} from "../columnDef"
 
 interface ColumnDomRefs {
     cols: HTMLTableColElement[]
@@ -12,7 +12,7 @@ interface ColumnDomRefs {
  */
 const useColumnDomRefs = <RecordType>(
     containerRef: React.RefObject<HTMLDivElement | null>,
-    columns: ColumnsType<RecordType>,
+    columns: ColumnDefs<RecordType>,
 ) => {
     const columnDomRefs = useRef<Map<string, ColumnDomRefs>>(new Map())
 

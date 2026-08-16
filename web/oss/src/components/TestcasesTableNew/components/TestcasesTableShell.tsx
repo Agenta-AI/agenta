@@ -10,11 +10,11 @@ import {
     useTypeChipFeature,
     type ExtendedColumn,
 } from "@agenta/ui/table"
+import type {ColumnDef, ColumnDefs} from "@agenta/ui/table"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Skeleton, Tooltip} from "antd"
 import type {MenuProps} from "antd"
-import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -445,7 +445,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
     // Columns definition
     // Use TestcaseCell for entity-aware rendering (reads from entity atoms in global store)
     // Supports grouped columns (e.g., "group.column" renders under "group" header)
-    const columns = useMemo<ColumnsType<TestcaseTableRow>>(() => {
+    const columns = useMemo<ColumnDefs<TestcaseTableRow>>(() => {
         const isEditable = mode === "edit"
 
         const getRenamedColumnKey = (col: Column, newName: string) => {
@@ -485,7 +485,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         const createColumnDef = (
             col: Column,
             displayName: string,
-        ): ColumnType<TestcaseTableRow> => ({
+        ): ColumnDef<TestcaseTableRow> => ({
             key: col.key,
             dataIndex: col.key,
             title:
@@ -555,7 +555,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         const createCollapsedColumnDef = (
             groupPath: string,
             _childColumns: Column[],
-        ): ColumnType<TestcaseTableRow> => {
+        ): ColumnDef<TestcaseTableRow> => {
             const displayName = groupPath.includes(".")
                 ? groupPath.substring(groupPath.lastIndexOf(".") + 1)
                 : groupPath

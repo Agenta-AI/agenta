@@ -3,8 +3,8 @@ import {useCallback, useMemo} from "react"
 import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {InfiniteVirtualTable} from "@agenta/ui/table"
 import type {InfiniteTableRowBase} from "@agenta/ui/table"
+import type {ColumnDefs} from "@agenta/ui/table"
 import {Tag, Typography} from "antd"
-import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
@@ -67,8 +67,8 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
         [linkedSpans],
     )
 
-    const baseColumns = useMemo<ColumnsType<LinkedSpanTableRow>>(
-        () => getObservabilityColumns({evaluatorSlugs}) as ColumnsType<LinkedSpanTableRow>,
+    const baseColumns = useMemo<ColumnDefs<LinkedSpanTableRow>>(
+        () => getObservabilityColumns({evaluatorSlugs}) as ColumnDefs<LinkedSpanTableRow>,
         [evaluatorSlugs],
     )
 
@@ -95,8 +95,8 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
         [linkedSpans],
     )
 
-    const filteredColumns = useMemo<ColumnsType<LinkedSpanTableRow>>(() => {
-        const idColumn: ColumnsType<LinkedSpanTableRow>[number] = {
+    const filteredColumns = useMemo<ColumnDefs<LinkedSpanTableRow>>(() => {
+        const idColumn: ColumnDefs<LinkedSpanTableRow>[number] = {
             title: "ID",
             key: "id",
             dataIndex: ["span_id"],

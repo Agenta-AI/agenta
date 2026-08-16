@@ -10,15 +10,14 @@ import {
 import {CostCell} from "@agenta/observability-ui"
 import {DurationCell} from "@agenta/observability-ui"
 import {NodeNameCell} from "@agenta/observability-ui"
+import {SpanIdChip} from "@agenta/observability-ui"
 import {StatusRenderer} from "@agenta/observability-ui"
 import {TimestampCell} from "@agenta/observability-ui"
 import {UsageCell} from "@agenta/observability-ui"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {ColumnVisibilityMenuTrigger, type ExtendedColumn} from "@agenta/ui/table"
-import {Tag} from "antd"
-import {ColumnsType} from "antd/es/table"
+import {ColumnVisibilityMenuTrigger, type ColumnDefs, type ExtendedColumn} from "@agenta/ui/table"
 
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
@@ -31,13 +30,13 @@ interface ObservabilityColumnsProps {
 // Row alias: TraceSpanNode lacks the required key + index signature of InfiniteTableRowBase.
 export type TraceRow = TraceSpanNode & {key: Key; [key: string]: unknown}
 
-// antd column extended with props consumed by the InfiniteVirtualTable layer.
+// Table column extended with props consumed by the InfiniteVirtualTable layer.
 type ObservabilityColumn = ExtendedColumn<TraceRow>
 
-const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnsType<T>): string[] => {
+const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnDefs<T>): string[] => {
     const hiddenKeys = new Set<string>()
 
-    const visit = (cols: ColumnsType<T>) => {
+    const visit = (cols: ColumnDefs<T>) => {
         cols.forEach((column) => {
             const key = column.key != null ? String(column.key) : null
             if (key && (column as {defaultHidden?: boolean}).defaultHidden) {
@@ -71,9 +70,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 const shortId = spanId ? spanId.split("-")[0] : "-"
                 return (
                     <TooltipWithCopyAction copyText={spanId || ""} title="Copy span id">
-                        <Tag className="font-mono bg-[var(--ag-c-0517290F)]" bordered={false}>
-                            # {shortId}
-                        </Tag>
+                        <SpanIdChip id={shortId} />
                     </TooltipWithCopyAction>
                 )
             },

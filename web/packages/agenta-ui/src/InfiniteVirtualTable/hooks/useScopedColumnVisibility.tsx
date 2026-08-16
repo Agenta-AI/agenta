@@ -1,7 +1,6 @@
 import {useMemo} from "react"
 
-import type {ColumnsType} from "antd/es/table"
-
+import type {ColumnDefs} from "../columnDef"
 import {useColumnVisibility} from "../hooks/useColumnVisibility"
 
 interface Options {
@@ -11,7 +10,7 @@ interface Options {
 }
 
 export const useScopedColumnVisibility = <Row extends object>(
-    columns: ColumnsType<Row>,
+    columns: ColumnDefs<Row>,
     {scopeId, storageKey, defaultHiddenKeys = []}: Options,
 ) => {
     const scopedStorageKey = useMemo(() => {

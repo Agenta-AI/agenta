@@ -17,6 +17,7 @@ import type {TableProps, TableRef} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import {cn} from "../../utils/styles"
+import {toAntdColumns} from "../antdColumns"
 import {
     deleteColumnViewportVisibilityAtom,
     setColumnUserVisibilityAtom,
@@ -737,7 +738,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                         <Table<RecordType>
                             ref={tableComponentRef}
                             className={tableClassName}
-                            columns={finalColumns}
+                            columns={toAntdColumns(finalColumns)}
                             dataSource={dataSource}
                             rowKey={rowKey}
                             pagination={false}
