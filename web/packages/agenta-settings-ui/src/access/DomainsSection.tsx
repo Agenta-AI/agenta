@@ -45,9 +45,14 @@ export const DomainsSection = ({
                 width: 220,
                 render: (record) => {
                     if (record.flags?.is_verified) return "-"
-                    const expiresAt = new Date(
-                        new Date(record.created_at).getTime() + TOKEN_LIFETIME_MS,
-                    )
+                    // A `created_at` the browser cannot parse yields NaN, and the row rendered a
+                    // literal "Invalid Date" that also compares false against every date — so it
+                    // never read as expired either. Say we do not know instead.
+                    const createdAt = new Date(record.created_at).getTime()
+                    if (Number.isNaN(createdAt)) {
+                        return <span className="text-colorTextSecondary">Unknown</span>
+                    }
+                    const expiresAt = new Date(createdAt + TOKEN_LIFETIME_MS)
                     const expired = new Date() > expiresAt
                     return (
                         <span className={expired ? "text-colorError" : "text-colorTextSecondary"}>

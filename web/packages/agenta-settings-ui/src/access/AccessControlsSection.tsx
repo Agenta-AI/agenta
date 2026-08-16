@@ -17,6 +17,8 @@ export interface AccessControlsSectionProps {
     hasActiveVerifiedProvider?: boolean
     /** Domain-scoped membership rules need at least one verified domain. */
     hasVerifiedDomain?: boolean
+    /** A failed save. Without it the switch just flips back and the viewer is told nothing. */
+    error?: string | null
 }
 
 const SectionLabel = ({children}: {children: React.ReactNode}) => (
@@ -33,6 +35,7 @@ export const AccessControlsSection = ({
     lastSavedFlag,
     hasActiveVerifiedProvider = false,
     hasVerifiedDomain = false,
+    error,
 }: AccessControlsSectionProps) => {
     // Turning off the last sign-in method would lock everyone out, so owner bypass is pinned on.
     const allAuthMethodsDisabled = !flags.allow_email && !flags.allow_social && !flags.allow_sso
@@ -44,6 +47,11 @@ export const AccessControlsSection = ({
                 <p className="m-0 mt-1 text-xs text-colorTextSecondary">
                     Configure how users authenticate and join your organization
                 </p>
+                {error ? (
+                    <p role="alert" className="m-0 mt-2 text-xs text-colorError">
+                        {error}
+                    </p>
+                ) : null}
             </div>
 
             <SectionLabel>Sign-in methods</SectionLabel>
