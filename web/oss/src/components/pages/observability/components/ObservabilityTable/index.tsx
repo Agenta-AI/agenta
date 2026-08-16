@@ -297,7 +297,7 @@ const ObservabilityTable = () => {
                     enableExport={false}
                     useSettingsDropdown={false}
                     store={store}
-                    className="flex-1 min-h-0 [&_.ant-table-thead_tr:nth-child(2)]:hidden"
+                    className="flex-1 min-h-0 [&_.avt-thead_tr:nth-child(2)]:hidden"
                     rowSelection={{
                         selectedRowKeys,
                         type: "checkbox",

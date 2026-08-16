@@ -3,6 +3,7 @@ import {useLayoutEffect, useState, type RefObject} from "react"
 import type {TableProps} from "antd/es/table"
 
 import type {ColumnDefs} from "../columnDef"
+import {ANTD_SELECTOR} from "../tableDom"
 
 interface UseTableHeaderHeightOptions<RecordType> {
     containerRef: RefObject<HTMLDivElement | null>
@@ -29,7 +30,7 @@ const useTableHeaderHeight = <RecordType>({
             return
         }
         const headerEl =
-            container.querySelector<HTMLElement>(".ant-table-thead") ??
+            container.querySelector<HTMLElement>(ANTD_SELECTOR.header) ??
             container.querySelector<HTMLElement>("table thead")
         if (!headerEl) {
             setTableHeaderHeight(null)

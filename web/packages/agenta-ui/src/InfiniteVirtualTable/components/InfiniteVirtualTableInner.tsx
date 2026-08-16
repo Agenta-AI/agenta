@@ -40,6 +40,7 @@ import useTableRowSelection from "../hooks/useTableRowSelection"
 import {useTypeChipColumns} from "../hooks/useTypeChipColumns"
 import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
+import {ANTD_SELECTOR, AVT, stampTableDom} from "../tableDom"
 import type {InfiniteVirtualTableProps} from "../types"
 import {
     buildColumnDescendantMap,
@@ -190,9 +191,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             return
         }
         const headerCells = Array.from(
-            container.querySelectorAll<HTMLTableCellElement>(
-                ".ant-table-thead th[data-column-key]",
-            ),
+            container.querySelectorAll<HTMLTableCellElement>(ANTD_SELECTOR.headerCellWithKey),
         ).filter((cell) => Number(cell.getAttribute("colspan") ?? "1") === 1)
         if (!headerCells.length) {
             columnDomRefs.current = new Map()
@@ -329,7 +328,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         const tables = container.querySelectorAll<HTMLTableElement>(".ant-table table")
         tables.forEach((table) => {
             const selectionCol = table.querySelector<HTMLTableColElement>(
-                "colgroup col.ant-table-selection-col",
+                ANTD_SELECTOR.selectionCol,
             )
             if (selectionCol) {
                 selectionCol.style.width = widthPx
@@ -339,7 +338,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         })
 
         const headerCells = container.querySelectorAll<HTMLTableCellElement>(
-            ".ant-table-thead th.ant-table-selection-column",
+            ANTD_SELECTOR.headerSelectionCell,
         )
         headerCells.forEach((cell) => {
             cell.style.width = widthPx
@@ -366,7 +365,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             return
         }
         const headerEl =
-            container.querySelector<HTMLElement>(".ant-table-thead") ??
+            container.querySelector<HTMLElement>(ANTD_SELECTOR.header) ??
             container.querySelector<HTMLElement>("table thead")
         if (!headerEl) {
             setTableHeaderHeight(null)
@@ -411,7 +410,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         const headerHeight =
             (typeof tableHeaderHeight === "number" && Number.isFinite(tableHeaderHeight)
                 ? tableHeaderHeight
-                : (containerRef.current?.querySelector(".ant-table-thead") as HTMLElement | null)
+                : (containerRef.current?.querySelector(ANTD_SELECTOR.header) as HTMLElement | null)
                       ?.offsetHeight) ?? null
 
         const computedY = Math.max((scrollY ?? 0) - (headerHeight ?? 0), 0)
@@ -692,6 +691,20 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     const columnVisibilityVersion = version
     const tableComponentRef = tableRef as unknown as Ref<TableRef>
 
+    // Stable class hooks for app code, so a consumer's selector does not depend on antd's DOM.
+    // The structural nodes exist for the table's lifetime; rows and cells get theirs from
+    // rowClassName and the column adapter, because virtualization recycles them.
+    useEffect(() => {
+        stampTableDom(containerRef.current)
+    }, [dataSource])
+
+    const rowClassName = useMemo<TableProps<RecordType>["rowClassName"]>(() => {
+        const inherited = tablePropsWithShortcuts.rowClassName
+        if (!inherited) return AVT.row
+        if (typeof inherited !== "function") return cn(inherited, AVT.row)
+        return (record, index, indent) => cn(inherited(record, index, indent), AVT.row)
+    }, [tablePropsWithShortcuts.rowClassName])
+
     useEffect(() => {
         const key = resolvedScopeId
         if (!key) return undefined
@@ -731,6 +744,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                     <div
                         ref={containerRef}
                         className={cn(
+                            AVT.root,
                             "[&_.ant-table-empty_.ant-table-body]:!overflow-x-hidden",
                             containerClassName,
                         )}
@@ -746,6 +760,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                             rowSelection={tableRowSelection}
                             expandable={tableExpandable}
                             {...tablePropsWithShortcuts}
+                            rowClassName={rowClassName}
                             scroll={{
                                 x: scrollConfig.x,
                                 y: scrollConfig.y,

@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
+import {ANTD_SELECTOR} from "../tableDom"
+
 interface ScrollContainerResult {
     scrollContainer: HTMLDivElement | null
     visibilityRoot: HTMLDivElement | null
@@ -33,7 +35,7 @@ const useScrollContainer = (
             return
         }
 
-        const tableBody = containerElement.querySelector<HTMLDivElement>(".ant-table-body") ?? null
+        const tableBody = containerElement.querySelector<HTMLDivElement>(ANTD_SELECTOR.body) ?? null
 
         const isScrollable = (element: HTMLDivElement | null) => {
             if (!element) return false
@@ -52,7 +54,7 @@ const useScrollContainer = (
         }
 
         const headerContainer =
-            containerElement.querySelector<HTMLDivElement>(".ant-table-container") ??
+            containerElement.querySelector<HTMLDivElement>(ANTD_SELECTOR.container) ??
             containerElement
 
         if (headerContainer !== lastVisibilityRootRef.current) {

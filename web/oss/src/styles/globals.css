@@ -74,7 +74,9 @@ body {
     transition: opacity 0.3s ease;
 }
 
-.ant-table-row:hover .hover-button-wrapper {
+/* .avt-row is the table package's stable hook; the antd selector stays for raw <Table> users. */
+.ant-table-row:hover .hover-button-wrapper,
+.avt-row:hover .hover-button-wrapper {
     opacity: 1;
 }
 

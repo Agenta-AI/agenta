@@ -138,7 +138,7 @@ const SessionsTable: React.FC = () => {
                         resizableColumns
                         enableExport={false}
                         useSettingsDropdown={false}
-                        className="flex-1 min-h-0 [&_.ant-table-tbody_.ant-table-cell]:align-top"
+                        className="flex-1 min-h-0 [&_.avt-row_.avt-cell]:align-top"
                         tableProps={{
                             bordered: true,
                             loading: isLoading && sessionIds.length === 0,
