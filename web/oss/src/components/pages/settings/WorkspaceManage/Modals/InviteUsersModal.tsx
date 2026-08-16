@@ -1,5 +1,6 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
+import {inviteToWorkspace} from "@agenta/entities/organization"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MinusCircleOutlined} from "@ant-design/icons"
@@ -10,7 +11,6 @@ import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
-import {inviteToWorkspace} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 

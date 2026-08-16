@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
+import {fetchAllProjects} from "@agenta/entities/project"
 import {
     getSettingsSidebarTabs,
     getSettingsTabDescription,
@@ -78,17 +79,11 @@ const TabBody = ({
         onCreated: () => undefined,
     })
 
-    // The app's own projects query — same key and staleTime as the drawer switcher and
-    // `useCurrentProject`, so this tab reuses their cache instead of issuing its own request.
     const projects = useQuery({
-        queryKey: ["mobile", "projects"],
-        queryFn: () => fetchProjects(),
-        staleTime: 30_000,
+        queryKey: ["projects", workspaceId],
+        queryFn: () => fetchAllProjects(workspaceId),
+        enabled: tab === "projects",
     })
-    const projectRows = useMemo(
-        () => (projects.data?.kind === "ok" ? projects.data.projects : []),
-        [projects.data],
-    )
 
     switch (tab) {
         case "preferences":
@@ -122,8 +117,8 @@ const TabBody = ({
         case "projects":
             return (
                 <ProjectsPage
-                    projects={projectRows}
-                    isLoading={projects.isLoading}
+                    projects={projects.data ?? []}
+                    isLoading={projects.isPending}
                     workspaceId={workspaceId}
                 />
             )

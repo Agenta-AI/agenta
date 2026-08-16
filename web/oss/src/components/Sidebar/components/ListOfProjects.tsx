@@ -1,5 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import type {OrgDetails} from "@agenta/entities/organization"
 import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {InitialsAvatar} from "@agenta/ui"
@@ -12,7 +13,6 @@ import {useRouter} from "next/router"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
-import type {OrgDetails} from "@/oss/lib/Types"
 import {appIdentifiersAtom} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"

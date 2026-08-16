@@ -18,35 +18,6 @@ export type SnakeToCamelCase<S extends string> = S extends `${infer T}_${infer U
     ? `${T}${Capitalize<SnakeToCamelCase<U>>}`
     : S
 
-export interface WorkspaceRole {
-    role_description: string
-    role_name: string
-}
-
-export interface WorkspaceUser {
-    id: string
-    email: string
-    username: string
-    status: "member" | "pending" | "expired"
-    created_at: string
-}
-
-export interface WorkspaceMember {
-    user: WorkspaceUser
-    roles: (WorkspaceRole & {permissions: string[]})[]
-}
-
-export interface Workspace {
-    id: string
-    name: string
-    description: string
-    created_at: string
-    updated_at: string
-    organization: string
-    type: "default"
-    members: WorkspaceMember[]
-}
-
 export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
 export interface testset {
@@ -177,31 +148,6 @@ export type FilterConditions =
     | "is_not"
     | "btwn"
     | ""
-
-export interface OrganizationFlags {
-    is_demo: boolean
-    is_personal: boolean
-    allow_email: boolean
-    allow_social: boolean
-    allow_sso: boolean
-    allow_root: boolean
-    domains_only: boolean
-    auto_join: boolean
-}
-
-export interface Org {
-    id: string
-    slug?: string
-    name?: string
-    description?: string
-    flags: OrganizationFlags
-    owner_id: string
-}
-
-export type OrgDetails = Org & {
-    default_workspace: Workspace
-    workspaces: string[]
-}
 
 export interface AuthErrorMsgType {
     message: string

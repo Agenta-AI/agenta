@@ -1,6 +1,6 @@
+import type {WorkspaceMember} from "@agenta/entities/organization"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 
-import {WorkspaceMember} from "@/oss/lib/Types"
 import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {AnnotationResponseDto} from "../types"
