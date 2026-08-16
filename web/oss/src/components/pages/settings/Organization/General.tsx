@@ -7,18 +7,12 @@ import {
     transferOrganizationOwnership,
     updateOrganization,
 } from "@agenta/entities/organization"
-import {useStaticTable} from "@agenta/settings"
+import {OrganizationsPage} from "@agenta/settings-ui"
 import {InitialsAvatar} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {
-    createStandardColumns,
-    InfiniteVirtualTableFeatureShell,
-    type StandardColumnDef,
-} from "@agenta/ui/table"
-import {EmptyState} from "@agenta/ui/ui"
-import {ArrowsLeftRight, PencilSimpleLine, Plus, SignOut, Trash} from "@phosphor-icons/react"
+import {Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {App, Button, Form, Input, Select, Typography} from "antd"
+import {App, Form, Input, Select, Typography} from "antd"
 import clsx from "clsx"
 
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
@@ -37,11 +31,7 @@ const formatErrorMessage = (detail: unknown, fallback: string) => {
     return fallback
 }
 
-interface OrgRow extends Org {
-    key: string
-    [extra: string]: unknown
-}
-
+/** OSS binding: the shared organizations table with this app's antd dialogs. */
 const OrganizationGeneral = () => {
     const {message} = App.useApp()
     const {orgs, selectedOrg, changeSelectedOrg, refetch, loading} = useOrgData()
@@ -62,15 +52,6 @@ const OrganizationGeneral = () => {
 
     const isDeleteNameMatch =
         Boolean(activeOrg?.name) && deleteConfirmInput === (activeOrg?.name ?? "")
-
-    const rows = useMemo<OrgRow[]>(() => {
-        const all = (orgs ?? []).map((org) => ({...org, key: org.id}))
-        const term = searchTerm.trim().toLowerCase()
-        if (!term) return all
-        return all.filter((org) =>
-            [org.name, org.id].some((value) => value?.toLowerCase().includes(term)),
-        )
-    }, [orgs, searchTerm])
 
     const transferOwnerOptions = useMemo(
         () =>
@@ -199,161 +180,33 @@ const OrganizationGeneral = () => {
         selectedOrg,
     ])
 
-    const columns = useMemo(
-        () =>
-            createStandardColumns<OrgRow>([
-                {
-                    type: "entity",
-                    key: "name",
-                    title: "Organization",
-                    width: 280,
-                    fixed: "left",
-                    getName: (record) => record.name ?? record.slug ?? record.id,
-                    getChips: (record) =>
-                        record.id === selectedOrg?.id ? [{label: "Current", tone: "info"}] : [],
-                },
-                // Its own copyable column, not a tag beside the page title.
-                {type: "slug", key: "id", title: "Organization ID", width: 330},
-                {
-                    type: "text",
-                    key: "owner_id",
-                    title: "Your role",
-                    width: 140,
-                    render: (_value, record) => (record.owner_id === user?.id ? "Owner" : "Member"),
-                },
-                {
-                    type: "actions",
-                    showCopyId: false,
-                    items: [
-                        {
-                            key: "switch",
-                            label: "Switch to this organization",
-                            icon: <ArrowsLeftRight size={16} />,
-                            hidden: (record: OrgRow) => record.id === selectedOrg?.id,
-                            onClick: (record: OrgRow) => changeSelectedOrg(record.id),
-                        },
-                        {
-                            key: "rename",
-                            label: "Rename",
-                            icon: <PencilSimpleLine size={16} />,
-                            hidden: (record: OrgRow) => record.owner_id !== user?.id,
-                            onClick: (record: OrgRow) => {
-                                setActiveOrg(record)
-                                renameForm.setFieldsValue({name: record.name ?? ""})
-                                setRenameModalOpen(true)
-                            },
-                        },
-                        {
-                            key: "transfer",
-                            label: "Transfer ownership",
-                            icon: <ArrowsLeftRight size={16} />,
-                            // The member list is scoped to the current organization.
-                            hidden: (record: OrgRow) =>
-                                record.owner_id !== user?.id || record.id !== selectedOrg?.id,
-                            onClick: (record: OrgRow) => {
-                                setActiveOrg(record)
-                                setNewOwnerId(null)
-                                setTransferModalOpen(true)
-                            },
-                        },
-                        {type: "divider"},
-                        {
-                            key: "leave",
-                            label: "Leave organization",
-                            icon: <SignOut size={16} />,
-                            danger: true,
-                            hidden: (record: OrgRow) => record.owner_id === user?.id,
-                            onClick: () =>
-                                message.info(
-                                    "Ask an organization owner to remove you from Members.",
-                                ),
-                        },
-                        {
-                            key: "delete",
-                            label: "Delete organization",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            hidden: (record: OrgRow) => record.owner_id !== user?.id,
-                            onClick: (record: OrgRow) => {
-                                setActiveOrg(record)
-                                setDeleteConfirmInput("")
-                                setDeleteModalOpen(true)
-                            },
-                        },
-                    ],
-                } satisfies StandardColumnDef<OrgRow>,
-            ]),
-        [changeSelectedOrg, message, renameForm, selectedOrg?.id, user?.id],
-    )
-
-    const {tableScope, pagination} = useStaticTable<OrgRow>("settings-organizations", rows, {
-        loading,
-    })
     return (
-        <div className="flex flex-col gap-2">
-            <InfiniteVirtualTableFeatureShell<OrgRow>
-                tableScope={tableScope}
-                autoHeight={false}
-                columns={columns}
-                rowKey="key"
-                filters={
-                    <Input.Search
-                        placeholder="Search organizations"
-                        className="w-[260px]"
-                        allowClear
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        disabled={loading}
-                    />
-                }
-                primaryActions={
-                    <Button
-                        type="primary"
-                        icon={<Plus size={14} />}
-                        onClick={() => setCreateModalOpen(true)}
-                        disabled={loading}
-                    >
-                        New organization
-                    </Button>
-                }
-                pagination={pagination}
-                tableProps={{
-                    size: "small",
-                    bordered: true,
-                    tableLayout: "fixed",
-                    locale: {
-                        emptyText: searchTerm.trim() ? (
-                            <EmptyState
-                                image="simple"
-                                description={`No organizations match “${searchTerm.trim()}”`}
-                            />
-                        ) : (
-                            <EmptyState
-                                image="simple"
-                                description={
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-colorText">
-                                            No organizations yet
-                                        </span>
-                                        <span>
-                                            Create an organization to group your workspaces,
-                                            members, and billing.
-                                        </span>
-                                    </div>
-                                }
-                            >
-                                <Button
-                                    icon={<Plus size={14} />}
-                                    onClick={() => setCreateModalOpen(true)}
-                                >
-                                    New organization
-                                </Button>
-                            </EmptyState>
-                        ),
-                    },
-                }}
-            />
-
+        <OrganizationsPage
+            organizations={orgs ?? []}
+            loading={loading}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            selectedOrgId={selectedOrg?.id}
+            currentUserId={user?.id}
+            onSwitch={(org) => changeSelectedOrg(org.id)}
+            onCreate={() => setCreateModalOpen(true)}
+            onRename={(org) => {
+                setActiveOrg(org)
+                renameForm.setFieldsValue({name: org.name ?? ""})
+                setRenameModalOpen(true)
+            }}
+            onTransferOwnership={(org) => {
+                setActiveOrg(org)
+                setNewOwnerId(null)
+                setTransferModalOpen(true)
+            }}
+            onLeave={() => message.info("Ask an organization owner to remove you from Members.")}
+            onDelete={(org) => {
+                setActiveOrg(org)
+                setDeleteConfirmInput("")
+                setDeleteModalOpen(true)
+            }}
+        >
             <EnhancedModal
                 title="New organization"
                 open={isCreateModalOpen}
@@ -546,7 +399,7 @@ const OrganizationGeneral = () => {
                     </div>
                 </div>
             </EnhancedModal>
-        </div>
+        </OrganizationsPage>
     )
 }
 

@@ -1,5 +1,14 @@
-import {useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 
+import {
+    fetchAllOrgsList,
+    fetchOrganizationDomains,
+    fetchOrganizationProviders,
+    fetchSingleOrg,
+    updateOrganization,
+    type OrganizationFlags,
+    type OrganizationProvider,
+} from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
 import {
@@ -11,10 +20,16 @@ import {
 } from "@agenta/settings"
 import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
+    AccessControlsSection,
     AccountPage,
+    DomainsSection,
     ApiKeysPage,
+    type AuthFlagKey,
+    MembersPage,
     NamedSecretTable,
+    OrganizationsPage,
     PreferencesPage,
+    SsoProvidersSection,
     ProjectsPage,
     SecretProviderTable,
     SettingsPageShell,
@@ -36,6 +51,8 @@ import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {SettingsLoadError, SettingsSectionSkeleton} from "./states/SettingsStates"
+
 const THEME_OPTIONS = [
     {mode: "light", label: "Light"},
     {mode: "dark", label: "Dark"},
@@ -48,6 +65,9 @@ const AVAILABLE: SettingsTabKey[] = [
     "llms",
     "secrets",
     "webhooks",
+    "organizationGeneral",
+    "workspace",
+    "organization",
     "projects",
     "account",
     "preferences",
@@ -67,7 +87,7 @@ const TabBody = ({
 }: {
     tab: SettingsTabKey
     access: SettingsAccess
-    user: {username?: string | null; email?: string | null} | null
+    user: {id?: string | null; username?: string | null; email?: string | null} | null
     theme: {options: {mode: string; label: string}[]; mode: string; onSelect: (m: string) => void}
     workspaceId: string
 }) => {
@@ -82,8 +102,70 @@ const TabBody = ({
     const projects = useQuery({
         queryKey: ["projects", workspaceId],
         queryFn: () => fetchAllProjects(workspaceId),
-        enabled: tab === "projects",
+        // Every organization-scoped tab resolves its org id from this list.
+        enabled: tab !== "preferences" && tab !== "account",
     })
+
+    // A project carries its organization, which saves resolving one from the workspace id.
+    const organizationId = projects.data?.find(
+        (project) => project.organization_id && project.workspace_id === workspaceId,
+    )?.organization_id
+    // The roster lives on the org's default workspace, not behind a members endpoint — same
+    // source the desktop reads, so the two surfaces cannot disagree.
+    const org = useQuery({
+        queryKey: ["selectedOrg", organizationId],
+        queryFn: () => fetchSingleOrg({organizationId: organizationId!}),
+        enabled: (tab === "workspace" || tab === "organization") && Boolean(organizationId),
+    })
+    const organizations = useQuery({
+        queryKey: ["orgs"],
+        queryFn: () => fetchAllOrgsList(),
+        enabled: tab === "organizationGeneral",
+    })
+    const domains = useQuery({
+        queryKey: ["organization-domains", organizationId],
+        queryFn: () => fetchOrganizationDomains(),
+        enabled: tab === "organization" && Boolean(organizationId),
+    })
+    const providers = useQuery({
+        queryKey: ["organization-providers", organizationId],
+        queryFn: () => fetchOrganizationProviders(),
+        enabled: tab === "organization" && Boolean(organizationId),
+    })
+    const [memberSearch, setMemberSearch] = useState("")
+    const [orgSearch, setOrgSearch] = useState("")
+
+    const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
+    const [lastSavedFlag, setLastSavedFlag] = useState<AuthFlagKey | null>(null)
+    const [flagError, setFlagError] = useState<string | null>(null)
+    const setFlag = async (flag: AuthFlagKey, value: boolean) => {
+        if (!organizationId) return
+        setSavingFlag(flag)
+        setFlagError(null)
+        setLastSavedFlag(null)
+        try {
+            await updateOrganization(organizationId, {flags: {[flag]: value}})
+            await org.refetch()
+            setLastSavedFlag(flag)
+        } catch (error) {
+            // The switches are driven by the server's flags, never by local state, so a failed
+            // write needs no revert — the row simply stays where it was. Which reads as a dead
+            // toggle unless we say why.
+            setFlagError(
+                error instanceof Error && error.message
+                    ? error.message
+                    : "Could not save that setting. Try again.",
+            )
+        } finally {
+            setSavingFlag(null)
+        }
+    }
+    // "Saved" is a transient marker; without this it sits on the row for the rest of the session.
+    useEffect(() => {
+        if (!lastSavedFlag) return
+        const timer = window.setTimeout(() => setLastSavedFlag(null), 3000)
+        return () => window.clearTimeout(timer)
+    }, [lastSavedFlag])
 
     switch (tab) {
         case "preferences":
@@ -122,6 +204,86 @@ const TabBody = ({
                     workspaceId={workspaceId}
                 />
             )
+        case "workspace":
+            return (
+                <MembersPage
+                    members={org.data?.default_workspace?.members ?? []}
+                    loading={projects.isPending || org.isPending}
+                    searchTerm={memberSearch}
+                    onSearchChange={setMemberSearch}
+                    signedInUser={user}
+                    ownerId={org.data?.owner_id}
+                />
+            )
+        case "organizationGeneral":
+            return (
+                <OrganizationsPage
+                    organizations={organizations.data ?? []}
+                    loading={organizations.isPending}
+                    searchTerm={orgSearch}
+                    onSearchChange={setOrgSearch}
+                    selectedOrgId={organizationId}
+                    currentUserId={user?.id}
+                />
+            )
+        case "organization": {
+            // This tab's org id comes from the projects list, so both queries are its loading
+            // state — and a disabled query stays `pending` forever, hence the explicit id check.
+            if (projects.isPending || (organizationId && org.isPending))
+                return <SettingsSectionSkeleton />
+            if (projects.isError || org.isError)
+                return (
+                    <SettingsLoadError
+                        text="Could not load this organization's settings."
+                        onRetry={() => {
+                            void projects.refetch()
+                            void org.refetch()
+                        }}
+                    />
+                )
+            const flags = org.data?.flags as OrganizationFlags | undefined
+            if (!flags) return null
+            const domainList = domains.data ?? []
+            const providerList = providers.data ?? []
+            const orgSlug = org.data?.slug
+            return (
+                <div className="flex flex-col gap-8">
+                    <div className="flex flex-col gap-2">
+                        <AccessControlsSection
+                            flags={flags}
+                            onFlagChange={(flag, value) => void setFlag(flag, value)}
+                            updating={Boolean(savingFlag)}
+                            lastSavedFlag={lastSavedFlag}
+                            hasActiveVerifiedProvider={providerList.some(
+                                (provider) => provider.flags?.is_active && provider.flags?.is_valid,
+                            )}
+                            hasVerifiedDomain={domainList.some(
+                                (domain) => domain.flags?.is_verified,
+                            )}
+                        />
+                        {/* A failed save leaves the switch where it was, so the reason has to be
+                            visible or the toggle just looks broken. */}
+                        {flagError ? (
+                            <p className="text-destructive m-0 text-xs" role="alert">
+                                {flagError}
+                            </p>
+                        ) : null}
+                    </div>
+                    {/* Read-only here: adding a domain or provider means DNS records and IdP
+                        setup, which belong on the desktop. */}
+                    <DomainsSection domains={domainList} loading={domains.isPending} />
+                    <SsoProvidersSection
+                        providers={providerList}
+                        loading={providers.isPending}
+                        callbackUrlFor={(provider: OrganizationProvider) =>
+                            orgSlug
+                                ? `${window.location.origin}/auth/callback/sso:${orgSlug}:${provider.slug}`
+                                : null
+                        }
+                    />
+                </div>
+            )
+        }
         default:
             return null
     }

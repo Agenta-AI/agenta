@@ -1,20 +1,10 @@
-import {useCallback, useMemo, useState, type FC} from "react"
+import {useCallback, useState, type FC} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {removeFromWorkspace, resendInviteToWorkspace} from "@agenta/entities/organization"
-import {useStaticTable} from "@agenta/settings"
-import {formatDay} from "@agenta/shared/utils/dateTime"
+import {MembersPage} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
-import {
-    createStandardColumns,
-    InfiniteVirtualTableFeatureShell,
-    type EntityChip,
-    type StandardColumnDef,
-} from "@agenta/ui/table"
-import {EmptyState} from "@agenta/ui/ui"
-import {EditOutlined} from "@ant-design/icons"
-import {ArrowClockwise, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Input, Modal} from "antd"
+import {Input, Modal} from "antd"
 import dynamic from "next/dynamic"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
@@ -22,7 +12,6 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
-import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {updateUsername} from "@/oss/services/profile"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -30,37 +19,14 @@ import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import {Roles} from "./cellRenderers"
 
-interface MemberRow extends WorkspaceMember {
-    key: string
-    [extra: string]: unknown
-}
-
-/**
- * Invitation state belongs beside the person, not stacked under a date. Members that have
- * accepted carry no chip at all.
- */
-const memberChips = (member: WorkspaceMember, isSelf: boolean): EntityChip[] => {
-    const chips: EntityChip[] = []
-    if (isSelf) chips.push({label: "You", tone: "info"})
-
-    const status = member.user?.status
-    if (status && status !== "member") {
-        chips.push(
-            status === "expired"
-                ? {label: "Expired", tone: "error", variant: "status"}
-                : {label: "Pending", tone: "warning", variant: "status"},
-        )
-    }
-    return chips
-}
-
 const InvitedUserLinkModal = dynamic(() => import("./Modals/InvitedUserLinkModal"), {ssr: false})
 const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr: false})
 
+/** OSS binding: the shared members table with this app's antd dialogs and its role editor. */
 const WorkspaceManage: FC = () => {
     const {user: signedInUser, refetch: refetchProfile} = useProfileData()
     const {selectedOrg, loading, refetch} = useOrgData()
-    const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
+    const {members, searchTerm, setSearchTerm} = useWorkspaceMembers()
     const {hasRBAC} = useEntitlements()
     const {canInviteMembers, canRemoveMembers} = useWorkspacePermissions()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -77,23 +43,8 @@ const WorkspaceManage: FC = () => {
     const organizationId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
 
-    const rows = useMemo<MemberRow[]>(
-        () => filteredMembers.map((member) => ({...member, key: member.user.id})),
-        [filteredMembers],
-    )
-
-    const isSelfMember = useCallback(
-        (record: MemberRow) =>
-            record.user?.id === signedInUser?.id || record.user?.email === signedInUser?.email,
-        [signedInUser?.id, signedInUser?.email],
-    )
-    const isOwnerMember = useCallback(
-        (record: MemberRow) => record.user?.id === selectedOrg?.owner_id,
-        [selectedOrg?.owner_id],
-    )
-
     const handleResendInvite = useCallback(
-        (record: MemberRow) => {
+        (record: WorkspaceMember) => {
             const {user} = record
             if (!organizationId || !user.email || !workspaceId) return
             setResendingEmail(user.email)
@@ -114,7 +65,7 @@ const WorkspaceManage: FC = () => {
     )
 
     const handleRemove = useCallback(
-        (record: MemberRow) => {
+        (record: WorkspaceMember) => {
             const {user} = record
             if (!organizationId || !user.email || !workspaceId) return
             AlertPopup({
@@ -142,185 +93,47 @@ const WorkspaceManage: FC = () => {
             await Promise.all([refetchProfile(), refetch()])
             message.success("Username updated")
             setRenameOpen(false)
-        } catch (error: any) {
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to update username"
-            message.error(detail)
+        } catch (error) {
+            const detail = (error as {response?: {data?: {detail?: string}}; message?: string})
+                ?.response?.data?.detail
+            message.error(
+                detail || (error as {message?: string})?.message || "Unable to update username",
+            )
         }
     }, [renameValue, refetchProfile, refetch])
 
-    const columns = useMemo(
-        () =>
-            createStandardColumns<MemberRow>([
-                {
-                    type: "entity",
-                    key: "member",
-                    title: "Member",
-                    width: 280,
-                    fixed: "left",
-                    getName: (record) =>
-                        record.user.username || getUsernameFromEmail(record.user.email),
-                    getChips: (record) =>
-                        memberChips(record, record.user?.email === signedInUser?.email),
-                },
-                {
-                    type: "slug",
-                    key: "email",
-                    title: "Email",
-                    width: 290,
-                    getValue: (record) => record.user?.email,
-                },
-                ...(!isEE() || hasRBAC
-                    ? [
-                          {
-                              type: "text",
-                              key: "roles",
-                              title: "Role",
-                              width: 160,
-                              render: (_value: unknown, record: MemberRow) => (
-                                  <Roles
-                                      member={record}
-                                      signedInUser={signedInUser!}
-                                      organizationId={organizationId!}
-                                      workspaceId={workspaceId!}
-                                  />
-                              ),
-                          } satisfies StandardColumnDef<MemberRow>,
-                      ]
-                    : []),
-                {
-                    type: "text",
-                    key: "created_at",
-                    title: "Added",
-                    width: 160,
-                    render: (_value, record) => formatDay({date: record.user.created_at}),
-                },
-                {
-                    type: "actions",
-                    showCopyId: false,
-                    items: [
-                        {
-                            key: "rename",
-                            label: "Rename",
-                            icon: <EditOutlined />,
-                            hidden: (record) => !isSelfMember(record),
-                            onClick: (record) => {
-                                setRenameValue(record.user.username || "")
-                                setRenameOpen(true)
-                            },
-                        },
-                        {
-                            key: "resend_invite",
-                            label: "Resend invitation",
-                            icon: <ArrowClockwise size={16} />,
-                            hidden: (record) =>
-                                isSelfMember(record) ||
-                                record.user.status === "member" ||
-                                !canInviteMembers,
-                            disabled: (record) => resendingEmail === record.user.email,
-                            onClick: (record) => handleResendInvite(record),
-                        },
-                        {
-                            key: "remove",
-                            label: "Remove",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            hidden: (record) =>
-                                isSelfMember(record) || isOwnerMember(record) || !canRemoveMembers,
-                            onClick: (record) => handleRemove(record),
-                        },
-                    ],
-                } satisfies StandardColumnDef<MemberRow>,
-            ] as StandardColumnDef<MemberRow>[]),
-        [
-            hasRBAC,
-            organizationId,
-            selectedOrg?.owner_id,
-            signedInUser,
-            workspaceId,
-            isSelfMember,
-            isOwnerMember,
-            canInviteMembers,
-            canRemoveMembers,
-            resendingEmail,
-            handleResendInvite,
-            handleRemove,
-        ],
-    )
-
-    const {tableScope, pagination} = useStaticTable<MemberRow>("settings-members", rows, {
-        loading,
-    })
     return (
-        <div className="flex flex-col gap-2">
-            <InfiniteVirtualTableFeatureShell<MemberRow>
-                tableScope={tableScope}
-                autoHeight={false}
-                columns={columns}
-                rowKey="key"
-                filters={
-                    <Input.Search
-                        placeholder="Search members"
-                        className="w-[260px]"
-                        allowClear
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        disabled={loading}
-                    />
-                }
-                primaryActions={
-                    canInviteMembers ? (
-                        <Button
-                            type="primary"
-                            icon={<Plus size={14} />}
-                            onClick={() => setIsInviteModalOpen(true)}
-                            disabled={loading}
-                        >
-                            Invite members
-                        </Button>
-                    ) : null
-                }
-                pagination={pagination}
-                tableProps={{
-                    size: "small",
-                    bordered: true,
-                    tableLayout: "fixed",
-                    locale: {
-                        emptyText: searchTerm.trim() ? (
-                            <EmptyState
-                                image="simple"
-                                description={`No members match “${searchTerm.trim()}”`}
-                            />
-                        ) : (
-                            <EmptyState
-                                image="simple"
-                                description={
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-colorText">
-                                            No members yet
-                                        </span>
-                                        <span>
-                                            Invite people to collaborate in this organization.
-                                            Invitations appear here until they are accepted or
-                                            expire.
-                                        </span>
-                                    </div>
-                                }
-                            >
-                                {canInviteMembers ? (
-                                    <Button
-                                        icon={<Plus size={14} />}
-                                        onClick={() => setIsInviteModalOpen(true)}
-                                    >
-                                        Invite members
-                                    </Button>
-                                ) : null}
-                            </EmptyState>
-                        ),
-                    },
-                }}
-            />
-
+        <MembersPage
+            members={members}
+            loading={loading}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            signedInUser={signedInUser}
+            ownerId={selectedOrg?.owner_id}
+            canInviteMembers={canInviteMembers}
+            canRemoveMembers={canRemoveMembers}
+            resendingEmail={resendingEmail}
+            // The role editor writes through antd's Select, so it stays with this host.
+            renderRoleCell={
+                !isEE() || hasRBAC
+                    ? (member) => (
+                          <Roles
+                              member={member}
+                              signedInUser={signedInUser!}
+                              organizationId={organizationId!}
+                              workspaceId={workspaceId!}
+                          />
+                      )
+                    : undefined
+            }
+            onInvite={() => setIsInviteModalOpen(true)}
+            onResendInvite={handleResendInvite}
+            onRemove={handleRemove}
+            onRenameSelf={(member) => {
+                setRenameValue(member.user.username || "")
+                setRenameOpen(true)
+            }}
+        >
             <Modal
                 title="Rename your username"
                 open={renameOpen}
@@ -360,7 +173,7 @@ const WorkspaceManage: FC = () => {
                     invitedUserData={invitedUserData}
                 />
             )}
-        </div>
+        </MembersPage>
     )
 }
 
