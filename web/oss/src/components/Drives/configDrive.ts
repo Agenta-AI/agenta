@@ -5,12 +5,12 @@
  * resolve the same session/artifact drive via {@link useConfigDrive} and share one drawer request
  * via {@link configFilesDrawerAtomFamily}, keyed by the edited revision.
  */
+import {isSessionFresh} from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
-import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
 import {
     activeSessionIdAtomFamily,
     sessionsListAtomFamily,

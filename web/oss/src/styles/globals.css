@@ -1,5 +1,5 @@
 @import "./theme-variables.css";
-@import "./auth.css";
+@import "@agenta/auth-ui/auth.css";
 @import "./animations.css";
 @import "./editor-theme.css";
 @import "./code-editor-styles.css";

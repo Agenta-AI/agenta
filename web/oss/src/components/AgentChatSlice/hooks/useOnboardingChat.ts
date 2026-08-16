@@ -2,6 +2,7 @@ import {type RefObject, useCallback, useEffect, useMemo, useRef, useState} from 
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
+import {message as appMessage} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {type UIMessage} from "ai"
 import {useAtomValue} from "jotai"

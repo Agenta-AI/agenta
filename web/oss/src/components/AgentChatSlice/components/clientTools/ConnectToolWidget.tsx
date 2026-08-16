@@ -11,6 +11,8 @@
  * (which re-runs the OAuth via the shared `useConnectFlow`, priming the vault for the agent's
  * re-ask — the settled part itself can't be re-resolved).
  */
+import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/chat/skin"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
     CheckCircle,
@@ -19,12 +21,8 @@ import {
     Spinner,
     Warning,
 } from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
 
-import type {ClientToolHandlerProps} from "./types"
 import {useConnectFlow, type ConnectOutput} from "./useConnectFlow"
-
-const {Text} = Typography
 
 /**
  * The runner parks only ONE interaction per turn; a second `request_connection` in the same step is
@@ -50,10 +48,8 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     if (phase === "connecting") {
         return (
             <ChipRow icon={<Spinner size={13} className="animate-spin text-colorPrimary" />}>
-                <Text type="secondary" className="!text-xs">
-                    Connecting {label}…
-                </Text>
-                <Button type="text" onClick={cancel} className="!px-2">
+                <span className="text-xs text-colorTextSecondary">Connecting {label}…</span>
+                <Button variant="ghost" size="sm" onClick={cancel} className="px-2">
                     Cancel
                 </Button>
             </ChipRow>
@@ -68,7 +64,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 <ChipRow
                     icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
                 >
-                    <Text className="!text-xs">{label} connected</Text>
+                    <span className="text-xs text-colorText">{label} connected</span>
                 </ChipRow>
             )
         }
@@ -77,9 +73,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         if (deferredByRunner) {
             return (
                 <ChipRow icon={<Hourglass size={13} className="text-colorTextTertiary" />}>
-                    <Text type="secondary" className="!text-xs !text-colorTextTertiary">
-                        Connecting {label} next…
-                    </Text>
+                    <span className="text-xs text-colorTextTertiary">Connecting {label} next…</span>
                 </ChipRow>
             )
         }
@@ -87,9 +81,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         // already resolved, so this primes the vault and flips the chip on success).
         return (
             <ChipRow icon={<Warning size={13} weight="fill" className="text-colorWarning" />}>
-                <Text type="secondary" className="!text-xs">
-                    Connection not completed
-                </Text>
+                <span className="text-xs text-colorTextSecondary">Connection not completed</span>
                 <RetryButton onClick={() => runConnect(false)} />
             </ChipRow>
         )
@@ -99,9 +91,9 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     if (phase === "error") {
         return (
             <ChipRow icon={<Warning size={13} weight="fill" className="text-colorError" />}>
-                <Text type="danger" className="!text-xs truncate" title={errorText ?? undefined}>
+                <span className="truncate text-xs text-colorError" title={errorText ?? undefined}>
                     {errorText ?? "Connection failed."}
-                </Text>
+                </span>
                 <RetryButton onClick={() => runConnect(false)} />
             </ChipRow>
         )
@@ -110,10 +102,8 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     // ── Pending: passive marker — the InteractionDock (above the composer) owns the actions ──────
     return (
         <ChipRow icon={<Plugs size={13} className="text-colorPrimary" />}>
-            <Text className="!text-xs">Connect {label}</Text>
-            <Text type="secondary" className="!text-xs !text-colorTextTertiary">
-                waiting for your response below
-            </Text>
+            <span className="text-xs text-colorText">Connect {label}</span>
+            <span className="text-xs text-colorTextTertiary">waiting for your response below</span>
         </ChipRow>
     )
 }
@@ -127,13 +117,8 @@ const ChipRow = ({icon, children}: {icon: React.ReactNode; children: React.React
 )
 
 const RetryButton = ({onClick, disabled}: {onClick: () => void; disabled?: boolean}) => (
-    <Button
-        type="text"
-        onClick={onClick}
-        disabled={disabled}
-        icon={<ArrowClockwise size={13} />}
-        className="!px-2"
-    >
+    <Button variant="ghost" size="sm" onClick={onClick} disabled={disabled} className="px-2">
+        <ArrowClockwise size={13} />
         Retry
     </Button>
 )

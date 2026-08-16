@@ -1,11 +1,11 @@
 import {useEffect, useMemo} from "react"
 
+import {assistantTurnNumbers} from "@agenta/chat/model"
 import {type UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {playgroundInspectorEnabledAtom} from "@/oss/state/settings/featureFlags"
 
-import {assistantTurnNumbers} from "../assets/messageParts"
 import {
     closeInspectorAtom,
     inspectorTargetAtom,

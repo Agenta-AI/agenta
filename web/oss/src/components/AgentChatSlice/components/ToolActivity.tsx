@@ -1,5 +1,17 @@
 import {memo} from "react"
 
+import {formatToolValue, stripFence} from "@agenta/chat/assets"
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+} from "@agenta/chat/assets"
+import {partToolName} from "@agenta/chat/model"
+import {
+    expandedValueAtomFamily,
+    setExpandedAtom,
+    toolGroupKey,
+    toolRowKey,
+} from "@agenta/chat/state"
 import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
 import {HeightCollapse} from "@agenta/ui"
 import {
@@ -13,30 +25,15 @@ import {
     Wrench,
 } from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
-import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {DriveFileCard} from "@/oss/components/Drives/DriveFileCard"
 
 import {
     extractCallDescription,
-    partToolName,
     resolveToolDisplay,
     type ToolDisplay,
 } from "../assets/toolDisplay"
-import {formatToolValue, stripFence} from "../assets/toolFormat"
-import {
-    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
-    DEFERRED_NOT_EXECUTED_PREFIX,
-} from "../assets/transcriptToMessages"
-import {
-    expandedValueAtomFamily,
-    setExpandedAtom,
-    toolGroupKey,
-    toolRowKey,
-} from "../state/expandState"
-
-const {Text} = Typography
 
 // A tool has finished when it produced output, errored, or was denied. Everything else
 // (preparing input, running, awaiting/just-answered an approval) is still in flight.
@@ -132,9 +129,9 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
  * height with its own scroll so a large payload can't blow up the transcript. */
 const IOBlock = ({label, value, danger}: {label: string; value: string; danger?: boolean}) => (
     <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="font-mono text-[12px] text-colorTextTertiary">{label}</span>
+        <span className="font-mono text-[10px] text-colorTextTertiary">{label}</span>
         <pre
-            className={`ag-surface-inset m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-xs leading-snug ${
+            className={`ag-surface-inset m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug ${
                 danger
                     ? "!bg-[var(--ant-color-error-bg)] !border-transparent !text-colorErrorText"
                     : "text-colorTextSecondary"
@@ -214,22 +211,25 @@ const ToolRow = ({
     const header = (
         <>
             <StatusIcon part={part} />
-            <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
+            <span className="min-w-0 truncate text-xs font-medium text-colorText" title={name}>
                 {shownName}
-            </Text>
+            </span>
             {!detailed && display.source ? (
-                <Text type="secondary" className="!text-xs shrink-0 whitespace-nowrap">
+                <span className="shrink-0 whitespace-nowrap text-[11px] text-colorTextSecondary">
                     {display.source}
-                </Text>
+                </span>
             ) : null}
             {midText ? (
-                <Text
-                    type={state === "output-error" && !nonFinalError ? "danger" : "secondary"}
-                    className="!text-xs min-w-0 truncate"
+                <span
+                    className={`min-w-0 truncate text-xs ${
+                        state === "output-error" && !nonFinalError
+                            ? "text-colorError"
+                            : "text-colorTextSecondary"
+                    }`}
                     title={typeof midText === "string" ? midText : undefined}
                 >
                     {midText}
-                </Text>
+                </span>
             ) : null}
         </>
     )
@@ -257,14 +257,13 @@ const ToolRow = ({
             )}
 
             {callDescription ? (
-                <Text
-                    type="secondary"
-                    className="!text-xs mt-0.5 pl-[21px] italic leading-snug"
+                <span
+                    className="mt-0.5 pl-[21px] text-[11px] italic leading-snug text-colorTextSecondary"
                     title={callDescription.text}
                 >
                     {callDescription.text}
                     {callDescription.truncated ? "… (shortened)" : ""}
-                </Text>
+                </span>
             ) : null}
 
             {hasIO ? (
@@ -398,10 +397,10 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
                     weight="fill"
                     className={`shrink-0 ${failed > 0 ? "text-colorError" : "text-colorSuccess"}`}
                 />
-                <Text type="secondary" className="!text-xs" title={single?.raw}>
+                <span className="text-xs text-colorTextSecondary" title={single?.raw}>
                     {label}
                     {failed > 0 ? ` · ${failed} failed` : ""}
-                </Text>
+                </span>
             </button>
 
             <HeightCollapse open={expanded}>

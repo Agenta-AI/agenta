@@ -1,11 +1,10 @@
 import {useCallback} from "react"
 
+import {pendingSessionOpenAtom, type PendingSessionOpen} from "@agenta/sessions/state"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {urlAtom} from "@/oss/state/url"
-
-import {pendingSessionOpenAtom, type PendingSessionOpen} from "../state/pendingSessionOpen"
 
 /**
  * Open a session on its agent's playground from anywhere in the app: stash the target, then

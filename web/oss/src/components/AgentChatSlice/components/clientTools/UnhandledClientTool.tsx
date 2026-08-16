@@ -5,13 +5,8 @@
  */
 import {useEffect, useRef} from "react"
 
+import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/chat/skin"
 import {Info} from "@phosphor-icons/react"
-import {Typography} from "antd"
-
-import type {ClientToolHandlerProps} from "./types"
-
-const {Text} = Typography
-
 const UnhandledClientTool = ({meta, settle}: ClientToolHandlerProps) => {
     const settledRef = useRef(false)
     useEffect(() => {
@@ -23,9 +18,9 @@ const UnhandledClientTool = ({meta, settle}: ClientToolHandlerProps) => {
     return (
         <div className="flex min-w-0 items-center gap-2 py-1" title={meta.toolName}>
             <Info size={13} className="shrink-0 text-colorTextTertiary" />
-            <Text type="secondary" className="!text-xs !text-colorTextTertiary truncate">
+            <span className="truncate text-xs text-colorTextTertiary">
                 Not handled by this client
-            </Text>
+            </span>
         </div>
     )
 }

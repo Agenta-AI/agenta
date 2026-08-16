@@ -1,8 +1,8 @@
 import {type ReactNode} from "react"
 
+import {Button} from "@agenta/ui/ui"
 import {ArrowDown} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Button} from "antd"
 import {Virtuoso} from "react-virtuoso"
 
 import {EDGE_FADE_MASK} from "../assets/conversationLayout"
@@ -79,8 +79,10 @@ const AgentTranscript = ({
                         footer:
                             activeStart < messages.length ? (
                                 <div
-                                    // `pb-8` ≥ the 28px bottom fade so the meta row clears it at rest.
-                                    className={`flex flex-col gap-3 px-3 pb-8${reserveActive ? " pt-8" : ""}`}
+                                    // `pb-24` (96px) clears the 28px bottom fade with generous room
+                                    // for the last turn's action lane, even when autoscroll settles
+                                    // a little short of true bottom.
+                                    className={`flex flex-col gap-3 px-3 pb-24${reserveActive ? " pt-8" : ""}`}
                                     // Explicit viewport-height reserve (min-h-full is inert in the
                                     // Footer) so scrolling to bottom pins the question to the top.
                                     style={
@@ -92,6 +94,9 @@ const AgentTranscript = ({
                                     {messages
                                         .slice(activeStart)
                                         .map((m, i) => renderMessage(m, activeStart + i))}
+                                    {/* 56px on top of the wrapper's 96px `pb-24` keeps the last
+                                        turn's action lane clear of the bottom fade. */}
+                                    <div style={{height: 56, flexShrink: 0}} />
                                 </div>
                             ) : null,
                     }}
@@ -113,7 +118,7 @@ const AgentTranscript = ({
                     // meta row (Inspect turn + streaming dots) clear them at rest; the bottom pad
                     // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
                     // anchoring off so our pin/anchor logic owns the scroll position).
-                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-8 [overflow-anchor:none]"
+                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-24 [overflow-anchor:none]"
                     // Fade content into the top edge (under the tab bar) and the bottom edge (into the
                     // composer) as it scrolls. A gradient mask on the scroll container: transparent at
                     // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
@@ -135,6 +140,9 @@ const AgentTranscript = ({
                             {messages
                                 .slice(activeStart)
                                 .map((m, i) => renderMessage(m, activeStart + i))}
+                            {/* Hard end-of-conversation clearance, INSIDE the active turn —
+                                directly under the last message. */}
+                            <div style={{height: 56, flexShrink: 0}} />
                         </div>
                     )}
                 </div>
@@ -143,21 +151,21 @@ const AgentTranscript = ({
             {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
                 keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
             <Button
-                size="small"
-                shape="round"
-                icon={<ArrowDown size={14} />}
+                variant="outline"
+                size="sm"
                 onClick={useVirtuoso ? virt.jumpToLatest : scroll.jumpToLatest}
                 tabIndex={showJump ? 0 : -1}
                 aria-hidden={!showJump}
                 // Solid elevated surface + border + shadow so the pill reads clearly when it
                 // floats over streamed text (a transparent pill let the text bleed through).
-                className={`!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
+                className={`absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border-colorBorderSecondary bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
                     showJump
                         ? "translate-y-0 opacity-100"
                         : "pointer-events-none translate-y-3 opacity-0"
                 }`}
                 aria-label="Jump to latest message"
             >
+                <ArrowDown size={14} />
                 Jump to latest
             </Button>
         </div>

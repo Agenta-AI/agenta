@@ -63,6 +63,10 @@ export interface ApprovalBodyProps {
     input: unknown
     /** Selected agent revision — specialized bodies diff payloads against its committed config. */
     entityId: string
+    /** Workspace content the runner resolved and froze for this gate, when the call imports any. */
+    manifest?: unknown
+    /** Build mode: the dock is narrow, so the body stacks in one column instead of two panes. */
+    compact?: boolean
     /** The dock's generic payload block — render it verbatim when the payload can't be previewed. */
     fallback: ReactNode
 }

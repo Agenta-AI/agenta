@@ -1,8 +1,9 @@
 import {memo, useCallback} from "react"
 
+import {Tag} from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
 import {TreeStructure} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Button, Tag} from "antd"
 
 import AgentMessage from "./AgentMessage"
 import type {ClientToolOutputHandler} from "./clientTools"
@@ -91,11 +92,11 @@ const AgentTurn = ({
                 gated on position so it can never smear onto past turns. Cleared on resend / ask. */}
             {showStopped && (
                 <div className="flex items-center gap-2 self-start pl-1">
-                    <Tag className="!m-0 !text-xs">Stopped</Tag>
+                    <Tag label="Stopped" className="m-0 text-[11px]" />
                     <Button
-                        type="link"
-                        size="small"
-                        className="!px-0 !text-xs"
+                        variant="link"
+                        size="sm"
+                        className="px-0 text-xs"
                         disabled={resendDisabled}
                         onClick={() => onResend(message.id)}
                     >
