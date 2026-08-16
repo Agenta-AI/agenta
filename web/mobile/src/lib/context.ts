@@ -76,6 +76,10 @@ const projectRowSchema = z.object({
     workspace_id: z.string().nullish(),
     workspace_name: z.string().nullish(),
     is_demo: z.boolean().nullish(),
+    // Only the settings list reads these two; every other consumer ignores them. They stay
+    // optional because the schema is a drift check, not a contract we want to fail on.
+    user_role: z.string().nullish(),
+    is_default_project: z.boolean().optional(),
 })
 
 export type MobileProject = z.infer<typeof projectRowSchema>

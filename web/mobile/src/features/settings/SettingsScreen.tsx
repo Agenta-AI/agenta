@@ -2,20 +2,32 @@ import {useMemo} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {
-    CLOSED_SETTINGS_ACCESS,
     getSettingsSidebarTabs,
     getSettingsTabDescription,
     getSettingsTabLabel,
     SETTINGS_SCOPES,
     type SettingsTabKey,
 } from "@agenta/settings"
-import {AccountPage, PreferencesPage, SettingsPageShell} from "@agenta/settings-ui"
+import {useApiKeys, type SettingsAccess} from "@agenta/settings"
+import {
+    AccountPage,
+    ApiKeysPage,
+    NamedSecretTable,
+    PreferencesPage,
+    ProjectsPage,
+    SecretProviderTable,
+    SettingsPageShell,
+    WebhooksPage,
+} from "@agenta/settings-ui"
+import {getEnv} from "@agenta/shared/api"
 import {useThemeMode} from "@agenta/ui/theme"
+import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {fetchProjects} from "@/lib/context"
 import {cn} from "@/lib/utils"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -29,14 +41,102 @@ const THEME_OPTIONS = [
     {mode: "system", label: "System default"},
 ]
 
-/** Tabs this app can actually render; the rest are listed nowhere rather than dead-ending. */
-const AVAILABLE: SettingsTabKey[] = ["preferences", "account"]
+/** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
+const AVAILABLE: SettingsTabKey[] = [
+    "apiKeys",
+    "llms",
+    "secrets",
+    "webhooks",
+    "projects",
+    "account",
+    "preferences",
+]
+
+/**
+ * One tab's body. Every page comes from @agenta/settings-ui; this host passes no create/edit
+ * dialogs, so each renders read-only — the lists and their empty states, none of the write
+ * affordances, which the desktop supplies through its own modals.
+ */
+const TabBody = ({
+    tab,
+    access,
+    user,
+    theme,
+    workspaceId,
+}: {
+    tab: SettingsTabKey
+    access: SettingsAccess
+    user: {username?: string | null; email?: string | null} | null
+    theme: {options: {mode: string; label: string}[]; mode: string; onSelect: (m: string) => void}
+    workspaceId: string
+}) => {
+    const keys = useApiKeys({
+        workspaceId,
+        canView: tab === "apiKeys" && access.canViewApiKeys,
+        canEdit: false,
+        confirmDelete: async () => false,
+        onCreated: () => undefined,
+    })
+
+    // The app's own projects query — same key and staleTime as the drawer switcher and
+    // `useCurrentProject`, so this tab reuses their cache instead of issuing its own request.
+    const projects = useQuery({
+        queryKey: ["mobile", "projects"],
+        queryFn: () => fetchProjects(),
+        staleTime: 30_000,
+    })
+    const projectRows = useMemo(
+        () => (projects.data?.kind === "ok" ? projects.data.projects : []),
+        [projects.data],
+    )
+
+    switch (tab) {
+        case "preferences":
+            return <PreferencesPage theme={theme} />
+        case "account":
+            return <AccountPage username={user?.username} email={user?.email} />
+        case "apiKeys":
+            return (
+                <ApiKeysPage
+                    rows={keys.keys}
+                    listing={keys.listing}
+                    creating={false}
+                    canView={access.canViewApiKeys}
+                    canEdit={false}
+                    onReload={keys.list}
+                    onCreate={() => undefined}
+                    onDelete={() => undefined}
+                />
+            )
+        case "llms":
+            return (
+                <div className="flex flex-col gap-8">
+                    <SecretProviderTable type="standard" />
+                    <SecretProviderTable type="custom" />
+                </div>
+            )
+        case "secrets":
+            return <NamedSecretTable />
+        case "webhooks":
+            return <WebhooksPage />
+        case "projects":
+            return (
+                <ProjectsPage
+                    projects={projectRows}
+                    isLoading={projects.isLoading}
+                    workspaceId={workspaceId}
+                />
+            )
+        default:
+            return null
+    }
+}
 
 /**
  * Settings on /m: the desktop's own tab model as a rail, with one tab open at a time.
  *
- * Access stays CLOSED until this app can compute real edition and permission flags, so nothing
- * gated can appear; the rail is further narrowed to the tabs that exist here.
+ * Every page is the shared one. This host is read-only — it brings no create/edit dialogs — so
+ * the rail lists what it can show and each page renders without its write affordances.
  */
 export const SettingsScreen = ({
     workspaceId,
@@ -51,7 +151,22 @@ export const SettingsScreen = ({
     const {themeMode, setMode} = useThemeMode()
     const {user} = useProfile()
 
-    const access = CLOSED_SETTINGS_ACCESS
+    // Read-only host: it renders lists but brings none of the create/edit dialogs, so every
+    // write affordance stays off. View flags are optimistic — the API authorizes regardless, and
+    // each page has an empty state — while edition comes from the same env the desktop reads.
+    const isEE = getEnv("NEXT_PUBLIC_AGENTA_LICENSE") === "ee"
+    const access: SettingsAccess = useMemo(
+        () => ({
+            billingEnabled: false,
+            canShowTools: false,
+            canShowTriggers: false,
+            canViewApiKeys: true,
+            canViewEvents: false,
+            isEE,
+            isOwner: false,
+        }),
+        [isEE],
+    )
     const requested = typeof router.query.tab === "string" ? router.query.tab : null
     const active: SettingsTabKey = AVAILABLE.includes(requested as SettingsTabKey)
         ? (requested as SettingsTabKey)
@@ -124,19 +239,17 @@ export const SettingsScreen = ({
                                 title={getSettingsTabLabel(active, access)}
                                 description={getSettingsTabDescription(active, access)}
                             >
-                                {active === "preferences" ? (
-                                    <PreferencesPage
-                                        theme={{
-                                            options: THEME_OPTIONS,
-                                            mode: themeMode,
-                                            onSelect: (mode) => setMode(mode as typeof themeMode),
-                                        }}
-                                    />
-                                ) : (
-                                    // Identity only: deleting an account is an EE capability and
-                                    // this app has no EE surface.
-                                    <AccountPage username={user?.username} email={user?.email} />
-                                )}
+                                <TabBody
+                                    tab={active}
+                                    access={access}
+                                    user={user}
+                                    workspaceId={workspaceId}
+                                    theme={{
+                                        options: THEME_OPTIONS,
+                                        mode: themeMode,
+                                        onSelect: (mode) => setMode(mode as typeof themeMode),
+                                    }}
+                                />
                             </SettingsPageShell>
                         </div>
                     </div>
