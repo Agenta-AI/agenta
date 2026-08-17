@@ -32,6 +32,7 @@ import {
     getMessageUsage,
     type MessageUsageMetrics,
 } from "../assets/trace"
+import {useStartupPhase} from "../hooks/useStartupPhase"
 import {
     errorKey,
     expandedValueAtomFamily,
@@ -44,6 +45,7 @@ import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/session
 import AudioPlayer from "./AudioPlayer"
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
+import {StartupActivity} from "./TurnActivity"
 
 const {Text} = Typography
 
@@ -229,6 +231,34 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
 const avatarFor = (isUser: boolean) => (
     <Avatar size="small" icon={isUser ? <User size={16} /> : <Robot size={16} />} />
 )
+
+/**
+ * The assistant turn that has started but has nothing to show yet.
+ *
+ * A cold start sits here for ~15s while the sandbox boots, so it narrates the startup instead of
+ * pulsing wordlessly (#6047); a warm turn, and the first sub-second of any turn, keep the dots.
+ * Its own component so the startup tick mounts ONCE per live turn — calling the hook in
+ * `AgentMessage` would run an interval for every message in the transcript.
+ */
+const PendingTurn = ({sessionId}: {sessionId: string}) => {
+    const startupPhase = useStartupPhase(sessionId)
+    return startupPhase ? (
+        <Bubble
+            placement="start"
+            variant="borderless"
+            avatar={avatarFor(false)}
+            content={<StartupActivity label={startupPhase} />}
+        />
+    ) : (
+        <Bubble
+            placement="start"
+            variant="borderless"
+            avatar={avatarFor(false)}
+            loading
+            content=""
+        />
+    )
+}
 
 const triggerDownload = (href: string, name: string) => {
     const link = document.createElement("a")
@@ -458,15 +488,7 @@ const AgentMessage = ({
 
     // Only the message being generated shows the loading state, and only until it has content.
     if (!isUser && isStreaming && !hasContent) {
-        return (
-            <Bubble
-                placement="start"
-                variant="borderless"
-                avatar={avatarFor(false)}
-                loading
-                content=""
-            />
-        )
+        return <PendingTurn sessionId={sessionId} />
     }
 
     // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts

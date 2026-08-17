@@ -28,3 +28,25 @@ export const WaitingForInput = () => (
         Waiting for your input
     </span>
 )
+
+/**
+ * The empty-turn slot during a COLD start (#6047): what the agent is doing, in words, instead of
+ * the wordless three dots that made a 15s sandbox boot read as a stalled session.
+ *
+ * Presentational only — `label` is chosen by `useStartupPhase` on a timer. The dots match
+ * `WorkingDots` so the two indicators read as one family, just smaller beside text, and sit at the
+ * END of the line so they trail the words like an ellipsis rather than floating mid-height.
+ * `aria-live` announces each phase change; the shimmer is `motion-safe` and degrades to plain text.
+ */
+export const StartupActivity = ({label}: {label: string}) => (
+    <span role="status" aria-live="polite" className="flex items-end gap-2 py-0.5">
+        <span className="bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_45%,var(--ag-colorTextQuaternary)_90%)] bg-clip-text text-sm text-colorTextSecondary motion-safe:animate-text-shimmer motion-safe:bg-[length:240%_100%] motion-safe:text-transparent">
+            {label}
+        </span>
+        <span aria-hidden className="flex items-end gap-1 pb-1">
+            <span className="inline-block h-1 w-1 animate-pulse rounded-full bg-colorTextTertiary [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 animate-pulse rounded-full bg-colorTextTertiary [animation-delay:0.2s] [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 animate-pulse rounded-full bg-colorTextTertiary [animation-delay:0.4s] [animation-duration:1.2s]" />
+        </span>
+    </span>
+)

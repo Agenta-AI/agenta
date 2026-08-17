@@ -30,10 +30,12 @@ import {AgentChatTransport} from "../assets/AgentChatTransport"
 import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
+import {shouldShowStartupLadder} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
+import {sessionLivenessAtomFamily} from "../state/liveness"
 import {
     persistSessionMessagesAtom,
     sessionMessagesAtom,
@@ -41,6 +43,7 @@ import {
     stampMessagesCreatedAtAtom,
 } from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
+import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"
@@ -334,6 +337,33 @@ export const useAgentChatSession = ({
         persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
     }, [messages, status, sessionId, persistMessages])
 
+    // ── #6047 startup states: one clock per in-flight turn ──
+    // The cold/warm call is snapshotted when the turn starts, never re-read: liveness refetches
+    // mid-turn, and following it live would yank the ladder away halfway through a boot. Read
+    // through a ref so the effect fires on `status` alone, not on every 15s liveness poll.
+    const startTurnClock = useSetAtom(startTurnClockAtom)
+    const clearTurnClock = useSetAtom(clearTurnClockAtom)
+    const isAliveRef = useRef(false)
+    isAliveRef.current = useAtomValue(sessionLivenessAtomFamily(sessionId)).nest.isAlive
+    useEffect(() => {
+        // `submitted` is the edge a new send always crosses, and the only one that starts a clock —
+        // so a fresh turn always gets a fresh start time even when React batches a resume's
+        // settle and re-send into a single render.
+        if (status === "submitted") {
+            // A clock existing IS the decision to narrate, so a warm turn CLEARS rather than
+            // simply not setting one — otherwise an entry the last turn left would narrate this
+            // one off a stale start.
+            if (shouldShowStartupLadder({isAlive: isAliveRef.current})) startTurnClock(sessionId)
+            else clearTurnClock(sessionId)
+            return
+        }
+        // `streaming` is the same turn continuing — leave its clock alone.
+        if (status === "streaming") return
+        // Every terminal path lands here — answered, errored, and stopped all leave these two
+        // states — so a failed or cancelled run can't strand a stale startup label.
+        clearTurnClock(sessionId)
+    }, [status, sessionId, startTurnClock, clearTurnClock])
+
     // Bound the in-message expand-state store: on settle, drop entries whose owning message is gone
     // (rewound / evicted / closed). Live = every open session's persisted messages ∪ this active one.
     // `store.get` reads without subscribing, so this never adds re-renders on the streaming hot path.
@@ -433,11 +463,14 @@ export const useAgentChatSession = ({
     // ── D9 teardown: abort the in-flight stream on unmount (tab close / revision swap) ──
     // Keyed on sessionId: closing a tab or swapping the revision unmounts this conversation
     // and should tear down its stream.
+    // The clock goes with it: a turn torn down mid-flight leaves an entry no one clears, and a
+    // later remount would then read a start time from a turn that is long gone.
     useEffect(() => {
         return () => {
             stop()
+            clearTurnClock(sessionId)
         }
-    }, [sessionId, stop])
+    }, [sessionId, stop, clearTurnClock])
 
     // After each commit, mark on-screen messages as seen so they don't re-animate on later renders
     // (e.g. streaming tokens). Done in an effect, not during render, so StrictMode's double invoke
