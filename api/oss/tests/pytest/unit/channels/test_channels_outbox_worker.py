@@ -72,13 +72,15 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         self.spaces[space.id] = space
         return space
 
-    def seed_thread(self, *, space_id: UUID, session_id: str) -> ChannelThread:
+    def seed_thread(
+        self, *, space_id: UUID, session_id: str, external_locator=None
+    ) -> ChannelThread:
         thread = ChannelThread(
             id=uuid4(),
             space_id=space_id,
             agent_id=uuid4(),
             session_id=session_id,
-            data=ChannelThreadData(),
+            data=ChannelThreadData(external_locator=external_locator),
         )
         self.threads[thread.id] = thread
         return thread
@@ -919,3 +921,53 @@ class TestChannelsOutboxStreamWorker:
 
         assert total == 0
         assert processed_ids == []
+
+
+class _PostLocatorSpy(WellBehavedFakeAdapter):
+    """Records the locator each post_message receives; delegates otherwise."""
+
+    def __init__(self):
+        super().__init__()
+        self.post_locators: List[Dict] = []
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        self.post_locators.append(locator)
+        return await super().post_message(
+            connection=connection,
+            locator=locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+@pytest.mark.asyncio
+async def test_the_first_post_of_a_turn_targets_the_thread_s_locator():
+    """No receipt exists before the first post, so its target can only come
+    from the THREAD's locator. An empty locator here KeyError'd inside the
+    Slack adapter (`locator["channel"]`) and the first answer on any thread
+    was silently never delivered."""
+
+    channels_dao = FakeChannelsDAO()
+    spy = _PostLocatorSpy()
+    service = ChannelsService(
+        channels_dao=channels_dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"fake": spy}),
+    )
+    worker = ChannelsOutboxWorker(
+        channels_service=service,
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(FakeRecordsDAO()),
+    )
+    connection = channels_dao.seed_connection(channel="fake")
+    space = channels_dao.seed_space(connection_id=connection.id)
+    thread = channels_dao.seed_thread(
+        space_id=space.id,
+        session_id="s-locator",
+        external_locator={"channel": "C1", "thread_ts": "42.1"},
+    )
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-locator"
+    )
+
+    assert spy.post_locators == [{"channel": "C1", "thread_ts": "42.1"}]
