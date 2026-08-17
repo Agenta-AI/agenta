@@ -100,6 +100,41 @@ const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_
 const INTERNAL_SLUG_PREFIX = "__ag__"
 
 /**
+ * Every op we ship, mirroring `PLATFORM_OPS` in the SDK's `platform/op_catalog.py` plus the two
+ * client tools. A bare name is only ours if it is in here: a reference tool carries the user's own
+ * workflow name, and applying our glossary to it renames THEIR nouns (`list_workflows` is their
+ * workflows, not "agents"). An op missing from this set still conjugates, so forgetting one costs
+ * plain wording rather than wrong wording.
+ */
+const PLATFORM_OPS = new Set([
+    "annotate_trace",
+    "commit_revision",
+    "create_schedule",
+    "create_subscription",
+    "discover_tools",
+    "discover_triggers",
+    "list_connections",
+    "list_deliveries",
+    "list_schedules",
+    "list_subscriptions",
+    "pause_schedule",
+    "pause_subscription",
+    "query_spans",
+    "query_workflows",
+    "read_config",
+    "remove_schedule",
+    "remove_subscription",
+    "rename_agent",
+    "rename_session",
+    "request_connection",
+    "request_input",
+    "resume_schedule",
+    "resume_subscription",
+    "test_run",
+    "test_subscription",
+])
+
+/**
  * The platform tool name behind a harness wrapper.
  *
  * Pi sends `commit_revision`; Claude exposes the same tool over MCP and sends
@@ -426,15 +461,10 @@ const parseMcpName = (
  * uses the ACP title as the identifier. `wrapped` marks our own MCP server, which opts into the
  * glossary — a bare name is ours too, a gateway or third-party MCP name never is.
  */
-const parseShape = (
-    raw: string,
-    input: unknown,
-    wrapped: boolean,
-    appName?: string,
-): ParsedShape => {
+const parseShape = (raw: string, input: unknown, ours: boolean, appName?: string): ParsedShape => {
     const query = queryFor(input)
     const token = isTokenName(raw)
-    if (token && /^mcp(__|\.)/.test(raw)) return parseMcpName(raw, wrapped, appName, query)
+    if (token && /^mcp(__|\.)/.test(raw)) return parseMcpName(raw, ours, appName, query)
     if (token && raw.includes("__")) {
         const parsed = parseGatewayToolName(raw)
         return {
@@ -473,9 +503,15 @@ const parseShape = (
         }
     }
     if (!token) return {label: clamp(raw, 60), kind: "platform"}
-    // A bare identifier is a platform op as Pi sends it, so the glossary applies.
     const {label} = parseGatewayToolName(raw)
-    return {label, kind: "platform", activity: conjugate(label, true, appName, query) ?? undefined}
+    const built = conjugate(label, ours, appName, query)
+    // A name with no verb we know is somebody's own tool. Calling one runs another workflow, which
+    // is truthful and gives the row a tense it otherwise never gets.
+    const fallback: BuiltActivity = {
+        activity: {running: `Running ${inSentence(label)}`, done: `Ran ${inSentence(label)}`},
+        namedApp: false,
+    }
+    return {label, kind: "platform", activity: built ?? (ours ? undefined : fallback)}
 }
 
 /** The sandbox root every path in a session sits under. Machine-generated and identical on every
@@ -581,10 +617,12 @@ export const resolveToolDisplay = (
     // Our own tools carry no useful provenance — dropping the wrapper's chip makes one call read
     // identically under all three harnesses.
     const wrapped = canonical !== raw
+    // Wrapped names are ours by construction; a bare name only if we ship it under that name.
+    const ours = wrapped || PLATFORM_OPS.has(canonical.toLowerCase())
     // Until the catalog answers, the slug title-cased reads as a gateway name does ("Googlecalendar").
     const own = override?.app?.(input, output)
     const ownApp = own?.slug ? (appName ?? parseGatewayToolName(own.slug).label) : undefined
-    const parsed = parseShape(raw, input, wrapped, appName)
+    const parsed = parseShape(raw, input, ours, appName)
     const label = parsed.label
     // Whichever sentence wins answers "is the app already in it?", which decides the chip.
     const built =
