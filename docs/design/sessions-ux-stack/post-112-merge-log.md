@@ -20,10 +20,29 @@ Three plan items are already closed and must not be re-dispatched:
 | --- | --- | --- |
 | `sessionListPolicies` | `useAgentActivity` ×2, `sessionsSource` | ✅ **extracted** to `@agenta/sessions/state`; 6 consumers re-pointed; app copy deleted (was 1 of 3 copies) |
 | `useSidebarResize` | `SidebarShell` (#5943 rail resize + #5945 `matchLinks`) | ✅ **extracted** to `@agenta/navigation` |
-| `useSessionFilesPane` / `SessionFilesPane` | `StorageSection` (#5946), `AgentConversation`, the `configDrive` trio | ⬜ still app-layer |
+| `useSessionFilesPane` / `SessionFilesPane` | `StorageSection` (#5946), `AgentConversation`, the `configDrive` trio | ✅ **extracted** to `@agenta/entity-ui/drive`. Signature is now `useSessionFilesPane(scope, sessionId)` — the host injects the chat scope, matching `useConfigDrive`'s convention; oss keeps a scope-injecting binding |
 | session atoms (`defaultScopeKeyAtom`, `sessionsListAtomFamily`, `activeSessionIdAtomFamily`, `sessionDotStatusAtomFamily`, `archivedAgentIdsQueryAtom`) | `sessionsSource` (#5927+#5944+#5974, 56 lines — the sidebar-spinner repro) | ⬜ still app-layer |
 
-**Do the two remaining extractions first; the ports are mechanical afterwards.** Porting before
+**One extraction left** (the session atoms). Then the ports.
+
+### The `StorageSection` port — exact remaining shape (4 files, one change)
+
+#5946 moves the config Files region from an overlay drawer to the chat's docked pane. It is one
+coupled change and must be done together or not at all:
+
+1. `agenta-entities/src/drive/configDrive.ts` — replace the object atom
+   `configFilesDrawerAtomFamily` (`{open, initialPath, staged}`) with the release's boolean
+   `configFilesDrawerOpenAtomFamily`. **Keep the lane's `useConfigDrive(revisionId, sessionId)`
+   signature** — the lane's is ahead of the release here.
+2. `drive/StorageSection.tsx` — rows open the docked pane via `useSessionFilesPane`, header opens
+   the drawer. **Needs a `scope` prop threaded from the host**, because the extracted hook takes
+   `(scope, sessionId)`; the release's app-layer version read the scope directly, which a package
+   cannot do.
+3. `drive/StorageFilesHeader.tsx` — `setDrawer({open:true,…})` becomes `setDrawerOpen(true)`.
+4. `AgentConversation.tsx` (5 lines) — its own `useSessionFilesPane` opener.
+
+Doing 1 without 2–3 breaks both consumers (the atom shapes are incompatible) — that is exactly the
+7-error regression recorded in the "wrong fix" section above. Porting before
 extracting reintroduces the package→app imports this merge removed.
 
 ### The trigger-origin question is answered canonically

@@ -45,3 +45,5 @@ export * from "./useUploadReveal"
 // Default-exported components (`export *` does not carry a default).
 export {default as StorageFilesHeader} from "./StorageFilesHeader"
 export {default as StorageSection} from "./StorageSection"
+
+export {SessionFilesPane, useSessionFilesPane} from "./SessionFilesPane"
