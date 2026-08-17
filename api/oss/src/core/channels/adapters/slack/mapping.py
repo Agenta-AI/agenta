@@ -96,6 +96,14 @@ def is_bot_authored(event: Dict[str, Any], *, bot_user_id: Optional[str]) -> boo
         return True
     if bot_user_id and event.get("user") == bot_user_id:
         return True
+    # Subtypes like message_changed nest the authored message one level down;
+    # authorship must be visible there too, or our own edits read as human.
+    nested = event.get("message")
+    if isinstance(nested, dict):
+        if nested.get("bot_id"):
+            return True
+        if bot_user_id and nested.get("user") == bot_user_id:
+            return True
     return False
 
 

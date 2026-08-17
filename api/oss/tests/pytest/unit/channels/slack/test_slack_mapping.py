@@ -97,6 +97,29 @@ def test_message_from_a_human_is_not_bot_authored():
     assert is_bot_authored({"user": "U1"}, bot_user_id="U999") is False
 
 
+def test_a_nested_edited_message_carries_its_authorship_one_level_down():
+    """`message_changed` puts the authored message in `event["message"]` and
+    leaves the outer event authorless. Reading only the outer event made our
+    own "Working…" -> answer edit look like human input, which is how the
+    bot-echo cascade started."""
+
+    event = {"subtype": "message_changed", "message": {"bot_id": "B123"}}
+
+    assert is_bot_authored(event, bot_user_id=None) is True
+
+
+def test_a_nested_message_from_our_own_bot_user_id_is_bot_authored():
+    event = {"subtype": "message_changed", "message": {"user": "U999"}}
+
+    assert is_bot_authored(event, bot_user_id="U999") is True
+
+
+def test_a_nested_message_from_a_human_is_still_not_bot_authored():
+    event = {"subtype": "message_changed", "message": {"user": "U1"}}
+
+    assert is_bot_authored(event, bot_user_id="U999") is False
+
+
 # --- outbound: splitting, button degradation, approval cards --------------- #
 
 
