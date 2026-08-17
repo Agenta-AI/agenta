@@ -34,7 +34,13 @@ export const ConfigPane = ({
                 <AgentBuildPanel
                     revisionId={entityId}
                     stickyHeaderTop={48}
-                    storage={<StorageSection revisionId={entityId} sessionId={sessionId} />}
+                    storage={<StorageSection
+                            revisionId={entityId}
+                            sessionId={sessionId}
+                            // Mobile shows one conversation at a time, so the session IS the
+                            // pane scope (desktop keys it by chat panel, which has tabs).
+                            scope={sessionId}
+                        />}
                     storageHeader={
                         <StorageFilesHeader revisionId={entityId} sessionId={sessionId} />
                     }

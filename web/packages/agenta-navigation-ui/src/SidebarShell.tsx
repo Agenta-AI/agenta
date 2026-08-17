@@ -1,11 +1,13 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef} from "react"
+import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     filterVisibleSections,
+    SIDEBAR_COLLAPSED_WIDTH,
     type SidebarConfig,
     type SidebarScope,
     type SidebarSection,
     type SidebarShellProps,
+    useSidebarResize,
 } from "@agenta/navigation"
 import {useAtom} from "jotai"
 
@@ -28,6 +30,8 @@ class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {has
 // path equals it or continues with a path/query/hash boundary. Query string and hash on
 // `currentPath` (router.asPath) are tolerated by the boundary check.
 const pathMatchesLink = (currentPath: string, link: string) => {
+    // A trailing slash means descendants only: `/apps/` claims `/apps/<id>` but not `/apps`.
+    if (link.endsWith("/")) return currentPath.startsWith(link)
     if (currentPath === link) return true
     if (!currentPath.startsWith(link)) return false
     const nextChar = currentPath.charAt(link.length)
@@ -44,13 +48,17 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
 
     const visit = (nodes: SidebarConfig[], ancestors: string[]) => {
         nodes.forEach((item) => {
-            if (item.link && pathMatchesLink(currentPath, item.link)) {
-                const isExact = currentPath === item.link
-                const isSameLength = item.link.length === matchedLength
+            // A row can own more routes than it navigates to; an empty list opts it out.
+            const matchLinks = item.matchLinks ?? (item.link ? [item.link] : [])
+            for (const matchLink of matchLinks) {
+                if (!pathMatchesLink(currentPath, matchLink)) continue
+
+                const isExact = currentPath === matchLink
+                const isSameLength = matchLink.length === matchedLength
                 const isBetterMatch =
                     !matched ||
                     (isExact && !matchedIsExact) ||
-                    (isExact === matchedIsExact && item.link.length > matchedLength) ||
+                    (isExact === matchedIsExact && matchLink.length > matchedLength) ||
                     (isExact === matchedIsExact &&
                         isSameLength &&
                         matched.isDynamic &&
@@ -58,7 +66,7 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
 
                 if (isBetterMatch) {
                     matched = item
-                    matchedLength = item.link.length
+                    matchedLength = matchLink.length
                     matchedIsExact = isExact
                     openKeys = ancestors
                 }
@@ -134,6 +142,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     onNavigate,
 }) => {
     const [collapsed] = useAtom(collapsedAtom)
+    const railRef = useRef<HTMLDivElement>(null)
+    const {width, handleProps} = useSidebarResize({railRef, disabled: collapsed})
     const openGroupsAtom = useMemo(
         () => openGroupsAtomFamily(scope.id),
         [openGroupsAtomFamily, scope.id],
@@ -250,12 +260,20 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
 
     return (
         <div
+            ref={railRef}
+            // Width lives in --ag-sidebar-w so a drag can repaint it without a React render;
+            // data-resizing kills the collapse transition so the rail tracks the pointer 1:1.
             className={[
-                "border-0 border-r border-solid border-[var(--ag-shell-line)]",
+                "group/rail relative border-0 border-r border-solid border-[var(--ag-shell-line)] [&[data-resizing=true]_*]:!transition-none",
                 className ?? "",
             ]
                 .join(" ")
                 .trim()}
+            style={
+                {
+                    "--ag-sidebar-w": `${collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}px`,
+                } as CSSProperties
+            }
             onClick={handleFrameClick}
         >
             <aside
@@ -263,16 +281,10 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 className={[
                     // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
                     // document-scrolling routes; 0px everywhere else.
-                    "sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
-                    collapsed ? "w-[48px]" : "w-[236px]",
+                    "sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
                 ].join(" ")}
             >
-                <div
-                    className={[
-                        "flex flex-col h-full transition-all duration-300",
-                        collapsed ? "w-[48px]" : "w-[236px]",
-                    ].join(" ")}
-                >
+                <div className="flex flex-col h-full w-[var(--ag-sidebar-w)] transition-all duration-300">
                     {renderSlot(scope.header, collapsed, scope.lastPath)}
                     <SidebarErrorBoundary>
                         <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
@@ -288,6 +300,17 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     </SidebarErrorBoundary>
                 </div>
             </aside>
+            {!collapsed && (
+                <div
+                    // Invisible 9px grab strip straddling the hairline; the ::after IS the
+                    // hairline, tinted only while hovering or dragging.
+                    className="absolute inset-y-0 -right-1 z-10 w-[9px] cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-colorBorder group-data-[resizing=true]/rail:after:bg-colorPrimary"
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize sidebar"
+                    {...handleProps}
+                />
+            )}
         </div>
     )
 }
