@@ -411,6 +411,39 @@ describe("resolveToolDisplay for a tool that names an app in its arguments", () 
     })
 })
 
+// A reference tool carries the user's OWN workflow name, which looks exactly like a bare platform
+// op on the wire.
+describe("resolveToolDisplay for a user's own reference tool", () => {
+    const done = (raw: string) => resolveToolDisplay(raw).activity.done
+
+    // The glossary renames OUR nouns. Applied to someone else's tool it rewrites their vocabulary.
+    it("never applies our glossary to a name we do not ship", () => {
+        expect(done("list_workflows")).toBe("Checked workflows")
+        expect(done("get_session")).toBe("Got a session")
+        expect(done("read_config_file")).toBe("Read config file")
+    })
+
+    it("still applies it to the ops we do ship, under any harness wrapper", () => {
+        expect(done("query_workflows")).toBe("Looked through agents")
+        expect(done("rename_session")).toBe("Renamed this chat")
+        expect(done("mcp__agenta-tools__query_spans")).toBe("Looked through runs")
+    })
+
+    // Workflow slugs are usually nouns, so they used to read the same in both tenses and the row
+    // never visibly progressed. Calling a reference tool runs another workflow.
+    it("gives a name with no verb a tense of its own", () => {
+        expect(resolveToolDisplay("daily_summary").activity).toEqual({
+            running: "Running daily summary",
+            done: "Ran daily summary",
+        })
+        expect(done("classify_ticket")).toBe("Ran classify ticket")
+    })
+
+    it("prefers the real verb when the name has one", () => {
+        expect(done("search_docs")).toBe("Searched docs")
+    })
+})
+
 // Codex records a shell call under the command itself and a read under an English sentence, so
 // neither name is a name. Both are recognised by argument shape / title pattern instead.
 describe("resolveToolDisplay for Codex calls whose name is not a name", () => {
