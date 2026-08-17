@@ -12,7 +12,13 @@
   <strong> <h1> 에이전트를 만들고 실행하는 오픈소스 워크스페이스 </h1></strong>
 
 
-<img width="1800" height="680" alt="agenta-github-banner" src="https://github.com/user-attachments/assets/afc83f8f-d644-4dc6-bae7-b26ed2512986" />
+<a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
+  <img
+    width="900"
+    alt="Agenta 플랫폼 데모 영상 보기"
+    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+  />
+</a>
 
   ---
 

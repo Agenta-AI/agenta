@@ -35,6 +35,12 @@ if named, else the single candidate, else one named `default`, else it raises on
 The run receives only that candidate's `env` and `endpoint`. It never receives the whole
 vault.
 
+**A candidate's slug** is the record's stored slug, which the API assigns on create and a
+later rename never moves. A `provider_key` record from before named connections has no slug
+and falls back to its provider family, so `openai` still reaches the one OpenAI key; a
+`custom_provider` record without one falls back to its display name. `header.name` is display
+only and is never identity.
+
 **Capability gating** runs in two halves around resolution. Provider and connection mode are
 checked before; deployment is checked after (the resolved connection is what carries it). A
 resolved-pair table (`harness_allows_pair`) is authoritative: Pi reaches its direct providers

@@ -21,7 +21,7 @@ export interface DraftConfigChangeSignal {
      * Where the change came from — extensible provenance for future callers. `AlwaysAllowedNotice`
      * only claims `approval-dock`, so a new origin pulses the section without offering its Undo.
      */
-    origin: "approval-dock" | "slash-command"
+    origin: "approval-dock" | "slash-command" | "provider-onboarding"
     /** Short human summary for the tooltip, e.g. "Always allow search_web". */
     summary?: string
     /** Friendly label for the config-pane banner, e.g. "Send email". */

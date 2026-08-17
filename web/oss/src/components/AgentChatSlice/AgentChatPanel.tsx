@@ -10,6 +10,7 @@ import {
 } from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowRevisionDrawerOpenAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Splitter, Tabs} from "antd"
 import clsx from "clsx"
@@ -26,6 +27,8 @@ import MountFade from "./components/MountFade"
 import OpenFilesPaneButton from "./components/OpenFilesPaneButton"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
+import {useSessionActions} from "./hooks/useSessionActions"
+import {useSessionShortcuts} from "./hooks/useSessionShortcuts"
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "./state/panelLayout"
 import {pendingSessionOpenAtom} from "./state/pendingSessionOpen"
 import {useReconcileServerSessions} from "./state/projectSessions"
@@ -35,7 +38,7 @@ import {
     filesPaneWidthAtom,
     PANES_COEXIST_MIN_WINDOW,
 } from "./state/rightPanel"
-import {useChatScopeKey} from "./state/scope"
+import {isDrawerScopeKey, useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
     addSessionAtomFamily,
@@ -46,6 +49,11 @@ import {
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
 } from "./state/sessions"
+import {
+    focusComposerRequestAtom,
+    renameSessionRequestAtom,
+    sessionSearchRequestAtom,
+} from "./state/uiRequests"
 
 // The frame itself is a thin, synchronous shell (Splitter + Tabs + region slots) so the real
 // structure paints in the first frame. Only the heavy leaves are lazy: the conversation body
@@ -116,6 +124,9 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // enrich titles, drop remotely-deleted) — the scope key is the agent's appId (artifact id).
     useReconcileServerSessions(scope)
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const requestSessionSearch = useSetAtom(sessionSearchRequestAtom)
     const configPanelCollapsed = useAtomValue(configPanelCollapsedAtom)
     // The rail pane is `size={0}` + `inert` until maximized, so mounting it on boot renders the
     // whole session list (rows, dots, hover actions) into a zero-width panel. Latch it on first
@@ -174,6 +185,55 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // Tolerate a stale active id (its tab was closed) by falling back to the first tab.
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id
 
+    // Keyboard shortcuts. Switch and rename happen inside per-session components, so they travel as
+    // requests on the shared atoms. The drawer mounts a second panel over this one, so exactly one
+    // of the two listens; onboarding hides the bar entirely and allows a single session.
+    const {setArchived} = useSessionActions()
+    const requestComposerFocus = useSetAtom(focusComposerRequestAtom)
+    const requestRename = useSetAtom(renameSessionRequestAtom)
+    const drawerOpen = useAtomValue(workflowRevisionDrawerOpenAtom)
+    useSessionShortcuts({
+        sessions,
+        activeId,
+        enabled: !chromeHidden && isDrawerScopeKey(scope) === drawerOpen,
+        onJump: useCallback(
+            (id: string) => {
+                setActiveSession(id)
+                requestComposerFocus({scope, sessionId: id, nonce: Date.now()})
+            },
+            [scope, setActiveSession, requestComposerFocus],
+        ),
+        onRename: useCallback(
+            (id: string) => requestRename({scope, sessionId: id, nonce: Date.now()}),
+            [scope, requestRename],
+        ),
+        onArchive: useCallback(
+            (id: string) => {
+                const session = sessions.find((s) => s.id === id)
+                if (session) void setArchived({sessionId: id, appId: scope, name: session.title})
+            },
+            [sessions, scope, setArchived],
+        ),
+        onNewSession: useCallback(() => {
+            if (!addLocked) addSession()
+        }, [addLocked, addSession]),
+        onCloseSession: closeSession,
+        // Toggles: the list opens with the caret already in the search box, and the same key puts
+        // it away.
+        onSearch: useCallback(() => {
+            if (chatMaximized) {
+                setChatMaximized(false)
+                return
+            }
+            setChatMaximized(true)
+            requestSessionSearch({scope, nonce: Date.now()})
+        }, [chatMaximized, scope, setChatMaximized, requestSessionSearch]),
+        onToggleConfigPanel: useCallback(
+            () => setConfigPanelCollapsed((collapsed) => !collapsed),
+            [setConfigPanelCollapsed],
+        ),
+    })
+
     // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
     // like the config pane on the other side: its divider runs to the top and the session bar
     // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
@@ -188,7 +248,6 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // (prev refs), not state syncs — each watches only the flip that should evict the other, so
     // they can't ping-pong.
     const canPanesCoexist = useCanPanesCoexist()
-    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
     const prevFilesOpenRef = useRef(filesPane.open)
     useEffect(() => {
         if (filesPane.open && !prevFilesOpenRef.current && !canPanesCoexist)

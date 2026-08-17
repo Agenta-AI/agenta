@@ -3,12 +3,22 @@ from typing import List, Optional
 from uuid import UUID
 
 import uuid_utils.compat as uuid
-from sqlalchemy import case, cast, delete as sa_delete, func, literal, or_, select
+from sqlalchemy import (
+    case,
+    cast,
+    delete as sa_delete,
+    func,
+    literal,
+    or_,
+    select,
+    update as sa_update,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID, insert
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.dtos import (
     SessionOrigin,
+    SessionReference,
     SessionTriggerAttribution,
     SessionTriggerKind,
 )
@@ -34,6 +44,10 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
 from oss.src.dbs.postgres.shared.utils import apply_windowing
+from oss.src.dbs.postgres.sessions.references import (
+    references_containment_json,
+    references_to_json,
+)
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
     SESSION_ORIGIN_TAG_KEY,
@@ -497,6 +511,92 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             await session.commit()
             await session.refresh(dbe)
         return map_stream_dbe_to_dto(stream_dbe=dbe)
+
+    async def query_session_ids_by_references(
+        self,
+        *,
+        project_id: UUID,
+        references: List[SessionReference],
+        limit: int,
+    ) -> List[str]:
+        """Sessions whose OWN references satisfy the filter — the turns query's twin.
+
+        Unioned with the turns result rather than replacing it: a session whose turn
+        append was dropped is findable only through this column, and one that predates
+        the column only through the turns.
+        """
+        containment = references_containment_json(references)
+        if containment is None:
+            return []
+        async with self.engine.session() as session:
+            # No DISTINCT needed — (project_id, session_id) is unique here — which is what
+            # lets the cap order by last activity, the same expression the list itself
+            # sorts by, so a capped filter keeps the rows a user would see first.
+            stmt = (
+                select(SessionStreamDBE.session_id)
+                .where(
+                    SessionStreamDBE.project_id == project_id,
+                    SessionStreamDBE.references.contains(containment),
+                )
+                .order_by(
+                    func.coalesce(
+                        SessionStreamDBE.updated_at, SessionStreamDBE.created_at
+                    ).desc()
+                )
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [row[0] for row in result.all()]
+
+    async def fill_missing(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        name: Optional[str] = None,
+        references: Optional[List[SessionReference]] = None,
+    ) -> bool:
+        """Write `name` / `references` onto the row ONLY where it still holds NULL.
+
+        One COALESCE'd UPDATE rather than a read-then-write: a rename landing between a
+        read and a write would otherwise be silently overwritten by a heartbeat's
+        proposal, which is exactly what fill-once must never do. Returns whether a row
+        was touched. `updated_at` is deliberately not bumped — the flag mirror owns it,
+        and a fill is not activity.
+
+        An empty proposal (``""`` / ``[]``) means nothing to say, not something to store.
+        A row gets exactly one fill per column, so writing a blank title or an empty list
+        would spend it and make the real value arriving on a later beat un-writable.
+        Callers normalize too; this is what makes the DAO safe on its own.
+        """
+        values = {}
+        guards = []
+        if name:
+            values["name"] = func.coalesce(SessionStreamDBE.name, name)
+            guards.append(SessionStreamDBE.name.is_(None))
+        if references:
+            values["references"] = func.coalesce(
+                SessionStreamDBE.references,
+                cast(references_to_json(references), JSONB),
+            )
+            guards.append(SessionStreamDBE.references.is_(None))
+        if not values:
+            return False
+
+        async with self.engine.session() as session:
+            stmt = (
+                sa_update(SessionStreamDBE)
+                .where(
+                    SessionStreamDBE.project_id == project_id,
+                    SessionStreamDBE.session_id == session_id,
+                    SessionStreamDBE.deleted_at.is_(None),
+                    or_(*guards),
+                )
+                .values(**values)
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+        return bool(result.rowcount)
 
     async def update_header(
         self,

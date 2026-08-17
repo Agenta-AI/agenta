@@ -5,9 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.sessions.records.dtos import SessionMessagePreview
 from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQueryFlags
-from oss.src.core.shared.dtos import Reference
+from oss.src.core.sessions.types import ReferenceKey as ReferenceKey
 from oss.src.core.sessions.types import SessionDelivery as SessionDelivery
 from oss.src.core.sessions.types import SessionOrigin as SessionOrigin
+from oss.src.core.sessions.types import SessionReference as SessionReference
 from oss.src.core.sessions.types import SessionTrigger as SessionTrigger
 from oss.src.core.sessions.types import (
     SessionTriggerAttribution as SessionTriggerAttribution,
@@ -16,16 +17,15 @@ from oss.src.core.sessions.types import SessionTriggerKind as SessionTriggerKind
 
 
 class SessionListItem(SessionStream):
-    """A `/sessions/query` row, enriched at READ time with the session's HIGHEST
-    `turn_index` turn's `references` — the agent/workflow that produced the latest turn.
+    """A `/sessions/query` row, enriched at READ time with the session's last message.
 
-    Also carries the session's last message, so a row can say what happened rather than only
-    when. Both enrichments are batch lookups keyed on the whole page; never one call per row.
+    `references` prefers the stream row's own (filled once at run time) and falls back to
+    the HIGHEST `turn_index` turn's — the agent/workflow that produced the latest turn.
+    The fallback is what keeps rows written before the stream column existed openable.
+    Both enrichments are batch lookups keyed on the whole page; never one call per row.
 
-    Hydrated by `SessionsService.query_sessions`; never denormalized onto `session_streams`
-    (see that method's docstring)."""
+    Hydrated by `SessionsService.query_sessions`."""
 
-    references: Optional[List[Reference]] = None
     # The session's newest `message` record, hydrated by the same batch pattern. Absent when the
     # session has no message yet, or when the deployment runs without the records (tracing) engine.
     last_message: Optional[SessionMessagePreview] = None
@@ -45,7 +45,7 @@ class SessionQuery(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    turn_references: Optional[List[Reference]] = None
+    turn_references: Optional[List[SessionReference]] = None
     # Case-insensitive substring match over the session title (`session_streams.name`).
     search: Optional[str] = None
     # Liveness (alive ⊇ running ⊇ attached), matched against the row's mirrored `flags`.

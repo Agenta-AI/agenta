@@ -57,12 +57,20 @@ def _turn(session_id: str, references: Optional[List[Reference]] = None) -> Sess
 
 
 class _FakeStreamsService:
-    def __init__(self, row: Optional[SessionStream] = None):
+    def __init__(
+        self,
+        row: Optional[SessionStream] = None,
+        reference_session_ids: Optional[list] = None,
+    ):
         self.row = row
         self.hard_delete_calls: list[dict] = []
         self.archive_calls: list[dict] = []
         self.unarchive_calls: list[dict] = []
         self.query_calls: list[dict] = []
+        self.reference_session_ids = reference_session_ids or []
+
+    async def query_session_ids_by_references(self, *, project_id, references, limit):
+        return self.reference_session_ids[:limit]
 
     async def query_streams(
         self,
@@ -336,9 +344,8 @@ async def test_query_sessions_no_filter_returns_all_streams():
     # `SessionStream` -- equality is type-sensitive in pydantic, so compare the inherited
     # fields as a dict (full-field pinning) and assert the added fields separately.
     assert len(result) == 1
-    assert (
-        result[0].model_dump(exclude={"references", "last_message"})
-        == stream.model_dump()
+    assert result[0].model_dump(exclude={"references", "last_message"}) == (
+        stream.model_dump(exclude={"references"})
     )
     assert result[0].references is None
     # No records service wired here, so the row lists without a preview rather than failing.

@@ -9,8 +9,8 @@ import {sessionRowVm, type SessionRowVm} from "../row/viewModel"
 import {pinnedSessionIdsAtom} from "./pins"
 import {
     awaitingHiddenRows,
+    sessionGroupRows,
     shouldLoadMoreForHiddenRows,
-    startedSessions,
     type SessionListRequestPolicy,
 } from "./sessionListPolicy"
 import {
@@ -114,15 +114,15 @@ export const useSessionCardList = ({
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
     // Memoized: `rowsFromPages` mints a new array per call, and an unstable array here would
     // re-derive every row VM (and re-render every memoized row) on every render.
-    // A chat that was opened but never used is not a session anyone is looking for — see
-    // `isStartedSession`. Pins and waiting rows are exempt: both are explicit, and a gated row
-    // has a turn by definition.
+    // Which rules each group applies (pins and waiting rows are exempt from all of them, both
+    // being rows someone asked for by name) is `sessionGroupRows`.
     const listRows = useMemo(
-        () => startedSessions(rowsFromPages(listQuery.data?.pages)),
+        () => sessionGroupRows("main", rowsFromPages(listQuery.data?.pages)),
         [listQuery.data?.pages],
     )
     const waitingRowsAll = useMemo(
-        () => (useWaiting ? rowsFromPages(waitingQuery.data?.pages) : []),
+        () =>
+            useWaiting ? sessionGroupRows("waiting", rowsFromPages(waitingQuery.data?.pages)) : [],
         [useWaiting, waitingQuery.data?.pages],
     )
     const waitingSet = useMemo(
@@ -130,7 +130,7 @@ export const useSessionCardList = ({
         [waitingRowsAll],
     )
     const pinnedRowsAll = useMemo(
-        () => (usePins ? rowsFromPages(pinnedQuery.data?.pages) : []),
+        () => (usePins ? sessionGroupRows("pinned", rowsFromPages(pinnedQuery.data?.pages)) : []),
         [usePins, pinnedQuery.data?.pages],
     )
     const knownById = useMemo(() => {

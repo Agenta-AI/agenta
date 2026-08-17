@@ -470,6 +470,11 @@ export function triggerBoundAgentId(
         references?.application?.id ??
         references?.application_variant?.id ??
         references?.application_revision?.id ??
+        // SDK/API-created triggers bind the parallel `workflow_*` family the backend also
+        // accepts; without these they read as unbound everywhere the UI names the agent.
+        references?.workflow?.id ??
+        references?.workflow_variant?.id ??
+        references?.workflow_revision?.id ??
         null
     )
 }

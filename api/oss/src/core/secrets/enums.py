@@ -31,6 +31,27 @@ class StandardProviderKind(str, Enum):
     GEMINI = "gemini"
 
 
+# The user-facing name of each standard provider, used to name an unnamed connection on create.
+# Kept in agreement with the frontend provider catalog
+# (`web/packages/agenta-shared/src/utils/llmProviders.ts`).
+STANDARD_PROVIDER_DISPLAY_NAMES = {
+    StandardProviderKind.OPENAI: "OpenAI",
+    StandardProviderKind.COHERE: "Cohere",
+    StandardProviderKind.ANYSCALE: "Anyscale",
+    StandardProviderKind.DEEPINFRA: "DeepInfra",
+    StandardProviderKind.ALEPHALPHA: "Aleph Alpha",
+    StandardProviderKind.GROQ: "Groq",
+    StandardProviderKind.MINIMAX: "MiniMax",
+    StandardProviderKind.MISTRAL: "Mistral AI",
+    StandardProviderKind.MISTRALAI: "Mistral AI",
+    StandardProviderKind.ANTHROPIC: "Anthropic",
+    StandardProviderKind.PERPLEXITYAI: "Perplexity AI",
+    StandardProviderKind.TOGETHERAI: "Together AI",
+    StandardProviderKind.OPENROUTER: "OpenRouter",
+    StandardProviderKind.GEMINI: "Google Gemini",
+}
+
+
 class CustomProviderKind(str, Enum):
     CUSTOM = "custom"
     AZURE = "azure"

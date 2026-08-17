@@ -30,9 +30,9 @@ export const TTFB_TIMEOUT_ENV = "AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS";
 export const TOOL_CALL_TIMEOUT_ENV = "AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS";
 
 export const DEFAULT_TOTAL_DEADLINE_MS = 45 * 60_000; // 45 min
-export const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60_000; // 5 min
+export const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60_000; // 30 min
 export const DEFAULT_TTFB_TIMEOUT_MS = 2 * 60_000; // 2 min
-export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 5 * 60_000; // 5 min
+export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000; // 30 min
 
 /** Every field is a usable timer delay (integer ms, at least 1, within Node's timer range) —
  *  `resolveRunLimits` guarantees it, so callers can arm any of them without re-checking. */
