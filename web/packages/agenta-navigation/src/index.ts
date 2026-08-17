@@ -11,3 +11,5 @@ export * from "./state"
 export * from "./dynamic"
 
 export {useSidebarResize} from "./useSidebarResize"
+
+export {localSessionRefsAtom, type SessionSidebarRef} from "./dynamic/sessionsSource"

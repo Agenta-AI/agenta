@@ -13,6 +13,8 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     appId: string
     pinned: boolean
     alive: boolean
+    /** A turn is in flight — the row spins. Resolved for rendered rows only. */
+    running: boolean
 }
 
 /** Deliberately small — the sidebar shows the top of the list, and the sessions page owns
@@ -66,12 +68,28 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
     return {
         id: row.session_id,
         sessionId: row.session_id,
-        name: row.name?.trim() || "Untitled session",
+        // Raw, so the row menu's rename prefills the real name instead of the label's fallback.
+        name: row.name?.trim() || null,
         appId: target.appId,
         pinned: pinned.has(row.session_id),
         alive: Boolean(row.flags?.is_alive),
+        running: false,
     }
 }
+
+/**
+ * Sessions the server-backed queries cannot show yet, contributed by the HOST.
+ *
+ * A session is created CLIENT-side; the server first hears about it when its first turn runs, and
+ * even then the row carries no `references` until that turn lands — so `sessionOpenTarget` rejects
+ * it and the queries above drop it. Until then the host's local store is the only place it exists.
+ *
+ * The host owns this because the local store is app state (chat tabs) that a package must not
+ * reach into; `@agenta/navigation` only composes what it is given. Keying on "active" alone was
+ * the bug behind Mahmoud's repro: switching tabs mid-first-turn dropped the RUNNING session's row
+ * (and its spinner) until the turn finished and the server list could carry it.
+ */
+export const localSessionRefsAtom = atom<SessionSidebarRef[]>([])
 
 /**
  * Pinned sessions first, then the rest by activity.
@@ -89,10 +107,15 @@ const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     )
 
     const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
-    return [
+    const server = [
         ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
         ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
     ]
+    // Host-local rows lead, and a server row for the same session wins once it exists (it carries
+    // the resolved target and flags).
+    const known = new Set(server.map((ref) => ref.sessionId))
+    const local = get(localSessionRefsAtom).filter((ref) => !known.has(ref.sessionId))
+    return [...local, ...server]
 })
 
 export const sidebarSessionsListAtom = atom((get) => {
