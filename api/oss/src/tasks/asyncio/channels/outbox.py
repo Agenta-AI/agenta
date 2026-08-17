@@ -129,6 +129,7 @@ class ChannelsOutboxWorker:
             connection=connection,
             capabilities=capabilities,
             item=item,
+            thread=thread,
         )
 
     # --- turn ended ---------------------------------------------------------#
@@ -193,6 +194,7 @@ class ChannelsOutboxWorker:
                 connection=connection,
                 capabilities=capabilities,
                 item=item,
+                thread=thread,
             )
 
     # --- send: post or edit, then record the receipt ------------------------#
@@ -205,6 +207,7 @@ class ChannelsOutboxWorker:
         connection: ChannelConnection,
         capabilities: ChannelCapabilities,
         item: RenderItem,
+        thread: ChannelThread,
     ) -> None:
         content = [part.model_dump(exclude_none=True) for part in item.parts]
 
@@ -234,9 +237,13 @@ class ChannelsOutboxWorker:
                 idempotency_key=idempotency_key,
             )
         else:
+            # First post for this item: no receipt exists yet, so the target
+            # comes from the THREAD's locator (team/channel/thread_ts). An
+            # empty locator here KeyError'd inside the Slack adapter and the
+            # first-ever reply on any thread silently never reached Slack.
             receipt = await adapter.post_message(
                 connection=connection,
-                locator={},
+                locator=thread.data.external_locator or {},
                 content=content,
                 idempotency_key=idempotency_key,
             )
