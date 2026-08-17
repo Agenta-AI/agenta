@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
@@ -29,6 +30,12 @@ from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+# One read plus two re-reads, 0.8s apart: enough to cover the ~150ms commit
+# race measured live with room to spare, and short enough that a genuinely
+# empty turn still reports within two seconds.
+_EMPTY_FOLD_ATTEMPTS = 3
+_EMPTY_FOLD_BACKOFF_SECONDS = 0.8
 
 
 class ChannelsOutboxWorker:
@@ -148,19 +155,52 @@ class ChannelsOutboxWorker:
             project_id=project_id, thread=thread
         )
 
-        records = await self.records_service.get_records(
-            project_id=project_id, session_id=session_id
-        )
-        # The answer is what the agent said. The inbound user turn is persisted
-        # into the same log, and fold() labels every message record `assistant`,
-        # so without this the reply repeats the user back to themselves.
-        turn_events = [
-            {"type": record.record_type, "data": record.attributes}
-            for record in records
-            if record.turn_id == turn_id and record.record_source == "agent"
-        ]
+        # The turn-ended event can outrun the final record commit (measured
+        # ~150ms live): reading too early folds to an EMPTY answer, which used
+        # to render an empty section Slack rejects, orphaning the indicator.
+        # A bounded re-read absorbs the race; the real ordering guarantee is a
+        # design question (QA, 2026-08-17).
+        folded: Dict = {}
+        has_answer = False
+        for attempt in range(_EMPTY_FOLD_ATTEMPTS):
+            records = await self.records_service.get_records(
+                project_id=project_id, session_id=session_id
+            )
+            # The answer is what the agent said. The inbound user turn is
+            # persisted into the same log, and fold() labels every message
+            # record `assistant`, so without this the reply repeats the user
+            # back to themselves.
+            turn_events = [
+                {"type": record.record_type, "data": record.attributes}
+                for record in records
+                if record.turn_id == turn_id and record.record_source == "agent"
+            ]
 
-        folded = fold(turn_events, stop_reason=None)
+            folded = fold(turn_events, stop_reason=None)
+            has_answer = bool(
+                any(
+                    (message.get("content") or "") != ""
+                    for message in (folded.get("messages") or [])
+                    if message.get("role") == "assistant"
+                )
+                or folded.get("pending_interaction")
+            )
+            if has_answer or attempt == _EMPTY_FOLD_ATTEMPTS - 1:
+                break
+            await asyncio.sleep(_EMPTY_FOLD_BACKOFF_SECONDS)
+
+        # Still empty after the bounded re-reads: leave the indicator in place
+        # and fail LOUDLY rather than edit in a blank bubble. A silent empty
+        # delivery marks the row SENT and erases the only signal that the
+        # answer was lost (DM-wave finding, 2026-08-17).
+        if not has_answer:
+            log.error(
+                "[SESSIONS-OUTBOX] answer still empty after re-reads; leaving "
+                "indicator un-edited turn=%s session=%s",
+                turn_id,
+                session_id,
+            )
+            return
 
         items = render_turn_result(capabilities=capabilities, folded=folded)
 

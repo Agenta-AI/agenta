@@ -10,6 +10,8 @@ import pytest
 
 from oss.src.core.channels.adapters.slack.adapter import (
     SlackAdapter,
+    _render_content,
+    _SlackApiError,
 )
 from oss.src.core.channels.dtos import (
     ChannelConnection,
@@ -339,6 +341,49 @@ async def test_parse_event_unaddressed_message_marks_addressed_false():
 
     assert event is not None
     assert event.addressed is False
+
+
+async def test_parse_event_ignores_our_own_indicator_edit():
+    """The bot-echo cascade. Editing "Working…" into the answer comes back as
+    a `message_changed` whose author sits in the NESTED message, so the outer
+    event read as authorless human input: the adapter rooted a phantom thread
+    off the edit's synthetic ts, ran a real turn, posted, edited that post,
+    and went round again (observed four deep, one paid run every ~14s)."""
+
+    connection = _connection(bot_user_id="UBOT1")
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "channel": "C1",
+            "subtype": "message_changed",
+            "ts": "2.2",
+            "message": {"user": "UBOT1", "text": "the answer", "ts": "1.1"},
+        }
+    )
+
+    assert await adapter.parse_event(body=body, connection=connection) is None
+
+
+@pytest.mark.parametrize("subtype", ["message_changed", "message_deleted"])
+async def test_parse_event_drops_edit_and_delete_subtypes(subtype):
+    """No path processes an edit or a deletion, so even a human's edit must
+    not enter as fresh input — it would re-run a turn already answered."""
+
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "channel": "C1",
+            "subtype": subtype,
+            "ts": "2.2",
+            "message": {
+                "user": "U1",
+                "text": "<@UBOT1> rethought question",
+                "ts": "1.1",
+            },
+        }
+    )
+
+    assert await adapter.parse_event(body=body) is None
 
 
 @pytest.mark.parametrize(
@@ -811,6 +856,76 @@ async def test_content_over_max_chars_splits_into_multiple_posts():
     )
 
     assert len(transport.requests) == 2
+
+
+def test_empty_text_emits_no_section_block():
+    """Slack rejects a section whose mrkdwn text is empty, and rejects the
+    whole payload with it. The guard used to be `if texts:` — a list holding
+    one empty string is truthy, so an empty fold rendered exactly the block
+    Slack refuses. The fallback text keeps its `" "`; the blocks go away."""
+
+    text, blocks = _render_content([{"type": "text", "text": ""}])
+
+    assert blocks == []
+    assert text == " "
+
+
+async def test_post_message_with_no_answer_text_sends_no_blocks():
+    adapter, transport = _adapter_with_stub([{"ok": True, "channel": "C1", "ts": "1"}])
+
+    await adapter.post_message(
+        connection=_connection(),
+        locator={"channel": "C1"},
+        content=[{"type": "text", "text": ""}],
+        idempotency_key=uuid4(),
+    )
+
+    assert not json.loads(transport.requests[0].content).get("blocks")
+
+
+async def test_a_blocks_rejection_retries_the_same_message_text_only():
+    """Last-resort guard: an answer is worth more than its formatting. The
+    rejected payload is logged verbatim, because a rejection we cannot see the
+    shape of is a rejection we cannot fix."""
+
+    adapter, transport = _adapter_with_stub(
+        [
+            {"ok": False, "error": "invalid_blocks"},
+            {"ok": True, "channel": "C1", "ts": "1"},
+        ]
+    )
+
+    receipt = await adapter.post_message(
+        connection=_connection(),
+        locator={"channel": "C1"},
+        content=[{"type": "text", "text": "the answer"}],
+        idempotency_key=uuid4(),
+    )
+
+    assert receipt == {"channel": "C1", "ts": "1"}
+    assert len(transport.requests) == 2
+    retried = json.loads(transport.requests[1].content)
+    assert "blocks" not in retried  # _call drops None params
+    assert retried["text"] == "the answer"
+
+
+async def test_a_rejection_that_is_not_about_blocks_is_not_retried():
+    """The fallback must not turn every Slack error into a second call —
+    `channel_not_found` fails the same way twice and hides the real cause."""
+
+    adapter, transport = _adapter_with_stub(
+        [{"ok": False, "error": "channel_not_found"}]
+    )
+
+    with pytest.raises(_SlackApiError):
+        await adapter.post_message(
+            connection=_connection(),
+            locator={"channel": "C1"},
+            content=[{"type": "text", "text": "the answer"}],
+            idempotency_key=uuid4(),
+        )
+
+    assert len(transport.requests) == 1
 
 
 # --- fetch_history / backfill refusal ---------------------------------------- #

@@ -40,6 +40,9 @@ from oss.src.core.channels.types import (
     ChannelSignatureInvalid,
 )
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 _SLACK_API_BASE = "https://slack.com/api"
 
@@ -248,6 +251,17 @@ class SlackAdapter(ChannelAdapterInterface):
             return None
 
         event = payload.get("event") or {}
+
+        # Edits and deletions arrive as message subtypes whose author lives in
+        # the NESTED event["message"], not on the outer event. Our own
+        # indicator edit ("Working…" -> answer, chat.update) therefore read as
+        # authorless human input, rooted a phantom thread off the edit's
+        # synthetic ts, and ran a real turn whose post was edited in turn -- a
+        # self-sustaining bot-echo cascade. No edit-processing path exists, so
+        # drop these subtypes outright (QA finding, 2026-08-17).
+        if event.get("subtype") in ("message_changed", "message_deleted"):
+            return None
+
         team_id = payload.get("team_id") or ""
         channel_id = event.get("channel") or ""
 
@@ -289,7 +303,7 @@ class SlackAdapter(ChannelAdapterInterface):
         text, blocks = _render_content(content)
         receipts = []
         for chunk in split_for_max_chars(text, max_chars=MAX_CHARS) or [""]:
-            response = await self._call(
+            response = await self._call_with_blocks_fallback(
                 connection,
                 "chat.postMessage",
                 {
@@ -312,7 +326,7 @@ class SlackAdapter(ChannelAdapterInterface):
         idempotency_key: UUID,
     ) -> Dict[str, Any]:
         text, blocks = _render_content(content)
-        response = await self._call(
+        response = await self._call_with_blocks_fallback(
             connection,
             "chat.update",
             {
@@ -423,6 +437,28 @@ class SlackAdapter(ChannelAdapterInterface):
         )
 
     # --- internals --- #
+
+    async def _call_with_blocks_fallback(
+        self, connection: ChannelConnection, method: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Last-resort guard: deliver the text without blocks rather than lose
+        the answer, and log the rejected payload verbatim. The one rejection
+        cause observed so far was OURS (an empty mrkdwn section from an empty
+        fold -- now prevented upstream), not Slack flakiness; this fallback
+        stays for whatever rejection shape shows up next, and the log line is
+        what makes that diagnosable (QA, 2026-08-17)."""
+
+        try:
+            return await self._call(connection, method, params)
+        except _SlackApiError as e:
+            if e.error != "invalid_blocks" or not params.get("blocks"):
+                raise
+            log.warning(
+                "[slack] %s rejected blocks; retrying text-only. blocks=%s",
+                method,
+                json.dumps(params.get("blocks"))[:3000],
+            )
+            return await self._call(connection, method, {**params, "blocks": None})
 
     async def _call(
         self, connection: ChannelConnection, method: str, params: Dict[str, Any]
@@ -567,7 +603,10 @@ def _render_content(content: List[Dict[str, Any]]) -> tuple:
     text = "\n".join(t for t in texts if t)
     blocks: List[Dict[str, Any]] = []
 
-    if texts:
+    # `if texts:` let an all-empty text list emit a section with empty mrkdwn,
+    # which Slack rejects wholesale as invalid_blocks -- the fallback `" "`
+    # below guards only the text field, not the blocks (QA, 2026-08-17).
+    if text:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": text}})
 
     if buttons:
