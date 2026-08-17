@@ -971,3 +971,119 @@ async def test_the_first_post_of_a_turn_targets_the_thread_s_locator():
     )
 
     assert spy.post_locators == [{"channel": "C1", "thread_ts": "42.1"}]
+
+
+class _LateCommitRecordsDAO(FakeRecordsDAO):
+    """Answers the first `empty_reads` reads with nothing, then with whatever
+    was seeded — the live race where the turn-ended event outran the final
+    record commit (~150ms measured)."""
+
+    def __init__(self, *, empty_reads: int):
+        super().__init__()
+        self._empty_reads = empty_reads
+        self.reads = 0
+
+    async def get_records(self, *, project_id, session_id):
+        self.reads += 1
+        if self.reads <= self._empty_reads:
+            return []
+        return await super().get_records(project_id=project_id, session_id=session_id)
+
+
+def _worker_over(channels_dao, records_dao) -> ChannelsOutboxWorker:
+    return ChannelsOutboxWorker(
+        channels_service=ChannelsService(
+            channels_dao=channels_dao,
+            adapter_registry=ChannelAdapterRegistry(
+                adapters={"fake": WellBehavedFakeAdapter()}
+            ),
+        ),
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(records_dao),
+    )
+
+
+def _delivered_text(channels_dao) -> str:
+    return " ".join(
+        part.get("text") or ""
+        for row in channels_dao.outbox.values()
+        for part in (row.data.processed or {}).get("content", [])
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_empty_fold_is_re_read_before_it_is_rendered(monkeypatch):
+    """The turn-ended event can arrive before the agent's last record is
+    committed. Folding that early read yields an EMPTY answer, which rendered
+    an empty Slack section (rejected as invalid_blocks) and orphaned the
+    indicator on "Working…". The read is retried before anything renders."""
+
+    monkeypatch.setattr(
+        "oss.src.tasks.asyncio.channels.outbox._EMPTY_FOLD_BACKOFF_SECONDS", 0
+    )
+
+    channels_dao = FakeChannelsDAO()
+    records_dao = _LateCommitRecordsDAO(empty_reads=1)
+    worker = _worker_over(channels_dao, records_dao)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-race")
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-race"
+    )
+    records_dao.seed(
+        session_id="sess-race",
+        turn_id="turn-race",
+        record_type="message",
+        attributes={"text": "the answer that was still committing"},
+    )
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-race",
+        session_id="sess-race",
+    )
+
+    assert records_dao.reads == 2  # the early read, then the one that won
+    assert "the answer that was still committing" in _delivered_text(channels_dao)
+
+
+@pytest.mark.asyncio
+async def test_a_fold_still_empty_after_the_re_reads_leaves_the_indicator_alone(
+    monkeypatch, caplog
+):
+    """A blank bubble is worse than no bubble: editing the indicator into an
+    empty answer marks the row SENT and erases the only signal that the answer
+    was lost. When the re-reads run out, the indicator stays and the worker
+    fails loudly instead."""
+
+    monkeypatch.setattr(
+        "oss.src.tasks.asyncio.channels.outbox._EMPTY_FOLD_BACKOFF_SECONDS", 0
+    )
+
+    channels_dao = FakeChannelsDAO()
+    records_dao = _LateCommitRecordsDAO(empty_reads=99)  # nothing ever commits
+    worker = _worker_over(channels_dao, records_dao)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-empty")
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-empty"
+    )
+    indicator = _delivered_text(channels_dao)
+    assert indicator  # the indicator did post, and is what must survive
+
+    with caplog.at_level("ERROR"):
+        await worker.on_turn_ended(
+            project_id=PROJECT_ID,
+            thread=thread,
+            turn_id="turn-empty",
+            session_id="sess-empty",
+        )
+
+    assert records_dao.reads == 3  # bounded: one read plus two re-reads
+    assert len(channels_dao.outbox) == 1
+    assert _delivered_text(channels_dao) == indicator  # never edited to blank
+    assert any(
+        "empty" in record.message and record.levelname == "ERROR"
+        for record in caplog.records
+    )
