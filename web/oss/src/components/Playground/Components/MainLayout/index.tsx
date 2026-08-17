@@ -24,7 +24,6 @@ import {
 } from "@/oss/components/AgentChatSlice/state/panelLayout"
 // Direct file import — the SessionInspector barrel would statically pull the (dynamic,
 // open-on-demand) inspector drawer back into this chunk.
-import OverlayScrollbar from "@/oss/components/OverlayScrollbar"
 import PanelSessionInspectorButton from "@/oss/components/SessionInspector/PanelSessionInspectorButton"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
@@ -282,7 +281,7 @@ const PlaygroundMainView = ({
     const animateSplit = justToggled || holdAnimate
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {configPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
 
@@ -409,7 +408,7 @@ const PlaygroundMainView = ({
                                     {
                                         "ag-scroll-no-bar grow w-full min-h-0 overflow-y-auto":
                                             !isComparisonView,
-                                        "grow w-full min-h-0 overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
+                                        "ag-scroll-no-bar grow w-full min-h-0 overflow-x-auto flex":
                                             isComparisonView,
                                     },
                                 ])}
@@ -417,7 +416,7 @@ const PlaygroundMainView = ({
                                 <>
                                     {isComparisonView && hasDisplayedEntities && (
                                         <PromptComparisonVariantNavigation
-                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
+                                            className="ag-scroll-no-bar w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
                                             handleScroll={handleScroll}
                                         />
                                     )}
@@ -437,7 +436,7 @@ const PlaygroundMainView = ({
                                                 }
                                                 className={clsx([
                                                     {
-                                                        "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
+                                                        "ag-scroll-no-bar min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
                                                             isComparisonView,
                                                         // Single-entity view: a full-height flex column
                                                         // so the config panel's last region can stretch
@@ -465,9 +464,6 @@ const PlaygroundMainView = ({
                                     )}
                                 </>
                             </section>
-                            {!isComparisonView ? (
-                                <OverlayScrollbar target={configPanelRef} />
-                            ) : null}
                             {!isComparisonView && isAgentConfig && primaryConfigId ? (
                                 <>
                                     <ProviderKeyNotice revisionId={primaryConfigId} />
@@ -501,7 +497,7 @@ const PlaygroundMainView = ({
                                     // pane divider that the chat could never fill).
                                     "grow w-full h-full overflow-hidden":
                                         !isComparisonView && isAgentConfig,
-                                    "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
+                                    "ag-scroll-no-bar grow w-full h-full overflow-auto":
                                         isComparisonView,
                                     // Chat = the recessed canvas the message/composer surfaces sit on.
                                     "ag-canvas": isAgentConfig,
