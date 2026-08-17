@@ -9,7 +9,7 @@ vi.mock("@agenta/sdk/resources", () => ({
     getLowPriorityMountsClient: vi.fn(),
 }))
 
-import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
+import {sessionListPolicies} from "@agenta/sessions/state"
 
 import {
     SIDEBAR_SESSION_LIMIT,

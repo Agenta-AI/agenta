@@ -1,5 +1,40 @@
 # WP-0 merge log — `release/v0.112.1` → lane
 
+## WAVE 1 IS OVERSTATED — re-scope before dispatching
+
+Measured against the **merged** tree (not the pre-merge inventory): **35** of the inventory's
+A1/C-dual entries still owe lines, not ~76. Rename detection closed the rest during the merge.
+Three plan items are already closed and must not be re-dispatched:
+
+- **F-06 (deleted-session tombstones, #5830)** — `deletedIdsByAppAtom` survives the merge, 6 refs.
+- **F-04 Drives** — 14 of 18 files landed via rename detection. `OriginTag` is **superseded**: the
+  lane achieves #5943's recolor through `--ag-type-agent-bg`/`--ag-type-agent-text` tokens and
+  nothing imports the release's `AGENT_ACCENT` constants. Only the `StorageSection` /
+  `StorageFilesHeader` / `configDrive` trio is outstanding, and it is blocked (below).
+- **#5946's ApprovalDock half** — a pure deletion; the lane's `resolveApprovalRenderer` rewrite
+  never had the deleted code.
+
+### What actually gates the remaining 35: four app-layer symbols
+
+| Blocker | Unblocks | Status |
+| --- | --- | --- |
+| `sessionListPolicies` | `useAgentActivity` ×2, `sessionsSource` | ✅ **extracted** to `@agenta/sessions/state`; 6 consumers re-pointed; app copy deleted (was 1 of 3 copies) |
+| `useSidebarResize` | `SidebarShell` (#5943 rail resize + #5945 `matchLinks`) | ✅ **extracted** to `@agenta/navigation` |
+| `useSessionFilesPane` / `SessionFilesPane` | `StorageSection` (#5946), `AgentConversation`, the `configDrive` trio | ⬜ still app-layer |
+| session atoms (`defaultScopeKeyAtom`, `sessionsListAtomFamily`, `activeSessionIdAtomFamily`, `sessionDotStatusAtomFamily`, `archivedAgentIdsQueryAtom`) | `sessionsSource` (#5927+#5944+#5974, 56 lines — the sidebar-spinner repro) | ⬜ still app-layer |
+
+**Do the two remaining extractions first; the ports are mechanical afterwards.** Porting before
+extracting reintroduces the package→app imports this merge removed.
+
+### The trigger-origin question is answered canonically
+
+Extracting `sessionListPolicies` surfaced the release's own map: `sessionsDefault`, `sidebar`,
+`agentOverviewHuman` are **`exclude-trigger`**; `agentActivity` and `sidebarPinned` are `"all"`
+(a pin overrides the origin filter, and needs the `trigger` expansion or the row reads
+"Missing schedule"). All four call sites were aligned to `exclude-trigger`; they should now be
+switched from inline literals to these named constants.
+
+
 **Status: ALL 111 CONFLICTS RESOLVED, but the tsc gate is NOT yet green.** 0 unmerged paths,
 0 conflict markers, 0 real package→app imports. The merge is **not committed**.
 

@@ -26,6 +26,7 @@ export {
     shouldLoadMoreForHiddenRows,
     type SessionOriginPolicy,
     type SessionListRequestPolicy,
+    sessionListPolicies,
 } from "./sessionListPolicy"
 export {
     useSessionList,

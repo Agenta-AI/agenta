@@ -5,7 +5,7 @@ import {
 } from "@agenta/entities/session"
 import {sessionListRequestFilters} from "@agenta/sessions/state"
 
-import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
+import {sessionListPolicies} from "@agenta/sessions/state"
 
 import type {ServerSessionSummary} from "./sessions"
 

@@ -5,7 +5,7 @@ import {
     type SessionListRequestPolicy,
 } from "@agenta/sessions/state"
 
-import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
+import {sessionListPolicies} from "@agenta/sessions/state"
 
 /**
  * One request, deliberately much wider than the {@link SIDEBAR_SESSION_VISIBLE_LIMIT} rows the

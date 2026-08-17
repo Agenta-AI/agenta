@@ -9,7 +9,7 @@ import {
 
 import {useAtom} from "jotai"
 
-import {clampSidebarWidth, sidebarWidthAtom} from "@agenta/navigation"
+import {clampSidebarWidth, sidebarWidthAtom} from "./state"
 
 interface DragState {
     pointerId: number

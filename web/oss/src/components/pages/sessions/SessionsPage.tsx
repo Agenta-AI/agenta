@@ -14,7 +14,7 @@ import {
     useSessionActions,
     type SessionActionTarget,
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
-import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
+import {sessionListPolicies} from "@agenta/sessions/state"
 
 import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
 import {agentsWorkflowsAtom} from "../agents/store"

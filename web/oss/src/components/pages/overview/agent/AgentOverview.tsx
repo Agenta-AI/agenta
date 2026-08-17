@@ -14,7 +14,7 @@ import {
 import UsageSummary from "@/oss/components/UsageSummary"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
-import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
+import {sessionListPolicies} from "@agenta/sessions/state"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 
 interface Props {

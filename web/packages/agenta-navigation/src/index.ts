@@ -9,3 +9,5 @@ export * from "./constants"
 export * from "./supportLinks"
 export * from "./state"
 export * from "./dynamic"
+
+export {useSidebarResize} from "./useSidebarResize"

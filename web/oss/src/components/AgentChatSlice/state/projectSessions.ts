@@ -6,7 +6,7 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {isValidUUID} from "@/oss/lib/helpers/validators"
-import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
+import {sessionListPolicies} from "@agenta/sessions/state"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {projectSessionSummary, queryProjectSessions} from "./projectSessionsQuery"
