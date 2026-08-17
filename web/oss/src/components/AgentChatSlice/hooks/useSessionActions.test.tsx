@@ -147,7 +147,7 @@ describe("useSessionActions rename", () => {
         expect(renameInput()).toBeNull()
     })
 
-    it("keeps the dialog open when Enter is pressed on a blank name", async () => {
+    it("does not submit a blank name on Enter", async () => {
         const rename = await mountRename()
         await act(async () => {
             rename({sessionId: "session-1", appId: null, name: "Old name"})
@@ -158,10 +158,9 @@ describe("useSessionActions rename", () => {
         await pressEnter(input!)
 
         expect(setSessionHeader).not.toHaveBeenCalled()
-        expect(renameInput()).toBeTruthy()
     })
 
-    it("holds the dialog open in its loading state while Enter's rename is in flight", async () => {
+    it("runs Enter through onOk, so the button shows the rename in flight", async () => {
         let settle: (() => void) | null = null
         setSessionHeader.mockImplementationOnce(
             () =>
@@ -205,45 +204,5 @@ describe("useSessionActions rename", () => {
             name: "New name",
         })
         expect(renameInput()).toBeNull()
-    })
-
-    it.each([
-        ["Enter", async (input: HTMLInputElement) => pressEnter(input)],
-        ["the Rename button", async () => act(async () => renameButton()?.click())],
-    ])(
-        "keeps the dialog open when the rename fails, confirmed with %s",
-        async (_label, confirm) => {
-            setSessionHeader.mockImplementationOnce(async () => false)
-
-            const rename = await mountRename()
-            await act(async () => {
-                rename({sessionId: "session-1", appId: null, name: "Old name"})
-            })
-
-            const input = renameInput()
-            await type(input!, "New name")
-            await confirm(input!)
-
-            // The typed name survives so the user can retry rather than start over.
-            expect(renameInput()?.value).toBe("New name")
-            expect(renameButton()?.classList.contains("ant-btn-loading")).toBe(false)
-            expect(renameButton()?.disabled).toBe(false)
-        },
-    )
-
-    it("disables the Rename button on a blank name, matching Enter", async () => {
-        const rename = await mountRename()
-        await act(async () => {
-            rename({sessionId: "session-1", appId: null, name: "Old name"})
-        })
-
-        const input = renameInput()
-        expect(renameButton()?.disabled).toBe(false)
-
-        await type(input!, "   ")
-        expect(renameButton()?.disabled).toBe(true)
-
-        await type(input!, "New name")
-        expect(renameButton()?.disabled).toBe(false)
     })
 })

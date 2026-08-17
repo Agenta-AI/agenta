@@ -76,81 +76,13 @@ export const useSessionActions = () => {
         (target: SessionActionTarget) => {
             let next = target.name ?? ""
 
-            /**
-             * Resolves only when the rename actually landed, and rejects otherwise, so the
-             * caller can tell the two apart. Returning normally on failure would close the
-             * dialog and throw the typed name away with it.
-             */
-            const submit = async () => {
-                const title = next.trim()
-                if (!title) throw new Error("A session name is required")
-                if (isCached(target) && target.appId) {
-                    await store.set(renameSessionAtomFamily(target.appId), {
-                        id: target.sessionId,
-                        title,
-                    })
-                } else {
-                    const ok = await setSessionHeader({
-                        sessionId: target.sessionId,
-                        projectId,
-                        name: title,
-                    })
-                    if (!ok) {
-                        message.error("Couldn't rename this session")
-                        throw new Error("Couldn't rename this session")
-                    }
-                }
-                revalidate()
-            }
+            // Enter confirms by clicking the Rename button, so submission stays on antd's
+            // own `onOk` path (loading state, close-on-success) instead of being
+            // reimplemented for the keyboard. The button is antd's, not ours, so it is
+            // reached through a marker class scoped to this dialog.
+            const okClass = "rename-session-ok"
 
-            // Held in a box so the Input's Enter handler can close the dialog that is being
-            // created by the very call it is passed to.
-            const dialog: {current?: ReturnType<typeof modal.confirm>} = {}
-
-            /**
-             * A blank name is not a rename, so neither confirmation path may submit one. Rather
-             * than guarding Enter and the button separately (and letting them drift), the button
-             * is disabled while the field is blank and Enter mirrors that same condition.
-             */
-            const isBlank = () => !next.trim()
-
-            /**
-             * The dialog stays up while the rename is in flight and is only torn down once it
-             * lands, so a failure leaves the typed name on screen to retry. Both confirmation
-             * paths share this one function, which also means one in-flight guard covers them:
-             * the loading button blocks a second click, but the field stays focused and enabled,
-             * so Enter could otherwise fire duplicate renames.
-             */
-            let pending = false
-
-            /** `update` replaces `okButtonProps` wholesale, so the click handler is re-stated. */
-            const okButtonProps = (props: {loading?: boolean; disabled?: boolean} = {}) => ({
-                disabled: isBlank(),
-                ...props,
-                onClick: () => void confirm(),
-            })
-
-            const confirm = async () => {
-                if (pending || isBlank()) return
-                pending = true
-                dialog.current?.update({
-                    okButtonProps: okButtonProps({loading: true}),
-                    cancelButtonProps: {disabled: true},
-                })
-                try {
-                    await submit()
-                    dialog.current?.destroy()
-                } catch {
-                    dialog.current?.update({
-                        okButtonProps: okButtonProps({loading: false}),
-                        cancelButtonProps: {disabled: false},
-                    })
-                } finally {
-                    pending = false
-                }
-            }
-
-            dialog.current = modal.confirm({
+            modal.confirm({
                 title: "Rename session",
                 content: (
                     <Input
@@ -160,19 +92,40 @@ export const useSessionActions = () => {
                         className="mt-2"
                         onChange={(event) => {
                             next = event.target.value
-                            dialog.current?.update({okButtonProps: okButtonProps()})
                         }}
-                        // A one-field modal has to confirm on Enter; without this the only way out
-                        // is the mouse.
-                        onPressEnter={() => void confirm()}
+                        // A one-field modal has to confirm on Enter; without this the only way
+                        // out is the mouse.
+                        onPressEnter={(event) =>
+                            event.currentTarget
+                                .closest('[role="dialog"]')
+                                ?.querySelector<HTMLButtonElement>(`.${okClass}`)
+                                ?.click()
+                        }
                     />
                 ),
                 okText: "Rename",
-                // The OK button confirms through `confirm()` too, rather than through `onOk`:
-                // antd spreads `okButtonProps` over its own click handler, so this replaces it.
-                // `onOk`'s only way to hold the dialog open on failure is to return a rejected
-                // promise, which antd re-raises as an unhandled rejection.
-                okButtonProps: okButtonProps(),
+                okButtonProps: {className: okClass},
+                onOk: async () => {
+                    const title = next.trim()
+                    if (!title) return
+                    if (isCached(target) && target.appId) {
+                        await store.set(renameSessionAtomFamily(target.appId), {
+                            id: target.sessionId,
+                            title,
+                        })
+                    } else {
+                        const ok = await setSessionHeader({
+                            sessionId: target.sessionId,
+                            projectId,
+                            name: title,
+                        })
+                        if (!ok) {
+                            message.error("Couldn't rename this session")
+                            return
+                        }
+                    }
+                    revalidate()
+                },
             })
         },
         [isCached, message, modal, projectId, revalidate, store],
