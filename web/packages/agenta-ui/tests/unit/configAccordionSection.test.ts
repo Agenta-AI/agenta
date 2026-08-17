@@ -49,6 +49,7 @@ describe("ConfigAccordionSection title sizing", () => {
         )
 
         expect(titleGroup).toContain("shrink-0")
+        expect(titleGroup).toContain("max-w-full")
         expect(summary).toEqual(expect.arrayContaining(["min-w-0", "truncate"]))
         expect(summaryGroup).toContain("min-w-0")
     })
