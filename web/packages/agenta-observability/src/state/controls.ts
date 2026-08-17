@@ -1,5 +1,5 @@
 // Query control atoms for the observability module
-import type {Key} from "react"
+import type {Key, SetStateAction} from "react"
 
 import {defaultTraceTypeForWorkflow} from "@agenta/entities/workflow"
 import {dayjs} from "@agenta/shared/utils/dateTime"
@@ -257,7 +257,7 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
 
             return [...appScope, ...traceTypeFilters, ...userFilters]
         },
-        (get, set, update: Filter[] | ((prev: Filter[]) => Filter[])) => {
+        (get, set, update: SetStateAction<Filter[]>) => {
             const currentCombined = get(filtersAtomFamily(tab))
             const nextCombined = typeof update === "function" ? update(currentCombined) : update
             const normalizedNext = nextCombined || []
@@ -325,7 +325,7 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
 // Proxy filters atom
 export const filtersAtom = atom(
     (get) => get(filtersAtomFamily(get(observabilityTabAtom))),
-    (get, set, update: Filter[] | ((prev: Filter[]) => Filter[])) =>
+    (get, set, update: SetStateAction<Filter[]>) =>
         set(filtersAtomFamily(get(observabilityTabAtom)), update),
 )
 

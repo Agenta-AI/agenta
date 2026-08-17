@@ -22,7 +22,6 @@ import dynamic from "next/dynamic"
 import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentChatSkeleton"
 // Direct file import — the SessionInspector barrel would statically pull the (dynamic,
 // open-on-demand) inspector drawer back into this chunk.
-import OverlayScrollbar from "@/oss/components/OverlayScrollbar"
 import PanelSessionInspectorButton from "@/oss/components/SessionInspector/PanelSessionInspectorButton"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
@@ -275,7 +274,7 @@ const PlaygroundMainView = ({
     const [agentPaneSize, setAgentPaneSize] = useState(440)
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {configPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
 
@@ -410,7 +409,6 @@ const PlaygroundMainView = ({
                                             </div>
                                         ))}
                                 </section>
-                                <OverlayScrollbar target={configPanelRef} />
                                 {primaryConfigId ? (
                                     <>
                                         <ProviderKeyNotice revisionId={primaryConfigId} />
@@ -510,7 +508,7 @@ const PlaygroundMainView = ({
                                         {
                                             "ag-scroll-no-bar grow w-full min-h-0 overflow-y-auto":
                                                 !isComparisonView,
-                                            "grow w-full min-h-0 overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
+                                            "ag-scroll-no-bar grow w-full min-h-0 overflow-x-auto flex":
                                                 isComparisonView,
                                         },
                                     ])}
@@ -518,7 +516,7 @@ const PlaygroundMainView = ({
                                     <>
                                         {isComparisonView && hasDisplayedEntities && (
                                             <PromptComparisonVariantNavigation
-                                                className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
+                                                className="ag-scroll-no-bar w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
                                                 handleScroll={handleScroll}
                                             />
                                         )}
@@ -538,7 +536,7 @@ const PlaygroundMainView = ({
                                                     }
                                                     className={clsx([
                                                         {
-                                                            "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
+                                                            "ag-scroll-no-bar min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
                                                                 isComparisonView,
                                                         },
                                                     ])}
@@ -561,9 +559,6 @@ const PlaygroundMainView = ({
                                         )}
                                     </>
                                 </section>
-                                {!isComparisonView ? (
-                                    <OverlayScrollbar target={configPanelRef} />
-                                ) : null}
                                 {!isComparisonView && isAgentConfig && primaryConfigId ? (
                                     <>
                                         <ProviderKeyNotice revisionId={primaryConfigId} />
@@ -592,7 +587,7 @@ const PlaygroundMainView = ({
                                     {
                                         "ag-scroll-quiet grow w-full h-full overflow-y-auto overflow-x-hidden":
                                             !isComparisonView,
-                                        "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
+                                        "ag-scroll-no-bar grow w-full h-full overflow-auto":
                                             isComparisonView,
                                         // Chat = the recessed canvas the message/composer surfaces sit on.
                                         "ag-canvas": isAgentConfig,

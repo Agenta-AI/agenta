@@ -125,7 +125,10 @@
    browser will paint, so this panel keeps no scrollbar at all: full-width rows, and no shift
    when the content grows past the viewport. */
 .ag-scroll-no-bar {
+    /* Firefox + Chromium 121+ */
     scrollbar-width: none;
+    /* legacy Edge/IE */
+    -ms-overflow-style: none;
 }
 
 .ag-scroll-no-bar::-webkit-scrollbar {
