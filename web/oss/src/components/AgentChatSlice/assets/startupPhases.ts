@@ -12,12 +12,8 @@ export interface StartupPhase {
     label: string
 }
 
-/**
- * The ladder, ascending by `atMs` — the only place copy and timing are edited.
- *
- * "Working" sits at 0 with no grace window because it is the one line true of EVERY turn, so a turn
- * misjudged as cold that answers in 300ms still only ever said something correct.
- */
+/** Ascending by `atMs`. "Working" sits at 0 because it is the one line true of EVERY turn, which is
+ * what makes an immediate label safe on a turn misjudged as cold (pinned by test). */
 export const STARTUP_PHASES: readonly StartupPhase[] = [
     {atMs: 0, label: "Working"},
     {atMs: 2_000, label: "Starting the agent"},

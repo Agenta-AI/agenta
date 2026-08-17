@@ -1,12 +1,4 @@
-/**
- * The startup ladder's timing rules (#6047).
- *
- * The five cases the issue asks for coverage of — cold start, warm start, failure, cancellation,
- * and the transition into streaming — all reduce to these two pure functions plus the turn clock:
- * the label is a function of elapsed time, showing it at all is a function of liveness, and every
- * terminal path (answer, error, stop) clears the clock, after which there is no elapsed time to
- * read. So they are asserted here rather than through a render loop.
- */
+/** The startup ladder's timing rules (#6047). */
 import {describe, expect, it} from "vitest"
 
 import {

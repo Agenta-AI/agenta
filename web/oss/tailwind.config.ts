@@ -353,8 +353,7 @@ export const createConfig = (content: string[] = []): Config => {
                         "0%": {maskPosition: "180% 0", WebkitMaskPosition: "180% 0"},
                         "100%": {maskPosition: "-80% 0", WebkitMaskPosition: "-80% 0"},
                     },
-                    // Agent startup label (#6047): a highlight travelling through the text itself,
-                    // so a long wait keeps a pulse without adding a second moving element.
+                    // Agent startup label (#6047).
                     "text-shimmer": {
                         "0%": {backgroundPosition: "120% 0"},
                         "100%": {backgroundPosition: "-120% 0"},
@@ -377,7 +376,6 @@ export const createConfig = (content: string[] = []): Config => {
                     skeleton: "skeleton 1.4s ease infinite",
                     // 2 sweeps then hold off-screen (forwards) so it ends invisibly.
                     "config-shimmer": "config-shimmer 1.8s ease-in-out 2 forwards",
-                    // Slow enough to read as breathing, not scanning — it runs for ~15s.
                     "text-shimmer": "text-shimmer 2.4s linear infinite",
                     // antd motionDurationMid (0.2s) + motionEaseInOut bezier.
                     "accordion-down": "accordion-down 0.2s cubic-bezier(0.645,0.045,0.355,1)",

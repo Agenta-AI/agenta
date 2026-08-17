@@ -232,14 +232,8 @@ const avatarFor = (isUser: boolean) => (
     <Avatar size="small" icon={isUser ? <User size={16} /> : <Robot size={16} />} />
 )
 
-/**
- * The assistant turn that has started but has nothing to show yet.
- *
- * A cold start sits here for ~15s while the sandbox boots, so it narrates the startup instead of
- * pulsing wordlessly (#6047); a warm turn, and the first sub-second of any turn, keep the dots.
- * Its own component so the startup tick mounts ONCE per live turn — calling the hook in
- * `AgentMessage` would run an interval for every message in the transcript.
- */
+/** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
+ * turn, not once per message in the transcript. */
 const PendingTurn = ({sessionId}: {sessionId: string}) => {
     const startupPhase = useStartupPhase(sessionId)
     return startupPhase ? (
