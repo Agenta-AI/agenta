@@ -2,7 +2,6 @@ import {createElement} from "react"
 
 // import {testsetsListAtom} from "@agenta/entities/testset"
 import {
-    agentWorkflowsListQueryStateAtom,
     // evaluatorsListQueryAtom,
     // nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
@@ -17,6 +16,7 @@ import {pendingSessionOpenAtom} from "@/oss/components/AgentChatSlice/state/pend
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../scopes/constants"
 
+import {sidebarAgentsListAtom} from "./agentsSource"
 import {SIDEBAR_SESSION_VISIBLE_LIMIT} from "./sessionOptions"
 import SessionRowActions from "./SessionRowActions"
 import {sidebarSessionsListAtom, type SessionSidebarRef} from "./sessionsSource"
@@ -128,7 +128,8 @@ const ENTITIES: SidebarEntity[] = [
                 size: 14,
                 fallback: createElement(RobotIcon, {size: 14}),
             }),
-        listAtom: agentWorkflowsListQueryStateAtom,
+        // Ordered by last used, ahead of the `maxItems` cut below.
+        listAtom: sidebarAgentsListAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
         childPath: (workflow) => `/apps/${workflow.id}/overview`,
         // Stays highlighted across all of the agent's pages, not just the one it links to.

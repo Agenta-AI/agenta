@@ -72,6 +72,18 @@ const sidebarPinnedSessionsQueryAtom = atomWithQuery<SessionStream[] | null>((ge
     }
 })
 
+/**
+ * Every session row the sidebar has fetched — the recent window plus the pins it excludes.
+ *
+ * For consumers that need per-agent activity rather than rendered rows (the Agents group's recency
+ * ordering). Reading it from another group shares these query keys instead of adding a second
+ * window request.
+ */
+export const sidebarSessionRowsAtom = atom<SessionStream[]>((get) => [
+    ...(get(sidebarPinnedSessionsQueryAtom).data ?? []),
+    ...(get(sidebarSessionsQueryAtom).data ?? []),
+])
+
 /** Null when the row has no open target yet (no turns) — the sidebar drops it rather than
  * rendering a link to `/apps/null`. */
 const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRef | null => {
