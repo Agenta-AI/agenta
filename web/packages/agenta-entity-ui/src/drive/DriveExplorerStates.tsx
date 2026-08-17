@@ -5,7 +5,6 @@
  */
 import {type DriveScope} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
-import {Alert} from "@agenta/ui/ui"
 import {Tray, WarningCircle} from "@phosphor-icons/react"
 
 import {DriveRetryButton} from "./DriveFileRow"

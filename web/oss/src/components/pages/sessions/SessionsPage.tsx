@@ -2,6 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {type SessionRowVm} from "@agenta/sessions/row"
 import {useSessionPins, useSessionsList} from "@agenta/sessions/state"
+import {sessionListPolicies} from "@agenta/sessions/state"
 import {SessionFiltersBar, SessionFiltersPanel, SessionsListView} from "@agenta/sessions-ui"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
@@ -14,7 +15,6 @@ import {
     useSessionActions,
     type SessionActionTarget,
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
-import {sessionListPolicies} from "@agenta/sessions/state"
 
 import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
 import {agentsWorkflowsAtom} from "../agents/store"
@@ -49,10 +49,8 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     // args → one query through the cache).
     const list = useSessionsList({
         agentId: scopedAgentId,
-        // Release contract: the human list hides automation runs; the "show triggered" toggle
-        // swaps in the automation policy. See the QA note in the merge log.
-        defaultPolicy: {origin: "exclude-trigger", expansions: []},
-        automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+        defaultPolicy: sessionListPolicies.sessionsDefault,
+        automationPolicy: sessionListPolicies.sessionsAutomation,
     })
     const {toggle: togglePin} = useSessionPins()
     const openSession = useOpenAgentSession()

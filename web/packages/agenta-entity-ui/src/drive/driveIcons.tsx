@@ -17,7 +17,6 @@ import {
     VideoCamera,
 } from "@phosphor-icons/react"
 
-
 /** Neutral kind tint (recolor spec): a quiet grey in light, 70% white on the dark chip. */
 const NEUTRAL_GLYPH = "text-[#616161] dark:text-[rgba(255,255,255,0.7)]"
 

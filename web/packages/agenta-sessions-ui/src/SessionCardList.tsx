@@ -186,7 +186,7 @@ export const SessionCardList = ({
                     <Row
                         key={vm.id}
                         vm={vm}
-                        origin={(listArgs.policy?.origin === "trigger-only" ? "trigger" : undefined)}
+                        origin={listArgs.policy?.origin === "trigger-only" ? "trigger" : undefined}
                         showAgent={resolvedShowAgent}
                         alwaysShowPin={alwaysShowPin}
                         onOpenRow={onOpenRow}
@@ -198,7 +198,7 @@ export const SessionCardList = ({
             ]),
         [
             list.groups,
-            (listArgs.policy?.origin === "trigger-only" ? "trigger" : undefined),
+            listArgs.policy?.origin === "trigger-only" ? "trigger" : undefined,
             resolvedShowAgent,
             alwaysShowPin,
             onOpenRow,

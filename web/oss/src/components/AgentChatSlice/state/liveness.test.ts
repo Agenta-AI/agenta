@@ -6,13 +6,9 @@
  * owns the run-state record and observes the transition; `sessions.runStatus.test.ts` pins its rules.
  * What remains here is the running-elsewhere derivation that READS that stamp.
  */
-import {createStore} from "jotai"
 import {describe, expect, it} from "vitest"
 
-import {
-    isRunningElsewhere,
-    sessionLocalSettledAtAtomFamily,
-} from "./liveness"
+import {isRunningElsewhere} from "./liveness"
 
 /** A session this browser has never run: no settle stamp, so the flag is trusted as-is. */
 const neverRanHere = {localStatus: "idle", localSettledAt: undefined} as const
@@ -87,4 +83,3 @@ describe("isRunningElsewhere", () => {
         ).toBe(true)
     })
 })
-

@@ -10,6 +10,8 @@ import {
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {ProviderDrawer, providerIconFor} from "@agenta/entity-ui/secretProvider"
+import {useStaticTable} from "@agenta/settings"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {
     createStandardColumns,
@@ -20,9 +22,6 @@ import {EmptyState} from "@agenta/ui/ui"
 import {PencilSimpleLine, Plus, Trash, WarningCircle} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {useStaticTable} from "@agenta/settings"
-import {formatDay} from "@agenta/shared/utils/dateTime"
 
 /** The capability map is global; the key only records which surface asked for it. */
 const HARNESS_CATALOG_KEY = "agenta:settings:ai-providers"

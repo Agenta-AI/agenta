@@ -1,6 +1,5 @@
-import {describe, expect, it} from "vitest"
-
 import {analyticsToDashboard} from "@agenta/observability"
+import {describe, expect, it} from "vitest"
 
 const TRACE_TYPE_PATH = "attributes.ag.type.trace"
 const ERRORS_PATH = "attributes.ag.metrics.errors.cumulative"

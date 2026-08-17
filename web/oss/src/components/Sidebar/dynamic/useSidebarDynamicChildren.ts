@@ -1,3 +1,5 @@
+import {useEffect} from "react"
+
 import {
     injectDynamicChildren,
     localSessionRefsAtom,
@@ -5,11 +7,10 @@ import {
     useSidebarDynamicChildren as useSharedSidebarDynamicChildren,
     type SidebarConfig,
 } from "@agenta/navigation"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
-import {useAtomValue, useSetAtom} from "jotai"
-import {useEffect} from "react"
 
 import {localPlaygroundSessionRefsAtom} from "./localSessionRefs"
 

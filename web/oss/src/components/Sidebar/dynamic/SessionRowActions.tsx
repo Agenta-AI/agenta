@@ -1,5 +1,6 @@
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
+import type {SessionSidebarRef} from "@agenta/navigation"
 import {DotsThreeVertical} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
 
@@ -7,8 +8,6 @@ import {
     useSessionActions,
     type SessionActionTarget,
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
-
-import type {SessionSidebarRef} from "@agenta/navigation"
 
 const CONTEXT_TRIGGER: ("contextMenu" | "hover" | "click")[] = ["contextMenu"]
 const CLICK_TRIGGER: ("contextMenu" | "hover" | "click")[] = ["click"]

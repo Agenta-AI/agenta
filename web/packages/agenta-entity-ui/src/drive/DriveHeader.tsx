@@ -1,4 +1,3 @@
-import type {MenuProps} from "antd"
 import {humanSize} from "@agenta/entities/drive"
 import {type DriveId} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
@@ -17,7 +16,6 @@ import {
     ArrowsIn,
     ArrowsOut,
     CaretDoubleRight,
-    Copy,
     DotsThree,
     DownloadSimple,
     GitBranch,
@@ -106,24 +104,6 @@ export const DriveHeader = ({
     // A file always has details (size/modified); a folder only when it's a repo. Nothing selected
     // (transient null before the root auto-selects) → no toggle.
     const hasDetails = isFolder ? isRepo : selectedPath != null
-    const overflow: MenuProps["items"] = [
-        // Label only — the raw uuid under it made every item two lines tall and stretched the menu to
-        // the width of a uuid; the value goes to the clipboard, which is the whole point of the item.
-        ...ids.map((id) => ({
-            key: id.key,
-            label: `Copy ${id.label}`,
-            icon: <Copy size={14} />,
-        })),
-        // Only a separator when there IS something above it — a host without drive ids (the ids
-        // resolve async, and the local-file drive never has any) otherwise opens on a stray rule.
-        ...(ids.length ? [{type: "divider" as const}] : []),
-        {
-            key: "download-all",
-            label: downloadingAll ? "Preparing download…" : "Download all",
-            icon: <DownloadSimple size={14} />,
-            disabled: !onDownloadAll || downloadingAll,
-        },
-    ]
     return (
         // Docked-pane variant: pin the header to the session bar's exact height + border token so
         // its bottom border CONTINUES the bar's line across the divider (offset heights read as

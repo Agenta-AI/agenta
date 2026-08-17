@@ -28,13 +28,11 @@ import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {Input, Spinner} from "@agenta/ui/ui"
-import {FlowArrow, GitBranch, Lightning, Tag} from "@phosphor-icons/react"
-// SchemaForm takes a form instance; this one only exists to prefill trigger_config.
-import {useForm} from "@rc-component/form"
 import {HeightCollapse} from "@agenta/ui/components"
+import {Input} from "@agenta/ui/ui"
+// SchemaForm takes a form instance; this one only exists to prefill trigger_config.
 import {CaretDown, SlidersHorizontal} from "@phosphor-icons/react"
+import {useForm} from "@rc-component/form"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {DrawerFooter} from "../../../drawers/shared/DrawerFooter"

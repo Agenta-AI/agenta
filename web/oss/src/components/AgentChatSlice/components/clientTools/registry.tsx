@@ -18,8 +18,6 @@
 import {hasClientToolWidget, registerChatSkin, resolveClientToolWidget} from "@agenta/chat/skin"
 import type {ClientToolMeta, ClientToolWidgetProps} from "@agenta/chat/skin"
 
-import {CLIENT_TOOL_DESCRIPTORS} from "@agenta/shared/clientTools"
-
 import ConnectToolWidget from "./ConnectToolWidget"
 import ElicitationWidget from "./ElicitationWidget"
 

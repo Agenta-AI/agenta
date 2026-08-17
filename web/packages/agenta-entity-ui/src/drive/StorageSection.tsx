@@ -12,9 +12,6 @@ import {useMemo} from "react"
 
 import {isAgentFileUploadsEnabled} from "@agenta/entities/drive"
 import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "@agenta/entities/drive"
-import {driveQuickLookAtomFamily} from "./quickLook"
-import {filesDrawerStagedAtomFamily} from "./SessionFilesDrawer"
-import {useSessionFilesPane} from "./SessionFilesPane"
 import {listArrowKeyDown} from "@agenta/entities/drive"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
 import {humanSize, relativeTime} from "@agenta/entities/drive"
@@ -29,6 +26,9 @@ import {type DriveId} from "./DriveExplorer"
 import {DriveFileRow, DriveRetryButton, SKELETON_ROW_COUNT} from "./DriveFileRow"
 import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
 import {FilesDrawer} from "./FilesDrawer"
+import {driveQuickLookAtomFamily} from "./quickLook"
+import {filesDrawerStagedAtomFamily} from "./SessionFilesDrawer"
+import {useSessionFilesPane} from "./SessionFilesPane"
 
 /** antd `Typography.Text` stand-in: the only prop this module used is `type="secondary"`. */
 const Text = ({

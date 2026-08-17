@@ -4,7 +4,6 @@ import {useThemeMode} from "@agenta/ui/theme"
 import {ConfigProvider, theme} from "antd"
 import {Inter} from "next/font/google"
 
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {
     DARK_TOKEN_OVERRIDES,
     darkComponents,

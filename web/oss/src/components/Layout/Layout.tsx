@@ -1,8 +1,8 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
 import AppMessageContext from "@agenta/ui/app-message"
-import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"

@@ -1,6 +1,5 @@
 "use client"
 
-import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
@@ -27,6 +26,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import dynamic from "next/dynamic"
 
+import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
 import {useChatScopeSessionId} from "@/oss/components/Drives/useChatScopeSessionId"
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"

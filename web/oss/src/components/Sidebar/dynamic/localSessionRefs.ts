@@ -1,8 +1,7 @@
+import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {localSessionRefsAtom, type SessionSidebarRef} from "@agenta/navigation"
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {atom} from "jotai"
-
-import {sessionStatusAtomFamily} from "@agenta/chat/state"
 
 import {
     activeSessionIdAtomFamily,

@@ -1,4 +1,4 @@
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 
 /**
  * Refetch every session-list query, wherever it is nested.
@@ -11,7 +11,7 @@ import {queryClient} from "@agenta/shared/api"
  * sidebar/mobile queries (session-stream, liveness, pins, …) that don't carry the token.
  */
 export function invalidateSessionListQueries(): void {
-    void queryClient.invalidateQueries({
+    void getHostQueryClient().invalidateQueries({
         predicate: (query) => query.queryKey.includes("session-list"),
     })
 }

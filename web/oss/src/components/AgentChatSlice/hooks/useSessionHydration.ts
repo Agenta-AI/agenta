@@ -1,7 +1,7 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
-import {isSessionFresh, sessionStatusAtomFamily} from "@agenta/chat/state"
+import {isSessionFresh} from "@agenta/chat/state"
 import {
     hasWaitingInteraction,
     revalidateSessionRecordsAtom,

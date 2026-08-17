@@ -136,7 +136,6 @@ export const AgentCard = ({
 
     // The card's default open affordance is the playground where there is one; otherwise the
     // overview is the only thing this surface can open.
-    const open = onOpenPlayground ?? onOpenOverview
     const hasMenu = Boolean(onOpenPlayground || onRename || onArchive)
 
     const menu = (

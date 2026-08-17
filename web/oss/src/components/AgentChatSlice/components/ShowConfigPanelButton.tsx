@@ -2,11 +2,10 @@
  * "Show configuration" trigger — reveals the config panel after it was collapsed via the config
  * header's collapse button. Only rendered while collapsed (see AgentChatPanel).
  */
+import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import {CaretDoubleRight} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useSetAtom} from "jotai"
-
-import {configPanelCollapsedAtom} from "@agenta/chat/state"
 
 export default function ShowConfigPanelButton() {
     const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)

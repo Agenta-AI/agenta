@@ -4,6 +4,7 @@ import type {
     SubscriptionDrawerState,
 } from "@agenta/entities/gatewayTrigger"
 import type {SessionRowVm} from "@agenta/sessions/row"
+
 import {
     isSessionAutomationAction,
     OPEN_SESSION_AUTOMATION_ACTION,

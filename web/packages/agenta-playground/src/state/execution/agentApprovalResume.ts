@@ -60,7 +60,6 @@ const isToolPart = (part: ToolPartLike): boolean => {
 const isRespondedToolPart = (part: ToolPartLike): boolean =>
     isToolPart(part) && part.state === "approval-responded"
 
-
 const toolPartName = (part: ToolPartLike): string =>
     typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
 

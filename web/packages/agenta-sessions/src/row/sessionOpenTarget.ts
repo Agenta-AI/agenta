@@ -1,8 +1,8 @@
 import type {SessionStream} from "@agenta/entities/session"
-import {isValidUUID} from "@agenta/shared/utils"
-import {sessionAgentId} from "./sessionAgent"
 
 import type {PendingSessionOpen} from "../state/pendingSessionOpen"
+
+import {sessionAgentId} from "./sessionAgent"
 
 /**
  * The open target for a session list row, or `null` when it has none.

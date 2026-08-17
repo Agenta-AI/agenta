@@ -1,7 +1,6 @@
 import {memo, type FC, type PropsWithChildren} from "react"
 
 import {SIDEBAR_COLLAPSED_WIDTH, sidebarCollapsedAtom, sidebarWidthAtom} from "@agenta/navigation"
-import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {useSession} from "@/oss/hooks/useSession"

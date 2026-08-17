@@ -11,19 +11,18 @@
  */
 import {useCallback, useEffect, useMemo} from "react"
 
+import {type DriveId} from "@agenta/entities/drive"
+import {useSessionDriveSummary} from "@agenta/entities/drive"
+import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import dynamic from "next/dynamic"
 
-import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
-
-import {type DriveId} from "@agenta/entities/drive"
 import {DriveExplorerSkeleton} from "./index"
 import {useDriveArtifactId} from "./index"
 import {useDriveGeneration} from "./index"
 import {driveQuickLookAtomFamily} from "./index"
 import {filesDrawerStagedAtomFamily, matchesTail} from "./index"
-import {useSessionDriveSummary} from "@agenta/entities/drive"
 
 // Heavy body — loaded lazily on first open (the split unmounts the pane while collapsed).
 const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.DriveExplorer), {

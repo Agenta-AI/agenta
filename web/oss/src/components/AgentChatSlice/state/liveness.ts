@@ -9,7 +9,7 @@ import {
     type SessionStreamNest,
 } from "@agenta/entities/session"
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -96,7 +96,6 @@ export const sessionDotStatusAtomFamily = atomFamily((sessionId: string) =>
         return "idle"
     }),
 )
-
 
 /**
  * "Is someone ELSE running this session?" — the decision behind the running-elsewhere strip and

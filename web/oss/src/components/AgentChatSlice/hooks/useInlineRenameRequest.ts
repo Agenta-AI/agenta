@@ -1,9 +1,9 @@
 import {useEffect, useRef, type RefObject} from "react"
 
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {useAtomValue} from "jotai"
 
 import type {SessionTabLabelHandle} from "../components/SessionTabLabel"
-import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {useChatScopeKey} from "../state/scope"
 import {matchesSessionRequest, renameSessionRequestAtom} from "../state/uiRequests"
 

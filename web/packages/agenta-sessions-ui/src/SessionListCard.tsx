@@ -73,7 +73,15 @@ export const SessionListCard = ({
 }: SessionListCardProps) => {
     // Only the header badge reads the list here; the shared card list runs the same hook (one
     // query — the args match, so the fetch is shared through the query cache).
-    const list = useSessionCardList({agentId, policy: {origin: origin ? "trigger-only" : "exclude-trigger", expansions: origin ? ["trigger"] : []}, limit, withPinned})
+    const list = useSessionCardList({
+        agentId,
+        policy: {
+            origin: origin ? "trigger-only" : "exclude-trigger",
+            expansions: origin ? ["trigger"] : [],
+        },
+        limit,
+        withPinned,
+    })
     const applyScope = useSetAtom(applySessionScopeAtom)
 
     // Every link out of this card lands on the set the card was showing, not on a default list.
@@ -108,7 +116,10 @@ export const SessionListCard = ({
         >
             <SessionCardList
                 agentId={agentId}
-                policy={{origin: origin ? "trigger-only" : "exclude-trigger", expansions: origin ? ["trigger"] : []}}
+                policy={{
+                    origin: origin ? "trigger-only" : "exclude-trigger",
+                    expansions: origin ? ["trigger"] : [],
+                }}
                 limit={limit}
                 withPinned={withPinned}
                 alwaysShowPin={alwaysShowPin}

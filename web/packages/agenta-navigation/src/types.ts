@@ -1,4 +1,4 @@
-import type {ComponentType, JSX, MouseEvent, ReactElement, ReactNode} from "react"
+import type {ComponentType, MouseEvent, ReactElement, ReactNode} from "react"
 
 import type {PrimitiveAtom, WritableAtom} from "jotai"
 
