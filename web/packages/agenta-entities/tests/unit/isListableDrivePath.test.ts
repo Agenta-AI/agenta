@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {AGENT_FILES_DIR, isListableDrivePath} from "./useSessionDrive"
+import {AGENT_FILES_DIR, isListableDrivePath} from "../../src/drive/useSessionDrive"
 
 describe("isListableDrivePath", () => {
     it("keeps ordinary files and folders", () => {

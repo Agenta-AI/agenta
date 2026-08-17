@@ -2,7 +2,7 @@ import {createElement} from "react"
 
 import {describe, expect, it} from "vitest"
 
-import type {SidebarEntity, SidebarEntityRef, SidebarEntitySource} from "./types"
+import type {SidebarEntity, SidebarEntityRef, SidebarEntitySource} from "@agenta/navigation"
 import {resolveChildren} from "./useSidebarDynamicChildren"
 
 const ref = (id: string, name: string): SidebarEntityRef => ({id, name})

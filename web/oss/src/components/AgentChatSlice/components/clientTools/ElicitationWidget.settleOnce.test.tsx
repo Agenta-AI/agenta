@@ -89,7 +89,7 @@ vi.mock("../../assets/toolDisplay", () => ({
 }))
 
 import ElicitationWidget from "./ElicitationWidget"
-import type {ClientToolMeta, SettleClientTool} from "./types"
+import type {ClientToolMeta, SettleClientTool} from "@agenta/chat/skin"
 
 const META = {
     toolCallId: "call-1",
