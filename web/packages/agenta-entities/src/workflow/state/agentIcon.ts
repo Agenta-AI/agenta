@@ -27,9 +27,14 @@ const STORAGE_KEY = "agenta:agent-icon:1"
  * realistic number of agents rather than a round one. */
 const MAX_ENTRIES = 50
 
-/** localStorage is outside the trust boundary and `path` reaches `dangerouslySetInnerHTML`, so a
- * hand-edited or stale entry is dropped rather than rendered. */
-const isRecord = (value: unknown): value is AgentIconRecord => {
+/**
+ * localStorage is outside the trust boundary and `path` reaches `dangerouslySetInnerHTML`, so a
+ * hand-edited or stale entry is dropped rather than rendered.
+ *
+ * Exported for its own tests only — it is a validator, not a second storage seam, so it does not
+ * widen what the backend swap has to preserve.
+ */
+export const isAgentIconRecord = (value: unknown): value is AgentIconRecord => {
     const r = value as AgentIconRecord | null
     return (
         !!r &&
@@ -54,7 +59,7 @@ export const agentIconAtomFamily = atomFamily((workflowId: string) =>
         (get) => {
             if (!workflowId) return null
             const stored = get(agentIconMapAtom)[workflowId]
-            return isRecord(stored) ? stored : null
+            return isAgentIconRecord(stored) ? stored : null
         },
         (get, set, next: AgentIconRecord | null) => {
             if (!workflowId) return

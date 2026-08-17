@@ -26,14 +26,18 @@ import {
 
 export interface AgentIconPickerProps {
     value: AgentIconSelection | null
-    /** Fires on every pick — the picker has no save button. Colour drags commit on release. */
-    onChange: (next: AgentIconSelection) => void
+    /** Fires on every pick — the picker has no save button. Colour drags commit on release.
+     * `null` clears the choice, putting the agent back on its surface's default chrome. */
+    onChange: (next: AgentIconSelection | null) => void
 }
 
 const COLUMNS = 8
 const CELL = 32
 const GAP = 2
 const GRID_H = 184
+/** The swatch row and the search field that sit between the header and the grid. The loading and
+ * error states derive their height from this so the panel never resizes under the pointer. */
+const CONTROLS_H = 72
 const CONIC = "conic-gradient(#d61010,#faad14,#389e0d,#0e7490,#1668dc,#7c3aed,#d61010)"
 
 const SWATCH_BASE = "size-5 shrink-0 cursor-pointer rounded-full p-0"
@@ -54,10 +58,16 @@ const selectedRing = (color: string): CSSProperties => ({
     outlineOffset: 2,
 })
 
-/** Cached across opens — the module is ~880 KB and its contents never change. */
+/** Cached across opens; the contents never change. A REJECTION is not cached — a chunk that 404s
+ * after a deploy would otherwise leave the picker spinning for the rest of the session. */
 let catalogPromise: Promise<PhosphorCatalogEntry[]> | null = null
 const loadCatalog = () => {
-    catalogPromise ??= import("./catalog.generated").then((mod) => mod.phosphorCatalog)
+    catalogPromise ??= import("./catalog.generated")
+        .then((mod) => mod.phosphorCatalog)
+        .catch((error: unknown) => {
+            catalogPromise = null
+            throw error
+        })
     return catalogPromise
 }
 
@@ -65,12 +75,15 @@ const loadCatalog = () => {
  * Track a pointer across an element, reporting position as 0..1 fractions. The rect is read once at
  * pointerdown — the surface can't move mid-drag, and reading it per move forces a reflow against
  * the re-render each move causes.
+ *
+ * Returns a teardown so the caller can drop a drag still in flight when it unmounts; without it a
+ * popover closed mid-drag still commits on the eventual pointerup.
  */
 const trackDrag = (
     event: PointerEvent<HTMLDivElement>,
     onMove: (x: number, y: number) => void,
     onCommit: () => void,
-) => {
+): (() => void) => {
     const rect = event.currentTarget.getBoundingClientRect()
     const track = (e: {clientX: number; clientY: number}) =>
         onMove(
@@ -78,22 +91,29 @@ const trackDrag = (
             clamp((e.clientY - rect.top) / rect.height, 0, 1),
         )
 
-    track(event)
-    const stop = () => {
+    const detach = () => {
         window.removeEventListener("pointermove", track)
         window.removeEventListener("pointerup", stop)
+    }
+    const stop = () => {
+        detach()
         onCommit()
     }
+
+    track(event)
     window.addEventListener("pointermove", track)
     window.addEventListener("pointerup", stop)
+    return detach
 }
 
 const ColorSwatchRow = ({
-    color,
+    selected,
     onPick,
     onCustom,
 }: {
-    color: string
+    /** The stored colour, or null when the agent has no choice yet — an uncustomised agent shows no
+     * ring, so clicking the first swatch is a real change rather than a no-op that shifts dark mode. */
+    selected: string | null
     onPick: (hex: string) => void
     onCustom: () => void
 }) => (
@@ -109,7 +129,9 @@ const ColorSwatchRow = ({
                 className={SWATCH_BUTTON}
                 style={{
                     background: solid,
-                    ...(solid.toLowerCase() === color.toLowerCase() ? selectedRing(solid) : null),
+                    ...(solid.toLowerCase() === selected?.toLowerCase()
+                        ? selectedRing(solid)
+                        : null),
                 }}
             />
         ))}
@@ -125,24 +147,64 @@ const ColorSwatchRow = ({
     </div>
 )
 
+/**
+ * Hue/saturation/value is the state here and the hex is its output — NOT the other way round.
+ * Deriving HSV from the hex each render loses the hue at both achromatic edges: any drag to white
+ * or black collapses to `h: 0`, and dragging back would give reds instead of the colour the user
+ * came from. The exact seed hex is kept alongside so opening the panel cannot round-trip it by a
+ * digit.
+ */
 const CustomColorArea = ({
-    color,
-    hex,
-    onHex,
-    onHexBlur,
+    seed,
     onPreview,
-    onCommit,
+    onCommitDrag,
+    onCommitColor,
     onBack,
 }: {
-    color: string
-    hex: string
-    onHex: (next: string) => void
-    onHexBlur: () => void
+    seed: string
     onPreview: (hex: string) => void
-    onCommit: () => void
+    onCommitDrag: () => void
+    onCommitColor: (hex: string) => void
     onBack: () => void
 }) => {
-    const hsv = useMemo(() => hexToHsv(color), [color])
+    const [{hsv, hex}, setColor] = useState(() => ({
+        hsv: hexToHsv(seed),
+        hex: seed.toUpperCase(),
+    }))
+    /** Only set while the user is mid-edit — an override, not a mirror of `hex`. */
+    const [draft, setDraft] = useState<string | null>(null)
+
+    /** A drag still in flight when the popover closes must not commit. */
+    const detachRef = useRef<(() => void) | null>(null)
+    useEffect(() => () => detachRef.current?.(), [])
+
+    const startDrag = (
+        event: PointerEvent<HTMLDivElement>,
+        toHsv: (x: number, y: number) => {h: number; s: number; v: number},
+    ) => {
+        detachRef.current = trackDrag(
+            event,
+            (x, y) => {
+                const next = toHsv(x, y)
+                const nextHex = hsvToHex(next.h, next.s, next.v).toUpperCase()
+                setColor({hsv: next, hex: nextHex})
+                onPreview(nextHex)
+            },
+            () => {
+                detachRef.current = null
+                onCommitDrag()
+            },
+        )
+    }
+
+    const onHexInput = (next: string) => {
+        setDraft(next)
+        if (!isHexColor(next)) return
+        const normalized = normalizeHex(next).toUpperCase()
+        setColor({hsv: hexToHsv(normalized), hex: normalized})
+        onCommitColor(normalized)
+    }
+
     const hueCss = `hsl(${Math.round(hsv.h)},100%,50%)`
 
     return (
@@ -152,9 +214,9 @@ const CustomColorArea = ({
                     Hex
                 </span>
                 <input
-                    value={hex}
-                    onChange={(e) => onHex(e.target.value)}
-                    onBlur={onHexBlur}
+                    value={draft ?? hex}
+                    onChange={(e) => onHexInput(e.target.value)}
+                    onBlur={() => setDraft(null)}
                     spellCheck={false}
                     aria-label="Hex colour"
                     className="min-w-0 flex-1 border-0 bg-transparent p-0 py-1 font-mono text-[12px] text-colorText outline-none"
@@ -172,9 +234,7 @@ const CustomColorArea = ({
             </div>
             <div className="flex items-stretch gap-2.5 px-3 pb-3">
                 <div
-                    onPointerDown={(e) =>
-                        trackDrag(e, (x, y) => onPreview(hsvToHex(hsv.h, x, 1 - y)), onCommit)
-                    }
+                    onPointerDown={(e) => startDrag(e, (x, y) => ({h: hsv.h, s: x, v: 1 - y}))}
                     className="relative h-[104px] min-w-0 flex-1 cursor-crosshair rounded-lg"
                     style={{
                         backgroundImage: `linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,${hueCss})`,
@@ -187,11 +247,13 @@ const CustomColorArea = ({
                 </div>
                 <div
                     onPointerDown={(e) =>
-                        trackDrag(
-                            e,
-                            (_x, y) => onPreview(hsvToHex(y * 360, hsv.s || 0.8, hsv.v || 0.6)),
-                            onCommit,
-                        )
+                        // A grey has no hue to drag along, so give the strip something to move
+                        // through rather than emitting greys all the way down.
+                        startDrag(e, (_x, y) => ({
+                            h: y * 360,
+                            s: hsv.s || 0.8,
+                            v: hsv.v || 0.6,
+                        }))
                     }
                     className="relative w-2.5 shrink-0 cursor-pointer rounded-full"
                     style={{
@@ -271,11 +333,11 @@ const IconGrid = ({
 
 export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
     const [catalog, setCatalog] = useState<PhosphorCatalogEntry[] | null>(null)
+    const [failed, setFailed] = useState(false)
+    const [attempt, setAttempt] = useState(0)
     const [query, setQuery] = useState("")
     const [search, setSearch] = useState("")
     const [custom, setCustom] = useState(false)
-    /** Only set while the user is mid-edit — an override, not a mirror of `color`. */
-    const [hexDraft, setHexDraft] = useState<string | null>(null)
     /** A colour drag previews here and commits on release, so one drag is one localStorage write.
      * The ref carries the live value into the pointerup handler, which closes over the render the
      * drag STARTED in and would otherwise still see `null`. */
@@ -287,20 +349,26 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
 
     useEffect(() => {
         let alive = true
-        loadCatalog().then((entries) => {
-            if (alive) setCatalog(entries)
-        })
+        setFailed(false)
+        loadCatalog().then(
+            (entries) => {
+                if (alive) setCatalog(entries)
+            },
+            () => {
+                if (alive) setFailed(true)
+            },
+        )
         return () => {
             alive = false
         }
-    }, [])
+    }, [attempt])
 
     useEffect(() => {
         const id = setTimeout(() => setSearch(query.trim().toLowerCase()), 150)
         return () => clearTimeout(id)
     }, [query])
 
-    /** One string per icon, built once, so a keystroke is 1512 `includes` and no allocation. */
+    /** One string per icon, built once, so a keystroke is one `includes` per icon and no allocation. */
     const haystacks = useMemo(
         () =>
             catalog?.map(
@@ -334,11 +402,6 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
         if (hex) commit({color: hex})
     }
 
-    const onHexInput = (next: string) => {
-        setHexDraft(next)
-        if (isHexColor(next)) commit({color: normalizeHex(next).toUpperCase()})
-    }
-
     const chipStyle = agentIconChipStyle(color)
 
     return (
@@ -357,29 +420,58 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                     <span className="text-[13px] font-semibold text-colorText">Agent icon</span>
                     <span className="text-[11px] text-colorTextTertiary">Saves as you pick</span>
                 </span>
+                {value ? (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setCustom(false)
+                            onChange(null)
+                        }}
+                        className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[12px] text-colorTextTertiary hover:text-colorText"
+                    >
+                        Reset
+                    </button>
+                ) : null}
             </div>
 
             {/* Everything below the header needs the catalog: a colour picked before it lands would
                 be stored against an empty glyph path. */}
-            {!catalog ? (
-                <div className="flex h-[248px] items-center justify-center">
+            {failed ? (
+                <div
+                    className="flex flex-col items-center justify-center gap-2 px-6 text-center"
+                    style={{height: GRID_H + CONTROLS_H}}
+                >
+                    <span className="text-[13px] font-medium text-colorText">
+                        Could not load icons
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setAttempt((n) => n + 1)}
+                        className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-colorPrimary"
+                    >
+                        Try again
+                    </button>
+                </div>
+            ) : !catalog ? (
+                <div
+                    className="flex items-center justify-center"
+                    style={{height: GRID_H + CONTROLS_H}}
+                >
                     <Spinner />
                 </div>
             ) : (
                 <>
                     {custom ? (
                         <CustomColorArea
-                            color={color}
-                            hex={hexDraft ?? color.toUpperCase()}
-                            onHex={onHexInput}
-                            onHexBlur={() => setHexDraft(null)}
+                            seed={color}
                             onPreview={previewColor}
-                            onCommit={commitPreview}
+                            onCommitDrag={commitPreview}
+                            onCommitColor={(hex) => commit({color: hex})}
                             onBack={() => setCustom(false)}
                         />
                     ) : (
                         <ColorSwatchRow
-                            color={color}
+                            selected={preview ?? value?.color ?? null}
                             onPick={(hex) => commit({color: hex})}
                             onCustom={() => setCustom(true)}
                         />
@@ -410,7 +502,7 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                     ) : (
                         <IconGrid
                             entries={filtered}
-                            selectedName={iconName}
+                            selectedName={value ? iconName : ""}
                             chipStyle={chipStyle}
                             onPick={(entry) => commit({icon: entry.name, path: entry.path})}
                         />

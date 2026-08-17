@@ -20,7 +20,14 @@ export const AGENT_ICON_COLORS: readonly (readonly [solid: string, tint: string]
     ["#7C3AED", "#F1EBFD"],
 ] as const
 
-/** The colour the sidebar agent chip already uses, so an uncustomised agent doesn't shift. */
+/**
+ * What the picker PREVIEWS for an agent that has no choice yet — the light agent-chip pair, so the
+ * preview reads as "this is your agent" rather than as an arbitrary colour.
+ *
+ * It is not a stored default and no swatch renders as selected until a record exists: the sidebar's
+ * dark agent chip is olive, not this navy, so treating it as "already chosen" would let a click on
+ * the seemingly-selected swatch change the row in dark mode while looking like a no-op.
+ */
 export const DEFAULT_AGENT_ICON = {icon: "robot", color: "#113955"} as const
 
 export const clamp = (n: number, min: number, max: number): number =>

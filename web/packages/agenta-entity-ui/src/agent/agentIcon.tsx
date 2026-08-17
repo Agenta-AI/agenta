@@ -1,4 +1,4 @@
-import {useMemo, type ReactNode} from "react"
+import {type ReactNode} from "react"
 
 import {agentIconAtomFamily, type AgentIconRecord} from "@agenta/entities/workflow"
 import {
@@ -31,12 +31,9 @@ export function useAgentIconChrome(
     workflowId: string | null | undefined,
     options: AgentIconChromeOptions,
 ): AgentIconChrome {
-    const record = useAgentIconRecord(workflowId)
-    const {size, fallbackGlyph, fallbackClassName, bare} = options
-    return useMemo(
-        () => agentIconChrome(record, {size, fallbackGlyph, fallbackClassName, bare}),
-        [record, size, fallbackGlyph, fallbackClassName, bare],
-    )
+    // Not memoised: `fallbackGlyph` is a freshly-created element at most call sites, so a dependency
+    // array containing it never compares equal and the merge runs every render anyway.
+    return agentIconChrome(useAgentIconRecord(workflowId), options)
 }
 
 export interface AgentGlyphProps {

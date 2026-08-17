@@ -8,7 +8,7 @@ export interface AgentIconSelection {
     /** Kebab-case Phosphor name. */
     icon: string
     color: string
-    /** Cached so a cold render never waits on the ~880 KB catalog chunk. */
+    /** Cached so a cold render never waits on the catalog chunk. */
     path: string
 }
 
@@ -71,6 +71,9 @@ export interface AgentIconChrome {
     glyph: ReactNode
     className: string
     style?: CSSProperties
+    /** Whether this came from a stored choice. Ask this, never `!!style` — a fallback is free to
+     * grow a style of its own without meaning "the user picked something". */
+    customised: boolean
 }
 
 /**
@@ -88,5 +91,6 @@ export const agentIconChrome = (
               glyph: <AgentIcon path={record.path} size={size} />,
               className: bare ? AGENT_ICON_TEXT_CLASS : AGENT_ICON_CHIP_CLASS,
               style: agentIconChipStyle(record.color),
+              customised: true,
           }
-        : {glyph: fallbackGlyph, className: fallbackClassName}
+        : {glyph: fallbackGlyph, className: fallbackClassName, customised: false}

@@ -31,6 +31,10 @@ const WORKFLOW_DISPLAY_META: Record<
     },
 }
 
+/** The one place the rail's two glyph sizes are decided — the view sizes its fallback icon with it
+ * and the parent sizes a custom glyph with it, so the two can never drift apart. */
+const glyphSizeFor = (showDetails?: boolean): number => (showDetails === false ? 14 : 17)
+
 interface WorkflowIdentityViewProps {
     displayType: WorkflowDisplayType
     name: string
@@ -49,7 +53,6 @@ const WorkflowIdentityView = ({
     chrome,
 }: WorkflowIdentityViewProps) => {
     const {Icon, className, label} = WORKFLOW_DISPLAY_META[displayType]
-    const glyphSize = showDetails ? 17 : 14
 
     return (
         <div
@@ -66,7 +69,7 @@ const WorkflowIdentityView = ({
                 )}
                 style={chrome?.style}
             >
-                {chrome?.glyph ?? <Icon size={glyphSize} />}
+                {chrome?.glyph ?? <Icon size={glyphSizeFor(showDetails)} />}
             </span>
             <div
                 className={clsx(
@@ -94,7 +97,7 @@ const AppWorkflowIdentity = ({
     // Only agents can carry an icon, and a null id collapses every other row onto one shared atom
     // instead of giving each its own subscription.
     const chrome = useAgentIconChrome(isAgent ? workflowId : null, {
-        size: props.showDetails === false ? 14 : 17,
+        size: glyphSizeFor(props.showDetails),
         fallbackGlyph: null,
     })
 
@@ -102,7 +105,7 @@ const AppWorkflowIdentity = ({
         <WorkflowIdentityView
             {...props}
             displayType={isAgent ? "agent" : "prompt"}
-            chrome={chrome.style ? chrome : undefined}
+            chrome={chrome.customised ? chrome : undefined}
         />
     )
 }
