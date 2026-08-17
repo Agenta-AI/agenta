@@ -257,8 +257,13 @@ class SlackAdapter(ChannelAdapterInterface):
 
         text = event.get("text") or ""
         agent, command, _arg = extract_sigils(text)
-        thread_ts = event.get("thread_ts")
         event_ts = event.get("ts") or ""
+        # A top-level message carries no thread_ts; per Slack's own threading
+        # model it roots a thread keyed by its own ts. Without this fallback
+        # the THREAD key composition raises ChannelLocatorIncomplete and every
+        # non-threaded channel message dies in dispatch (and the reply could
+        # not thread under the message it answers anyway).
+        thread_ts = event.get("thread_ts") or event_ts or None
 
         locator = build_locator(team=team_id, channel=channel_id, thread_ts=thread_ts)
 

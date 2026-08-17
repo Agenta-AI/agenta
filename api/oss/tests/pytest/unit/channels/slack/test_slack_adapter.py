@@ -361,7 +361,14 @@ async def test_parse_event_classifies_each_container_kind(event_extra, expected)
     assert parsed.space_kind == expected
 
 
-async def test_threaded_message_and_channel_message_resolve_different_units():
+async def test_a_top_level_message_and_replies_threaded_under_it_resolve_one_unit():
+    """Slack's threading model: a top-level message roots the thread its
+    replies live in — a reply's thread_ts IS the parent's ts. The previous
+    expectation (no thread_ts on a top-level message) was a shape the THREAD
+    key composition could not consume anyway: the field is declared required,
+    so it raised ChannelLocatorIncomplete and every non-threaded channel
+    message died in dispatch."""
+
     adapter = SlackAdapter()
 
     threaded = await adapter.parse_event(
@@ -375,12 +382,12 @@ async def test_threaded_message_and_channel_message_resolve_different_units():
             }
         )
     )
-    untethered = await adapter.parse_event(
+    parent = await adapter.parse_event(
         body=_event_callback({"channel": "C1", "user": "U1", "text": "hi", "ts": "1.1"})
     )
 
     assert threaded.external_locator["thread_ts"] == "1.1"
-    assert "thread_ts" not in untethered.external_locator
+    assert parent.external_locator["thread_ts"] == "1.1"
 
 
 async def test_two_distinct_threads_compose_to_distinct_external_keys():
@@ -964,3 +971,39 @@ async def test_revoke_installation_still_returns_a_notice_if_slack_rejects_the_c
     notice = await adapter.revoke_installation(connection=_hosted_connection())
 
     assert notice is not None
+
+
+async def test_parse_event_top_level_message_roots_its_own_thread():
+    """A top-level message carries no thread_ts. Slack's own threading model
+    keys the thread it starts by the message's own ts — without that fallback
+    the THREAD key composition raised ChannelLocatorIncomplete and every
+    non-threaded channel message died in dispatch (and the reply could not
+    thread under the message it answers)."""
+
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {"channel": "C1", "user": "U1", "text": "hello", "ts": "42.1"}
+    )
+
+    event = await adapter.parse_event(body=body)
+
+    assert event is not None
+    assert event.external_locator["thread_ts"] == "42.1"
+
+
+async def test_parse_event_threaded_reply_keeps_the_parent_thread_ts():
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "channel": "C1",
+            "user": "U1",
+            "text": "reply",
+            "ts": "43.9",
+            "thread_ts": "42.1",
+        }
+    )
+
+    event = await adapter.parse_event(body=body)
+
+    assert event is not None
+    assert event.external_locator["thread_ts"] == "42.1"
