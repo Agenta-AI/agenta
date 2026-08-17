@@ -9,7 +9,7 @@ import {useSetAtom} from "jotai"
 
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 
-import {createSessionAutomationActions} from "../assets/sessionAutomationActions"
+import {createSessionAutomationActions} from "@agenta/sessions-ui"
 
 export function useSessionAutomationActions() {
     const {hasPermission} = useProjectPermissions()

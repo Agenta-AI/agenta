@@ -9,7 +9,7 @@ import {
     OPEN_SESSION_AUTOMATION_ACTION,
     sessionAutomationMenuEntries,
     VIEW_SESSION_DELIVERY_ACTION,
-} from "@agenta/sessions-ui"
+} from "./automationMenu"
 
 export interface SessionAutomationDrawerOpeners {
     openSchedule: (state: ScheduleDrawerState) => void

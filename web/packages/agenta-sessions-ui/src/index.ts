@@ -55,3 +55,7 @@ export {
     type SessionLocalCache,
     type UseSessionActionsOptions,
 } from "./useSessionActions"
+export {
+    createSessionAutomationActions,
+    type SessionAutomationDrawerOpeners,
+} from "./sessionAutomationActions"
