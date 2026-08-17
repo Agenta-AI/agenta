@@ -2173,6 +2173,265 @@
   rather than editing `service.py`, which it does not own — the right call. The
   spec is the thing that was stale, not the implementation.
 
+### F69. Two migrations claim revision oss000000021, so the branch cannot migrate any v0.112.1 database
+
+- ID: `F69`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Deployability`
+- Summary: The branch's `add_channels` migration and the release's
+  `add_session_streams_references` both carry revision id `oss000000021` (the
+  collision arrived with the v0.112.1 merge). Alembic stops with "multiple head
+  revisions" and the API never starts. Every fresh deployment of the branch fails
+  before the first request.
+- Evidence: the first bring-up of the CU-C stack; alembic container exit 1 with
+  `Multiple head revisions are present`.
+- Files: `api/oss/databases/postgres/migrations/core_oss/versions/`
+- Suggested Fix: PR #6070 renumbers `add_channels` to `oss000000022`. A dev
+  database that already applied the old id needs its `alembic_version_oss` row
+  bumped by hand.
+
+### F70. The connection create form cannot succeed, and every failure reads "Connection already exists"
+
+- ID: `F70`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `channel_connections.slug` is NOT NULL, the web create form sends no
+  slug, and the service derives none. Every UI create dies on the insert. The
+  IntegrityError fallback in `_connection_conflict` labels every unrecognized
+  database error "Connection already exists" (409, `conflict: null`), which points
+  the operator at a duplicate that does not exist. Each failed attempt also leaks
+  one orphaned CHANNEL_SECRET row, because the credential write commits before the
+  connection insert fails.
+- Evidence: five consecutive 409s on the CU-C stack with verified Slack
+  credentials; postgres log shows `null value in column "slug" ... violates
+  not-null constraint`; five orphaned CHANNEL_SECRET rows in `secrets`.
+- Files: `api/oss/src/core/channels/service.py` (create_connection,
+  `_connection_conflict`), `web/.../Channels/components/ConnectionFormDrawer`
+- Suggested Fix: derive a slug when the caller sends none (hotfix deployed on the
+  CU-C stack: `f"{channel}-{uuid4().hex[:8]}"`). Decide the naming (workspace
+  name?), make the 409 fallback name the real constraint, and clean up or reuse
+  the orphaned secret on retry.
+
+### F71. Slack's URL-verification handshake is not implemented, so no events URL can ever be registered
+
+- ID: `F71`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Slack registers an events URL only after posting a `url_verification`
+  challenge that the endpoint must echo. Nothing in the tree handles it. The
+  handshake payload carries no workspace identity, so the ingress treats it as an
+  unverifiable event and answers 401. Slack shows "URL isn't verified" forever and
+  delivers nothing, which blocks the whole wave-6 exit condition.
+- Evidence: repeated 401s on `/channels/slack/events/` during setup on the CU-C
+  stack; `grep -r url_verification` finds no handler.
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py`
+- Suggested Fix: the CU-C hotfix echoes the challenge before the normal ingest
+  path (shape-strict, unsigned events still 401). Decide whether the echo should
+  attempt signature verification against active Slack connections, and add a test.
+
+### F72. Every top-level channel message died in dispatch on a missing thread_ts
+
+- ID: `F72`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Slack puts `thread_ts` only on replies inside a thread. The THREAD key
+  declares the field required, so a plain channel mention raised
+  `ChannelLocatorIncomplete` in the dispatch worker. The bot answered inside
+  existing threads and silently ignored everything else.
+- Evidence: worker-queues traceback on the CU-C stack: `Locator for slack is
+  missing declared thread key field: thread_ts`.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py` (parse_event)
+- Suggested Fix: PR #6071. A top-level message roots its thread under its own ts,
+  which is Slack's own model; the reply then threads under the mention.
+
+### F73. Agents registered through the UI reference their workflow under a key nothing resolves
+
+- ID: `F73`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `AgentFormDrawer` writes `references: {main: {id}}`. The workflows
+  service resolves only the workflow/application/evaluator families, so the
+  reference hydrates nothing and every run fails with "Workflow revision has no
+  runnable service URL". The suite never sees it because every fixture writes
+  `workflow_revision` directly. No agent registered through the UI has ever run.
+- Evidence: inbox dispatcher error on the CU-C stack; the roster row carried
+  `{"main": {...}}` with a workflow_variants id.
+- Files: `web/oss/src/components/pages/settings/Channels/components/AgentFormDrawer.tsx`
+- Suggested Fix: the CU-C hotfix writes `workflow_variant`. The real fix is an
+  entity picker that knows which grain it holds, plus a repair pass for rows
+  already written with `main`.
+
+### F74. The first post of any thread went out with an empty locator
+
+- ID: `F74`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `_send`'s no-receipt branch posted with `locator={}` although the
+  thread row holds the full target. The Slack adapter needs `locator["channel"]`,
+  so the first answer on any thread raised KeyError and was never delivered. Same
+  class as F63: a read with no writer, alive because fixtures seed receipts.
+- Evidence: worker-streams traceback `KeyError: 'channel'` on the CU-C stack; the
+  playground showed the answer while Slack showed the indicator forever.
+- Files: `api/oss/src/tasks/asyncio/channels/outbox.py` (_send)
+- Suggested Fix: PR #6072 passes the thread and uses its locator for the first post.
+
+### F75. A parked turn's approval card does not reach Slack usably
+
+- ID: `F75`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Three stacked defects on the approval surface. (a) When a turn parks
+  on an approval, the card often never posts; the indicator sits on "Working…"
+  until the approval expires (600s) and the run dies. (b) When the card posts, it
+  is bare: `_render_content` handles only `text` and `button` parts and silently
+  drops the `card` part carrying the title, tool, and arguments. (c) The card can
+  land top-level in the channel rather than in its thread. Until this works, any
+  agent whose policy can park is unusable over Slack.
+- Evidence: live session `9ea17f78…` on the CU-C stack expired on
+  `approval-ttl-expire`; a later card rendered as two naked buttons in the
+  channel.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py` (_render_content),
+  `api/oss/src/core/channels/render/render.py`, outbox turn-event flow
+- Suggested Fix: render the card part as a section block; post through the
+  thread locator; make the paused-turn event reach the outbox reliably.
+
+### F76. A consumed approval choice is never cleared, so every click replays as a new run
+
+- ID: `F76`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `resolve` reads `thread.data.pending_choice`, resolves the token, and
+  never clears it. Every further click on the same card resolves again and starts
+  a fresh turn whose input is the label ("Approve"). The operator clicked three
+  times and got three runs; the clicks even entered the transcript as text.
+- Evidence: live CU-C session transcript containing
+  `1421approveapproveapprove`; one outbox item per click.
+- Files: `api/oss/src/core/channels/service.py` (resolve, ~line 1340)
+- Suggested Fix: clear or version the pending choice when a token resolves;
+  ignore a token that was already consumed.
+
+### F77. A failed delivery is dropped, and the answer is lost forever
+
+- ID: `F77`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Robustness`
+- Summary: When the Slack API rejects a post or edit, `process_batch` logs and
+  drops the stream message. No retry, no dead-letter, no payload capture. One
+  live answer died on an `invalid_blocks` rejection that an identical replay
+  passed two minutes later; that answer is unrecoverable and the message shows
+  "Working…" forever.
+- Evidence: worker-streams error at 19:36:09 on the CU-C stack
+  (turn `bf28fa0d…`); the same chat.update succeeded on manual replay.
+- Files: `api/oss/src/tasks/asyncio/channels/outbox.py` (process_batch)
+- Suggested Fix: retry with backoff, log the rejected payload verbatim, and
+  park undeliverable items in a visible state instead of CREATED-forever.
+
+### F78. Turn-ended events can be lost around worker restarts
+
+- ID: `F78`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P2`
+- Confidence: `medium`
+- Status: `open`
+- Category: `Robustness`
+- Summary: Two live turns completed their runs, but their turn-ended events were
+  never processed after a worker-streams restart window; the indicators stayed
+  "Working…" and a later restart did not reclaim the pending stream messages.
+  Whether the consumer group ACKs before handling, or the pending list is never
+  reclaimed, needs a look.
+- Evidence: turns at 19:36:24 and 19:43 on the CU-C stack with `end_time` set on
+  the trace but no outbox edit and no error line.
+- Files: `api/oss/src/tasks/asyncio/shared/consumer.py`, channels outbox worker
+- Suggested Fix: verify ACK-after-handle, and reclaim pending entries on start.
+
+### F79. The ingress drops space_kind, so every space lands as `group`
+
+- ID: `F79`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The adapter classifies the space (`classify_space_kind`), and the
+  ingress then omits the field from `ChannelInboxEventCreate`, so `resolve`
+  falls back to GROUP for every space. A public channel stored as `group` means
+  a kind-level grant ("allow in all channels") never matches. Instance grants
+  and the default agent mask it, which is why CU-C testing still worked.
+- Evidence: a public Slack channel's space row with `kind=group` on the CU-C
+  stack.
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py` (_ingest)
+- Suggested Fix: pass `inbound.space_kind` through to the event create, plus a
+  seam test.
+
+### F80. Backfill concatenates channel history into one unattributed string
+
+- ID: `F80`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: With backfill on, a new thread's first turn receives the whole
+  channel history as one string with no separators and no speaker attribution.
+  The model read "remember this number 1421approveapproveapprove" as one
+  utterance, and five parked turns each re-answered the same blob, producing a
+  burst of near-identical replies.
+- Evidence: inbox record on the CU-C stack whose text is every prior message
+  joined with no delimiter; the live session transcript.
+- Files: channels compose path (`compose_input`) and the backfill writer
+- Suggested Fix: one content block per message with speaker attribution, or a
+  clearly delimited transcript format.
+
+### F81. First-ever execution of the written suites: four failures, one fixture clash
+
+- ID: `F81`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Tests`
+- Summary: The 83 written-but-never-run channels tests executed for the first
+  time against the CU-C stack. Integration: 61/65. The failures:
+  `_FakeSlackAdapter` lacks `detect_deactivation`, so two ingress-seam tests 500
+  (the fake drifted from the adapter interface, the project's recurring defect
+  shape); the DM exit-condition test ingests but resolves to None; the
+  app-uninstalled test fails signature verification with 401. Acceptance: green
+  where runnable; three tests stay skipped pending live Slack credentials; the
+  differential test errors when it shares a session with the bridge test but
+  passes alone.
+- Evidence: pytest runs on the CU-C stack, 2026-08-14.
+- Files: `api/oss/tests/pytest/integration/channels/`,
+  `api/oss/tests/pytest/acceptance/channels/`
+- Suggested Fix: triage each; start with the fake-adapter drift, since it hides
+  whatever the two 500ing tests were written to prove.
+
 ## Closed Findings
 
 ### [CLOSED] F1. Nothing connected the ingress, the workers, the registry or the configuration router
