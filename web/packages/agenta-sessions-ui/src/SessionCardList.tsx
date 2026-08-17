@@ -21,6 +21,7 @@ import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import {ROW_VARIANTS, SESSION_SPRING} from "./assets/motion"
 import {type SessionMenuEntry} from "./menu"
 import {SessionAgentName} from "./SessionAgentName"
+import {SessionAutomationKind} from "./SessionAutomationKind"
 import {SessionPinButton} from "./SessionPinButton"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 
@@ -86,7 +87,14 @@ const Row = ({
                 }}
                 className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 border-0 bg-transparent p-0 text-left"
             >
-                <span className="w-full truncate text-sm text-colorText">{vm.title}</span>
+                <span className="flex w-full min-w-0 items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                        {vm.title}
+                    </span>
+                    {/* An automation row IS its schedule/subscription — the kind is what tells it
+                        apart from a conversation you started (#5927). Matches SessionRow. */}
+                    {vm.automation ? <SessionAutomationKind kind={vm.automation.kind} /> : null}
+                </span>
                 {/* What actually happened, so deciding whether to reopen a session doesn't mean
                     opening it. Absent when the title is already the message. */}
                 {vm.subtitle ? (
