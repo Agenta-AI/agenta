@@ -1,18 +1,18 @@
 /**
  * generate-phosphor-catalog.ts — emit the agent-icon catalog from @phosphor-icons/core.
  *
- * The agent icon picker lets a user choose any Phosphor icon. Importing the React barrel to
- * do that would defeat tree-shaking (4.8 MB into the entry chunk), and a per-icon dynamic
- * import would emit ~1512 chunks. So we ship the raw `regular`-weight path data instead: one
- * generated module, lazily imported by the picker only.
+ * Emits raw `regular`-weight path data for the curated set in curated-icons.ts. Importing the
+ * Phosphor React barrel instead would put 4.8 MB in the entry chunk, and a per-icon dynamic import
+ * would emit one chunk per icon.
  *
  * Only the `regular` weight is read, which is what enforces the outline-only rule — no other
  * weight exists in the output.
  *
- * NOT committed. `prepare` runs it on every `pnpm install`, the way @agentaai/api-client builds
- * its dist/ — a 12k-line generated file in every diff is not worth the convenience of tracking it.
+ * The output IS committed. It is small enough to review at a glance, and committing it keeps the
+ * build free of a generate step: no `prepare`, and nothing for the Docker images to copy early.
+ * Re-run after editing curated-icons.ts or bumping @phosphor-icons/core.
  *
- * Run: pnpm --filter @agenta/ui generate:icons   (or just `pnpm install`)
+ * Run: pnpm --filter @agenta/ui generate:icons
  */
 import {existsSync, readdirSync, readFileSync, mkdirSync, writeFileSync} from "fs"
 import {createRequire} from "module"
@@ -20,6 +20,8 @@ import {dirname, resolve as pathResolve} from "path"
 import {fileURLToPath} from "url"
 
 import {icons} from "@phosphor-icons/core"
+
+import {CURATED_ICONS} from "./curated-icons"
 
 const HERE = dirname(fileURLToPath(import.meta.url)) // packages/agenta-ui/scripts
 const PKG = pathResolve(HERE, "..") // packages/agenta-ui
@@ -47,19 +49,26 @@ const available = new Set(
         .map((file) => file.slice(0, -".svg".length)),
 )
 
-const missing: string[] = []
-const entries = icons
-    .filter((icon) => {
-        if (available.has(icon.name)) return true
-        missing.push(icon.name)
-        return false
-    })
-    .map((icon) => ({
-        name: icon.name,
-        tags: icon.tags ?? [],
-        categories: (icon.categories ?? []) as string[],
-        path: innerMarkup(readFileSync(pathResolve(ASSETS, `${icon.name}.svg`), "utf8")).trim(),
-    }))
+const byName = new Map(icons.map((icon) => [icon.name, icon]))
+
+// Fail rather than silently shrinking the picker: a Phosphor rename should break the build, not
+// quietly drop an icon someone already chose.
+const unknown = CURATED_ICONS.filter((name) => !byName.has(name) || !available.has(name))
+if (unknown.length) {
+    throw new Error(
+        `curated-icons.ts lists ${unknown.length} name(s) @phosphor-icons/core does not have: ` +
+            `${unknown.join(", ")}`,
+    )
+}
+
+// Curated order, not Phosphor's alphabetical: the picker opens on this list, so the icons someone
+// is most likely to want for an agent belong on the first row.
+const entries = CURATED_ICONS.map((name) => byName.get(name)!).map((icon) => ({
+    name: icon.name,
+    tags: icon.tags ?? [],
+    categories: (icon.categories ?? []) as string[],
+    path: innerMarkup(readFileSync(pathResolve(ASSETS, `${icon.name}.svg`), "utf8")).trim(),
+}))
 
 const body = entries
     .map(
@@ -99,6 +108,7 @@ mkdirSync(dirname(OUT), {recursive: true})
 writeFileSync(OUT, file, "utf8")
 
 const kb = Math.round(Buffer.byteLength(file) / 1024)
-console.log(`wrote ${entries.length} icons (${kb} KB) → ${OUT.replace(PKG + "/", "")}`)
-if (missing.length)
-    console.warn(`skipped ${missing.length} with no regular asset: ${missing.join(", ")}`)
+console.log(
+    `wrote ${entries.length} of ${CURATED_ICONS.length} curated icons (${kb} KB) → ` +
+        OUT.replace(PKG + "/", ""),
+)
