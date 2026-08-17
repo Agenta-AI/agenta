@@ -2,9 +2,9 @@ import {theme} from "antd"
 import type {Config} from "tailwindcss"
 import colors from "tailwindcss/colors"
 
-import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
 import {controlScale} from "./src/styles/theme/controlScale"
 import {shadcnTokens} from "./src/styles/theme/shadcnTokens"
+import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
 const token = theme.getDesignToken()
 
 // Theme-aware colors backed by CSS variables defined in styles/theme-variables.css.
