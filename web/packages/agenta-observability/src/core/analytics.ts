@@ -119,7 +119,8 @@ export function analyticsToDashboard(analytics: AnalyticsResponse, range: string
     return {
         data,
         total_count: totalCount,
-        failure_rate: totalCount ? errorCount / totalCount : 0,
+        // Percentage, not a fraction — every render site formats it with a % suffix (#6019).
+        failure_rate: totalCount ? (errorCount / totalCount) * 100 : 0,
         total_cost: totalCost,
         avg_cost: totalCount ? totalCost / totalCount : 0,
         avg_latency: totalDurationCount ? totalDurationMs / totalDurationCount : 0, // ms

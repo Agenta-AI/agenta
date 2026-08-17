@@ -27,11 +27,8 @@ describe("toolCacheEffect", () => {
         expect(toolCacheEffect("bash")).toBeNull()
     })
 
-    it("routes the same op wrapped by a harness's MCP naming (#5781 under Claude)", () => {
+    it("routes the same op wrapped by a harness's MCP naming (#5781 under Claude/Codex)", () => {
         expect(toolCacheEffect("mcp__agenta-tools__create_schedule")).toBe("trigger-schedules")
-    })
-
-    it("routes the Codex dot form of the same server", () => {
         expect(toolCacheEffect("mcp.agenta-tools.create_schedule")).toBe("trigger-schedules")
     })
 

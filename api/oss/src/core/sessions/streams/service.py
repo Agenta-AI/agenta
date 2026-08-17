@@ -59,6 +59,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamFlags,
     SessionStreamHeaderEdit,
     SessionStreamQuery,
+    SessionStreamReadOptions,
 )
 from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
@@ -66,23 +67,73 @@ from oss.src.core.sessions.streams.types import (
     SessionStreamAlreadyExists,
     SessionTurnInUse,
 )
-from oss.src.core.sessions.dtos import (
-    SESSION_ORIGIN_TAG,
-    SESSION_TRIGGER_ID_TAG,
-    SESSION_TRIGGER_KIND_TAG,
-    SESSION_TRIGGER_NAME_TAG,
-    SessionTriggerRef,
-)
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
+from oss.src.core.sessions.types import SessionReference
 from oss.src.core.shared.dtos import Windowing
 
 log = get_module_logger(__name__)
+
+# Longest server-filled session title. Matches the browser's `AUTO_TITLE_MAX_CHARS`
+# (web/oss/src/components/AgentChatSlice/state/sessions.ts) so the two writers cannot
+# disagree about how long a title from a first message is.
+SESSION_NAME_MAX_CHARS = 60
 
 
 def _validate_session_id(session_id: str) -> None:
     if not _validate_session_id_fn(session_id):
         raise SessionIdInvalid(session_id)
+
+
+def normalize_session_name(name: Optional[str]) -> Optional[str]:
+    """Trim and cap a proposed title. Whitespace-only means "no proposal", not "clear it"."""
+    if not name:
+        return None
+    trimmed = name.strip()
+    if not trimmed:
+        return None
+    return trimmed[:SESSION_NAME_MAX_CHARS]
+
+
+def _first_user_message_text(messages: List[Any]) -> Optional[str]:
+    """Text of the first user message, joining its text parts — the browser's rule."""
+    for message in messages:
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+        content = message.get("content")
+        if content is None:
+            content = message.get("parts")
+        if isinstance(content, str):
+            return content
+        if not isinstance(content, list):
+            return None
+        texts = [
+            part["text"]
+            for part in content
+            if isinstance(part, dict)
+            and part.get("type") == "text"
+            and isinstance(part.get("text"), str)
+        ]
+        return " ".join(texts) if texts else None
+    return None
+
+
+def derive_session_name(inputs: Optional[Dict[str, Any]]) -> Optional[str]:
+    """A title proposal from a turn's inputs, matching the browser's auto-title exactly.
+
+    This backs the browser send path, so it copies the browser's rule rather than the
+    runner's: first user message only, text parts joined with a space. The runner's
+    `proposeSessionName` deliberately differs (skips ahead to the first message that HAS
+    text, joins with no separator). Do not "align" them — fill-once makes them
+    complementary. If a first message carries no text this returns None, the column stays
+    NULL, and the runner's proposal fills it on the next beat.
+    """
+    if not isinstance(inputs, dict):
+        return None
+    messages = inputs.get("messages")
+    if not isinstance(messages, list):
+        return None
+    return normalize_session_name(_first_user_message_text(messages))
 
 
 class SessionStreamsService:
@@ -159,6 +210,22 @@ class SessionStreamsService:
                 state=state,
             )
 
+    async def _publish_changed(self, *, project_id: UUID, session_id: str) -> None:
+        if self._watch is None:
+            return
+        try:
+            await self._watch.changed(
+                project_id=str(project_id),
+                entity="session",
+                id=session_id,
+            )
+        except Exception:
+            log.warning(
+                "[WATCH] session change publish failed",
+                project_id=str(project_id),
+                session_id=session_id,
+            )
+
     async def command(
         self,
         *,
@@ -180,6 +247,9 @@ class SessionStreamsService:
             mode = CommandMode.attach
 
         session_id = request.session_id
+        proposed_name = derive_session_name(
+            request.data.inputs if request.data else None
+        )
 
         if mode == CommandMode.send:
             liveness = await get_session_liveness(
@@ -191,6 +261,7 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
+                name=proposed_name,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -205,6 +276,7 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
+                name=proposed_name,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -337,6 +409,14 @@ class SessionStreamsService:
         project_id: UUID,
         request: SessionHeartbeatRequest,
     ) -> SessionHeartbeatResult:
+        """Refresh the nest, mirror it onto the row, and fill what the row still lacks.
+
+        The beat carries two FILL-ONCE proposals, `name` and `references`. Each is
+        written only where the stored column is NULL, so the "heartbeats don't churn
+        the header" invariant still holds in the form that matters: a beat can give a
+        session its first title, and can never change one. A rename, the browser
+        auto-title and `rename_session` all overwrite, so they always win.
+        """
         _validate_session_id(request.session_id)
 
         # A turn that was already displaced (handover, cancel, steer, kill, sweep) is dead
@@ -554,6 +634,12 @@ class SessionStreamsService:
         # never established, and re-arming them. `None` leaves the column as it is.
         durable_turn_id = request.turn_id if is_current_turn else None
 
+        # Proposals, not edits: written by `create` on a brand-new row and by
+        # `fill_missing` (NULL-guarded) on an existing one, so a beat can title and
+        # attribute a session nothing else will, and can never overwrite a rename.
+        proposed_name = normalize_session_name(request.name)
+        proposed_references = request.references or None
+
         if prior_stream is None:
             try:
                 stream = await self._dao.create(
@@ -563,11 +649,37 @@ class SessionStreamsService:
                         session_id=request.session_id,
                         flags=flags,
                         turn_id=durable_turn_id,
+                        name=proposed_name,
+                        references=proposed_references,
                     ),
                 )
             except SessionStreamAlreadyExists:
                 # `_start_turn` won the first-touch race; fall through and update its row.
                 stream = None
+
+        # The runner re-proposes on EVERY beat, so skip the round-trip once the row already
+        # holds a value. `fill_missing` is NULL-guarded in SQL regardless — this read only
+        # avoids a no-op UPDATE per beat per session, it is not what makes the fill safe.
+        if stream is None and prior_stream is not None:
+            fill_name = proposed_name if prior_stream.name is None else None
+            fill_references = (
+                proposed_references if not prior_stream.references else None
+            )
+            if fill_name or fill_references:
+                await self._dao.fill_missing(
+                    project_id=project_id,
+                    session_id=request.session_id,
+                    name=fill_name,
+                    references=fill_references,
+                )
+        elif stream is None and (proposed_name or proposed_references):
+            # Lost the create race: no row was read, so propose both and let SQL decide.
+            await self._dao.fill_missing(
+                project_id=project_id,
+                session_id=request.session_id,
+                name=proposed_name,
+                references=proposed_references,
+            )
 
         if stream is None:
             stream = await self._dao.update(
@@ -648,8 +760,8 @@ class SessionStreamsService:
     ) -> Optional[SessionStream]:
         """The rename edit: full-PUT {name, description} onto the merged stream row.
 
-        Pure DB write — no Redis nest interaction, no flags/turn_id touched. Off the
-        runner's write path. Creates the row if the session has never heartbeat/run
+        Header-only durable write — no Redis nest interaction, no flags/turn_id touched. Off
+        the runner's write path. Creates the row if the session has never heartbeat/run
         yet (a caller may name a session before its first turn), mirroring
         `_start_turn`'s create-or-update pattern.
         """
@@ -660,74 +772,30 @@ class SessionStreamsService:
             session_id=session_id,
             header=header,
         )
-        if updated is not None:
-            return updated
-        try:
-            return await self._dao.create(
-                project_id=project_id,
-                user_id=user_id,
-                stream=SessionStreamCreate(
+        if updated is None:
+            try:
+                updated = await self._dao.create(
+                    project_id=project_id,
+                    user_id=user_id,
+                    stream=SessionStreamCreate(
+                        session_id=session_id,
+                        name=header.name,
+                        description=header.description,
+                    ),
+                )
+            except SessionStreamAlreadyExists:
+                # A concurrent first touch (heartbeat/rename) won the race; the row now
+                # exists — apply the header edit onto it.
+                updated = await self._dao.update_header(
+                    project_id=project_id,
+                    user_id=user_id,
                     session_id=session_id,
-                    name=header.name,
-                    description=header.description,
-                ),
-            )
-        except SessionStreamAlreadyExists:
-            # A concurrent first touch (heartbeat/rename) won the race; the row now
-            # exists — apply the header edit onto it.
-            return await self._dao.update_header(
-                project_id=project_id,
-                user_id=user_id,
-                session_id=session_id,
-                header=header,
-            )
+                    header=header,
+                )
 
-    async def set_origin(
-        self,
-        *,
-        project_id: UUID,
-        user_id: Optional[UUID],
-        session_id: str,
-        origin: str,
-        trigger: Optional[SessionTriggerRef] = None,
-    ) -> Optional[SessionStream]:
-        """Record WHO started a session, and which automation did, as reserved tags.
-
-        Written before the run, so the row usually does not exist yet — hence the same
-        create-or-update shape as `set_header`. Tags are replaced wholesale, which is safe only
-        because this is the first writer; the trigger identity is stamped HERE rather than by a
-        second writer for exactly that reason.
-        """
-        _validate_session_id(session_id)
-        tags: Dict[str, Any] = {SESSION_ORIGIN_TAG: origin}
-        if trigger is not None:
-            tags[SESSION_TRIGGER_ID_TAG] = trigger.id
-            if trigger.name:
-                tags[SESSION_TRIGGER_NAME_TAG] = trigger.name
-            if trigger.kind:
-                tags[SESSION_TRIGGER_KIND_TAG] = trigger.kind
-        updated = await self._dao.update(
-            project_id=project_id,
-            user_id=user_id,
-            session_id=session_id,
-            stream=SessionStreamEdit(tags=tags),
-        )
         if updated is not None:
-            return updated
-        try:
-            return await self._dao.create(
-                project_id=project_id,
-                user_id=user_id,
-                stream=SessionStreamCreate(session_id=session_id, tags=tags),
-            )
-        except SessionStreamAlreadyExists:
-            # A concurrent first heartbeat won the race; the row exists now.
-            return await self._dao.update(
-                project_id=project_id,
-                user_id=user_id,
-                session_id=session_id,
-                stream=SessionStreamEdit(tags=tags),
-            )
+            await self._publish_changed(project_id=project_id, session_id=session_id)
+        return updated
 
     async def query_streams(
         self,
@@ -737,15 +805,47 @@ class SessionStreamsService:
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
+        read_options: Optional[SessionStreamReadOptions] = None,
     ) -> List[SessionStream]:
         if filter.session_id:
             _validate_session_id(filter.session_id)
-        return await self._dao.query(
+        results = await self._dao.query(
             project_id=project_id,
             filter=filter,
             windowing=windowing,
             session_ids=session_ids,
             exclude_session_ids=exclude_session_ids,
+            read_options=read_options,
+        )
+        streams = []
+        for result in results:
+            stream = result.stream
+            if (
+                read_options
+                and read_options.include_trigger_details
+                and stream.trigger is not None
+            ):
+                stream = stream.model_copy(
+                    update={
+                        "trigger": stream.trigger.model_copy(
+                            update={"name": result.trigger_name}
+                        )
+                    }
+                )
+            streams.append(stream)
+        return streams
+
+    async def query_session_ids_by_references(
+        self,
+        *,
+        project_id: UUID,
+        references: List[SessionReference],
+        limit: int,
+    ) -> List[str]:
+        return await self._dao.query_session_ids_by_references(
+            project_id=project_id,
+            references=references,
+            limit=limit,
         )
 
     async def count_streams(
@@ -822,6 +922,7 @@ class SessionStreamsService:
         project_id: UUID,
         user_id: UUID,
         session_id: str,
+        name: Optional[str] = None,
     ) -> str:
         turn_id = str(uuid.uuid7())
         acquired = await acquire_alive(
@@ -858,6 +959,7 @@ class SessionStreamsService:
                         session_id=session_id,
                         flags=flags,
                         turn_id=turn_id,
+                        name=name,
                     ),
                 )
                 created = True
@@ -894,6 +996,14 @@ class SessionStreamsService:
                     project_id=project_id,
                     user_id=user_id,
                     session_id=session_id,
+                )
+            # Same fill-once proposal the runner's beat makes, so a browser session is
+            # titled even when the client's auto-title effect never runs.
+            if name and updated is not None and updated.name is None:
+                await self._dao.fill_missing(
+                    project_id=project_id,
+                    session_id=session_id,
+                    name=name,
                 )
         await self._publish_lifecycle(
             project_id=project_id,

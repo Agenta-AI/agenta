@@ -11,7 +11,9 @@ import {
 import {AgentChatTransport} from "@agenta/chat/transport"
 import {
     commandSessionStream,
+    invalidateSessionListQueries,
     killSession,
+    recordInteractionAnswerAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -33,6 +35,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
+import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
@@ -128,6 +131,7 @@ export const useAgentChatSession = ({
 
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
@@ -173,8 +177,15 @@ export const useAgentChatSession = ({
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
             void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+            // The first turn is what creates the durable session row; every later one changes its
+            // title/preview/activity. Nothing else tells the session lists, so they discovered a
+            // brand-new session only on their next poll or window refocus.
+            invalidateSessionListQueries()
         },
         onError: (err) => {
+            // A failed stream never dispatches the pending resume, so drop the marker: leaving it
+            // set freezes records adoption for this mount and can resume a stale gate much later.
+            liveGateInteractionRef.current = null
             // Render the error in-chat (the `error` alert below); swallow it here so an
             // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).
             console.warn("[AgentChatPanel] useChat error (rendered in-chat):", err)
@@ -224,23 +235,42 @@ export const useAgentChatSession = ({
     // is by id — so a cast onto the untyped UIMessage tool map is safe.
     const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
         ({toolName, toolCallId, output, errorText}) => {
+            // Set synchronously: it holds off transcript adoption for the whole ordered window.
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
-            if (errorText !== undefined) {
-                addToolOutput({
-                    state: "output-error",
-                    tool: toolName as never,
-                    toolCallId,
-                    errorText,
-                }).catch(ignoreStreamRejection)
-            } else {
-                addToolOutput({
-                    tool: toolName as never,
-                    toolCallId,
-                    output: (output ?? {}) as never,
-                }).catch(ignoreStreamRejection)
-            }
+            // Ordered, not raced — the resume starts a turn whose sweep cancels every `pending`
+            // row, so the answer has to be durable first. Capped inside the helper.
+            void recordAnswerThenResume({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId,
+                        resolution: {
+                            tool_call_id: toolCallId,
+                            tool_name: toolName,
+                            ...(errorText !== undefined
+                                ? {outcome: "error", error: errorText}
+                                : {outcome: "completed", output: output ?? {}}),
+                        },
+                    }),
+                resume: () => {
+                    if (errorText !== undefined) {
+                        addToolOutput({
+                            state: "output-error",
+                            tool: toolName as never,
+                            toolCallId,
+                            errorText,
+                        }).catch(ignoreStreamRejection)
+                    } else {
+                        addToolOutput({
+                            tool: toolName as never,
+                            toolCallId,
+                            output: (output ?? {}) as never,
+                        }).catch(ignoreStreamRejection)
+                    }
+                },
+            })
         },
-        [addToolOutput],
+        [addToolOutput, recordInteractionAnswer, sessionId],
     )
 
     // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
@@ -374,6 +404,9 @@ export const useAgentChatSession = ({
 
     const handleStop = useCallback(() => {
         markStopped()
+        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
+        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
+        liveGateInteractionRef.current = null
         stop() // abort the client stream immediately
         if (!projectId || !sessionId) return
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.

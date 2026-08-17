@@ -339,6 +339,8 @@ export const useSessionHydration = ({
     useSessionRecordsWatch({
         sessionId,
         projectId,
+        // #5919 relay; this surface re-reads records on any interaction change.
+        onInteractionChanged: () => revalidateSessionRecords(sessionId),
         enabled: activeSessionId === sessionId,
         onRecordsChanged: refreshFromRecords,
     })

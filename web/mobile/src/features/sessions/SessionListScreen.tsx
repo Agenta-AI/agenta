@@ -30,7 +30,10 @@ export const SessionListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
-    const list = useSessionsList()
+    const list = useSessionsList({
+        defaultPolicy: {origin: "exclude-trigger", expansions: []},
+        automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+    })
     // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
     // the desktop list bind. Without them a row here offers only the pin.
     const sessionMenu = useSessionRowMenu(`/w/${workspaceId}/p/${projectId}`)

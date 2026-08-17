@@ -45,8 +45,9 @@ const wrapHeader = (columnKey: string, content: React.ReactNode, label?: string)
 
 const STATUS_STYLE_MAP: Record<string, {dotClass: string; textClass: string}> = {
     success: {
-        dotClass: "bg-emerald-500",
-        textClass: "text-emerald-700",
+        // The generated token already carries both modes, so no `dark:` variant.
+        dotClass: "bg-[var(--ag-status-success-text)]",
+        textClass: "text-[var(--ag-status-success-text)]",
     },
     failed: {
         dotClass: "bg-red-500",
@@ -301,6 +302,7 @@ export function buildPreviewColumns<RowType>({
                             <Tooltip title={tooltipLabel} placement="topLeft">
                                 <span className="inline-flex items-center gap-2 text-xs font-medium">
                                     <span
+                                        data-status-dot={statusKey}
                                         className={clsx("h-2 w-2 rounded-full", style.dotClass)}
                                     />
                                     <span className={clsx(style.textClass)}>{displayValue}</span>

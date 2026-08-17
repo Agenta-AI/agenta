@@ -17,7 +17,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from oss.src.core.sessions.dtos import SessionQuery
+from oss.src.core.sessions.dtos import SessionQuery, SessionQueryLifecycle
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
@@ -161,10 +161,18 @@ def _stream(session_id: str) -> SessionStream:
 
 
 class _FakeStreamsService:
-    def __init__(self, streams: Optional[List[SessionStream]] = None):
+    def __init__(
+        self,
+        streams: Optional[List[SessionStream]] = None,
+        reference_session_ids: Optional[List[str]] = None,
+    ):
         self.streams = streams if streams is not None else []
         self.captured: Dict[str, object] = {}
         self.count_captured: Dict[str, object] = {}
+        self.reference_session_ids = reference_session_ids or []
+
+    async def query_session_ids_by_references(self, *, project_id, references, limit):
+        return self.reference_session_ids[:limit]
 
     async def query_streams(
         self,
@@ -174,6 +182,7 @@ class _FakeStreamsService:
         windowing=None,
         session_ids=None,
         exclude_session_ids=None,
+        read_options=None,
     ):
         self.captured = {
             "filter": filter,
@@ -205,6 +214,9 @@ class _FakeTurnsService:
 
     async def query_turns(self, *, project_id, query):
         return [_FakeTurn(sid) for sid in self.session_ids]
+
+    async def query_session_ids_by_references(self, *, project_id, references, limit):
+        return list(self.session_ids)[:limit]
 
     async def latest_turn_per_session(self, *, project_id, session_ids):
         return {}
@@ -257,7 +269,9 @@ async def test_references_and_session_ids_intersect():
 
     await service.query_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[{"id": str(uuid4())}], session_ids=["s2", "s3"]),
+        query=SessionQuery(
+            turn_references=[{"id": str(uuid4())}], session_ids=["s2", "s3"]
+        ),
     )
 
     assert streams.captured["session_ids"] == ["s2"]
@@ -270,7 +284,7 @@ async def test_disjoint_reference_and_id_filters_short_circuit_to_empty():
 
     result = await service.query_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[{"id": str(uuid4())}], session_ids=["s9"]),
+        query=SessionQuery(turn_references=[{"id": str(uuid4())}], session_ids=["s9"]),
     )
 
     assert result == []
@@ -297,13 +311,15 @@ async def test_count_uses_the_same_predicate_as_the_list():
     service = _service(streams, _FakeTurnsService([]))
     query = SessionQuery(
         search="refund",
-        include_ended=True,
         flags=SessionStreamQueryFlags(is_alive=True),
         exclude_session_ids=["pinned-1"],
     )
 
-    await service.query_sessions(project_id=_PROJECT, query=query)
-    total = await service.count_sessions(project_id=_PROJECT, query=query)
+    lifecycle = SessionQueryLifecycle(include_ended=True)
+    await service.query_sessions(project_id=_PROJECT, query=query, lifecycle=lifecycle)
+    total = await service.count_sessions(
+        project_id=_PROJECT, query=query, lifecycle=lifecycle
+    )
 
     assert total == 42
     assert streams.count_captured["filter"] == streams.captured["filter"]
@@ -320,7 +336,7 @@ async def test_count_short_circuits_on_an_empty_intersection():
 
     total = await service.count_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[{"id": str(uuid4())}], session_ids=["s9"]),
+        query=SessionQuery(turn_references=[{"id": str(uuid4())}], session_ids=["s9"]),
     )
 
     assert total == 0

@@ -12,8 +12,16 @@ export {SessionCardList, type SessionCardListProps} from "./SessionCardList"
 export {SessionAgentName} from "./SessionAgentName"
 export {SessionPinButton} from "./SessionPinButton"
 export {SessionStatusIcon} from "./SessionStatusIcon"
+export {SessionAutomationKind} from "./SessionAutomationKind"
 export {type SessionMenuEntry, isMenuDivider} from "./menu"
 export {SessionRowContextMenu, type SessionRowContextMenuProps} from "./SessionRowContextMenu"
+export {
+    isSessionAutomationAction,
+    OPEN_SESSION_AUTOMATION_ACTION,
+    sessionAutomationMenuEntries,
+    VIEW_SESSION_DELIVERY_ACTION,
+    type SessionAutomationActionKey,
+} from "./automationMenu"
 export {
     SessionListSkeleton,
     SessionListEmpty,

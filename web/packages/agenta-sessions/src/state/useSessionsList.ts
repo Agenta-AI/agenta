@@ -1,6 +1,6 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
-import {type SessionStream} from "@agenta/entities/session"
+import {type SessionExpansion, type SessionStream} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -18,11 +18,39 @@ import {
 } from "./filters"
 import {isSessionPinnedAtom, pinnedSessionIdsAtom, toggleSessionPinAtom} from "./pins"
 import {
+    awaitingHiddenRows,
+    selectedSessionListPolicy,
+    sessionGroupRows,
+    shouldLoadMoreForHiddenRows,
+    type SessionListRequestPolicy,
+} from "./sessionListPolicy"
+import {
     pendingBySessionId,
     rowsFromPages,
     useActionableInteractions,
     useSessionList,
+    type SessionListOptions,
 } from "./useSessionList"
+
+/**
+ * A pin is an explicit user request and overrides the surface's origin filter — a pinned
+ * automation session must still show in human (exclude-trigger) mode (P2-8). It also needs the
+ * `trigger` expansion regardless of the surface's own policy: a human-mode surface never
+ * requests it, so a pinned automation row's name would otherwise never resolve and fall back to
+ * "Missing schedule".
+ */
+export function pinnedSessionListArgs(
+    shared: SessionListOptions,
+    pinnedIds: string[],
+): SessionListOptions {
+    return {
+        ...shared,
+        originPolicy: "all",
+        expansions: Array.from(new Set<SessionExpansion>([...shared.expansions, "trigger"])),
+        sessionIds: pinnedIds,
+        enabled: pinnedIds.length > 0,
+    }
+}
 
 export interface SessionGroup {
     key: "pinned" | "recent"
@@ -36,6 +64,8 @@ export interface SessionGroup {
 }
 
 export interface UseSessionsListArgs {
+    defaultPolicy: SessionListRequestPolicy
+    automationPolicy: SessionListRequestPolicy
     /**
      * Route-supplied agent scope (`/apps/[app_id]/sessions`). Overrides the agent filter rather
      * than writing to it, so the project page's filter is never left holding a value the user
@@ -56,7 +86,11 @@ export interface UseSessionsListArgs {
  * Mixing both in one recency-ordered feed meant a busy schedule buried your own sessions, and
  * grouping them client-side made paging back-fill a group above another.
  */
-export const useSessionsList = ({agentId: scopedAgentId}: UseSessionsListArgs = {}) => {
+export const useSessionsList = ({
+    agentId: scopedAgentId,
+    defaultPolicy,
+    automationPolicy,
+}: UseSessionsListArgs) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const search = useAtomValue(sessionSearchAtom)
     const agentFilter = useAtomValue(sessionAgentFilterAtom)
@@ -80,36 +114,32 @@ export const useSessionsList = ({agentId: scopedAgentId}: UseSessionsListArgs = 
         [pendingBySession],
     )
 
+    const policy = selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy)
     const shared = {
+        originPolicy: policy.origin,
+        expansions: policy.expansions,
         search,
         agentId,
         status,
         includeArchived,
-        showTriggered,
         waitingSessionIds: waitingIds,
     }
-    const pinnedQuery = useSessionList({
-        ...shared,
-        sessionIds: pinnedIds,
-        // Default mode is lenient about pins: without this, its `excludeOrigin` filter would drop
-        // a pinned automation run from its own group. The automations mode still narrows, though —
-        // a Pinned group heading a list of automation runs must not hold your own conversations.
-        showTriggered: true,
-        origin: showTriggered ? "trigger" : undefined,
-        enabled: pinnedIds.length > 0,
-    })
+    const pinnedQuery = useSessionList(pinnedSessionListArgs(shared, pinnedIds))
     const listQuery = useSessionList({
         ...shared,
-        origin: showTriggered ? "trigger" : undefined,
         excludeSessionIds: pinnedIds,
     })
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
     // Memoized: `rowsFromPages` mints a new array per call, and an unstable array here would
     // re-derive every row VM (and re-render every memoized row) on every render.
-    const listRows = useMemo(() => rowsFromPages(listQuery.data?.pages), [listQuery.data?.pages])
+    // Which rules each group applies (pins are exempt from all of them) is `sessionGroupRows`.
+    const listRows = useMemo(
+        () => sessionGroupRows("main", rowsFromPages(listQuery.data?.pages)),
+        [listQuery.data?.pages],
+    )
     const pinnedRowsAll = useMemo(
-        () => rowsFromPages(pinnedQuery.data?.pages),
+        () => sessionGroupRows("pinned", rowsFromPages(pinnedQuery.data?.pages)),
         [pinnedQuery.data?.pages],
     )
     const knownById = useMemo(() => {
@@ -145,6 +175,21 @@ export const useSessionsList = ({agentId: scopedAgentId}: UseSessionsListArgs = 
         return result
     }, [pinnedIds, knownById, listRows, pinnedSet, pendingBySession, showTriggered])
 
+    // A whole page can be unstarted rows (they are the newest); pull the next one instead of
+    // showing "No sessions yet" over a list that has plenty one page down.
+    const {hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage} = listQuery
+    const topUpArgs = {
+        visibleRows: listRows.length,
+        hasNextPage: Boolean(hasNextPage),
+        isError: isFetchNextPageError,
+    }
+    // Held across the in-flight request too, or the list would flash empty mid-top-up.
+    const awaitingTopUp = awaitingHiddenRows(topUpArgs)
+    const shouldTopUp = shouldLoadMoreForHiddenRows({...topUpArgs, isFetchingNextPage})
+    useEffect(() => {
+        if (shouldTopUp) void fetchNextPage()
+    }, [shouldTopUp, fetchNextPage])
+
     const refetchList = listQuery.refetch
     const refetchPinned = pinnedQuery.refetch
     const refetch = useCallback(() => {
@@ -154,11 +199,13 @@ export const useSessionsList = ({agentId: scopedAgentId}: UseSessionsListArgs = 
 
     return {
         groups,
-        isEmpty: groups.every((group) => group.rows.length === 0),
+        // Not "empty" while a top-up is on its way — that would flash the empty state over a
+        // list whose first page happened to be all unstarted rows.
+        isEmpty: !awaitingTopUp && groups.every((group) => group.rows.length === 0),
         paging: {
-            hasNext: Boolean(listQuery.hasNextPage),
-            isLoadingNext: listQuery.isFetchingNextPage,
-            loadNext: () => void listQuery.fetchNextPage(),
+            hasNext: Boolean(hasNextPage),
+            isLoadingNext: isFetchingNextPage,
+            loadNext: () => void fetchNextPage(),
         },
         isPending: listQuery.isPending || (pinnedIds.length > 0 && pinnedQuery.isPending),
         isError: listQuery.isError || pinnedQuery.isError,

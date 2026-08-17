@@ -36,8 +36,8 @@ export const CopyRow = ({value, label}: {value: string; label: string}) => {
 
 /** Kind pill (Agent / Chat / …) — the same badge the rename modal header shows. */
 export const TypeBadge = ({label}: {label: string}) => (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-colorFillTertiary px-2 py-0.5 text-xs font-medium text-[var(--ag-c-13C2C2)]">
-        <span className="h-1.5 w-1.5 rounded-full bg-[var(--ag-c-13C2C2)]" />
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--ag-type-agent-bg)] px-2 py-0.5 text-xs font-medium text-[var(--ag-type-agent-text)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--ag-type-agent-text)]" />
         {label}
     </span>
 )

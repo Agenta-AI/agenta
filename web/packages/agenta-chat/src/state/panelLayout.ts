@@ -9,3 +9,10 @@ import {atomWithStorage} from "jotai/utils"
  * every reload put chat users back in the build layout they had already left.
  */
 export const chatPanelMaximizedAtom = atomWithStorage("agenta:chat:panel-maximized", false)
+
+/** Build mode's config pane collapsed to 0. Separate from the maximize flag: collapsing the pane
+ * in Build is not the same as switching to Chat. */
+export const configPanelCollapsedAtom = atomWithStorage<boolean>(
+    "agenta:chat:config-panel-collapsed",
+    false,
+)

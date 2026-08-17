@@ -33,8 +33,8 @@
         --editor-gutter-border: #ddd;
         --editor-selection-bg: rgb(171, 205, 252);
         --editor-cursor: #000;
-        --editor-error-bg: rgba(255, 0, 0, 0.05);
-        --editor-error-border: #ff0000;
+        --editor-error-bg: rgba(217, 76, 74, 0.05);
+        --editor-error-border: #d94c4a;
 
         /* Syntax highlighting - Light theme (GitHub-inspired) */
         --token-comment: #6a737d; /* muted gray */
@@ -606,8 +606,8 @@
     --editor-gutter-border: #303030;
     --editor-selection-bg: rgba(56, 90, 140, 0.5);
     --editor-cursor: #ffffff;
-    --editor-error-bg: rgba(255, 0, 0, 0.12);
-    --editor-error-border: #ff6b6b;
+    --editor-error-bg: rgba(255, 142, 140, 0.12);
+    --editor-error-border: #ff8e8c;
 
     /* Syntax highlighting - Dark theme (GitHub-dark-inspired) */
     --token-comment: #8b949e;

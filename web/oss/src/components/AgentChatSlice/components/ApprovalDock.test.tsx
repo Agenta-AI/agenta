@@ -242,10 +242,11 @@ describe("Build mode, commit with a committed base to diff against", () => {
         expect(rendered).not.toContain("The agent wants to run this tool before it can keep going.")
     })
 
-    it("keeps the raw tool name that Build-mode debuggers steer by", () => {
+    it("humanizes the ask — the raw wire name stays out of the card body", () => {
+        // Build reads like Chat: raw wire names live in tooltips, never as a header row.
         const rendered = render(TEXT_ONLY_APPROVAL)
 
-        expect(rendered).toContain("commit_revision")
+        expect(rendered).not.toContain("commit_revision")
     })
 
     it("still shows the imported content when the commit imports files", () => {

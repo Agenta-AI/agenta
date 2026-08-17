@@ -10,7 +10,8 @@ import {rowsFromPages, useSessionList, useWaitingByAgent} from "@agenta/sessions
 export function useAgentLastSession(agentId: string) {
     const query = useSessionList({
         agentId,
-        showTriggered: true,
+        originPolicy: "all",
+        expansions: ["trigger"],
         limit: 1,
         enabled: Boolean(agentId),
     })

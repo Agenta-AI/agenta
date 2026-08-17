@@ -676,9 +676,11 @@ const AgentMessage = ({
     // to the reserved lane (`pb-7`) at the row's bottom. The row is a flex that justifies the
     // (width-capped) bubble to its side, so the opposite side keeps whitespace — agent bubbles hug
     // the left, user bubbles the right, neither spans the full column.
+    // `ag-turn` is the hook the transcript's bottom fade watches (see BOTTOM_FADE_OVERLAY_STYLE):
+    // it drops the fade while this row is hovered/focused, so the revealed toolbar can't be washed.
     return (
         <div
-            className={`group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
+            className={`ag-turn group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
         >
             <ChatBubble
                 placement={isUser ? "end" : "start"}

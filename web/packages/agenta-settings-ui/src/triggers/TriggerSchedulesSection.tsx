@@ -200,6 +200,7 @@ export default function TriggerSchedulesSection({
                             onClick: () => {
                                 if (record.id)
                                     openDeliveries({
+                                        mode: "owner-history",
                                         owner: {kind: "schedule", id: record.id},
                                         name: record.name ?? undefined,
                                     })

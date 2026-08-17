@@ -6,6 +6,7 @@ import {
 } from "@agenta/navigation"
 
 import type {RouteLayer} from "@/oss/state/appState"
+import type {PlaygroundAgentState} from "@/oss/state/workflow"
 
 import {mainSidebarScope} from "./mainScope"
 import {createSettingsSidebarScope} from "./settingsScope"
@@ -14,6 +15,11 @@ import {createWorkflowSidebarScope} from "./workflowScope"
 export interface SidebarViewMatchContext {
     pathname: string
     routeLayer: RouteLayer
+    /** Playground agent state — a workflow scope matches only once its type is known. */
+    agentState?: PlaygroundAgentState
+    agentTypeSettled?: boolean
+    /** The view showing now — lets a swap view keep matching itself. */
+    currentViewId?: string
 }
 
 export interface SidebarViewContext {

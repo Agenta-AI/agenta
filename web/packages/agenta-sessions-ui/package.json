@@ -9,6 +9,9 @@
         "build": "tsc --noEmit",
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ./eslint.config.mjs src/",
+        "test": "pnpm run test:unit",
+        "test:unit": "vitest run",
+        "test:watch": "vitest",
         "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
@@ -33,9 +36,13 @@
         "@tanstack/react-query": "5.100.9",
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
+        "@types/react-dom": "^19.0.4",
         "jotai": "^2.15.0",
+        "jsdom": "^26.1.0",
+        "next": "15.5.18",
         "react": "^19.0.0",
+        "react-dom": "^19.0.0",
         "typescript": "^5.9.3",
-        "next": "15.5.18"
+        "vitest": "^4.1.4"
     }
 }

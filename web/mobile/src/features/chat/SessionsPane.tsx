@@ -50,6 +50,7 @@ export const SessionsPane = ({
             <div className="ag-scroll-quiet min-h-0 flex-1 overflow-y-auto px-2">
                 <SessionCardList
                     agentId={agentId ?? undefined}
+                    policy={{origin: "exclude-trigger", expansions: []}}
                     limit={20}
                     withPinned
                     alwaysShowPin

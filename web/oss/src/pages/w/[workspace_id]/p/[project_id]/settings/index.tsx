@@ -21,9 +21,10 @@ import {useOrgData} from "@/oss/state/org"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
 
-const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
-    ssr: false,
-})
+const AIProviders = dynamic(
+    () => import("@/oss/components/pages/settings/AIProviders/AIProviders"),
+    {ssr: false},
+)
 const Vault = dynamic(() => import("@/oss/components/pages/settings/Vault/Vault"), {
     ssr: false,
 })
@@ -133,7 +134,10 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     ),
                 }
             case "llms":
-                return {content: <Secrets />, title: getSettingsTabLabel("llms", settingsAccess)}
+                return {
+                    content: <AIProviders />,
+                    title: getSettingsTabLabel("llms", settingsAccess),
+                }
             case "secrets":
                 return {content: <Vault />, title: getSettingsTabLabel("secrets", settingsAccess)}
             case "tools":

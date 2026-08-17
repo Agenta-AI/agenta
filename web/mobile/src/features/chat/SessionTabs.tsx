@@ -53,6 +53,7 @@ export const SessionTabs = ({
             <SessionTabRail
                 className={chatMaximized ? "md:hidden" : undefined}
                 agentId={agentId ?? undefined}
+                policy={{origin: "exclude-trigger", expansions: []}}
                 limit={12}
                 withPinned
                 activeSessionId={sessionId}

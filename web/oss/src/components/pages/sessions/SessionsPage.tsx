@@ -14,6 +14,7 @@ import {
     useSessionActions,
     type SessionActionTarget,
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
+import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 
 import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
 import {agentsWorkflowsAtom} from "../agents/store"
@@ -44,7 +45,13 @@ const targetFor = (vm: SessionRowVm): SessionActionTarget => ({
 const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     // Only the toolbar/rail badge reads the list here; the shared view runs the same hook (same
     // args → one query through the cache).
-    const list = useSessionsList({agentId: scopedAgentId})
+    const list = useSessionsList({
+        agentId: scopedAgentId,
+        // Release contract: the human list hides automation runs; the "show triggered" toggle
+        // swaps in the automation policy. See the QA note in the merge log.
+        defaultPolicy: {origin: "exclude-trigger", expansions: []},
+        automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+    })
     const {toggle: togglePin} = useSessionPins()
     const openSession = useOpenAgentSession()
     const sessionActions = useSessionActions()

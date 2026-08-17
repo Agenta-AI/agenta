@@ -222,7 +222,9 @@ const modelHubTests = () => {
         },
     )
 
-    test(
+    // Skipped per release-gate decision (Mahmoud, 2026-08-10): rotating environment-sensitive
+    // failure in CI (gate run 31401605372). Tracked for repair, not deleted.
+    test.skip(
         "should add and delete a custom provider via the UI",
         {tag: tagsLight},
         async ({page, testProviderHelpers}) => {

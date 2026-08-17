@@ -36,7 +36,8 @@ const StripCard = ({
         } ${disabled ? "opacity-60" : ""} ${
             selected
                 ? "border-[var(--ag-colorPrimary)] bg-[var(--ag-strip-selected-bg)]"
-                : `border-[var(--ag-strip-card-border)] bg-[var(--ag-strip-card-bg)] ${
+                : // Tint is light-only: its dark step is a different surface, so dark keeps this strip's card token.
+                  `border-[var(--ag-strip-card-border)] bg-[var(--ag-surface-paper)] dark:bg-[var(--ag-strip-card-bg)] ${
                       loading || disabled
                           ? ""
                           : "hover:border-[var(--ag-strip-card-border-hover)] hover:shadow-[var(--ag-strip-card-hover-shadow)]"

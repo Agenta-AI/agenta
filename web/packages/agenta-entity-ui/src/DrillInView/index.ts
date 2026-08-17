@@ -278,8 +278,51 @@ export {
     readHarnessAllowList,
     findGrantableHarnessTool,
     withHarnessToolAllow,
+    PLATFORM_OPS,
+    // Model / harness write-through + row presentation, shared with the chat composer's `/` palette.
+    withModel,
+    withHarnessKind,
+    withRunnerPermission,
+    readModelId,
+    readModelConnectionSlug,
+    readHarnessKind,
+    readRunnerPermission,
+    readAgentItems,
+    DEFAULT_PERMISSION_POLICY,
+    isPermissionPolicy,
+    PERMISSION_POLICY_OPTIONS,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+    permissionPolicyOptionsForSchema,
+    permissionPolicySchema,
+    allowedDeployments,
+    allowedProviders,
+    buildModelOptionGroups,
+    harnessAllowsModel,
+    modelLabel,
+    providerForModel,
+    vaultModelGroups,
+    vaultPickedProviderFamily,
+    buildConnectionPickerRows,
+    pickerSelectionFrom,
+    selectionFromModelRow,
+    describeMcp,
+    describeSkill,
+    describeTool,
+    staticEmbedSlug,
+    toolName,
+    HARNESS_META,
+    harnessMetaFor,
+    selectableHarnesses,
     type OptionGroup,
 } from "./SchemaControls"
+
+// The flyout's harness split, kept beside the rows it groups.
+export {
+    buildPickerGroupsWithSections,
+    harnessSections,
+    SUBSCRIPTION_TAG,
+} from "./SchemaControls/pickerSections"
 
 export type {
     NumberSliderControlProps,
@@ -307,6 +350,16 @@ export type {
     GrantableTool,
     ToolPermission,
     GrantableHarnessTool,
+    ModelPatch,
+    ModelOptionGroup,
+    VaultModelSource,
+    PickerConnectionRow,
+    PickerModelRow,
+    PickerSelection,
+    ItemDescriptor,
+    HarnessMeta,
+    PermissionPolicy,
+    PermissionPolicyOption,
 } from "./SchemaControls"
 
 // Operational panel regions (Triggers, Mounts) — siblings of the Configuration section.
@@ -324,7 +377,6 @@ export {
 export type {TriggerManagementSectionProps} from "./SchemaControls/TriggerManagementSection"
 export {TriggerRow} from "./SchemaControls/triggerManagement/TriggerRow"
 export {SubscriptionChildRow} from "./SchemaControls/triggerManagement/SubscriptionChildRow"
-export {SubscriptionRunPopover} from "./SchemaControls/triggerManagement/SubscriptionRunPopover"
 export {TriggerActionsMenu} from "./SchemaControls/triggerManagement/TriggerActionsMenu"
 
 // Configure-popover panels (model / fallback / retry / advanced). Presentational and

@@ -244,17 +244,21 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 expect(typeof role).toBe("string")
 
                 // 2. Click on the message button to create a new prompt slot.
-                // Scope role-selector lookup to the prompt editor that owns the clicked
-                // Message button. The chat-turn controls also have a Message button and
-                // .message-user-select controls, and some are intentionally disabled; a global
-                // nth() can land on those instead of the newly-added prompt-template message.
-                const roleButtonSelector = ".message-user-select"
-                const messageButton = page.getByRole("button", {name: "Message"}).first()
-                const promptToolbar = messageButton.locator(
-                    'xpath=ancestor::*[.//*[contains(normalize-space(.), "Prompt Syntax")]][1]',
-                )
-                const promptEditor = promptToolbar.locator("xpath=..")
-                const roleButtons = promptEditor.locator(roleButtonSelector)
+                // Scope everything to the prompt template's own PromptSchemaControl
+                // instance (data-testid="prompt-schema-control") rather than chaining
+                // ancestor:: xpath hops off the "Message" button — the chat-turn controls
+                // also render a "Message" button and .message-user-select role selectors,
+                // and a global nth() can land on those instead of the prompt template.
+                const promptControl = page.locator('[data-testid="prompt-schema-control"]').first()
+                const messageButton = promptControl.getByRole("button", {
+                    name: "Message",
+                    exact: true,
+                })
+                const roleButtons = promptControl.locator(".message-user-select")
+                // Each ChatMessageItem renders exactly one role selector and one editor
+                // in the same order as the messages array, so the Nth role button and the
+                // Nth editor input always belong to the same message row.
+                const editorInputs = promptControl.locator('.editor-input[role="textbox"]')
                 const msgCountBefore = await roleButtons.count()
 
                 await messageButton.click()
@@ -264,22 +268,13 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                     .poll(async () => roleButtons.count(), {timeout: 15000})
                     .toBeGreaterThan(msgCountBefore)
 
-                // The new role button is always appended last in the template section.
+                // The new role button/editor are always appended last in the template.
                 const roleButton = roleButtons.nth(msgCountBefore)
+                const emptyEditorLocator = editorInputs.nth(msgCountBefore)
 
                 // Wait for the role button to be enabled (may be briefly disabled while the
                 // ChatMessageList state settles after inserting the new message).
                 await expect(roleButton).toBeEnabled({timeout: 15000})
-
-                // Locate the text editor inside the same agenta-shared-editor container as
-                // the role button so typing lands in the correct slot.
-                const editorContainer = roleButton.locator(
-                    'xpath=ancestor::div[contains(@class, "agenta-shared-editor")]',
-                )
-                const emptyEditorLocator = editorContainer
-                    .locator('.editor-input[role="textbox"]')
-                    .first()
-
                 await expect(emptyEditorLocator).toBeVisible({timeout: 10000})
 
                 // 4. Select the role
@@ -290,6 +285,12 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await expect(menuItem).toBeVisible()
                 await menuItem.scrollIntoViewIfNeeded()
                 await menuItem.click()
+
+                // Wait for the role dropdown to fully unmount before continuing — while open
+                // (or mid-close) its portal marks the rest of the page aria-hidden, which
+                // blinds every getByRole()-based lookup below (see PR #5895 for the underlying
+                // Presence/animation fix; this is a plain readiness wait, not a workaround).
+                await expect(page.locator('[data-slot="dropdown-menu-content"]')).toHaveCount(0)
 
                 // 5. Add the prompt
                 await emptyEditorLocator.scrollIntoViewIfNeeded()

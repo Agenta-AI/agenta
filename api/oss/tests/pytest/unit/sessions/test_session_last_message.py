@@ -10,13 +10,18 @@ the fan-out the sessions router's module docstring rules out.
     whole page and that a deployment without the records engine still lists sessions.
 """
 
+import asyncio
 from typing import Dict, List, Optional
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from oss.src.core.sessions.dtos import SessionQuery
+from oss.src.core.sessions.dtos import (
+    SessionExpansion,
+    SessionQuery,
+    SessionQueryOptions,
+)
 from oss.src.core.sessions.records.dtos import SessionMessagePreview
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import SessionStream
@@ -58,10 +63,15 @@ class _DummySessionContext:
 
 
 class _Row:
-    def __init__(self, session_id, record_source, attributes, timestamp=None):
+    """Mirrors the columns the DAO's `select(...)` now projects: `text` is already
+    the truncated `left(attributes->>'text', ...)` expression, not the raw
+    `attributes` blob — the fake session below skips real SQL execution, so it
+    must hand back what the query would have computed, not the pre-image."""
+
+    def __init__(self, session_id, record_source, text, timestamp=None):
         self.session_id = session_id
         self.record_source = record_source
-        self.attributes = attributes
+        self.text = text
         self.timestamp = timestamp
         self.created_at = None
 
@@ -121,6 +131,24 @@ async def test_newest_message_wins_on_producer_event_time():
 
 
 @pytest.mark.asyncio
+async def test_text_is_checked_after_newest_message_selection_without_fallback():
+    dao, session = _dao()
+
+    await dao.latest_message_per_session(project_id=uuid4(), session_ids=["a"])
+
+    sql = str(session.captured_stmt.compile(dialect=postgresql.dialect())).replace(
+        "\n", " "
+    )
+    where_clause = sql.split(" WHERE ", 1)[1].split(" ORDER BY ", 1)[0]
+
+    # Row selection (WHERE + DISTINCT ON + ORDER BY) never filters on message
+    # content — `text` is only ever projected (truncated) in the SELECT list, so a
+    # message with no/blank text is still the newest row chosen, and gets skipped
+    # in Python afterward rather than falling back to an older row that has text.
+    assert "text" not in where_clause
+
+
+@pytest.mark.asyncio
 async def test_no_ids_asks_the_database_nothing():
     dao, session = _dao()
 
@@ -135,9 +163,9 @@ async def test_a_message_without_text_has_nothing_to_preview():
     # An attachment-only message carries no `text`; a row must not preview an empty string.
     dao, _ = _dao(
         rows=[
-            _Row("with-text", "user", {"type": "message", "text": "  ship it  "}),
-            _Row("no-text", "agent", {"type": "message"}),
-            _Row("blank", "agent", {"type": "message", "text": "   "}),
+            _Row("with-text", "user", "  ship it  "),
+            _Row("no-text", "agent", None),
+            _Row("blank", "agent", "   "),
             _Row("no-attributes", "agent", None),
         ]
     )
@@ -166,7 +194,11 @@ class _FakeStreamsService:
 
 
 class _FakeTurnsService:
+    def __init__(self):
+        self.calls = 0
+
     async def latest_turn_per_session(self, **kwargs):
+        self.calls += 1
         return {}
 
 
@@ -197,11 +229,13 @@ def _service(records_service=None) -> SessionsService:
 @pytest.mark.asyncio
 async def test_the_whole_page_is_previewed_in_one_call():
     records = _FakeRecordsService(
-        {"a": SessionMessagePreview(session_id="a", text="ship it", source="user")}
+        {"a": SessionMessagePreview(text="ship it", source="user")}
     )
 
     items = await _service(records).query_sessions(
-        project_id=uuid4(), query=SessionQuery()
+        project_id=uuid4(),
+        query=SessionQuery(),
+        options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
     )
 
     assert records.calls == [["a", "b"]]
@@ -213,8 +247,145 @@ async def test_the_whole_page_is_previewed_in_one_call():
 @pytest.mark.asyncio
 async def test_sessions_still_list_without_the_records_engine():
     items = await _service(records_service=None).query_sessions(
-        project_id=uuid4(), query=SessionQuery()
+        project_id=uuid4(),
+        query=SessionQuery(),
+        options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
     )
 
     assert [item.session_id for item in items] == ["a", "b"]
     assert all(item.last_message is None for item in items)
+
+
+@pytest.mark.asyncio
+async def test_no_expansion_skips_records_but_still_loads_latest_turns():
+    records = _FakeRecordsService({})
+    service = _service(records)
+
+    items = await service.query_sessions(project_id=uuid4(), query=SessionQuery())
+
+    assert [item.session_id for item in items] == ["a", "b"]
+    assert records.calls == []
+    assert service.turns_service.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_preview_and_latest_turn_batches_start_concurrently():
+    turns_started = asyncio.Event()
+    records_started = asyncio.Event()
+
+    class _ConcurrentTurns:
+        async def latest_turn_per_session(self, **kwargs):
+            turns_started.set()
+            await records_started.wait()
+            return {}
+
+    class _ConcurrentRecords:
+        async def latest_message_per_session(self, **kwargs):
+            records_started.set()
+            await turns_started.wait()
+            return {"a": SessionMessagePreview(text="concurrent")}
+
+    service = SessionsService(
+        streams_service=_FakeStreamsService([_stream("a")]),
+        turns_service=_ConcurrentTurns(),
+        interactions_service=object(),
+        mounts_service=object(),
+        records_service=_ConcurrentRecords(),
+    )
+
+    items = await asyncio.wait_for(
+        service.query_sessions(
+            project_id=uuid4(),
+            options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
+        ),
+        timeout=1,
+    )
+
+    assert items[0].last_message.text == "concurrent"
+
+
+@pytest.mark.asyncio
+async def test_records_failure_returns_base_rows_without_previews():
+    class _FailingRecords:
+        async def latest_message_per_session(self, **kwargs):
+            raise RuntimeError("analytics unavailable")
+
+    items = await _service(_FailingRecords()).query_sessions(
+        project_id=uuid4(),
+        options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
+    )
+
+    assert [item.session_id for item in items] == ["a", "b"]
+    assert all(item.last_message is None for item in items)
+
+
+@pytest.mark.asyncio
+async def test_latest_turn_failure_still_propagates_with_preview_expansion():
+    class _FailingTurns:
+        async def latest_turn_per_session(self, **kwargs):
+            raise RuntimeError("turn lookup failed")
+
+    service = SessionsService(
+        streams_service=_FakeStreamsService([_stream("a")]),
+        turns_service=_FailingTurns(),
+        interactions_service=object(),
+        mounts_service=object(),
+        records_service=_FakeRecordsService({}),
+    )
+
+    with pytest.raises(RuntimeError, match="turn lookup failed"):
+        await service.query_sessions(
+            project_id=uuid4(),
+            options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
+        )
+
+
+@pytest.mark.asyncio
+async def test_latest_turn_failure_cancels_and_awaits_records_lookup():
+    records_started = asyncio.Event()
+    records_cancelled = asyncio.Event()
+    records_cleanup_finished = asyncio.Event()
+
+    class _FailingTurns:
+        async def latest_turn_per_session(self, **kwargs):
+            await records_started.wait()
+            raise RuntimeError("turn lookup failed")
+
+    class _CancellableRecords:
+        async def latest_message_per_session(self, **kwargs):
+            records_started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                records_cancelled.set()
+                await asyncio.sleep(0)
+                records_cleanup_finished.set()
+                raise
+
+    service = SessionsService(
+        streams_service=_FakeStreamsService([_stream("a")]),
+        turns_service=_FailingTurns(),
+        interactions_service=object(),
+        mounts_service=object(),
+        records_service=_CancellableRecords(),
+    )
+
+    with pytest.raises(RuntimeError, match="turn lookup failed"):
+        await service.query_sessions(
+            project_id=uuid4(),
+            options=SessionQueryOptions(expand=[SessionExpansion.last_message]),
+        )
+
+    assert records_cancelled.is_set()
+    assert records_cleanup_finished.is_set()
+
+
+def test_public_preview_has_no_session_id():
+    preview = SessionMessagePreview(text="ship it", source="user")
+
+    assert preview.model_dump() == {
+        "text": "ship it",
+        "source": "user",
+        "timestamp": None,
+    }
+    assert "session_id" not in SessionMessagePreview.model_json_schema()["properties"]

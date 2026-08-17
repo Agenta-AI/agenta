@@ -1,6 +1,6 @@
 import {memo, type FC, type PropsWithChildren} from "react"
 
-import {sidebarCollapsedAtom} from "@agenta/navigation"
+import {SIDEBAR_COLLAPSED_WIDTH, sidebarCollapsedAtom, sidebarWidthAtom} from "@agenta/navigation"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -25,16 +25,15 @@ const BootSubscriptions = memo(function BootSubscriptions() {
 // First-boot placeholder so gate release is a fill-in, not a mount from blank
 const BootShell = memo(function BootShell({shell}: {shell: "app" | "blank"}) {
     const collapsed = useAtomValue(sidebarCollapsedAtom)
+    const width = useAtomValue(sidebarWidthAtom)
 
     if (shell === "blank") return <div className="h-dvh w-full" />
 
     return (
         <div className="flex h-dvh w-full">
             <div
-                className={clsx(
-                    "h-full shrink-0 border-0 border-r border-solid border-[var(--ag-shell-line)] bg-[var(--ag-sidebar-bg)]",
-                    collapsed ? "w-[48px]" : "w-[236px]",
-                )}
+                className="h-full shrink-0 border-0 border-r border-solid border-[var(--ag-shell-line)] bg-[var(--ag-sidebar-bg)]"
+                style={{width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}}
             />
             <div className="grow" />
         </div>

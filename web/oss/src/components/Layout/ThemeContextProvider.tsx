@@ -4,7 +4,13 @@ import {useThemeMode} from "@agenta/ui/theme"
 import {ConfigProvider, theme} from "antd"
 import {Inter} from "next/font/google"
 
-import {DARK_TOKEN_OVERRIDES, darkComponents} from "@/oss/styles/theme/antd-overrides.generated"
+import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {
+    DARK_TOKEN_OVERRIDES,
+    darkComponents,
+    LIGHT_TOKEN_OVERRIDES,
+    lightComponents,
+} from "@/oss/styles/theme/antd-overrides.generated"
 import antdTokens from "@/oss/styles/tokens/antd-themeConfig.json"
 // GENERATED from the theme source of truth (styles/theme/palette.ts) by
 // scripts/generate-tailwind-tokens.ts. Edit palette.ts + regenerate, not this.
@@ -75,6 +81,8 @@ const stripComponentColors = <T extends Record<string, Record<string, unknown>>>
 // dark palette, edit palette.ts and run `pnpm generate:tailwind-tokens`. The per-token
 // rationale for each override lives in git history for this file (pre-wiring).
 
+const strippedLightComponents = stripComponentColors(antdTokens.components)
+
 const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     // The stored preference, the theme it resolves to, the OS listener and the `.dark` class
     // all live in @agenta/ui/theme, so this app and /m read and write one contract. What stays
@@ -115,16 +123,33 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
             }
         }
 
-        // Light mode preserved exactly as before: token + (inert) component config
-        // are both spread into `token`, matching the prior ConfigProvider shape.
+        // antdTokens.json is a full dump of the PRE-RECOLOR light palette, so whatever it
+        // says is what antd paints. LIGHT_TOKEN_OVERRIDES (generated from palette.ts) is
+        // spread last so the palette's light values reach the rendered --ant-* variables.
+        //
+        // Its per-component block is NOT inert, despite what this branch used to claim:
+        // antd reads `token[ComponentName]` in getComponentToken, so those 789 colors —
+        // 97% of them a mechanical dump of antd's own derivation from the old navy
+        // globals — outrank the global tokens above. Colors are stripped here exactly as
+        // in dark mode so antd re-derives them from the palette; structural overrides
+        // (sizes, radii, heights) still apply.
         return {
             algorithm: theme.defaultAlgorithm,
             cssVar: {key: "agenta"},
             token: {
                 ...baseToken,
                 ...antdTokens.token,
-                ...antdTokens.components,
+                ...strippedLightComponents,
+                ...LIGHT_TOKEN_OVERRIDES,
             },
+            // A `components` entry REPLACES token[Name] wholesale, so fold the stripped
+            // structural config back in for the components we override.
+            components: Object.fromEntries(
+                Object.entries(lightComponents).map(([name, tokens]) => [
+                    name,
+                    {...(strippedLightComponents[name] ?? {}), ...tokens},
+                ]),
+            ),
         }
     }, [isDark])
 

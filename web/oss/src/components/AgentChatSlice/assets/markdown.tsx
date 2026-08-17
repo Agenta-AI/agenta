@@ -156,7 +156,14 @@ const ExternalLink = ({href, title, className, children}: AnchorProps) => (
 const DriveLink = ({href, ...rest}: AnchorProps) => {
     const sessionId = useDriveSessionId()
     const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
-    const fallback = <ExternalLink href={href} {...rest} />
+    // A slash-prefixed href is a local sandbox path, not a browser-relative web URL. If the drive
+    // cannot prove it names a file, keep its label inert instead of navigating to
+    // `https://<agenta-host>/tmp/...` (#5983).
+    const fallback = href?.startsWith("/") ? (
+        <>{rest.children}</>
+    ) : (
+        <ExternalLink href={href} {...rest} />
+    )
     if (link && href) return <>{link.renderCode(href, fallback)}</>
     return fallback
 }

@@ -147,7 +147,7 @@ export interface ResolvedToolSpec {
    * `call` XOR `callRef`. Plumbing only here: nothing emits or dispatches it yet.
    */
   call?: {
-    method: "GET" | "POST" | "DELETE";
+    method: "GET" | "POST" | "PUT" | "DELETE";
     path: string;
     body?: Record<string, unknown>;
     context?: Record<string, string>;
@@ -199,8 +199,8 @@ export interface RunContextReference {
  * `workflow` mirrors the platform's three workflow entities — the `artifact` (the workflow), the
  * `variant`, and the `revision` — so the run's identity reads the same way the rest of the platform
  * names a workflow; `is_draft` says whether the run targets a committed revision (`false`) or an
- * uncommitted playground draft (`true`). The conversation id is NOT carried here — it rides the
- * top-level `sessionId` field, and the runner owns the live id across turns.
+ * uncommitted playground draft (`true`). The service does not carry the conversation id here — it
+ * rides the top-level `sessionId` field, and the runner augments its dispatch copy with the live id.
  *
  * The inner keys are deliberately snake_case (`workflow.variant.id`, `trace.trace_id`): they are
  * the binding NAMESPACE a `call.context` value (`"$ctx.<dotted.path>"`) addresses, so they match
@@ -220,6 +220,13 @@ export interface RunContext {
    * over the mount-derived project scope when keying its parked-session pool (`poolKeyFor`).
    */
   project?: {
+    id?: string;
+  };
+  /**
+   * The live session id, filled by the runner from its session environment for tool dispatch and
+   * never filled by the service's `/run` request context.
+   */
+  session?: {
     id?: string;
   };
   workflow?: {

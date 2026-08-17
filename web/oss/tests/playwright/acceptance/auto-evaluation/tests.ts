@@ -498,16 +498,20 @@ const waitAndClickDeleteForRun = async (
 
     await page.getByRole("menuitem", {name: AUTO_EVAL_DELETE_MENU_LABEL}).click()
 
+    // DeleteEvaluationModal renders through EnhancedModal, a facade over the @agenta/ui
+    // (Radix) Dialog, so the panel is `[data-slot="dialog-content"]`, not an antd `.ant-modal`.
     const deleteModal = page
-        .locator(".ant-modal")
+        .locator('[data-slot="dialog-content"]')
         .filter({hasText: AUTO_EVAL_DELETE_CONFIRM_TEXT})
         .first()
     await expect(deleteModal).toBeVisible({timeout: 10000})
     await deleteModal.getByRole("button", {name: AUTO_EVAL_DELETE_OK_BUTTON}).click()
 
-    await expect(
-        page.locator(".ant-message").getByText(AUTO_EVAL_DELETE_SUCCESS).first(),
-    ).toBeVisible({timeout: 15000})
+    // The success message toasts through @agenta/ui's app-message facade (role="status"),
+    // not an antd `.ant-message` node.
+    await expect(page.getByRole("status").getByText(AUTO_EVAL_DELETE_SUCCESS).first()).toBeVisible({
+        timeout: 15000,
+    })
 }
 
 export {

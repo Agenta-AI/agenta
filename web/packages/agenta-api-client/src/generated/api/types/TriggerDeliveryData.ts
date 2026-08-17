@@ -4,6 +4,7 @@ import type * as AgentaApi from "../index.js";
 
 export interface TriggerDeliveryData {
     event_key?: (string | null) | undefined;
+    session_id?: (string | null) | undefined;
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     inputs?: (Record<string, unknown> | null) | undefined;
     result?: (Record<string, unknown> | null) | undefined;

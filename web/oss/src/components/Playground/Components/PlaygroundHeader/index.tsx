@@ -101,6 +101,9 @@ type PlaygroundHeaderProps = BaseContainerProps
 /** Entity types that represent evaluator downstream nodes */
 const EVALUATOR_ENTITY_TYPES = ["workflow"]
 
+// Build/Chat switch parked (not removed): Build is the only reachable mode until this flips back.
+const SHOW_MODE_SWITCH = false
+
 /** Resolves a user UUID to a display name via workspace members */
 const MemberAuthor: React.FC<{userId: string}> = ({userId}) => {
     const memberAtom = useMemo(() => workspaceMemberByIdFamily(userId), [userId])

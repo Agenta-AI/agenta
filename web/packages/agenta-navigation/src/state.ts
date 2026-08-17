@@ -5,8 +5,17 @@ import {atomFamily} from "jotai-family"
 
 const SIDEBAR_OPEN_GROUPS_STORAGE_KEY = "agenta:sidebar:open-groups"
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "agenta:sidebar:collapsed"
+const SIDEBAR_WIDTH_STORAGE_KEY = "agenta:sidebar:width"
 const LEGACY_SIDEBAR_COLLAPSED_STORAGE_KEY = "sidebarCollapsed"
 const NO_PROJECT_SCOPE = "__global__"
+
+export const SIDEBAR_COLLAPSED_WIDTH = 48
+export const SIDEBAR_DEFAULT_WIDTH = 255
+export const SIDEBAR_MIN_WIDTH = 200
+export const SIDEBAR_MAX_WIDTH = 340
+
+export const clampSidebarWidth = (width: number) =>
+    Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)))
 
 const jsonBooleanStorage = createJSONStorage<boolean>(() => localStorage)
 const sidebarCollapsedStorage = {
@@ -37,6 +46,26 @@ export const sidebarCollapsedAtom = atomWithStorage<boolean>(
     false,
     sidebarCollapsedStorage,
 )
+const jsonNumberStorage = createJSONStorage<number>(() => localStorage)
+// Clamped on read too, so a width persisted under an older range can never leak through.
+const sidebarWidthStorage = {
+    ...jsonNumberStorage,
+    getItem: (key: string, initialValue: number) => {
+        const stored = jsonNumberStorage.getItem(key, initialValue)
+        return typeof stored === "number" && Number.isFinite(stored)
+            ? clampSidebarWidth(stored)
+            : initialValue
+    },
+    setItem: (key: string, value: number) =>
+        jsonNumberStorage.setItem(key, clampSidebarWidth(value)),
+}
+
+export const sidebarWidthAtom = atomWithStorage<number>(
+    SIDEBAR_WIDTH_STORAGE_KEY,
+    SIDEBAR_DEFAULT_WIDTH,
+    sidebarWidthStorage,
+)
+
 export const sidebarPopupGroupsAtomFamily = atomFamily((_scopeId: string) => atom<string[]>([]))
 
 export const setSidebarPopupGroupOpenAtom = atom(

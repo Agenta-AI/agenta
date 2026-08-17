@@ -13,5 +13,5 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
 export const driveQuickLookAtomFamily = atomFamily((_sessionId: string) =>
-    atom<{path: string} | null>(null),
+    atom<{path: string; hideTree?: boolean} | null>(null),
 )

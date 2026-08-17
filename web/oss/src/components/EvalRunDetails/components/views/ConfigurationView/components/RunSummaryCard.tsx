@@ -21,11 +21,11 @@ import {V2Card} from "./SectionPrimitives"
 const {Text} = Typography
 
 const STATUS_DOT_COLORS: Record<string, string> = {
-    success: "#12B76A",
-    processing: "#3B82F6",
-    default: "#98A2B3",
-    error: "#F04438",
-    warning: "#F79009",
+    success: "var(--ag-run-status-success)",
+    processing: "var(--ag-run-status-processing)",
+    default: "var(--ag-run-status-default)",
+    error: "var(--ag-run-status-error)",
+    warning: "var(--ag-run-status-warning)",
 }
 
 const humanizeStatus = (value: string) =>

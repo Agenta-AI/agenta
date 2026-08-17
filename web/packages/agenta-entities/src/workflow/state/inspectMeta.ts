@@ -67,6 +67,11 @@ export interface HarnessCapabilities {
     /** Selectable models per provider family (provider -> list of ids/aliases). */
     models: Record<string, string[]>
     /**
+     * The subset of `models` a connection starts with when it saved no model list of its own,
+     * per provider family, in this harness's spelling. Absent on an older backend.
+     */
+    default_models?: Record<string, string[]>
+    /**
      * The curated per-model catalog (label / description / pricing / ratings), keyed by the same
      * ids as `models`. Published additively next to `models`; the picker prefers it when present
      * and falls back to `models`. Absent on an older backend.

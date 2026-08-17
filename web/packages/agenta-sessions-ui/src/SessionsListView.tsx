@@ -44,7 +44,13 @@ export const SessionsListView = ({
     revealActionsOnHover = true,
     className,
 }: SessionsListViewProps) => {
-    const list = useSessionsList({agentId: scopedAgentId})
+    const list = useSessionsList({
+        agentId: scopedAgentId,
+        // Release contract: the human list hides automation runs; the "show triggered" toggle
+        // swaps in the automation policy. See the QA note in the merge log.
+        defaultPolicy: {origin: "exclude-trigger", expansions: []},
+        automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+    })
     const {toggle: togglePin} = useSessionPins()
 
     const renderRow = useCallback(

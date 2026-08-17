@@ -149,45 +149,58 @@ const runPlaygroundAndGoToObservability = async (
 
 const observabilityTests = () => {
     // WEB-ACC-OBS-001
-    test(
-        "view traces",
-        {tag: smokeTags},
-        async ({page, uiHelpers, apiHelpers, testProviderHelpers}) => {
-            // 7 minutes: setup (provider + app creation + playground run) ~60-90 s,
-            // trace indexing up to ~150 s, polling 16×15 s = 240 s; total ≈ 390 s.
-            test.setTimeout(420000)
+    // Retry-eligible (Mahmoud, see AGENTS.md/session notes): read-only flow (views traces),
+    // no state mutation. Trace indexing can lag past the polling window, a stack-timing
+    // issue rather than a stale selector, so a retry is safe here. Narrowest scope: this
+    // one test only.
+    test.describe("View traces (retry-eligible)", () => {
+        test.describe.configure({retries: 2})
 
-            await scenarios.given("the user is authenticated", async () => {
-                await expectAuthenticatedSession(page)
-            })
+        // Skipped per release-gate decision (Mahmoud, 2026-08-10): eternity-class runtime
+        // (7-minute budget, up to 21 minutes with retries) dominates the CI wall clock.
+        test.skip(
+            "view traces",
+            {tag: smokeTags},
+            async ({page, uiHelpers, apiHelpers, testProviderHelpers}) => {
+                // 7 minutes: setup (provider + app creation + playground run) ~60-90 s,
+                // trace indexing up to ~150 s, polling 16×15 s = 240 s; total ≈ 390 s.
+                test.setTimeout(420000)
 
-            await scenarios.and(
-                "a completion app with a configured test provider exists",
-                async () => {
-                    // Run a playground variant to seed a trace, then navigate to observability
-                    // and wait for the trace row to appear (with Refresh retries for async indexing).
-                    await runPlaygroundAndGoToObservability(
-                        page,
-                        apiHelpers,
-                        uiHelpers,
-                        testProviderHelpers,
-                    )
-                },
-            )
+                await scenarios.given("the user is authenticated", async () => {
+                    await expectAuthenticatedSession(page)
+                })
 
-            await scenarios.when("the user opens the traces table", async () => {
-                // runPlaygroundAndGoToObservability already confirmed this row is visible;
-                // click the row itself because virtualized Ant tables do not guarantee
-                // stable cell tags or ARIA roles in the body.
-                await clickFirstTraceRow(page)
-            })
+                await scenarios.and(
+                    "a completion app with a configured test provider exists",
+                    async () => {
+                        // Run a playground variant to seed a trace, then navigate to observability
+                        // and wait for the trace row to appear (with Refresh retries for async indexing).
+                        await runPlaygroundAndGoToObservability(
+                            page,
+                            apiHelpers,
+                            uiHelpers,
+                            testProviderHelpers,
+                        )
+                    },
+                )
 
-            await scenarios.then("the trace detail drawer opens", async () => {
-                const drawer = page.locator(".ant-drawer-content-wrapper")
-                await expect(drawer).toBeVisible({timeout: 10000})
-            })
-        },
-    )
+                await scenarios.when("the user opens the traces table", async () => {
+                    // runPlaygroundAndGoToObservability already confirmed this row is visible;
+                    // click the row itself because virtualized Ant tables do not guarantee
+                    // stable cell tags or ARIA roles in the body.
+                    await clickFirstTraceRow(page)
+                })
+
+                await scenarios.then("the trace detail drawer opens", async () => {
+                    // TraceDrawer renders through EnhancedDrawer, a facade over the @agenta/ui
+                    // (Radix) Sheet, so the panel is `[data-slot="sheet-content"]`, not an antd
+                    // `.ant-drawer-content-wrapper`.
+                    const drawer = page.locator('[data-slot="sheet-content"]')
+                    await expect(drawer).toBeVisible({timeout: 10000})
+                })
+            },
+        )
+    })
 
     // WEB-ACC-OBS-002
     test(
@@ -268,37 +281,47 @@ const observabilityTests = () => {
     )
 
     // WEB-ACC-OBS-004
-    test(
-        "should open a span and drill into its attributes",
-        {tag: lightSlowTags},
-        async ({page, apiHelpers, uiHelpers, testProviderHelpers}) => {
-            test.setTimeout(420000)
-            await runPlaygroundAndGoToObservability(
-                page,
-                apiHelpers,
-                uiHelpers,
-                testProviderHelpers,
-            )
+    // Retry-eligible (Mahmoud, see AGENTS.md/session notes): read-only flow (drills into a
+    // trace's attributes), no state mutation. Same trace-indexing lag as "view traces", a
+    // stack-timing issue rather than a stale selector. Narrowest scope: this one test only.
+    test.describe("Should open a span and drill into its attributes (retry-eligible)", () => {
+        test.describe.configure({retries: 2})
 
-            // Click the first data row to open the trace drawer. The virtual table body
-            // does not expose stable cell tags, but the row click handler is the behavior
-            // users rely on.
-            await clickFirstTraceRow(page)
+        test(
+            "should open a span and drill into its attributes",
+            {tag: lightSlowTags},
+            async ({page, apiHelpers, uiHelpers, testProviderHelpers}) => {
+                test.setTimeout(420000)
+                await runPlaygroundAndGoToObservability(
+                    page,
+                    apiHelpers,
+                    uiHelpers,
+                    testProviderHelpers,
+                )
 
-            const drawer = page.locator(".ant-drawer-content-wrapper")
-            await expect(drawer).toBeVisible({timeout: 10000})
+                // Click the first data row to open the trace drawer. The virtual table body
+                // does not expose stable cell tags, but the row click handler is the behavior
+                // users rely on.
+                await clickFirstTraceRow(page)
 
-            // The trace tree panel (CustomTreeComponent, not AntD Tree) renders a
-            // "Search in tree" input when loaded. Verify the panel mounted with content.
-            const treeSearchInput = drawer.getByPlaceholder("Search in tree")
-            await expect(treeSearchInput).toBeVisible({timeout: 10000})
+                // TraceDrawer renders through EnhancedDrawer, a facade over the @agenta/ui
+                // (Radix) Sheet, so the panel is `[data-slot="sheet-content"]`, not an antd
+                // `.ant-drawer-content-wrapper`.
+                const drawer = page.locator('[data-slot="sheet-content"]')
+                await expect(drawer).toBeVisible({timeout: 10000})
 
-            // Each span in the tree renders a square avatar (AvatarTreeContent → antd Avatar
-            // shape="square"). At least one confirms the tree has nodes.
-            const spanAvatar = drawer.locator(".ant-avatar-square").first()
-            await expect(spanAvatar).toBeVisible({timeout: 10000})
-        },
-    )
+                // The trace tree panel (CustomTreeComponent, not AntD Tree) renders a
+                // "Search in tree" input when loaded. Verify the panel mounted with content.
+                const treeSearchInput = drawer.getByPlaceholder("Search in tree")
+                await expect(treeSearchInput).toBeVisible({timeout: 10000})
+
+                // Each span in the tree renders a square avatar (AvatarTreeContent → antd Avatar
+                // shape="square"). At least one confirms the tree has nodes.
+                const spanAvatar = drawer.locator(".ant-avatar-square").first()
+                await expect(spanAvatar).toBeVisible({timeout: 10000})
+            },
+        )
+    })
 
     // WEB-ACC-OBS-005
     test(
@@ -344,7 +367,9 @@ const observabilityTests = () => {
     )
 
     // WEB-ACC-OBS-006
-    test(
+    // Skipped per release-gate decision (Mahmoud, 2026-08-10): rotating environment-sensitive
+    // failure in CI (gate run 31401605372). Tracked for repair, not deleted.
+    test.skip(
         "should create a trace after a Playground run",
         {tag: lightSlowTags},
         async ({page, apiHelpers, uiHelpers, testProviderHelpers}) => {

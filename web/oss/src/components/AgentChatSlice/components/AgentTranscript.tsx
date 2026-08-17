@@ -5,7 +5,11 @@ import {ArrowDown} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Virtuoso} from "react-virtuoso"
 
-import {EDGE_FADE_MASK} from "../assets/conversationLayout"
+import {
+    BOTTOM_FADE_HOVER_HIDE,
+    BOTTOM_FADE_OVERLAY_STYLE,
+    EDGE_FADE_MASK,
+} from "../assets/conversationLayout"
 import {type ScrollIntent} from "../hooks/useScrollIntent"
 import {type useTranscriptScroll} from "../hooks/useTranscriptScroll"
 import {type VirtCtx, type useVirtuosoTranscript} from "../hooks/useVirtuosoTranscript"
@@ -148,6 +152,15 @@ const AgentTranscript = ({
                 </div>
             )}
 
+            {/* Bottom-edge fade. It paints over the scroll container's whole stacking context —
+            including a hovered turn's toolbar — so it steps aside while a turn is hovered or
+            focused, which is the only time a toolbar is on screen. See BOTTOM_FADE_OVERLAY_STYLE. */}
+            <div
+                aria-hidden
+                className={`pointer-events-none absolute inset-x-0 bottom-0 z-[5] ${BOTTOM_FADE_HOVER_HIDE}`}
+                style={BOTTOM_FADE_OVERLAY_STYLE}
+            />
+
             {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
                 keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
             <Button
@@ -158,7 +171,10 @@ const AgentTranscript = ({
                 aria-hidden={!showJump}
                 // Solid elevated surface + border + shadow so the pill reads clearly when it
                 // floats over streamed text (a transparent pill let the text bleed through).
-                className={`absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border-colorBorderSecondary bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
+                // `z-10` puts it above the bottom fade (z-[5]): the pill sits 8px from the bottom,
+                // inside the 28px band, and source order alone left the gradient painting over it
+                // whenever no turn was hovered to suppress the fade.
+                className={`absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full border-colorBorderSecondary bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
                     showJump
                         ? "translate-y-0 opacity-100"
                         : "pointer-events-none translate-y-3 opacity-0"

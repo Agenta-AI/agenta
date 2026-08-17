@@ -49,7 +49,11 @@ export interface AgentStarterTemplate {
     category: string
     /** Monogram shown in the colored tile. */
     initials: string
-    /** Tile accent color (data-driven → inline style). */
+    /**
+     * Tile accent (inline style), cycling the categorical solids in fixed order. Monograms render
+     * WHITE initials on it, so only the white-safe deep steps are used — and the same set covers
+     * both themes, since the initials are hardcoded white at every render site.
+     */
     color: string
     /** Short one-liner (card). */
     description: string
@@ -202,7 +206,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "PR reviewer",
         category: "Engineering",
         initials: "PR",
-        color: "#1c2c3d",
+        color: "#5E5E08",
         description: "Reviews PRs, comments inline, flags risky changes.",
         overview:
             "Reviews every opened pull request. Comments inline on risky changes, flags missing tests, and posts a plain-English summary for the author.",
@@ -254,7 +258,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Changelog writer",
         category: "Engineering",
         initials: "CL",
-        color: "#14b8a6",
+        color: "#113955",
         description: "Turns merged PRs into clean release notes.",
         overview: "Turns merged pull requests into clean release notes and publishes them.",
         instructions:
@@ -299,7 +303,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Issue triage",
         category: "Engineering",
         initials: "IT",
-        color: "#4f46e5",
+        color: "#5E0908",
         description: "Labels new issues by area and priority, assigns an owner.",
         overview:
             "Labels every new issue by area and priority and assigns it to the right owner, so nothing sits untriaged.",
@@ -344,7 +348,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "CI failure triage",
         category: "Engineering",
         initials: "CI",
-        color: "#dc2626",
+        color: "#D97757",
         description: "Summarizes failed CI runs and pings the author.",
         overview:
             "Reads the logs when CI fails, summarizes the likely cause, and pings the author.",
@@ -387,7 +391,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Code Q&A",
         category: "Engineering",
         initials: "QA",
-        color: "#0891b2",
+        color: "#616161",
         description: "Answers questions about the repo when mentioned.",
         overview:
             "Answers questions about your repo when mentioned, citing the files and lines it used.",
@@ -423,7 +427,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Dependency digest",
         category: "Engineering",
         initials: "DD",
-        color: "#65a30d",
+        color: "#5E5E08",
         description: "Weekly summary of open dependency-update PRs.",
         overview:
             "Every week, summarizes the open dependency-update pull requests and what changed in each.",
@@ -461,7 +465,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Support triage",
         category: "Support",
         initials: "S",
-        color: "#7c3aed",
+        color: "#113955",
         description: "Reads #support, tags urgency, routes to owners.",
         overview:
             "Watches your #support channel. Triages every new thread by urgency, routes it to the right owner, and checks with you before closing anything.",
@@ -508,7 +512,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Support reply drafter",
         category: "Support",
         initials: "SR",
-        color: "#db2777",
+        color: "#5E0908",
         description: "Drafts replies to new tickets using your docs.",
         overview:
             "Drafts a reply to every new support ticket, using answers pulled from your docs.",
@@ -547,7 +551,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Bug report router",
         category: "Support",
         initials: "BR",
-        color: "#ea580c",
+        color: "#D97757",
         description: "Turns complaints into Linear tickets with repro steps.",
         overview:
             "Turns support complaints into Linear bug tickets, including repro steps pulled from the thread.",
@@ -600,7 +604,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Feedback clusterer",
         category: "Support",
         initials: "FC",
-        color: "#a21caf",
+        color: "#616161",
         description: "Daily clusters new feedback into themes.",
         overview:
             "Each day, clusters new customer feedback into themes and logs the summary to Notion.",
@@ -652,7 +656,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Lead qualifier",
         category: "Sales",
         initials: "LQ",
-        color: "#f59e0b",
+        color: "#5E5E08",
         description: "Enriches and qualifies new inbound leads.",
         overview:
             "Enriches each new inbound lead, qualifies it against your criteria, and adds it to HubSpot.",
@@ -689,7 +693,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "CRM updater",
         category: "Sales",
         initials: "CU",
-        color: "#0284c7",
+        color: "#113955",
         description: "Updates CRM records from recent email threads.",
         overview:
             "Each day, updates CRM contact records using context from your recent email threads.",
@@ -727,7 +731,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Outreach drafter",
         category: "Sales",
         initials: "OD",
-        color: "#9333ea",
+        color: "#5E0908",
         description: "Drafts personalized outreach for a contact list.",
         overview:
             "Drafts a personalized outreach email for each contact on a CRM list, ready for review.",
@@ -764,7 +768,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Meeting follow-up",
         category: "Sales",
         initials: "MF",
-        color: "#16a34a",
+        color: "#D97757",
         description: "Drafts a follow-up email and logs notes to the CRM.",
         overview:
             "After each meeting, drafts a follow-up email and logs the meeting notes to the CRM.",
@@ -802,7 +806,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Pipeline digest",
         category: "Sales",
         initials: "PD",
-        color: "#ca8a04",
+        color: "#616161",
         description: "Daily digest of pipeline changes and stale deals.",
         overview: "Posts a daily digest of pipeline changes and stale deals to Slack.",
         instructions: "Daily, summarize pipeline changes and stale deals and post the digest.",
@@ -855,7 +859,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Incident responder",
         category: "Engineering",
         initials: "!",
-        color: "#f97316",
+        color: "#5E5E08",
         description: "Watches alerts, gathers context, pages on-call.",
         overview:
             "Watches your alerts. Gathers related context and logs, summarizes the likely cause, and pages the on-call engineer.",
@@ -908,7 +912,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Error triage",
         category: "Engineering",
         initials: "ET",
-        color: "#be123c",
+        color: "#113955",
         description: "Triages new Sentry errors by severity, files real ones.",
         overview:
             "Triages every new Sentry error by severity and files a ticket for the ones that are real.",
@@ -961,7 +965,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Uptime reporter",
         category: "Engineering",
         initials: "UR",
-        color: "#0d9488",
+        color: "#5E0908",
         description: "Daily uptime and error-rate summary to Slack.",
         overview: "Posts a daily summary of uptime and error rates to Slack.",
         instructions: "Daily, summarize uptime and error rates and post the digest.",
@@ -1011,7 +1015,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "On-call briefer",
         category: "Engineering",
         initials: "OC",
-        color: "#7c2d12",
+        color: "#D97757",
         description: "Briefs on-call with open incidents each morning.",
         overview:
             "Every morning, briefs the on-call engineer with all open incidents and their status.",
@@ -1067,7 +1071,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Docs Q&A",
         category: "Knowledge",
         initials: "Q",
-        color: "#1c2c3d",
+        color: "#616161",
         description: "Answers questions from your docs workspace.",
         overview:
             "Answers questions from your docs workspace with concise, cited answers — in chat or on mention.",
@@ -1104,7 +1108,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Knowledge chatbot",
         category: "Knowledge",
         initials: "KC",
-        color: "#2563eb",
+        color: "#5E5E08",
         description: "Customer-facing chatbot answering from your knowledge base.",
         overview: "Answers customer questions from your knowledge base, in chat or when mentioned.",
         instructions:
@@ -1156,7 +1160,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Onboarding buddy",
         category: "Knowledge",
         initials: "OB",
-        color: "#0369a1",
+        color: "#113955",
         description: "Answers new-hire questions from your internal wiki.",
         overview: "Answers new-hire questions by searching your internal wiki, on mention.",
         instructions:
@@ -1208,7 +1212,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Content repurposer",
         category: "Knowledge",
         initials: "CR",
-        color: "#be185d",
+        color: "#5E0908",
         description: "Turns a published doc into draft social posts.",
         overview: "Turns a published doc into draft LinkedIn and X posts, ready for review.",
         instructions:
@@ -1244,7 +1248,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Newsletter drafter",
         category: "Knowledge",
         initials: "ND",
-        color: "#7e22ce",
+        color: "#D97757",
         description: "Weekly newsletter drafted from shipping activity.",
         overview: "Each week, drafts a newsletter summarizing recent shipping activity.",
         instructions: "Weekly, gather recent shipping activity and draft the newsletter.",
@@ -1297,7 +1301,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Standup summarizer",
         category: "Ops",
         initials: "SU",
-        color: "#3b82f6",
+        color: "#616161",
         description: "Posts a daily digest of channel activity.",
         overview:
             "Posts a daily digest of channel activity so your team starts the day with a clear standup summary.",
@@ -1334,7 +1338,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Repo Slack digest",
         category: "Ops",
         initials: "RD",
-        color: "#334155",
+        color: "#5E5E08",
         description: "Twice-daily digest of issues, commits, and PRs.",
         overview: "Twice a day, posts a digest of new issues, commits, and PRs to Slack.",
         instructions: "Twice daily, summarize new issues, commits, and PRs and post the digest.",
@@ -1385,7 +1389,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Cross-tool sync",
         category: "Ops",
         initials: "CS",
-        color: "#0f766e",
+        color: "#113955",
         description: "Mirrors new Linear issues into a Notion tracker.",
         overview: "Mirrors new Linear issues into a Notion tracker on a schedule.",
         instructions:
@@ -1437,7 +1441,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         name: "Weekly report",
         category: "Ops",
         initials: "WR",
-        color: "#c2410c",
+        color: "#5E0908",
         description: "Weekly report of shipping and product metrics.",
         overview:
             "Each week, compiles a report of shipping activity and product metrics to Notion.",

@@ -21,7 +21,7 @@ import {
 } from "../../responder.ts";
 import {
   buildInteractionData,
-  buildWorkflowReferences,
+  buildWorkflowReferenceList,
   createInteraction,
   resolveInteraction,
 } from "../../sessions/interactions.ts";
@@ -106,6 +106,9 @@ export async function runTurn(
   const { plan, logger, deps } = env;
   const credential = opts.credential ?? (() => runCredential(request));
   const sessionId = env.sessionId;
+  const toolRunContext = env.sessionId
+    ? { ...request.runContext, session: { id: env.sessionId } }
+    : request.runContext;
   // Race marker for a user Stop (the control-plane `cancel`/`steer` command drops the alive lock, the
   // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
   // (honest interrupted transcript, keep-warm) instead of falling through to the error catch.
@@ -364,7 +367,7 @@ export async function runTurn(
           }
         : undefined;
     if (turnLedgerContext) {
-      const workflowRefs = buildWorkflowReferences(
+      const workflowRefs = buildWorkflowReferenceList(
         request.runContext?.workflow,
       );
       // Row existence proves only that a turn started. Native continuation is trustworthy only
@@ -378,7 +381,7 @@ export async function runTurn(
           turnId: request.turnId,
           agentSessionId: env.session?.agentSessionId,
           sandboxId: env.sandbox?.sandboxId,
-          references: workflowRefs ? Object.values(workflowRefs) : undefined,
+          references: workflowRefs,
           traceId: run.traceId() ?? request.runContext?.trace?.trace_id,
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,
@@ -903,7 +906,7 @@ export async function runTurn(
         plan.workspace.relayDir,
         plan.tools.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
-        request.runContext,
+        toolRunContext,
         env.clientToolRelayRef.current,
         relayGuard,
         {
@@ -990,9 +993,28 @@ export async function runTurn(
           `[keepalive] resume answered gate reply=${decision.reply} tool=${decision.toolName ?? "?"}`,
         );
       }
-      // The harness still holds carried gates inside the original prompt, so re-arm the pause after
-      // this answer batch and let the normal park path refresh their approval TTL.
-      if (opts.resume.carriedForward.length > 0) pause.pause();
+      // The harness still holds carried gates inside the original prompt, so the turn must end
+      // paused again — but pause() both destroys the live session and settles the race signal
+      // below, so pausing here would kill a freshly-approved execution mid-flight and the
+      // paused-settle would replace its REAL result with the UNKNOWN sentinel (issue #5907).
+      // Give each answered/allowed execution its closure window FIRST, on the same per-call
+      // bound the paused-settle uses, then re-arm the pause and let the normal park path
+      // refresh the carried gates' approval TTL. Pi is exempt on purpose: it prepares the whole
+      // batch before executing any call, so while a carried sibling gate is pending closure is
+      // impossible and the paused-settle's park-and-carry branch owns those spans.
+      if (opts.resume.carriedForward.length > 0) {
+        if (!plan.isPi) {
+          const answeredAllowedIds = decisions
+            .filter((decision) => decision.reply === "once")
+            .map((decision) => decision.toolCallId);
+          await Promise.all(
+            answeredAllowedIds.map((toolCallId) =>
+              waitForToolCallClosure(toolCallId, resolvedRunLimits.toolCallMs),
+            ),
+          );
+        }
+        pause.pause();
+      }
     } else {
       promptPromise = Promise.resolve(
         env.session.prompt(promptBlocks),

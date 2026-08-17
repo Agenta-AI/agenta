@@ -3,13 +3,47 @@ import {type MutableRefObject, useEffect, useRef, useState} from "react"
 import {workflowBuildKitOverlayReadyAtomFamily} from "@agenta/entities/workflow"
 import {useAtom, useAtomValue} from "jotai"
 
-import {agentFirstRunSeedAtom} from "../state/firstRunSeed"
+import {agentFirstRunSeedAtom, type AgentFirstRunSeed} from "../state/firstRunSeed"
+
+/**
+ * Does THIS session own the pending seed?
+ *
+ * A seed that names its session is claimed by that session alone. The id-less legacy seed (agent
+ * creation) falls back to "the active conversation, while it is empty" — and must wait out
+ * hydration, because a session whose transcript is still loading is indistinguishable from an empty
+ * one and would swallow the message.
+ */
+export const shouldConsumeSeed = ({
+    seed,
+    entityId,
+    scopeKey,
+    sessionId,
+    activeSessionId,
+    messagesCount,
+    isHydrating,
+}: {
+    seed: AgentFirstRunSeed | null
+    entityId: string
+    scopeKey: string
+    sessionId: string
+    activeSessionId: string | null | undefined
+    messagesCount: number
+    isHydrating: boolean
+}): boolean => {
+    if (!seed) return false
+    const addressesThisAgent =
+        entityId === seed.revisionId || entityId === seed.appId || scopeKey === seed.appId
+    if (!addressesThisAgent) return false
+    if (seed.sessionId) return seed.sessionId === sessionId
+    if (activeSessionId !== sessionId) return false
+    return !isHydrating && messagesCount === 0
+}
 
 /**
  * First-run seed: a freshly-created agent (from Home's composer/template) surfaces its starting
  * prompt in the empty state (see AgentChatEmptyState) rather than pre-filling the composer, so it
- * reads as "here's what we'll do" not stray user input. Consumed once by the active session on a
- * fresh conversation, matching either the revision or app id, then cleared.
+ * reads as "here's what we'll do" not stray user input. Consumed once — by the session the seed
+ * names, or (id-less agent-creation seed) by the active empty conversation — then cleared.
  *
  * Also owns the auto-start: the seeded agent's model is usually gated (no provider key yet), and
  * connecting the key IS the go-ahead — so once the gate clears the seed sends itself rather than
@@ -24,6 +58,8 @@ export const useFirstRunSeed = ({
     modelBlocked,
     handleSubmitRef,
     onSeedFiles,
+    attachmentsSettled = true,
+    isHydrating = false,
 }: {
     entityId: string
     /** The chat scope — an app id. Lets a seed aimed at an existing agent match without knowing
@@ -33,6 +69,11 @@ export const useFirstRunSeed = ({
     activeSessionId: string | null | undefined
     messagesCount: number
     modelBlocked: boolean
+    /** True while this session's transcript loads from the durable log — an empty `messagesCount`
+     * says nothing yet, so an id-less seed must not read it as an empty conversation. */
+    isHydrating?: boolean
+    /** Attachments finished uploading — a seed must not fire mid-upload. */
+    attachmentsSettled?: boolean
     /** Read at fire time so the transition drives the send, not a stale closure. */
     handleSubmitRef: MutableRefObject<(text: string) => void | Promise<void>>
     /** The chat's own `addFiles` — seed files go through the same staging paste and drop use. */
@@ -45,12 +86,18 @@ export const useFirstRunSeed = ({
     const seedConsumedRef = useRef(false)
     useEffect(() => {
         if (seedConsumedRef.current || !firstRunSeed) return
-        const addressesThisAgent =
-            entityId === firstRunSeed.revisionId ||
-            entityId === firstRunSeed.appId ||
-            scopeKey === firstRunSeed.appId
-        if (!addressesThisAgent) return
-        if (activeSessionId !== sessionId || messagesCount > 0) return
+        if (
+            !shouldConsumeSeed({
+                seed: firstRunSeed,
+                entityId,
+                scopeKey,
+                sessionId,
+                activeSessionId,
+                messagesCount,
+                isHydrating,
+            })
+        )
+            return
         seedConsumedRef.current = true
         setFirstRunPrompt(firstRunSeed.seedMessage)
         setFirstRunAutoSend(!!firstRunSeed.autoSend)
@@ -63,6 +110,7 @@ export const useFirstRunSeed = ({
         activeSessionId,
         sessionId,
         messagesCount,
+        isHydrating,
         setFirstRunSeed,
         onSeedFiles,
     ])

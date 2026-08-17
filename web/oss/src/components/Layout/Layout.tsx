@@ -2,6 +2,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode}
 
 import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
 import AppMessageContext from "@agenta/ui/app-message"
+import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
@@ -11,6 +12,8 @@ import {eagerAtom} from "jotai-eager"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
+import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
+import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
@@ -22,6 +25,7 @@ import {
     lastNonDemoProjectAtom,
 } from "@/oss/state/project/selectors/project"
 import {urlAtom} from "@/oss/state/url"
+import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
@@ -168,6 +172,13 @@ const appRouteSliceAtom = selectAtom(
 // String-valued so org/app churn inside urlAtom doesn't re-render AppWithVariants
 const baseAppURLAtom = eagerAtom((get) => get(urlAtom).baseAppURL)
 
+// True once the type lookup has given its final answer, even when that answer is nothing.
+const agentTypeSettledAtom = atom((get) => {
+    const appId = get(routerAppIdAtom)
+    if (!appId) return true
+    return !get(workflowLatestRevisionQueryAtomFamily(appId)).isPending
+})
+
 type StyleClasses = ReturnType<typeof useStyles>
 
 const {Content} = Layout
@@ -201,10 +212,21 @@ const AppWithVariants = memo(
         const isAnnotations = appState.pathname.includes("/annotations")
         const lastBasePathRef = useRef<string | null>(null)
         const lastNonSettingsPathRef = useRef<string | null>(null)
+        // Same signal the playground shell reads, so sidebar and content commit together.
+        const agentState = useAtomValue(playgroundEarlyAgentStateAtom)
+        const agentTypeSettled = useAtomValue(agentTypeSettledAtom)
+        const currentSidebarViewIdRef = useRef<string | undefined>(undefined)
         const activeSidebarView = resolveSidebarView({
             pathname: appState.pathname,
             routeLayer: appState.routeLayer,
+            agentState,
+            agentTypeSettled,
+            currentViewId: currentSidebarViewIdRef.current,
         })
+        // Update only after commit so abandoned renders cannot change the visible view.
+        useIsomorphicLayoutEffect(() => {
+            currentSidebarViewIdRef.current = activeSidebarView.id
+        }, [activeSidebarView.id])
 
         useEffect(() => {
             if (activeSidebarView.isBase) {

@@ -68,8 +68,8 @@ export function CollapsibleProviderGroup({
 }: {
     logo?: string | null
     name: string
-    /** Right-aligned summary line, e.g. "2 active · 3 total" or "3 tools". */
-    countText: string
+    /** Right-aligned summary line, e.g. "2 active · 3 total" or "3 tools"; omit to hide it. */
+    countText?: string
     open: boolean
     onToggle: () => void
     /** Per-group add affordance; omit to hide the button (e.g. read-only). */
@@ -81,7 +81,8 @@ export function CollapsibleProviderGroup({
     children: ReactNode
 }) {
     return (
-        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
+        // White sheet on the expanded section's band; the header keeps its own fill on top.
+        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)]">
             {/* Header stays clickable but is not the role=button node — it holds the + button
                 (nested-interactive). The role lives on the name span below. */}
             <div
@@ -115,9 +116,11 @@ export function CollapsibleProviderGroup({
                     {name}
                 </span>
                 {statusTag ? <span className="shrink-0">{statusTag}</span> : null}
-                <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
-                    {countText}
-                </span>
+                {countText ? (
+                    <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
+                        {countText}
+                    </span>
+                ) : null}
                 {onAdd ? (
                     <TooltipProvider>
                         <Tooltip>

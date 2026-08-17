@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     PROVIDER_AUTH_REQUIREMENTS,
+    fieldNoteForKind,
     PROVIDER_FIELDS,
     PROVIDER_KINDS,
     PROVIDER_LABELS,
@@ -207,7 +208,7 @@ const CustomProviderForm = ({
                     return !field.model || field.model.includes(normalizedProviderKind)
                 }
                 return true
-            }),
+            }).map((field) => ({...field, note: fieldNoteForKind(field, normalizedProviderKind)})),
         [shouldFilter, normalizedProviderKind],
     )
 

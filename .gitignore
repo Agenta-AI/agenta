@@ -166,3 +166,4 @@ skills-lock.json
 
 # Test artifacts in any workspace (vitest/playwright write a junit report on every run).
 test-results/
+junit.xml

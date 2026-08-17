@@ -485,7 +485,7 @@ export function WorkflowReferenceSelector({
 
                                 {/* Exposed-as + Description: root-level fields (no section chrome),
                                     2-panel to align with the sections' [rail | content] rhythm below. */}
-                                <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] py-3">
+                                <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] py-3">
                                     <div className="box-border w-[116px] shrink-0 px-2.5 pt-1 text-xs text-[var(--ag-colorTextSecondary)]">
                                         Exposed as
                                     </div>
@@ -502,7 +502,7 @@ export function WorkflowReferenceSelector({
                                     </div>
                                 </div>
 
-                                <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] py-3">
+                                <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] py-3">
                                     <div className="box-border w-[116px] shrink-0 px-2.5 pt-1 text-xs text-[var(--ag-colorTextSecondary)]">
                                         Description
                                     </div>

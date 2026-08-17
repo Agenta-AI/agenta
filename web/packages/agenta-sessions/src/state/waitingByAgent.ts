@@ -32,7 +32,8 @@ export function useWaitingByAgent(): Map<string, number> {
     const waitingQuery = useSessionList({
         sessionIds: waitingIds,
         // An automation run that needs approval still belongs to the agent that ran it.
-        showTriggered: true,
+        originPolicy: "all",
+        expansions: ["trigger"],
         enabled: waitingIds.length > 0,
     })
 
