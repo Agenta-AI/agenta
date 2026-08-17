@@ -8,7 +8,7 @@
 // persist-on-settle → run-status publish, plus error stamping and the rewind plan.
 import {createElement, type ReactNode} from "react"
 
-import {buildAgentRequest} from "@agenta/playground"
+import {buildAgentRequest} from "@agenta/playground/agent-chat"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
@@ -47,7 +47,6 @@ vi.mock("@agenta/entities/trace", () => ({
     markTraceAsFresh: vi.fn(),
 }))
 
-import {buildAgentRequest} from "@agenta/playground/agent-chat"
 
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
 import {markSessionFresh} from "../../../src/state/sessionEphemera"
