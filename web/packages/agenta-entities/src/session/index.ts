@@ -107,6 +107,7 @@ export {
 } from "./state/records"
 export {
     fetchSessionInteractionStatesAtom,
+    hasWaitingInteraction,
     revalidateSessionInteractionsAtom,
     type SessionInteractionRowState,
     type SessionInteractionRowStates,

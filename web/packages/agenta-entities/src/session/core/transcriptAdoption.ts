@@ -23,6 +23,15 @@ export interface TranscriptAdoptionInput {
     watermark: number | undefined
     /** This client is streaming the turn, so it — not the log — is the authority. */
     busy: boolean
+    /**
+     * A card on screen is still awaiting THIS user (#5942).
+     *
+     * Adopting over a parked card discards whatever they have half-typed into its form. The local
+     * copy is authoritative until the interaction row says the card ended, because a card replayed
+     * from the durable log carries its harness-wrapped tool name with no `data-render` sibling —
+     * so "the client no longer recognises it as waiting" is NOT evidence that it settled.
+     */
+    awaitingUser?: boolean
 }
 
 export const shouldAdoptServerTranscript = ({
@@ -31,11 +40,14 @@ export const shouldAdoptServerTranscript = ({
     localMessageCount,
     watermark,
     busy,
+    awaitingUser,
 }: TranscriptAdoptionInput): boolean => {
     // Nothing to adopt.
     if (serverMessageCount === 0) return false
     // A live local stream outranks the log until it settles.
     if (busy) return false
+    // A card still waiting on the user outranks it too — see `awaitingUser`.
+    if (awaitingUser) return false
     // THE trigger: the log grew past what we render. An absent watermark reads as 0, so a
     // locally-streamed or pre-#5530 cache re-syncs from the server once on its next open.
     if (serverRecordCount <= (watermark ?? 0)) return false

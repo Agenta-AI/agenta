@@ -2,7 +2,11 @@ import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "r
 
 import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
 import {isSessionFresh, sessionStatusAtomFamily} from "@agenta/chat/state"
-import {revalidateSessionRecordsAtom, shouldAdoptServerTranscript} from "@agenta/entities/session"
+import {
+    hasWaitingInteraction,
+    revalidateSessionRecordsAtom,
+    shouldAdoptServerTranscript,
+} from "@agenta/entities/session"
 import {type UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -111,13 +115,16 @@ export const useSessionHydration = ({
     const adoptServerTranscript = useCallback(
         (transcript: SessionTranscript | null, {armJump = true} = {}): boolean => {
             if (!transcript) return false
-            const {messages: serverMsgs, recordCount} = transcript
+            const {messages: serverMsgs, recordCount, interactionRows} = transcript
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: recordCount,
                 serverMessageCount: serverMsgs.length,
                 localMessageCount: messagesRef.current.length,
                 watermark: recordWatermarkRef.current,
                 busy: busyRef.current,
+                // #5942: a card still parked on the user outranks the log — adopting over it
+                // discards whatever they typed into its form.
+                awaitingUser: hasWaitingInteraction(interactionRows),
             })
             if (!adopt) return false
             // Restored history renders settled (no live fade-in) and pinned to the bottom.
