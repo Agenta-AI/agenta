@@ -7,7 +7,7 @@ import {
 import {describe, expect, it, vi} from "vitest"
 
 import {mergeSessionMenuEntries, selectSessionContextMenuItem} from "./menuEntries"
-import {createSessionAutomationActions} from "./sessionAutomationActions"
+import {createSessionAutomationActions} from "@agenta/sessions-ui"
 
 function row({
     kind = "schedule",

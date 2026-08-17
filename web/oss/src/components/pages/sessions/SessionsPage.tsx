@@ -19,7 +19,9 @@ import {sessionListPolicies} from "@agenta/sessions/state"
 import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
 import {agentsWorkflowsAtom} from "../agents/store"
 
-import {toSessionMenuEntries} from "./assets/menuEntries"
+import {mergeSessionMenuEntries, toSessionMenuEntries} from "./assets/menuEntries"
+import SessionAutomationDrawers from "./components/SessionAutomationDrawers"
+import {useSessionAutomationActions} from "./hooks/useSessionAutomationActions"
 
 interface Props {
     /** Route-supplied agent scope (`/apps/[app_id]/sessions`). Omit for the project-wide list. */
@@ -55,6 +57,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     const {toggle: togglePin} = useSessionPins()
     const openSession = useOpenAgentSession()
     const sessionActions = useSessionActions()
+    const automation = useSessionAutomationActions()
     const agents = useAtomValue(agentsWorkflowsAtom)
     const agentOptions = useMemo(
         () => agents.map((agent) => ({id: agent.workflowId, name: agent.name})),
@@ -74,10 +77,15 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     )
     const menuFor = useCallback(
         (vm: SessionRowVm) =>
-            toSessionMenuEntries(
-                sessionActions.menuItems(targetFor(vm), {onOpen: () => handleOpen(vm)}),
+            // Automation verbs (open the schedule/subscription, view the delivery) slot above the
+            // destructive divider — a trigger row IS its automation, so those read first (#5927).
+            mergeSessionMenuEntries(
+                toSessionMenuEntries(
+                    sessionActions.menuItems(targetFor(vm), {onOpen: () => handleOpen(vm)}),
+                ),
+                automation.menuItems(vm),
             ),
-        [sessionActions, handleOpen],
+        [sessionActions, handleOpen, automation],
     )
     const onMenuSelect = useCallback(
         (vm: SessionRowVm, key: string) => {
@@ -87,8 +95,9 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
             if (key === "pin") togglePin(vm.id)
             if (key === "archive") void sessionActions.setArchived(target)
             if (key === "delete") sessionActions.remove(target)
+            automation.onSelect(vm, key)
         },
-        [sessionActions, togglePin, handleOpen],
+        [sessionActions, togglePin, handleOpen, automation],
     )
 
     if (!BROWSE_RAIL_MODE)
@@ -115,6 +124,9 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                         className="min-h-0 flex-1 overflow-y-auto"
                     />
                 </div>
+                {/* Trigger drawers the row menu opens; mounted at page level so they
+                    survive the row unmounting under them. */}
+                <SessionAutomationDrawers />
             </PageLayout>
         )
 
@@ -140,6 +152,9 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                     className="min-h-0 flex-1 overflow-y-auto px-6 pb-4"
                 />
             </FilterRailLayout>
+            {/* Trigger drawers the row menu opens; mounted at page level so they
+                survive the row unmounting under them. */}
+            <SessionAutomationDrawers />
         </PageLayout>
     )
 }
