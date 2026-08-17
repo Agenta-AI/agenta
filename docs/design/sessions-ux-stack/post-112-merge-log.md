@@ -536,3 +536,44 @@ Resolve, `git add`, then commit. **Do not `git merge --abort`** without first re
    `agenta-entity-ui/src/drive/*`, `agenta-ui/.../theme-variables.css`) are the **A1 fixes arriving
    in the right place** — resolve to keep *both* sides' intent, not by picking one.
 4. Everything else: read both sides. The lane frequently rewrote what the release patched.
+
+---
+
+## Addendum — release/v0.112.2 (commit `3453d1aa19`)
+
+WP-0 merged **v0.112.1**. `origin/release/v0.112.2` landed 23 further commits after it
+(linear: 112.0 → 112.1 → 112.2), so the lane was one patch release short. Merged.
+
+**Scope:** 28 files. 9 are Python/helm version bumps and 4 are `package.json` version
+bumps to `0.112.2`; the remaining 15 are frontend.
+
+**Conflicts: 3, all mis-aligned rather than semantic.** In each case the lane's side was
+kept and 112.2's delta hand-applied at the place the lane had re-homed the code.
+
+| File | 112.2 wanted | Resolution |
+|---|---|---|
+| `Playground/Components/MainLayout/index.tsx` | delete `OverlayScrollbar`, swap 5 `[&::-webkit-scrollbar]:w-0` sites for `ag-scroll-no-bar` | applied by hand to the lane's version; the lane has **two** render branches, so both `OverlayScrollbar` sites went, plus the import and the now-unused `configPanelRef` |
+| `oss/src/styles/globals.css` | add `-ms-overflow-style: none` to `.ag-scroll-no-bar` | the lane had already moved these helpers to `@agenta/ui/surfaces.css` — ported there instead |
+| `AgentChatSlice/components/SessionTagBar.tsx` | lighten `bg-colorFill` → `bg-[color-mix(…90%…)]` | **superseded.** The lane replaced the fill-only chip with a white pill + 2px accent underline in `@agenta/sessions-ui/SessionTab`; there is no fill left to lighten. Same category as `OriginTag`. |
+
+**Rename detection carried two moved files on its own** (verified by content, not by
+merge exit code):
+
+- `oss/src/state/newObservability/atoms/controls.ts` → `@agenta/observability/src/state/controls.ts`
+  — the `SetStateAction<Filter[]>` widening (QW6) is present at both write sites.
+- `oss/src/services/webhooks/types.ts` → `@agenta/entities/src/webhook/types.ts`
+  — the flattened `WebhookFormValues` is byte-identical to 112.2's.
+
+**Landed unconflicted, no re-homing owed:** `agenta-ui/ui/select.tsx` (trigger alignment),
+the four `agenta-entity-ui` agentTemplate files + the new `agentTemplateUtils.test.ts`
+(`pi_core` harness default), `CustomAreaChart.tsx` (y-axis unclip — single copy, still
+app-side), and the `PlaygroundSyncStateTag` extraction (correctly app-side; the
+`renderSyncStateTag` prop seam already existed).
+
+**Gates:** oss tsc 0 · mobile tsc 0 · lint 25/25 · entity-ui 33 files/455 tests ·
+ui 3/48 · entities 89/1328 · oss 44/355 · mobile 11/74 · chat 34/338.
+
+**Flagged, not fixed:** `web/mobile/package.json` is still `0.111.0` while every other web
+package went to `0.112.2`. The release bump script predates `web/mobile` and does not know
+about it, so a silent bump here would drift again next release — the script needs the path
+added. Not in this lane's scope.
