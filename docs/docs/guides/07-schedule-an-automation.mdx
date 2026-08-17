@@ -5,7 +5,7 @@ description: "Run an agent on a recurring schedule by setting its cadence, versi
 ---
 
 ```mdx-code-block
-import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 A schedule runs an agent at set times without anyone in the chat. First, [prepare the agent for automation](/guides/create-an-automation).
@@ -16,18 +16,9 @@ A schedule runs one pinned variant and revision. Commit the agent first, so the 
 
 ## Open the schedule dialog
 
-You can open the `New schedule` dialog from two places.
+Go to `Sidebar > Settings > Triggers`, then click `Schedule` on the `Scheduled runs` section.
 
-**From the agent.** `Sidebar > Agents > <agent name>`, set `Playground mode` to `Build`, scroll the `Configuration` column to the `Triggers` heading, and click `Add schedule` on the `Schedules` section.
-
-**From project settings.** `Sidebar > Settings > Triggers`, then `+ Schedule` on the `Scheduled runs` section.
-
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/schedules-new-schedule.png")}
-  alt="The New schedule dialog with its Name, When should it run, Which version runs, and What should the agent do sections"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="508ab77095d61c75e9a2862c9817bd03" height="400px" />
 
 ## Fill in the dialog
 

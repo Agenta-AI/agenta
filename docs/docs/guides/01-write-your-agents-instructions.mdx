@@ -5,7 +5,7 @@ description: "Edit an agent's AGENTS.md instructions, write a first version, and
 ---
 
 ```mdx-code-block
-import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 An agent's instructions live in `AGENTS.md`. Agenta sends this file to the agent at the start of every session. This guide shows you how to edit it, write a first version, and add corrections. To learn what belongs in instructions rather than a file or skill, see [Instructions](/concepts/instructions).
@@ -13,15 +13,9 @@ An agent's instructions live in `AGENTS.md`. Agenta sends this file to the agent
 ## Open the editor
 
 1. Go to `Agents` in the sidebar and pick your agent.
-2. In the playground, set **Playground mode** to `Build`.
-3. In the **Configuration** column, open **Instructions** and click the `AGENTS.md` row.
+2. In the **Configuration** column, click the `AGENTS.md` row under **Instructions**.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/instructions-agents-md-editor.png")}
-  alt="The AGENTS.md editor dialog, with the Edit and Preview control, the formatting toolbar, and the tips rail on the right"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="0f5100167ca5faf3cb1dabef0e1d1622" height="400px" />
 
 ## Write a first version
 
