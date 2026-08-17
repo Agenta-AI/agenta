@@ -30,8 +30,11 @@ const classesFromMatch = (markup: string, pattern: RegExp): string[] => {
 const classesBefore = (markup: string, text: string): string[] =>
     classesFromMatch(markup.slice(0, textIndex(markup, text)), /class="([^"]*)"[^>]*>[^<]*$/)
 
-const titleGroupClasses = (markup: string): string[] =>
-    classesFromMatch(markup, /role="button"[^>]*class="([^"]*)"/)
+const titleGroupClasses = (markup: string): string[] => {
+    const match = markup.match(/<div[^>]*role="button"[^>]*>/)
+    assert(match, "Expected a role=\"button\" title group")
+    return classesFromMatch(match[0], /class="([^"]*)"/)
+}
 
 describe("ConfigAccordionSection title sizing", () => {
     it("lets the summary shrink before an explicitly preserved title", () => {

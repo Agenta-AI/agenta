@@ -376,7 +376,7 @@ export function ConfigAccordionSection({
                     }}
                     className={cn(
                         "flex items-center gap-2",
-                        preserveTitle ? "shrink-0" : "min-w-0",
+                        preserveTitle ? "shrink-0 max-w-full" : "min-w-0",
                     )}
                 >
                     {iconAffordance}
