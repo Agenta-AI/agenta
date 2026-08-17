@@ -10,9 +10,11 @@ export const ROW_VARIANTS: Variants = {
     exit: {height: 0, opacity: 0, marginBottom: 0},
 }
 
-/** Bar tag: collapses width + its right-gap margin (6px = gap-1.5) together so nothing snaps on unmount. */
+/** Bar tag: collapses width so nothing snaps on unmount. No margin of its own — the hairline
+ * divider between tags (rendered as part of the tag itself, so it collapses with it too) supplies
+ * the gap instead of a bare margin. */
 export const TAG_VARIANTS: Variants = {
-    initial: {width: 0, opacity: 0, marginRight: 0},
-    animate: {width: "auto", opacity: 1, marginRight: 6},
-    exit: {width: 0, opacity: 0, marginRight: 0},
+    initial: {width: 0, opacity: 0},
+    animate: {width: "auto", opacity: 1},
+    exit: {width: 0, opacity: 0},
 }

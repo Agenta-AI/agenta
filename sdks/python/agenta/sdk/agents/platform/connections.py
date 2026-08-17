@@ -192,16 +192,33 @@ def _extras(settings: Dict[str, Any]) -> Dict[str, Any]:
     return _as_dict(settings.get("extras"))
 
 
+def _saved_models(data: Dict[str, Any]) -> Optional[List[str]]:
+    """The connection's saved model list, in saved order, or ``None`` when it saved none.
+
+    ``None`` and ``[]`` mean different things (use Agenta's defaults vs. show nothing), so the
+    absent case must stay distinguishable from the empty one.
+    """
+    models = data.get("models")
+    if models is None:
+        return None
+    slugs = [
+        _stripped(model.get("slug") if isinstance(model, dict) else model)
+        for model in models
+    ]
+    return [slug for slug in slugs if slug]
+
+
+def _saved_harnesses(data: Dict[str, Any]) -> Optional[List[str]]:
+    """The harnesses the connection is allowed to drive, or ``None`` when it saved no choice."""
+    harnesses = data.get("harnesses")
+    if harnesses is None:
+        return None
+    names = [_stripped(harness) for harness in harnesses]
+    return [name for name in names if name]
+
+
 def _model_slugs(data: Dict[str, Any]) -> Set[str]:
-    slugs: Set[str] = set()
-    for model in data.get("models") or []:
-        if isinstance(model, dict):
-            slug = _stripped(model.get("slug"))
-        else:
-            slug = _stripped(model)
-        if slug:
-            slugs.add(slug)
-    return slugs
+    return set(_saved_models(data) or [])
 
 
 def _model_keys(data: Dict[str, Any], *, slug: str, deployment: str) -> Set[str]:
@@ -239,6 +256,10 @@ class _ConnectionCandidate:
     endpoint_blocked: bool = False
     model_slugs: Set[str] = field(default_factory=set)
     model_keys: Set[str] = field(default_factory=set)
+    # The connection's saved policy, carried for the slices that consume it (the picker, the
+    # harness intersection). Neither field filters resolution here yet.
+    models: Optional[List[str]] = None
+    harnesses: Optional[List[str]] = None
 
     def matches_provider(self, provider: Optional[str]) -> bool:
         return bool(
@@ -248,6 +269,21 @@ class _ConnectionCandidate:
     def matches_model(self, model: ModelRef) -> bool:
         values = _model_lookup_values(model, self.deployment)
         return bool(values & self.model_slugs) or bool(values & self.model_keys)
+
+    def declares_model(self, model: ModelRef) -> bool:
+        """Whether the connection's SAVED model list names this model.
+
+        ``models is None`` means "use Agenta's defaults" — an absent declaration, not a claim on
+        every model — so it never narrows a provider pool. Saved ids are stored in their bare
+        spelling (the settings card collapses them), hence the case-insensitive bare compare.
+        """
+        if not self.models:
+            return False
+        declared = {value.lower() for value in self.models}
+        return bool(
+            {value.lower() for value in _model_lookup_values(model, self.deployment)}
+            & declared
+        )
 
     def selected_model_id(self, model: ModelRef) -> str:
         full = model.to_model_string()
@@ -333,13 +369,17 @@ def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandi
     key = _stripped(_settings(secret).get("key"))
     if not provider:
         return None
-    # A provider_key is identified by its provider — it has no slug concept, never `header.name`.
+    # Records created since named connections carry a stable slug and are addressed by it, so a
+    # project can hold several keys per provider. Older records have none and stay addressable by
+    # their provider family. `header.name` is display-only and is never identity.
     return _ConnectionCandidate(
-        slug=provider,
+        slug=_stripped(secret.get("slug")) or provider,
         kind="provider_key",
         provider=provider,
         deployment="direct",
         api_key=key,
+        models=_saved_models(data),
+        harnesses=_saved_harnesses(data),
     )
 
 
@@ -349,7 +389,11 @@ def _custom_provider_candidate(
     data = _data(secret)
     settings = _settings(secret)
     extras = _extras(settings)
-    slug = _header_name(secret) or _stripped(data.get("provider_slug"))
+    # The namespace stored model keys were built with, which stays the display name.
+    provider_slug = _header_name(secret) or _stripped(data.get("provider_slug"))
+    # Records created since named connections carry a stable slug and are addressed by it, so a
+    # rename no longer moves the connection; older records stay addressable by their name.
+    slug = _stripped(secret.get("slug")) or provider_slug
     provider_kind = _stripped(data.get("kind")) or "custom"
     if not slug:
         return None
@@ -396,7 +440,11 @@ def _custom_provider_candidate(
         model_slugs=_model_slugs(data),
         # Stored model keys remain namespaced by the vault provider kind. Runtime
         # deployment normalization must not change how a committed model selector matches.
-        model_keys=_model_keys(data, slug=slug, deployment=provider_kind),
+        model_keys=_model_keys(
+            data, slug=provider_slug or slug, deployment=provider_kind
+        ),
+        models=_saved_models(data),
+        harnesses=_saved_harnesses(data),
     )
 
 
@@ -448,13 +496,29 @@ def _choose_default(
         raise MissingProviderError(
             model=model.model, hint_provider=_harness_default_provider(harness)
         )
+    if not pool:
+        # Zero candidates with a known provider is a MISSING credential, not an ambiguous
+        # one — falling through to AmbiguousConnectionError told users with an empty vault
+        # "multiple connections for provider 'X'" and sent them hunting phantom secrets.
+        raise MissingCredentialError(provider=model.provider or "")
     if len(pool) == 1:
         return pool[0]
+    # A project may hold several connections per provider (Settings -> AI providers lists one row
+    # per connection), and a slug-less config is the shape the product itself creates for a new
+    # app. It is still resolvable when exactly one of those connections DECLARES the requested
+    # model in its saved list — the same list the picker offered the model from. Connections that
+    # saved no list stay unconstrained and never win by declaration.
+    declaring = [candidate for candidate in pool if candidate.declares_model(model)]
+    if len(declaring) == 1:
+        return declaring[0]
     default_named = [candidate for candidate in pool if candidate.slug == "default"]
     if len(default_named) == 1:
         return default_named[0]
     provider = model.provider or ""
-    raise AmbiguousConnectionError(provider=provider)
+    raise AmbiguousConnectionError(
+        provider=provider,
+        candidates=[candidate.slug for candidate in pool if candidate.slug],
+    )
 
 
 def _choose_named(

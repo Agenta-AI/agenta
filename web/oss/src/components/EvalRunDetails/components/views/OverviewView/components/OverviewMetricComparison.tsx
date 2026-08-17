@@ -2,9 +2,9 @@ import {memo, useMemo} from "react"
 
 import {Typography} from "antd"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
-import {DEFAULT_SPIDER_SERIES_COLOR, SPIDER_SERIES_COLORS} from "../constants"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import type {AggregatedMetricChartData} from "../types"
 import {resolveMetricValue} from "../utils/metrics"
@@ -18,6 +18,7 @@ interface OverviewMetricComparisonProps {
 const OverviewMetricComparison = ({runIds}: OverviewMetricComparisonProps) => {
     const orderedRunIds = useMemo(() => runIds.filter((id): id is string => Boolean(id)), [runIds])
     const {runDescriptors, runColorMap, metricSelections} = useRunMetricData(orderedRunIds)
+    const seriesColors = useChartSeries()
 
     const aggregatedMetrics = useMemo(() => {
         if (runDescriptors.length <= 1) {
@@ -42,9 +43,8 @@ const OverviewMetricComparison = ({runIds}: OverviewMetricComparisonProps) => {
                             runName: runDescriptor.displayName,
                             color:
                                 runColorMap.get(runId) ??
-                                (index === 0
-                                    ? DEFAULT_SPIDER_SERIES_COLOR
-                                    : SPIDER_SERIES_COLORS[index % SPIDER_SERIES_COLORS.length]),
+                                seriesColors[index % seriesColors.length] ??
+                                seriesColors[0],
                             stats,
                             scenarioCount,
                             summary:
@@ -65,7 +65,7 @@ const OverviewMetricComparison = ({runIds}: OverviewMetricComparisonProps) => {
                 }
             })
             .filter(Boolean) as AggregatedMetricChartData[]
-    }, [metricSelections, runColorMap, runDescriptors])
+    }, [metricSelections, runColorMap, runDescriptors, seriesColors])
 
     if (!aggregatedMetrics.length) {
         return null

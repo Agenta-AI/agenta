@@ -15,7 +15,7 @@ import {useEffect, useMemo, useState} from "react"
 import {Button} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
 
-import {RowRemoveButton} from "../../../drawers/shared/MasterDetailRail"
+import {RowRemoveButton} from "../../../drawers/shared/RowRemoveButton"
 
 import {
     defType,
@@ -65,7 +65,7 @@ function typeLabel(def: Schema): string {
 
 function LeadingGlyph({type}: {type: string}) {
     if (type === "array") {
-        return <span className={`font-mono text-[11px] ${TYPE_TINT}`}>[ ]</span>
+        return <span className={`font-mono text-xs ${TYPE_TINT}`}>[ ]</span>
     }
     // Scalar: a small hollow dot.
     return (
@@ -162,7 +162,7 @@ function TreeRow({
                         title="Required"
                     />
                 ) : null}
-                <span className={`ml-auto shrink-0 pl-2 text-[11px] ${TYPE_TINT}`}>
+                <span className={`ml-auto shrink-0 pl-2 text-xs ${TYPE_TINT}`}>
                     {typeLabel(def)}
                 </span>
             </button>
@@ -227,7 +227,7 @@ function TreeNodes({
 
                         {scalarArray ? (
                             <div className="ml-3 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                                <span className="block px-1.5 py-1 font-mono text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="block px-1.5 py-1 font-mono text-xs text-[var(--ag-colorTextTertiary)]">
                                     items: {defType(itemsSchema(def))}
                                 </span>
                             </div>
@@ -335,7 +335,7 @@ export function ParameterTree({
             </div>
 
             <div className="flex shrink-0 items-center justify-between gap-2 px-3 pb-2 pt-3">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                <span className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                     Parameters
                 </span>
                 <Button
@@ -351,7 +351,7 @@ export function ParameterTree({
 
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
                 {isEmpty ? (
-                    <p className="m-0 px-1.5 py-2 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                    <p className="m-0 px-1.5 py-2 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                         No parameters yet. Add the inputs the model provides when it calls this
                         tool.
                     </p>

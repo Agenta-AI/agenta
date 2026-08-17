@@ -25,7 +25,7 @@ const InvocationTraceSummary = ({
     if (summary.state !== "ready" || !summary.traceId) return null
 
     return (
-        <div className={clsx("scenario-table-meta flex items-center gap-1 pt-1 text-[11px]")}>
+        <div className={clsx("scenario-table-meta flex items-center gap-1 pt-1 text-xs")}>
             <SharedGenerationResultUtils
                 traceId={summary.traceId}
                 showStatus={false}

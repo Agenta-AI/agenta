@@ -723,7 +723,17 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             >
                 <ColumnVisibilityFlagProvider scopeId={resolvedScopeId}>
                     {beforeTable}
-                    <div ref={containerRef} className={cn(containerClassName)}>
+                    {/* An empty table has nothing to scroll to, but rc-table still hands its
+                        placeholder body the numeric `scroll.x` — which on a bordered table is a
+                        pixel wider than the body's own viewport, so a horizontal scrollbar sits
+                        under every empty table. Suppress it while there are no rows. */}
+                    <div
+                        ref={containerRef}
+                        className={cn(
+                            "[&_.ant-table-empty_.ant-table-body]:!overflow-x-hidden",
+                            containerClassName,
+                        )}
+                    >
                         <Table<RecordType>
                             ref={tableComponentRef}
                             className={tableClassName}

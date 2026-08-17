@@ -94,7 +94,7 @@ function ChangedDetail({
     const {text, muted} = formatCommitted(before)
     return (
         <div className="flex w-[200px] flex-col gap-2">
-            <div className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+            <div className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                 Committed value
             </div>
             <div

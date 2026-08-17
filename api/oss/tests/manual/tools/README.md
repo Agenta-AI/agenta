@@ -69,7 +69,7 @@ Background jobs handle the complete flow (file + Redis).
 Composio Catalog Generator
 ============================================================
 
-📡 Connecting to Composio API: https://backend.composio.dev/api/v3
+📡 Connecting to Composio API: https://backend.composio.dev/api/v3.1
 
 🔄 Fetching integrations...
 ✅ Fetched 150 integrations

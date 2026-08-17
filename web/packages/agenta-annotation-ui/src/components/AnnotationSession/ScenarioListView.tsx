@@ -379,7 +379,7 @@ const TraceNameCell = memo(function TraceNameCell({
             {rootSpan?.span_type && (
                 <Typography.Text
                     type="secondary"
-                    className="text-[10px] px-1 py-0.5 rounded bg-[var(--ant-color-fill-tertiary)] shrink-0"
+                    className="text-[12px] px-1 py-0.5 rounded bg-[var(--ant-color-fill-tertiary)] shrink-0"
                 >
                     {rootSpan.span_type}
                 </Typography.Text>

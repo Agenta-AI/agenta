@@ -66,7 +66,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "llms",
         scope: "project",
-        description: "Connect AI providers using your own API keys.",
+        description: "Connect the AI providers your agents, prompts, and evaluations run on.",
         docs: {label: "Provider setup", href: `${DOCS_BASE}/faq/integrations/llm-providers`},
     },
     {
@@ -159,7 +159,8 @@ export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
 const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     apiKeys: "API Keys",
     secrets: "Secrets",
-    llms: "LLMs",
+    // The tab key stays `llms` so existing `?tab=llms` links keep working.
+    llms: "AI providers",
     tools: "Tools",
     triggers: "Triggers",
     webhooks: "Webhooks",

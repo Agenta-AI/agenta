@@ -1,8 +1,9 @@
 import {useEffect} from "react"
 
-import {querySessions} from "@agenta/entities/session"
+import {sessionListQueryOptions} from "@agenta/entities/session"
 import {useQuery} from "@tanstack/react-query"
 
+import {mobileSessionListPolicy} from "./sessionListPolicy"
 import {SESSIONS_PAGE_SIZE} from "./useSessionsInfinite"
 
 /**
@@ -18,17 +19,18 @@ import {SESSIONS_PAGE_SIZE} from "./useSessionsInfinite"
  * globally, so without it a phone coming back from the lock screen waits out the interval.
  */
 export const useSessionListHead = (projectId: string, search: string) => {
+    const options = sessionListQueryOptions({
+        projectId,
+        search,
+        includeArchived: false,
+        limit: SESSIONS_PAGE_SIZE,
+        ...mobileSessionListPolicy,
+    })
     const query = useQuery({
-        queryKey: ["mobile", "sessions", "head", projectId, search],
+        queryKey: ["mobile", "head", ...options.queryKey],
         enabled: Boolean(projectId),
         queryFn: ({signal}) =>
-            querySessions({
-                projectId,
-                search: search || undefined,
-                limit: SESSIONS_PAGE_SIZE,
-                includeArchived: false,
-                abortSignal: signal,
-            }),
+            options.queryFn({pageParam: null, signal}).then((page) => page?.sessions ?? null),
         staleTime: 10_000,
         refetchInterval: 30_000,
     })

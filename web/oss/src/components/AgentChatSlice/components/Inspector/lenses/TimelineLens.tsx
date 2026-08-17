@@ -75,7 +75,7 @@ const TurnGroupCard = ({
                         className="h-1.5 w-1.5 shrink-0 rounded-full"
                         style={{background: statusColor}}
                     />
-                    <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[10px] text-colorTextQuaternary">
+                    <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[12px] text-colorTextQuaternary">
                         {group.startAt != null ? (
                             <span>{formatWallClock(group.startAt)}</span>
                         ) : null}

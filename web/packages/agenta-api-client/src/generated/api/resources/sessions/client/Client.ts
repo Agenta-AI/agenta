@@ -533,6 +533,182 @@ export class SessionsClient {
     }
 
     /**
+     * Server-sent events relay for one session (M3 live relay).
+     *
+     * Emits change notifications only — never record payloads; clients
+     * revalidate through the regular query endpoints on each event:
+     *
+     * - ``event: records-changed`` — ``{"session_id"}``; new/updated rows
+     *   landed in the record log (published post-DB-commit).
+     * - ``event: lifecycle`` — ``{"session_id", "state": "running"|"ended"}``.
+     * - ``event: interaction`` — ``{"session_id", "status": "pending"|"resolved"}``.
+     * - ``: heartbeat`` comment frames while idle (keep-alive).
+     *
+     * Auth is the standard middleware (cookie ``sAccessToken``, ApiKey, or
+     * Bearer) evaluated once at connect; scope is the credential's project.
+     * Browsers authenticate by cookie — ``EventSource`` cannot set headers —
+     * so a connect landing on an expired access token 401s like any other
+     * request. There is no interceptor to refresh-and-retry a stream, so the
+     * client must refresh the session itself and reopen (see the web hooks).
+     *
+     * The stream has no replay/cursor semantics — ``EventSource`` reconnects
+     * and clients revalidate once on every ``open``, which covers any missed
+     * notifications.
+     *
+     * NOTE (spec surface): this route appears in OpenAPI for documentation,
+     * but Fern does not model SSE — consume it with a native ``EventSource``
+     * (same-origin ``/api`` + cookie auth needs no custom headers), not the
+     * generated client.
+     *
+     * @param {AgentaApi.WatchSessionStreamRequest} request
+     * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.sessions.watchSessionStream({
+     *         session_id: "session_id"
+     *     })
+     */
+    public watchSessionStream(
+        request: AgentaApi.WatchSessionStreamRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__watchSessionStream(request, requestOptions));
+    }
+
+    private async __watchSessionStream(
+        request: AgentaApi.WatchSessionStreamRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<unknown>> {
+        const { session_id: sessionId } = request;
+        const _queryParams: Record<string, unknown> = {
+            session_id: sessionId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "sessions/streams/watch",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/sessions/streams/watch");
+    }
+
+    /**
+     * Relay low-frequency entity changes for the authorized project.
+     *
+     * A caller with only one required view permission cannot open this stream and falls back to
+     * the lists' polling behavior.
+     *
+     * @param {AgentaApi.WatchProjectRequest} request
+     * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.sessions.watchProject({
+     *         project_id: "project_id"
+     *     })
+     */
+    public watchProject(
+        request: AgentaApi.WatchProjectRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__watchProject(request, requestOptions));
+    }
+
+    private async __watchProject(
+        request: AgentaApi.WatchProjectRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<unknown>> {
+        const { project_id: projectId } = request;
+        const _queryParams: Record<string, unknown> = {
+            project_id: projectId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "sessions/watch",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/sessions/watch");
+    }
+
+    /**
      * @param {AgentaApi.SessionInteractionCreateRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *

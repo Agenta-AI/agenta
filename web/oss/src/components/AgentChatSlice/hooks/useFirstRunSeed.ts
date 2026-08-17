@@ -3,13 +3,47 @@ import {type MutableRefObject, useEffect, useRef, useState} from "react"
 import {workflowBuildKitOverlayReadyAtomFamily} from "@agenta/entities/workflow"
 import {useAtom, useAtomValue} from "jotai"
 
-import {agentFirstRunSeedAtom} from "../state/firstRunSeed"
+import {agentFirstRunSeedAtom, type AgentFirstRunSeed} from "../state/firstRunSeed"
+
+/**
+ * Does THIS session own the pending seed?
+ *
+ * A seed that names its session is claimed by that session alone. The id-less legacy seed (agent
+ * creation) falls back to "the active conversation, while it is empty" — and must wait out
+ * hydration, because a session whose transcript is still loading is indistinguishable from an empty
+ * one and would swallow the message.
+ */
+export const shouldConsumeSeed = ({
+    seed,
+    entityId,
+    scopeKey,
+    sessionId,
+    activeSessionId,
+    messagesCount,
+    isHydrating,
+}: {
+    seed: AgentFirstRunSeed | null
+    entityId: string
+    scopeKey: string
+    sessionId: string
+    activeSessionId: string | null | undefined
+    messagesCount: number
+    isHydrating: boolean
+}): boolean => {
+    if (!seed) return false
+    const addressesThisAgent =
+        entityId === seed.revisionId || entityId === seed.appId || scopeKey === seed.appId
+    if (!addressesThisAgent) return false
+    if (seed.sessionId) return seed.sessionId === sessionId
+    if (activeSessionId !== sessionId) return false
+    return !isHydrating && messagesCount === 0
+}
 
 /**
  * First-run seed: a freshly-created agent (from Home's composer/template) surfaces its starting
  * prompt in the empty state (see AgentChatEmptyState) rather than pre-filling the composer, so it
- * reads as "here's what we'll do" not stray user input. Consumed once by the active session on a
- * fresh conversation, matching either the revision or app id, then cleared.
+ * reads as "here's what we'll do" not stray user input. Consumed once — by the session the seed
+ * names, or (id-less agent-creation seed) by the active empty conversation — then cleared.
  *
  * Also owns the auto-start: the seeded agent's model is usually gated (no provider key yet), and
  * connecting the key IS the go-ahead — so once the gate clears the seed sends itself rather than
@@ -17,19 +51,34 @@ import {agentFirstRunSeedAtom} from "../state/firstRunSeed"
  */
 export const useFirstRunSeed = ({
     entityId,
+    scopeKey,
     sessionId,
     activeSessionId,
     messagesCount,
     modelBlocked,
     handleSubmitRef,
+    onSeedFiles,
+    attachmentsSettled = true,
+    isHydrating = false,
 }: {
     entityId: string
+    /** The chat scope — an app id. Lets a seed aimed at an existing agent match without knowing
+     * which revision the playground happens to be showing. */
+    scopeKey: string
     sessionId: string
     activeSessionId: string | null | undefined
     messagesCount: number
     modelBlocked: boolean
+    /** True while this session's transcript loads from the durable log — an empty `messagesCount`
+     * says nothing yet, so an id-less seed must not read it as an empty conversation. */
+    isHydrating?: boolean
     /** Read at fire time so the transition drives the send, not a stale closure. */
     handleSubmitRef: MutableRefObject<(text: string) => void | Promise<void>>
+    /** The chat's own `addFiles` — seed files go through the same staging paste and drop use. */
+    onSeedFiles?: (files: File[]) => void
+    /** False while seeded files are still staging; the auto-send waits for it, because the
+     * conversation's submit silently rejects un-settled attachments. */
+    attachmentsSettled?: boolean
 }) => {
     const [firstRunSeed, setFirstRunSeed] = useAtom(agentFirstRunSeedAtom)
     const [firstRunPrompt, setFirstRunPrompt] = useState<string | null>(null)
@@ -38,13 +87,34 @@ export const useFirstRunSeed = ({
     const seedConsumedRef = useRef(false)
     useEffect(() => {
         if (seedConsumedRef.current || !firstRunSeed) return
-        if (entityId !== firstRunSeed.revisionId && entityId !== firstRunSeed.appId) return
-        if (activeSessionId !== sessionId || messagesCount > 0) return
+        if (
+            !shouldConsumeSeed({
+                seed: firstRunSeed,
+                entityId,
+                scopeKey,
+                sessionId,
+                activeSessionId,
+                messagesCount,
+                isHydrating,
+            })
+        )
+            return
         seedConsumedRef.current = true
         setFirstRunPrompt(firstRunSeed.seedMessage)
         setFirstRunAutoSend(!!firstRunSeed.autoSend)
+        if (firstRunSeed.seedFiles?.length) onSeedFiles?.(firstRunSeed.seedFiles)
         setFirstRunSeed(null)
-    }, [firstRunSeed, entityId, activeSessionId, sessionId, messagesCount, setFirstRunSeed])
+    }, [
+        firstRunSeed,
+        entityId,
+        scopeKey,
+        activeSessionId,
+        sessionId,
+        messagesCount,
+        isHydrating,
+        setFirstRunSeed,
+        onSeedFiles,
+    ])
 
     // Fires once, while the conversation is still empty, when EITHER: the model just unblocked (was
     // gated), OR the seed is an explicit "go" (`firstRunAutoSend` — the onboarding Create-agent
@@ -66,7 +136,8 @@ export const useFirstRunSeed = ({
     // whose model is ready and which would otherwise fire this turn. Otherwise a still-gated model
     // (or an already-sent seed) would burn the 10s window before the overlay ever mattered.
     const sendBlockedOnlyOnOverlay =
-        Boolean(firstRunPrompt) &&
+        firstRunPrompt != null &&
+        attachmentsSettled &&
         !autoStartedSeedRef.current &&
         !modelBlocked &&
         (seedWasBlockedRef.current || firstRunAutoSend) &&
@@ -83,7 +154,8 @@ export const useFirstRunSeed = ({
         return () => clearTimeout(timer)
     }, [sendBlockedOnlyOnOverlay, overlayWaitElapsed])
     useEffect(() => {
-        if (!firstRunPrompt || autoStartedSeedRef.current) return
+        // `== null` and not falsy: "" is a file-only seed, and it must still send.
+        if (firstRunPrompt == null || autoStartedSeedRef.current) return
         if (modelBlocked) {
             seedWasBlockedRef.current = true
             return
@@ -91,6 +163,9 @@ export const useFirstRunSeed = ({
         if ((!seedWasBlockedRef.current && !firstRunAutoSend) || messagesCount > 0) return
         // Hold the auto-send until the build-kit overlay settles (or the 10s bound elapses).
         if (!overlayReady && !overlayWaitElapsed) return
+        // Wait for seeded files to finish staging — the submit rejects while they upload, and
+        // this ref must not mark the seed sent on a rejected call.
+        if (!attachmentsSettled) return
         autoStartedSeedRef.current = true
         handleSubmitRef.current(firstRunPrompt)
     }, [
@@ -100,6 +175,7 @@ export const useFirstRunSeed = ({
         messagesCount,
         overlayReady,
         overlayWaitElapsed,
+        attachmentsSettled,
     ])
 
     return {firstRunPrompt}

@@ -1,0 +1,169 @@
+import {useCallback, useEffect} from "react"
+
+import {PanelScroll, PanelSurface} from "@agenta/ui/components/presentational"
+import {RichChatInput} from "@agenta/ui/rich-chat-input"
+import {useSetAtom} from "jotai"
+
+import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
+import NextTriggersSection from "@/oss/components/NextTriggers"
+import SessionAutomationDrawers from "@/oss/components/pages/sessions/components/SessionAutomationDrawers"
+import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
+import {
+    SeedAttachButton,
+    SeedAttachmentChips,
+    useSeedAttachments,
+} from "@/oss/components/SeedAttachments"
+import UsageSummary from "@/oss/components/UsageSummary"
+import useURL from "@/oss/hooks/useURL"
+import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
+import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
+
+import AgentConfigurationCard from "./AgentConfigurationCard"
+import AgentFilesCard from "./AgentFilesCard"
+
+interface Props {
+    appId: string
+    /** Used only in the composer's placeholder, so a null name degrades to a generic prompt. */
+    agentName?: string
+}
+
+/**
+ * An agent's overview: activity in the main column, identity in the rail.
+ *
+ * The page it replaces led with four full-page charts, so a freshly created agent's overview was
+ * four empty rectangles and no way to see what the agent even was. Metrics move into the rail's
+ * usage strip, which expands to the same dashboard for anyone who came for them.
+ *
+ * Configuration sits in the rail rather than under the composer because it is reference material:
+ * it answers a first visit, while "what happened / what needs me" answers every visit after. With
+ * it in the main column a waiting session sat below six rows of settings. The rail is also the
+ * width the config rows were designed for — they come from the playground's panel, which is narrow.
+ *
+ * Columns scroll independently, as Home's do. They did not when this page held one list; with
+ * Sessions and Automation runs both in the main column it outgrew the rail, and a whole-page
+ * scroll meant losing the configuration while reading the sessions. The full-height frame is
+ * requested rather than matched on the path, because this route also serves the prompt and
+ * evaluator overviews, which still flow.
+ */
+const AgentOverview = ({appId, agentName}: Props) => {
+    const startSession = useStartAgentSession()
+    // The layout can't tell an agent overview from a prompt one by its path, so this branch asks
+    // for the bounded frame and releases it on the way out.
+    const requestFullHeight = useSetAtom(layoutFullHeightRequestAtom)
+    useEffect(() => {
+        requestFullHeight(true)
+        return () => requestFullHeight(false)
+    }, [requestFullHeight])
+
+    // "View all" stays on this agent's rail rather than dropping you on the project list with a
+    // filter you then have to trust.
+    const {appURL} = useURL()
+    const sessionsHref = appURL ? `${appURL}/sessions` : undefined
+
+    const attachments = useSeedAttachments()
+
+    const handleSubmit = useCallback(
+        (markdown: string) => {
+            if (!markdown.trim() && !attachments.files.length) return
+            startSession({appId, message: markdown, files: attachments.files})
+            attachments.clear()
+        },
+        [appId, startSession, attachments],
+    )
+
+    return (
+        <>
+            {/* Below `lg` the columns stack and the page itself scrolls; at `lg` each column takes
+                the frame's height and scrolls on its own, so reading a long session list never
+                carries the configuration rail off screen with it. */}
+            <div className="flex min-h-0 w-full flex-1 flex-col items-start gap-10 overflow-y-auto lg:flex-row lg:overflow-hidden">
+                <div className="flex w-full min-w-0 flex-col gap-6 lg:h-full lg:flex-1 lg:overflow-y-auto lg:pr-4">
+                    <RichChatInput
+                        // The column scrolls, so every child of it is shrinkable by default and this
+                        // one collapsed to a hairline under the title once the lists overflowed.
+                        className="shrink-0"
+                        onSubmit={handleSubmit}
+                        sendForceEnabled={attachments.files.length > 0}
+                        header={
+                            <SeedAttachmentChips
+                                files={attachments.files}
+                                onChange={attachments.setFiles}
+                            />
+                        }
+                        // Leading, like the playground's — the footer's right edge belongs to send.
+                        prefix={
+                            attachments.enabled ? (
+                                <SeedAttachButton
+                                    files={attachments.files}
+                                    onChange={attachments.setFiles}
+                                />
+                            ) : null
+                        }
+                        size="comfortable"
+                        minHeightClassName="min-h-20"
+                        textSizeClassName="text-sm"
+                        placeholder={
+                            agentName
+                                ? `Ask ${agentName}… — starts a new session`
+                                : "Describe a task — starts a new session"
+                        }
+                    />
+
+                    {/* Bare, on the page background — the rail opposite is the page's one defined
+                    object, and two sheets facing each other read as equal weight. */}
+                    <div className="flex flex-col gap-10">
+                        <SessionListCard
+                            withPinned
+                            policy={sessionListPolicies.agentOverviewHuman}
+                            agentId={appId}
+                            // Same sensible limit Home settles on; the rest reveal in place.
+                            limit={6}
+                            title="Sessions"
+                            emptyText="Conversations with this agent will show up here."
+                            viewAllHref={sessionsHref}
+                        />
+
+                        {/* Co-equal with Sessions, not a filter of it: an automation run is one the
+                        user configured but did not start. A toggle would hide one of the two
+                        behind a click, which ranks them. */}
+                        <SessionListCard
+                            withPinned
+                            policy={sessionListPolicies.agentOverviewAutomation}
+                            agentId={appId}
+                            title="Automation runs"
+                            emptyText="Runs from automations bound to this agent will show up here."
+                            limit={5}
+                            minHeightClassName="min-h-[100px]"
+                            viewAllHref={sessionsHref}
+                        />
+                    </div>
+                </div>
+
+                {/* The rail's cards carry the warm tinted surface rather than plain white, so they
+                    read as one object against the page — the same treatment Home's rail gets
+                    (StripHome). Light only: dark restores colorBgElevated, since the shipped dark
+                    card (#242424) is not the tint's dark step (#272727) and dark card surfaces
+                    aren't part of this change. Scoped from here so the cards themselves stay
+                    surface-agnostic and render the same bare anywhere else. */}
+                <div className="flex min-h-0 w-full shrink-0 grow-0 flex-col lg:h-full lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:pr-1 [&_.ag-panel-section-header]:bg-[var(--ag-surface-paper)] [&_.ag-panel-section]:bg-[var(--ag-surface-paper)] dark:[&_.ag-panel-section-header]:bg-colorBgElevated dark:[&_.ag-panel-section]:bg-colorBgElevated">
+                    <PanelSurface>
+                        <PanelScroll>
+                            <AgentConfigurationCard appId={appId} />
+
+                            <AgentFilesCard appId={appId} />
+
+                            {/* Scoped to this agent. Automation RUNS below say what already happened;
+                                an agent whose schedule quietly stopped looks identical there. */}
+                            <NextTriggersSection agentId={appId} />
+
+                            <UsageSummary variant="strip" />
+                        </PanelScroll>
+                    </PanelSurface>
+                </div>
+            </div>
+            <SessionAutomationDrawers />
+        </>
+    )
+}
+
+export default AgentOverview

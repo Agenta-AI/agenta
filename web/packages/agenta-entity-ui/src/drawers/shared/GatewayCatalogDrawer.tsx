@@ -25,7 +25,7 @@ import {
 } from "@phosphor-icons/react"
 import Image from "next/image"
 
-import {AppCard} from "./CatalogAppCard"
+import {AppCard, AppLogo} from "./CatalogAppCard"
 
 interface InfiniteList<X> {
     total: number
@@ -157,7 +157,7 @@ function ConnectionItemsList<I, T, C>({
     }
     if (items.length === 0) {
         return (
-            <div className="px-3 py-2 text-[11px] text-[var(--ag-colorTextTertiary)]">
+            <div className="px-3 py-2 text-xs text-[var(--ag-colorTextTertiary)]">
                 {config.emptyItemsText}
             </div>
         )
@@ -179,7 +179,7 @@ function ConnectionItemsList<I, T, C>({
                             size={13}
                             className="shrink-0 text-[var(--ag-colorTextTertiary)]"
                         />
-                        <span className="min-w-0 flex-1 truncate text-[12.5px]">
+                        <span className="min-w-0 flex-1 truncate text-xs">
                             {adapter.item.name(it) || adapter.item.key(it)}
                         </span>
                         <ItemTrailingIcon state={state} />
@@ -240,6 +240,18 @@ function IntegrationsView<I, T, C>({
         [integrations.length, prefetchThreshold],
     )
 
+    // A connection carries only its integration key, so the rail's logos come from the catalog
+    // list. Accumulated across pages/searches: the grid narrows as the user types, and a rail
+    // logo must not blank out because its app fell out of the current results.
+    const logoByKeyRef = useRef(new Map<string, string>())
+    const logoByKey = useMemo(() => {
+        integrations.forEach((i) => {
+            const logo = adapter.integration.logo(i)
+            if (logo) logoByKeyRef.current.set(adapter.integration.key(i), logo)
+        })
+        return new Map(logoByKeyRef.current)
+    }, [integrations, adapter])
+
     const hasConnections = connections.length > 0
 
     return (
@@ -261,7 +273,10 @@ function IntegrationsView<I, T, C>({
                             return (
                                 <div
                                     key={cid}
-                                    className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]"
+                                    // shrink-0: in a scrolling flex column the default is to
+                                    // compress siblings, so expanding one app squeezed the rest
+                                    // instead of scrolling the rail.
+                                    className="shrink-0 overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]"
                                 >
                                     <button
                                         type="button"
@@ -279,13 +294,19 @@ function IntegrationsView<I, T, C>({
                                                 className="shrink-0 text-[var(--ag-colorTextTertiary)]"
                                             />
                                         )}
+                                        <AppLogo
+                                            logo={logoByKey.get(
+                                                adapter.connection.integrationKey(conn),
+                                            )}
+                                            size={16}
+                                        />
                                         <div className="min-w-0 flex-1">
                                             <div className="truncate text-xs font-medium">
                                                 {adapter.connection.name(conn) ||
                                                     adapter.connection.slug(conn) ||
                                                     adapter.connection.integrationKey(conn)}
                                             </div>
-                                            <div className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                            <div className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
                                                 {adapter.connection.integrationKey(conn)}
                                             </div>
                                         </div>
@@ -311,7 +332,7 @@ function IntegrationsView<I, T, C>({
                             )
                         })}
                     </div>
-                    <div className="mt-auto flex shrink-0 items-start gap-1.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-4 py-3 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                    <div className="mt-auto flex shrink-0 items-start gap-1.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-4 py-3 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                         <Lightning size={13} className="mt-[1px] shrink-0" />
                         <span>{config.connectionsHint}</span>
                     </div>

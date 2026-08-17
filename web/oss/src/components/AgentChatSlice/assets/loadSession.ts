@@ -1,4 +1,8 @@
-import {fetchSessionRecordsAtom} from "@agenta/entities/session"
+import {
+    fetchSessionInteractionStatesAtom,
+    fetchSessionRecordsAtom,
+    type SessionInteractionRowStates,
+} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
@@ -29,6 +33,13 @@ export interface SessionTranscript {
      * `transcriptToMessages` deliberately holds flat while a turn grows (issue #5530).
      */
     recordCount: number
+    /**
+     * The interaction lifecycle rows this transcript was replayed against. Records never carry a
+     * row's later lifecycle, so this is the only place the adoption guard can see whether a card is
+     * still awaiting the user (`pending`) or has ended. Empty when the fetch failed or the
+     * session has no rows; the two cases are indistinguishable here.
+     */
+    interactionRows?: SessionInteractionRowStates
 }
 
 export const loadSessionMessages = async (
@@ -41,19 +52,30 @@ export const loadSessionMessages = async (
     // (the documented "request failed" contract) so the caller shows the history-unavailable
     // notice instead of leaking an unhandled rejection.
     try {
-        const {records, refreshed} = await getDefaultStore().set(fetchSessionRecordsAtom, sessionId)
+        const store = getDefaultStore()
+        // The best-effort lifecycle join must never gate transcript loading.
+        const [{records, refreshed}, interactionRowStates] = await Promise.all([
+            store.set(fetchSessionRecordsAtom, sessionId),
+            store.set(fetchSessionInteractionStatesAtom, sessionId),
+        ])
         if (refreshed && onRefreshed) {
             void refreshed.then((fresh) => {
                 if (!fresh || fresh.length === 0) return
-                const freshMsgs = transcriptToMessages(fresh)
+                const freshMsgs = transcriptToMessages(fresh, {interactionRowStates})
                 if (freshMsgs && freshMsgs.length > 0) {
-                    onRefreshed({messages: freshMsgs, recordCount: fresh.length})
+                    onRefreshed({
+                        messages: freshMsgs,
+                        recordCount: fresh.length,
+                        interactionRows: interactionRowStates,
+                    })
                 }
             })
         }
         if (!records || records.length === 0) return null
-        const messages = transcriptToMessages(records)
-        return messages ? {messages, recordCount: records.length} : null
+        const messages = transcriptToMessages(records, {interactionRowStates})
+        return messages
+            ? {messages, recordCount: records.length, interactionRows: interactionRowStates}
+            : null
     } catch (err) {
         console.warn("[loadSessionMessages] hydration fetch failed:", err)
         return null

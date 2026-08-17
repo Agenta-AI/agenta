@@ -83,7 +83,7 @@ const TemplateSetupDrawer = ({template, open, onClose, onCreate}: TemplateSetupD
                 template ? (
                     <div className="flex min-w-0 items-center gap-2">
                         <span
-                            className="flex size-7 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold text-white"
+                            className="flex size-7 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-white"
                             style={{backgroundColor: template.color}}
                         >
                             {template.initials}
@@ -93,7 +93,7 @@ const TemplateSetupDrawer = ({template, open, onClose, onCreate}: TemplateSetupD
                                 <span className="truncate text-sm font-medium">
                                     Set up {template.name}
                                 </span>
-                                <Tag className="m-0 shrink-0 text-[11px] font-normal">
+                                <Tag className="m-0 shrink-0 text-xs font-normal">
                                     {template.category}
                                 </Tag>
                             </div>
@@ -147,7 +147,7 @@ const TemplateSetupDrawer = ({template, open, onClose, onCreate}: TemplateSetupD
                                 status={nameValid ? undefined : "error"}
                             />
                             {nameValid ? null : (
-                                <span className="mt-1 text-[11px] text-[var(--ag-colorError)]">
+                                <span className="mt-1 text-xs text-[var(--ag-colorError)]">
                                     Enter a name for the agent.
                                 </span>
                             )}
@@ -190,7 +190,7 @@ const TemplateSetupDrawer = ({template, open, onClose, onCreate}: TemplateSetupD
                             <span className="text-xs font-medium text-[var(--ag-colorText)]">
                                 {template.trigger}
                             </span>
-                            <span className="text-[11px] leading-snug text-[var(--ag-colorTextSecondary)]">
+                            <span className="text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                                 {template.triggerDescription}
                             </span>
                         </div>
@@ -214,7 +214,7 @@ const TemplateSetupDrawer = ({template, open, onClose, onCreate}: TemplateSetupD
                             />
                         ))}
 
-                        <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                        <Typography.Text type="secondary" className="text-xs leading-snug">
                             Connect the required integrations to create this agent — you can manage
                             them anytime from the playground.
                         </Typography.Text>

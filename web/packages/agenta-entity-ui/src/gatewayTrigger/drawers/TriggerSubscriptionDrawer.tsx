@@ -1,24 +1,20 @@
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
 import {triggerSubscriptionDrawerAtom} from "@agenta/entities/gatewayTrigger"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
-import {browseHeaderAtom, SHOW_LIST_RAIL, subscriptionEditingAtom} from "./subscription/constants"
-import {SubscriptionDrawerContent} from "./subscription/SubscriptionDrawerContent"
+import {browseHeaderAtom} from "./subscription/constants"
 import {SubscriptionForm} from "./subscription/SubscriptionForm"
 
 // ---------------------------------------------------------------------------
 // TriggerSubscriptionDrawer (root) — create or edit a provider-event subscription.
 //
-// Mirrors the schedule drawer: from a playground it's a master-detail manager
-// (existing subscriptions on the left, config on the right, a persistent "Run in
-// playground" in the footer); from settings it's a single create/edit form.
-// EnhancedDrawer renders nothing until first open, so SubscriptionDrawerContent —
-// which owns all data fetching + master-detail state — only mounts while open, and
-// only in a playground: settings never shows the rail, so it mounts the bare form
-// rather than paying for the subscriptions list query and the draft state.
+// Binds a connected app's event to a workflow revision. Both hosts render the same single
+// form; the playground passes its agent so the drawer can title itself with the agent name and
+// offer "Run in playground".
 // ---------------------------------------------------------------------------
 
 export default function TriggerSubscriptionDrawer() {
@@ -26,18 +22,24 @@ export default function TriggerSubscriptionDrawer() {
     const open = !!state
     const handleClose = useCallback(() => setState(null), [setState])
 
-    const playgroundEntityId = state?.playgroundEntityId
-    // Smart header: while the active form is browsing for a source, the header becomes a
-    // back affordance + "Choose a trigger"; otherwise it's the form title.
+    // EnhancedDrawer keeps the Sheet shell mounted ~320ms after `open` goes false to play
+    // the slide-out, then calls `afterOpenChange(false)`. Gating content on `state` directly
+    // would unmount it in the same render as the close click — an empty shell sliding out
+    // for that window. Keep rendering the last known state until the shell actually unmounts.
+    const [renderedState, setRenderedState] = useState(state)
+    if (state && state !== renderedState) setRenderedState(state)
+    const handleAfterOpenChange = useCallback((isOpen: boolean) => {
+        if (!isOpen) setRenderedState(null)
+    }, [])
+
+    const playgroundEntityId = renderedState?.playgroundEntityId
+    const agentName = useAtomValue(
+        workflowMolecule.selectors.artifactName(playgroundEntityId ?? ""),
+    )
+    // Smart header: while the form is browsing for a source, the header becomes a back
+    // affordance + "Choose a trigger"; otherwise it's the form title.
     const browseHeader = useAtomValue(browseHeaderAtom)
-    // Editing = opened on a saved id OR the master-detail switched to one (e.g. after create).
-    const editing = useAtomValue(subscriptionEditingAtom)
-    const formTitle =
-        SHOW_LIST_RAIL && playgroundEntityId
-            ? "Triggers"
-            : state?.subscriptionId || editing
-              ? "Edit trigger"
-              : "New trigger"
+    const formTitle = renderedState?.subscriptionId ? "Edit trigger" : "New trigger"
     const title = browseHeader ? (
         <span className="flex items-center gap-3">
             <button
@@ -50,36 +52,43 @@ export default function TriggerSubscriptionDrawer() {
             <span>Choose a trigger</span>
         </span>
     ) : (
-        formTitle
+        <span className="flex min-w-0 items-baseline gap-1.5">
+            <span>{formTitle}</span>
+            {agentName ? (
+                <>
+                    <span className="text-[var(--ag-colorTextQuaternary)]">·</span>
+                    <span className="min-w-0 truncate text-sm font-normal text-[var(--ag-colorTextDescription)]">
+                        {agentName}
+                    </span>
+                </>
+            ) : null}
+        </span>
     )
 
+    // EnhancedDrawer renders nothing until first open and unmounts after close, so the form
+    // below — which owns all data fetching — only mounts (and its hooks only run) while the
+    // drawer is open. The lifecycle is structural; no `enabled` flags needed.
     return (
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={handleClose}
+            afterOpenChange={handleAfterOpenChange}
             title={title}
             closable={!browseHeader}
-            width={playgroundEntityId ? 960 : 640}
+            width={640}
             closeOnLayoutClick={false}
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
         >
-            {state &&
-                (playgroundEntityId ? (
-                    <SubscriptionDrawerContent
-                        state={state}
-                        playgroundEntityId={playgroundEntityId}
-                        onClose={handleClose}
-                    />
-                ) : (
-                    <SubscriptionForm
-                        key={state.subscriptionId ?? "new"}
-                        subscriptionId={state.subscriptionId}
-                        onClose={handleClose}
-                    />
-                ))}
+            {renderedState && (
+                <SubscriptionForm
+                    key={renderedState.subscriptionId ?? "new"}
+                    subscriptionId={renderedState.subscriptionId}
+                    onClose={handleClose}
+                />
+            )}
         </EnhancedDrawer>
     )
 }

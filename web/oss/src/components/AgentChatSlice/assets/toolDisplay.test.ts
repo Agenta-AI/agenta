@@ -103,13 +103,19 @@ describe("canonicalToolName", () => {
         expect(canonicalToolName("commit_revision")).toBe("commit_revision")
     })
 
+    it("unwraps the Codex dot form of the same server", () => {
+        expect(canonicalToolName("mcp.agenta-tools.commit_revision")).toBe("commit_revision")
+    })
+
     it("leaves another server's tool wrapped, so it cannot collide with a platform tool", () => {
         expect(canonicalToolName("mcp__other__commit_revision")).toBe("mcp__other__commit_revision")
         expect(canonicalToolName("mcp__other__x")).toBe("mcp__other__x")
+        expect(canonicalToolName("mcp.other.commit_revision")).toBe("mcp.other.commit_revision")
     })
 
     it("never returns an empty name", () => {
         expect(canonicalToolName("mcp__agenta-tools__")).toBe("mcp__agenta-tools__")
+        expect(canonicalToolName("mcp.agenta-tools.")).toBe("mcp.agenta-tools.")
         expect(canonicalToolName("")).toBe("")
     })
 })

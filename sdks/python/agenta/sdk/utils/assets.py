@@ -5,6 +5,9 @@ from litellm import cost_calculator
 
 supported_llm_models = {
     "anthropic": [
+        "anthropic/claude-fable-5",
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-opus-4-8",
         "anthropic/claude-opus-4-7",
         "anthropic/claude-opus-4-6",
         "anthropic/claude-sonnet-4-6",
@@ -153,6 +156,7 @@ supported_llm_models = {
         # Nvidia via OpenRouter
         "openrouter/nvidia/nemotron-3-super-120b-a12b",
         # OpenAI via OpenRouter
+        "openrouter/openai/gpt-5.6-luna",
         "openrouter/openai/gpt-5.5",
         "openrouter/openai/gpt-5.4",
         # Qwen via OpenRouter
@@ -161,9 +165,11 @@ supported_llm_models = {
         "openrouter/tencent/hy3-preview",
         # Xiaomi via OpenRouter
         "openrouter/xiaomi/mimo-v2.5-pro",
+        "openrouter/xiaomi/mimo-v2.5",
         # xAI via OpenRouter
         "openrouter/x-ai/grok-4.3",
         # Z.ai via OpenRouter
+        "openrouter/z-ai/glm-5.2",
         "openrouter/z-ai/glm-5",
     ],
     # NOTE: provider kind must match Secrets API enums ("perplexityai").
@@ -184,14 +190,18 @@ supported_llm_models = {
         "together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
         "together_ai/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "together_ai/meta-llama/Llama-3.2-3B-Instruct-Turbo",
-        "together_ai/moonshotai/Kimi-K2-Instruct",
+        "together_ai/moonshotai/Kimi-K2.7-Code",
+        "together_ai/moonshotai/Kimi-K2.6",
         "together_ai/mistralai/Mistral-Small-24B-Instruct-2501",
         "together_ai/mistralai/Mistral-7B-Instruct-v0.1",
         "together_ai/mistralai/Mixtral-8x7B-Instruct-v0.1",
         "together_ai/Qwen/Qwen2.5-7B-Instruct-Turbo",
         "together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo",
+        "together_ai/zai-org/GLM-5.2",
     ],
     "minimax": [
+        "minimax/MiniMax-M3",
+        "minimax/MiniMax-M2.7-highspeed",
         "minimax/MiniMax-M2.5",
         "minimax/MiniMax-M2.5-lightning",
         "minimax/MiniMax-M2.1",
@@ -201,6 +211,71 @@ supported_llm_models = {
 }
 
 providers_list = list(supported_llm_models.keys())
+
+
+# The prefix litellm expects on a provider's model ids. Keyed by stored vault provider kind
+# (`StandardProviderKind` in the Secrets API), which covers every family in
+# `supported_llm_models` plus the stored kinds that ship no catalog models. None means identity:
+# the id is passed through untouched.
+#
+# Must agree with the frontend's table in
+# `web/packages/agenta-entities/src/secret/core/litellmModelId.ts` on every shared key, or one
+# model translates differently depending on which half wrote it. A kind litellm has no provider
+# for maps to None on both sides rather than to a prefix that cannot route.
+#
+# Two different reasons land on None:
+#   - `openai`, because litellm's OpenAI ids are bare ("gpt-4o", not "openai/gpt-4o"), and
+#     downstream code keys off that — the responses bridge in the LLM handler only fires for a
+#     model with no "/" in it, so prefixing OpenAI would silently disable it.
+#   - `anyscale` and `alephalpha`, because litellm has no such provider to route to at all.
+litellm_provider_prefixes: Dict[str, Optional[str]] = {
+    "anthropic": "anthropic",
+    "cohere": "cohere",
+    "deepinfra": "deepinfra",
+    "gemini": "gemini",
+    "groq": "groq",
+    "minimax": "minimax",
+    "mistral": "mistral",
+    "openai": None,
+    "openrouter": "openrouter",
+    # The provider kind is "perplexityai" (that is the Secrets API enum), but litellm spells
+    # the model prefix "perplexity" — see the ids under "perplexityai" above.
+    "perplexityai": "perplexity",
+    "together_ai": "together_ai",
+    # Stored vault kinds with no catalog models and no litellm provider: litellm 1.92.0 knows
+    # neither service (both wound down, and litellm dropped them), so no prefix routes them.
+    # `aleph_alpha/luminous-base` fails with the same "LLM Provider NOT provided" as the bare id,
+    # which is why these are identity rather than the "anyscale"/"aleph_alpha" spellings they
+    # would take if the providers still existed — a prefix here would be a claim this table
+    # cannot honour. The keys stay so both halves cover the same set of kinds.
+    "anyscale": None,
+    "alephalpha": None,
+}
+
+
+def litellm_model_id(model: str, provider: Optional[str]) -> str:
+    """Return `model` carrying the litellm prefix that `provider`'s ids use.
+
+    Idempotent, so it is safe to call on an id that is already correct: an id that starts with
+    its own family's prefix is returned unchanged. Only the family's prefix counts, never a
+    leading path segment in general — an OpenRouter id is spelled `vendor/model`
+    ("deepseek/deepseek-v4-flash"), which still needs prefixing exactly once, while
+    "openrouter/deepseek/deepseek-v4-flash" is already done.
+
+    A family with no prefix (OpenAI) and a provider outside the catalog both return the id
+    untouched, so an unrecognized provider can never mangle a model string.
+    """
+    if not model or not provider:
+        return model
+
+    prefix = litellm_provider_prefixes.get(provider)
+    if not prefix:
+        return model
+
+    if model.startswith(f"{prefix}/"):
+        return model
+
+    return f"{prefix}/{model}"
 
 
 def _get_model_costs(model: str) -> Optional[Tuple[float, float]]:

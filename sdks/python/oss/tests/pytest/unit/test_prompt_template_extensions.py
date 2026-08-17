@@ -331,7 +331,7 @@ async def test_retry_runner_retries_explicit_transient_provider_errors(monkeypat
 
     monkeypatch.setattr(
         "agenta.sdk.engines.running.handlers.SecretsManager.get_provider_settings_from_workflow",
-        lambda model: {"model": model},
+        lambda model, connection=None: {"model": model},
     )
     monkeypatch.setattr(
         "agenta.sdk.engines.running.handlers.mockllm.user_aws_credentials_from",
@@ -364,7 +364,7 @@ async def test_retry_runner_retries_explicit_transient_provider_errors(monkeypat
 async def test_retry_runner_does_not_retry_deterministic_secret_errors(monkeypatch):
     calls = []
 
-    def fake_provider_settings(model):
+    def fake_provider_settings(model, connection=None):
         calls.append(model)
         return None
 
@@ -552,7 +552,7 @@ async def test_retry_exhaustion_raises_after_max_attempts(monkeypatch):
 
     monkeypatch.setattr(
         "agenta.sdk.engines.running.handlers.SecretsManager.get_provider_settings_from_workflow",
-        lambda model: {"model": model},
+        lambda model, connection=None: {"model": model},
     )
     monkeypatch.setattr(
         "agenta.sdk.engines.running.handlers.mockllm.user_aws_credentials_from",
