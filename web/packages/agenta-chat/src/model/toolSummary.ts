@@ -22,27 +22,22 @@ export {stripFence}
 
 // Mirrors web/oss/src/components/AgentChatSlice/assets/toolRow.ts, which stays authoritative for
 // the desktop chat until the re-plumb PR deletes it. Port changes both ways.
+
 // A tool has finished when it produced output, errored, or was denied. Everything else
 // (preparing input, running, awaiting/just-answered an approval) is still in flight.
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 export const isSettled = (state: string) => SETTLED.has(state)
 
-// Mirrors web/oss/src/components/AgentChatSlice/assets/toolRow.ts, which stays authoritative for
-// the desktop chat until the re-plumb PR deletes it. Port changes both ways.
 export const isDeferredError = (errorText: string | undefined): boolean =>
     !!errorText && errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
 export const isUnknownResultError = (errorText: string | undefined): boolean =>
     !!errorText && errorText.startsWith(APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX)
 
-// Mirrors web/oss/src/components/AgentChatSlice/assets/toolRow.ts, which stays authoritative for
-// the desktop chat until the re-plumb PR deletes it. Port changes both ways.
 export const isNotHandledOutput = (output: unknown): boolean =>
     !!output &&
     typeof output === "object" &&
     (output as {status?: unknown}).status === "not_handled"
 
-// Mirrors web/oss/src/components/AgentChatSlice/assets/toolRow.ts, which stays authoritative for
-// the desktop chat until the re-plumb PR deletes it. Port changes both ways.
 /** Parse a JSON object or array; undefined for anything else, so a sentence stays a sentence. */
 const parseJsonish = (text: string): unknown => {
     if (!/^[[{]/.test(text)) return undefined

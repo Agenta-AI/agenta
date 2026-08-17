@@ -250,6 +250,9 @@ const ApprovalDock = ({
     // gateway/MCP/plain names. Raw name stays reachable via the tooltip and the payload expander.
     // The input goes in too, so this card says the same sentence as the row it gates.
     const friendly = current ? resolveToolDisplay(current.toolName, current.input) : null
+    // The grant covers every call of the tool, so its label must not carry THIS call's arguments:
+    // with them it reads "Always allow searching Github open bugs", which understates the scope.
+    const grantLabel = current ? resolveToolDisplay(current.toolName).activity.running : ""
 
     // "Always allow this tool": writes a config permission so the runner stops gating this tool
     // (per-tool `permission` for gateway/custom-function tools; `harness.permissions.allow` for
@@ -564,8 +567,7 @@ const ApprovalDock = ({
                                         <Text className="!text-xs">
                                             Always allow{" "}
                                             <span className="font-medium">
-                                                {inSentence(friendly?.activity.running ?? "") ||
-                                                    current.toolName}
+                                                {inSentence(grantLabel) || current.toolName}
                                             </span>{" "}
                                             for this agent
                                         </Text>

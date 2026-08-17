@@ -296,8 +296,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     if (!parsed.ok) return null // degradation auto-settle in flight (effect above)
 
     const requiredCount = parsed.payload.requestedSchema.required?.length ?? 0
-    // The run being parked on you is already said by the composer dock and the turn's status line;
-    // a third line here was the same sentence a third time.
+    // The composer dock and the turn's status line already say the run is parked on you.
     const asker = CLIENT_TOOL_NAMES.has(canonicalToolName(meta.toolName))
         ? null
         : `Asked by ${resolveToolDisplay(meta.toolName).label}`
@@ -354,9 +353,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 <Question size={14} weight="fill" className="shrink-0 mt-0.5 text-colorPrimary" />
                 <div className="flex min-w-0 flex-col">
                     <Text className="!text-xs">{parsed.payload.message}</Text>
-                    {/* Requester attribution — muted subtext, never a banner (design D-spec).
-                        Our own elicitation tool goes unnamed: the card in front of you IS the agent
-                        asking, so "Asked by Request input" only restates the obvious. */}
+                    {/* Requester attribution (design D-spec); ours goes unnamed, the card IS the ask. */}
                     {subtext ? (
                         <Text type="secondary" className="!text-xs">
                             {subtext}
