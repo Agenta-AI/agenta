@@ -1,5 +1,5 @@
 import {type SessionRunStatus} from "@agenta/chat/model"
-import {sessionStatusAtomFamily} from "@agenta/chat/state"
+import {sessionLocalSettledAtAtomFamily, sessionStatusAtomFamily} from "@agenta/chat/state"
 import {
     deriveSessionLifecycle,
     deriveStreamNest,
@@ -97,50 +97,6 @@ export const sessionDotStatusAtomFamily = atomFamily((sessionId: string) =>
     }),
 )
 
-/**
- * When each session's LOCAL run last settled (ms epoch), stamped when an active run becomes idle
- * or errors. Read by the running-elsewhere derivation: backend liveness is a poll snapshot
- * up to 15s stale, so a flag fetched BEFORE our own turn ended says nothing about whether anyone
- * else is running it (#5844). In-memory only — it describes this browser tab, not history.
- *
- * PLACEMENT NOTE: conceptually this belongs in `@agenta/chat/state` next to `setSessionStatusAtom`,
- * which already owns the run-state record and observes exactly the transition that stamps this.
- * It lives here because the package is outside this change's scope; see `noteSessionLocalStatusAtom`
- * for the app-side transition mirror that stands in for the package-side stamp.
- */
-const sessionLocalSettledAtByIdAtom = atom<Record<string, number>>({})
-
-/** Last local run-state we saw per session — the `wasActive` half of the transition rule below. */
-const lastLocalStatusByIdAtom = atom<Record<string, SessionRunStatus>>({})
-
-/** When this browser's run of a session last settled; `undefined` if it never ran one here. */
-export const sessionLocalSettledAtAtomFamily = atomFamily((id: string) =>
-    selectAtom(sessionLocalSettledAtByIdAtom, (map) => map[id]),
-)
-
-/**
- * Mirror of a session's local run-state transition, stamping the settle time on the
- * active → settled edge only:
- *  - `idle → idle` is a no-op, so an unvisited session never looks like one that just finished;
- *  - `running`/`awaiting` → `idle` or `error` stamps (an error IS a settle);
- *  - `error → idle` (the cleanup write on unmount) does NOT restamp — the run already settled.
- * Driven from `useSessionHydration`, which observes `sessionStatusAtomFamily` for its own session.
- */
-export const noteSessionLocalStatusAtom = atom(
-    null,
-    (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
-        const prev = get(lastLocalStatusByIdAtom)[id] ?? "idle"
-        if (prev === status) return
-        const wasActive = prev === "running" || prev === "awaiting"
-        if (wasActive && (status === "idle" || status === "error")) {
-            set(sessionLocalSettledAtByIdAtom, {
-                ...get(sessionLocalSettledAtByIdAtom),
-                [id]: Date.now(),
-            })
-        }
-        set(lastLocalStatusByIdAtom, {...get(lastLocalStatusByIdAtom), [id]: status})
-    },
-)
 
 /**
  * "Is someone ELSE running this session?" — the decision behind the running-elsewhere strip and

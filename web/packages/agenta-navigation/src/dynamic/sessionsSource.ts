@@ -10,9 +10,11 @@ import type {SidebarEntityRef} from "./types"
 /** A session row as the sidebar needs it: enough to label it, dot it, and open it. */
 export interface SessionSidebarRef extends SidebarEntityRef {
     sessionId: string
-    appId: string
+    /** Null until the session resolves an open target (a client-created row has none yet). */
+    appId: string | null
     pinned: boolean
     alive: boolean
+    agentName?: string | null
     /** A turn is in flight — the row spins. Resolved for rendered rows only. */
     running: boolean
 }
@@ -92,6 +94,38 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 export const localSessionRefsAtom = atom<SessionSidebarRef[]>([])
 
 /**
+ * Drop sessions whose agent has been archived (#5944) — an archived agent's conversations should
+ * not keep occupying the rail. A PIN is an explicit user request and is exempt, the same exemption
+ * it gets from every other list rule.
+ */
+export const dropArchivedAgentSessions = (
+    refs: readonly SessionSidebarRef[],
+    // `null` = the archived-agents answer has not arrived; keep everything rather than blink rows
+    // out and back in once it does.
+    archivedAgentIds: ReadonlySet<string> | null,
+): SessionSidebarRef[] =>
+    archivedAgentIds === null
+        ? [...refs]
+        : refs.filter((ref) => ref.pinned || !ref.appId || !archivedAgentIds.has(ref.appId))
+
+/**
+ * Host-local rows lead the RECENT rows but never displace pins: pins are pulled to the top because
+ * they are conversations you return to over days, and a session you happen to have open must not
+ * push them down. A server row for the same session wins once it exists — it carries the resolved
+ * open target and the liveness flags.
+ */
+export const withLocalSessions = (
+    server: readonly SessionSidebarRef[],
+    local: readonly SessionSidebarRef[],
+): SessionSidebarRef[] => {
+    const known = new Set(server.map((ref) => ref.sessionId))
+    const fresh = local.filter((ref) => !known.has(ref.sessionId))
+    const pinned = server.filter((ref) => ref.pinned)
+    const rest = server.filter((ref) => !ref.pinned)
+    return [...pinned, ...fresh, ...rest]
+}
+
+/**
  * Pinned sessions first, then the rest by activity.
  *
  * Pins are pulled to the top rather than left in place because a pinned conversation is one you
@@ -111,11 +145,7 @@ const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
         ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
         ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
     ]
-    // Host-local rows lead, and a server row for the same session wins once it exists (it carries
-    // the resolved target and flags).
-    const known = new Set(server.map((ref) => ref.sessionId))
-    const local = get(localSessionRefsAtom).filter((ref) => !known.has(ref.sessionId))
-    return [...local, ...server]
+    return withLocalSessions(server, get(localSessionRefsAtom))
 })
 
 export const sidebarSessionsListAtom = atom((get) => {

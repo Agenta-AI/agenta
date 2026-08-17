@@ -80,6 +80,9 @@ const ENTITIES: SidebarEntity[] = [
         // playground has no way to read that from the route.
         childPath: (session) => `/apps/${session.appId}/playground`,
         getOnClick: (session) => () => {
+            // A row with no resolved agent yet cannot open anything; the sidebar still shows it so
+            // a first-turn session keeps its place (#5974).
+            if (!session.appId) return
             getDefaultStore().set(pendingSessionOpenAtom, {
                 appId: session.appId,
                 sessionId: session.sessionId,

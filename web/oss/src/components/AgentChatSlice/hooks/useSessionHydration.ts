@@ -12,7 +12,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {noteSessionLocalStatusAtom, sessionRunningElsewhereAtomFamily} from "../state/liveness"
+import {sessionRunningElsewhereAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
 import {activeSessionIdAtomFamily} from "../state/sessions"
 
@@ -253,17 +253,6 @@ export const useSessionHydration = ({
     // `setSessionStatusAtom`: this hook is mounted for the whole life of a session tab, which is
     // exactly when that session's local run-state can go non-idle, so mirroring the transition here
     // reproduces the package-side stamp without reaching into `@agenta/chat`.
-    const localStatus = useAtomValue(sessionStatusAtomFamily(sessionId))
-    const noteLocalStatus = useSetAtom(noteSessionLocalStatusAtom)
-    useEffect(() => {
-        noteLocalStatus({id: sessionId, status: localStatus})
-    }, [sessionId, localStatus, noteLocalStatus])
-    // Closing the tab mid-run settles the local run too (the stream is torn down on unmount), so
-    // stamp it — otherwise a reopen would trust a liveness snapshot older than our own aborted turn.
-    useEffect(
-        () => () => noteLocalStatus({id: sessionId, status: "idle"}),
-        [sessionId, noteLocalStatus],
-    )
     // `busy` stays as a second guard: it flips on the SEND commit, one commit before the status
     // atom the derivation reads, so it hides the strip a frame earlier when a local send takes over
     // a session that genuinely was running elsewhere.

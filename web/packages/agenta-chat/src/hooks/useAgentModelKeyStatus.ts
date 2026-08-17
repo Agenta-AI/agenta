@@ -2,6 +2,7 @@
 import {useMemo} from "react"
 
 import {
+    providerConnectionsAtom,
     providerKeySetupDoneAtom,
     standardSecretsAtom,
     vaultSecretsQueryAtom,
@@ -56,6 +57,28 @@ interface HarnessRef {
  * vault secret, or the user has connected a key once before, or the agent is self-managed, the gate
  * never fires again — "it's not our problem anymore".
  */
+/**
+ * The connect-a-model gate, as a rule over resolved facts (the hook supplies them from atoms).
+ *
+ * `connectionCount` counts provider CONNECTIONS, never raw vault rows: a project holding only a
+ * user-named `custom_secret` can credential no model, and treating that row as "the vault isn't
+ * empty" let a keyless project through to a run that failed with "no usable credential" (#5995).
+ */
+export const connectModelGate = ({
+    loading,
+    connectionCount,
+    selfManaged,
+    keySetupDone,
+    hasProviderEntry,
+}: {
+    loading: boolean
+    connectionCount: number
+    selfManaged: boolean
+    keySetupDone: boolean
+    hasProviderEntry: boolean
+}): boolean =>
+    !loading && connectionCount === 0 && !selfManaged && !keySetupDone && hasProviderEntry
+
 export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
@@ -65,9 +88,9 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     // undefined, so we treat the vault as unresolved and never assert a missing key from empty slots.
     const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
     const loading = !Array.isArray(vaultQuery.data)
-    // Raw listSecrets rows (standard + custom provider + named), NOT the static standardSecrets
-    // catalog — that always has one row per known provider regardless of vault state.
-    const vaultEmpty = !loading && (vaultQuery.data as unknown[]).length === 0
+    // Provider CONNECTIONS, not raw vault rows and not the static standardSecrets catalog (which
+    // always has one row per known provider regardless of vault state) — see connectModelGate.
+    const connections = useAtomValue(providerConnectionsAtom)
     const keySetupDone = useAtomValue(providerKeySetupDoneAtom)
 
     return useMemo(() => {
@@ -96,8 +119,13 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
               ) ?? null)
             : null
 
-        const gateActive =
-            !loading && vaultEmpty && !selfManaged && !keySetupDone && !!providerEntry
+        const gateActive = connectModelGate({
+            loading,
+            connectionCount: connections.length,
+            selfManaged,
+            keySetupDone,
+            hasProviderEntry: !!providerEntry,
+        })
 
         return {
             provider,
@@ -108,5 +136,5 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
             loading,
             gateActive,
         }
-    }, [config, standardSecrets, loading, vaultEmpty, keySetupDone])
+    }, [config, standardSecrets, loading, connections.length, keySetupDone])
 }

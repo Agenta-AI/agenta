@@ -9,7 +9,7 @@ import {
     sessionLocalSettledAtAtomFamily,
     sessionStatusAtomFamily,
     setSessionStatusAtom,
-} from "./sessions"
+} from "@agenta/chat/state"
 
 describe("setSessionStatusAtom", () => {
     it("stamps the settle time only on a non-idle → idle transition", () => {

@@ -27,7 +27,7 @@ import arabicPoetryLive from "./__fixtures__/arabicPoetrySession.liveChunks.json
 import connectAndFormsLive from "./__fixtures__/connectAndFormsSession.liveChunks.json"
 import {GOLDEN_SESSIONS} from "./__fixtures__/goldenSessions"
 import testRunApprovalsLive from "./__fixtures__/testRunApprovalsSession.liveChunks.json"
-import {transcriptToMessages} from "./transcriptToMessages"
+import {transcriptToMessages} from "../../../src/assets/transcriptToMessages"
 
 type Chunk = Record<string, unknown>
 type AnyPart = Record<string, unknown>

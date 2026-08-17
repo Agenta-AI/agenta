@@ -46,7 +46,9 @@ export const SIDEBAR_VIEWS = [
     },
     {
         id: WORKFLOW_SIDEBAR_SCOPE_ID,
-        matches: (ctx: SidebarViewMatchContext) => ctx.routeLayer === "app",
+        // Agents navigate flat and keep the project rail; only classic apps and evaluators swap.
+        matches: (ctx: SidebarViewMatchContext) =>
+            ctx.routeLayer === "app" && ctx.agentState === "non-agent",
         create: ({lastPath}: SidebarViewContext) => createWorkflowSidebarScope({lastPath}),
     },
     {
@@ -62,8 +64,28 @@ export type SidebarViewId = (typeof SIDEBAR_VIEWS)[number]["id"]
 const BASE_VIEW = SIDEBAR_VIEWS[SIDEBAR_VIEWS.length - 1]
 
 /** First view whose `matches` accepts the path; falls back to the base view. */
-export const resolveSidebarView = (ctx: SidebarViewMatchContext): SidebarViewDefinition =>
-    SIDEBAR_VIEWS.find((view) => view.matches(ctx)) ?? BASE_VIEW
+export const resolveSidebarView = (ctx: SidebarViewMatchContext): SidebarViewDefinition => {
+    // A settled lookup that still can't say never will — don't strand a classic app on this rail.
+    const resolved: SidebarViewMatchContext =
+        ctx.agentState === "unknown" && ctx.agentTypeSettled
+            ? {...ctx, agentState: "non-agent"}
+            : ctx
+
+    const matched: SidebarViewDefinition =
+        SIDEBAR_VIEWS.find((view) => view.matches(resolved)) ?? BASE_VIEW
+
+    // Still loading: hold the app-context rail if it is up, rather than swap it away and back.
+    if (
+        matched.isBase &&
+        resolved.routeLayer === "app" &&
+        resolved.agentState === "unknown" &&
+        resolved.currentViewId === WORKFLOW_SIDEBAR_SCOPE_ID
+    ) {
+        return getSidebarViewDefinition(WORKFLOW_SIDEBAR_SCOPE_ID)
+    }
+
+    return matched
+}
 
 /** Look up a view definition by id; falls back to the base view. */
 export const getSidebarViewDefinition = (id: string): SidebarViewDefinition =>

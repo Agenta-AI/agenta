@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vitest"
 
-import {dropArchivedAgentSessions, withLocalSessions} from "./sessionsSource"
-import type {SessionSidebarRef} from "./sessionsSource"
+import {dropArchivedAgentSessions, withLocalSessions} from "@agenta/navigation"
+import type {SessionSidebarRef} from "@agenta/navigation"
 
 const ref = (over: Partial<SessionSidebarRef> & {id: string}): SessionSidebarRef => ({
     sessionId: over.id,

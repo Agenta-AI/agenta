@@ -12,4 +12,9 @@ export * from "./dynamic"
 
 export {useSidebarResize} from "./useSidebarResize"
 
-export {localSessionRefsAtom, type SessionSidebarRef} from "./dynamic/sessionsSource"
+export {
+    dropArchivedAgentSessions,
+    localSessionRefsAtom,
+    withLocalSessions,
+    type SessionSidebarRef,
+} from "./dynamic/sessionsSource"

@@ -54,13 +54,10 @@ vi.mock("@agenta/ui/rich-chat-input", () => ({
     ShortcutHint: () => <span />,
 }))
 
-vi.mock("@phosphor-icons/react", () => ({
-    CaretRight: () => <i />,
-    CheckCircle: () => <i />,
-    Prohibit: () => <i />,
-    Question: () => <i />,
-    Warning: () => <i />,
-    XCircle: () => <i />,
+// Spread the real module rather than hand-listing icons: this widget's tree pulls in new ones as
+// the packages it renders grow, and a missing name fails the whole FILE, not just one assertion.
+vi.mock("@phosphor-icons/react", async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
 }))
 
 vi.mock("antd", () => {

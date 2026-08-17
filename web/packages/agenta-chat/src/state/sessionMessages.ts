@@ -6,7 +6,7 @@
 // drop the transcript store without its watermark (the two must never diverge).
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
-import {atomWithStorage} from "jotai/utils"
+import {atomWithStorage, selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
 import type {SessionRunStatus} from "../model/sessionStatus"
@@ -199,10 +199,38 @@ export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
 
 /** Set a session's run state. "idle" is the default, so it's stored as ABSENCE: passing "idle"
  * deletes the entry (clear-on-unmount) instead of accumulating idle keys for every closed session. */
+/**
+ * When each session's LOCAL run last settled (ms epoch), stamped on the active → settled edge.
+ *
+ * Read by the running-elsewhere derivation: backend liveness is a poll snapshot up to 15s stale, so
+ * a flag fetched BEFORE our own turn ended says nothing about whether anyone else is running it
+ * (#5844). In-memory only — it describes this browser tab, not history.
+ *
+ * Lives here, not in the app, because this atom already owns the run-state record and observes
+ * exactly the transition that stamps it. (The app previously carried a mirror for this; it is gone.)
+ */
+const sessionLocalSettledAtByIdAtom = atom<Record<string, number>>({})
+
+/** When this browser's run of a session last settled; `undefined` if it never ran one here. */
+export const sessionLocalSettledAtAtomFamily = atomFamily((id: string) =>
+    selectAtom(sessionLocalSettledAtByIdAtom, (map) => map[id]),
+)
+
 export const setSessionStatusAtom = atom(
     null,
     (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
         const cur = get(sessionStatusByIdAtom)
+        const prev = cur[id] ?? "idle"
+        // Stamp on the active → settled edge only: `idle → idle` is a no-op so an unvisited session
+        // never looks like one that just finished, an error IS a settle, and the `error → idle`
+        // cleanup write must not restamp a run that already settled.
+        const wasActive = prev === "running" || prev === "awaiting"
+        if (wasActive && (status === "idle" || status === "error")) {
+            set(sessionLocalSettledAtByIdAtom, {
+                ...get(sessionLocalSettledAtByIdAtom),
+                [id]: Date.now(),
+            })
+        }
         if (status === "idle") {
             if (!(id in cur)) return
             const next = {...cur}

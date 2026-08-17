@@ -31,6 +31,11 @@ vi.mock("@agenta/entities/session", () => ({
     archiveSessionRemote: (args: DeleteSessionRemoteArgs) => archiveSessionRemote(args),
     unarchiveSessionRemote: (args: DeleteSessionRemoteArgs) => unarchiveSessionRemote(args),
     setSessionHeader: vi.fn(async () => true),
+    // sessions.ts reads the fresh-session set (#5919 merge); a full mock must carry it.
+    freshSessionIds: new Set<string>(),
+    markSessionFresh: vi.fn(),
+    isSessionFresh: vi.fn(() => false),
+    clearSessionFresh: vi.fn(),
 }))
 
 const {

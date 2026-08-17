@@ -90,7 +90,11 @@ export const resolveChildren = (
         children.push({
             key: `${entity.parentKey}-${ref.id}`,
             title: entity.getLabel(ref),
+            // Context the label cannot carry (#5945) — e.g. which agent a session belongs to.
+            tooltip: entity.getTooltip?.(ref),
             link: entity.childLink(ref, projectURL),
+            // A row can own more routes than it navigates to.
+            matchLinks: entity.childMatchLinks?.(ref, projectURL),
             icon: entity.getIcon?.(ref) ?? icon(),
             isDynamic: true,
             onClick: entity.getOnClick?.(ref),

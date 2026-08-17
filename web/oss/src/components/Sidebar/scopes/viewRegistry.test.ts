@@ -9,7 +9,7 @@ import {
     MAIN_SIDEBAR_SCOPE_ID,
     SETTINGS_SIDEBAR_SCOPE_ID,
     WORKFLOW_SIDEBAR_SCOPE_ID,
-} from "./constants"
+} from "@agenta/navigation"
 import {resolveSidebarView, type SidebarViewMatchContext} from "./viewRegistry"
 
 const ctx = (overrides: Partial<SidebarViewMatchContext> = {}): SidebarViewMatchContext => ({

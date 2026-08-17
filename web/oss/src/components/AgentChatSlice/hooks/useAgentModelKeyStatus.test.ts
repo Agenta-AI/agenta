@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {connectModelGate} from "./useAgentModelKeyStatus"
+import {connectModelGate} from "@agenta/chat/hooks"
 
 const facts = (over: Partial<Parameters<typeof connectModelGate>[0]> = {}) => ({
     loading: false,

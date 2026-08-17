@@ -34,8 +34,8 @@ import {describe, expect, it} from "vitest"
 
 import arabicPoetryRecords from "./__fixtures__/arabicPoetrySession.json"
 import testRunApprovalsRecords from "./__fixtures__/testRunApprovalsSession.json"
-import {partToolName} from "./toolDisplay"
-import {transcriptToMessages} from "./transcriptToMessages"
+import {partToolName} from "../../../src/model/parts"
+import {transcriptToMessages} from "../../../src/assets/transcriptToMessages"
 
 type AnyPart = Record<string, unknown>
 
