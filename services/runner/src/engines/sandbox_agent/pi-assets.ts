@@ -315,6 +315,19 @@ export const PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE =
   "default endpoint. Ask your deployment operator to rebuild and republish the runner image.";
 
 /**
+ * Thrown (via the engine's named-message pattern) when a local subscription run's Pi agent dir —
+ * the operator's mounted login — is not writable by the runner user. Pi persists its session
+ * rollouts and OAuth refresh into that dir, so an unwritable mount makes the harness die at
+ * startup with no output at all: the turn ends instantly and the UI shows nothing (the exact
+ * "session looks stuck, user retries forever" failure). Fail closed with a visible error instead.
+ * Single line so `conciseError` surfaces it verbatim.
+ */
+export const PI_AGENT_DIR_UNWRITABLE_MESSAGE =
+  "The agent could not use the mounted Pi login directory: it is not writable by the runner's " +
+  "user, so the harness cannot persist its session or refresh its login. The run was stopped. " +
+  "Ask your deployment operator to make the mounted Pi agent directory writable by the runner's uid.";
+
+/**
  * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
  * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
  * managed custom run must never fall through to a default provider (design Decision 6). The file
@@ -623,6 +636,40 @@ export interface PrepareLocalPiAssetsResult {
    * when this is false (materialization is terminal — design Decision 6).
    */
   modelConfigWritten: boolean;
+  /**
+   * False only for a subscription run whose operator-mounted agent dir failed the write probe. Pi
+   * persists session rollouts and its OAuth refresh into that dir, so an unwritable mount makes
+   * the harness die at startup with zero output; the caller fails the run closed with
+   * `PI_AGENT_DIR_UNWRITABLE_MESSAGE` instead. Always true for the per-run-dir paths (the dir is
+   * created by the runtime user) and for non-local-Pi runs.
+   */
+  agentDirWritable: boolean;
+}
+
+/**
+ * Probe whether the runner user can actually write into a Pi agent dir: create `sessions/` when
+ * missing and round-trip a probe file inside it. Pi needs exactly these writes at startup
+ * (session rollout persistence), and its failure mode on EACCES is an instant silent exit.
+ */
+export function probePiAgentDirWritable(
+  agentDir: string,
+  log: Log = () => {},
+): boolean {
+  const probe = join(agentDir, "sessions", `.agenta-write-probe-${randomUUID()}`);
+  try {
+    mkdirSync(join(agentDir, "sessions"), { recursive: true });
+    writeFileSync(probe, "", "utf-8");
+    rmSync(probe, { force: true });
+    return true;
+  } catch (err) {
+    try {
+      rmSync(probe, { force: true });
+    } catch {
+      // the probe file was never created; nothing to clean up
+    }
+    log(`pi agent dir write probe failed: ${(err as Error).message}`);
+    return false;
+  }
 }
 
 /**
@@ -658,6 +705,7 @@ export function prepareLocalPiAssets({
       dir: undefined,
       extensionInstalled: true,
       modelConfigWritten: true,
+      agentDirWritable: true,
     };
 
   // buildRunPlan already rejected a local runtime_provided run with no configured
@@ -677,6 +725,7 @@ export function prepareLocalPiAssets({
           describePiModelsJsonPlan(piModelConfig),
       );
     }
+    const agentDirWritable = probePiAgentDirWritable(agentDir, log);
     const extensionInstalled = installPiExtensionLocal(agentDir, log);
     if (plan.prompt.hasSystemPrompt) {
       writeSystemPromptLocal(
@@ -688,7 +737,12 @@ export function prepareLocalPiAssets({
     }
     env.PI_CODING_AGENT_DIR = agentDir;
     // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
-    return { dir: undefined, extensionInstalled, modelConfigWritten: true };
+    return {
+      dir: undefined,
+      extensionInstalled,
+      modelConfigWritten: true,
+      agentDirWritable,
+    };
   }
 
   // Managed / none: always route through a throwaway per-run dir the runtime user owns, so the
@@ -724,7 +778,12 @@ export function prepareLocalPiAssets({
     }
   }
   env.PI_CODING_AGENT_DIR = runAgentDir;
-  return { dir: runAgentDir, extensionInstalled, modelConfigWritten };
+  return {
+    dir: runAgentDir,
+    extensionInstalled,
+    modelConfigWritten,
+    agentDirWritable: true,
+  };
 }
 
 /** Upload materialized skill dirs into a Daytona sandbox's Pi `skills/` user scope. */

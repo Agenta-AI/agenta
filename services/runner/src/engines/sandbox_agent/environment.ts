@@ -77,6 +77,7 @@ import {
   type MountCredentials,
 } from "./mount.ts";
 import {
+  PI_AGENT_DIR_UNWRITABLE_MESSAGE,
   PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
   PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
@@ -308,6 +309,7 @@ export async function acquireEnvironment(
     localBuiltinGatingUnenforceable,
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
+    localPiAgentDirUnwritable,
     logger,
     mcpAbort,
     piExtEnv,
@@ -471,6 +473,12 @@ export async function acquireEnvironment(
     // endpoint with the wrong credentials.
     if (localModelOverrideUnenforceable) {
       throw new Error(PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE);
+    }
+    // Fail closed: a subscription run cannot start when the operator-mounted Pi agent dir failed
+    // the write probe — Pi dies at startup on the unwritable dir with zero output, so without this
+    // gate the turn ends instantly and the UI shows a silently stuck session.
+    if (localPiAgentDirUnwritable) {
+      throw new Error(PI_AGENT_DIR_UNWRITABLE_MESSAGE);
     }
     // Structural + SSRF validation of user MCP servers BEFORE any sandbox (or Daytona Secret) is
     // created, so an invalid credentialed server never triggers remote side effects.
