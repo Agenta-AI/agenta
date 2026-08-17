@@ -30,16 +30,11 @@ import {AgentChatTransport} from "../assets/AgentChatTransport"
 import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
-import {
-    INITIAL_STARTUP_LABEL,
-    shouldShowStartupLadder,
-    startupLabelFromDataPart,
-} from "../assets/startupPhases"
+import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
-import {sessionLivenessAtomFamily} from "../state/liveness"
 import {
     persistSessionMessagesAtom,
     sessionMessagesAtom,
@@ -347,21 +342,11 @@ export const useAgentChatSession = ({
     }, [messages, status, sessionId, persistMessages])
 
     // ── #6047 startup states: one label per in-flight turn ──
-    // The cold/warm call is snapshotted when the turn starts, never re-read: liveness refetches
-    // mid-turn, and following it live would yank the ladder away halfway through a boot. Read
-    // through a ref so the effect fires on `status` alone, not on every 15s liveness poll.
     const clearTurnClock = useSetAtom(clearTurnClockAtom)
-    const isAliveRef = useRef(false)
-    isAliveRef.current = useAtomValue(sessionLivenessAtomFamily(sessionId)).nest.isAlive
     useEffect(() => {
-        // `submitted` is the edge a new send always crosses, and the only one that starts a clock —
-        // so a fresh turn always gets a fresh start time even when React batches a resume's
-        // settle and re-send into a single render.
+        // Until the runner reports an observed startup boundary, both cold and warm turns use dots.
         if (status === "submitted") {
-            // A warm turn clears any label the previous turn left behind.
-            if (shouldShowStartupLadder({isAlive: isAliveRef.current}))
-                setTurnStartupLabel(sessionId, INITIAL_STARTUP_LABEL)
-            else clearTurnClock(sessionId)
+            clearTurnClock(sessionId)
             return
         }
         // `streaming` is the same turn continuing — leave its clock alone.
