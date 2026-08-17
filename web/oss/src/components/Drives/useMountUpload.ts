@@ -65,10 +65,18 @@ export interface MountUpload {
     dismiss: (id: string) => void
 }
 
-export function useMountUpload(): MountUpload {
+/**
+ * @param onUploaded called with the PRESENTED (drive-root-relative) path of each file whose write
+ * landed — the hook drops its optimistic item at that moment, so this is the host's only chance to
+ * account for a file the listing filters will hide (see {@link useUploadReveal}).
+ */
+export function useMountUpload(onUploaded?: (path: string) => void): MountUpload {
     const projectId = useAtomValue(projectIdAtom)
     const queryClient = useAtomValue(queryClientAtom)
     const [items, setItems] = useState<MountUploadItem[]>([])
+    // Held in a ref so a fresh callback identity never re-creates `run` (and with it the pump).
+    const onUploadedRef = useRef(onUploaded)
+    onUploadedRef.current = onUploaded
 
     // Per-item inputs kept for retry, plus abort controllers for cleanup.
     const sources = useRef(new Map<string, {dropped: DroppedFile; target: MountUploadTarget}>())
@@ -116,6 +124,12 @@ export function useMountUpload(): MountUpload {
                     sources.current.delete(id)
                     setItems((prev) => prev.filter((it) => it.id !== id))
                     refreshListing()
+                    const {presentedFolder} = src.target
+                    onUploadedRef.current?.(
+                        presentedFolder
+                            ? `${presentedFolder}/${src.dropped.relativePath}`
+                            : src.dropped.relativePath,
+                    )
                 })
                 .catch((e: unknown) => {
                     running.current = Math.max(0, running.current - 1)

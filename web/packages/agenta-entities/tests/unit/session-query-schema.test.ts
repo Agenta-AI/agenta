@@ -36,6 +36,34 @@ const wireRow = {
 
 const wireEnvelope = {count: 1, sessions: [wireRow]}
 
+const typedWireEnvelope = {
+    count: 1,
+    total: 12,
+    sessions: [
+        {
+            ...wireRow,
+            origin: "trigger",
+            trigger: {
+                id: "44444444-4444-4444-4444-444444444444",
+                kind: "schedule",
+                name: "Nightly digest",
+            },
+            delivery: {id: "55555555-5555-5555-5555-555555555555"},
+            last_message: {
+                text: "Digest delivered.",
+                source: "agent",
+                timestamp: "2026-07-24T09:30:00Z",
+            },
+        },
+    ],
+    windowing: {
+        next: "22222222-2222-2222-2222-222222222222",
+        newest: "2026-07-24T09:30:00Z",
+        limit: 1,
+        order: "descending",
+    },
+}
+
 describe("sessionStreamSchema (/sessions/query rows)", () => {
     it("parses a fully-populated stamped row and keeps the fields the session list reads", () => {
         const out = sessionStreamSchema.parse(wireRow)
@@ -106,6 +134,66 @@ describe("sessionsQueryResponseSchema (envelope)", () => {
         expect(out.sessions).toHaveLength(1)
         expect(out.sessions[0].session_id).toBe("sess-1")
         expect(out.sessions[0].references?.[0]?.id).toBe("33333333-3333-3333-3333-333333333333")
+    })
+
+    it("keeps typed attribution, preview, total, and response windowing", () => {
+        const out = sessionsQueryResponseSchema.parse(typedWireEnvelope)
+        expect(out.total).toBe(12)
+        expect(out.sessions[0].origin).toBe("trigger")
+        expect(out.sessions[0].trigger).toEqual({
+            id: "44444444-4444-4444-4444-444444444444",
+            kind: "schedule",
+            name: "Nightly digest",
+        })
+        expect(out.sessions[0].delivery?.id).toBe("55555555-5555-5555-5555-555555555555")
+        expect(out.sessions[0].last_message?.text).toBe("Digest delivered.")
+        expect(out.windowing).toEqual({
+            next: "22222222-2222-2222-2222-222222222222",
+            newest: "2026-07-24T09:30:00Z",
+            limit: 1,
+            order: "descending",
+        })
+    })
+
+    it("accepts rollout responses without additive typed or envelope fields", () => {
+        const out = sessionsQueryResponseSchema.parse(wireEnvelope)
+        expect(out.total).toBeUndefined()
+        expect(out.windowing).toBeUndefined()
+        expect(out.sessions[0].origin).toBeUndefined()
+        expect(out.sessions[0].trigger).toBeUndefined()
+        expect(out.sessions[0].delivery).toBeUndefined()
+        expect(out.sessions[0].last_message).toBeUndefined()
+    })
+
+    it("degrades an unrecognized origin/trigger.kind to undefined instead of failing the row", () => {
+        const unknownEnums = {
+            count: 2,
+            sessions: [
+                {
+                    ...wireRow,
+                    session_id: "sess-unknown-origin",
+                    origin: "a-future-origin-value",
+                },
+                {
+                    ...wireRow,
+                    session_id: "sess-unknown-trigger-kind",
+                    trigger: {
+                        id: "44444444-4444-4444-4444-444444444444",
+                        kind: "a-future-trigger-kind",
+                        name: "Nightly digest",
+                    },
+                },
+            ],
+        }
+        // The whole array must still parse — a single row's unrecognized enum value must not
+        // null out the response for every other row on the page (see the origin/trigger/delivery
+        // `.catch(undefined)` in `sessionStreamSchema`).
+        const out = sessionsQueryResponseSchema.parse(unknownEnums)
+        expect(out.sessions).toHaveLength(2)
+        expect(out.sessions[0].session_id).toBe("sess-unknown-origin")
+        expect(out.sessions[0].origin).toBeUndefined()
+        expect(out.sessions[1].session_id).toBe("sess-unknown-trigger-kind")
+        expect(out.sessions[1].trigger).toBeUndefined()
     })
 })
 

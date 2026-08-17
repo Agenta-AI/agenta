@@ -8,6 +8,7 @@
 // persist-on-settle → run-status publish, plus error stamping and the rewind plan.
 import {createElement, type ReactNode} from "react"
 
+import {buildAgentRequest} from "@agenta/playground"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
@@ -34,14 +35,13 @@ vi.mock("@agenta/entities/session", async () => {
         revalidateSessionRecordsAtom: atom(null, () => {}),
         // The hydration seam's records fetch: "no server history" for these tests.
         fetchSessionRecordsAtom: atom(null, () => ({records: null, refreshed: null})),
+        fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
     }
 })
 
 vi.mock("@agenta/entities/trace", () => ({
     markTraceAsFresh: vi.fn(),
 }))
-
-import {buildAgentRequest} from "@agenta/playground"
 
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
 import {markSessionFresh} from "../../../src/state/sessionEphemera"

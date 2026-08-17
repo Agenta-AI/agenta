@@ -8,7 +8,10 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamEdit,
     SessionStreamHeaderEdit,
     SessionStreamQuery,
+    SessionStreamQueryResult,
+    SessionStreamReadOptions,
 )
+from oss.src.core.sessions.types import SessionReference, SessionTriggerAttribution
 from oss.src.core.shared.dtos import Windowing
 
 
@@ -54,7 +57,19 @@ class SessionStreamsDAOInterface(ABC):
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
-    ) -> List[SessionStream]: ...
+        exclude_session_ids: Optional[List[str]] = None,
+        read_options: Optional[SessionStreamReadOptions] = None,
+    ) -> List[SessionStreamQueryResult]: ...
+
+    @abstractmethod
+    async def count(
+        self,
+        *,
+        project_id: UUID,
+        filter: SessionStreamQuery,
+        session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
+    ) -> int: ...
 
     @abstractmethod
     async def update(
@@ -75,6 +90,30 @@ class SessionStreamsDAOInterface(ABC):
         session_id: str,
         header: SessionStreamHeaderEdit,
     ) -> Optional[SessionStream]: ...
+
+    @abstractmethod
+    async def query_session_ids_by_references(
+        self,
+        *,
+        project_id: UUID,
+        references: List[SessionReference],
+        limit: int,
+    ) -> List[str]:
+        """Session ids whose stream-row references satisfy the same containment the
+        turns query applies."""
+        ...
+
+    @abstractmethod
+    async def fill_missing(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        name: Optional[str] = None,
+        references: Optional[List[SessionReference]] = None,
+    ) -> bool:
+        """Write each field onto the row only where it is still NULL; never overwrite."""
+        ...
 
     @abstractmethod
     async def delete_by_session_id(
@@ -125,3 +164,33 @@ class SessionStreamsDAOInterface(ABC):
         *,
         project_id: Optional[UUID] = None,
     ) -> int: ...
+
+
+class TriggerSessionClaimsDAOInterface(ABC):
+    @abstractmethod
+    async def claim_trigger_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        event_id: str,
+        session_id: str,
+        attribution: SessionTriggerAttribution,
+    ) -> bool:
+        """Atomically claim one trigger delivery and attribute its session."""
+        ...
+
+    @abstractmethod
+    async def abandon_claimed_session(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        """Soft-delete a session_streams row claimed via `claim_trigger_delivery`.
+
+        Called when dispatch fails before a turn ever starts, so the row never
+        lingers as a permanent, un-sweepable phantom session (it has `flags=NULL`
+        at claim time, which the orphan sweep can never match).
+        """
+        ...

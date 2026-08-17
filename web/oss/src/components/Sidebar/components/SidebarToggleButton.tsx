@@ -17,10 +17,18 @@ const SidebarToggleButton = ({className}: SidebarToggleButtonProps) => {
         <EnhancedButton
             type="text"
             size="small"
-            className={clsx("shrink-0 !h-[28px]", className)}
+            // A square the exact height of the 22px wordmark: top-aligned in the brand row, both
+            // optical centres land on the same line. The old 28px pill rode 3px low.
+            // The ::after is a transparent 28px hit extender — it grows the pointer target only,
+            // leaving the 22px visual box and the row's alignment untouched.
+            className={clsx(
+                "shrink-0 !h-[22px] !w-[22px] !p-0",
+                "relative after:absolute after:inset-[-3px] after:content-['']",
+                className,
+            )}
             icon={
                 <Sidebar
-                    size={14}
+                    size={16}
                     className={clsx("transition-transform", collapsed ? "rotate-180" : "")}
                 />
             }

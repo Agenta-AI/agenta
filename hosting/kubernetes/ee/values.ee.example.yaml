@@ -173,7 +173,7 @@ global:
 # ================================================================== #
 # composio:
 #   apiKey:
-#   apiUrl: https://backend.composio.dev/api/v3
+#   apiUrl: https://backend.composio.dev/api/v3.1
 
 # ================================================================== #
 # === crisp ===

@@ -1,18 +1,20 @@
 import type {ReactNode} from "react"
 
+import {pageContentWidthClass, pageGutterClass} from "@agenta/ui/components/page-width"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 /**
  * SettingsPageShell — the frame every Settings tab renders inside.
  *
- * Standalone by design: it does NOT wrap `PageLayout`. Settings has its own gutter scale,
- * its own content cap, and a mandatory description, none of which the other 15 PageLayout
- * pages want. Keeping them separate means Settings can evolve without touching Prompts,
- * Agents, Evaluators, Observability or Testsets.
+ * Standalone by design: it does NOT wrap `PageLayout`. Settings has its own gutter scale
+ * and a mandatory description, neither of which the other 15 PageLayout pages want. Keeping
+ * them separate means Settings can evolve without touching Prompts, Agents, Evaluators,
+ * Observability or Testsets. The content cap is the shared one (`pageContentWidthClass`).
  *
- * Renders the gutter, the content cap and the header. Each tab's search and actions live
- * in its own table shell (`filters` / `primaryActions`), not in the central page switch.
+ * Renders the gutter, the centered content column and the header. Each tab's search and
+ * actions live in its own table shell (`filters` / `primaryActions`), not in the central
+ * page switch.
  */
 export interface SettingsPageShellProps {
     title: ReactNode
@@ -24,11 +26,10 @@ export interface SettingsPageShellProps {
     /** Optional tertiary docs link, rendered at the far right of the header. */
     docs?: {label: string; href: string}
     /**
-     * Content cap. `full` (default) = no cap. `table` = 1120px, `form` = 640px. Caps the
-     * body only — the header and its divider always span the full page width. All
-     * left-anchored, so eye travel from the nav rail to the content stays constant.
+     * Body width inside the shared centered column. `full` (default) fills it; `form` caps
+     * at 640px, left-anchored, because a form field wider than that is unreadable.
      */
-    variant?: "full" | "table" | "form"
+    variant?: "full" | "form"
     /**
      * Bound the page height so a table that scrolls internally does not grow the page.
      * Needed by tabs hosting a virtualized table.
@@ -48,15 +49,15 @@ const SettingsPageShell = ({
     return (
         <div
             className={clsx(
-                "flex w-full flex-col self-stretch",
-                // Gutter: 16 / 24 / 32 / 40 as the viewport widens, replacing the flat 16px
-                // every Settings page used to inherit at every size. Vertical rhythm is
-                // fixed (32 top, 64 bottom).
-                "px-4 pt-8 pb-16 md:px-6 lg:px-8 xl:px-10",
+                "flex flex-col self-stretch",
+                // Same gutters + centered column as every PageLayout page, so Settings lines up
+                // with the rest of the app instead of keeping its own scale.
+                pageGutterClass,
+                pageContentWidthClass,
                 fullHeight ? "h-full min-h-0" : "min-h-full",
             )}
         >
-            <div className={clsx("flex w-full flex-col gap-6", fullHeight && "min-h-0 flex-1")}>
+            <div className={clsx("flex flex-col gap-6", fullHeight && "min-h-0 flex-1")}>
                 <header className="flex items-start justify-between gap-6 border-0 border-b border-solid border-colorBorderSecondary pb-6">
                     <div className="flex min-w-0 flex-col gap-1">
                         {/* Sized off antd's own heading tokens so it scales and flips with
@@ -87,14 +88,11 @@ const SettingsPageShell = ({
                     ) : null}
                 </header>
 
-                {/* The cap lives on the content only, so the header + its divider span the
-                    full page width while the body stays left-anchored at its variant width. */}
                 <div
                     className={clsx(
                         "flex flex-col",
                         fullHeight && "min-h-0 flex-1",
                         variant === "form" && "max-w-[640px]",
-                        variant === "table" && "max-w-[1120px]",
                     )}
                 >
                     {children}

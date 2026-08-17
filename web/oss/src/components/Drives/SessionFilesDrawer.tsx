@@ -30,7 +30,8 @@ export const filesDrawerStagedAtomFamily = atomFamily((_sessionId: string) =>
 )
 
 // A requested path may be a tool-path tail; match it against a full drive path by suffix.
-const matchesTail = (filePath: string, requested: string): boolean =>
+// (Shared with SessionFilesPane, the docked variant of this host.)
+export const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
 
 export function SessionFilesDrawer({sessionId}: {sessionId: string}) {

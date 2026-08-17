@@ -54,7 +54,9 @@ function TooltipContent({
                     // colorBgSpotlight bg + white text, borderRadius (8px), 6px×8px padding.
                     "z-50 box-border w-fit rounded-control bg-colorBgSpotlight px-2 py-1.5 text-field-md text-colorTextLightSolid shadow-overlay font-portal",
                     // Soft width cap (matches antd's default tooltip max width) — not a control dim.
-                    "max-w-[250px]",
+                    // break-words: the cap alone can't contain an unbreakable token (an event key,
+                    // an id, a URL), which otherwise runs straight out of the tooltip's background.
+                    "max-w-[250px] break-words",
                     className,
                 )}
                 {...props}

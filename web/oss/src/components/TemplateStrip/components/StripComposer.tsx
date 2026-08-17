@@ -15,8 +15,6 @@ interface StripComposerProps {
      * nothing and the caller reads the ref.
      */
     onCreate: (markdown?: string) => void
-    /** Copy the coding-agent install command + current text to the clipboard. */
-    onCodingAgentCopy: () => void
     /** Chip-docking border/radius classes from `useTemplateProvenance`. */
     composerClassName: string
     /** Forwarded to `RichChatInput`'s `onChange` — lets provenance notice the text going empty. */
@@ -35,7 +33,6 @@ interface StripComposerProps {
 const StripComposer = ({
     composerRef,
     onCreate,
-    onCodingAgentCopy,
     composerClassName,
     onTextChange,
     loading,
@@ -51,13 +48,7 @@ const StripComposer = ({
             minHeightClassName="min-h-24"
             textSizeClassName="text-sm"
             className={composerClassName}
-            trailing={
-                <AgentIntentActions
-                    onCreate={() => onCreate()}
-                    onCodingAgentCopy={onCodingAgentCopy}
-                    loading={loading}
-                />
-            }
+            trailing={<AgentIntentActions onCreate={() => onCreate()} loading={loading} />}
         />
     )
 }

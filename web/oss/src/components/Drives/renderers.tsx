@@ -258,7 +258,7 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                 </table>
             </div>
             {capped ? (
-                <div className="border-0 border-t border-solid border-colorBorderSecondary px-2.5 py-1 text-[11px] text-colorTextTertiary">
+                <div className="border-0 border-t border-solid border-colorBorderSecondary px-2.5 py-1 text-xs text-colorTextTertiary">
                     Showing the first {CSV_ROW_CAP} rows — download for the full file.
                 </div>
             ) : null}
@@ -529,7 +529,7 @@ const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                     }
                 />
             </div>
-            <div className="px-2 pb-1 text-center text-[10px] text-colorTextQuaternary">
+            <div className="px-2 pb-1 text-center text-[12px] text-colorTextQuaternary">
                 fit-to-pane · click to zoom
             </div>
         </Inset>

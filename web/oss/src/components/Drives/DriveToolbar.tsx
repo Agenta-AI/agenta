@@ -24,6 +24,7 @@ export function DriveToolbar({
     inGitScope,
     showGitignored,
     setShowGitignored,
+    mirrored = false,
 }: {
     search: string
     setSearch: (value: string) => void
@@ -40,12 +41,19 @@ export function DriveToolbar({
     inGitScope: boolean
     showGitignored: boolean
     setShowGitignored: (update: (v: boolean) => boolean) => void
+    /** Mirrored explorer (tree docked RIGHT): reverse the row so the tree toggle stays above the
+     * tree pane it controls and the filters take the left. */
+    mirrored?: boolean
 }) {
     return (
-        /* Shared toolbar — the show/hide tree toggle sits FIRST (left), directly above the
-            tree pane it controls; then search + filters. Search forces the tree of matches
-            (see body), so the toggle is disabled while searching. */
-        <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2">
+        /* Shared toolbar — the show/hide tree toggle sits FIRST, directly above the tree pane it
+            controls (left normally, right when mirrored); then search + filters. Search forces the
+            tree of matches (see body), so the toggle is disabled while searching. */
+        <div
+            className={`flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2 ${
+                mirrored ? "flex-row-reverse" : ""
+            }`}
+        >
             <Tooltip
                 title={
                     searchActive

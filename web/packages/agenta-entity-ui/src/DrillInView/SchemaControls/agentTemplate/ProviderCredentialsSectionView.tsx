@@ -28,13 +28,23 @@ import {
     CustomProviderKind,
     PROVIDER_LABELS,
 } from "@agenta/entities/secret"
+import type {SubscriptionStatusDisplay, SubscriptionStatusTone} from "@agenta/entities/workflow"
 import type {LlmProvider} from "@agenta/shared/types"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Segmented} from "@agenta/ui/ui"
-import {Key, Plus, Terminal} from "@phosphor-icons/react"
+import {
+    ArrowClockwise,
+    CheckCircle,
+    CircleNotch,
+    Key,
+    Plus,
+    Terminal,
+    Warning,
+    WarningCircle,
+} from "@phosphor-icons/react"
 
 import type {ConnectionMode} from "../connectionUtils"
 
@@ -92,6 +102,12 @@ export interface ProviderCredentialsSectionViewProps {
     indicator?: {tone: "draft" | "invalid" | "incomplete" | "agent"; tooltip?: ReactNode}
     /** Section-scoped revert control, rendered in the header beside the mode toggle. */
     revertControl?: ReactNode
+
+    /** The runner's answer for the selected harness, resolved by the container. A null `message`
+     * means there is nothing to check, so the self-managed card shows no status line. */
+    subscriptionStatus?: SubscriptionStatusDisplay
+    /** Refetches the runner status ("Check again"). */
+    onCheckAgain?: () => void
 }
 
 const STANDARD_PREFIX = "std:"
@@ -153,11 +169,27 @@ function renderProviderIcon(family: string): ReactNode {
     return Icon ? <Icon className="h-3.5 w-3.5" /> : null
 }
 
+const STATUS_TONE_CLASS: Record<SubscriptionStatusTone, string> = {
+    neutral: "text-[var(--ag-colorTextSecondary)]",
+    success: "text-[var(--ag-colorSuccess)]",
+    warning: "text-[var(--ag-colorWarning)]",
+    error: "text-[var(--ag-colorError)]",
+}
+
+/** Icon renderer helper (not a component) — same reason as `renderProviderIcon`. */
+function renderStatusIcon(status: SubscriptionStatusDisplay): ReactNode {
+    if (status.loading) return <CircleNotch size={13} className="shrink-0 animate-spin" />
+    if (status.tone === "success") return <CheckCircle size={13} className="shrink-0" />
+    if (status.tone === "error") return <WarningCircle size={13} className="shrink-0" />
+    if (status.tone === "warning") return <Warning size={13} className="shrink-0" />
+    return null
+}
+
 function ProviderTile({family, label}: {family: string; label: string}) {
     const icon = renderProviderIcon(family)
     return (
         // Fixed-light logo tile: brand glyphs are dark-filled and would vanish on dark fills.
-        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-white text-[10px] font-semibold text-[#586673]">
+        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-white text-[12px] font-semibold text-[#586673]">
             {icon ?? (label.charAt(0).toUpperCase() || "?")}
         </span>
     )
@@ -260,6 +292,8 @@ export function ProviderCredentialsSectionView({
     revisionId,
     indicator,
     revertControl,
+    subscriptionStatus,
+    onCheckAgain,
 }: ProviderCredentialsSectionViewProps) {
     // The model's own named vault connection, when it has one. It always gets a rail row and wins
     // the auto-highlight — a vault model id often encodes no catalog family, so without this the
@@ -383,7 +417,7 @@ export function ProviderCredentialsSectionView({
                 <Terminal size={18} className="text-[var(--ag-colorTextSecondary)]" />
             </div>
             <div className="flex flex-col gap-1">
-                <span className="text-[14.5px] font-semibold">Self-managed</span>
+                <span className="text-base font-semibold">Self-managed</span>
                 <ul className="m-0 flex list-disc flex-col gap-0.5 pl-4">
                     <li>
                         <span className="text-xs leading-relaxed text-colorTextDescription">
@@ -403,6 +437,19 @@ export function ProviderCredentialsSectionView({
                     </li>
                 </ul>
             </div>
+            {/* The runner reports whether a login FILE is present and readable — never that the
+                provider will accept it, so no state here claims a verified subscription. */}
+            {subscriptionStatus?.message ? (
+                <span
+                    className={cn(
+                        "inline-flex items-center gap-1.5 text-xs leading-relaxed",
+                        STATUS_TONE_CLASS[subscriptionStatus.tone],
+                    )}
+                >
+                    {renderStatusIcon(subscriptionStatus)}
+                    {subscriptionStatus.message}
+                </span>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
                 <a
                     href={guideUrl}
@@ -412,9 +459,20 @@ export function ProviderCredentialsSectionView({
                 >
                     Read the self-hosting guide →
                 </a>
+                {onCheckAgain && subscriptionStatus?.message ? (
+                    <button
+                        type="button"
+                        onClick={onCheckAgain}
+                        disabled={disabled || subscriptionStatus.loading}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-[var(--ag-colorBorder)] bg-transparent px-2.5 py-1 text-xs font-medium text-[var(--ag-colorText)] hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <ArrowClockwise size={13} className="shrink-0" />
+                        Check again
+                    </button>
+                ) : null}
                 {isCloud ? (
                     // fallback until colorErrorBg token lands
-                    <span className="rounded-full border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg,rgba(255,77,79,0.12))] px-2 py-0.5 text-[11px] text-[var(--ag-colorErrorText)]">
+                    <span className="rounded-full border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg,rgba(255,77,79,0.12))] px-2 py-0.5 text-xs text-[var(--ag-colorErrorText)]">
                         Unavailable in the cloud
                     </span>
                 ) : null}
@@ -426,7 +484,7 @@ export function ProviderCredentialsSectionView({
     const renderCustomSummary = (secret: LlmProvider) => (
         <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-0.5">
-                <span className="text-[14.5px] font-semibold">{secret.name}</span>
+                <span className="text-base font-semibold">{secret.name}</span>
                 <span className="text-xs leading-snug text-colorTextDescription">
                     {PROVIDER_LABELS[secret.provider ?? ""] ?? secret.provider}
                     {" · manage this connection in Settings → Secrets."}
@@ -434,7 +492,7 @@ export function ProviderCredentialsSectionView({
             </div>
             {secret.models?.length ? (
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                    <span className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                         Models
                     </span>
                     <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
@@ -526,7 +584,7 @@ export function ProviderCredentialsSectionView({
                 ))}
                 {addProviderRows ? (
                     <div className="mt-1.5 flex flex-col gap-0.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-1.5">
-                        <span className="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                        <span className="px-2.5 pb-0.5 pt-1 text-[12px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                             Use custom provider
                         </span>
                         {addProviderRows}
@@ -633,7 +691,7 @@ export function ProviderCredentialsSectionView({
             indicator={indicator}
             titleBadge={
                 providerNeedsKey ? (
-                    <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--ag-colorWarningText)]">
+                    <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-1.5 py-0.5 text-[12px] font-medium text-[var(--ag-colorWarningText)]">
                         Connect key
                     </span>
                 ) : null

@@ -371,7 +371,7 @@ export {
 // Render-hint map: sibling `data-render` parts → toolCallId lookup (interaction kinds).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
 // Agent-lane queued-message release gate (never releases mid-HITL or pre-resume).
-export {canReleaseQueuedMessage, isHitlPending} from "./agentMessageQueue"
+export {canReleaseQueuedMessage, isHitlPending, messageHasPendingHitl} from "./agentMessageQueue"
 // Per-turn request capture + correlation helpers (Turn Inspector Context/Raw tabs).
 export {
     appendCapped,

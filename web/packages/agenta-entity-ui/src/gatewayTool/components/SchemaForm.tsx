@@ -8,7 +8,7 @@ import {
     useState,
 } from "react"
 
-import {cronToBuilder, describeBuilder} from "@agenta/entities/gatewayTrigger"
+import {cronToBuilder, summarizeSchedule} from "@agenta/entities/gatewayTrigger"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {
@@ -16,10 +16,11 @@ import {
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
+    AutosizeTextarea,
     Button,
     Input,
     InputNumber,
-    Textarea,
+    TimePicker,
 } from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
 // DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
@@ -30,6 +31,7 @@ import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/r
 import {Form} from "antd"
 import type {FormInstance} from "antd"
 
+import {HelpTip} from "../../drawers/shared/HelpTip"
 import {ScheduleBuilderField} from "../../gatewayTrigger/drawers/ScheduleBuilderField"
 
 import {
@@ -339,7 +341,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 {!onReview && !fields[step].required && (
                                     <Button
                                         variant="ghost"
-                                        className="h-6 px-1.5 text-[11px] opacity-60"
+                                        className="h-6 px-1.5 text-xs opacity-60"
                                         onClick={() => {
                                             // Skip = no answer: clear the field (incl. a schema
                                             // default the user didn't endorse). setFieldValue
@@ -366,7 +368,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 >
                                     <CaretLeft size={12} />
                                 </Button>
-                                <span className="text-[11px] tabular-nums text-colorTextDescription">
+                                <span className="text-xs tabular-nums text-colorTextDescription">
                                     {`${Math.min(step + 1, fields.length)}/${fields.length}`}
                                 </span>
                                 <Button
@@ -526,19 +528,19 @@ function cleanFormValues(values: Record<string, unknown>): Record<string, unknow
 // Field components
 // ---------------------------------------------------------------------------
 
+/**
+ * A field's label, with its description behind a `?`. Provider schemas ship descriptions that
+ * run to several sentences (Gmail's `label_ids` enumerates eleven label constants); rendering
+ * them inline buried every control under a paragraph it only needed to read once.
+ */
 function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
-        <div className="flex flex-col leading-tight">
-            <span>
-                {field.label}
-                {field.required && <span className="text-red-500 ml-1">*</span>}
-            </span>
-            {field.description && (
-                <span className="text-[11px] font-normal leading-snug text-colorTextDescription">
-                    {field.description}
-                </span>
-            )}
-        </div>
+        <span className="inline-flex items-center gap-1 leading-tight">
+            {/* No required marker: a form of mostly-required provider fields reads as noise,
+                and the validation message on submit is the honest signal. */}
+            <span>{field.label}</span>
+            {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
+        </span>
     )
 }
 
@@ -694,7 +696,7 @@ const choiceCardCls = (selected: boolean) =>
 const DigitBadge = ({digit}: {digit: number}) => (
     <span
         aria-hidden
-        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-[11px] leading-none text-colorTextTertiary"
+        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-xs leading-none text-colorTextTertiary"
     >
         {digit}
     </span>
@@ -847,7 +849,7 @@ function ChoiceCards({
                     <div className="flex min-w-0 flex-col">
                         <span className="text-xs font-medium">{o.label ?? o.value}</span>
                         {o.description && (
-                            <span className="text-[11px] leading-snug text-colorTextDescription">
+                            <span className="text-xs leading-snug text-colorTextDescription">
                                 {o.description}
                             </span>
                         )}
@@ -941,7 +943,7 @@ export function formatReviewValue(field: FormFieldDescriptor, value: unknown): s
     if (value === undefined || value === null || value === "") return "—"
     if (field.format === "cron" && typeof value === "string") {
         try {
-            return describeBuilder(cronToBuilder(value).state)
+            return summarizeSchedule(cronToBuilder(value).state)
         } catch {
             return value
         }
@@ -1148,6 +1150,18 @@ function SchemaFormField({
                     </Form.Item>
                 )
             }
+            if (field.format === "time") {
+                return (
+                    <Form.Item
+                        name={field.name.split(".")}
+                        label={label}
+                        rules={rules}
+                        initialValue={field.default}
+                    >
+                        <TimePicker disabled={disabled} />
+                    </Form.Item>
+                )
+            }
             if (field.format === "date" || field.format === "date-time") {
                 // No initialValue: a wire default is an ISO STRING and the control emits dayjs —
                 // date fields render empty; other types prefill.
@@ -1168,7 +1182,12 @@ function SchemaFormField({
                         rules={rules}
                         initialValue={field.default}
                     >
-                        <Textarea rows={3} placeholder={field.label} disabled={disabled} />
+                        {/* Autosize owns the height, so there is no grabber to drag off the card. */}
+                        <AutosizeTextarea
+                            autoSize={{minRows: 3, maxRows: 20}}
+                            placeholder={field.label}
+                            disabled={disabled}
+                        />
                     </Form.Item>
                 )
             }
@@ -1220,7 +1239,7 @@ function ArrayField({
                             {field.required && <span className="text-red-500 ml-1">*</span>}
                         </span>
                         {field.description && (
-                            <span className="text-[11px] font-normal leading-snug text-colorTextDescription">
+                            <span className="text-xs font-normal leading-snug text-colorTextDescription">
                                 {field.description}
                             </span>
                         )}

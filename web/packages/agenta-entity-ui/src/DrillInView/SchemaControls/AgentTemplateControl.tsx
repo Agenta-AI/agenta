@@ -2,7 +2,7 @@
  * AgentTemplateControl
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
- * of collapsible accordion sections (Model & harness, Instructions, Tools, MCP servers,
+ * of collapsible accordion sections (Model, Instructions, Tools, MCP servers,
  * Advanced), built on the reusable {@link ConfigAccordionSection} primitive so the same
  * pattern can roll out to other config surfaces.
  *
@@ -29,7 +29,6 @@ import {agentCreationPrefsAtom, workflowBuildKitEnabledAtomFamily} from "@agenta
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
-import {HeightCollapse} from "@agenta/ui/components"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
@@ -69,7 +68,6 @@ import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
-import {SectionQuickAction} from "./SectionQuickAction"
 import {
     isHarnessBuiltinTool,
     parseGatewayTool,
@@ -112,23 +110,19 @@ export interface AgentTemplateControlProps {
 //     must run BELOW the providers — wrapping its output in them does nothing. A body rendered from
 //     the parent's `mh` silently ignores both filters.
 //  2. Cost. `useModelHarness` carries harness-catalog + vault-secrets + build-kit-overlay
-//     subscriptions; mounting it per body keeps them scoped to a body that is actually on screen
-//     (`SectionDrawer` uses `destroyOnClose`; the inline body mounts only while a section has
-//     uncommitted changes).
+//     subscriptions; mounting it per body keeps them scoped to the bodies that are on screen
+//     (`SectionDrawer` uses `destroyOnClose`).
 const ModelHarnessSectionBody = ({
     section,
     ...params
 }: {
-    section: "model-harness" | "advanced" | "connect-key"
+    section: "model-harness" | "advanced"
 } & Parameters<typeof useModelHarness>[0]) => {
     const mh = useModelHarness(params)
     if (section === "advanced") {
         return <>{mh.advancedDrawerBody}</>
     }
-    if (section === "connect-key") {
-        return <>{mh.providerCredentialsSection}</>
-    }
-    return <>{mh.modelHarnessDrawerBody}</>
+    return <>{mh.modelHarnessBody}</>
 }
 
 // The four list sections whose open-state is controlled so the accordion can auto-expand when
@@ -238,7 +232,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         sectionBaseline.current = null
     }, [])
 
-    // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → Model & harness).
+    // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → the Model section).
     const [openSectionRequest, setOpenSectionRequest] = useAtom(openAgentConfigSectionAtom)
     useEffect(() => {
         if (!openSectionRequest) return
@@ -253,7 +247,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (draftConfig !== null) {
             onChange(draftConfig)
             // Remember the harness/model/connection pick for future agent creations — only on an
-            // explicit Model & harness save, not on every keystroke or the Advanced section.
+            // explicit Model-section save, not on every keystroke or the Advanced section.
             if (openSection === "model-harness") {
                 const harness = draftConfig.harness
                 const harnessKind =
@@ -367,10 +361,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             draftBuildKit !== null ? {value: draftBuildKit, onChange: setDraftBuildKit} : undefined,
         [draftBuildKit],
     )
-    // "Current" marks the SAVED harness (from the live entity), not the draft pick.
-    const savedHarnessValue =
-        ((config.harness as Record<string, unknown> | undefined)?.kind as string | undefined) ??
-        null
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
@@ -498,15 +488,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         }),
         [sectionChanges.draft, onChange, config, committed],
     )
-    // Whether this edit touched the provider/connection specifically, not just any model-harness field.
-    const credentialsPathChanged = useMemo(
-        () =>
-            (sectionChanges.draft.sectionsByKey.get("model-harness")?.scalarChanges ?? []).some(
-                (c) => c.key === "llm.provider" || c.key.startsWith("llm.connection"),
-            ),
-        [sectionChanges.draft],
-    )
-
     // The inline body for a drawer-backed section: its own controls, narrowed to what changed — the
     // same affordance as the Connect-key field, with a different filter (see SectionChangeBody).
     // The body is a COMPONENT rendered inside the providers, never `mh`'s pre-built output: the hook
@@ -533,7 +514,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         disabled={disabled}
                         withTooltip={withTooltip}
                         revisionId={revisionId}
-                        savedHarnessValue={savedHarnessValue}
                     />
                 </SectionChangeBody>
             )
@@ -548,7 +528,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             onChange,
             withTooltip,
             revisionId,
-            savedHarnessValue,
         ],
     )
 
@@ -734,7 +713,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionIndicator = (key: string) =>
         withDraftPulse(key, headerIndicator(key) ?? agentChangeIndicator(key))
 
-    // The blocking cases the user must resolve, as a short pill next to the Model & harness title.
+    // The blocking cases the user must resolve, as a short pill next to the Model section title.
     const modelHarnessBadge: React.ReactNode =
         mh.hasModelOrHarness && !modelIdFromConfig(config.llm) ? (
             <SectionTitleBadge label="No model" tone="error" />
@@ -777,40 +756,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         <SectionAddButton label={label} onClick={onClick} />
     )
 
-    // The inline "what changed" bodies for the two drawer-backed sections. Null when the section is
-    // clean (or the variant is off), which is what keeps it a plain drawer-opening row.
-    const modelChangeBody = changeBodyFor("model-harness")
+    // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
+    // is clean, which is what keeps it a plain drawer-opening row.
     const advancedChangeBody = changeBodyFor("advanced")
-
-    /**
-     * Only a BLOCKING problem opens a section by itself. "Can't run without a provider key" is a
-     * demand and earns the interruption; "you changed something" is an answer to a question the
-     * reader may not be asking — the header indicator already says a change is there, and expanding
-     * every changed section on mount would greet them with an unfolded panel every edit. So the
-     * change body is what the section shows WHEN OPENED, not a reason to open it.
-     */
-    const needsProviderKeyInline = Boolean(mh.needsProviderKey && mh.providerCredentialsInline)
-
-    // Graceful exit: when the key lands, `needsProviderKeyInline` flips false and the section would
-    // swap straight to its resolved (drawer-opening) row — the inline pane vanishing in one frame.
-    // Hold the inline branch mounted for one collapse cycle so the pane can animate closed instead.
-    // The transition is detected during render (not in an effect) so there's never an un-held frame
-    // where the pane has already been replaced by the resolved row.
-    const KEY_PANE_EXIT_MS = 320
-    const prevNeedsKeyInlineRef = useRef(needsProviderKeyInline)
-    const [keyPaneExiting, setKeyPaneExiting] = useState(false)
-    if (prevNeedsKeyInlineRef.current !== needsProviderKeyInline) {
-        if (prevNeedsKeyInlineRef.current && !needsProviderKeyInline) setKeyPaneExiting(true)
-        prevNeedsKeyInlineRef.current = needsProviderKeyInline
-    }
-    useEffect(() => {
-        if (!keyPaneExiting) return
-        const t = window.setTimeout(() => setKeyPaneExiting(false), KEY_PANE_EXIT_MS)
-        return () => window.clearTimeout(t)
-    }, [keyPaneExiting])
-    // Show (and keep mounting) the inline pane while it's needed OR animating out.
-    const showKeyPane =
-        (needsProviderKeyInline || keyPaneExiting) && Boolean(mh.providerCredentialsInline)
 
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
     // tabs / cards) without duplicating the content. Schema-gated, like before.
@@ -818,57 +766,30 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         mh.hasModelOrHarness && {
             key: "model-harness",
             icon: <Cpu size={16} />,
-            title: "Model & harness",
+            title: "Model",
             titleBadge: modelHarnessBadge,
             summary: mh.modelSummary,
             indicator: sectionIndicator("model-harness"),
-            defaultOpen: needsProviderKeyInline,
-            // What the section surfaces inline, in precedence order. Dropping `onOpen` is what makes
-            // a section expand inline instead of routing to the drawer.
-            //   1. Required info missing (no provider key) — BLOCKING, so it wins: the same key field
-            //      the drawer uses, right here, swapped for the changed-aware variant when this edit
-            //      touched the provider/connection (`credentialsPathChanged`) so that diff isn't lost.
-            //   2. Uncommitted changes — informational: what changed (see `changeBodyFor`).
-            //   3. Neither — the plain drawer row it has always been.
-            ...(showKeyPane
-                ? {
-                      // The body owns its padding (inside the collapse) so it can collapse to zero
-                      // height with no residual — the section body wrapper adds none.
-                      bodyClassName: "",
-                      content: (
-                          <HeightCollapse open={needsProviderKeyInline} fade>
-                              <div className="flex flex-col gap-3 pb-4 pt-1">
-                                  <SectionQuickAction
-                                      onOpenDetails={() => openSectionDrawer("model-harness")}
-                                      disabled={disabled}
-                                  >
-                                      {credentialsPathChanged ? (
-                                          <ChangedPathsProvider changes={panelChangedPaths}>
-                                              <ModelHarnessSectionBody
-                                                  section="connect-key"
-                                                  schema={schema}
-                                                  config={config}
-                                                  onChange={onChange}
-                                                  disabled={disabled}
-                                                  withTooltip={withTooltip}
-                                                  revisionId={revisionId}
-                                                  savedHarnessValue={savedHarnessValue}
-                                              />
-                                          </ChangedPathsProvider>
-                                      ) : (
-                                          mh.providerCredentialsInline
-                                      )}
-                                  </SectionQuickAction>
-                              </div>
-                          </HeightCollapse>
-                      ),
-                  }
-                : modelChangeBody
-                  ? {content: modelChangeBody}
-                  : {
-                        onOpen: () => openSectionDrawer("model-harness"),
-                        content: mh.modelHarnessDrawerBody,
-                    }),
+            // A model still to connect is the one thing that opens the section by itself — the list
+            // holds the affordance that fixes it.
+            defaultOpen: Boolean(mh.needsProviderKey),
+            // The section EXPANDS (it carries no `onOpen`, which is what routes a header to a drawer
+            // instead): the connection list renders right here. The drawer survives for the chat's
+            // "connect a model" banner and for the Advanced section; it is just no longer where this
+            // header leads.
+            content: (
+                <ChangedPathsProvider changes={panelChangedPaths}>
+                    <ModelHarnessSectionBody
+                        section="model-harness"
+                        schema={schema}
+                        config={config}
+                        onChange={onChange}
+                        disabled={disabled}
+                        withTooltip={withTooltip}
+                        revisionId={revisionId}
+                    />
+                </ChangedPathsProvider>
+            ),
         },
         hasInstructions && {
             key: "instructions",
@@ -876,15 +797,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             title: fieldTitle("instructions", "Instructions"),
             summary: countSummary(1, "file"),
             indicator: sectionIndicator("instructions"),
-            // The + is inert until the backend stores multiple instruction files; the section is
-            // already a list so it lights up with no rework when that lands.
-            extra: !disabled ? (
-                <SectionAddButton
-                    label="Add instruction file"
-                    tooltip="Multiple instruction files coming soon"
-                    disabled
-                />
-            ) : undefined,
             defaultOpen: true,
             content: (
                 <div className="flex flex-col gap-2">
@@ -1079,7 +991,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
             <SectionDrawer
                 open={openSection === "model-harness"}
-                title="Model & harness"
+                title="Model"
                 icon={<Cpu size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
@@ -1102,7 +1014,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         withTooltip={withTooltip}
                         revisionId={revisionId}
                         buildKitEnabledOverride={draftBuildKitOverride}
-                        savedHarnessValue={savedHarnessValue}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
@@ -1127,7 +1038,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         withTooltip={withTooltip}
                         revisionId={revisionId}
                         buildKitEnabledOverride={draftBuildKitOverride}
-                        savedHarnessValue={savedHarnessValue}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>

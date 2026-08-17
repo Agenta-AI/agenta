@@ -21,13 +21,16 @@ const SidebarLogo = ({collapsed}: SidebarLogoProps) => {
     return (
         <div
             className={clsx(
-                "flex h-[48px] shrink-0 items-center mb-1",
-                collapsed ? "justify-center" : "justify-between pl-3 pr-2",
+                // mt/ml push the whole centred row away from the corner; padding alone read as
+                // no change because the 48px row's centring already held the logo 14px down.
+                "flex h-[48px] shrink-0 items-center mt-2 mb-1",
+                collapsed ? "justify-center" : "justify-between ml-2 pl-3 pr-2",
             )}
         >
             {/* unoptimized: SVGs skip /_next/image, which rejects SVG without dangerouslyAllowSVG. */}
+            {/* 99x22 keeps the SVG's intrinsic 361:80 ratio at the 22px brand height. */}
             {!collapsed && (
-                <Image src={fullSrc} alt="Agenta" width={85} height={20} priority unoptimized />
+                <Image src={fullSrc} alt="Agenta" width={99} height={22} priority unoptimized />
             )}
             <SidebarToggleButton />
         </div>

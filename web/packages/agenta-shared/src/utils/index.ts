@@ -12,6 +12,9 @@ export {
     validateUUID,
 } from "./validators"
 
+// Platform detection (modifier-key naming)
+export {isMacPlatform, modifierKeyLabel, altKeyPrefix} from "./platform"
+
 // Filtering utilities
 export {filterItems} from "./filterItems"
 export type {FilterItemLabel} from "./filterItems"
@@ -19,6 +22,7 @@ export type {FilterItemLabel} from "./filterItems"
 // Date/time utilities
 export {default as dayjs} from "./dayjs"
 export {normalizeEntityTimestamps, normalizeTimestamps, parseEntityDate} from "./entityTransforms"
+export {timeAgo} from "./timeAgo"
 
 // Path utilities for nested data navigation
 export {
@@ -141,6 +145,7 @@ export type {Formatter, FormatterOptions} from "./formatters/index"
 
 // Enum label utilities
 export {formatEnumLabel} from "./formatEnumLabel"
+export {splitCuratedLabel, type CuratedLabel} from "./curatedLabel"
 
 // Schema options utilities
 export {getOptionsFromSchema} from "./schemaOptions"

@@ -9,8 +9,13 @@
 //
 // `attachmentContentUrl` is the package's own copy of the original's `attachmentMedia.ts`
 // builder, on `@agenta/shared/api` rather than the OSS app layer.
-import type {SessionRecord} from "@agenta/entities/session"
+import type {
+    SessionInteractionRowState,
+    SessionInteractionRowStates,
+    SessionRecord,
+} from "@agenta/entities/session"
 import {getAgentaApiUrl} from "@agenta/shared/api"
+import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import type {UIMessage} from "ai"
 
 /**
@@ -113,6 +118,65 @@ const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
 
 const toolPartType = (name?: string | null): string => (name ? `tool-${name}` : "dynamic-tool")
 
+/** Envelope keys an MCP-style `tool_call` record wraps its real arguments in. */
+const TOOL_ARGUMENT_ENVELOPE_KEYS = new Set([
+    "tool",
+    "server",
+    "name",
+    "toolName",
+    "serverName",
+    "tool_name",
+    "server_name",
+])
+
+/**
+ * Unwrap a `{tool, server, arguments}` record wrapper to the bare arguments. Card bodies read their
+ * fields at the top level (`input.workflow_revision`), and the live stream hands them the ACP
+ * `rawInput`, which is already bare — only the durable record carries the wrapper, so without this
+ * a replayed call drops to the raw-JSON fallback the same call renders a card for live.
+ * Unwraps only when every sibling of `arguments` is a string-valued envelope key, so a tool whose
+ * real input carries its own `arguments` field passes through untouched.
+ */
+function unwrapToolArguments(input: unknown): unknown {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return input
+    const wrapper = input as Record<string, unknown>
+    const args = wrapper.arguments
+    if (!args || typeof args !== "object" || Array.isArray(args)) return input
+    const siblings = Object.keys(wrapper).filter((key) => key !== "arguments")
+    if (siblings.length === 0) return input
+    const isEnvelope = siblings.every(
+        (key) => TOOL_ARGUMENT_ENVELOPE_KEYS.has(key) && typeof wrapper[key] === "string",
+    )
+    return isEnvelope ? args : input
+}
+
+/** Keys an ACP tool call can carry its resolved agenta tool spec under (`_tool_spec_of`). */
+const TOOL_SPEC_KEYS = ["spec", "toolSpec", "resolvedTool", "tool"] as const
+
+/**
+ * The gated tool's name, in the live egress's order (`_approval_tool_name`, stream.py:817-833):
+ * the STABLE `resolvedName` the runner stamps on the gate first — it is the runner's own
+ * `gate.toolName` (acp-interactions.ts:243), the name the permission gate matches on — then the
+ * resolved spec's canonical `name`, and only then the ACP display fields, which drift.
+ * The durable `tool_call` row carries the harness-wrapped name instead
+ * (`mcp.agenta-tools.commit_revision`), so reading it here labelled a replayed gate
+ * "Mcp.agenta tools.commit revision" and keyed its "always allow" grant off that string.
+ */
+function approvalToolName(toolCall: Record<string, unknown>): string | undefined {
+    const spec = TOOL_SPEC_KEYS.map((key) => toolCall[key]).find(
+        (value): value is Record<string, unknown> =>
+            Boolean(value) && typeof value === "object" && !Array.isArray(value),
+    )
+    const candidates = [
+        toolCall.resolvedName,
+        spec?.name,
+        toolCall.name,
+        toolCall.title,
+        toolCall.kind,
+    ]
+    return candidates.find((value): value is string => typeof value === "string" && value !== "")
+}
+
 const isRunnerSentinelError = (part: Part): boolean => {
     const errorText = typeof part.errorText === "string" ? part.errorText : ""
     return (
@@ -123,6 +187,119 @@ const isRunnerSentinelError = (part: Part): boolean => {
         // gate if the runner ever appended context.
         errorText.startsWith(APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX)
     )
+}
+
+function settleClientToolPart(part: Part, row: SessionInteractionRowState): void {
+    if (part.state !== "input-available") return
+
+    if (row.resolution) {
+        if (row.resolution.outcome === "error") {
+            const error = row.resolution.error
+            part.state = "output-error"
+            part.errorText =
+                typeof error === "string" && error ? error : "The request ended without a result."
+        } else {
+            const output = row.resolution.output
+            part.state = "output-available"
+            part.output =
+                typeof output === "object" && output !== null && !Array.isArray(output)
+                    ? output
+                    : {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
+        }
+        return
+    }
+
+    if (row.status === "cancelled" || row.status === "responded" || row.status === "resolved") {
+        part.state = "output-available"
+        part.output = {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
+    }
+}
+
+/**
+ * An approval gate whose row is terminal. Approval rows always recorded their outcome correctly,
+ * so they are trustworthy here. A verdict replays the real answer. A swept row proves only that
+ * the gate died unanswered — and that the gated tool never ran — so it settles denied rather than
+ * claiming an approval nobody gave. Either way the gate stops reading as still awaiting the user:
+ * a dead gate left `approval-requested` holds the message queue forever once the scans that read
+ * it cover the whole transcript.
+ */
+function settleApprovalPart(part: Part, row: SessionInteractionRowState): void {
+    if (part.state !== "approval-requested") return
+
+    const verdict = row.resolution?.verdict
+    if (verdict === "approved" || verdict === "denied") {
+        part.state = "approval-responded"
+        part.approval = {id: row.token, approved: verdict === "approved"}
+        return
+    }
+    if (row.status === "cancelled") {
+        part.state = "output-denied"
+        return
+    }
+    if (row.status === "responded" || row.status === "resolved") part.state = "approval-responded"
+}
+
+function applyInteractionRowStates(
+    index: TranscriptIndex,
+    interactionRowStates: SessionInteractionRowStates | undefined,
+): void {
+    if (!interactionRowStates || interactionRowStates.size === 0) return
+    for (const row of interactionRowStates.values()) {
+        // Token equality supports rows written before the runner stamped the tool-call id; an
+        // approval gate is also indexed under its interaction id, which IS the row token.
+        const toolCallId = row.toolCallId ?? row.token
+        const part = index.tools.get(toolCallId) ?? index.approvals.get(row.token)
+        if (!part) continue
+
+        if (row.kind === "user_approval") settleApprovalPart(part, row)
+        else if (row.kind === "client_tool" || row.kind === "user_input")
+            settleClientToolPart(part, row)
+    }
+}
+
+/**
+ * Replay a parked CLIENT TOOL (`interaction_request` `kind: "client_tool"`): its unsettled tool
+ * part plus the sibling `data-render` part that carries `render.kind` — the ONLY thing that tells
+ * the client-tool registry which widget to dispatch (strict AI SDK tool chunks can't carry it
+ * inline, so the live egress emits the same sibling part). Without it a replayed elicitation
+ * resolves to no widget and the fallback settles it as "not handled by this client".
+ */
+function replayClientTool(
+    draft: DraftMessage,
+    payload: Record<string, unknown>,
+    index: TranscriptIndex,
+    str: (v: unknown) => string,
+): void {
+    const reqPayload = (payload.payload ?? {}) as Record<string, unknown>
+    const toolCall = (reqPayload.toolCall ?? {}) as Record<string, unknown>
+    const toolCallId = str(
+        reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
+    )
+    if (!toolCallId) return
+    const toolName = str(reqPayload.toolName ?? toolCall.name ?? toolCall.title)
+    const input = unwrapToolArguments(reqPayload.input ?? toolCall.rawInput ?? toolCall.input)
+    let part = index.tools.get(toolCallId)
+    if (!part) {
+        // The runner parked without first surfacing the tool call — synthesize one.
+        part = {
+            type: toolPartType(toolName),
+            toolCallId,
+            state: "input-available",
+            input,
+        }
+        draft.parts.push(part)
+        index.tools.set(toolCallId, part)
+    } else {
+        if (toolName) {
+            if (part.type === "dynamic-tool") part.toolName = toolName
+            else part.type = toolPartType(toolName)
+        }
+        if (input !== undefined) part.input = input
+    }
+    const render = reqPayload.render
+    if (render && typeof render === "object" && !Array.isArray(render)) {
+        draft.parts.push({type: "data-render", data: {toolCallId, render}})
+    }
 }
 
 /** Apply one transcript event's payload onto the current assistant/user draft message. */
@@ -192,14 +369,14 @@ function applyEvent(
                 // A resume re-emits the approved call with the same toolCallId. Update the existing
                 // part (kept across the pause boundary) in place instead of rendering a duplicate;
                 // its tool_result then settles that one part to a single ✓.
-                if (payload.input !== undefined) existing.input = payload.input
+                if (payload.input !== undefined) existing.input = unwrapToolArguments(payload.input)
                 return
             }
             const part: Part = {
                 type: toolPartType(payload.name as string),
                 toolCallId,
                 state: "input-available",
-                input: payload.input,
+                input: unwrapToolArguments(payload.input),
             }
             draft.parts.push(part)
             index.tools.set(toolCallId, part)
@@ -220,30 +397,37 @@ function applyEvent(
             return
         }
         case "interaction_request": {
-            // v1 scope: HITL approvals only. The runner emits `kind` `user_approval` for the
-            // Approve/Deny gate; `user_input`/`client_tool` are left to their tool_call/result
-            // parts (a client tool isn't approve/deny) until those are wired.
+            // Two kinds replay: `user_approval` (the Approve/Deny gate, below) and `client_tool`
+            // (a parked browser-fulfilled call). `user_input` is left to its tool_call/result parts.
+            if (payload.kind === "client_tool") {
+                replayClientTool(draft, payload, index, str)
+                return
+            }
             if (payload.kind !== "user_approval") return
             const reqPayload = (payload.payload ?? {}) as Record<string, unknown>
             const toolCall = (reqPayload.toolCall ?? {}) as Record<string, unknown>
             const toolCallId = str(
                 reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
             )
+            const toolName = approvalToolName(toolCall)
             let part = index.tools.get(toolCallId)
             if (!part) {
                 // The runner parked without first surfacing the tool call — synthesize one.
                 part = {
-                    type: toolPartType(
-                        (toolCall.name as string) ||
-                            (toolCall.title as string) ||
-                            (toolCall.kind as string),
-                    ),
+                    type: toolPartType(toolName),
                     toolCallId,
                     state: "input-available",
-                    input: toolCall.rawInput ?? toolCall.input,
+                    input: unwrapToolArguments(toolCall.rawInput ?? toolCall.input),
                 }
                 draft.parts.push(part)
                 index.tools.set(toolCallId, part)
+            } else if (toolName) {
+                // Live re-stamps an already-surfaced call with the gate's resolved name
+                // (stream.py:711-726), so the card never shows the durable row's harness-wrapped
+                // name. Rename here too, or the same gate replays under a different name than it
+                // streamed — and `useAlwaysAllowTool` keys the grant off that name verbatim.
+                if (part.type === "dynamic-tool") part.toolName = toolName
+                else part.type = toolPartType(toolName)
             }
             index.approvals.set(str(payload.id), part)
             const canRequestApproval =
@@ -319,10 +503,15 @@ function applyEvent(
             draft.usage = next
             return
         }
-        // done / data / render-hints carry no renderable message part — drop.
+        // done / data carry no renderable message part — drop.
         default:
             return
     }
+}
+
+export interface TranscriptToMessagesOptions {
+    /** Row lifecycle settles replayed interactions; omit it to preserve record-only replay. */
+    interactionRowStates?: SessionInteractionRowStates
 }
 
 /**
@@ -330,7 +519,10 @@ function applyEvent(
  * there is nothing renderable (empty transcript or only metadata events) so the caller can
  * fall back to local history.
  */
-export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | null {
+export function transcriptToMessages(
+    records: SessionRecord[],
+    options?: TranscriptToMessagesOptions,
+): UIMessage[] | null {
     const drafts: DraftMessage[] = []
     let current: DraftMessage | null = null
     // Paused resumes close the draft, but later answers and results still target its tool part.
@@ -386,6 +578,9 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             if (part.state === "approval-requested") part.state = "approval-responded"
         }
     }
+
+    // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
+    applyInteractionRowStates(index, options?.interactionRowStates)
 
     const messages = drafts
         .filter((d) => d.parts.length > 0)

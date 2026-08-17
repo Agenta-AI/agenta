@@ -1,12 +1,12 @@
 # Gateway Tools — Composio Integration
 
-How Agenta integrates with the Composio API (v3) as the first gateway provider.
+How Agenta integrates with the Composio API (v3.1) as the first gateway provider.
 
 ---
 
 ## Composio API Overview
 
-- **Base URL**: `https://backend.composio.dev/api/v3`
+- **Base URL**: `https://backend.composio.dev/api/v3.1`
 - **Auth**: Header `x-api-key: <COMPOSIO_API_KEY>`
 - **Pagination**: Cursor-based (`cursor` + `limit` params, `next_cursor` in response)
 - **Rate Limits**: 20k requests / 10 min (starter/hobby), 100k (growth)
@@ -437,7 +437,7 @@ class ComposioAdapter(GatewayAdapterInterface):
     def __init__(
         self,
         *,
-        api_url: str = "https://backend.composio.dev/api/v3",
+        api_url: str = "https://backend.composio.dev/api/v3.1",
         default_api_key: str | None = None,
     ):
         self.api_url = api_url
@@ -516,7 +516,7 @@ All caches use `cachetools.TTLCache` (in-memory, per-process). No shared cache n
 COMPOSIO_API_KEY=cmp_live_...
 
 # Optional: override Composio API base URL (for testing/staging)
-COMPOSIO_API_URL=https://backend.composio.dev/api/v3
+COMPOSIO_API_URL=https://backend.composio.dev/api/v3.1
 ```
 
 ---

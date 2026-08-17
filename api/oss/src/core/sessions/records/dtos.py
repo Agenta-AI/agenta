@@ -2,9 +2,13 @@ from datetime import datetime
 from typing import Optional, Any, Dict
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.shared.dtos import Lifecycle, OTelSpanId
+
+# The DAO truncates at the SQL level (`left(attributes->>'text', ...)`) — this bound
+# just keeps the DTO honest about that contract for any other producer.
+SESSION_MESSAGE_PREVIEW_TEXT_LIMIT = 240
 
 
 class SessionRecordEvent(BaseModel):
@@ -37,6 +41,21 @@ class SessionRecord(Lifecycle):
 
     turn_id: Optional[str] = None
     span_id: Optional[OTelSpanId] = None
+
+
+class SessionMessagePreview(BaseModel):
+    """The last thing said in a session, for a list row.
+
+    A session row carried a title and a timestamp, so deciding whether a session was worth
+    reopening meant opening it. Only `message` records are considered: `done`/`usage` are
+    bookkeeping, `thought` is not addressed to anyone, and a `tool_call` says what the agent
+    reached for rather than what it concluded.
+    """
+
+    text: str = Field(max_length=SESSION_MESSAGE_PREVIEW_TEXT_LIMIT)
+    # "user" or "agent" — the row prefixes your own messages so a preview isn't mistaken for a reply.
+    source: Optional[str] = None
+    timestamp: Optional[datetime] = None
 
 
 class SessionRecordQuery(BaseModel):

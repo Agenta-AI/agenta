@@ -57,7 +57,7 @@ const PendingTile = ({
                     <button
                         type="button"
                         onClick={onRetry}
-                        className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-[11px] font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
+                        className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-xs font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
                     >
                         Retry
                     </button>
@@ -90,7 +90,7 @@ const PendingTile = ({
             {name}
         </span>
         <span
-            className={`w-full truncate text-center text-[11px] tabular-nums ${captionTone === "error" ? "text-colorError" : "text-colorTextTertiary"}`}
+            className={`w-full truncate text-center text-xs tabular-nums ${captionTone === "error" ? "text-colorError" : "text-colorTextTertiary"}`}
         >
             {caption}
         </span>

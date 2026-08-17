@@ -72,24 +72,24 @@ function SchemaRows({node, depth}: {node: Record<string, unknown>; depth: number
                             <span className="font-mono text-xs text-[var(--ag-colorText)]">
                                 {name}
                             </span>
-                            <span className="text-[11px] text-[var(--ag-colorTextSecondary)]">
+                            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
                                 {typeLabel(def)}
                             </span>
                             {required.includes(name) ? (
                                 <Tag
                                     tone="red"
-                                    className="m-0 px-1.5 py-0 text-[10px] leading-[18px]"
+                                    className="m-0 px-1.5 py-0 text-[12px] leading-[18px]"
                                 >
                                     required
                                 </Tag>
                             ) : (
-                                <span className="text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="text-[12px] text-[var(--ag-colorTextTertiary)]">
                                     optional
                                 </span>
                             )}
                         </div>
                         {description ? (
-                            <p className="m-0 mt-0.5 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                            <p className="m-0 mt-0.5 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                                 {description}
                             </p>
                         ) : null}
@@ -112,7 +112,7 @@ export function SchemaTree({schema, emptyText = "No declared fields", className}
 
     if (Object.keys(props).length === 0) {
         return (
-            <div className={`text-[11px] text-[var(--ag-colorTextTertiary)] ${className ?? ""}`}>
+            <div className={`text-xs text-[var(--ag-colorTextTertiary)] ${className ?? ""}`}>
                 {emptyText}
             </div>
         )
@@ -121,7 +121,7 @@ export function SchemaTree({schema, emptyText = "No declared fields", className}
     return (
         <div className={className}>
             {description ? (
-                <p className="m-0 mb-1.5 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                <p className="m-0 mb-1.5 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                     {description}
                 </p>
             ) : null}

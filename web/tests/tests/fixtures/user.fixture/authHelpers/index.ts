@@ -1,5 +1,6 @@
 import {expect} from "@playwright/test"
 
+import {pollLocatorState} from "../../../../utils"
 import {getTestmailClient} from "../../../../utils/testmail"
 import type {BaseFixture} from "../../base.fixture/types"
 import {UseFn} from "../../types"
@@ -114,11 +115,11 @@ export const authHelpers = () => {
                     await signinButton.click()
                     await uiHelpers.waitForPath("/apps")
                 } else {
-                    if (await continueWithEmailButton.isVisible().catch(() => false)) {
+                    if (await pollLocatorState(() => continueWithEmailButton.isVisible())) {
                         await continueWithEmailButton.click()
-                    } else if (await continueWithOtpButton.isVisible().catch(() => false)) {
+                    } else if (await pollLocatorState(() => continueWithOtpButton.isVisible())) {
                         await continueWithOtpButton.click()
-                    } else if (await continueButton.isVisible().catch(() => false)) {
+                    } else if (await pollLocatorState(() => continueButton.isVisible())) {
                         await continueButton.click()
                     }
 
@@ -130,11 +131,13 @@ export const authHelpers = () => {
                         resendOtpLink.waitFor({state: "visible", timeout}),
                     ])
 
-                    const otpAlreadyRequested = await resendOtpLink.isVisible().catch(() => false)
+                    const otpAlreadyRequested = await pollLocatorState(() =>
+                        resendOtpLink.isVisible(),
+                    )
 
                     if (
                         !otpAlreadyRequested &&
-                        (await continueWithOtpButton.isVisible().catch(() => false))
+                        (await pollLocatorState(() => continueWithOtpButton.isVisible()))
                     ) {
                         logAuthEmail("OTP request attempt", email)
                         otpRequestedAt = Date.now()
@@ -147,7 +150,7 @@ export const authHelpers = () => {
                         await resendOtpLink.waitFor({state: "visible", timeout})
                     }
 
-                    if (await resendOtpLink.isVisible().catch(() => false)) {
+                    if (await pollLocatorState(() => resendOtpLink.isVisible())) {
                         logAuthEmail("OTP resend attempt", email)
                         otpRequestedAt = Date.now()
                         const resendCodeResponsePromise = apiHelpers.waitForApiResponse({

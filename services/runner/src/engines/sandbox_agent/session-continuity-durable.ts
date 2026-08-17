@@ -9,14 +9,23 @@
  * `session_states.data` blob.
  */
 import { apiBase } from "../../apiBase.ts";
+import type { ReferenceKey } from "../../sessions/interactions.ts";
 import type { SessionContinuityStore } from "./session-continuity.ts";
 
 function defaultLog(msg: string): void {
   process.stderr.write(`[session-continuity/durable] ${msg}\n`);
 }
 
-/** A platform entity reference (the API `Reference` shape). */
-export type TurnReference = { id?: string; slug?: string; version?: string };
+/**
+ * A platform entity reference (the API `Reference` shape), plus which workflow entity it names.
+ * `key` is optional on the type because rows written before it existed carry none.
+ */
+export type TurnReference = {
+  id?: string;
+  slug?: string;
+  version?: string;
+  key?: ReferenceKey;
+};
 
 export interface WireSessionTurn {
   turn_id?: string;

@@ -40,6 +40,16 @@ def test_service_default_is_the_bare_builder():
     assert _inspect_agent_default() == build_agent_v0_default()
 
 
+def test_config_fallback_agents_md_matches_the_platform_default():
+    # `agent/config.py` keeps a fallback copy of the default persona for runs where the
+    # editable files are missing; it must not drift from the SDK's single source (the
+    # persona now carries the self-naming guidance, so a stale copy would silently
+    # reintroduce the never-renames behavior live QA caught).
+    from oss.src.agent.config import DEFAULT_AGENTS_MD  # noqa: PLC0415
+
+    assert DEFAULT_AGENTS_MD == build_agent_v0_default()["instructions"]["agents_md"]
+
+
 def test_inspect_default_parses_into_the_runtime_selection():
     # The default the playground pre-fills on `/inspect` must parse cleanly into the same runtime
     # values `AgentTemplate.from_params` produces, so what the user sees is what the agent runs.

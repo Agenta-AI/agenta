@@ -30,3 +30,5 @@ export type { SessionTurnQueryRequest } from "./SessionTurnQueryRequest.js";
 export type { SetSessionStreamHeaderRequest } from "./SetSessionStreamHeaderRequest.js";
 export type { SignSessionMountCredentialsRequest } from "./SignSessionMountCredentialsRequest.js";
 export type { UnarchiveSessionRequest } from "./UnarchiveSessionRequest.js";
+export type { WatchProjectRequest } from "./WatchProjectRequest.js";
+export type { WatchSessionStreamRequest } from "./WatchSessionStreamRequest.js";

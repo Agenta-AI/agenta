@@ -152,6 +152,23 @@ In the studio, run an agent and choose the self-managed credential option (use y
 for the matching harness. The run authenticates with your mounted subscription instead of a
 managed key.
 
+When you select the subscription option, the credential card checks the runner and reports what it
+finds for the selected harness:
+
+| Message | Meaning |
+| --- | --- |
+| `Subscription login found` | The mount is set and the login file looks usable. |
+| `Runner found. Subscription folder is not configured.` | The runner has no mount variable for this harness. Recheck step 3. |
+| `Runner found. Login file is missing.` | The mount variable is set, but the expected file is not there. Recheck steps 1 and 3. |
+| `Runner found. Login file cannot be used.` | The file exists but is empty or unreadable. Recheck step 2 (file ownership). |
+| `Runner is not connected.` | Agenta cannot reach the runner container. |
+| `Update the runner to check subscription status.` | The runner predates this check. |
+
+The check reads only the local login location. It does not contact the provider, so
+`Subscription login found` means the file is in place, not that the subscription is active. A
+successful run remains the proof. Use **Check again** after you change a mount or sign in again;
+the card also refreshes itself every few seconds while open.
+
 If the run fails because the harness has no login, the mount is missing, the runner cannot read it
 (step 2), or `PI_CODING_AGENT_DIR` / `CLAUDE_CONFIG_DIR` / `CODEX_HOME` does not point at it. Recheck
 steps 2 and 3.
