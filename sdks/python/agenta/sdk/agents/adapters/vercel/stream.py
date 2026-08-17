@@ -943,10 +943,15 @@ def _error_parts(
     if not isinstance(resolved_code, str) or not resolved_code:
         resolved_code = AgentRunFailed.failure_code
     resolved_text = _as_text(error_text)
-    yield {
-        "type": "data-agent-error",
-        "data": {"code": resolved_code, "errorText": resolved_text},
-    }
+    data: Dict[str, Any] = {"code": resolved_code, "errorText": resolved_text}
+    # The gateway's agent-actionable envelope (WP13's AgentErrorDetail), when the runner
+    # recovered one (`AgentRunFailed.error_detail`, gateway-error.ts). Additive: a caller
+    # reading only `code`/`errorText` above sees no change, and the key is omitted entirely
+    # (never `null`) when there is nothing to carry.
+    error_detail = getattr(error, "error_detail", None)
+    if error_detail:
+        data["errorDetail"] = error_detail
+    yield {"type": "data-agent-error", "data": data}
     yield {"type": "error", "errorText": resolved_text}
 
 

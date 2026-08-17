@@ -163,6 +163,34 @@ from oss.src.apis.fastapi.triggers.router import TriggersRouter
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
+
+# GATEWAYS: core/gateways/ (entities.md §9 "Wiring"). Two router objects per plane —
+# management CRUD and the data plane are separate surfaces (§1).
+from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
+from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
+from oss.src.core.gateways.policy.resolution import SecretsResolver
+from oss.src.core.gateways.policy.service import GatewayPolicyService
+from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
+from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
+from oss.src.core.gateways.llms.providers.passthrough.adapter import (
+    RelayLLMAdapter,
+)
+from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
+from oss.src.core.gateways.mcps.service import MCPGatewayService
+from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
+from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
+from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
+from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
+from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.oauth_router import MCPOAuthClientMetadataRouter
+
+# ComposioMCPAdapter serves the builtin namespace and has no owner in wave 1: no brokered
+# target is reachable yet, so our own servers and the mocks are the whole set (D23).
+
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
@@ -1063,6 +1091,58 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
+# GATEWAYS: storage and the policy core (entities.md §9 "Wiring"). The plane services,
+# their registries and the routers/proxies land with WP6-WP10.
+llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
+mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
+
+secrets_resolver = SecretsResolver(
+    vault_service=vault_service,
+)
+
+gateway_policy_service = GatewayPolicyService(resolver=secrets_resolver)
+
+llm_gateway_service = LLMGatewayService(
+    llm_endpoints_dao=llm_endpoints_dao,
+    policy=gateway_policy_service,
+    resolver=secrets_resolver,
+    upstream_registry=LLMUpstreamRegistry(
+        adapters={
+            "relay": RelayLLMAdapter(),
+            "mock": MockLLMAdapter(),
+        }
+    ),
+)
+
+mcp_gateway_service = MCPGatewayService(
+    mcp_endpoints_dao=mcp_endpoints_dao,
+    policy=gateway_policy_service,
+    resolver=secrets_resolver,
+    connections_service=connections_service,
+    upstream_registry=MCPUpstreamRegistry(
+        adapters={
+            "http": HttpMCPAdapter(),
+            "mock": MockMCPAdapter(),
+        }
+    ),
+)
+
+mcp_oauth_connect_service = MCPOAuthConnectService(
+    vault_service=vault_service,
+    client=MCPOAuthClient(),
+    api_url=env.agenta.api_url,
+    secret_key=env.agenta.crypt_key,
+)
+
+llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
+llm_gateway_proxy = LLMGatewayProxy(llm_gateway_service=llm_gateway_service)
+mcp_gateway_router = MCPGatewayRouter(
+    mcp_gateway_service=mcp_gateway_service,
+    oauth_connect_service=mcp_oauth_connect_service,
+)
+mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)
+mcp_oauth_client_metadata_router = MCPOAuthClientMetadataRouter()
+
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
 )
@@ -1496,6 +1576,32 @@ app.include_router(
     router=triggers.admin_router,
     prefix="/admin/triggers",
     tags=["Triggers", "Admin"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=llm_gateway_router.router,
+    prefix="/gateways/llms",
+    tags=["Gateway: LLM"],
+)
+app.include_router(
+    router=llm_gateway_proxy.router,
+    prefix="/gateways/llms",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_gateway_router.router,
+    prefix="/gateways/mcps",
+    tags=["Gateway: MCP"],
+)
+app.include_router(
+    router=mcp_gateway_proxy.router,
+    prefix="/gateways/mcps",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_oauth_client_metadata_router.router,
+    prefix="/gateways/mcps",
     include_in_schema=False,
 )
 

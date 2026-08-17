@@ -127,6 +127,15 @@ class PlatformConnection:
         """The backend base URL: explicit, else derived from SDK config/env. ``None`` if unset."""
         return self._base_url or _derive_base_url()
 
+    def gateway_base_url(self) -> Optional[str]:
+        """The base URL the gateway route is composed against (D30's ``{gateway_base}``).
+
+        The gateways mount inside the API app under ``/gateways/...``, so this IS the API
+        base. It stays a named accessor rather than a concatenation at each call site: a
+        gateway hosted separately would change this body and nothing else.
+        """
+        return self.base_url()
+
     def authorization(self) -> Optional[str]:
         """The caller's Authorization: explicit, else the per-request context, else env key."""
         return self._authorization or _derive_authorization()

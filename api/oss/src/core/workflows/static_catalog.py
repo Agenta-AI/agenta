@@ -114,7 +114,7 @@ def _skill_revision(skill_template: SkillTemplate) -> WorkflowRevision:
 def _client_tool_revision() -> WorkflowRevision:
     return WorkflowRevision(
         name=REQUEST_CONNECTION_WORKFLOW_NAME,
-        description="Ask the user to connect an external account.",
+        description="Ask the user to connect an external account or a gateway target.",
         data=WorkflowRevisionData(
             uri="client:tool:request_connection:v0",
             parameters={
@@ -124,25 +124,52 @@ def _client_tool_revision() -> WorkflowRevision:
                 "tool": {
                     "type": "client",
                     "name": REQUEST_CONNECTION_TOOL_NAME,
-                    "description": "Request a connection from the user.",
+                    "description": (
+                        "Request a connection from the user: either an external integration "
+                        "('integration') or a gateway target ('target') that a model or MCP "
+                        "call was refused for because it is not registered yet. Provide "
+                        "exactly one of 'integration' or 'target'."
+                    ),
                     "input_schema": {
                         "type": "object",
                         "properties": {
                             "integration": {
                                 "type": "string",
-                                "description": "The external integration key the user should connect, for example 'slack' or 'github'.",
+                                "description": "The external integration key the user should connect, for example 'slack' or 'github'. Omit when connecting a gateway target instead (use 'target').",
+                            },
+                            "target": {
+                                "type": "object",
+                                "description": (
+                                    "A gateway target to connect instead of an external "
+                                    "integration: a model provider on the LLM plane, or a "
+                                    "server on the MCP plane. Use this after a model or tool "
+                                    "call was refused for an unregistered target."
+                                ),
+                                "properties": {
+                                    "plane": {
+                                        "type": "string",
+                                        "enum": ["llm", "mcp"],
+                                        "description": "Which gateway the target lives on.",
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "description": "The provider name (LLM plane, e.g. 'openai') or server slug (MCP plane, e.g. 'acme-notion') to connect.",
+                                    },
+                                },
+                                "required": ["plane", "name"],
+                                "additionalProperties": False,
                             },
                             "slug": {
                                 "type": "string",
-                                "description": "Optional stable connection slug to create or reuse. Defaults to the integration key.",
+                                "description": "Optional stable connection slug to create or reuse. Defaults to the integration key. Ignored for a gateway target.",
                             },
                             "mode": {
                                 "type": "string",
                                 "enum": ["oauth", "api_key"],
-                                "description": "Connection flow to request. Defaults to 'oauth'.",
+                                "description": "Connection flow to request. Defaults to 'oauth'. Ignored for a gateway target.",
                             },
                         },
-                        "required": ["integration"],
+                        "required": [],
                         "additionalProperties": False,
                     },
                     "render": {"kind": "connect"},

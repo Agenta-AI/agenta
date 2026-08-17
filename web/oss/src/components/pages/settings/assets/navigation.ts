@@ -7,6 +7,7 @@ export type SettingsTabKey =
     | "tools"
     | "triggers"
     | "webhooks"
+    | "mcpEndpoints"
     | "workspace"
     | "projects"
     | "organizationGeneral"
@@ -88,6 +89,11 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
             "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
     },
     {
+        key: "mcpEndpoints",
+        scope: "project",
+        description: "Register MCP servers by URL and connect the ones that need authorization.",
+    },
+    {
         key: "organizationGeneral",
         scope: "organization",
         description: "Every organization you belong to.",
@@ -164,6 +170,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     tools: "Tools",
     triggers: "Triggers",
     webhooks: "Webhooks",
+    mcpEndpoints: "MCP Servers",
     workspace: "Members",
     projects: "Projects",
     organizationGeneral: "Organizations",

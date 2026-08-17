@@ -3,12 +3,22 @@ import {
   type AgentRunResult,
   type EmitEvent,
 } from "../../protocol.ts";
+import { parseGatewayErrorDetail } from "../../gateway-error.ts";
 import { acquireEnvironment } from "./environment.ts";
 import { runTurn } from "./run-turn.ts";
 import {
   type RunTurnOptions,
   type SandboxAgentDeps,
 } from "./runtime-contracts.ts";
+
+/** Every `AgentRunResult` this engine returns passes through here: the one choke point where a
+ * gateway refusal recoverable from the harness's error text (`gateway-error.ts`) gets attached,
+ * regardless of which of `runTurn`'s several failure paths produced it. */
+export function withGatewayErrorDetail(result: AgentRunResult): AgentRunResult {
+  if (result.ok || result.errorDetail || !result.error) return result;
+  const errorDetail = parseGatewayErrorDetail(result.error);
+  return errorDetail ? { ...result, errorDetail } : result;
+}
 
 /**
  * Whether a completed turn's environment may be parked: never on abort, client disconnect,
@@ -41,7 +51,8 @@ export async function runSandboxAgent(
   turnOptions: Pick<RunTurnOptions, "credential"> = {},
 ): Promise<AgentRunResult> {
   const acquired = await acquireEnvironment(request, deps, signal);
-  if (!acquired.ok) return { ok: false, error: acquired.error };
+  if (!acquired.ok)
+    return withGatewayErrorDetail({ ok: false, error: acquired.error });
   const env = acquired.env;
   let result: AgentRunResult | undefined;
   try {
@@ -49,6 +60,7 @@ export async function runSandboxAgent(
       loaded: env.loadedFromContinuity,
       ...turnOptions,
     });
+    result = withGatewayErrorDetail(result);
     return result;
   } finally {
     // `result` is undefined when runTurn threw: a failed turn, so destroy.

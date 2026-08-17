@@ -1,4 +1,5 @@
 from typing import Optional
+from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
 import asyncio
@@ -49,6 +50,32 @@ _ALLOWED_TOKENS = (
     _SECRET_TOKEN_PREFIX,
 )
 
+# The gateways' own credentials header (D31). It wins over `Authorization` everywhere, and
+# on the gateway DATA PLANE it is the only header read at all — there `Authorization`
+# belongs to the upstream, so a fallback would read the caller's vendor auth as ours.
+_CREDENTIALS_HEADER = "X-AG-Credentials"
+
+# `/gateways/{plane}/{namespace}/...` is the data plane; `/gateways/{plane}/endpoints/...`
+# is ordinary CRUD. No namespace can spell `endpoints`, which is what keeps the two apart
+# under one mount prefix.
+_GATEWAY_DATA_PLANE = re_compile(
+    r"^(?:/api)?/gateways/(?:llms|mcps)/(?:builtin|standard|custom)(?:/|$)"
+)
+
+
+def _credentials_header(request: Request) -> Optional[str]:
+    ours = request.headers.get(_CREDENTIALS_HEADER) or request.headers.get(
+        _CREDENTIALS_HEADER.lower()
+    )
+    if ours or _GATEWAY_DATA_PLANE.match(request.url.path):
+        return ours
+    return (
+        request.headers.get("Authorization")
+        or request.headers.get("authorization")
+        or None
+    )
+
+
 _PUBLIC_ENDPOINTS = (
     # AGENTA
     "/health",
@@ -76,6 +103,10 @@ _PUBLIC_ENDPOINTS = (
     "/api/triggers/composio/events/",
     "/preview/triggers/composio/events/",
     "/api/preview/triggers/composio/events/",
+    # GATEWAYS — the MCP OAuth client identity document, fetched by an authorization
+    # server with no auth token (specs-wp20.md)
+    "/gateways/mcps/oauth/client-metadata.json",
+    "/api/gateways/mcps/oauth/client-metadata.json",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
@@ -263,11 +294,7 @@ async def _check_authentication_token(request: Request):
             return
 
         if _ADMIN_ENDPOINT_IDENTIFIER in request.url.path:
-            auth_header = (
-                request.headers.get("Authorization")
-                or request.headers.get("authorization")
-                or None
-            )
+            auth_header = _credentials_header(request)
 
             if not auth_header:
                 raise UnauthorizedException()
@@ -282,11 +309,7 @@ async def _check_authentication_token(request: Request):
                 access_token=access_token,
             )
 
-        auth_header = (
-            request.headers.get("Authorization")
-            or request.headers.get("authorization")
-            or None
-        )
+        auth_header = _credentials_header(request)
         supertokens_access_token = request.cookies.get("sAccessToken")
 
         query_project_id = request.query_params.get("project_id")

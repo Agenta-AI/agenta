@@ -107,6 +107,7 @@ describe("settings sidebar scopes", () => {
             "tools",
             "triggers",
             "webhooks",
+            "mcpEndpoints",
         ])
         expect(keysForScope("organization")).toEqual([
             "organizationGeneral",

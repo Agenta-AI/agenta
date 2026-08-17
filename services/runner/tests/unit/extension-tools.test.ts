@@ -117,6 +117,36 @@ describe("agenta extension model provider override", () => {
     assert.deepEqual(pi.handlers, {});
   });
 
+  it("carries OUR gateway credential and a placeholder apiKey onto the built-in provider override (WP13 reopen)", () => {
+    // A gateway-routed connection whose original deployment is "direct" (a plain provider_key
+    // connection, WP12's majority case) never goes through the custom-provider models.json path
+    // (isPiModelConfigApplicable requires a NAMED custom-agenta connection) -- this extension
+    // override is the ONLY place it can carry the header, or the run reaches the real provider
+    // with no credential and no visible failure.
+    clearEnv();
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
+      provider: "anthropic",
+      baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+      headers: { "X-AG-Credentials": "ApiKey mock-gateway-credentials" },
+      apiKey: "agenta-gateway",
+    });
+    const pi = fakePi();
+
+    factory(pi as any);
+
+    assert.deepEqual(pi.registeredProviders, [
+      {
+        name: "anthropic",
+        config: {
+          baseUrl:
+            "https://gateway.example.com/gateways/llms/standard/anthropic",
+          headers: { "X-AG-Credentials": "ApiKey mock-gateway-credentials" },
+          apiKey: "agenta-gateway",
+        },
+      },
+    ]);
+  });
+
   it("rejects malformed public override config before registration", () => {
     clearEnv();
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
@@ -537,5 +567,33 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       "it took the relay path",
     );
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("WP26: request_connection's prompt guidance covers both the integration and the gateway-target call shapes", () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      { name: "request_connection", description: "connect", kind: "client" },
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-unused";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const tool = pi.registered[0];
+
+    assert.ok(
+      tool.promptGuidelines.some(
+        (line: string) => line.includes("integration") && line.includes("mode"),
+      ),
+      "still guides the existing external-integration call shape",
+    );
+    assert.ok(
+      tool.promptGuidelines.some(
+        (line: string) =>
+          line.includes("target:") &&
+          line.includes("plane") &&
+          line.includes("not registered"),
+      ),
+      "also guides the new gateway-target call shape",
+    );
   });
 });

@@ -3,6 +3,7 @@ import {
   type ToolPermission,
 } from "../../protocol.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
+import { materializeGatewayHeaders } from "./run-plan.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
 
 type Log = (message: string) => void;
@@ -86,6 +87,21 @@ export function applyClaudeConnectionEnv(
   if (baseUrl) {
     env.ANTHROPIC_BASE_URL = baseUrl;
     logger(`claude base_url: ${baseUrl}`);
+  }
+
+  // OUR gateway credential (D31/D36), not a provider secret. `ANTHROPIC_CUSTOM_HEADERS` is the
+  // mechanism the pinned claude-agent-acp bridge itself uses for a gateway route (its own
+  // `createEnvForGateway` sets the same pair), so this mirrors a supported shape rather than
+  // inventing one (OD14). Format: one `Name: Value` pair per line.
+  const gatewayHeaders = materializeGatewayHeaders(request);
+  const headerLines = Object.entries(gatewayHeaders)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join("\n");
+  if (headerLines) {
+    env.ANTHROPIC_CUSTOM_HEADERS = headerLines;
+    logger(
+      `claude gateway credentials header: ${request.modelConnection?.gatewayCredentials?.header}`,
+    );
   }
 
   if (deployment === "bedrock") {

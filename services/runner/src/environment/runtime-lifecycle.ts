@@ -42,6 +42,7 @@ import {
   writeOtlpAuthFile,
 } from "../engines/sandbox_agent/pi-assets.ts";
 import { applyClaudeConnectionEnv } from "../engines/sandbox_agent/runtime-policy.ts";
+import { GATEWAY_CREDENTIALS_VALUE_ENV } from "../engines/sandbox_agent/run-plan.ts";
 import type { AgentRunRequest } from "../protocol.ts";
 import type { RunPlan } from "../engines/sandbox_agent/run-plan.ts";
 import type { Log } from "./timing.ts";
@@ -198,6 +199,15 @@ export function buildRuntimeEnvironment(
   );
   // Apply only the resolved provider keys.
   Object.assign(env, p.credentials.modelEnvironment);
+  // OUR gateway credential, not a provider secret: unlike `modelEnvironment` it never goes
+  // through Daytona Secret hiding (there is no third party to leak it to — it authenticates the
+  // harness to US), so it lands directly in the daemon env. Pi and Codex reference it by
+  // `$AGENTA_GATEWAY_CREDENTIALS_VALUE` indirection from their own config files rather than
+  // writing the raw value to disk; Claude reads it straight into ANTHROPIC_CUSTOM_HEADERS below.
+  const gatewayCredentials = r.modelConnection?.gatewayCredentials;
+  if (gatewayCredentials?.value) {
+    env[GATEWAY_CREDENTIALS_VALUE_ENV] = gatewayCredentials.value;
+  }
   applyClaudeConnectionEnv(env, input.request, p.acpAgent as never, input.log);
   const piSessionDir = configurePiSessionWorkspace(input.plan, env);
   configurePiSkillSnapshot(input.piSkillSnapshot as never, env);

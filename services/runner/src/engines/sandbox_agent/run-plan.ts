@@ -212,8 +212,7 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  | { ok: true; plan: RunPlan }
-  | { ok: false; error: string };
+  { ok: true; plan: RunPlan } | { ok: false; error: string };
 
 // The five wire fields this change RETIRED. They are listed here so the runner can reject a
 // request that still sends them, rather than ignore them.
@@ -308,6 +307,39 @@ function defaultDaytonaCwd(durableCwd?: string): string {
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
+/** Mirrors `ResolvedConnection._require_effective_https` in the Python SDK: https anywhere, or
+ * plain http to a loopback host, which has no remote to leak the value to. */
+function isEffectiveSecureEndpoint(baseUrl: string | undefined): boolean {
+  try {
+    const endpoint = new URL(baseUrl ?? "");
+    if (!endpoint.hostname) return false;
+    if (endpoint.protocol === "https:") return true;
+    return (
+      endpoint.protocol === "http:" &&
+      LOOPBACK_HOSTNAMES.has(endpoint.hostname.replace(/^\[|\]$/g, ""))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The env var a gateway credential's raw value lands in, for a harness config file (Pi
+ * `models.json`, Codex `config.toml`) to reference by `$VAR` indirection rather than writing
+ * the secret to disk — the same pattern `apiKeyEnv` already uses for provider keys. */
+export const GATEWAY_CREDENTIALS_VALUE_ENV = "AGENTA_GATEWAY_CREDENTIALS_VALUE";
+
+/** The gateway credentials as the header they belong in. The header counterpart of
+ * `materializeModelEnvironment`; validated there, materialized here. */
+export function materializeGatewayHeaders(
+  request: AgentRunRequest,
+): Record<string, string> {
+  const credentials = request.modelConnection?.gatewayCredentials;
+  if (!credentials?.header?.trim() || !credentials.value) return {};
+  return { [credentials.header]: credentials.value };
+}
+
 export function materializeModelEnvironment(
   request: AgentRunRequest,
 ):
@@ -371,19 +403,15 @@ export function materializeModelEnvironment(
         error: "modelConnection credential usage is invalid",
       };
     }
-    if (credential.usage === "opaque_http") {
-      try {
-        const endpoint = new URL(connection.endpoint?.baseUrl ?? "");
-        if (endpoint.protocol !== "https:" || !endpoint.hostname) {
-          throw new Error("invalid endpoint");
-        }
-      } catch {
-        return {
-          ok: false,
-          error:
-            "opaque_http model credentials require an effective HTTPS endpoint",
-        };
-      }
+    if (
+      credential.usage === "opaque_http" &&
+      !isEffectiveSecureEndpoint(connection.endpoint?.baseUrl)
+    ) {
+      return {
+        ok: false,
+        error:
+          "opaque_http model credentials require an effective HTTPS endpoint",
+      };
     }
     if (Object.hasOwn(environment, name)) {
       return {
@@ -392,6 +420,32 @@ export function materializeModelEnvironment(
       };
     }
     environment[name] = credential.value;
+  }
+
+  const gatewayCredentials = connection.gatewayCredentials;
+  if (gatewayCredentials !== undefined) {
+    if (!gatewayCredentials.header?.trim() || !gatewayCredentials.value) {
+      return {
+        ok: false,
+        error: "gateway credentials require a non-empty header name and value",
+      };
+    }
+    if (!isEffectiveSecureEndpoint(connection.endpoint?.baseUrl)) {
+      return {
+        ok: false,
+        error: "gateway credentials require an effective HTTPS endpoint",
+      };
+    }
+    // A gateway route carries OUR credentials in place of the provider's; a request naming
+    // both is confused about which one authenticates and is rejected rather than guessed at
+    // (specs-wp13.md Phase 1).
+    if (credentials.length > 0) {
+      return {
+        ok: false,
+        error:
+          "modelConnection cannot combine gateway credentials with provider credentials",
+      };
+    }
   }
 
   return {

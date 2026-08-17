@@ -722,6 +722,42 @@ class ComposioConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# gateways: mocks (WP5, D23)
+# ---------------------------------------------------------------------------
+
+
+class MockGatewaysConfig(BaseModel):
+    """Local-stack mock upstream addresses (WP5). Unset in production images —
+    nothing references these outside dev/gh compose."""
+
+    llm_url: str = os.getenv(
+        "AGENTA_MOCK_LLM_GATEWAY_URL", "http://mock-llm-gateway:9091"
+    )
+    mcp_url: str = os.getenv(
+        "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092"
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# gateways: mcp adapter (WP8, D28)
+# ---------------------------------------------------------------------------
+
+
+class MCPGatewayConfig(BaseModel):
+    """`HttpMCPAdapter`'s outbound-guard escape hatch. Mirrors the runner's
+    `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP server whose host is
+    listed here skips the SSRF guard (`core/webhooks/utils.py`) entirely, so a
+    self-hoster can reach one known internal server without disabling the
+    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED."""
+
+    host_allowlist: list[str] = _load_csv_env_list("AGENTA_MCP_GATEWAY_HOST_ALLOWLIST")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # crisp
 # ---------------------------------------------------------------------------
 
@@ -1641,6 +1677,8 @@ class EnvironSettings(BaseModel):
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
+    mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
+    mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()

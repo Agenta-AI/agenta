@@ -246,7 +246,7 @@ function promptGuidelines(spec: ResolvedToolSpec): string[] {
   }
   if (spec.name === "request_connection") {
     guidelines.push(
-      "When calling request_connection, set integration to the lowercase provider key such as slack or github; use mode oauth unless the user explicitly asks for an API key.",
+      "When calling request_connection for an external integration, set integration to the lowercase provider key such as slack or github; use mode oauth unless the user explicitly asks for an API key. When a model or MCP call was refused because the target is not registered, call it instead with target: {plane: 'llm'|'mcp', name: <provider or server>} and omit integration/mode.",
     );
   }
   if (spec.name === "commit_revision") {
@@ -357,8 +357,7 @@ function registerTools(pi: ExtensionAPI): void {
 
 /** The Pi ExtensionFactory: tools + (env-driven) tracing + usage writeback. */
 const factory = (pi: ExtensionAPI): void => {
-  const modelProviderOverrideRaw =
-    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
+  const modelProviderOverrideRaw = process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
   const modelProviderOverride =
     modelProviderOverrideRaw === undefined
       ? undefined
@@ -387,11 +386,19 @@ const factory = (pi: ExtensionAPI): void => {
   )
     return;
 
-  // Extension factories complete before Pi selects the configured model. Registering only a
-  // baseUrl here overrides the built-in provider without replacing its model catalog or auth.
+  // Extension factories complete before Pi selects the configured model. Registering only
+  // baseUrl/headers here overrides the built-in provider without replacing its model catalog.
+  // `headers` carries OUR gateway credential (D31/D36) when this connection is gateway-routed —
+  // absent for a plain custom-endpoint override with no gateway involved.
   if (modelProviderOverride) {
     pi.registerProvider(modelProviderOverride.provider, {
       baseUrl: modelProviderOverride.baseUrl,
+      ...(modelProviderOverride.headers
+        ? { headers: modelProviderOverride.headers }
+        : {}),
+      ...(modelProviderOverride.apiKey
+        ? { apiKey: modelProviderOverride.apiKey }
+        : {}),
     });
   }
 

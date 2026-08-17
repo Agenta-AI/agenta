@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
 import {
   encodePiModelProviderOverride,
+  PI_GATEWAY_PLACEHOLDER_API_KEY,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "../../extensions/model-provider-override.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
@@ -31,6 +32,7 @@ import {
   serializePiModelsJson,
   type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
+import { materializeGatewayHeaders } from "./run-plan.ts";
 import type {
   RunPlan,
   RunPlanCredentials,
@@ -380,12 +382,22 @@ export function buildPiExtensionEnv(
   // Point Pi's built-in provider at the resolved custom base URL via the Agenta extension
   // (`model-provider-override.ts`). Skipped when the managed OpenAI-compatible custom path
   // already routes this run through its own `models.json` provider (`pi-model-config.ts`) —
-  // two competing registrations for the same run would race for the provider.
+  // two competing registrations for the same run would race for the provider. This is the
+  // path a gateway-routed connection whose ORIGINAL deployment is "direct" takes (WP12's
+  // majority case, a plain provider_key connection) — `isPiModelConfigApplicable` only covers
+  // a named custom-agenta connection, so `headers` carries OUR gateway credential here or it
+  // never reaches Pi at all for every other gateway-routed connection.
   const modelBaseUrl = request.modelConnection?.endpoint?.baseUrl;
   if (modelBaseUrl !== undefined && !isPiModelConfigApplicable(request)) {
+    const gatewayHeaders = materializeGatewayHeaders(request);
+    const isGatewayRoute = Object.keys(gatewayHeaders).length > 0;
     env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = encodePiModelProviderOverride({
       provider: request.modelConnection?.provider,
       baseUrl: modelBaseUrl,
+      ...(isGatewayRoute ? { headers: gatewayHeaders } : {}),
+      // credentialMode "none" leaves no real key anywhere; without SOME apiKey Pi may treat the
+      // model as unavailable for selection (see PiModelProviderOverride.apiKey).
+      ...(isGatewayRoute ? { apiKey: PI_GATEWAY_PLACEHOLDER_API_KEY } : {}),
     });
   }
 
