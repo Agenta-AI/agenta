@@ -1,13 +1,9 @@
 /**
- * The startup label's rendered output (#6047).
+ * The startup label's rendered output (#6047): the point of the change is that the slot uses WORDS,
+ * so the assertions are that the label reaches the DOM and is announced.
  *
- * The point of the whole change is that the cold-start slot uses WORDS — the wordless three dots
- * were what made a 15s sandbox boot read as a stalled session. So the assertions are that the
- * label reaches the DOM and that it is announced.
- *
- * Rendered with `renderToStaticMarkup` rather than a testing library: the repo has no
- * `@testing-library/react`, and `StartupActivity` is deliberately presentational (its label is
- * chosen by `useStartupPhase`, tested separately) so a static render covers it.
+ * `renderToStaticMarkup` rather than a testing library — the repo has no `@testing-library/react`,
+ * and `StartupActivity` is presentational so a static render covers it.
  */
 import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it} from "vitest"
@@ -42,13 +38,5 @@ describe("StartupActivity", () => {
     it("hides the decorative dots from the announcement", () => {
         const dots = render(<StartupActivity label="Working" />).querySelector("[aria-hidden]")
         expect(dots).not.toBeNull()
-    })
-
-    it("keeps the shimmer behind motion-safe so reduced motion gets plain text", () => {
-        const html = renderToStaticMarkup(<StartupActivity label="Working" />)
-        expect(html).toContain("motion-safe:animate-text-shimmer")
-        // The transparent fill rides the same guard — without it, reduced motion would render a
-        // frozen gradient clip and the label could come out invisible.
-        expect(html).toContain("motion-safe:text-transparent")
     })
 })

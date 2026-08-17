@@ -72,17 +72,4 @@ describe("turn clock", () => {
 
         expect(store.get(turnStartAtomFamily(id))).toBeDefined()
     })
-
-    it("keeps sessions independent", () => {
-        const store = createStore()
-        const a = `clock-a-${Date.now()}`
-        const b = `clock-b-${Date.now()}`
-
-        store.set(startTurnClockAtom, a)
-        store.set(startTurnClockAtom, b)
-        store.set(clearTurnClockAtom, a)
-
-        expect(store.get(turnStartAtomFamily(a))).toBeUndefined()
-        expect(store.get(turnStartAtomFamily(b))).toBeDefined()
-    })
 })

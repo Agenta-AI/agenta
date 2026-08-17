@@ -6,13 +6,10 @@ import {msUntilNextStartupPhase, startupPhaseAt} from "../assets/startupPhases"
 import {turnStartAtomFamily} from "../state/turnClock"
 
 /**
- * The current startup label for a session's in-flight turn, or null when there is nothing to say
- * (#6047) — no turn being narrated, or one still inside the grace window.
+ * The current startup label for a session's in-flight turn, or null when no turn is being narrated.
  *
- * The label is DERIVED on every render rather than stored, so it can never lag the clock: the same
- * shape `MessageTimestamp` uses for `timeAgo`. The effect exists only to force a render at each
- * phase boundary, and it sleeps exactly that long — no polling, and it stops scheduling once the
- * last phase lands, so a turn that then runs for minutes costs no timers at all.
+ * The label is DERIVED per render rather than stored, so it can never lag the clock (the shape
+ * `MessageTimestamp` uses for `timeAgo`). The effect only forces a render at each boundary.
  */
 export const useStartupPhase = (sessionId: string): string | null => {
     const startedAt = useAtomValue(turnStartAtomFamily(sessionId))

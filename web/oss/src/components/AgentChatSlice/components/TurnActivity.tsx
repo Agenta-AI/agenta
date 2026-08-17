@@ -31,12 +31,10 @@ export const WaitingForInput = () => (
 
 /**
  * The empty-turn slot during a COLD start (#6047): what the agent is doing, in words, instead of
- * the wordless three dots that made a 15s sandbox boot read as a stalled session.
+ * the wordless three dots that made a 15s boot read as a stalled session.
  *
- * Presentational only — `label` is chosen by `useStartupPhase` on a timer. The dots match
- * `WorkingDots` so the two indicators read as one family, just smaller beside text, and sit at the
- * END of the line so they trail the words like an ellipsis rather than floating mid-height.
- * `aria-live` announces each phase change; the shimmer is `motion-safe` and degrades to plain text.
+ * Presentational only — `label` comes from `useStartupPhase`. The dots sit at the END of the line
+ * so they trail the words like an ellipsis; the shimmer is `motion-safe` and degrades to plain text.
  */
 export const StartupActivity = ({label}: {label: string}) => (
     <span role="status" aria-live="polite" className="flex items-end gap-2 py-0.5">

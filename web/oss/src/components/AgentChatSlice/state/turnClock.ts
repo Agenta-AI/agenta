@@ -4,13 +4,8 @@ import {atomFamily, selectAtom} from "jotai/utils"
 /**
  * When the in-flight turn started, for the sessions whose startup is being narrated (#6047).
  *
- * An entry existing IS the decision to narrate — the caller starts a clock only for a turn it
- * judged cold, so nothing downstream re-derives that. Which also means a warm turn has to CLEAR
- * rather than merely skip: an entry the previous turn left behind would otherwise narrate this one
- * off a stale start time.
- *
- * In-memory and turn-scoped. Every settle path (answer, error, stop) clears it, which is what stops
- * a failed or cancelled run from stranding a startup label on screen.
+ * An entry existing IS the decision to narrate, so a warm turn must CLEAR rather than merely skip:
+ * an entry the last turn left behind would otherwise narrate this one off a stale start.
  */
 
 /** The map IS the source of truth, and keeps the key set enumerable. */
@@ -21,15 +16,8 @@ export const turnStartAtomFamily = atomFamily((sessionId: string) =>
     selectAtom(turnStartMapAtom, (m): number | undefined => m[sessionId]),
 )
 
-/**
- * Start the clock, replacing any entry left over from the last turn.
- *
- * Deliberately unconditional. The caller fires this only on the `submitted` edge — the one status a
- * new send always crosses — so "a turn is beginning" is decided there, not here. An earlier version
- * bailed out when an entry existed, which made a fresh turn inherit the previous turn's start
- * whenever a settle wasn't observed (React batches a resume's ready → submitted into one render),
- * and the new turn opened on its final phase.
- */
+/** Always replaces — the caller fires it only on the `submitted` edge, so a new turn can never
+ * inherit the last one's start (React batches a resume's ready → submitted into one render). */
 export const startTurnClockAtom = atom(null, (get, set, sessionId: string) => {
     set(turnStartMapAtom, {...get(turnStartMapAtom), [sessionId]: Date.now()})
 })

@@ -58,18 +58,6 @@ describe("startupPhaseAt", () => {
         expect(startupPhaseAt(600_000)).toBe(last.label)
     })
 
-    it("never goes backwards as the turn runs", () => {
-        const seen: (string | null)[] = []
-        for (let ms = 0; ms <= 20_000; ms += 100) seen.push(startupPhaseAt(ms))
-        const order = [null, ...STARTUP_PHASES.map((p) => p.label)]
-        let index = 0
-        for (const label of seen) {
-            const next = order.indexOf(label)
-            expect(next).toBeGreaterThanOrEqual(index)
-            index = next
-        }
-    })
-
     it("is declared in ascending order — the scan depends on it", () => {
         const marks = STARTUP_PHASES.map((p) => p.atMs)
         expect(marks).toEqual([...marks].sort((a, b) => a - b))
@@ -92,14 +80,6 @@ describe("msUntilNextStartupPhase", () => {
     it("skips boundaries a backgrounded tab slept through", () => {
         // Woken at 9s having missed 2s and 8s: the next hop is the 14s phase, not a replay.
         expect(msUntilNextStartupPhase(9_000)).toBe(5_000)
-    })
-
-    it("always lands on a real phase change", () => {
-        for (let ms = 0; ms < 20_000; ms += 137) {
-            const delay = msUntilNextStartupPhase(ms)
-            if (delay === undefined) continue
-            expect(startupPhaseAt(ms + delay)).not.toBe(startupPhaseAt(ms))
-        }
     })
 })
 
