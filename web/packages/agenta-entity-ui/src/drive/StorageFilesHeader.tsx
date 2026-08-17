@@ -6,7 +6,7 @@
  * Slotted into the entity-ui `AgentOperationsSections` header by the app layer, which owns the
  * chat session state that package can't reach.
  */
-import {configFilesDrawerAtomFamily, useConfigDrive} from "@agenta/entities/drive"
+import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "@agenta/entities/drive"
 import {Skeleton} from "@agenta/ui/ui"
 import {CircleNotch, FolderOpen} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
@@ -22,7 +22,7 @@ export default function StorageFilesHeader({
     sessionId?: string | null
 }) {
     const {drive} = useConfigDrive(revisionId, sessionId)
-    const setDrawer = useSetAtom(configFilesDrawerAtomFamily(revisionId ?? ""))
+    const setDrawerOpen = useSetAtom(configFilesDrawerOpenAtomFamily(revisionId ?? ""))
 
     if (drive.isLoading) {
         return <Skeleton className="h-[14px] w-[44px]" />
@@ -47,7 +47,7 @@ export default function StorageFilesHeader({
                     type="button"
                     onClick={(e) => {
                         e.currentTarget.blur()
-                        setDrawer((prev) => ({...prev, open: true}))
+                        setDrawerOpen(true)
                     }}
                     className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
                 >
@@ -68,7 +68,7 @@ export default function StorageFilesHeader({
             // to this trigger. Genuine Tab focus still shows the ring via FOCUS_RING.
             onClick={(e) => {
                 e.currentTarget.blur()
-                setDrawer((prev) => ({...prev, open: true}))
+                setDrawerOpen(true)
             }}
             className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
         >

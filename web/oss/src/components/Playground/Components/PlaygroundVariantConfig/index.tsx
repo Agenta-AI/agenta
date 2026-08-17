@@ -1,5 +1,6 @@
 "use client"
 
+import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
@@ -90,6 +91,7 @@ const PlaygroundVariantConfig: React.FC<
     // Prevents flash of unedited content when reloading with draft patches in the URL.
     // The drive the Files region shows belongs to the open conversation (a desktop tab concept).
     const chatSessionId = useChatScopeSessionId()
+    const chatScopeKey = useChatScopeKey()
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(variantId))
 
     // The agent config panel is a read-only summary that edits via section drawers, so the
@@ -362,7 +364,11 @@ const PlaygroundVariantConfig: React.FC<
                         revisionId={variantId}
                         sticky={!embedded}
                         storage={
-                            <StorageSection revisionId={variantId} sessionId={chatSessionId} />
+                            <StorageSection
+                                revisionId={variantId}
+                                sessionId={chatSessionId}
+                                scope={chatScopeKey}
+                            />
                         }
                         storageHeader={
                             <StorageFilesHeader revisionId={variantId} sessionId={chatSessionId} />

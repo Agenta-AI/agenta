@@ -3,7 +3,7 @@
  * bar (rendered by the entity-ui `AgentOperationsSections`) shows the count and opens the drawer;
  * the body (`StorageSection`) lists recents and opens the same drawer preselected on a row. Both
  * resolve the same session/artifact drive via {@link useConfigDrive} and share one drawer request
- * via {@link configFilesDrawerAtomFamily}, keyed by the edited revision.
+ * via {@link configFilesDrawerOpenAtomFamily}, keyed by the edited revision.
  */
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -22,9 +22,10 @@ export interface ConfigFilesDrawerRequest {
 }
 
 /** One drawer-open request per config revision, shared by the Files header and body. */
-export const configFilesDrawerAtomFamily = atomFamily((_revisionId: string) =>
-    atom<ConfigFilesDrawerRequest>({open: false, initialPath: null, staged: []}),
-)
+/** The Files header's browse-all drawer, one open flag per config revision. The initial path and
+ * staged drops moved to the per-SESSION atoms the docked pane reads (#5946) — keeping them here
+ * meant two surfaces writing one bucket. */
+export const configFilesDrawerOpenAtomFamily = atomFamily((_revisionId: string) => atom(false))
 
 /**
  * The drive backing the config panel's Files region: the conversation's cwd mount plus the

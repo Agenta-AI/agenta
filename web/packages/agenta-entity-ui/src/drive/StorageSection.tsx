@@ -11,7 +11,10 @@
 import {useMemo} from "react"
 
 import {isAgentFileUploadsEnabled} from "@agenta/entities/drive"
-import {configFilesDrawerAtomFamily, useConfigDrive} from "@agenta/entities/drive"
+import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "@agenta/entities/drive"
+import {driveQuickLookAtomFamily} from "./quickLook"
+import {filesDrawerStagedAtomFamily} from "./SessionFilesDrawer"
+import {useSessionFilesPane} from "./SessionFilesPane"
 import {listArrowKeyDown} from "@agenta/entities/drive"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
 import {humanSize, relativeTime} from "@agenta/entities/drive"
@@ -19,7 +22,7 @@ import {isRecentlyChanged, useRecentChangeClock} from "@agenta/entities/drive"
 import {useStageDrop} from "@agenta/entities/drive"
 import {driveHasMixedOrigins, type DriveRecentFile} from "@agenta/entities/drive"
 import {CircleNotch} from "@phosphor-icons/react"
-import {useAtom} from "jotai"
+import {useAtom, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {type DriveId} from "./DriveExplorer"
@@ -87,22 +90,33 @@ const RecentFileRow = ({
 export default function StorageSection({
     revisionId,
     sessionId,
+    scope,
 }: {
     revisionId?: string | null
     /** The conversation whose drive this is. The host resolves it; empty = no conversation. */
     sessionId?: string | null
+    /** Chat-panel scope key — the docked pane's open flag is panel-level, not per session. The
+     * host resolves it (a package cannot read the app's chat slice). */
+    scope: string
 }) {
     const {drive} = useConfigDrive(revisionId, sessionId)
-    // Drawer request is shared with the Files header (which opens it at the root); rows open it
-    // preselected on the clicked file.
-    const [drawer, setDrawer] = useAtom(configFilesDrawerAtomFamily(revisionId ?? ""))
-    const openDrawer = (initialPath: string | null) =>
-        setDrawer({open: true, initialPath, staged: []})
+    // A row opens the chat's DOCKED pane on that file with the tree collapsed; the header's icon
+    // opens the browse-all DRAWER instead (see StorageFilesHeader).
+    const {openPane: openPaneRoot} = useSessionFilesPane(scope, sessionId ?? "")
+    const setQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
+    const setPaneStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId ?? ""))
+    const [drawerOpen, setDrawerOpen] = useAtom(configFilesDrawerOpenAtomFamily(revisionId ?? ""))
+    const openPane = (initialPath: string | null) => {
+        // No resolved session id → the per-session quick-look atom is not the one the docked pane
+        // reads, so open at the root instead of writing into an orphaned bucket.
+        if (initialPath && sessionId) setQuickLook({path: initialPath, hideTree: true})
+        else openPaneRoot()
+    }
     // Drop-to-stage: a file drag over the Files peek opens the drawer with the files staged, so the
     // destination folder is chosen there (this flat peek has no folder of its own).
     const {dropActive, dropProps: stageDropProps} = useStageDrop(
-        isAgentFileUploadsEnabled() && drive.mount
-            ? (files) => setDrawer({open: true, initialPath: null, staged: files})
+        isAgentFileUploadsEnabled() && drive.mount && sessionId
+            ? (files) => setPaneStaged(files)
             : undefined,
     )
     const copyPath = useCopyDrivePath()
@@ -201,7 +215,7 @@ export default function StorageSection({
                                                           now,
                                                       )}
                                                       showOrigin={showOrigin}
-                                                      onOpen={() => openDrawer(file.path)}
+                                                      onOpen={() => openPane(file.path)}
                                                       onCopyPath={copyPath}
                                                       onDownload={download}
                                                   />
@@ -261,14 +275,14 @@ export default function StorageSection({
             {/* The ONE Files drawer (DriveExplorer: lazy per-directory loading + the single header).
                 Same component the chat uses; only the open-atom + resolved drive differ. */}
             <FilesDrawer
-                open={drawer.open}
-                onClose={() => setDrawer((prev) => ({...prev, open: false, staged: []}))}
+                open={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
                 drive={drive}
                 driveIds={driveIds}
                 scope="session"
-                initialPath={drawer.initialPath}
-                stagedFiles={drawer.staged}
-                onStagedChange={(files) => setDrawer((prev) => ({...prev, staged: files}))}
+                initialPath={null}
+                stagedFiles={[]}
+                onStagedChange={setPaneStaged}
             />
         </div>
     )
