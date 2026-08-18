@@ -653,10 +653,24 @@ worth chasing while the section's copy is under review.
 
 ### Interactive surfaces
 
-The row kebab opens the same single `Rename` item with the same icon and styling on both. One
+**Row kebab** — opens the same single `Rename` item, same icon, same styling on both. One
 difference: local's menu is a fixed `w-[180px]` where prod's fits its content (~110px), so it
 extends ~154px further left. Minor, and the width is shared by every `DataTable` host, so it is
 recorded rather than changed unilaterally.
+
+**Column settings ⚙** — prod's is an `ant-popover`, not a menu, and carries more than the
+checkbox list first built here:
+
+| PROD | LOCAL (now) |
+|---|---|
+| `VISIBILITY` | `Visibility` |
+| `Show all` / `Hide all` | **added** |
+| `Member` / `Email` / `Added` | `Email` / `Added` — the identity column stays locked |
+| `Expand all` / `Collapse all` | not mirrored — they act on column GROUPING, which this table has none of |
+| `Reset layout` | not mirrored — nothing to reset without column resize/reorder |
+| `Close` | not mirrored — the menu dismisses on outside click |
+
+**Not yet captured:** the Invite-members modal, and the search field in its filled/active state.
 
 ### Harness: a FALSE PASS was shipping, and is now impossible
 

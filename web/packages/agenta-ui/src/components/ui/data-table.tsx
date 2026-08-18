@@ -414,6 +414,13 @@ export function DataTable<T>({
                                                         : [...current, key],
                                                 )
                                             }
+                                            onSetAll={(hidden) =>
+                                                setHiddenKeys(
+                                                    hidden
+                                                        ? hideable.map((column) => column.key)
+                                                        : [],
+                                                )
+                                            }
                                         />
                                     ) : null}
                                 </th>
@@ -531,43 +538,60 @@ export function DataTable<T>({
  * The ⚙ that shows and hides columns, in the header row's trailing cell — where the desktop
  * app has always put it. Only `hideable` columns are listed, so the column naming the row
  * cannot be turned off.
+ *
+ * The desktop popover is titled VISIBILITY and adds Expand all / Collapse all / Reset layout
+ * alongside Show all / Hide all. Those three belong to column GROUPING and RESIZING, neither of
+ * which this table has, so only the visibility half is mirrored here.
  */
 const ColumnSettings = <T,>({
     columns,
     hiddenKeys,
     onToggle,
+    onSetAll,
 }: {
     columns: DataTableColumn<T>[]
     hiddenKeys: string[]
     onToggle: (key: string) => void
-}) => (
-    <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-            <button
-                type="button"
-                aria-label="Column settings"
-                className="flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
-            >
-                <Gear size={16} />
-            </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[180px]">
-            <DropdownMenuLabel>Columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {columns.map((column) => (
-                <DropdownMenuCheckboxItem
-                    key={column.key}
-                    checked={!hiddenKeys.includes(column.key)}
-                    // Keep the menu open: hiding several columns in a row is the normal use.
-                    onSelect={(event) => event.preventDefault()}
-                    onCheckedChange={() => onToggle(column.key)}
+    onSetAll: (hidden: boolean) => void
+}) => {
+    const allShown = columns.every((column) => !hiddenKeys.includes(column.key))
+    const allHidden = columns.every((column) => hiddenKeys.includes(column.key))
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    aria-label="Column settings"
+                    className="flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
                 >
-                    {column.title}
-                </DropdownMenuCheckboxItem>
-            ))}
-        </DropdownMenuContent>
-    </DropdownMenu>
-)
+                    <Gear size={16} />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[180px]">
+                <DropdownMenuLabel>Visibility</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={allShown} onSelect={() => onSetAll(false)}>
+                    Show all
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={allHidden} onSelect={() => onSetAll(true)}>
+                    Hide all
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {columns.map((column) => (
+                    <DropdownMenuCheckboxItem
+                        key={column.key}
+                        checked={!hiddenKeys.includes(column.key)}
+                        // Keep the menu open: hiding several columns in a row is the normal use.
+                        onSelect={(event) => event.preventDefault()}
+                        onCheckedChange={() => onToggle(column.key)}
+                    >
+                        {column.title}
+                    </DropdownMenuCheckboxItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
 
 /** Already narrowed by `visibleActions` — one row of a table that has actions may still have none. */
 const RowActions = <T,>({items, record}: {items: ActionItem<T>[]; record: T}) => {
