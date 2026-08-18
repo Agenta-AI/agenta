@@ -243,6 +243,10 @@ export interface SessionTagBarProps {
     onRename: (id: string, title: string) => void
     /** Right-aligned extras (e.g. the session-history menu). */
     extra?: React.ReactNode
+    /** Left-aligned extra (the config-panel reveal control) — rendered at the strip's leading
+     * edge, the spot the config panel disappeared from, so a collapse/reveal round-trip returns
+     * the eye to where it left off instead of hunting the far side of the bar. */
+    leftExtra?: React.ReactNode
     /** Show the inline session pills + add button. Off in full-screen mode, where the vertical
      * SessionRail owns the session list and this bar keeps only the right-aligned extras. */
     showSessions?: boolean
@@ -263,6 +267,7 @@ const SessionTagBar = ({
     onClose,
     onRename,
     extra,
+    leftExtra,
     showSessions = true,
 }: SessionTagBarProps) => {
     const closable = sessions.length > 1
@@ -302,6 +307,7 @@ const SessionTagBar = ({
                     addDisabled ? "Available after your agent's first response" : "New session"
                 }
                 extra={extra}
+                leadingExtra={leftExtra}
                 remeasureKey={sessions}
                 reorder={{ids: tabIds, onReorder: reorderSessions}}
             >

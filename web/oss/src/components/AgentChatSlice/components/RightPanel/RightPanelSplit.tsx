@@ -1,7 +1,7 @@
 import {useEffect, useState, type ReactNode} from "react"
 
 import {SplitPane} from "@agenta/ui/ui"
-import {useAtom} from "jotai"
+import {useAtom, type WritableAtom} from "jotai"
 
 import {
     CHAT_MIN,
@@ -11,11 +11,8 @@ import {
 } from "../../state/rightPanel"
 
 /** Clamp the panel width to [min, max] AND never let the chat fall below its floor. */
-const clampWidth = (w: number, total: number) =>
-    Math.max(
-        RIGHT_PANEL_MIN,
-        Math.min(w, RIGHT_PANEL_MAX, Math.max(RIGHT_PANEL_MIN, total - CHAT_MIN)),
-    )
+const clampWidth = (w: number, total: number, min: number, max: number) =>
+    Math.max(min, Math.min(w, max, Math.max(min, total - CHAT_MIN)))
 
 // Open/close slide duration — matches SplitPane's flex-basis transition (240ms, the
 // playground curve), so the closing content hold below releases right as the slide ends.
@@ -35,12 +32,20 @@ const RightPanelSplit = ({
     open,
     panel,
     children,
+    widthAtom = rightPanelWidthAtom,
+    min = RIGHT_PANEL_MIN,
+    max = RIGHT_PANEL_MAX,
 }: {
     open: boolean
     panel: ReactNode
     children: ReactNode
+    /** Persisted width store + clamp bounds — defaults are the Inspector's; the Files pane passes
+     * its own so the two right-edge panes keep independent widths. */
+    widthAtom?: WritableAtom<number, [number], void>
+    min?: number
+    max?: number
 }) => {
-    const [persisted, setPersisted] = useAtom(rightPanelWidthAtom)
+    const [persisted, setPersisted] = useAtom(widthAtom)
     const [live, setLive] = useState(persisted)
     const [dragging, setDragging] = useState(false)
 
@@ -77,8 +82,8 @@ const RightPanelSplit = ({
         <SplitPane
             paneSide="end"
             paneSize={open ? live : 0}
-            paneMin={open ? RIGHT_PANEL_MIN : 0}
-            paneMax={RIGHT_PANEL_MAX}
+            paneMin={open ? min : 0}
+            paneMax={max}
             fillMin={CHAT_MIN}
             resizable={open}
             animate={animate}
@@ -88,11 +93,11 @@ const RightPanelSplit = ({
             barClassName="h-[calc(100%-var(--agent-bar-inset,0px))] self-end [transition:height_240ms_cubic-bezier(0.4,0,0.2,1)]"
             onResizeStart={() => setDragging(true)}
             onResize={(size, total) => {
-                if (open) setLive(clampWidth(size, total))
+                if (open) setLive(clampWidth(size, total, min, max))
             }}
             onResizeEnd={(size, total) => {
                 setDragging(false)
-                if (open) setPersisted(clampWidth(size, total))
+                if (open) setPersisted(clampWidth(size, total, min, max))
             }}
             pane={open || closing ? panel : null}
             fill={children}

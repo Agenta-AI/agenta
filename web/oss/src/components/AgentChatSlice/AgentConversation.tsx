@@ -27,11 +27,7 @@ import {
 } from "@agenta/entities/workflow"
 import {ContextRail} from "@agenta/entity-ui/drive"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
-import {
-    SessionFilesDrawer,
-    filesDrawerOpenAtomFamily,
-    filesDrawerStagedAtomFamily,
-} from "@agenta/entity-ui/drive"
+import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
@@ -42,6 +38,7 @@ import {type FileUIPart, type UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
+import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 
 import {isAgentFileUploadsEnabled} from "./assets/constants"
@@ -147,12 +144,13 @@ const AgentConversation = ({
         turnNumbers,
     } = useTurnInspector({sessionId, messages})
 
-    // Quick Look + Files-window hosts: cards/tiles/rail request via atoms; these resolve against
+    // Quick Look + Files openers: cards/tiles/rail request via atoms; these resolve against
     // THIS conversation's drive: the link provider makes filename mentions clickable, and the
-    // Files drawer (below) hosts both the grid and the single-file preview in one surface.
+    // docked Files pane (hosted a level up in AgentChatPanel, beside the whole chat column)
+    // shows the grid and the single-file preview — every opener (cards, links, rail, the
+    // session bar "«") lands there.
     const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} artifactId={artifactId} />
-    const filesWindowHost = <SessionFilesDrawer sessionId={sessionId} />
-    const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
+    const {openPane: openFilesPane} = useSessionFilesPane(sessionId)
     const setFilesStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
 
     // ── "Run in playground" seam (producer: a trigger drawer's Run-in-playground) ──
@@ -620,7 +618,6 @@ const AgentConversation = ({
             <div className="ag-canvas relative flex h-full min-h-0 w-full flex-row" {...dropTarget}>
                 {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
                 {quickLookHost}
-                {filesWindowHost}
                 {uploadsEnabled ? (
                     <AttachmentViewerDrawer
                         uploads={files}
@@ -747,7 +744,7 @@ const AgentConversation = ({
                             sessionId={sessionId}
                             busy={busy}
                             hidden={buildMode || inspectorOpen}
-                            onOpenFiles={() => setFilesWindowOpen(true)}
+                            onOpenFiles={openFilesPane}
                             onStageFiles={
                                 uploadsEnabled ? (files) => setFilesStaged(files) : undefined
                             }

@@ -44,6 +44,9 @@ export interface SessionTabStripProps {
     addTooltip?: string
     /** Right-aligned extras, pinned outside the scroller (the desktop's history menu). */
     extra?: ReactNode
+    /** Leading extra, pinned before the scroller — the desktop's config-panel reveal control,
+     * rendered at the spot the config panel disappeared from. */
+    leadingExtra?: ReactNode
     /**
      * Changes when the tab SET changes. A ResizeObserver watches the strip's own box, not its
      * content, so adding or removing a chip needs this to re-measure the fade.
@@ -67,6 +70,7 @@ export const SessionTabStrip = ({
     addDisabled = false,
     addTooltip,
     extra,
+    leadingExtra,
     remeasureKey,
     reorder,
     className,
@@ -139,6 +143,9 @@ export const SessionTabStrip = ({
                 className,
             )}
         >
+            {leadingExtra ? (
+                <div className="flex shrink-0 items-center gap-1">{leadingExtra}</div>
+            ) : null}
             {showTabs ? (
                 reorder ? (
                     // The scroller IS the group, so chips stay DIRECT children of the scroll box
