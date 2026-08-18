@@ -1263,6 +1263,69 @@ dev build routinely blows its 15s timeout, which kills the daemon connection and
 minute of recovery per navigation. Setting `location.href` from inside the page and polling for
 the landed path keeps the wait ours.
 
+## 4k. Observability, second pass — the Sessions tab and the trace drawer
+
+Prioritised by the blast-radius table in §4j: observability is 184 changed files and only its
+traces-table chrome had been looked at.
+
+### Sessions tab — no findings
+
+`content` 1.29%, `content-body` 0.68%. The visible column difference (prod's row of headers
+ends at `End time`, this build's shows `Duration` under the gear) is **not** a column-set
+difference: both builds report the identical ten `th` — Session id · Traces · First input ·
+Last output · Start time · End time · Duration · Total Latency · Total Usage · Total Cost —
+and neither has a persisted `*-columns` key. It is auto-sizing against different data (prod
+has one session row, this build none). The rest is data.
+
+### Trace drawer opens on BOTH — two false findings caught before filing
+
+Worth recording as method, because I nearly filed each one:
+
+1. **"The trace drawer never opens locally."** The first row click produced no dialog and no
+   URL change, twice, with no console error. It was a stale page state left over from my own
+   URL fiddling. A clean click opens it.
+2. **"It opens, then closes itself."** A read a few seconds after the click showed
+   `dialogs: 0`. Sampling every 250ms shows why: `2 → 0 → 1` in the first 1.7s (the drawer
+   remounts as its content loads), then **1 for the rest of the window**. The single read had
+   landed in the dip.
+
+Both are the same lesson in different clothes: a **single observation of an async surface is
+not an observation.** Sample it over time, then decide.
+
+### O-01 — the open trace is not reflected in the URL — **CONFIRMED, not fixed**
+
+The one real difference, reproducible across every sample:
+
+| | prod | this build |
+|---|---|---|
+| drawer open | yes | yes |
+| URL | `?tab=traces&trace=f67be2f…&span=577c6acf…` | `?tab=traces` |
+
+So a trace here cannot be deep-linked or shared, does not survive a reload, and the back
+button does not close the drawer. Navigating in with `?trace=<id>` is also dropped, so the
+break is in both directions.
+
+**Not diagnosed to a cause.** `handleTraceRowClick` calls `setTraceParam(targetTraceId)` and is
+**byte-identical** to 112.2's, and `web/oss/src/state/appState/` (which owns
+`useQueryParamState` → `requestNavigationAtom`) has **no diff at all** against 112.2. The
+navigation bridge in `Layout.tsx` consumes the atom on both. So the write is issued and
+silently lost somewhere downstream — that is where the next session should start, not in the
+handler.
+
+Ruled out on the way: the package `ObservabilityTracesTable` does NOT swallow the host's
+`onRow` (its override only applies when an `onRowClick` prop is passed, and the host passes
+none), and the row does carry the click affordance on both builds (`cursor: pointer`,
+`data-tour="trace-row"`).
+
+### Lead, NOT a finding — the rows are different elements
+
+Prod renders trace body rows as `DIV`s and this build as `<tbody><tr>`, which is the tell for
+antd's `virtual` mode being on there and off here. Both builds set `virtual: true` in
+`useTableManager`, and the two tables held different row counts (prod 1, local 5) when I looked,
+which is enough on its own to change antd's behaviour. **Unverified either way** — it needs a
+comparable row count on both before it means anything. Filed as a lead because a lost
+virtualization would not show at five rows and would hurt badly at a thousand.
+
 ## 5. Coverage — NOT yet done
 
 This inventory is **not complete**. Untouched so far:
