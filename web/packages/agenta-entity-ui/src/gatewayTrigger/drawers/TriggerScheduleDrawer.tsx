@@ -1,22 +1,19 @@
 import {useCallback, useState} from "react"
 
 import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 
-import {SHOW_LIST_RAIL} from "./schedule/constants"
-import {ScheduleDrawerContent} from "./schedule/ScheduleDrawerContent"
 import {ScheduleForm} from "./schedule/ScheduleForm"
 
 // ---------------------------------------------------------------------------
 // TriggerScheduleDrawer (root) — create or edit a schedule.
 //
-// Binds a recurring UTC cron tick to a workflow revision. Edits are full-PUT:
-// the body is sourced from the freshly-fetched schedule and only owned fields
-// are overridden. From a playground it's a master-detail manager: existing
-// schedules on the left, the config on the right, a persistent "Run in
-// playground" in the footer. From settings (no playground) it stays a single
-// create/edit form, since that page already lists schedules.
+// Binds a recurring UTC cron tick to a workflow revision. Edits are full-PUT: the body is
+// sourced from the freshly-fetched schedule and only owned fields are overridden. Both hosts
+// render the same single form; the playground passes its agent so the drawer can drop the agent
+// picker and offer "Run in playground".
 // ---------------------------------------------------------------------------
 
 export default function TriggerScheduleDrawer() {
@@ -35,45 +32,46 @@ export default function TriggerScheduleDrawer() {
     }, [])
 
     const playgroundEntityId = renderedState?.playgroundEntityId
-    const title =
-        SHOW_LIST_RAIL && playgroundEntityId
-            ? "Schedules"
-            : renderedState?.scheduleId
-              ? "Edit schedule"
-              : "New schedule"
+    const agentName = useAtomValue(
+        workflowMolecule.selectors.artifactName(playgroundEntityId ?? ""),
+    )
+    const title = renderedState?.scheduleId ? "Edit schedule" : "New schedule"
 
-    // EnhancedDrawer renders nothing until first open and unmounts after close, so the
-    // content below — which owns all data fetching and master-detail state — only mounts
-    // (and its hooks only run) while the drawer is open. Settings mounts the bare form for
-    // the same reason: it never shows the rail, so it must not pay for the schedules list
-    // query or the draft state. The lifecycle is structural; no `enabled` flags needed.
+    // EnhancedDrawer renders nothing until first open and unmounts after close, so the form
+    // below — which owns all data fetching — only mounts (and its hooks only run) while the
+    // drawer is open. The lifecycle is structural; no `enabled` flags needed.
     return (
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={handleClose}
             afterOpenChange={handleAfterOpenChange}
-            title={title}
-            width={playgroundEntityId ? 960 : 640}
+            title={
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span>{title}</span>
+                    {agentName ? (
+                        <>
+                            <span className="text-[var(--ag-colorTextQuaternary)]">·</span>
+                            <span className="min-w-0 truncate text-sm font-normal text-[var(--ag-colorTextDescription)]">
+                                {agentName}
+                            </span>
+                        </>
+                    ) : null}
+                </span>
+            }
+            width={640}
             closeOnLayoutClick={false}
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
         >
-            {renderedState &&
-                (playgroundEntityId ? (
-                    <ScheduleDrawerContent
-                        state={renderedState}
-                        playgroundEntityId={playgroundEntityId}
-                        onClose={handleClose}
-                    />
-                ) : (
-                    <ScheduleForm
-                        key={renderedState.scheduleId ?? "new"}
-                        scheduleId={renderedState.scheduleId}
-                        onClose={handleClose}
-                    />
-                ))}
+            {renderedState && (
+                <ScheduleForm
+                    key={renderedState.scheduleId ?? "new"}
+                    scheduleId={renderedState.scheduleId}
+                    onClose={handleClose}
+                />
+            )}
         </EnhancedDrawer>
     )
 }

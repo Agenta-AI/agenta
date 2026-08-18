@@ -8,6 +8,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import suppress, display_exception
+from agenta.sdk.utils.providers import normalize_provider_kind
 
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 from agenta.sdk.contexts.running import RunningContext
@@ -362,7 +363,11 @@ async def get_secrets(
         display_exception("Vault: Vault Secrets Exception")
 
     local_standard = {}
-    vault_standard = {}
+    # A project may hold several connections per provider family, so vault provider_key records
+    # are kept as a list. Keying them by family (as the locals still are) would drop every
+    # connection but the last, making a named second OpenAI key unreachable.
+    vault_standard = []
+    vault_standard_kinds = set()
     vault_custom = []
 
     if local_secrets:
@@ -372,13 +377,25 @@ async def get_secrets(
     if vault_secrets:
         for secret in vault_secrets:
             if secret["kind"] == "provider_key":  # type: ignore
-                vault_standard[secret["data"]["kind"]] = secret  # type: ignore
+                vault_standard.append(secret)
+                vault_standard_kinds.add(
+                    normalize_provider_kind(secret["data"]["kind"])  # type: ignore
+                )
             elif secret["kind"] == "custom_provider":  # type: ignore
                 vault_custom.append(secret)
 
-    combined_standard = {**local_standard, **vault_standard}
-    combined_vault = list(vault_standard.values()) + vault_custom
-    secrets = list(combined_standard.values()) + vault_custom
+    # A stored key still shadows the env-var local for the same family. Compared by canonical
+    # family, because the two sides can spell one family differently (MISTRALAI_API_KEY against
+    # a stored `mistral`) and a raw comparison would let the env key survive and then win the
+    # resolver's tiebreak, which reads both spellings as the same family.
+    surviving_locals = [
+        secret
+        for kind, secret in local_standard.items()
+        if normalize_provider_kind(kind) not in vault_standard_kinds
+    ]
+    combined_standard = surviving_locals + vault_standard
+    combined_vault = vault_standard + vault_custom
+    secrets = combined_standard + vault_custom
 
     secrets_cache = pack_secrets_cache_payload(
         secrets=secrets,

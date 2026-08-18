@@ -30,8 +30,11 @@ import {
 } from "./pi-assets.ts";
 import {
   buildPiModelConfigPlan,
-  type PiModelConfigPlan,
+  buildPiModelRegistrationPlan,
+  describePiModelsJsonPlan,
+  type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
+import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
 import { buildRunPlan } from "./run-plan.ts";
 import { configFingerprint } from "./session-identity.ts";
 import type {
@@ -182,7 +185,9 @@ export async function prepareEnvironmentSetup(
     request,
     piSkillSnapshot,
     log: logger,
-    deps: { ...(deps.buildDaemonEnv ? { buildDaemonEnv: deps.buildDaemonEnv } : {}) },
+    deps: {
+      ...(deps.buildDaemonEnv ? { buildDaemonEnv: deps.buildDaemonEnv } : {}),
+    },
   });
   const env = runtimeEnvironment.env;
   const piExtEnv = runtimeEnvironment.piExtEnv;
@@ -210,7 +215,7 @@ export async function prepareEnvironmentSetup(
   // but incomplete request throws — captured here and re-thrown inside the try below so the
   // engine's own catch turns it into `{ ok: false, error }` and a visible error frame (fail loud,
   // never a silent fall-back to a default provider). Only the env var NAME enters the plan.
-  let piModelConfig: PiModelConfigPlan | undefined;
+  let piModelConfig: PiModelsJsonPlan | undefined;
   let piModelConfigError: Error | undefined;
   if (plan.isPi) {
     try {
@@ -232,11 +237,28 @@ export async function prepareEnvironmentSetup(
       piModelConfigError = err as Error;
     }
   }
+  // No custom provider to register, but the requested model may still be one Pi's static registry
+  // does not carry — a hand-entered id such as an OpenRouter routing variant. Pi refuses to select
+  // an unregistered model, so merge it into its built-in provider for this run only.
+  //
+  // Skipped for a local subscription run: its Pi agent dir is the operator's own mounted login,
+  // which `prepareLocalPiAssets` uses in place and must not be rewritten per run. A Daytona run
+  // has no such mount (its agent dir lives in the sandbox), so registration applies there.
+  const canWritePiModelsJson =
+    plan.isDaytona || plan.credentials.credentialMode !== "runtime_provided";
+  if (
+    plan.isPi &&
+    !piModelConfig &&
+    !piModelConfigError &&
+    canWritePiModelsJson
+  ) {
+    const registry = await loadPiBuiltinRegistry(logger);
+    if (registry) {
+      piModelConfig = buildPiModelRegistrationPlan(request, registry);
+    }
+  }
   if (piModelConfig) {
-    logger(
-      `pi model-config plan provider=${piModelConfig.providerId} api=${piModelConfig.api} ` +
-        `model=${piModelConfig.models.map((m) => m.id).join(",")}`,
-    );
+    logger(`pi models.json plan ${describePiModelsJsonPlan(piModelConfig)}`);
   }
 
   // undefined is fine: the local provider runs its own resolution and errors clearly.

@@ -87,9 +87,14 @@ group by job:
 ```
 
 `runContext` is the run's own context (its trace + workflow identity), filled by the service in
-`app.py` from `run_context()` (`tracing.py`) and refreshed each turn. It is consumed ONLY by a
+`app.py` from `run_context()` (`tracing.py`) and refreshed each turn. It has two consumers. A
 tool's `call.context` binding at dispatch: the runner fills the bound request fields from this blob
-server-side, hidden from the model (see `runner-to-tool-callback.md`). `workflow` mirrors the
+server-side, hidden from the model (see `runner-to-tool-callback.md`). And session attribution: the
+runner turns `runContext.workflow` into the flat reference list it writes on the turn-ledger append
+and proposes on the session heartbeat (`sessions/interactions.ts`,
+`buildWorkflowReferenceList`), which is what lets a session row name the agent it runs. A
+`runContext` that omits `workflow.artifact` therefore leaves a session attributable only by its
+variant, which no route can open. `workflow` mirrors the
 platform's three workflow entities — `artifact` / `variant` / `revision`, each an `{id, slug,
 version}` reference — and `is_draft` says whether the run targets a committed revision or a
 playground draft. The conversation id is NOT carried here on the wire; it rides the top-level
@@ -170,6 +175,9 @@ error.
   terminal result.
 - **Error and cancellation behavior.** HTTP maps `>= 400` to a runtime error; the CLI uses
   exit codes. HTTP streaming wires an `AbortSignal` to client disconnect; the CLI has none.
+- **Which workflow entities `runContext.workflow` carries.** Dropping one is not just a lost
+  binding: the same blob attributes the session, so a run that arrives without its `artifact`
+  produces a session no surface can open.
 
 ## Required test updates
 

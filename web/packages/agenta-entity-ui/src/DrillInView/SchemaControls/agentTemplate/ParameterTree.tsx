@@ -15,7 +15,7 @@ import {useEffect, useMemo, useState} from "react"
 import {Button} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
 
-import {RowRemoveButton} from "../../../drawers/shared/MasterDetailRail"
+import {RowRemoveButton} from "../../../drawers/shared/RowRemoveButton"
 
 import {
     defType,

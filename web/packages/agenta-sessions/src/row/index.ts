@@ -6,6 +6,7 @@ export {
     sessionAutomationTitle,
     type SessionAutomationVm,
 } from "./sessionTrigger"
+export {sessionAgentId} from "./sessionAgent"
 export {sessionRowTitle, type SessionRowTitle} from "./sessionRowTitle"
 export {sessionPreviewText} from "./sessionPreview"
 export {

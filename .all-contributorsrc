@@ -689,6 +689,25 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "iamhaseebn",
+      "name": "Haseeb Nazir",
+      "avatar_url": "https://avatars.githubusercontent.com/u/36381672?v=4",
+      "profile": "https://github.com/iamhaseebn",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "SJY051",
+      "name": "Seojin Yoon",
+      "avatar_url": "https://avatars.githubusercontent.com/u/68188784?v=4",
+      "profile": "https://github.com/SJY051",
+      "contributions": [
+        "code",
+        "test"
+      ]
     }
   ],
   "contributorsPerLine": 7,
