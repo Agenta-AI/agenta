@@ -42,7 +42,6 @@ const CatalogDrawer = dynamic(
     {ssr: false},
 )
 
-
 const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     const uri = "playground" // Static value, no need for complex data subscription
 
