@@ -26,6 +26,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
+import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
@@ -121,12 +122,14 @@ export const useAgentChatSession = ({
     // instead of sticking to the revision this session first mounted on.
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
-            const req = await buildAgentRequest(entityId, messages, {
-                sessionId: id ?? sessionId,
-            })
-            if (!req) {
-                throw new Error("This agent workflow has no invocation URL — it can’t be run yet.")
-            }
+            // Bounded: retries while the invocation URL is still loading and rejects if the build
+            // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
+            // (#6042). The helper owns the not-ready / timed-out errors.
+            const req = await buildRequestWithinDeadline(() =>
+                buildAgentRequest(entityId, messages, {
+                    sessionId: id ?? sessionId,
+                }),
+            )
             captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
             return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
         },
