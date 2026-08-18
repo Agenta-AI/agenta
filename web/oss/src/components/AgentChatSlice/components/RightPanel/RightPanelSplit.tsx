@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
-import {SplitPane} from "@agenta/ui/ui"
+import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
 import {useAtom, type WritableAtom} from "jotai"
 
 import {
@@ -13,10 +13,6 @@ import {
 /** Clamp the panel width to [min, max] AND never let the chat fall below its floor. */
 const clampWidth = (w: number, total: number, min: number, max: number) =>
     Math.max(min, Math.min(w, max, Math.max(min, total - CHAT_MIN)))
-
-// Open/close slide duration — matches SplitPane's flex-basis transition (240ms, the
-// playground curve), so the closing content hold below releases right as the slide ends.
-const SLIDE_MS = 240
 
 /**
  * Nested resizable split: [chat | right panel]. The split (and thus the chat column) stays
@@ -59,7 +55,7 @@ const RightPanelSplit = ({
     const [closing, setClosing] = useState(false)
     const [holdAnimate, setHoldAnimate] = useState(false)
     const justToggled = prevOpenRef.current !== open
-    // One effect per flip: hold the transition class ~SLIDE_MS so removing it doesn't snap, and
+    // One effect per flip: hold the transition class for the whole slide so removing it doesn't snap, and
     // keep the panel's content mounted for the same window so it slides out instead of blanking to
     // an empty sliver. Deps = `open` ONLY, and guarded on the ref, so mount and re-renders during
     // the hold don't re-arm (which would cancel the timer and leave the class stuck on).
@@ -71,7 +67,7 @@ const RightPanelSplit = ({
         const timer = setTimeout(() => {
             setHoldAnimate(false)
             setClosing(false)
-        }, SLIDE_MS + 40)
+        }, paneSlideHoldMs())
         return () => clearTimeout(timer)
     }, [open])
     const animate = (justToggled || holdAnimate) && !dragging
@@ -100,10 +96,9 @@ const RightPanelSplit = ({
             barHidden={!open}
             className="h-full min-h-0 w-full flex-1"
             // The divider spans the pane height minus the absolute session bar's inset, so it
-            // starts below the bar; transitioned on the build↔chat flip to move with the panes.
-            // `flex-basis` is listed HERE too: this class lands after SplitPane's own slide in the
-            // merge, so a height-only declaration would silently drop the bar's open/close slide.
-            barClassName="h-[calc(100%-var(--agent-bar-inset,0px))] self-end [transition:height_240ms_cubic-bezier(0.4,0,0.2,1),flex-basis_240ms_cubic-bezier(0.4,0,0.2,1)]"
+            // starts below the bar. SplitPane owns the transition (height AND flex-basis, one
+            // duration) — declaring one here silently dropped the other.
+            barClassName="h-[calc(100%-var(--agent-bar-inset,0px))] self-end"
             onResizeStart={() => setDragging(true)}
             onResize={(size, total) => {
                 if (open) setLive(clampWidth(size, total, min, max))

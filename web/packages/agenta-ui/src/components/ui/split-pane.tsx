@@ -54,7 +54,33 @@ export interface SplitPaneProps {
 
 const BAR_WIDTH = 9
 
-const SLIDE = "[transition:flex-basis_240ms_cubic-bezier(0.4,0,0.2,1)]"
+/**
+ * ⚠ TEMPORARY DIAGNOSTIC VALUE — ships as 240. Raised so the collapse can be watched frame by
+ * frame; put it back before landing.
+ */
+export const PANE_SLIDE_MS = 1000
+
+const PANE_SLIDE_CURVE = "cubic-bezier(0.4,0,0.2,1)"
+
+/**
+ * The pane slide's duration, in ms. Overridable at runtime so the motion can be slowed down and
+ * inspected without a rebuild:
+ *
+ *     localStorage.setItem("agenta:debug:pane-slide-ms", "2500")   // then toggle the pane
+ *     localStorage.removeItem("agenta:debug:pane-slide-ms")        // back to the built-in value
+ *
+ * Read per render (a toggle re-renders, so a new value takes effect on the next one). Hosts hold
+ * their transition class for `paneSlideHoldMs()` so the class never leaves before the slide ends —
+ * scale them together or the pane snaps at the tail.
+ */
+export const paneSlideMs = (): number => {
+    if (typeof window === "undefined") return PANE_SLIDE_MS
+    const raw = Number(window.localStorage?.getItem("agenta:debug:pane-slide-ms"))
+    return Number.isFinite(raw) && raw > 0 ? raw : PANE_SLIDE_MS
+}
+
+/** How long a host must keep its `animate` flag on to cover the whole slide. */
+export const paneSlideHoldMs = (): number => paneSlideMs() + 40
 
 /** Keyboard resize increments — the ARIA window-splitter pattern's arrow step and its coarse
  * (modifier-held) counterpart. */
@@ -188,6 +214,7 @@ export function SplitPane({
     const lastOpenSizeRef = React.useRef(paneSize)
     if (paneSize > 0) lastOpenSizeRef.current = paneSize
     const sliding = animate && !dragging
+    const slideMs = paneSlideMs()
 
     const paneNode = (
         <div
@@ -197,10 +224,14 @@ export function SplitPane({
                 // an intrinsic width would refuse to follow `paneSize` down. The basis is the truth.
                 "relative box-border min-h-0 min-w-0 shrink-0 overflow-hidden",
                 paneGrow ? "grow" : "grow-0",
-                sliding && SLIDE,
                 paneClassName,
             )}
-            style={{flexBasis: paneSize}}
+            style={{
+                flexBasis: paneSize,
+                // Inline, not a class: the duration is dynamic, and inline also beats any
+                // `transition` a host set through `paneClassName`.
+                transition: sliding ? `flex-basis ${slideMs}ms ${PANE_SLIDE_CURVE}` : undefined,
+            }}
         >
             {/* During the slide the content is TAKEN OUT OF FLOW at a FIXED pixel width and pinned
                 to the edge the pane collapses towards, so the shrinking box translates it out of
@@ -253,10 +284,16 @@ export function SplitPane({
                 resizable &&
                     !barHidden &&
                     "cursor-col-resize outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
-                animate && !dragging && SLIDE,
                 barClassName,
             )}
-            style={{flexBasis: barHidden ? 0 : BAR_WIDTH, width: barHidden ? 0 : BAR_WIDTH}}
+            style={{
+                flexBasis: barHidden ? 0 : BAR_WIDTH,
+                width: barHidden ? 0 : BAR_WIDTH,
+                // `height` rides along for hosts that resize the bar (the chat's bar clears the
+                // absolute session strip); `flex-basis` never changes during a drag, so leaving
+                // both on unconditionally costs nothing.
+                transition: `flex-basis ${slideMs}ms ${PANE_SLIDE_CURVE}, height ${slideMs}ms ${PANE_SLIDE_CURVE}`,
+            }}
         >
             {/* Centre hairline — strengthens to the border tone on hover/drag. */}
             <span

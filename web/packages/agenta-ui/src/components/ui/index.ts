@@ -86,7 +86,13 @@ export {
     ContextMenuItem,
     ContextMenuSeparator,
 } from "./context-menu"
-export {SplitPane, type SplitPaneProps} from "./split-pane"
+export {
+    SplitPane,
+    paneSlideHoldMs,
+    paneSlideMs,
+    PANE_SLIDE_MS,
+    type SplitPaneProps,
+} from "./split-pane"
 export {Accordion, AccordionItem, AccordionTrigger, AccordionContent} from "./accordion"
 export {
     Skeleton,

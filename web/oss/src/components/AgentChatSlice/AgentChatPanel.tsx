@@ -14,7 +14,7 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {pendingSessionOpenAtom} from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {SplitPane} from "@agenta/ui/ui"
+import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {SessionFilesPane, useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
@@ -234,7 +234,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         if (prevMaximizedRef.current === chatMaximized) return
         prevMaximizedRef.current = chatMaximized
         setHoldAnimate(true)
-        const t = setTimeout(() => setHoldAnimate(false), 280)
+        const t = setTimeout(() => setHoldAnimate(false), paneSlideHoldMs())
         return () => clearTimeout(t)
     }, [chatMaximized])
     const animateRailSplit = justToggled || holdAnimate

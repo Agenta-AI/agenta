@@ -13,7 +13,7 @@ import {EmptyState, ExecutionHeader, useEntitySelector} from "@agenta/playground
 import ExecutionItems, {
     type PlaygroundGenerationsProps,
 } from "@agenta/playground-ui/execution-items"
-import {SplitPane} from "@agenta/ui/ui"
+import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -275,7 +275,7 @@ const PlaygroundMainView = ({
         if (prevCollapsedRef.current === configCollapsed) return
         prevCollapsedRef.current = configCollapsed
         setHoldAnimate(true)
-        const t = setTimeout(() => setHoldAnimate(false), 280)
+        const t = setTimeout(() => setHoldAnimate(false), paneSlideHoldMs())
         return () => clearTimeout(t)
     }, [configCollapsed])
     const animateSplit = justToggled || holdAnimate
