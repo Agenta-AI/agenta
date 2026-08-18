@@ -884,6 +884,38 @@ only the two ADD commits (`3f263b80a7`, `9973454264`), both ancestors of HEAD, w
 symbols are absent at HEAD — that contradiction IS the signature of a silent merge drop.
 Worth checking the other carve merges the same way.
 
+### P-08 — the `/` command palette never opens — **FIXED (Arda, observed)**
+
+Typing `/` into the composer does nothing here; prod opens the palette. Reproduced on both
+by clicking into the editor, clearing it, and typing a single `/`: prod renders a
+`[role=listbox]` reading `COMMANDS · /model … /permissions … /new`, this build renders none.
+
+**Same silent merge drop, third instance.** `useChatSlashCommands` exists, compiles, and is
+imported by nothing; `slashCommands=` is passed nowhere. 112.2 wires all of it in
+`AgentComposerDock` (the hook, both picker panels, the anchor box, the focus dance,
+`slashCommands={slash.sections}`), and the lane's rewrite of that file — 138 insertions
+against 338 deletions — took the whole block with it.
+
+Restored, plus the one seam the extraction added: the composer is now the SHARED
+`ChatComposer` (`@agenta/chat`), which did not forward `slashCommands` to `RichChatInput`.
+It takes the prop now, so mobile can offer commands whenever it wants them.
+
+Verified end to end, not just by the palette rendering:
+
+| step | result |
+|---|---|
+| type `/` | palette opens; identical to prod row for row (COMMANDS header, the three commands with their trailing values, `↑↓ navigate · ↵ open · esc dismiss`) |
+| `↵` on `/model` | the model picker docks to the composer box — `Search models`, the `/model` suffix, the Anthropic group, `Changes this agent's draft config. Open config → … ← back to commands` |
+| `/new` + `↵` | a third session tab appears |
+
+Prod's picker shows only the group column where this build also expands the models — prod's
+agent is on `GPT-5.6 Luna`, which is not in its own list, so nothing auto-selects. Data.
+
+**Where else to look.** Three drops now share one signature: a symbol that still exists,
+still type-checks, and has zero consumers, lost in a merge rather than a commit. Worth a
+sweep for unreferenced exports across the carve's blast radius rather than waiting to trip
+over the next one.
+
 ### P-04 — the whole config pane sits 1 CSS px left of prod's — **P3, measured, not fixed**
 
 Every label in the pane (`Configuration`, `Model`, `Instructions`, `Tools`,

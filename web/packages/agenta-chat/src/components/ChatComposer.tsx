@@ -10,7 +10,7 @@
 import {Suspense, lazy, type ReactNode, type RefObject} from "react"
 
 import {HeightCollapse} from "@agenta/ui/height-collapse"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
@@ -55,6 +55,8 @@ export interface ChatComposerProps {
     extraPrefix?: ReactNode
     /** The input's trailing slot (onboarding actions). */
     trailing?: ReactNode
+    /** The `/` palette's sections. Omit where the surface has no commands. */
+    slashCommands?: SlashCommandSection[]
     /** Suspense fallback while the Lexical chunk hydrates (hosts pass their skeleton). */
     fallback?: ReactNode
 }
@@ -79,6 +81,7 @@ export const ChatComposer = ({
     onViewAttachment,
     extraPrefix,
     trailing,
+    slashCommands,
     fallback,
 }: ChatComposerProps) => {
     const {
@@ -114,6 +117,7 @@ export const ChatComposer = ({
                         : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)")
                 }
                 initialMarkdown={initialMarkdown}
+                slashCommands={slashCommands}
                 onChange={onChange}
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
