@@ -27,7 +27,9 @@ import {palette, type ColorValue, type Pair} from "../oss/src/styles/theme/palet
 const HERE = dirname(fileURLToPath(import.meta.url)) // web/scripts
 const WEB = pathResolve(HERE, "..") // web
 const OSS = pathResolve(WEB, "oss")
-const CURRENT_CSS = pathResolve(OSS, "src/styles/theme-variables.css")
+// The live token layer lives in @agenta/ui (see the header note) — both apps import it.
+// Left pointing at oss/ it would regenerate a file nothing reads.
+const CURRENT_CSS = pathResolve(WEB, "packages/agenta-ui/src/styles/theme-variables.css")
 const OUT = process.env.GEN_OUT
     ? pathResolve(WEB, process.env.GEN_OUT)
     : pathResolve(process.env.SCRATCH || "/tmp", "theme-gen")
