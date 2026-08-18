@@ -99,13 +99,9 @@ const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_
 /** Our slug namespace. Unstripped, `__ag__request_input` derives "Requested an Ag input". */
 const INTERNAL_SLUG_PREFIX = "__ag__"
 
-/**
- * Every op we ship, mirroring `PLATFORM_OPS` in the SDK's `platform/op_catalog.py` plus the two
- * client tools. A bare name is only ours if it is in here: a reference tool carries the user's own
- * workflow name, and applying our glossary to it renames THEIR nouns (`list_workflows` is their
- * workflows, not "agents"). An op missing from this set still conjugates, so forgetting one costs
- * plain wording rather than wrong wording.
- */
+/** Ops we ship, mirroring the SDK's `platform/op_catalog.py` plus the two client tools. A bare name
+ * is ours only if listed: a reference tool carries the user's own workflow name, and the glossary
+ * would rename THEIR nouns. A missing op still conjugates, so it costs plain wording, not wrong. */
 const PLATFORM_OPS = new Set([
     "annotate_trace",
     "commit_revision",
@@ -284,7 +280,10 @@ const ARTICLES = new Set(["a", "an", "the"])
 
 /** The verb in an action name and its object. Catalog actions are often noun-first
  * ("Events list"), and those read with no tense at all unless the tail is checked too. */
-const splitVerb = (label: string): {verb: string; forms: ToolActivity; rest: string[]} | null => {
+const splitVerb = (
+    label: string,
+    appName?: string,
+): {verb: string; forms: ToolActivity; rest: string[]} | null => {
     const words = label.split(" ").filter(Boolean)
     if (!words.length) return null
     const first = words[0].toLowerCase()
@@ -292,10 +291,10 @@ const splitVerb = (label: string): {verb: string; forms: ToolActivity; rest: str
     if (words.length < 2) return null
     const last = words[words.length - 1].toLowerCase()
     if (!VERB_FORMS[last]) return null
-    // The label is title-cased, so its first word carries a capital it only had for leading the
-    // phrase. Mid-sentence ("Checked Google Calendar Events") that capital is wrong.
-    const rest = [words[0].toLowerCase(), ...words.slice(1, -1)]
-    return {verb: last, forms: VERB_FORMS[last], rest}
+    // Title case gave the first word a capital only for leading the phrase, and mid-sentence that
+    // is wrong. An app's own name is the exception, and it takes the catalog's spelling.
+    const head = appName && appWordTest(appName)(first) ? appName : first
+    return {verb: last, forms: VERB_FORMS[last], rest: [head, ...words.slice(1, -1)]}
 }
 
 /** Verbs a query may lend, so a run of searches is not eight identical rows. Read-only on
@@ -353,7 +352,7 @@ const conjugate = (
     appName?: string,
     query?: string,
 ): BuiltActivity | null => {
-    const split = splitVerb(label)
+    const split = splitVerb(label, appName)
     if (!split) return null
     const {forms, rest} = split
     const object = rest.join(" ").trim()
@@ -503,15 +502,10 @@ const parseShape = (raw: string, input: unknown, ours: boolean, appName?: string
         }
     }
     if (!token) return {label: clamp(raw, 60), kind: "platform"}
+    // No source to go on: a gateway action slug (`GITHUB_SEARCH_ISSUES`) and a reference tool's
+    // workflow slug are the same shape here, so an unknown verb keeps its plain label either way.
     const {label} = parseGatewayToolName(raw)
-    const built = conjugate(label, ours, appName, query)
-    // A name with no verb we know is somebody's own tool. Calling one runs another workflow, which
-    // is truthful and gives the row a tense it otherwise never gets.
-    const fallback: BuiltActivity = {
-        activity: {running: `Running ${inSentence(label)}`, done: `Ran ${inSentence(label)}`},
-        namedApp: false,
-    }
-    return {label, kind: "platform", activity: built ?? (ours ? undefined : fallback)}
+    return {label, kind: "platform", activity: conjugate(label, ours, appName, query) ?? undefined}
 }
 
 /** The sandbox root every path in a session sits under. Machine-generated and identical on every
@@ -593,7 +587,7 @@ const overrideActivity = (
  * tool, it did not run it, so "Sent a Gmail email" would be a false claim. */
 const reportedActivity = (action: string, appName: string): BuiltActivity | null => {
     const label = parseGatewayToolName(action).label
-    const split = splitVerb(label)
+    const split = splitVerb(label, appName)
     if (!split || !QUERY_VERBS.has(split.verb)) return null
     return conjugate(label, false, appName)
 }

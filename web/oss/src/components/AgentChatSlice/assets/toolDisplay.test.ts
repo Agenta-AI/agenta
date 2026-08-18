@@ -429,14 +429,14 @@ describe("resolveToolDisplay for a user's own reference tool", () => {
         expect(done("mcp__agenta-tools__query_spans")).toBe("Looked through runs")
     })
 
-    // Workflow slugs are usually nouns, so they used to read the same in both tenses and the row
-    // never visibly progressed. Calling a reference tool runs another workflow.
-    it("gives a name with no verb a tense of its own", () => {
+    // A gateway action slug (`GITHUB_SEARCH_ISSUES`) has the same shape as a workflow slug here, so
+    // neither can be given a borrowed verb.
+    it("leaves a name with no verb alone rather than inventing one", () => {
         expect(resolveToolDisplay("daily_summary").activity).toEqual({
-            running: "Running daily summary",
-            done: "Ran daily summary",
+            running: "Daily summary",
+            done: "Daily summary",
         })
-        expect(done("classify_ticket")).toBe("Ran classify ticket")
+        expect(done("github_search_issues")).toBe("Github search issues")
     })
 
     it("prefers the real verb when the name has one", () => {
@@ -653,6 +653,15 @@ describe("resolveToolDisplay for external tools", () => {
             resolveToolDisplay("tools__composio__slack__SEND_A_MESSAGE__c1", {}, "Slack").activity
                 .done,
         ).toBe("Sent a Slack message")
+    })
+
+    // Lowercasing the leading word is right for "Events list"; it is wrong when that word is the
+    // app's own name, and echoesApp then drops the properly-cased prefix so only the bad one shows.
+    it("keeps a brand's capital when the action name leads with it", () => {
+        expect(
+            resolveToolDisplay("tools__composio__github__GITHUB_ISSUES_LIST__c1", {}, "GitHub")
+                .activity.done,
+        ).toBe("Checked GitHub issues")
     })
 
     // Plenty of catalog actions are noun-first, and those used to read with no tense at all.

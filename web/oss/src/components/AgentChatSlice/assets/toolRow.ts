@@ -21,6 +21,9 @@ export const isUnknownResultError = (errorText: string | undefined): boolean =>
 export const isNonFinalRunnerError = (errorText: string | undefined): boolean =>
     isDeferredError(errorText) || isUnknownResultError(errorText)
 
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+    Boolean(v && typeof v === "object" && !Array.isArray(v))
+
 const errorTextOf = (part: ToolUIPart): string | undefined =>
     (part as {errorText?: string}).errorText
 
@@ -92,10 +95,20 @@ export const summarizeOutput = (output: unknown): string | null => {
     return String(output)
 }
 
+/** Text keys a shell or file result carries when it arrives as an envelope rather than a string. */
+const PAYLOAD_TEXT_KEYS = ["stdout", "output", "content", "text"]
+
 /** How much came back, for output that is a payload rather than a message. */
 export const sizeOf = (output: unknown): string | null => {
-    if (typeof output !== "string") return null
-    const text = stripFence(output).trim()
+    // A persisted shell result is often `{stdout: "..."}`, which has a line count like any other.
+    const raw =
+        typeof output === "string"
+            ? output
+            : isRecord(output)
+              ? PAYLOAD_TEXT_KEYS.map((k) => output[k]).find((v) => typeof v === "string")
+              : undefined
+    if (typeof raw !== "string") return null
+    const text = stripFence(raw).trim()
     if (!text) return null
     const lines = text.split("\n").length
     return `${lines} line${lines === 1 ? "" : "s"}`

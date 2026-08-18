@@ -189,6 +189,21 @@ describe("sizeOf", () => {
         expect(sizeOf(null)).toBeNull()
     })
 
+    // A persisted shell result arrives as an envelope, not a bare string.
+    it("counts lines inside a structured stdout result", () => {
+        expect(sizeOf({stdout: "a.txt\nb.txt"})).toBe("2 lines")
+        expect(
+            rowSummary(
+                part({state: "output-available", output: {stdout: "a\nb\nc"}}),
+                display("bash", {command: "ls"}),
+            ),
+        ).toBe("3 lines")
+    })
+
+    it("still says nothing for an envelope with no text in it", () => {
+        expect(sizeOf({exitCode: 0})).toBeNull()
+    })
+
     it("strips a code fence before counting", () => {
         expect(sizeOf("```ts\na\nb\n```")).toBe("2 lines")
     })
