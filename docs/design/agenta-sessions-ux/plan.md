@@ -201,6 +201,17 @@ The single most load-bearing new mechanism: every row on Home and on the Session
 - `appId` comes from the row's `references[0].id`. **A session with no turns has no references** —
   its row cannot resolve an agent, so the open action must be disabled with an explanatory
   tooltip rather than navigating somewhere wrong.
+  - Superseded since. Reference elements now carry a `key` discriminator, so the agent id is the
+    element with `key === "workflow"` rather than the first entry. `sessionAgentId`
+    (`@agenta/sessions/row`) owns that choice for both the open target and the agent chip below.
+    Which rows survive depends on the group (`sessionGroupRows`). The MAIN list is browsing, so it
+    shows only rows that are both started and openable. PINNED and WAITING are exempt and stay
+    visible even when they resolve no target, because both hold rows someone asked for by name: a
+    pin that vanishes reads as data loss, and hiding an approval-gated row asks its owner to
+    approve a call they cannot see. Automation rows keep their carve-out everywhere, so the
+    automations list never blanks. Fewer rows lack a target now in any case: the stream row
+    carries its own references, so a session is attributable before its first turn append lands.
+    See `docs/design/untitled-sessions-investigation/`.
 - Revision: the playground picks its own default (latest committed). Mobile decided "continue uses
   the latest config *used in* the session"; desktop will diverge here in iteration 1. Record it,
   don't fix it now.
@@ -320,6 +331,12 @@ later steps; Ashraf's "quality over quantity" concern was answered by Mahmoud wi
    around it.
 3. **Sessions with no turns** (no `references`) appear in the list but cannot be opened. Should
    they be listed at all, or filtered out?
+   - Answered: filtered, but only where the list is browsing. The main list hides rows that are
+     unstarted or unopenable, matching what the sidebar already did; pinned and waiting rows stay
+     visible even when inert, because someone asked for those by name; automation rows keep their
+     carve-out. The same work also gave the stream row its own `references`, so a session whose
+     turn append never landed is now openable instead of hidden
+     (`docs/design/untitled-sessions-investigation/`).
 4. **Is a slim whole-project index the cheaper answer?** The rejected alternative: one endpoint
    returning `(session_id, activity, flags, references, name)` for the whole project, fetched
    whole, with the client filtering and grouping exactly and hydrating full rows only for the

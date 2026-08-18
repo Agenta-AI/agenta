@@ -9,3 +9,4 @@ export {useSelectionState, type UseSelectionStateResult} from "./useSelectionSta
 export {useRunAllShortcut, type UseRunAllShortcutParams} from "./useRunAllShortcut"
 export {useReducerAtom} from "./useReducerAtom"
 export {useModifierKey} from "./useModifierKey"
+export {useAltKey} from "./useAltKey"

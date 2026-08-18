@@ -4,6 +4,7 @@ import {
     ArrowsIn,
     ArrowsOut,
     CaretDoubleRight,
+    Copy,
     DotsThree,
     DownloadSimple,
     GitBranch,
@@ -97,14 +98,12 @@ export const DriveHeader = ({
     // (transient null before the root auto-selects) → no toggle.
     const hasDetails = isFolder ? isRepo : selectedPath != null
     const overflow: MenuProps["items"] = [
+        // Label only — the raw uuid under it made every item two lines tall and stretched the menu to
+        // the width of a uuid; the value goes to the clipboard, which is the whole point of the item.
         ...ids.map((id) => ({
             key: id.key,
-            label: (
-                <div className="flex flex-col gap-0.5 py-0.5">
-                    <span className="text-xs font-medium">Copy {id.label}</span>
-                    <span className="font-mono text-[12px] text-colorTextTertiary">{id.value}</span>
-                </div>
-            ),
+            label: `Copy ${id.label}`,
+            icon: <Copy size={14} />,
         })),
         // Only a separator when there IS something above it — a host without drive ids (the ids
         // resolve async, and the local-file drive never has any) otherwise opens on a stray rule.

@@ -22,6 +22,10 @@ import {
   claudeSystemPromptMeta,
   composeSystemPromptAppendix,
 } from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
+import {
+  fileCitationAppendix,
+  platformGuidanceAppendix,
+} from "../../src/engines/sandbox_agent/platform-guidance.ts";
 
 const MOUNT = "/home/sandbox/agenta/mounts/proj-1/sandbox-1-agent";
 
@@ -87,5 +91,27 @@ describe("the delivery channels carry either statement unchanged", () => {
       appendToSystemPrompt("author text", agentMountUnavailableGuidance()),
       `author text\n\n${agentMountUnavailableGuidance()}`,
     );
+  });
+});
+
+describe("file citation guidance", () => {
+  it("requires a clickable full absolute path and rejects a bare basename", () => {
+    const text = fileCitationAppendix().text;
+    assert.match(text, /clickable Markdown link/);
+    assert.match(text, /full absolute path/);
+    assert.match(text, /Do not cite only a basename/);
+  });
+
+  it("is included for every harness through the rendered instructions file", () => {
+    for (const acpAgent of ["pi", "claude", "codex"]) {
+      const text = platformGuidanceAppendix({
+        acpAgent,
+        isPi: acpAgent === "pi",
+        agentMountedPath: undefined,
+        agentMountSkipped: false,
+        toolNames: [],
+      });
+      assert.match(text ?? "", /full absolute path/);
+    }
   });
 });

@@ -12,7 +12,7 @@ import {useRovingList} from "./useRovingList"
 /**
  * The `/permissions` picker: the four default policies with their descriptions, nothing else.
  *
- * One click applies — no detail pane and no commit step, unlike `/harness`. Rule editing stays in
+ * One click applies — no detail pane and no commit step. Rule editing stays in
  * the config drawer; this only sets `runner.permissions.default`, so the rules beside it survive.
  */
 const PermissionsPickerPanel = ({

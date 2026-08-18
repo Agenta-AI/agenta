@@ -43,6 +43,11 @@ const DRIVEN_SLIDE_CLASS =
 const BAR_INSET_CLASS =
     "[&>.ant-splitter-bar]:!h-[calc(100%-var(--agent-bar-inset,0px))] [&>.ant-splitter-bar]:!self-end " +
     "[&>.ant-splitter-bar]:[transition:height_240ms_cubic-bezier(0.4,0,0.2,1)]"
+// A COLLAPSED panel draws no divider: these splits nest (Inspector inside the Files split's chat
+// column), so a closed one's hairline lands ~1px from the open one's and reads as a double border.
+// `visibility` (not display) keeps the bar's box, so the open panel's slide isn't disturbed; held
+// until the close slide finishes so the line leaves with the pane, not before it.
+const BAR_HIDDEN_CLASS = "[&>.ant-splitter-bar]:invisible"
 
 /**
  * Nested resizable split: [chat | right panel]. The Splitter (and thus the chat column) stays
@@ -133,7 +138,7 @@ const RightPanelSplit = ({
         // playground-splitter classes: this divider renders EXACTLY like the config pane's (2px
         // hairline + centered grip) instead of antd's default bar, so all vertical seams match.
         <Splitter
-            className={`h-full min-h-0 w-full flex-1 playground-splitter playground-splitter-agent ${FILL_PANE_CLASS} ${BAR_INSET_CLASS} ${animate ? DRIVEN_SLIDE_CLASS : ""}`}
+            className={`h-full min-h-0 w-full flex-1 playground-splitter playground-splitter-agent ${FILL_PANE_CLASS} ${BAR_INSET_CLASS} ${animate ? DRIVEN_SLIDE_CLASS : ""} ${!open && !closing ? BAR_HIDDEN_CLASS : ""}`}
             onResizeStart={() => setDragging(true)}
             onResize={(sizes) => {
                 if (open) setLive(clampWidth(sizes[1], sizes[0] + sizes[1], min, max))

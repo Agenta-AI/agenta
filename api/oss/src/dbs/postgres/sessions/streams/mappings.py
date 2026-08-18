@@ -17,6 +17,10 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamHeaderEdit,
     SessionStreamQueryResult,
 )
+from oss.src.dbs.postgres.sessions.references import (
+    references_from_json,
+    references_to_json,
+)
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 
 
@@ -131,6 +135,7 @@ def map_stream_dto_to_dbe_create(
         tags=stream.tags,
         meta=stream.meta,
         turn_id=stream.turn_id,
+        references=references_to_json(stream.references),
     )
 
 
@@ -152,6 +157,7 @@ def map_stream_dbe_to_dto(
         name=stream_dbe.name,
         description=stream_dbe.description,
         turn_id=stream_dbe.turn_id,
+        references=references_from_json(stream_dbe.references),
         archived_at=stream_dbe.archived_at,
         flags=SessionStreamFlags.model_validate(stream_dbe.flags)
         if stream_dbe.flags

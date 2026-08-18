@@ -11,7 +11,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamQueryResult,
     SessionStreamReadOptions,
 )
-from oss.src.core.sessions.types import SessionTriggerAttribution
+from oss.src.core.sessions.types import SessionReference, SessionTriggerAttribution
 from oss.src.core.shared.dtos import Windowing
 
 
@@ -90,6 +90,30 @@ class SessionStreamsDAOInterface(ABC):
         session_id: str,
         header: SessionStreamHeaderEdit,
     ) -> Optional[SessionStream]: ...
+
+    @abstractmethod
+    async def query_session_ids_by_references(
+        self,
+        *,
+        project_id: UUID,
+        references: List[SessionReference],
+        limit: int,
+    ) -> List[str]:
+        """Session ids whose stream-row references satisfy the same containment the
+        turns query applies."""
+        ...
+
+    @abstractmethod
+    async def fill_missing(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        name: Optional[str] = None,
+        references: Optional[List[SessionReference]] = None,
+    ) -> bool:
+        """Write each field onto the row only where it is still NULL; never overwrite."""
+        ...
 
     @abstractmethod
     async def delete_by_session_id(

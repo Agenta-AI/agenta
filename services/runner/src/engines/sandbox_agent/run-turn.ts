@@ -21,7 +21,7 @@ import {
 } from "../../responder.ts";
 import {
   buildInteractionData,
-  buildWorkflowReferences,
+  buildWorkflowReferenceList,
   createInteraction,
   resolveInteraction,
 } from "../../sessions/interactions.ts";
@@ -367,7 +367,7 @@ export async function runTurn(
           }
         : undefined;
     if (turnLedgerContext) {
-      const workflowRefs = buildWorkflowReferences(
+      const workflowRefs = buildWorkflowReferenceList(
         request.runContext?.workflow,
       );
       // Row existence proves only that a turn started. Native continuation is trustworthy only
@@ -381,7 +381,7 @@ export async function runTurn(
           turnId: request.turnId,
           agentSessionId: env.session?.agentSessionId,
           sandboxId: env.sandbox?.sandboxId,
-          references: workflowRefs ? Object.values(workflowRefs) : undefined,
+          references: workflowRefs,
           traceId: run.traceId() ?? request.runContext?.trace?.trace_id,
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,

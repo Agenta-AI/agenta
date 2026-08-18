@@ -19,28 +19,22 @@ export type WebhookProvider = "webhook" | "github"
 
 export type GitHubDispatchType = "repository_dispatch" | "workflow_dispatch"
 
-interface WebhookFormValuesBase<P extends WebhookProvider = WebhookProvider> {
-    provider: P
+export interface WebhookFormValues {
+    provider: WebhookProvider
     name?: string
     event_types?: WebhookEventType[]
-}
-
-export interface WebhookConfigFormValues extends WebhookFormValuesBase<"webhook"> {
+    events?: WebhookEventType[]
     url?: string
     headers?: Record<string, string>
+    header_list?: {key: string; value: string}[]
     auth_mode?: "signature" | "authorization"
     auth_value?: string
-}
-
-export interface GitHubFormValues extends WebhookFormValuesBase<"github"> {
     github_sub_type?: GitHubDispatchType
     github_repo?: string
     github_pat?: string
     github_workflow?: string
     github_branch?: string
 }
-
-export type WebhookFormValues = WebhookConfigFormValues | GitHubFormValues
 
 /** Typed flags (WP6): webhooks carry only `is_active` (no validity concept). */
 export interface WebhookSubscriptionFlags {
