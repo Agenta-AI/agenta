@@ -258,22 +258,26 @@ const PlaygroundMainView = ({
     const configPanelCollapsed = useAtomValue(configPanelCollapsedAtom)
     const configCollapsed =
         !isComparisonView && isAgentConfig && (chatMaximized || configPanelCollapsed)
-    // Ease the config pane between its width and 0 on a Build/Chat toggle. The transition class must
-    // land in the SAME commit as the size change (else it snaps), so detect the flip during render
-    // via a ref compare; hold it ~280ms so removing the class doesn't snap, then drop it (mount,
-    // drag, and window resize keep it off so the panes never lag their target size).
-    const prevMaximizedRef = useRef(chatMaximized)
+    // Ease the config pane between its width and 0 on EITHER collapse trigger. The transition class
+    // must land in the SAME commit as the size change (else it snaps), so detect the flip during
+    // render via a ref compare; hold it ~280ms so removing the class doesn't snap, then drop it
+    // (mount, drag, and window resize keep it off so the panes never lag their target size).
+    //
+    // Watch `configCollapsed`, not `chatMaximized`: the « control writes `configPanelCollapsedAtom`,
+    // so latching on the maximize flag alone left the button's own collapse un-animated — the pane
+    // jumped 440→0 in one frame while the Build/Chat toggle eased.
+    const prevCollapsedRef = useRef(configCollapsed)
     const [holdAnimate, setHoldAnimate] = useState(false)
-    const justToggled = prevMaximizedRef.current !== chatMaximized
+    const justToggled = prevCollapsedRef.current !== configCollapsed
     // Deps = toggle value ONLY: with `justToggled` in deps, the holdAnimate re-render re-ran the
     // effect and its cleanup cancelled the timer — the class stuck on and every drag lagged.
     useEffect(() => {
-        if (prevMaximizedRef.current === chatMaximized) return
-        prevMaximizedRef.current = chatMaximized
+        if (prevCollapsedRef.current === configCollapsed) return
+        prevCollapsedRef.current = configCollapsed
         setHoldAnimate(true)
         const t = setTimeout(() => setHoldAnimate(false), 280)
         return () => clearTimeout(t)
-    }, [chatMaximized])
+    }, [configCollapsed])
     const animateSplit = justToggled || holdAnimate
     // Agent split runs on the kit SplitPane (controlled px): the dragged width persists for the
     // mount; 440 is the summary panel's cap and its default.

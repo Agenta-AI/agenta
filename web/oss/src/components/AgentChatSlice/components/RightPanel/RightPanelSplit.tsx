@@ -87,6 +87,11 @@ const RightPanelSplit = ({
             fillMin={CHAT_MIN}
             resizable={open}
             animate={animate}
+            // A closed panel draws no divider. These splits NEST (Inspector inside the Files
+            // split's chat column), so two closed ones painted 18px of stacked empty gutter at the
+            // right edge; a single closed one reads as a double border beside an open one. Zero-
+            // width rather than unmounted, so it closes on the same curve as the panel.
+            barHidden={!open}
             className="h-full min-h-0 w-full flex-1"
             // The divider spans the pane height minus the absolute session bar's inset, so it
             // starts below the bar; transitioned on the build↔chat flip to move with the panes.

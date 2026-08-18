@@ -33,7 +33,9 @@ export interface SplitPaneProps {
     resizable?: boolean
     /** Transition the driven pane's flex-basis (240ms, the playground curve). */
     animate?: boolean
-    /** Hide the divider entirely (collapsed rail). The panes stay mounted. */
+    /** Collapse the divider to zero width (collapsed rail). It stays MOUNTED and, while
+     * `animate`, closes on the same curve as the driven pane — unmounting it moved the fill 9px in
+     * the first frame of a collapse, which read as a snap before the slide. */
     barHidden?: boolean
     /** Let the driven pane grow past `paneSize` — for one-pane layouts where the fill is hidden. */
     paneGrow?: boolean
@@ -80,6 +82,8 @@ export function SplitPane({
     fillClassName,
     barClassName,
 }: SplitPaneProps) {
+    // The gutter's live width: 0 while hidden, so every total derived from it stays honest.
+    const barWidth = barHidden ? 0 : BAR_WIDTH
     const rootRef = React.useRef<HTMLDivElement>(null)
     const [dragging, setDragging] = React.useState(false)
     const lastRef = React.useRef<{size: number; total: number}>({size: paneSize, total: 0})
@@ -94,18 +98,18 @@ export function SplitPane({
 
     const readTotal = React.useCallback(() => {
         const rect = rootRef.current?.getBoundingClientRect()
-        return rect ? rect.width - BAR_WIDTH : lastRef.current.total
-    }, [])
+        return rect ? rect.width - barWidth : lastRef.current.total
+    }, [barWidth])
 
     React.useEffect(() => {
         const el = rootRef.current
         if (!el || typeof ResizeObserver === "undefined") return
-        const read = () => setMeasuredTotal(el.getBoundingClientRect().width - BAR_WIDTH)
+        const read = () => setMeasuredTotal(el.getBoundingClientRect().width - barWidth)
         read()
         const observer = new ResizeObserver(read)
         observer.observe(el)
         return () => observer.disconnect()
-    }, [])
+    }, [barWidth])
 
     /** Both the pointer and keyboard paths land here, so the callback contract is one contract. */
     const commit = React.useCallback(
@@ -130,11 +134,11 @@ export function SplitPane({
         if (!dragging) return
         const rect = rootRef.current?.getBoundingClientRect()
         if (!rect) return
-        const total = rect.width - BAR_WIDTH
+        const total = rect.width - barWidth
         const raw =
             paneSide === "start"
-                ? e.clientX - rect.left - BAR_WIDTH / 2
-                : rect.right - e.clientX - BAR_WIDTH / 2
+                ? e.clientX - rect.left - barWidth / 2
+                : rect.right - e.clientX - barWidth / 2
         commit(clamp(Math.round(raw), total), total)
     }
     /** `pointerup` and `pointercancel` (scroll takeover, browser gesture) share one exit — without
@@ -197,26 +201,35 @@ export function SplitPane({
         </div>
     )
 
-    const barNode = barHidden ? null : (
+    // Hidden = zero-width, NOT unmounted. Removing the 9px column outright made the fill jump that
+    // much in the frame the collapse started, so the pane's own 240ms slide began from an already-
+    // shifted layout and read as a snap-then-glide. At basis 0 the gutter closes on the same curve
+    // as the pane, and the whole collapse is one motion. It also drops out of the tab order and the
+    // a11y tree while closed, which `display:none` would have done for free and `width:0` must not
+    // forget.
+    const barNode = (
         <div
             data-slot="split-pane-bar"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={resizable ? barLabel : undefined}
-            {...ariaValues}
-            tabIndex={resizable ? 0 : undefined}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerFinish}
-            onPointerCancel={handlePointerFinish}
-            onKeyDown={handleKeyDown}
+            role={barHidden ? undefined : "separator"}
+            aria-orientation={barHidden ? undefined : "vertical"}
+            aria-hidden={barHidden || undefined}
+            aria-label={resizable && !barHidden ? barLabel : undefined}
+            {...(barHidden ? {} : ariaValues)}
+            tabIndex={resizable && !barHidden ? 0 : undefined}
+            onPointerDown={barHidden ? undefined : handlePointerDown}
+            onPointerMove={barHidden ? undefined : handlePointerMove}
+            onPointerUp={barHidden ? undefined : handlePointerFinish}
+            onPointerCancel={barHidden ? undefined : handlePointerFinish}
+            onKeyDown={barHidden ? undefined : handleKeyDown}
             className={cn(
-                "group relative z-[5] box-border h-full shrink-0 touch-none select-none bg-[var(--ag-surface-gutter)]",
+                "group relative z-[5] box-border h-full shrink-0 touch-none select-none overflow-hidden bg-[var(--ag-surface-gutter)]",
                 resizable &&
+                    !barHidden &&
                     "cursor-col-resize outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
+                animate && !dragging && SLIDE,
                 barClassName,
             )}
-            style={{flexBasis: BAR_WIDTH, width: BAR_WIDTH}}
+            style={{flexBasis: barHidden ? 0 : BAR_WIDTH, width: barHidden ? 0 : BAR_WIDTH}}
         >
             {/* Centre hairline — strengthens to the border tone on hover/drag. */}
             <span

@@ -916,6 +916,44 @@ still type-checks, and has zero consumers, lost in a merge rather than a commit.
 sweep for unreferenced exports across the carve's blast radius rather than waiting to trip
 over the next one.
 
+### P-09 — hiding the config pane did not animate at all — **FIXED (Arda; explicitly NOT a parity fix)**
+
+`MainLayout` latches its transition flag off `chatMaximized`:
+
+    const prevMaximizedRef = useRef(chatMaximized)
+    const justToggled = prevMaximizedRef.current !== chatMaximized
+
+but « writes `configPanelCollapsedAtom`. `configCollapsed` is `chatMaximized ||
+configPanelCollapsed`, so the « path flipped `paneSize` 440 → 0 with `animate={false}` and the
+pane vanished in a single frame. The Build/Chat toggle eased; the only collapse control users
+can actually reach did not. Latching on `configCollapsed` covers both triggers.
+
+Second half: the gutter. `SplitPane` UNMOUNTED the 9px divider on `barHidden`, so the fill
+gained 9px in the frame the collapse started and the pane's own 240ms slide began from an
+already-shifted layout — a snap, then a glide. The bar is now zero-width instead of
+unmounted, carries the same `SLIDE`, and closes on the same curve. It drops out of the tab
+order and the a11y tree while closed (`role`/`tabIndex`/handlers all gated), and every total
+derived from the bar width now reads the live width rather than the constant.
+
+**Measured, not eyeballed** — rAF sampling is useless here (the dev build starves it: one run
+recorded two frames 650ms apart and looked like a snap). `transitionstart`/`transitionend`
+with `elapsedTime` is immune:
+
+| | collapse | expand |
+|---|---|---|
+| pane `flex-basis` | start → end, `elapsedTime 0.24` | start → end, `elapsedTime 0.24` |
+| bar `flex-basis` | start and end in the SAME events | — |
+
+### P-10 — 18px of dead gutter at the right edge — **FIXED, found while fixing P-09**
+
+Enumerating the bars for P-09 turned up two 9px gutters painted at x=1776 and x=1785 with no
+panel behind either: `RightPanelSplit` never passed `barHidden`, and it is used TWICE, nested
+(Inspector inside the Files split's chat column). Prod's antd `Splitter` collapses a closed
+panel's bar box to 0 — measured, prod's four bars are all width 0 — so this was local-only.
+
+`barHidden={!open}` on both. The chat column reclaims 18px and the composer lands at x=811
+against prod's 809, where it had been 9px off centre.
+
 ### P-04 — the whole config pane sits 1 CSS px left of prod's — **P3, measured, not fixed**
 
 Every label in the pane (`Configuration`, `Model`, `Instructions`, `Tools`,
