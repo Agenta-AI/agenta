@@ -4,7 +4,7 @@ import type {ConfigMetadata} from "@agenta/entities/shared/execution"
 import type {OpenAPISpec} from "@agenta/entities/shared/openapi"
 import type {Workflow} from "@agenta/entities/workflow"
 import {BaseFixture} from "@agenta/web-tests/tests/fixtures/base.fixture/types"
-export type InvokedVariant = {
+export interface InvokedVariant {
     variant: Workflow
     allMetadata: Record<string, ConfigMetadata>
     inputRow: GenerationInputRow
@@ -31,7 +31,7 @@ export enum Role {
     TOOL = "tool",
     FUNCTION = "function",
 }
-export type RunAutoEvalFixtureType = {
+export interface RunAutoEvalFixtureType {
     name?: string
     evaluators: string[]
     testset: string

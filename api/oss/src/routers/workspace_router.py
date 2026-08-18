@@ -100,16 +100,15 @@ async def get_all_workspace_permissions() -> List[Permission]:
         permissions = await organization_service.get_all_workspace_permissions()
         return sorted(permissions)
     except SQLAlchemyError:
-        log.error(
-            "Database error while fetching workspace permissions", exc_info=True
-        )
+        log.error("Database error while fetching workspace permissions", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="A database error occurred while fetching workspace permissions.",
         )
     except Exception as e:
         log.error(
-            f"Unexpected error while fetching workspace permissions: {str(e)}", exc_info=True
+            f"Unexpected error while fetching workspace permissions: {str(e)}",
+            exc_info=True,
         )
         raise HTTPException(
             status_code=500,
