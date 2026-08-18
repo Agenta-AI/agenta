@@ -54,11 +54,8 @@ export interface SplitPaneProps {
 
 const BAR_WIDTH = 9
 
-/**
- * ⚠ TEMPORARY DIAGNOSTIC VALUE — ships as 240. Raised so the collapse can be watched frame by
- * frame; put it back before landing.
- */
-export const PANE_SLIDE_MS = 1000
+/** The pane slide's duration. Slow it down to inspect the motion — see `paneSlideMs` below. */
+export const PANE_SLIDE_MS = 240
 
 const PANE_SLIDE_CURVE = "cubic-bezier(0.4,0,0.2,1)"
 
