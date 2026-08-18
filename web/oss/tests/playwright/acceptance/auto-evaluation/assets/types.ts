@@ -1,5 +1,5 @@
-export type GenerationChatRow = any
-export type GenerationInputRow = any
+export type GenerationChatRow = Record<string, unknown>
+export type GenerationInputRow = Record<string, unknown>
 import type {ConfigMetadata} from "@agenta/entities/shared/execution"
 import type {OpenAPISpec} from "@agenta/entities/shared/openapi"
 import type {Workflow} from "@agenta/entities/workflow"
