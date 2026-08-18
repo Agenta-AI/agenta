@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import {environmentMolecule} from "@agenta/entities/environment"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
@@ -14,7 +15,7 @@ import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {SimpleTooltip} from "@agenta/ui/ui"
-import {DotsThree, Trash} from "@phosphor-icons/react"
+import {CaretDoubleLeft, DotsThree, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -187,6 +188,14 @@ const PlaygroundVariantConfigHeader = ({
         }
     }, [_variantId])
 
+    // Agent playgrounds swap the kebab for a collapse control (the kebab's only other item,
+    // Revert Changes, lives on the Draft tag in the page header) — PR #5943.
+    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const handleCollapseConfigPanel = useCallback(
+        () => setConfigPanelCollapsed(true),
+        [setConfigPanelCollapsed],
+    )
+
     // Agent playground: the whole bar is the SHARED `AgentConfigHeader` (the mobile app renders
     // exactly this), with the two pieces that are still app-layer passed in as slots.
     if (showAgentHeader && !embedded) {
@@ -198,17 +207,20 @@ const PlaygroundVariantConfigHeader = ({
                 // OSS commit button carries — without it an agent commit leaves this app's
                 // registry and evaluator lists stale and skips the onboarding event.
                 {...commitHost}
-                deploy={
-                    isEvaluatorEntity ? null : (
-                        <DeployVariantButton
-                            revisionId={variantId}
-                            label="Deploy"
-                            type="default"
+                // Collapse, not Deploy + kebab. PR #5943 removed both from the AGENT header by
+                // design and kept them on the classic prompt header; the package extraction
+                // reinstated them here, which also cost this control its accessible name.
+                trailing={
+                    <SimpleTooltip title="Hide configuration">
+                        <EnhancedButton
+                            type="text"
                             size="small"
+                            aria-label="Hide configuration"
+                            icon={<CaretDoubleLeft size={14} />}
+                            onClick={handleCollapseConfigPanel}
                         />
-                    )
+                    </SimpleTooltip>
                 }
-                menu={<PlaygroundVariantHeaderMenu variantId={variantId} />}
             />
         )
     }

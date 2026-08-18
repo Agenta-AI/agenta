@@ -10,10 +10,15 @@ export interface AgentConfigHeaderProps {
     /** Refresh host caches after a commit (see CommitHostAdapter). */
     onAfterCommit?: () => void
     onCommitted?: () => void
-    /** Deploy, where the host can offer it — it still reads app-layer environment state. */
-    deploy?: ReactNode
-    /** The overflow menu, where the host has one. */
-    menu?: ReactNode
+    /**
+     * The bar's trailing control, after Commit. On the desktop that is the collapse («)
+     * control; the host owns it because the collapsed state is app-layer.
+     *
+     * NOT a Deploy button and NOT a kebab: PR #5943 removed both from the AGENT header by
+     * design ("the kebab menu is gone — Revert lives on the Draft tag … per Mahmoud"), keeping
+     * them on the classic prompt playground only.
+     */
+    trailing?: ReactNode
     /** `grow` instead of sticky, for an embedded drawer or a pane that scrolls with its content. */
     embedded?: boolean
     className?: string
@@ -23,8 +28,8 @@ export interface AgentConfigHeaderProps {
  * The agent config panel's header bar.
  *
  * The revision selector lives up in the page header on this surface, so this bar reads as the
- * config panel's "Configuration" header and carries the action row: primary Commit, secondary
- * Deploy, ghost kebab.
+ * config panel's "Configuration" header and carries just the primary Commit plus the host's
+ * trailing control. Deploy and the kebab belong to the CLASSIC prompt header, not this one.
  *
  * Agent config below is a borderless summary, so the bar needs to read as a header. It gets a
  * subtly tinted surface (vs the plain content): an opaque container base (background-color) with
@@ -36,8 +41,7 @@ export const AgentConfigHeader = ({
     appId,
     onAfterCommit,
     onCommitted,
-    deploy,
-    menu,
+    trailing,
     embedded = false,
     className,
 }: AgentConfigHeaderProps) => (
@@ -52,7 +56,6 @@ export const AgentConfigHeader = ({
             <span className="text-[13px] font-semibold text-colorText">Configuration</span>
         </div>
         <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
-            {deploy}
             <CommitVariantChangesButton
                 variantId={revisionId}
                 label="Commit"
@@ -63,7 +66,7 @@ export const AgentConfigHeader = ({
                 onCommitted={onCommitted}
                 data-tour="commit-button"
             />
-            {menu}
+            {trailing}
         </div>
     </section>
 )

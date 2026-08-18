@@ -106,13 +106,43 @@ Evidence: `shots/10-observability.local.png` vs `.prod.png`.
 |---|---|
 | `Deploy` · `+ Create` · `⋮` | `+ Create` |
 
-This is a **deliberate lane change**, not drift: the lane replaced the app-layer agent header
-with the shared `AgentConfigHeader` from `@agenta/playground-ui` (so `/m` renders the same
-bar). 112.1's own source comment states the agent header intentionally *"swap[s] the kebab menu
-for a collapse control (the kebab's only other item, Revert Changes, moved to the Draft tag)"* —
-the lane removed that swap. Flagged because it changes the EE surface; needs a product call.
+**VERDICT REVERSED — this is a REGRESSION, not a deliberate lane change. FIXED.**
 
-Source: `PlaygroundVariantConfigHeader.tsx`, diff `origin/release/v0.112.1..HEAD`.
+I originally filed this as "deliberate, needs a product call". Reading the release history
+settles it the other way. **PR #5943** *"Warm brand recolor and agent playground UX rework"*
+(mmabrouk, merged 12 Aug, commit `3f263b80a7`, in **both** 112.0 and 112.1) says under
+*Playground UX*:
+
+> "**The kebab menu is gone** (Revert lives on the Draft tag; Copy raw config and Delete are
+> dropped, **per Mahmoud**); a « / » control collapses the config panel with the width persisted"
+
+and under *What to QA*:
+
+> "Regression: **the classic (prompt) playground keeps its kebab menu, Deploy button**, and old
+> behaviors throughout."
+
+So Deploy and the kebab were removed from the **agent** header by design, after a day of live
+design review, and deliberately kept on the **classic prompt** header. The package extraction
+reinstated both on the agent surface — undoing a shipped design decision.
+
+Measured, agent config bar:
+
+| | controls |
+|---|---|
+| PROD (112.1) | `Commit` · `Hide configuration` (24px, the « collapse) |
+| LOCAL (before) | `Deploy` (84) · `Commit` (89) · an **unnamed** icon button (28) |
+
+That unnamed button is `ant-dropdown-trigger ant-btn-icon-only` — the kebab. So the lane also
+cost this bar its only accessible name: prod's control carries `aria-label="Hide configuration"`,
+local's carried none, and there was no collapse affordance at all.
+
+**FIXED** — `AgentConfigHeader`'s `deploy` + `menu` slots collapse into one `trailing` slot
+(the component had exactly one consumer, so no host was broken), and the agent branch passes
+112.1's collapse control back: `SimpleTooltip` + `aria-label="Hide configuration"` +
+`CaretDoubleLeft`, wired to `configPanelCollapsedAtom`, which survived the extraction — only
+the *hide* control was dropped, while `ShowConfigPanelButton` kept restoring the panel. The
+component's doc comment, which described the CLASSIC action row ("primary Commit, secondary
+Deploy, ghost kebab") on the agent component, is corrected too.
 
 ### D-05 — "Help & Docs" row lost its trailing chevron — **P3**
 
