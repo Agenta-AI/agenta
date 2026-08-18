@@ -228,6 +228,10 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 )}
                 {renderSlot(section.before, collapsed)}
                 <NavMenu
+                    // A bottom section is anchored from below, so it needs the trailing 4px to
+                    // hold its own height; a top section must not have it, or it pushes every
+                    // section after it down the rail.
+                    className={section.placement === "bottom" ? "pb-1" : undefined}
                     items={section.items}
                     collapsed={collapsed}
                     mode={section.mode}

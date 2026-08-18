@@ -41,10 +41,19 @@ export interface NavMenuProps {
 
 // calc, not 94%: an exact 8px inset each side, so the row's right edge lines up with the
 // 8px-inset collapse toggle in the brand row.
+// h-7 (28px), not h-9: the rail is a dense nav, and 36px rows pushed every item progressively
+// further down the list than the desktop app has ever placed them.
+// gap-[10px], not gap-2: antd Menu's icon margin is 10px, and at 8px every label in the
+// rail sat 2px left of where the desktop app has always drawn it.
 const ROW_BASE =
-    "relative box-border flex h-9 w-[calc(100%-16px)] mx-auto items-center gap-2 rounded-md px-3 text-xs select-none"
-const ROW_INTERACTIVE = "cursor-pointer text-colorTextSecondary hover:bg-colorFillQuaternary"
-const ROW_SELECTED = "bg-colorFillSecondary font-medium !text-colorText"
+    "relative box-border mb-1 flex h-7 w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-md px-3 text-sm leading-7 select-none"
+const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillQuaternary"
+// The rail's own selection tokens, not neutral fills: the pill is accent-washed and the
+// LABEL AND ICON both take the accent (the icon inherits, so no separate rule). The ring
+// is inset rather than a border so the row's box never changes size between states; it is
+// transparent in dark, where the olive wash carries the state on its own.
+const ROW_SELECTED =
+    "bg-[var(--ag-shell-selected-bg)] font-medium !text-[var(--ag-shell-selected-text)] shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]"
 const ROW_DISABLED = "cursor-default text-colorTextQuaternary"
 // Stretches the anchor over the whole row so middle-click / ctrl+click work anywhere on it.
 const LINK_CLASS =
@@ -259,21 +268,28 @@ const NavMenuImpl = ({
                             aria-label={item.title}
                             disabled={item.disabled}
                             className={clsx(
-                                "mx-auto flex items-center rounded-md border-0 bg-transparent",
+                                // [font-family:inherit]: preflight is off, so a bare <button>
+                                // renders Arial while the <div> rows around it render Inter.
+                                "mx-auto flex items-center rounded-md border-0 bg-transparent [font-family:inherit]",
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                                 collapsed
                                     ? "size-8 justify-center"
-                                    : "h-9 w-[calc(100%-16px)] justify-start gap-2 px-3 text-xs",
+                                    : "h-7 w-[calc(100%-16px)] justify-start gap-[10px] px-3 text-sm leading-7",
                             )}
                         >
                             {item.icon}
                             {!collapsed ? <span>{item.title}</span> : null}
                             {/* A group in a vertical section (the bottom rail) renders HERE, not
                                 through RowLabel — the suffix has to be drawn on both paths or
-                                Help & Docs loses its version label. */}
-                            {item.suffix && !collapsed ? (
-                                <span className="ml-auto shrink-0 pl-2">{item.suffix}</span>
+                                Help & Docs loses its version label. The caret stands in for
+                                antd's submenu arrow, which the expanded rail has always shown
+                                (and the collapsed one hidden). */}
+                            {!collapsed ? (
+                                <span className="ml-auto flex shrink-0 items-center gap-2 pl-2 text-colorTextTertiary">
+                                    {item.suffix}
+                                    <CaretRight size={12} />
+                                </span>
                             ) : null}
                         </button>
                     </DropdownMenuTrigger>
@@ -360,10 +376,10 @@ const NavMenuImpl = ({
         )
     }
 
+    // pt only: each row carries its own 4px trailing margin, so a bottom pad paid it twice
+    // and pushed every section after the first 4px further down the rail.
     return (
-        <nav className={clsx("flex w-full flex-col gap-0.5 py-1", className)}>
-            {items.map(renderItem)}
-        </nav>
+        <nav className={clsx("flex w-full flex-col pt-1", className)}>{items.map(renderItem)}</nav>
     )
 }
 

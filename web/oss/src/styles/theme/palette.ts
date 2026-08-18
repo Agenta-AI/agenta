@@ -655,8 +655,10 @@ export const shell = {
     scrollThumb: {light: "rgba(36, 36, 36, 0.22)", dark: "rgba(255, 255, 255, 0.20)"},
     scrollThumbHover: {light: "rgba(36, 36, 36, 0.38)", dark: "rgba(255, 255, 255, 0.34)"},
     // Selected nav row: a WHITE pill with a hairline on the warm rail (a yellow tint
-    // was reviewed and rejected). Dark keeps the shipped olive selection.
-    selectedBg: {light: "#ffffff", dark: "#3e3d1a"},
+    // was reviewed and rejected). Dark keeps the shipped olive selection — #57572a is
+    // what v0.112.1 actually paints (antd derived it; this token only carried the
+    // hairline then, so its old #3e3d1a never shipped).
+    selectedBg: {light: "#ffffff", dark: "#57572a"},
     selectedBorder: {light: HAIRLINE, dark: "transparent"},
     selectedText: {light: INK, dark: "#d1d151"},
 } satisfies Record<string, Pair>

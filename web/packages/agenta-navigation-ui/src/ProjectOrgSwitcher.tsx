@@ -290,7 +290,8 @@ export const ProjectOrgSwitcherView = ({
                             // (not just colors) so the width/padding swap below travels with the
                             // rail rather than snapping ahead of it.
                             "flex cursor-pointer items-center rounded-md border-0 bg-transparent transition-all duration-300 hover:bg-colorFillTertiary",
-                            collapsed ? "h-8 w-8 justify-center p-1" : "w-full gap-2 px-1.5 py-1.5",
+                            // px-3 puts the avatar on the nav rows' icon column instead of 6px inside it.
+                            collapsed ? "h-8 w-8 justify-center p-1" : "w-full gap-2 px-3 py-1.5",
                         )}
                         title={`${projectLabel} · ${orgLabel}`}
                     >
