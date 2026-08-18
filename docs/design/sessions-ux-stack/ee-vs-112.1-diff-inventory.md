@@ -722,6 +722,60 @@ One copy nit introduced by #1: with all three features locked the combined sente
 "…join this organization, verify the domains … and auto-join **and** connect an OIDC identity
 provider…". Grammatical, but long. Worth a copy pass on `AccessUpgradeNotice`.
 
+## 4f. Playground — started. 112.2 matters here, unlike Settings
+
+Projects (Arda's, both named `112-QA`): prod `p/01a011ce-2eb1-…`, local `p/01a011ce-17a2-…`.
+Both already in `env.sh` as `PROD_BASE`/`LOCAL_BASE`.
+
+### 112.2 IS the truth for four playground surfaces — check before filing anything
+
+Settings had zero 112.2 files, so prod won. Playground does not. `git diff
+origin/release/v0.112.1 origin/release/v0.112.2` touches 11 files here, and four change what
+you SEE. **Local will differ from prod on each of these and it is correct:**
+
+| surface | 112.1 (prod) | 112.2 (local) — truth |
+|---|---|---|
+| model picker width | fixed `providerDropdownWidth={560}`, connection column 290 | `max(calc(var(--radix-popover-trigger-width) - 0.5rem), 460px)`, column 200. **Measured live: prod 568px, local 468px.** |
+| every `Select` trigger | UA `button{text-align:center}` centres the label — preflight is off | `text-left` added, plus the value slot scoped so the chevron stops floating mid-trigger |
+| config pane scrollbar | custom `OverlayScrollbar` component | removed in favour of `ag-scroll-no-bar` |
+| selected session tag | `bg-colorFill` | `bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)]` |
+
+### New-agent flow, driven end to end on both
+
+`Create agent` creates immediately and lands in that agent's playground — no dialog. Default
+config is `gpt-5.6-luna`, which shows **`Connect key`** on BOTH builds (only Anthropic is
+keyed on these projects), so the notice is state, not a defect. Switching Model → Anthropic →
+`Haiku 4.5` clears it on both. Per Arda, Anthropic + Haiku is the model to use here.
+
+### P-01 — the whole config pane sits 7px low — **CONFIRMED, not yet fixed**
+
+Ink bands down the config pane, matched agents, dark, seven bands: local is offset **+14
+device px = +7 CSS px on every one of them**, with no accumulation — a single origin shift.
+
+| band | prod | local |
+|---|---|---|
+| 1 | 26 | 40 |
+| 2 | 125 | 139 |
+| 3 | 210 | 224 |
+| … | … | … |
+| 7 | 528 | 542 |
+
+Decomposed by querying the elements: the agent title row starts at **y=8 on prod, y=12 on
+local** (+4, the pane's top padding), and the gap from that row to the `Configuration` bar is
+**9px on prod, 12px on local** (+3). The `Configuration` bar itself is 48px tall on both, so
+nothing below contributes. 4 + 3 = the 7.
+
+### Also seen, already-known
+
+`Deploy` in the config header (D-04, deliberate lane change awaiting a product call) and a new
+`Build | Chat` segmented control local-only — both showed up as config-top regions. The sidebar
+strip reads 1.58% rather than 0.09% purely because prod shows the "Star Agenta" banner that
+local has dismissed (§4, state not code).
+
+**Untouched on this surface:** the remaining drill-ins (Instructions, Tools, Skills, Advanced,
+Subscriptions, Schedules, Files), templates gallery, onboarding canvas, and the chat strip
+(6.61%, regions not yet read).
+
 ### Method note — prod and local are different accounts, so most body regions are DATA
 
 `apiKeys` reads 167 content-body regions and `triggers` 143, but opening the sheets shows
