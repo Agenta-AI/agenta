@@ -462,6 +462,131 @@ sections only. Predicted in D-18, confirmed at +4px by the band profile, then me
 Gates: `pnpm lint-fix` clean · oss `tsc` clean · mobile `tsc` clean · `@agenta/ui` 48/48 ·
 oss `Sidebar` suites 35/35.
 
+## 4c. Settings batch — all 14 sub-pages captured, fixes landed
+
+**112.2 check, done first and for the whole surface:**
+`git diff --name-only origin/release/v0.112.1 origin/release/v0.112.2 -- web/` returns **19
+files, none of them under `settings/`**. So 112.2 has nothing to say about any Settings gap
+and **prod 112.1 is truth for this entire surface.** (The 19 files do matter for later
+surfaces: Playground `MainLayout`/`Playground.tsx`/`PlaygroundSyncStateTag`, `SessionTagBar`,
+observability `CustomAreaChart` + `newObservability/atoms/controls.ts`, `OverlayScrollbar`,
+`globals.css`, `select.tsx`, and the `AgentTemplateControl`/`ModelPickerControl` group. Check
+those before touching Playground, Chat, Sessions or Observability.)
+
+Captured `settings-<tab>.dark` for all 14 sub-pages (`account`, `organizationGeneral`,
+`projects`, `workspace`, `llms`, `apiKeys`, `secrets`, `tools`, `triggers`, `webhooks`,
+`organization`, `auditLog`, `preferences`, `billing`) plus `settings-members.{dark,light}`.
+Sidebar strip re-measured at **0.09% in both themes**, so the committed sidebar batch holds.
+
+### The systemic cause: the extracted settings layer standardised on the wrong scale
+
+Measured on the exact elements via `getComputedStyle` (not inferred, not eyeballed):
+
+| element | PROD | LOCAL (before) |
+|---|---|---|
+| `h1` page title | 24px / 32px / 600 | **20px / 28px** |
+| `p` description | 14px / 20px | **12px** |
+| table `th` | 14px / 20px / **600** / `colorText` | **13px / 18px / 500** / `colorTextSecondary` |
+| `table-layout` | **fixed** | **auto** |
+
+Cross-checked against the app's own antd config (`oss/src/styles/tokens/antd-themeConfig.json`):
+`fontSize: 14`, `lineHeight: 1.4285714`, `fontSizeHeading3: 24`, `lineHeightHeading3: 1.3333`,
+`components.Table.fontSize: 14`. So both extracted literals were simply wrong, and
+`SettingsPageShell`'s comment claiming *"antd's heading-3 (20px / 1.4 / 600)"* is factually
+incorrect — 20px is not heading-3 (24) and not even heading-4 (18) in this app.
+
+**FIXED** — `SettingsPageShell` body `text-[12px] leading-[1.6667]` → `text-[14px]
+leading-[1.4285714]`; `h1` `text-[20px] leading-[1.4]` → `text-[24px] leading-[1.3333]`.
+This closes V-06 and the D-12 "descriptions 12→14 / title 20→24" residue in one move, on all
+14 sub-pages at once.
+
+### V-07 — the "~40px lower" figure was wrong; the real drift is 8px + 8px
+
+Profiling ink bands down the content column (`sample.py`, which the traps prefer over
+`getBoundingClientRect` for exactly this reason):
+
+| landmark | prod CSS y | local CSS y | Δ |
+|---|---|---|---|
+| header divider | 136 | 132 | −4 (local's header is shorter — smaller type) |
+| toolbar / search row | 161 | 165 | **+4** |
+| table top | 199 | 211 | **+12** |
+
+So it is not one 40px offset. `DataTable`'s sticky header pays `pt-2` **and** `pb-2` at rest,
+which 112.1's shell did not: +8px above the toolbar and +8px more before the table, partly
+masked by the −4px the undersized type was subtracting. **FIXED** — `pb-2 pt-2` → `-mt-2 pt-2`,
+so the clearance is bought only once the bar is actually stuck (the same trick
+`SettingsPageShell` already uses on its own header) and the 8px below comes from the wrapper's
+existing `gap-2`.
+
+### The table-chrome findings — confirmed, and all fixed per Arda's call
+
+V-01, V-02 and V-03 are consequences of replacing antd `Table`/`Input.Search` with the
+deliberately antd-free `DataTable`. Arda's call: **restore all three, gear included.**
+
+| id | finding | fix |
+|---|---|---|
+| V-01 | vertical cell dividers missing (112.1 passed `bordered: true`) | `CELL_DIVIDER` on every `th`/`td`, open on the last |
+| V-02 | column-settings ⚙ missing from the header row | new `ColumnSettings` dropdown in the trailing `th`; `hideable` defaults to "every column but the first" |
+| V-03 | search field has no search button | input + attached magnifier `Button`, as `Input.Search` draws it |
+| V-04 / D-14 | member avatar chip missing | `InitialsAvatar size="small"` restored in the Member cell |
+| V-05 | "You" tag lost its blue accent | `<Tag>You</Tag>` → `<Tag size="small" tone="info" label="You">`; `Expired`/`Pending` likewise got their `error`/`warning` tones back |
+| — | columns land at different x on the two builds | `table-fixed`: under `auto` the declared widths are only hints |
+| D-11 | settings rail not keyboard-reachable | `LeafRow` gets `role="menuitem"` + `tabIndex` + Enter/Space when it is a controlled (linkless) row; `<nav>` gets `role="menu"` |
+
+Measured, not guessed, for V-05: sampling the tag pixels gives prod dark bg `#111a2c` / text
+`#1668dc` and light bg `#e5f1f9` — antd's info pair, which is what `tone="info"` resolves to.
+
+**One deliberate gap recorded:** prod persists column visibility per table scope
+(`useStaticTable`'s `tableScope`). The restored ⚙ keeps its state per mount only. Visual
+parity is met; the persistence is not, and is called out here rather than silently implied.
+
+### Members after the batch — measured, and what is still open
+
+`settings-members.dark` content-top: **3.51% → 1.22%**. Sidebar held at 0.09%. The vertical
+rhythm is now **pixel-identical to prod at every landmark** (ink bands, device px):
+
+| landmark | prod | local before | local after |
+|---|---|---|---|
+| page title | 46–81 | 45–74 | **46–81** |
+| header divider | 192–193 | 184–185 | **192–193** |
+| toolbar / search | 242–303 | 250–311 | **242–303** |
+| table top | 318 | 342 | **318** |
+
+Column geometry matches to the pixel — `Member 469/280 · Email 749/505 · Added 1254/279 ·
+gutter 1532/56` on prod against `469/280 · 749/504 · 1253/278 · 1531/56` local — as does the
+search control (`input x 468 w 233 h 30` on both).
+
+**Still open, precisely characterised:**
+
+1. **Table body rows are 4px taller than prod's** (local 45px, prod 41px). The header row
+   already matches at 45px on both. Not yet explained: the cell's content box measures 24px
+   and `py-2` + the border accounts for 41, so 4px is unaccounted for; prod's body is a
+   *virtualized div list*, not `<tbody>`, so its row height comes from the list's item height
+   rather than from cell padding. Needs its own measure/fix pass.
+2. **Sub-pixel text offsets** (~1px) in the email and "Roles and permissions" cells, from the
+   504-vs-505 column rounding. Below the threshold of anything a user sees.
+3. The largest remaining region is the `Added` date — **data** (`02 Dec 2024` vs
+   `09 Apr 2026`, different accounts), already recorded as not a finding.
+
+**Not re-raised — checked and false:** the contact sheet appeared to show a vertical rule
+between `Added` and the action gutter on local but not prod. Measuring both said
+`border-right: 1px` on each. Eyeballing a tile invented the difference; the measurement killed
+it.
+
+**Owed:** the other 13 sub-pages were captured and diffed against the OLD build. They share
+the fixed causes, so their numbers should move the same way, but that is a prediction, not a
+measurement — each still needs a re-sweep against the new build before this surface is closed.
+
+### Method note — prod and local are different accounts, so most body regions are DATA
+
+`apiKeys` reads 167 content-body regions and `triggers` 143, but opening the sheets shows
+prod with 8 API keys where local has none, prod with 3 scheduled runs and 4 connections where
+local shows empty states. **Those region counts are data, not code**, and no fix follows from
+them. Writing to production to match is not an option, so for data-bearing pages the
+comparison is restricted to chrome (header, toolbar, table header, empty state) — stated here
+so a later reader does not mistake the silence for coverage. The chrome findings above were
+confirmed on `members`, `account`, `preferences`, `llms` and `triggers` independently.
+
 ## 5. Coverage — NOT yet done
 
 This inventory is **not complete**. Untouched so far:

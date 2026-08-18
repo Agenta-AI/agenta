@@ -79,10 +79,12 @@ const SettingsPageShell = ({
                 // this page that wants the whole monitor. Capping it here would re-lose the
                 // width that moving Audit Log onto its own scroll was for.
                 variant !== "full" && pageContentWidthClass,
-                // The app's body scale, stated rather than inherited: on the desktop it comes
-                // from antd's 12px/1.667 base, and mobile — which has no antd — was rendering
-                // every Settings tab at the browser's 16px default.
-                "text-[12px] leading-[1.6666666666666667]",
+                // The app's body scale, stated rather than inherited, because mobile has no
+                // antd and was rendering every Settings tab at the browser's 16px default.
+                // These are antd's `fontSize`/`lineHeight` as the app actually configures
+                // them (antd-themeConfig.json: 14 / 1.4285714) — an earlier 12px/1.667 here
+                // rendered the whole page a step below the desktop app.
+                "text-[14px] leading-[1.4285714285714286]",
                 fullHeight ? "h-full min-h-0" : "min-h-full",
             )}
         >
@@ -95,11 +97,13 @@ const SettingsPageShell = ({
                     className="sticky top-0 z-20 -mt-4 flex items-start justify-between gap-6 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer pb-6 pt-4"
                 >
                     <div className="flex min-w-0 flex-col gap-1">
-                        {/* antd's heading-3 (20px / 1.4 / 600) as literals, not `--ant-*` vars:
-                            those exist only where antd runs, so on mobile the heading fell back
-                            to body text and the hierarchy collapsed. `m-0` kills the UA margin
+                        {/* antd's heading-3 (24px / 1.3333 / 600) as literals, not `--ant-*`
+                            vars: those exist only where antd runs, so on mobile the heading
+                            fell back to body text and the hierarchy collapsed. The literals
+                            are 20/1.4 no longer — that was heading-4's size, and it shipped a
+                            title a full step below prod's. `m-0` kills the UA margin
                             (preflight is off). */}
-                        <h1 className="m-0 truncate text-[20px] font-semibold leading-[1.4] text-colorText">
+                        <h1 className="m-0 truncate text-[24px] font-semibold leading-[1.3333333333333333] text-colorText">
                             {title}
                         </h1>
                         <p className="m-0 text-colorTextSecondary">{description}</p>

@@ -3,7 +3,7 @@ import {useMemo} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {formatDay} from "@agenta/shared/utils/dateTime"
-import {Tag} from "@agenta/ui/components/presentational"
+import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
 import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
@@ -82,17 +82,39 @@ export const MembersPage = ({
                 key: "member",
                 title: "Member",
                 width: 280,
-                render: (record) => (
-                    <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium">
-                            {record.user.username || usernameFromEmail(record.user.email)}
-                        </span>
-                        {isSelf(record) ? <Tag>You</Tag> : null}
-                        {/* Invitation state belongs beside the person; accepted members carry none. */}
-                        {record.user?.status === "expired" ? <Tag>Expired</Tag> : null}
-                        {record.user?.status === "pending" ? <Tag>Pending</Tag> : null}
-                    </div>
-                ),
+                render: (record) => {
+                    const name = record.user.username || usernameFromEmail(record.user.email)
+                    return (
+                        <div className="flex min-w-0 items-center gap-2">
+                            <InitialsAvatar size="small" name={name} />
+                            <span className="truncate font-medium" title={name}>
+                                {name}
+                            </span>
+                            {/* Tones, not bare tags: "You" is the accent the desktop app has
+                                always given your own row, and an invitation reads as a state. */}
+                            {isSelf(record) ? (
+                                <Tag size="small" tone="info" label="You" className="shrink-0" />
+                            ) : null}
+                            {/* Invitation state belongs beside the person; accepted members carry none. */}
+                            {record.user?.status === "expired" ? (
+                                <Tag
+                                    size="small"
+                                    tone="error"
+                                    label="Expired"
+                                    className="shrink-0"
+                                />
+                            ) : null}
+                            {record.user?.status === "pending" ? (
+                                <Tag
+                                    size="small"
+                                    tone="warning"
+                                    label="Pending"
+                                    className="shrink-0"
+                                />
+                            ) : null}
+                        </div>
+                    )
+                },
             },
             {key: "email", title: "Email", width: 290, mono: true, render: (r) => r.user?.email},
             ...(renderRoleCell

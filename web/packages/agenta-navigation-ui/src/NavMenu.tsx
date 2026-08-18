@@ -160,19 +160,40 @@ const LeafRow = ({
     item: NavItem
     selected: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
-}) => (
-    <div
-        className={clsx(
-            ROW_BASE,
-            item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
-            selected && ROW_SELECTED,
-        )}
-        onClick={rowClickHandler(item, onItemSelect)}
-    >
-        {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
-        <RowLabel item={item} onItemSelect={onItemSelect} />
-    </div>
-)
+}) => {
+    const onClick = rowClickHandler(item, onItemSelect)
+    // A controlled scope (Settings) gives its items `onItemSelect` and no `link`, so the row
+    // is the only control there is — without this it is an unfocusable <div> wrapping a
+    // <span>, and the whole rail is unreachable by keyboard. Link rows keep their <a>.
+    const isControl = Boolean(onClick) && !item.link
+    return (
+        <div
+            className={clsx(
+                ROW_BASE,
+                item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
+                selected && ROW_SELECTED,
+                isControl &&
+                    "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
+            )}
+            onClick={onClick}
+            role={isControl ? "menuitem" : undefined}
+            tabIndex={isControl ? 0 : undefined}
+            aria-current={isControl && selected ? "page" : undefined}
+            onKeyDown={
+                isControl
+                    ? (event) => {
+                          if (event.key !== "Enter" && event.key !== " ") return
+                          event.preventDefault()
+                          onClick?.(event as unknown as MouseEvent)
+                      }
+                    : undefined
+            }
+        >
+            {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
+            <RowLabel item={item} onItemSelect={onItemSelect} />
+        </div>
+    )
+}
 
 /** Children of a collapsed-rail (or vertical-mode) group, flattened into a Radix flyout. */
 const FlyoutChildren = ({
@@ -379,7 +400,9 @@ const NavMenuImpl = ({
     // pt only: each row carries its own 4px trailing margin, so a bottom pad paid it twice
     // and pushed every section after the first 4px further down the rail.
     return (
-        <nav className={clsx("flex w-full flex-col pt-1", className)}>{items.map(renderItem)}</nav>
+        <nav role="menu" className={clsx("flex w-full flex-col pt-1", className)}>
+            {items.map(renderItem)}
+        </nav>
     )
 }
 
