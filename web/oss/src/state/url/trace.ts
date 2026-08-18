@@ -22,6 +22,11 @@ export const traceIdAtom = atom<string | undefined>(undefined)
 // `syncTraceStateFromUrl` strips `?span=...` while the drawer's tree-click
 // handler re-adds it, producing a tight URL change loop.
 let drawerOpenedViaUrl = false
+// The `?trace=` this sync last acted on. The URL sync opens the drawer when the trace param
+// CHANGES; without this it re-asserted on every sync, so any url sync fired while the param was
+// still on the URL reopened a drawer the user had just closed — close, reopen, close, until the
+// tab locked up. Cleared whenever the param leaves the URL, so the same trace can be reopened.
+let lastSyncedTraceParam: string | undefined
 
 export const clearTraceDrawerState = () => {
     const store = getDefaultStore()
@@ -35,6 +40,7 @@ export const clearTraceDrawerState = () => {
     store.set(selectedTraceIdAtom, "")
     store.set(selectedNodeAtom, "")
     drawerOpenedViaUrl = false
+    lastSyncedTraceParam = undefined
 }
 
 export const syncTraceStateFromUrl = (nextUrl?: string) => {
@@ -76,6 +82,7 @@ export const syncTraceStateFromUrl = (nextUrl?: string) => {
         }
 
         if (!traceParam) {
+            lastSyncedTraceParam = undefined
             if (currentDrawerState.open && !drawerOpenedViaUrl) {
                 return
             }
@@ -86,8 +93,16 @@ export const syncTraceStateFromUrl = (nextUrl?: string) => {
         }
 
         if (currentDrawerState.open && currentTraceId === traceParam) {
+            lastSyncedTraceParam = traceParam
             return
         }
+
+        // Closed, on a trace this sync has already handled: the user closed it. Opening on a URL
+        // CHANGE is the contract; re-asserting on every sync is what made closing impossible.
+        if (!currentDrawerState.open && lastSyncedTraceParam === traceParam) {
+            return
+        }
+        lastSyncedTraceParam = traceParam
 
         // The drawer is being opened by URL sync (rather than programmatically
         // by a button handler that already set `drawerState.open = true`).
