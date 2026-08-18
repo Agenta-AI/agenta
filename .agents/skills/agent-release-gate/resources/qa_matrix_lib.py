@@ -688,3 +688,31 @@ def check_no_blank_success_on_refusal(turns: list[Turn], log_lines: list[str]) -
                     }
                 )
     return {"refusals": refused_ids, "violations": violations}
+
+
+def check_no_silent_turn(turns: list[Turn]) -> dict:
+    """The silent-turn invariant: a turn that said nothing, did nothing, asked nothing, and
+    reported nothing must never be treated as a completed turn.
+
+    That combination is the signature of a swallowed provider failure (ASD-EST100): the model
+    call is rejected, the error is dropped on the way back, and the turn arrives as a clean
+    empty finish. The user sees a blank bubble with no reason anywhere.
+
+    A turn is NOT silent when it produced assistant text, called a tool, raised an approval gate,
+    or carried an error frame — so a parked turn (which always raises a gate) and a failed turn
+    (which carries an error) both pass. Returns {"violations": [...]}; a cell should treat any
+    non-empty `violations` as an automatic FAIL regardless of its own assertions. The one case a
+    cell must filter out itself is a turn it deliberately aborted, which legitimately ends bare.
+    """
+    violations = []
+    for index, turn in enumerate(turns):
+        if turn.reply.strip() or turn.tool_calls or turn.approvals or turn.errors:
+            continue
+        violations.append(
+            {
+                "turn": index,
+                "finishReason": turn.finish_reason,
+                "frames": list(turn.frames),
+            }
+        )
+    return {"violations": violations}
