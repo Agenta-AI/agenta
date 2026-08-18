@@ -229,14 +229,22 @@ body {
     background: var(--ag-colorPrimary) !important;
     opacity: 0.7 !important;
 }
-/* Agent playground: the divider is the GUTTER between the raised Config panel and the recessed
-   Chat canvas — a real ~12px channel (not a hairline) that says "two workspaces". Widen the bar and
-   tint it the near-black/soft-grey gutter tone; the grip pseudo-elements above still read as the
-   handle. */
+/* Agent playground: panels sit flush — no tinted gutter channel between the raised Config panel
+   and the recessed Chat canvas. The bar itself carries no layout width (0, same as antd's own
+   default for the non-agent/classic splitter, which never had a gutter); the grip pseudo-elements
+   above draw the visible hairline + handle directly on that flush seam. Width only (not height):
+   this class only ever pairs with the horizontal splitter — agents are single-entity and excluded
+   from the comparison view's vertical splitter, so there's no vertical case to mirror here. */
 .playground-splitter-agent > .ant-splitter-bar {
-    background: var(--ag-surface-gutter) !important;
-    flex-basis: 9px !important;
-    width: 9px !important;
+    flex-basis: 0 !important;
+    width: 0 !important;
+}
+/* Hit-slop: the dragger div itself paints nothing (the pseudo-elements above are the only visible
+   pixels, at their own fixed 2-4px size), so widening ITS box only grows the invisible, centered
+   click/touch target — grabbing the now-thin line doesn't get fiddly. Doubles antd's own default
+   (6px) for a more forgiving target given there's no wide gutter drawing the eye to the area. */
+.playground-splitter-agent .ant-splitter-bar-dragger {
+    width: 12px !important;
 }
 
 /* ── Agent Playground surface classes ──────────────────────────────────────────────────────────
@@ -1066,7 +1074,10 @@ html::-webkit-scrollbar-thumb:vertical:hover,
    browser will paint, so this panel keeps no scrollbar at all: full-width rows, and no shift
    when the content grows past the viewport. */
 .ag-scroll-no-bar {
+    /* Firefox + Chromium 121+ */
     scrollbar-width: none;
+    /* legacy Edge/IE */
+    -ms-overflow-style: none;
 }
 
 .ag-scroll-no-bar::-webkit-scrollbar {

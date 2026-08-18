@@ -26,12 +26,10 @@ from oss.src.core.triggers.dtos import (
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.sessions.dtos import (
-    SESSION_ORIGIN_TRIGGER,
-    SESSION_TRIGGER_KIND_SCHEDULE,
-    SESSION_TRIGGER_KIND_SUBSCRIPTION,
-    SessionTriggerRef,
+    SessionTriggerAttribution,
+    SessionTriggerKind,
 )
-from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.streams.interfaces import TriggerSessionClaimsDAOInterface
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
@@ -49,16 +47,14 @@ class TriggersDispatcher:
         self,
         *,
         triggers_dao: TriggersDAOInterface,
+        session_claims_dao: TriggerSessionClaimsDAOInterface,
         workflows_service: WorkflowsService,
         dispatch_fn: Optional[Callable] = None,
-        streams_service: Optional[SessionStreamsService] = None,
     ):
         self.triggers_dao = triggers_dao
+        self.session_claims_dao = session_claims_dao
         self.workflows_service = workflows_service
         self._dispatch_fn = dispatch_fn
-        # Optional so existing wiring keeps working; without it a triggered session is
-        # indistinguishable from one a human started.
-        self._streams_service = streams_service
 
     def _build_context(
         self,
@@ -138,7 +134,7 @@ class TriggersDispatcher:
             inputs = resolve_target_fields(
                 template if template is not None else "$", context
             )
-            await self._write_delivery(
+            await self._write_subscription_delivery_if_live(
                 project_id=project_id,
                 user_id=subscription.created_by_id,
                 delivery_id=uuid_compat.uuid7(),
@@ -161,7 +157,7 @@ class TriggersDispatcher:
                 "[TRIGGERS DISPATCHER] Subscription %s is invalid — failed delivery",
                 subscription.id,
             )
-            await self._write_delivery(
+            await self._write_subscription_delivery_if_live(
                 project_id=project_id,
                 user_id=subscription.created_by_id,
                 delivery_id=uuid_compat.uuid7(),
@@ -242,30 +238,34 @@ class TriggersDispatcher:
         (project_id, subscription_id|schedule_id, event_id) the caller's earlier
         dedup pre-check reads. Two concurrent ticks/deliveries for the same event
         both reach `_run`, but only the one whose INSERT lands may invoke — the
-        other's claim returns None and it returns immediately. Every subsequent
+        other's claim returns false and it returns immediately. Every subsequent
         write in this method UPDATEs that same claimed row by id (never inserts),
         so a delivery-write failure after a successful invoke cannot look like "no
         row exists" to a retry and cause a re-invoke.
         """
         is_subscription = isinstance(entity, TriggerSubscription)
-        subscription_id = entity.id if is_subscription else None
-        schedule_id = None if is_subscription else entity.id
 
         delivery_id = uuid_compat.uuid7()
+        session_id = uuid4().hex
         user_id = entity.created_by_id
+        kind = (
+            SessionTriggerKind.subscription
+            if is_subscription
+            else SessionTriggerKind.schedule
+        )
 
-        claimed = await self.triggers_dao.claim_delivery(
+        claimed = await self.session_claims_dao.claim_trigger_delivery(
             project_id=project_id,
             user_id=user_id,
-            delivery=TriggerDeliveryCreate(
-                id=delivery_id,
-                subscription_id=subscription_id,
-                schedule_id=schedule_id,
-                event_id=event_id,
-                status=Status(code="102", message="claimed"),
+            event_id=event_id,
+            session_id=session_id,
+            attribution=SessionTriggerAttribution(
+                configuration_id=entity.id,
+                kind=kind,
+                delivery_id=delivery_id,
             ),
         )
-        if claimed is None:
+        if not claimed:
             log.info(
                 "[TRIGGERS DISPATCHER] claim lost for entity=%s event=%s — already "
                 "claimed/delivered, skipping invoke",
@@ -273,93 +273,80 @@ class TriggersDispatcher:
                 event_id,
             )
             return
-        delivery_id = claimed.id
 
-        context = self._build_context(
-            event=event,
-            entity=entity,
-            project_id=project_id,
-        )
-
-        template = entity.data.inputs_fields
-        inputs = resolve_target_fields(
-            template if template is not None else "$", context
-        )
-
-        references = (
-            {
-                k: ref.model_dump(mode="json", exclude_none=True)
-                for k, ref in entity.data.references.items()
-            }
-            if entity.data.references
-            else None
-        )
-        selector = (
-            entity.data.selector.model_dump(mode="json", exclude_none=True)
-            if entity.data.selector
-            else None
-        )
-
-        delivery_data = TriggerDeliveryData(
-            event_key=entity.data.event_key,
-            references=entity.data.references,
-            inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
-        )
-
-        if not references:
+        delivery_data = TriggerDeliveryData(session_id=session_id)
+        try:
+            context = self._build_context(
+                event=event,
+                entity=entity,
+                project_id=project_id,
+            )
+            template = entity.data.inputs_fields
+            inputs = resolve_target_fields(
+                template if template is not None else "$", context
+            )
+            references = (
+                {
+                    k: ref.model_dump(mode="json", exclude_none=True)
+                    for k, ref in entity.data.references.items()
+                }
+                if entity.data.references
+                else None
+            )
+            if not references:
+                raise ValueError("Entity has no bound workflow reference")
+            selector = (
+                entity.data.selector.model_dump(mode="json", exclude_none=True)
+                if entity.data.selector
+                else None
+            )
+            delivery_data = TriggerDeliveryData(
+                session_id=session_id,
+                event_key=entity.data.event_key,
+                references=entity.data.references,
+                inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
+            )
+            request = WorkflowServiceRequest(
+                references=references,
+                selector=selector,
+                session_id=session_id,
+                data=WorkflowRequestData(
+                    inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
+                ),
+            )
+        except Exception as e:
             await self._complete_delivery(
                 project_id=project_id,
                 delivery_id=delivery_id,
                 status=Status(code="400", message="failed"),
-                data=delivery_data.model_copy(
-                    update={"error": "Entity has no bound workflow reference"}
-                ),
+                data=delivery_data.model_copy(update={"error": str(e)}),
+            )
+            await self._abandon_claimed_session(
+                project_id=project_id, session_id=session_id
             )
             return
 
-        # Mint the session here rather than letting the runner fall back to its own: owning the
-        # id is what lets this delivery name the session it produced, and lets the row be marked
-        # as automation-started before the run creates it.
-        session_id = uuid4().hex
-        delivery_data = delivery_data.model_copy(update={"session_id": session_id})
-        if self._streams_service is not None:
+        if self._dispatch_fn is not None:
+            # Detached completion means the runner accepted ownership. The API has no durable
+            # callback for the run's later terminal outcome, so this delivery remains 202.
             try:
-                await self._streams_service.set_origin(
+                run_id = await self._dispatch_fn(
                     project_id=project_id,
                     user_id=user_id,
-                    session_id=session_id,
-                    origin=SESSION_ORIGIN_TRIGGER,
-                    # Stamped here because this is the only place that knows WHICH automation
-                    # fired: nothing links a session back to a trigger afterwards.
-                    trigger=SessionTriggerRef(
-                        id=str(entity.id),
-                        name=entity.name,
-                        kind=(
-                            SESSION_TRIGGER_KIND_SUBSCRIPTION
-                            if is_subscription
-                            else SESSION_TRIGGER_KIND_SCHEDULE
-                        ),
-                    ),
+                    request=request,
                 )
-            except Exception as e:  # best-effort: a missing tag must not block the run
-                log.warning("[TRIGGERS DISPATCHER] origin stamp failed: %s", e)
-
-        request = WorkflowServiceRequest(
-            references=references,
-            selector=selector,
-            session_id=session_id,
-            data=WorkflowRequestData(
-                inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
-            ),
-        )
-
-        if self._dispatch_fn is not None:
-            # Detached path: hand off to the runner, complete the claimed delivery.
-            run_id = await self._dispatch_fn(
-                project_id=project_id,
-                user_id=user_id,
-                request=request,
-            )
+            except Exception as e:
+                log.error("[TRIGGERS DISPATCHER] detached invoke failed: %s", e)
+                await self._complete_delivery(
+                    project_id=project_id,
+                    delivery_id=delivery_id,
+                    status=Status(code="500", message="failed"),
+                    data=delivery_data.model_copy(update={"error": str(e)}),
+                )
+                await self._abandon_claimed_session(
+                    project_id=project_id, session_id=session_id
+                )
+                raise
             await self._complete_delivery(
                 project_id=project_id,
                 delivery_id=delivery_id,
@@ -434,7 +421,7 @@ class TriggersDispatcher:
             event_id,
         )
 
-    async def _write_delivery(
+    async def _write_subscription_delivery_if_live(
         self,
         *,
         project_id: UUID,
@@ -446,7 +433,7 @@ class TriggersDispatcher:
         status: Status,
         data: TriggerDeliveryData,
     ) -> None:
-        await self.triggers_dao.write_delivery(
+        written = await self.triggers_dao.write_subscription_delivery_if_live(
             project_id=project_id,
             user_id=user_id,
             delivery=TriggerDeliveryCreate(
@@ -458,6 +445,37 @@ class TriggersDispatcher:
                 data=data,
             ),
         )
+        if written is None:
+            # The subscription went inactive/was deleted between the dispatcher's
+            # gate check and this write — not an error, but a silent no-op here
+            # otherwise looks identical to a normal write from the logs alone.
+            log.info(
+                "[TRIGGERS DISPATCHER] delivery write skipped — subscription %s "
+                "is no longer live/active (event=%s)",
+                subscription_id,
+                event_id,
+            )
+
+    async def _abandon_claimed_session(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> None:
+        """Soft-delete the session_streams row `_run`'s claim inserted, when dispatch
+        fails before a turn ever starts. Its `flags` are NULL at claim time — the
+        orphan sweep only matches `is_alive: true` — so left alone it becomes a
+        permanent, un-sweepable phantom session (P0-3)."""
+        try:
+            await self.session_claims_dao.abandon_claimed_session(
+                project_id=project_id, session_id=session_id
+            )
+        except Exception:
+            log.error(
+                "[TRIGGERS DISPATCHER] failed to abandon claimed session=%s",
+                session_id,
+                exc_info=True,
+            )
 
     async def _complete_delivery(
         self,

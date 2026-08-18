@@ -29,7 +29,9 @@ const TemplateCard = ({template, onSelect, loading, disabled}: TemplateCardProps
             disabled={busy}
             aria-busy={loading}
             onClick={() => onSelect(template)}
-            className={`group relative box-border flex h-full flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 text-left transition-colors ${
+            // Warm tinted card in light, matching the home strip's template cards; dark restores
+            // the elevated surface it renders today.
+            className={`group relative box-border flex h-full flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-[var(--ag-surface-paper)] p-5 pt-8 text-left transition-colors dark:bg-colorBgElevated ${
                 busy ? "cursor-default" : "cursor-pointer hover:border-colorBorder"
             } ${disabled ? "opacity-60" : ""}`}
         >

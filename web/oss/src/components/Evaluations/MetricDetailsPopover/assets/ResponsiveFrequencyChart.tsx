@@ -2,6 +2,8 @@ import {type FC, memo, useMemo, useState} from "react"
 
 import clsx from "clsx"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
+
 import {ChartAxis} from "./ChartAxis"
 import ChartFrame from "./ChartFrame"
 import {getYTicks} from "./chartUtils"
@@ -23,15 +25,8 @@ interface ResponsiveFrequencyChartProps {
     dynamicMargin?: Partial<{top: number; right: number; bottom: number; left: number}>
 }
 
-const FREQUENCY_SOLIDS = ["#2563EB", "#7C3AED", "#0EA5E9", "#22C55E", "#F97316", "#EC4899"]
-const FREQUENCY_GRADIENTS = [
-    ["#9BC9FF", "#1D4ED8"],
-    ["#E6C9FF", "#7C3AED"],
-    ["#9CF0E3", "#0EA5E9"],
-    ["#B7F6C5", "#22C55E"],
-    ["#FFD4AD", "#F97316"],
-    ["#FFC2DD", "#EC4899"],
-]
+/** Bars take the categorical series set; the highlight takes its second step. */
+const HIGHLIGHT_SLOT = 1
 
 /**
  * ResponsiveFrequencyChart renders a vertical bar chart for categorical/frequency data.
@@ -47,6 +42,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
         disableGradient = false,
         dynamicMargin: dynamicPropsMargin,
     }) => {
+        const series = useChartSeries()
         const isVertical = direction === "vertical"
         const xMax = Math.max(...data.map((d) => d.count), 1)
         const yCount = data.length
@@ -101,7 +97,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
         const customGradientId = `${gradientBaseId}-custom`
         const highlightGradientId = `${gradientBaseId}-highlight`
         const resolveBarGradientId = (index: number) =>
-            `${gradientBaseId}-bar-${index % FREQUENCY_GRADIENTS.length}`
+            `${gradientBaseId}-bar-${index % series.length}`
         const clamp = (value: number, min: number, max: number) =>
             Math.min(Math.max(value, min), max)
         const TOOLTIP_WIDTH = 160
@@ -125,14 +121,14 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
 
                         const resolveFill = (index: number, isHighlighted: boolean): string => {
                             if (isHighlighted) {
-                                if (disableGradient) return "#0EA5E9"
+                                if (disableGradient) return series[HIGHLIGHT_SLOT]
                                 return `url(#${highlightGradientId})`
                             }
                             if (barColor) {
                                 return disableGradient ? barColor : `url(#${customGradientId})`
                             }
                             if (disableGradient) {
-                                return FREQUENCY_SOLIDS[0]
+                                return series[0]
                             }
                             return `url(#${resolveBarGradientId(0)})`
                         }
@@ -166,7 +162,8 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                         <stop offset="100%" stopColor={barColor} />
                                                     </linearGradient>
                                                 ) : (
-                                                    FREQUENCY_GRADIENTS.map(([from, to], idx) => (
+                                                    // Flat fills: both stops are the series color.
+                                                    series.map((color, idx) => (
                                                         <linearGradient
                                                             key={`${gradientBaseId}-bar-${idx}`}
                                                             id={`${gradientBaseId}-bar-${idx}`}
@@ -175,8 +172,8 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                             x2="100%"
                                                             y2="0%"
                                                         >
-                                                            <stop offset="0%" stopColor={from} />
-                                                            <stop offset="100%" stopColor={to} />
+                                                            <stop offset="0%" stopColor={color} />
+                                                            <stop offset="100%" stopColor={color} />
                                                         </linearGradient>
                                                     ))
                                                 )}
@@ -187,8 +184,14 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                     x2="100%"
                                                     y2="0%"
                                                 >
-                                                    <stop offset="0%" stopColor="#CFFAFE" />
-                                                    <stop offset="100%" stopColor="#06B6D4" />
+                                                    <stop
+                                                        offset="0%"
+                                                        stopColor={series[HIGHLIGHT_SLOT]}
+                                                    />
+                                                    <stop
+                                                        offset="100%"
+                                                        stopColor={series[HIGHLIGHT_SLOT]}
+                                                    />
                                                 </linearGradient>
                                             </>
                                         )}
@@ -228,7 +231,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                             margin.top +
                                                             yScaleVertical(val as number)
                                                         }
-                                                        stroke="#faad14"
+                                                        stroke="var(--ag-colorWarning)"
                                                         strokeWidth={2}
                                                         strokeDasharray="4 2"
                                                     />
@@ -268,7 +271,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                             xScaleHorizontal(val as number)
                                                         }
                                                         y2={margin.top + plotHeight}
-                                                        stroke="#faad14"
+                                                        stroke="var(--ag-colorWarning)"
                                                         strokeWidth={2}
                                                         strokeDasharray="4 2"
                                                     />
@@ -418,7 +421,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                 {/* Tooltip rendered outside SVG, absolutely positioned */}
                                 {hoveredBar !== null && data[hoveredBar] && mousePos && (
                                     <div
-                                        className="pointer-events-none z-50 absolute rounded-xl border border-[#d0d7e3]/80 dark:border-[var(--ag-rgba-051729-10)] bg-white/90 dark:bg-[var(--ant-color-bg-elevated)] px-3 py-2 text-xs text-gray-900 shadow-[0_6px_18px_rgba(15,23,42,0.12)] backdrop-blur-sm"
+                                        className="pointer-events-none z-50 absolute rounded-xl border border-colorBorderSecondary dark:border-[var(--ag-rgba-051729-10)] bg-white/90 dark:bg-[var(--ant-color-bg-elevated)] px-3 py-2 text-xs text-gray-900 shadow-[0_6px_18px_rgba(15,23,42,0.12)] backdrop-blur-sm"
                                         style={{
                                             left: clamp(
                                                 mousePos.x + 10,

@@ -22,7 +22,7 @@ from oss.src.core.sessions.dtos import SessionListItem
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import SessionStream
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn
-from oss.src.core.shared.dtos import Reference
+from oss.src.core.sessions.types import SessionReference
 
 
 _PROJECT = uuid4()
@@ -35,7 +35,7 @@ def _stream(session_id: str) -> SessionStream:
 def _turn(
     session_id: str,
     turn_index: int,
-    references: Optional[List[Reference]] = None,
+    references: Optional[List[SessionReference]] = None,
 ) -> SessionTurn:
     return SessionTurn(
         id=uuid4(),
@@ -65,6 +65,7 @@ class _FakeStreamsService:
         windowing=None,
         session_ids=None,
         exclude_session_ids=None,
+        read_options=None,
     ):
         if session_ids is not None:
             return [s for s in self.rows if s.session_id in session_ids]
@@ -125,8 +126,8 @@ async def test_query_sessions_echoes_highest_turn_index_references():
     session_with_turns = "session-with-turns"
     session_without_turns = "session-without-turns"
 
-    early_ref = Reference(id=uuid4(), slug="early-workflow", version="v1")
-    latest_ref = Reference(id=uuid4(), slug="latest-workflow", version="v2")
+    early_ref = SessionReference(id=uuid4(), slug="early-workflow", version="v1")
+    latest_ref = SessionReference(id=uuid4(), slug="latest-workflow", version="v2")
 
     streams = [_stream(session_with_turns), _stream(session_without_turns)]
     turns_by_session = {

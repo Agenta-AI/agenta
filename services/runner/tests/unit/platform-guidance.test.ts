@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 
 import {
   codexBundledSkillsAppendix,
+  fileCitationAppendix,
   instructionsSourceAppendix,
   platformGuidanceAppendix,
   skillLocationAppendix,
@@ -179,12 +180,17 @@ describe("the context budget", () => {
     //
     // If a third sentence wants in, it needs its own numbers. The block is charged to the author's
     // attention on every turn, and "it reads well" is not a reason.
+    //
+    // RAISED AGAIN for the third sentence, with its own numbers: the file-citation sentence
+    // (~240 chars) answers two observed failures — a bare `README.md` mention linked to the
+    // wrong file (#6004), and an absolute path treated as a web href that navigated away from
+    // chat (#5983). The client resolves full absolute paths now, so the model must preserve them.
     const alwaysOn = platformGuidanceAppendix(
       run({ acpAgent: "claude", toolNames: ["commit_revision"] }),
     );
     assert.ok(alwaysOn);
     assert.ok(
-      alwaysOn.length < 900,
+      alwaysOn.length < 1200,
       `the always-on block is ${alwaysOn.length} chars`,
     );
   });
@@ -201,7 +207,8 @@ describe("the context budget", () => {
       run({ acpAgent: "codex", toolNames: ["commit_revision"] }),
     );
     assert.ok(codex);
-    assert.ok(codex.length < 1200, `the codex block is ${codex.length} chars`);
+    // 1200 + the file-citation sentence's ~240 chars (see the always-on ceiling above).
+    assert.ok(codex.length < 1450, `the codex block is ${codex.length} chars`);
   });
 });
 
@@ -210,12 +217,17 @@ describe("the skill sentence follows the TOOL, not the flag", () => {
     // A plain agent with no config tools would otherwise read a sentence telling it to use a
     // tool it does not have. The block is guidance about this environment, so naming a
     // capability the run lacks is the confusion it exists to remove.
+    //
+    // The block itself is no longer silent here: the file-citation sentence has no tool
+    // dependency (any run can mention a file in chat), so the property to hold is the ABSENCE
+    // of the config sentences, not an empty block.
     const guidance = platformGuidanceAppendix(run({ toolNames: [] }));
-    assert.equal(
-      guidance,
-      undefined,
-      "and with nothing else to say, the block is silent",
+    assert.ok(guidance?.includes(fileCitationAppendix().text));
+    assert.ok(
+      !guidance?.includes("parameters.agent.skills"),
+      "the skill sentence must not name a tool the run lacks",
     );
+    assert.ok(!guidance?.includes("agents_md"));
   });
 
   it("is present for a run that offers it, alongside unrelated tools", async () => {
@@ -245,11 +257,14 @@ describe("the skill sentence follows the TOOL, not the flag", () => {
     // release-default configuration. Presence also catches what a flag check cannot: a flag-ON
     // agent that simply has no config tools.
     assert.ok(
-      platformGuidanceAppendix(run({ toolNames: ["commit_revision"] })),
+      platformGuidanceAppendix(
+        run({ toolNames: ["commit_revision"] }),
+      )?.includes("parameters.agent.skills"),
     );
-    assert.equal(
-      platformGuidanceAppendix(run({ toolNames: ["read_config"] })),
-      undefined,
+    assert.ok(
+      !platformGuidanceAppendix(run({ toolNames: ["read_config"] }))?.includes(
+        "parameters.agent.skills",
+      ),
     );
   });
 });
@@ -328,11 +343,11 @@ describe("the instructions-location sentence", () => {
     assert.ok(withTool?.includes("parameters.agent.skills"));
 
     const withoutTool = platformGuidanceAppendix(run({ toolNames: ["bash"] }));
-    assert.equal(
-      withoutTool,
-      undefined,
+    assert.ok(
+      !withoutTool?.includes("agents_md"),
       "neither sentence applies without the tool",
     );
+    assert.ok(!withoutTool?.includes("parameters.agent.skills"));
   });
 
   it("still yields the mount paragraph alone when there is no config tool", () => {

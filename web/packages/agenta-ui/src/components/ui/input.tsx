@@ -80,7 +80,12 @@ function Textarea({className, variant, size, rows = 3, ...props}: TextareaProps)
             data-slot="textarea"
             rows={rows}
             // align-bottom = antd's `vertical-align: bottom` — kills the inline descender gap under the box.
-            className={cn(inputVariants({variant, size}), "py-input-y align-bottom", className)}
+            // resize-y: preflight is off, so the UA default `resize: both` drags out of the container.
+            className={cn(
+                inputVariants({variant, size}),
+                "py-input-y align-bottom resize-y",
+                className,
+            )}
             {...props}
         />
     )

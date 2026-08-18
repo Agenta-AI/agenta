@@ -9,7 +9,7 @@ import dynamic from "next/dynamic"
 
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import {agentMountQueryFamily} from "@/oss/components/Drives/agentDrive"
-import {AGENT_FILES_DIR, useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
+import {useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
 
 // The whole drive explorer, pulled in only once the drawer is actually opened.
 const FilesDrawer = dynamic(
@@ -106,9 +106,9 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                             key={file.path}
                             type="button"
                             onClick={() => {
-                                // The drive folds the agent mount in under `agent-files/`, so a
-                                // raw mount path would select nothing.
-                                setOpenPath(`${AGENT_FILES_DIR}/${file.path}`)
+                                // No session here, so the agent mount IS the drive: its own paths
+                                // select directly (no `agent-files/` fold).
+                                setOpenPath(file.path)
                                 setOpen(true)
                             }}
                             className="group box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-2.5 text-left hover:bg-colorFillQuaternary"

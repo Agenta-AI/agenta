@@ -22,7 +22,7 @@ const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => <SidebarLogo coll
 
 const MainSidebarFooter = ({collapsed}: SidebarSlotContext) =>
     collapsed ? null : (
-        <div className="mx-auto">
+        <div className="w-full">
             <SidePanelSubscriptionInfo />
         </div>
     )

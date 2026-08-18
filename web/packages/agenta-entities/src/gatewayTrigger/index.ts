@@ -60,6 +60,7 @@ export {
     isConnectionValid,
     isEntityActive,
     isEntityValid,
+    triggerApplicationArtifactId,
     triggerBoundAgentId,
 } from "./core"
 // The boundary schemas — exported so Storybook fixtures build their payloads through the
@@ -76,7 +77,10 @@ export {
     builderToCron,
     cronToBuilder,
     defaultBuilderState,
-    describeBuilder,
+    describeCadence,
+    formatNextRun,
+    suggestScheduleName,
+    summarizeSchedule,
     timesFormCleanGrid,
     DEFAULT_TIME,
 } from "./core/scheduleBuilder"
@@ -86,6 +90,7 @@ export {
     getScheduleMessagePreview,
     messageContentText,
     parseInputsFields,
+    remapMessageShape,
     setScheduleMessage,
 } from "./core/messageInputs"
 export {
@@ -157,7 +162,9 @@ export {
 export type {
     DeliveriesDrawerState,
     DeliveriesOwner,
+    ExactDeliveryDrawerState,
     EventsDrawerState,
+    OwnerDeliveriesDrawerState,
     ScheduleDrawerState,
     SubscriptionDrawerState,
     TriggerDeliveryRow,
@@ -172,6 +179,7 @@ export {
     triggerCatalogIntegrationsInfiniteAtom,
     triggerConnectionsQueryAtom,
     triggerConnectionSubscriptionsAtomFamily,
+    triggerDeliveryQueryAtomFamily,
     triggerDeliveriesAtomFamily,
     triggerEventDetailQueryFamily,
     triggerEventsSearchAtom,
@@ -186,6 +194,7 @@ export {
     useTriggerConnectionActions,
     useTriggerConnectionsQuery,
     useTriggerConnectionSubscriptions,
+    useTriggerDelivery,
     useTriggerDeliveries,
     useTriggerEvent,
     useTriggerIntegrationConnections,

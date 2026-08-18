@@ -1,6 +1,6 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {type SessionStream} from "@agenta/entities/session"
+import {type SessionExpansion, type SessionStream} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
@@ -8,11 +8,40 @@ import {sessionRowVm, type SessionRowVm} from "../row/viewModel"
 
 import {pinnedSessionIdsAtom} from "./pins"
 import {
+    awaitingHiddenRows,
+    sessionGroupRows,
+    shouldLoadMoreForHiddenRows,
+    type SessionListRequestPolicy,
+} from "./sessionListPolicy"
+import {
     pendingBySessionId,
     rowsFromPages,
     useActionableInteractions,
     useSessionList,
+    type SessionListOptions,
 } from "./useSessionList"
+
+/**
+ * A pin is an explicit user request and overrides the surface's origin filter — a pinned
+ * automation session must still show on a human-mode (exclude-trigger) card (P2-8). It also
+ * needs the `trigger` expansion regardless of the card's own policy: a human-mode card never
+ * requests it, so a pinned automation row's name would otherwise never resolve and fall back to
+ * "Missing schedule".
+ */
+export function pinnedSessionListArgs(
+    policy: SessionListRequestPolicy,
+    agentId: string | undefined,
+    pinnedIds: string[],
+    enabled: boolean,
+): SessionListOptions {
+    return {
+        originPolicy: "all",
+        expansions: Array.from(new Set<SessionExpansion>([...policy.expansions, "trigger"])),
+        agentId,
+        sessionIds: pinnedIds,
+        enabled,
+    }
+}
 
 export interface SessionCardGroup {
     key: "waiting" | "pinned" | "recent"
@@ -22,10 +51,9 @@ export interface SessionCardGroup {
 }
 
 export interface UseSessionCardListArgs {
+    policy: SessionListRequestPolicy
     /** Scope to one agent's sessions — the app overview. Omit for the whole project. */
     agentId?: string
-    /** Restrict to one origin (e.g. automation runs). Omit for everything but automations. */
-    origin?: string
     /** Caps the CARD, not each group — pinning a visible row is a pure reorder, never growth. */
     limit?: number
     /** Pinned sessions lead the list, and are excluded from the recent rows below them. */
@@ -47,11 +75,11 @@ export interface UseSessionCardListArgs {
  * errand, and the list's own query already holds the next page.
  */
 export const useSessionCardList = ({
+    policy,
     agentId,
-    origin,
     limit = 7,
     withPinned = false,
-}: UseSessionCardListArgs = {}) => {
+}: UseSessionCardListArgs) => {
     const [extraRows, setExtraRows] = useState(0)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -68,28 +96,33 @@ export const useSessionCardList = ({
     const useWaiting = waitingIds.length > 0
 
     const waitingQuery = useSessionList({
+        originPolicy: policy.origin,
+        expansions: policy.expansions,
         agentId,
-        origin,
         sessionIds: waitingIds,
-        showTriggered: Boolean(origin),
         enabled: useWaiting,
     })
     const usePins = withPinned && pinnedIds.length > 0
-    const pinnedQuery = useSessionList({agentId, origin, sessionIds: pinnedIds, enabled: usePins})
+    const pinnedQuery = useSessionList(pinnedSessionListArgs(policy, agentId, pinnedIds, usePins))
     const listQuery = useSessionList({
+        originPolicy: policy.origin,
+        expansions: policy.expansions,
         agentId,
-        origin,
         excludeSessionIds: withPinned ? [...pinnedIds, ...waitingIds] : waitingIds,
-        // Automations are their own list here, so they must not also appear in the recent one.
-        showTriggered: Boolean(origin),
     })
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
     // Memoized: `rowsFromPages` mints a new array per call, and an unstable array here would
     // re-derive every row VM (and re-render every memoized row) on every render.
-    const listRows = useMemo(() => rowsFromPages(listQuery.data?.pages), [listQuery.data?.pages])
+    // Which rules each group applies (pins and waiting rows are exempt from all of them, both
+    // being rows someone asked for by name) is `sessionGroupRows`.
+    const listRows = useMemo(
+        () => sessionGroupRows("main", rowsFromPages(listQuery.data?.pages)),
+        [listQuery.data?.pages],
+    )
     const waitingRowsAll = useMemo(
-        () => (useWaiting ? rowsFromPages(waitingQuery.data?.pages) : []),
+        () =>
+            useWaiting ? sessionGroupRows("waiting", rowsFromPages(waitingQuery.data?.pages)) : [],
         [useWaiting, waitingQuery.data?.pages],
     )
     const waitingSet = useMemo(
@@ -97,7 +130,7 @@ export const useSessionCardList = ({
         [waitingRowsAll],
     )
     const pinnedRowsAll = useMemo(
-        () => (usePins ? rowsFromPages(pinnedQuery.data?.pages) : []),
+        () => (usePins ? sessionGroupRows("pinned", rowsFromPages(pinnedQuery.data?.pages)) : []),
         [usePins, pinnedQuery.data?.pages],
     )
     const knownById = useMemo(() => {
@@ -167,10 +200,24 @@ export const useSessionCardList = ({
         if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
     }, [limit, hasNextPage, isFetchingNextPage, fetchNextPage])
 
+    // A whole page can be unstarted rows (they are the newest) — pull the next one rather than
+    // showing the card's empty state over sessions that exist one page down.
+    const topUpArgs = {
+        visibleRows: shownCount,
+        hasNextPage: Boolean(hasNextPage),
+        isError: listQuery.isFetchNextPageError,
+    }
+    // Held across the in-flight request too, or the card would flash empty mid-top-up.
+    const awaitingTopUp = awaitingHiddenRows(topUpArgs)
+    const shouldTopUp = shouldLoadMoreForHiddenRows({...topUpArgs, isFetchingNextPage})
+    useEffect(() => {
+        if (shouldTopUp) void fetchNextPage()
+    }, [shouldTopUp, fetchNextPage])
+
     return {
         groups,
-        isPending: listQuery.isPending,
-        isEmpty,
+        isPending: listQuery.isPending || awaitingTopUp,
+        isEmpty: isEmpty && !awaitingTopUp,
         /** All gated rows in this card's scope — the header's "N waiting" badge. */
         waitingTotal: waitingRowsAll.length,
         canShowMore,

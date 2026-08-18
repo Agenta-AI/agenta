@@ -1,0 +1,379 @@
+[
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_6Ev3NNVyPlFdRIoDRF4RKN3w|fc_0127887… <83 chars elided>",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_6Ev3NNVyPlFdRIoDRF4RKN3w|fc_0127887… <83 chars elided>",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <195 chars elided>"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_6Ev3NNVyPlFdRIoDRF4RKN3w|fc_0127887… <83 chars elided>",
+    "output": "---\nname: \"build-an-agent\"\ndescription: … <12820 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_9TZhCpuETAWXy0ruPgYnC8v7|fc_0127887… <83 chars elided>",
+    "toolName": "find"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_9TZhCpuETAWXy0ruPgYnC8v7|fc_0127887… <83 chars elided>",
+    "toolName": "find",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <171 chars elided>",
+      "pattern": "references/agent-templates/index.md"
+    }
+  },
+  {
+    "type": "tool-output-error",
+    "toolCallId": "call_9TZhCpuETAWXy0ruPgYnC8v7|fc_0127887… <83 chars elided>",
+    "errorText": "error: Found argument '--no-require-git'… <248 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_F4rCCLQOVRBsIyguLveYaXqs|fc_0127887… <83 chars elided>",
+    "toolName": "ls"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_F4rCCLQOVRBsIyguLveYaXqs|fc_0127887… <83 chars elided>",
+    "toolName": "ls",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <171 chars elided>"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_F4rCCLQOVRBsIyguLveYaXqs|fc_0127887… <83 chars elided>",
+    "output": ".agenta-skill-set.json\nbuild-an-agent/"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_CgCsnin4iSnw6I6orMZ0bBxV|fc_0127887… <83 chars elided>",
+    "toolName": "ls"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_CgCsnin4iSnw6I6orMZ0bBxV|fc_0127887… <83 chars elided>",
+    "toolName": "ls",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <186 chars elided>"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_CgCsnin4iSnw6I6orMZ0bBxV|fc_0127887… <83 chars elided>",
+    "output": "references/\nSKILL.md"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_07YbzYFCW64e3ZGooV6NQ2ze|fc_0127887… <83 chars elided>",
+    "toolName": "ls"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_07YbzYFCW64e3ZGooV6NQ2ze|fc_0127887… <83 chars elided>",
+    "toolName": "ls",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <197 chars elided>"
+    }
+  },
+  {
+    "type": "tool-output-error",
+    "toolCallId": "call_07YbzYFCW64e3ZGooV6NQ2ze|fc_0127887… <83 chars elided>",
+    "errorText": "Path not found: /tmp/agenta/mounts/019fe… <213 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_QdfzWu4Fit44c3RZPp0mhpmx|fc_0127887… <83 chars elided>",
+    "toolName": "ls"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_QdfzWu4Fit44c3RZPp0mhpmx|fc_0127887… <83 chars elided>",
+    "toolName": "ls",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <197 chars elided>"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_QdfzWu4Fit44c3RZPp0mhpmx|fc_0127887… <83 chars elided>",
+    "output": "agent-templates/\nconfig-schema.md\ntrigger-inputs.md"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_cos65iPtQcwoSeCo274tHxpu|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_cos65iPtQcwoSeCo274tHxpu|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <222 chars elided>"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_36OO60wY2e9UxrP0QmiATv3K|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_36OO60wY2e9UxrP0QmiATv3K|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c20-8d… <174 chars elided>"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_OaTDsWsrPzndHArJ2NYK6zaZ|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_OaTDsWsrPzndHArJ2NYK6zaZ|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <212 chars elided>"
+    }
+  },
+  {
+    "type": "tool-output-error",
+    "toolCallId": "call_36OO60wY2e9UxrP0QmiATv3K|fc_0b9b71f… <83 chars elided>",
+    "errorText": "ENOENT: no such file or directory, acces… <218 chars elided>"
+  },
+  {
+    "type": "tool-output-error",
+    "toolCallId": "call_OaTDsWsrPzndHArJ2NYK6zaZ|fc_0b9b71f… <83 chars elided>",
+    "errorText": "ENOENT: no such file or directory, acces… <256 chars elided>"
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_cos65iPtQcwoSeCo274tHxpu|fc_0b9b71f… <83 chars elided>",
+    "output": "# Agent template playbooks\n\nMatch the us… <4532 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_y3gX69Fmcfs71YOv3iBQQ0mS|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_y3gX69Fmcfs71YOv3iBQQ0mS|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <214 chars elided>"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_5gXdoIef4ScubRAhB2KCD3Ig|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_5gXdoIef4ScubRAhB2KCD3Ig|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <212 chars elided>"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_tIalLuExYiDMiSN8Otvoaz1a|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_tIalLuExYiDMiSN8Otvoaz1a|fc_0b9b71f… <83 chars elided>",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <195 chars elided>",
+      "limit": 220,
+      "offset": 1
+    }
+  },
+  {
+    "type": "tool-output-error",
+    "toolCallId": "call_5gXdoIef4ScubRAhB2KCD3Ig|fc_0b9b71f… <83 chars elided>",
+    "errorText": "ENOENT: no such file or directory, acces… <256 chars elided>"
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_tIalLuExYiDMiSN8Otvoaz1a|fc_0b9b71f… <83 chars elided>",
+    "output": "---\nname: \"build-an-agent\"\ndescription: … <12820 chars elided>"
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_y3gX69Fmcfs71YOv3iBQQ0mS|fc_0b9b71f… <83 chars elided>",
+    "output": "# The agent config, field by field\n\nRead… <17820 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_oKZiZXfG0lf35KE3WNAOIDws|fc_0b9b71f… <83 chars elided>",
+    "toolName": "discover_tools"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_oKZiZXfG0lf35KE3WNAOIDws|fc_0b9b71f… <83 chars elided>",
+    "toolName": "discover_tools",
+    "input": {
+      "provider": "composio",
+      "use_cases": [
+        "send a Telegram message"
+      ],
+      "limit_alternatives": 5
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6",
+    "toolName": "request_input"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6",
+    "toolName": "request_input",
+    "input": {
+      "message": "To schedule this correctly, tell me when and where to send the daily Arabic poem. The Telegram chat ID or username is not a secret; Telegram credentials will be connected separately.",
+      "requestedSchema": {
+        "type": "object",
+        "required": [
+          "time_of_day",
+          "timezone",
+          "telegram_chat"
+        ],
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "default": "Asia/Riyadh",
+            "description": "IANA timezone, for example Asia/Riyadh or Europe/London"
+          },
+          "time_of_day": {
+            "type": "string",
+            "title": "Morning delivery time",
+            "format": "time",
+            "default": "08:00"
+          },
+          "poetry_style": {
+            "type": "string",
+            "title": "Poetry preference",
+            "format": "multiline",
+            "default": "A short Arabic poem or excerpt, with the poet’s name and a brief English explanation.",
+            "description": "Optional: classical or modern, poet preferences, translation/explanation, and desired length"
+          },
+          "telegram_chat": {
+            "type": "string",
+            "title": "Telegram chat ID or @username"
+          }
+        },
+        "x-ag-stepper": true
+      }
+    }
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6",
+    "toolName": "request_input",
+    "input": {
+      "message": "To schedule this correctly, tell me when and where to send the daily Arabic poem. The Telegram chat ID or username is not a secret; Telegram credentials will be connected separately.",
+      "requestedSchema": {
+        "type": "object",
+        "required": [
+          "time_of_day",
+          "timezone",
+          "telegram_chat"
+        ],
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "default": "Asia/Riyadh",
+            "description": "IANA timezone, for example Asia/Riyadh or Europe/London"
+          },
+          "time_of_day": {
+            "type": "string",
+            "title": "Morning delivery time",
+            "format": "time",
+            "default": "08:00"
+          },
+          "poetry_style": {
+            "type": "string",
+            "title": "Poetry preference",
+            "format": "multiline",
+            "default": "A short Arabic poem or excerpt, with the poet’s name and a brief English explanation.",
+            "description": "Optional: classical or modern, poet preferences, translation/explanation, and desired length"
+          },
+          "telegram_chat": {
+            "type": "string",
+            "title": "Telegram chat ID or @username"
+          }
+        },
+        "x-ag-stepper": true
+      }
+    }
+  },
+  {
+    "type": "data-render",
+    "data": {
+      "toolCallId": "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6",
+      "render": {
+        "kind": "elicitation"
+      }
+    }
+  },
+  {
+    "type": "tool-output-error",
+    "toolCallId": "call_oKZiZXfG0lf35KE3WNAOIDws|fc_0b9b71f… <83 chars elided>",
+    "errorText": "aborted"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_iLvfcJo0QEc2TmNlKZrFyeD6|fc_0a6f77e… <83 chars elided>",
+    "toolName": "rename_session"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_iLvfcJo0QEc2TmNlKZrFyeD6|fc_0a6f77e… <83 chars elided>",
+    "toolName": "rename_session",
+    "input": {
+      "name": "Daily Arabic Poetry",
+      "description": "Setting up a Telegram agent to send Arab… <128 chars elided>"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_QKleioohKPLZ8UoK09ayHOIX|fc_0a6f77e… <83 chars elided>",
+    "toolName": "rename_agent"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_QKleioohKPLZ8UoK09ayHOIX|fc_0a6f77e… <83 chars elided>",
+    "toolName": "rename_agent",
+    "input": {
+      "name": "Arabic Poetry Scheduler",
+      "description": "Configures and schedules daily Arabic poetry messages to Telegram."
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_iLvfcJo0QEc2TmNlKZrFyeD6|fc_0a6f77e… <83 chars elided>",
+    "output": "{\"stream\":{\"created_at\":\"2026-08-10T14:0… <725 chars elided>"
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_QKleioohKPLZ8UoK09ayHOIX|fc_0a6f77e… <83 chars elided>",
+    "output": "{\"count\":1,\"workflow\":{\"flags\":{\"is_appl… <482 chars elided>"
+  }
+]

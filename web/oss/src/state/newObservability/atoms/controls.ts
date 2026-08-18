@@ -1,5 +1,5 @@
 // Query control atoms for the observability module
-import type {Key} from "react"
+import type {Key, SetStateAction} from "react"
 
 import {defaultTraceTypeForWorkflow} from "@agenta/entities/workflow"
 import dayjs from "dayjs"
@@ -8,6 +8,7 @@ import {atomFamily, atomWithStorage} from "jotai/utils"
 
 import type {SortResult} from "@/oss/components/Filters/Sort"
 import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
+import {utcRangeStamp} from "@/oss/lib/helpers/dateTimeHelper"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import type {Filter} from "@/oss/lib/Types"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
@@ -20,7 +21,7 @@ export type ObservabilityTabInfo = "traces" | "sessions"
 
 export const DEFAULT_SORT: SortResult = {
     type: "standard",
-    sorted: dayjs().utc().subtract(24, "hours").toISOString().split(".")[0],
+    sorted: utcRangeStamp(dayjs().subtract(24, "hours")),
 }
 
 const HAS_RECEIVED_TRACES_STORAGE_KEY = "agenta:observability:has-received-traces"
@@ -314,7 +315,7 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
 
             return [...appScope, ...traceTypeFilters, ...userFilters]
         },
-        (get, set, update: Filter[] | ((prev: Filter[]) => Filter[])) => {
+        (get, set, update: SetStateAction<Filter[]>) => {
             const currentCombined = get(filtersAtomFamily(tab))
             const nextCombined =
                 typeof update === "function" ? (update as any)(currentCombined) : update
@@ -383,7 +384,7 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
 // Proxy filters atom
 export const filtersAtom = atom(
     (get) => get(filtersAtomFamily(get(observabilityTabAtom))),
-    (get, set, update: Filter[] | ((prev: Filter[]) => Filter[])) =>
+    (get, set, update: SetStateAction<Filter[]>) =>
         set(filtersAtomFamily(get(observabilityTabAtom)), update),
 )
 

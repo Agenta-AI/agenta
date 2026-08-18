@@ -66,10 +66,7 @@ function ToggleRow({
                             {/* No aria-label: a generic span prohibits it (axe
                                 `aria-prohibited-attr`); Radix wires aria-describedby instead. */}
                             <span className="flex shrink-0 items-center">
-                                <Info
-                                    size={13}
-                                    className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]"
-                                />
+                                <Info size={13} className="shrink-0 text-[var(--ag-zinc-5)]" />
                             </span>
                         </TooltipTrigger>
                         <TooltipContent>{description}</TooltipContent>
@@ -115,7 +112,7 @@ function FileRow({
                     : "hover:bg-[var(--ant-color-fill-tertiary)]",
             )}
         >
-            <FileIcon size={13} className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
+            <FileIcon size={13} className="shrink-0 text-[var(--ag-zinc-5)]" />
             <span
                 role="button"
                 tabIndex={0}
@@ -137,7 +134,7 @@ function FileRow({
                         e.stopPropagation()
                         onRemove()
                     }}
-                    className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] opacity-0 transition-opacity hover:text-[var(--ag-c-FF4D4F,#ff4d4f)] group-hover/file:opacity-100"
+                    className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover/file:opacity-100"
                 >
                     <Trash size={13} />
                 </button>
@@ -240,7 +237,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
     return (
         <div className="flex h-full gap-3">
             {/* Left: full-height file list (SKILL.md pinned) with the drop zone pinned to the bottom. */}
-            <div className="ag-drawer-rail flex h-full w-44 shrink-0 flex-col gap-2 border-0 border-r border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pr-3">
+            <div className="ag-drawer-rail flex h-full w-44 shrink-0 flex-col gap-2 border-0 border-r border-solid border-[var(--ag-c-EAEFF5)] pr-3">
                 <div className="flex shrink-0 items-center justify-between gap-1">
                     <span className="text-xs font-medium">Files</span>
                     {!disabled ? (
@@ -251,7 +248,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                                         type="button"
                                         aria-label="Add file"
                                         onClick={addFile}
-                                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-586673,#586673)] hover:text-[var(--ag-c-1C2C3D,#1c2c3d)]"
+                                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-586673)] hover:text-[var(--ag-c-1C2C3D)]"
                                     >
                                         <Plus size={14} />
                                     </button>
@@ -264,7 +261,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
 
                 {/* The list grows to fill the column so the drop zone sits at the bottom. Filled
                     with the elevated/item colour so it reads as one panel, not a lone highlighted row. */}
-                <div className="ag-rail-filelist flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded-lg bg-[var(--ag-c-EAEFF5,#eaeff5)] p-1">
+                <div className="ag-rail-filelist flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded-lg bg-[var(--ag-c-EAEFF5)] p-1">
                     <FileRow
                         label="SKILL.md"
                         active={showSkill}

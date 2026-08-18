@@ -3,6 +3,8 @@ import {CopyButton} from "@agenta/ui/components/presentational"
 import {
     ArrowsIn,
     ArrowsOut,
+    CaretDoubleRight,
+    Copy,
     DotsThree,
     DownloadSimple,
     GitBranch,
@@ -31,8 +33,6 @@ export const DriveHeader = ({
     isFolder,
     rootLabel,
     itemCount,
-    totalCount,
-    totalCapped,
     fileSize,
     showOrigin,
     isRepo,
@@ -40,6 +40,7 @@ export const DriveHeader = ({
     onToggleDetails,
     onNavigate,
     onClose,
+    closeVariant = "close",
     copyText,
     ids,
     downloadMount,
@@ -66,9 +67,6 @@ export const DriveHeader = ({
     onUploadStaged?: () => void
     /** Immediate-child count for a non-root folder (null when unknown / at root). */
     itemCount: number | null
-    /** Whole-drive file count — the chip at the root, preserving the old "N files". */
-    totalCount: number
-    totalCapped?: boolean
     fileSize?: number
     showOrigin: boolean
     /** This folder is a git repo → the details toggle reveals repo facts (else file details). */
@@ -77,6 +75,8 @@ export const DriveHeader = ({
     onToggleDetails: () => void
     onNavigate: (path: string) => void
     onClose: () => void
+    /** How `onClose` reads: an "×" (overlay drawer) or a "»" that collapses the docked pane. */
+    closeVariant?: "close" | "collapse"
     copyText: (text: string, successMessage?: string) => void
     ids: DriveId[]
     downloadMount: Mount | null
@@ -94,19 +94,16 @@ export const DriveHeader = ({
     onRetry?: () => void
     retrying?: boolean
 }) => {
-    const atRoot = !selectedPath
     // A file always has details (size/modified); a folder only when it's a repo. Nothing selected
     // (transient null before the root auto-selects) → no toggle.
     const hasDetails = isFolder ? isRepo : selectedPath != null
     const overflow: MenuProps["items"] = [
+        // Label only — the raw uuid under it made every item two lines tall and stretched the menu to
+        // the width of a uuid; the value goes to the clipboard, which is the whole point of the item.
         ...ids.map((id) => ({
             key: id.key,
-            label: (
-                <div className="flex flex-col gap-0.5 py-0.5">
-                    <span className="text-xs font-medium">Copy {id.label}</span>
-                    <span className="font-mono text-[12px] text-colorTextTertiary">{id.value}</span>
-                </div>
-            ),
+            label: `Copy ${id.label}`,
+            icon: <Copy size={14} />,
         })),
         // Only a separator when there IS something above it — a host without drive ids (the ids
         // resolve async, and the local-file drive never has any) otherwise opens on a stray rule.
@@ -119,12 +116,27 @@ export const DriveHeader = ({
         },
     ]
     return (
-        <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2">
-            <Tooltip title="Close">
+        // Docked-pane variant: pin the header to the session bar's exact height + border token so
+        // its bottom border CONTINUES the bar's line across the divider (offset heights read as
+        // two stacked lines at the junction).
+        <div
+            className={`flex shrink-0 items-center gap-2 border-0 border-b border-solid px-3 ${
+                closeVariant === "collapse"
+                    ? "h-[48px] border-[var(--ag-surface-card-border)]"
+                    : "border-colorBorderSecondary py-2"
+            }`}
+        >
+            <Tooltip title={closeVariant === "collapse" ? "Collapse files" : "Close"}>
                 <Button
                     type="text"
-                    aria-label="Close"
-                    icon={<X size={16} />}
+                    aria-label={closeVariant === "collapse" ? "Collapse files pane" : "Close"}
+                    icon={
+                        closeVariant === "collapse" ? (
+                            <CaretDoubleRight size={16} />
+                        ) : (
+                            <X size={16} />
+                        )
+                    }
                     onClick={onClose}
                     className="!h-7 !w-7 !p-0 !text-colorTextSecondary hover:!text-colorText"
                 />
@@ -148,16 +160,16 @@ export const DriveHeader = ({
                     rootLabel={rootLabel}
                     onNavigate={onNavigate}
                 />
+                {/* A folder's child count / a file's size. The root gets no chip — a whole-drive
+                    file count says nothing about what you're looking at. */}
                 <span className="shrink-0 text-xs text-colorTextTertiary">
-                    {atRoot
-                        ? `${totalCount}${totalCapped ? "+" : ""} file${totalCount === 1 ? "" : "s"}`
-                        : isFolder
-                          ? itemCount != null
-                              ? `${itemCount} item${itemCount === 1 ? "" : "s"}`
-                              : null
-                          : fileSize != null
-                            ? humanSize(fileSize)
-                            : null}
+                    {isFolder
+                        ? itemCount != null
+                            ? `${itemCount} item${itemCount === 1 ? "" : "s"}`
+                            : null
+                        : fileSize != null
+                          ? humanSize(fileSize)
+                          : null}
                 </span>
                 {!isFolder && showOrigin && selectedPath ? (
                     <Tag className="m-0 shrink-0 text-[12px] font-normal">

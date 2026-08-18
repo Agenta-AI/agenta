@@ -8,7 +8,7 @@ const sessionWatchUrl = (sessionId: string, projectId: string): string =>
     )}&project_id=${encodeURIComponent(projectId)}`
 
 /**
- * Live records relay for the active desktop conversation.
+ * Live records and interaction-row relay for the active desktop conversation.
  *
  * The shared watch lifecycle keeps the foreground-only connection, bounded jittered retries,
  * token refresh on fatal close, ready revalidation, and throttled trailing refresh.
@@ -18,11 +18,13 @@ export const useSessionRecordsWatch = ({
     projectId,
     enabled,
     onRecordsChanged,
+    onInteractionChanged,
 }: {
     sessionId: string
     projectId?: string | null
     enabled: boolean
     onRecordsChanged: () => void
+    onInteractionChanged: () => void
 }): void => {
     const url = sessionId && projectId ? sessionWatchUrl(sessionId, projectId) : null
     useWatchEventSource({
@@ -31,6 +33,7 @@ export const useSessionRecordsWatch = ({
         on: {
             ready: onRecordsChanged,
             "records-changed": onRecordsChanged,
+            interaction: onInteractionChanged,
         },
     })
 }

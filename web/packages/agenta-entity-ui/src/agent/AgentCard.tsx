@@ -170,19 +170,22 @@ export const AgentCard = ({
         <div
             role="button"
             tabIndex={0}
-            onClick={onOpenPlayground}
+            // Agents page opens the overview; the home rail keeps opening the playground.
+            onClick={isGrid ? onOpenOverview : onOpenPlayground}
             onKeyDown={(event) => {
-                // Only the card itself: the menu trigger is a child, and its Enter/Space must
-                // not also open the playground.
+                // Only the card itself: the menu trigger is a child with its own Enter/Space.
                 if (event.target !== event.currentTarget) return
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault()
-                    onOpenPlayground()
+                    if (isGrid) onOpenOverview()
+                    else onOpenPlayground()
                 }
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${
                 isGrid
-                    ? "relative h-full gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 hover:border-colorBorder"
+                    ? // Warm tinted card in light (the treatment the rails and template cards
+                      // carry); dark restores the elevated surface it renders today.
+                      "relative h-full gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-[var(--ag-surface-paper)] p-5 pt-8 hover:border-colorBorder dark:bg-colorBgElevated"
                     : // No frame in the rail: the section around it is already a card, and a card
                       // inside a card is the look we just spent the day removing.
                       "gap-2 rounded-lg p-3 hover:bg-colorFillQuaternary"

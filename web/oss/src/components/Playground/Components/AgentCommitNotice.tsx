@@ -56,7 +56,7 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                 <div className="border-0 border-t border-solid border-colorBorderSecondary bg-[var(--ag-colorBgElevated)] px-4 py-2.5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-2.5">
-                            <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--ag-c-13C2C2,#13c2c2)_15%,transparent)] text-[var(--ag-c-13C2C2,#13c2c2)]">
+                            <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ag-type-agent-bg)] text-[var(--ag-type-agent-text)]">
                                 <Robot size={15} weight="fill" />
                             </span>
                             <div className="flex min-w-0 flex-col gap-0.5">

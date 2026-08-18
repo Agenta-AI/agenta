@@ -55,6 +55,7 @@ class instrument:  # pylint: disable=invalid-name
         redact: Optional[Callable[..., Any]] = None,
         redact_on_error: Optional[bool] = True,
         max_depth: Optional[int] = 2,
+        stream_output: Optional[Callable[[List[Any]], Any]] = None,
         # DEPRECATING
         kind: str = "task",
         spankind: Optional[str] = "TASK",
@@ -67,6 +68,7 @@ class instrument:  # pylint: disable=invalid-name
         self.redact = redact
         self.redact_on_error = redact_on_error
         self.max_depth = max_depth
+        self.stream_output = stream_output
 
     @staticmethod
     def _warn_if_not_initialized(handler_name: str) -> None:
@@ -340,10 +342,15 @@ class instrument:  # pylint: disable=invalid-name
 
         self.kind = parse_span_kind(self.type)
 
-    @staticmethod
-    def _join_stream(chunks: list):
+    def _join_stream(self, chunks: list):
         """Collapse accumulated stream chunks the way the generator wrappers do:
-        all-str -> joined string, all-bytes -> joined bytes, else the list."""
+        all-str -> joined string, all-bytes -> joined bytes, else the list.
+
+        A caller may opt into a domain-specific projection for a structured stream. The
+        wire chunks still pass through unchanged; only the span output is translated.
+        """
+        if self.stream_output is not None:
+            return self.stream_output(chunks)
         if all(isinstance(r, str) for r in chunks):
             return "".join(chunks)
         if all(isinstance(r, bytes) for r in chunks):

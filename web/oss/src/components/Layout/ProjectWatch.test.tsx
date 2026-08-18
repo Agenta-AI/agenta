@@ -6,10 +6,15 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const mocks = vi.hoisted(() => ({
     invalidateAgentsWorkflowQueries: vi.fn(() => Promise.resolve()),
     invalidateQueries: vi.fn(() => Promise.resolve()),
+    invalidateSessionListQueries: vi.fn(),
 }))
 
 vi.mock("@agenta/shared/api", () => ({
     queryClient: {invalidateQueries: mocks.invalidateQueries},
+}))
+
+vi.mock("@agenta/entities/session", () => ({
+    invalidateSessionListQueries: mocks.invalidateSessionListQueries,
 }))
 
 vi.mock("@/oss/components/pages/agents/store", () => ({
@@ -88,6 +93,7 @@ beforeEach(() => {
     sources.length = 0
     mocks.invalidateAgentsWorkflowQueries.mockClear()
     mocks.invalidateQueries.mockClear()
+    mocks.invalidateSessionListQueries.mockClear()
 })
 
 afterEach(async () => {
@@ -101,7 +107,9 @@ afterEach(async () => {
 })
 
 describe("ProjectWatch", () => {
-    it("maps session changes to the project session-list prefix", async () => {
+    // Through the shared helper, not a `["session-list", projectId]` prefix: the sidebar nests the
+    // same options behind `["sidebar", ...]`, which a positional prefix match never reaches.
+    it("maps session changes to every session-list query", async () => {
         const source = await mountProjectWatch()
 
         expect(source?.url).toBe("/api/sessions/watch?project_id=project-1")
@@ -114,10 +122,7 @@ describe("ProjectWatch", () => {
             )
         })
 
-        expect(mocks.invalidateQueries).toHaveBeenCalledWith({
-            queryKey: ["session-list", "project-1"],
-            exact: false,
-        })
+        expect(mocks.invalidateSessionListQueries).toHaveBeenCalledOnce()
         expect(mocks.invalidateAgentsWorkflowQueries).not.toHaveBeenCalled()
     })
 
@@ -150,10 +155,7 @@ describe("ProjectWatch", () => {
         })
 
         expect(mocks.invalidateAgentsWorkflowQueries).toHaveBeenCalledOnce()
-        expect(mocks.invalidateQueries).toHaveBeenCalledWith({
-            queryKey: ["session-list", "project-1"],
-            exact: false,
-        })
+        expect(mocks.invalidateSessionListQueries).toHaveBeenCalledOnce()
         expect(mocks.invalidateQueries).toHaveBeenCalledWith({
             queryKey: ["workflows", "artifact"],
             exact: false,

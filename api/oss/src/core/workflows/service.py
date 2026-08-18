@@ -569,7 +569,15 @@ class WorkflowsService:
     def _validate_execution_reference_families(
         *,
         request: WorkflowServiceRequest,
-    ) -> tuple[Optional[Reference], Optional[Reference], Optional[Reference]]:
+    ) -> tuple[
+        Optional[str], Optional[Reference], Optional[Reference], Optional[Reference]
+    ]:
+        """Returns the caller's family name and its (artifact, variant, revision) refs.
+
+        The family name matters to the caller because the resolved references are written
+        back under it: re-keying an `application_variant` request's result as `workflow`
+        would make the request carry two families, which this very check rejects.
+        """
         refs = request.references or {}
 
         families = {
@@ -606,10 +614,10 @@ class WorkflowsService:
             raise error
 
         if not populated:
-            return None, None, None
+            return None, None, None, None
 
-        _, artifact_ref, variant_ref, revision_ref = populated[0]
-        return artifact_ref, variant_ref, revision_ref
+        family, artifact_ref, variant_ref, revision_ref = populated[0]
+        return family, artifact_ref, variant_ref, revision_ref
 
     @staticmethod
     def _get_revision_data(
@@ -816,11 +824,13 @@ class WorkflowsService:
 
         refs = request.references
         (
+            family,
             workflow_ref,
             workflow_variant_ref,
             workflow_revision_ref,
         ) = self._validate_execution_reference_families(request=request)
         workflow_revision = None
+        retrieval_info: Optional[RetrievalInfo] = None
         selector_key = (
             request.selector.get("key")
             if isinstance(request.selector, dict)
@@ -833,14 +843,22 @@ class WorkflowsService:
                 if workflow_ref and workflow_ref.slug
                 else None
             )
-            workflow_revision, _, _ = await self.retrieve_workflow_revision(
+            (
+                workflow_revision,
+                _,
+                retrieval_info,
+            ) = await self.retrieve_workflow_revision(
                 project_id=project_id,
                 environment_ref=refs["environment"],
                 key=key,
             )
 
         elif workflow_revision_ref or workflow_variant_ref or workflow_ref:
-            workflow_revision, _, _ = await self.retrieve_workflow_revision(
+            (
+                workflow_revision,
+                _,
+                retrieval_info,
+            ) = await self.retrieve_workflow_revision(
                 project_id=project_id,
                 workflow_ref=workflow_ref,
                 workflow_variant_ref=workflow_variant_ref,
@@ -853,6 +871,84 @@ class WorkflowsService:
             request.data.revision = {
                 "data": workflow_revision.data.model_dump(mode="json")
             }
+
+        self._write_back_resolved_references(
+            request=request,
+            family=family or "workflow",
+            retrieval_info=retrieval_info,
+        )
+
+    @staticmethod
+    def _write_back_resolved_references(
+        *,
+        request: WorkflowServiceRequest,
+        family: str,
+        retrieval_info: Optional[RetrievalInfo],
+    ) -> None:
+        """Put the references this resolution actually used back onto the request.
+
+        Embedding the revision in `request.data.revision` above is what suppresses the
+        SDK's reference hydration, and that hydration is the only step that adds the
+        sibling artifact and revision references. Without this write-back a caller who
+        sent one variant reference (`test_run` does exactly that) produces a turn stored
+        with that single reference, and a session the UI has no artifact id to open.
+
+        Only the caller's own family is written. A key the caller left empty is added
+        outright; a key they did supply is ENRICHED, never replaced — the caller's own
+        values always win, and the resolution only fills the fields they omitted. That
+        matters because a caller who sends a bare variant id (`test_run` again) would
+        otherwise store a variant element with no slug, while the SDK-hydration path
+        stores one with a slug: the same session described two ways depending on which
+        producer wrote it.
+        """
+        if not retrieval_info or not retrieval_info.references:
+            return
+
+        targets = {
+            "workflow": family,
+            "workflow_variant": f"{family}_variant",
+            "workflow_revision": f"{family}_revision",
+        }
+        references = dict(request.references or {})
+        for key, reference in retrieval_info.references.items():
+            target = targets.get(key)
+            if target is None:
+                continue
+            existing = references.get(target)
+            references[target] = (
+                reference
+                if existing is None
+                else WorkflowsService._enrich_reference(
+                    existing=existing,
+                    resolved=reference,
+                )
+            )
+
+        request.references = references
+
+    @staticmethod
+    def _enrich_reference(*, existing, resolved: Reference):
+        """Fill the fields the caller omitted; keep every field they set.
+
+        Refuses to merge when the two disagree on an identity the caller pinned — the id
+        or the slug — because either mismatch means they name different entities, and the
+        merge would produce one reference carrying the caller's id with another entity's
+        slug, or vice versa.
+        """
+        current = (
+            {key: value for key, value in existing.items() if value is not None}
+            if isinstance(existing, dict)
+            else existing.model_dump(exclude_none=True)
+        )
+
+        for field in ("id", "slug"):
+            mine, theirs = current.get(field), getattr(resolved, field)
+            if mine is not None and theirs is not None and str(mine) != str(theirs):
+                return existing
+
+        merged = resolved.model_dump(exclude_none=True)
+        merged.update(current)
+        return Reference(**merged)
 
     # workflows ----------------------------------------------------------------
 

@@ -15,6 +15,7 @@ import {useRouter} from "next/router"
 import NewAgentButton from "@/oss/components/NewAgentButton"
 import NextTriggersSection from "@/oss/components/NextTriggers"
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
+import SessionAutomationDrawers from "@/oss/components/pages/sessions/components/SessionAutomationDrawers"
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import StripComposer from "@/oss/components/TemplateStrip/components/StripComposer"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
@@ -143,6 +144,22 @@ const StripHome: React.FC = () => {
                         : "flex w-full flex-1 items-start gap-10"
                 }
             >
+                {/* Pinned to the top of the scroll frame — a sibling of the (sometimes vertically
+                    centred, see `my-auto` below) content block, not nested inside it, so it
+                    anchors top-left like every other page's back control instead of floating
+                    wherever that block lands. Same max-width as the content column below so its
+                    left edge still lines up with the title. */}
+                {creatingAgent && !isFirstRun ? (
+                    <div className="mx-auto w-full max-w-[840px]">
+                        <Link
+                            href={baseAppURL}
+                            className="mb-6 inline-flex items-center gap-1 self-start text-xs !text-colorTextSecondary"
+                        >
+                            <ArrowLeftIcon size={14} />
+                            Back to home
+                        </Link>
+                    </div>
+                ) : null}
                 <div
                     className={
                         firstRun
@@ -167,15 +184,6 @@ const StripHome: React.FC = () => {
                             card) starts at its left edge. So here the hero joins that rag and
                             drops to a label's size: the composer is the invitation, and its
                             placeholder already asks the question the subtitle repeated. */}
-                        {creatingAgent && !isFirstRun ? (
-                            <Link
-                                href={baseAppURL}
-                                className="mb-6 inline-flex items-center gap-1 self-start text-xs !text-colorTextSecondary"
-                            >
-                                <ArrowLeftIcon size={14} />
-                                Back to home
-                            </Link>
-                        ) : null}
                         <div
                             className={
                                 firstRun
@@ -270,7 +278,11 @@ const StripHome: React.FC = () => {
                     `--ag-demo-banner-h` is the layout's fixed demo banner (0 outside a demo
                     workspace): without it the banner covered the pinned rail's top 22px. */}
                 {!firstRun ? (
-                    <div className="sticky top-[calc(1rem+var(--ag-demo-banner-h,0px))] box-border flex max-h-[calc(100vh-3rem-var(--ag-demo-banner-h,0px))] min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
+                    // The rail's cards carry the warm tinted surface rather than plain white, so
+                    // they read as one object against the page. Light only: dark restores
+                    // colorBgElevated, since the shipped dark card (#242424) is not the tint's
+                    // dark step (#272727) and dark card surfaces aren't part of this change.
+                    <div className="sticky top-[calc(1rem+var(--ag-demo-banner-h,0px))] box-border flex max-h-[calc(100vh-3rem-var(--ag-demo-banner-h,0px))] min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1 [&_.ag-panel-section-header]:bg-[var(--ag-surface-paper)] [&_.ag-panel-section]:bg-[var(--ag-surface-paper)] dark:[&_.ag-panel-section-header]:bg-colorBgElevated dark:[&_.ag-panel-section]:bg-colorBgElevated">
                         <PanelSurface>
                             <PanelScroll>
                                 {/* Rows, not the scroller: a 238px card and a six-tab category
@@ -296,6 +308,7 @@ const StripHome: React.FC = () => {
                     </div>
                 ) : null}
             </div>
+            <SessionAutomationDrawers />
         </PageLayout>
     )
 }

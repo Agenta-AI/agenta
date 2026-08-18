@@ -21,7 +21,7 @@ import {Tooltip} from "antd"
 import {driveFileIcon} from "./driveIcons"
 import {isHiddenPath} from "./driveTree"
 import {FileThumb} from "./FileThumb"
-import {AGENT_ACCENT, OriginTag} from "./OriginTag"
+import {AGENT_ACCENT_SOFT, OriginTag} from "./OriginTag"
 import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "./useSessionDrive"
 
 export type DriveFileVariant = "row" | "card" | "tile"
@@ -108,7 +108,7 @@ export const DriveWarningBadge = ({
 
 // "Just changed" border: a simple, muted accent border (no glow — it read wrong on dense file
 // rows). List rows also drop their radius (square) so the accent reads as a crisp edge.
-const RECENT_BORDER = `color-mix(in srgb, ${AGENT_ACCENT} 55%, transparent)`
+const RECENT_BORDER = AGENT_ACCENT_SOFT
 
 // How many placeholder rows a loading summary list renders — a list, not a promise of a count. The
 // summary surfaces (config Files, chat rail, Runtime Files) all show up to 5 recents but cap the

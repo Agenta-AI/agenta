@@ -1,4 +1,4 @@
-import type {ComponentType, JSX, MouseEvent} from "react"
+import type {ComponentType, JSX, MouseEvent, ReactElement, ReactNode} from "react"
 
 import type {MenuProps} from "antd"
 import type {PrimitiveAtom, WritableAtom} from "jotai"
@@ -26,6 +26,10 @@ export interface SidebarConfig {
     isPlaceholder?: boolean
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
+    /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */
+    matchLinks?: string[]
+    /** Wraps the row's label with per-row chrome (kebab / right-click menu). Skipped when collapsed. */
+    wrapRow?: (node: ReactNode) => ReactElement
     /** Workflow categories that support this item. Omit to support every category. */
     workflowCategories?: readonly SidebarWorkflowCategory[]
 }

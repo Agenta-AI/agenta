@@ -29,6 +29,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import ValidationError
 
 # FastAPI route params need fastapi.UploadFile; request.form() yields starlette's base class.
 from fastapi import UploadFile as FastAPIUploadFile
@@ -95,7 +96,7 @@ from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.sessions.turns.dtos import SessionTurnComplete, SessionTurnCreate
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.turns.types import SessionTurnNotFound
-from oss.src.core.sessions.dtos import SessionQuery
+from oss.src.core.sessions.dtos import SessionExpansion
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
@@ -132,6 +133,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionInteractionCreateRequest,
     SessionInteractionQueryRequest,
     SessionInteractionRespondRequest,
+    SessionInteractionResolution,
     SessionInteractionResponse,
     SessionInteractionsResponse,
     SessionInteractionTransitionRequest,
@@ -153,6 +155,11 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionQueryRequest,
     SessionResponse,
     SessionsResponse,
+)
+from oss.src.apis.fastapi.sessions.utils import (
+    compute_session_response_windowing,
+    normalize_session_query_request,
+    sanitize_session_stream,
 )
 
 log = get_module_logger(__name__)
@@ -405,7 +412,7 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        return SessionStreamResponse(stream=stream)
+        return SessionStreamResponse(stream=sanitize_session_stream(stream))
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -481,9 +488,12 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        return await self._service.heartbeat(
+        heartbeat = await self._service.heartbeat(
             project_id=project_id,
             request=payload,
+        )
+        return heartbeat.model_copy(
+            update={"stream": sanitize_session_stream(heartbeat.stream)}
         )
 
     @intercept_exceptions()
@@ -514,7 +524,10 @@ class SessionStreamsRouter:
                 ),
             ),
         )
-        return SessionStreamsResponse(count=len(streams), streams=streams)
+        return SessionStreamsResponse(
+            count=len(streams),
+            streams=[sanitize_session_stream(stream) for stream in streams],
+        )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -540,7 +553,7 @@ class SessionStreamsRouter:
             session_id=session_id,
             header=header,
         )
-        return SessionStreamResponse(stream=stream)
+        return SessionStreamResponse(stream=sanitize_session_stream(stream))
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -867,10 +880,10 @@ class InteractionsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        resolution = (
-            body.resolution.model_dump() if body.resolution is not None else None
-        )
-        if resolution is not None:
+        resolution = body.resolution
+        # `resolved` is approval-only whether or not an answer rides along, so the row lookup
+        # runs for a bare `resolved` transition too.
+        if resolution is not None or body.status == SessionInteractionStatus.resolved:
             interactions = await self.interactions_service.query_interactions(
                 project_id=project_id,
                 query=SessionInteractionQuery(session_id=body.session_id),
@@ -888,11 +901,25 @@ class InteractionsRouter:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Interaction not found or already terminal",
                 )
-            if source.kind != SessionInteractionKind.user_approval:
+            if (
+                body.status == SessionInteractionStatus.resolved
+                and source.kind != SessionInteractionKind.user_approval
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Resolution is only valid for user approval interactions",
+                    detail=f"Resolved status is not valid for {source.kind.value} interactions",
                 )
+            if (
+                resolution is not None
+                and source.kind == SessionInteractionKind.user_approval
+            ):
+                try:
+                    SessionInteractionResolution.model_validate(resolution)
+                except ValidationError as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=e.errors(include_context=False),
+                    ) from e
 
         try:
             interaction = await self.interactions_service.transition_interaction(
@@ -1699,32 +1726,45 @@ class SessionsRootRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        query = SessionQuery(
-            references=body.references,
-            include_ended=body.include_ended,
-            include_archived=body.include_archived,
-            search=body.search,
-            flags=body.flags,
-            session_ids=body.session_ids,
-            exclude_session_ids=body.exclude_session_ids,
-            include_total=body.include_total,
-            origin=body.origin,
-            exclude_origin=body.exclude_origin,
-        )
-        sessions = await self.sessions_service.query_sessions(
-            project_id=UUID(str(project_id)),
-            query=query,
-            windowing=body.windowing,
-        )
-        total = (
-            await self.sessions_service.count_sessions(
-                project_id=UUID(str(project_id)),
-                query=query,
+        if SessionExpansion.trigger in body.expand and not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_TRIGGERS,
+        ):
+            # Every other trigger read gates on VIEW_TRIGGERS; this one only checked
+            # VIEW_SESSIONS, so a custom role with the former but not the latter could
+            # read trigger names through the expansion (P2-3). Degrade rather than 403 —
+            # drop the expansion so `trigger.name` comes back None like an unrequested
+            # expansion, and the rest of the row still renders.
+            body = body.model_copy(
+                update={
+                    "expand": [
+                        expansion
+                        for expansion in body.expand
+                        if expansion != SessionExpansion.trigger
+                    ]
+                }
             )
-            if body.include_total
-            else None
+
+        normalized = normalize_session_query_request(body)
+        page = await self.sessions_service.query_sessions_page(
+            project_id=UUID(str(project_id)),
+            query=normalized.predicates,
+            lifecycle=normalized.lifecycle,
+            options=normalized.options,
+            windowing=normalized.windowing,
         )
-        return SessionsResponse(count=len(sessions), total=total, sessions=sessions)
+        response_windowing = compute_session_response_windowing(
+            sessions=page.sessions,
+            requested=normalized.windowing,
+        )
+        sessions = [sanitize_session_stream(session) for session in page.sessions]
+        return SessionsResponse(
+            count=len(page.sessions),
+            total=page.total,
+            sessions=sessions,
+            windowing=response_windowing,
+        )
 
     @intercept_exceptions()
     async def delete_session(
@@ -1772,7 +1812,10 @@ class SessionsRootRouter:
             user_id=UUID(str(user_id)),
             session_id=session_id,
         )
-        return SessionResponse(count=1 if session else 0, session=session)
+        return SessionResponse(
+            count=1 if session else 0,
+            session=sanitize_session_stream(session),
+        )
 
     @intercept_exceptions()
     async def unarchive_session(
@@ -1796,7 +1839,10 @@ class SessionsRootRouter:
             user_id=UUID(str(user_id)),
             session_id=session_id,
         )
-        return SessionResponse(count=1 if session else 0, session=session)
+        return SessionResponse(
+            count=1 if session else 0,
+            session=sanitize_session_stream(session),
+        )
 
 
 # ---------------------------------------------------------------------------

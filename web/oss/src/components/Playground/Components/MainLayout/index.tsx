@@ -18,10 +18,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentChatSkeleton"
-import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
+import {
+    chatPanelMaximizedAtom,
+    configPanelCollapsedAtom,
+} from "@/oss/components/AgentChatSlice/state/panelLayout"
 // Direct file import — the SessionInspector barrel would statically pull the (dynamic,
 // open-on-demand) inspector drawer back into this chunk.
-import OverlayScrollbar from "@/oss/components/OverlayScrollbar"
 import PanelSessionInspectorButton from "@/oss/components/SessionInspector/PanelSessionInspectorButton"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
@@ -235,8 +237,12 @@ const PlaygroundMainView = ({
     // shrinks it. (A larger max just teased a few px of "expansion" — antd counts px sizes against
     // the full container INCLUDING the 12px gutter bar, whose overflow flex-shrink taxes both
     // panels, so the panel never even reached the old 450.)
+    // Agent bounds are PIXELS on both ends: with a percentage min, a wide (4K) window computes
+    // min (20% ≈ 700px+) ABOVE the fixed max — the panel mounts at the min, the first drag snaps
+    // it to the max, and the divider is then pinned between inverted constraints.
     const configDefaultSize = isAgentConfig ? 440 : "50%"
-    const configMaxSize = isAgentConfig ? 440 : "70%"
+    const configMinSize = isAgentConfig ? 340 : "20%"
+    const configMaxSize = isAgentConfig ? 640 : "70%"
     // Let the runs panel auto-fill in agent mode. A px config default + a "50%" runs default
     // don't sum to 100%, so antd scales BOTH up to fill the container — pushing config past its
     // px max on mount, which then snaps down on the first drag. An undefined runs default fills
@@ -251,27 +257,31 @@ const PlaygroundMainView = ({
     // panel's `size` puts antd's Splitter into controlled mode: 0 collapses it, undefined
     // restores uncontrolled drag/defaultSize behaviour. Only meaningful in single agent view.
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
-    const configCollapsed = !isComparisonView && isAgentConfig && chatMaximized
-    // Ease the config pane between its width and 0 on a Build/Chat toggle. The transition class must
-    // land in the SAME commit as the size change (else it snaps), so detect the flip during render
-    // via a ref compare; hold it ~280ms so removing the class doesn't snap, then drop it (mount,
-    // drag, and window resize keep it off so the panes never lag their target size).
-    const prevMaximizedRef = useRef(chatMaximized)
+    // Manual collapse (config header's collapse button / chat header's reveal button) — a second,
+    // persisted trigger for the same collapse, independent of the Build/Chat maximize toggle above.
+    const configPanelCollapsed = useAtomValue(configPanelCollapsedAtom)
+    const configCollapsed =
+        !isComparisonView && isAgentConfig && (chatMaximized || configPanelCollapsed)
+    // Ease the config pane between its width and 0 on either collapse trigger. The transition class
+    // must land in the SAME commit as the size change (else it snaps), so detect the flip during
+    // render via a ref compare; hold it ~280ms so removing the class doesn't snap, then drop it
+    // (mount, drag, and window resize keep it off so the panes never lag their target size).
+    const prevConfigCollapsedRef = useRef(configCollapsed)
     const [holdAnimate, setHoldAnimate] = useState(false)
-    const justToggled = prevMaximizedRef.current !== chatMaximized
+    const justToggled = prevConfigCollapsedRef.current !== configCollapsed
     // Deps = toggle value ONLY: with `justToggled` in deps, the holdAnimate re-render re-ran the
     // effect and its cleanup cancelled the timer — the class stuck on and every drag lagged.
     useEffect(() => {
-        if (prevMaximizedRef.current === chatMaximized) return
-        prevMaximizedRef.current = chatMaximized
+        if (prevConfigCollapsedRef.current === configCollapsed) return
+        prevConfigCollapsedRef.current = configCollapsed
         setHoldAnimate(true)
         const t = setTimeout(() => setHoldAnimate(false), 280)
         return () => clearTimeout(t)
-    }, [chatMaximized])
+    }, [configCollapsed])
     const animateSplit = justToggled || holdAnimate
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {configPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
 
@@ -368,7 +378,7 @@ const PlaygroundMainView = ({
                     <SplitterPanel
                         defaultSize={configDefaultSize}
                         size={configCollapsed ? 0 : undefined}
-                        min="20%"
+                        min={configMinSize}
                         max={configMaxSize}
                         // antd panels default to overflow:auto; the section inside owns scrolling, and
                         // a transient overflow leaves Chrome's thin panel scrollbar stuck full-height.
@@ -380,6 +390,13 @@ const PlaygroundMainView = ({
                             The notice lives OUTSIDE the scroller, so it sits at the pane's bottom
                             edge regardless of content height or scroll position. */}
                         <div
+                            // Collapsed, the pane is zero-width but its inputs stay in the tab
+                            // order — antd's hidden-splitter class only changes padding/overflow —
+                            // so Tab could walk focus into controls nobody can see. `inert` takes
+                            // the whole subtree out of focus and a11y; `configCollapsed` covers
+                            // both triggers (Build/Chat maximize and the persisted manual collapse).
+                            inert={configCollapsed}
+                            aria-hidden={configCollapsed || undefined}
                             className={clsx("group relative flex h-full min-h-0 w-full flex-col", {
                                 // Config = the raised authoring surface (covers the notice too).
                                 "ag-panel-raised": isAgentConfig,
@@ -391,7 +408,7 @@ const PlaygroundMainView = ({
                                     {
                                         "ag-scroll-no-bar grow w-full min-h-0 overflow-y-auto":
                                             !isComparisonView,
-                                        "grow w-full min-h-0 overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
+                                        "ag-scroll-no-bar grow w-full min-h-0 overflow-x-auto flex":
                                             isComparisonView,
                                     },
                                 ])}
@@ -399,7 +416,7 @@ const PlaygroundMainView = ({
                                 <>
                                     {isComparisonView && hasDisplayedEntities && (
                                         <PromptComparisonVariantNavigation
-                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
+                                            className="ag-scroll-no-bar w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
                                             handleScroll={handleScroll}
                                         />
                                     )}
@@ -419,8 +436,13 @@ const PlaygroundMainView = ({
                                                 }
                                                 className={clsx([
                                                     {
-                                                        "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
+                                                        "ag-scroll-no-bar min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
                                                             isComparisonView,
+                                                        // Single-entity view: a full-height flex column
+                                                        // so the config panel's last region can stretch
+                                                        // its surface to the pane's bottom edge.
+                                                        "flex min-h-full flex-col":
+                                                            !isComparisonView,
                                                     },
                                                 ])}
                                                 ref={(el) => {
@@ -442,9 +464,6 @@ const PlaygroundMainView = ({
                                     )}
                                 </>
                             </section>
-                            {!isComparisonView ? (
-                                <OverlayScrollbar target={configPanelRef} />
-                            ) : null}
                             {!isComparisonView && isAgentConfig && primaryConfigId ? (
                                 <>
                                     <ProviderKeyNotice revisionId={primaryConfigId} />
@@ -472,8 +491,13 @@ const PlaygroundMainView = ({
                                 "playground-generation",
                                 {
                                     "ag-scroll-quiet grow w-full h-full overflow-y-auto overflow-x-hidden":
-                                        !isComparisonView,
-                                    "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
+                                        !isComparisonView && !isAgentConfig,
+                                    // Agent chat scrolls itself: overflow-hidden here avoids the
+                                    // reserved scrollbar gutter (a dead strip right of the Files
+                                    // pane divider that the chat could never fill).
+                                    "grow w-full h-full overflow-hidden":
+                                        !isComparisonView && isAgentConfig,
+                                    "ag-scroll-no-bar grow w-full h-full overflow-auto":
                                         isComparisonView,
                                     // Chat = the recessed canvas the message/composer surfaces sit on.
                                     "ag-canvas": isAgentConfig,

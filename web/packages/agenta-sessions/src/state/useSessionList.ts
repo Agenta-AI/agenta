@@ -5,6 +5,7 @@ import {
     sessionRowsFromPages,
     SESSIONS_PAGE_SIZE,
     type SessionInteraction,
+    type SessionExpansion,
     type SessionListCursor,
 } from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -12,6 +13,11 @@ import {keepPreviousData, useInfiniteQuery, useQuery} from "@tanstack/react-quer
 import {useAtomValue} from "jotai"
 
 import {type SessionStatusFilter} from "./filters"
+import {
+    sessionListIdGroupLimit,
+    sessionListRequestFilters,
+    type SessionOriginPolicy,
+} from "./sessionListPolicy"
 
 export {SESSIONS_PAGE_SIZE}
 
@@ -56,7 +62,9 @@ export const pendingBySessionId = (
     return bySession
 }
 
-interface SessionListOptions {
+export interface SessionListOptions {
+    originPolicy: SessionOriginPolicy
+    expansions: readonly SessionExpansion[]
     /** Ids rendered as their own group (pins) — excluded so nothing appears twice. */
     excludeSessionIds?: string[]
     /** Restrict to these ids; used by the pinned group to fetch exactly its own rows. */
@@ -65,17 +73,29 @@ interface SessionListOptions {
     search?: string
     agentId?: string | null
     includeArchived?: boolean
-    /** Include automation-started sessions in the default list. Off by default. */
-    showTriggered?: boolean
-    /** Restrict to ONE origin — the automations list. Distinct from `showTriggered`, which only
-     * widens the default list rather than narrowing it. */
-    origin?: string
     /** Ids of sessions with a pending gate — the pushdown behind the "Waiting" filter. */
     waitingSessionIds?: string[]
     /** Page size. Drop it for callers that want one row (a roster's "last active") rather than
      * a list — a full page per row is a lot of list to throw away. */
     limit?: number
     enabled?: boolean
+}
+
+export const sessionListIdWindow = ({
+    sessionIds,
+    waitingSessionIds,
+    status,
+    limit,
+}: Pick<SessionListOptions, "sessionIds" | "waitingSessionIds" | "status" | "limit">): {
+    sessionIds: string[] | undefined
+    limit: number | undefined
+} => {
+    const restricted =
+        status === "waiting" ? intersectIds(sessionIds, waitingSessionIds ?? []) : sessionIds
+    return {
+        sessionIds: restricted,
+        limit: sessionListIdGroupLimit(restricted, limit),
+    }
 }
 
 /**
@@ -97,17 +117,16 @@ export const useSessionList = ({
     search = "",
     agentId = null,
     includeArchived = false,
-    showTriggered = false,
-    origin,
+    originPolicy,
+    expansions,
     waitingSessionIds,
     limit,
     enabled = true,
-}: SessionListOptions = {}) => {
+}: SessionListOptions) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
 
     // "Waiting" narrows to the gated ids; combined with an explicit set, the server intersects.
-    const restrictIds =
-        status === "waiting" ? intersectIds(sessionIds, waitingSessionIds ?? []) : sessionIds
+    const idWindow = sessionListIdWindow({sessionIds, waitingSessionIds, status, limit})
     // A waiting filter whose poll hasn't resolved must not query — an absent id set would read as
     // "no restriction" and show every session under a "Waiting" chip.
     const waitingUnresolved = status === "waiting" && waitingSessionIds === undefined
@@ -117,14 +136,11 @@ export const useSessionList = ({
         search,
         agentId,
         includeArchived,
-        origin,
-        // Exclude rather than match: a session written before origins were stamped has no tag,
-        // and must still appear in the default list. Skipped when asking for one origin outright.
-        excludeOrigin: origin || showTriggered ? undefined : "trigger",
+        ...sessionListRequestFilters({origin: originPolicy, expansions}),
         flags: status === "live" ? {is_alive: true} : undefined,
-        sessionIds: restrictIds,
+        sessionIds: idWindow.sessionIds,
         excludeSessionIds,
-        limit,
+        limit: idWindow.limit,
     })
 
     return useInfiniteQuery({
@@ -134,7 +150,7 @@ export const useSessionList = ({
         enabled: Boolean(projectId) && enabled && !waitingUnresolved,
         initialPageParam: null as SessionListCursor | null,
         queryFn: ({pageParam, signal}) => options.queryFn({pageParam, signal}),
-        getNextPageParam: (lastPage) => nextSessionCursor(lastPage, options.limit),
+        getNextPageParam: (lastPage) => nextSessionCursor(lastPage, options.limit, options.order),
         // Pins and filters are part of the key, so every toggle mints a new query. Without this
         // the list would fall back to `pending` and flash its skeleton — the rows are still valid,
         // only their membership is being rechecked.
@@ -143,7 +159,7 @@ export const useSessionList = ({
     })
 }
 
-/** Flatten loaded pages, dropping failed ones (`querySessions` resolves null on failure). */
+/** Flatten loaded pages, dropping failed ones. */
 export const rowsFromPages = sessionRowsFromPages
 
 const intersectIds = (a: string[] | undefined, b: string[]): string[] => {

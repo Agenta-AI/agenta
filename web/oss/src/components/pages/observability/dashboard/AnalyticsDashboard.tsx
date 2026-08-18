@@ -52,7 +52,6 @@ const AnalyticsDashboard = ({
     const defaultGraphProps = useMemo<ComponentProps<typeof CustomAreaChart>>(
         () => ({
             className: "h-[140px]",
-            colors: ["cyan-600", "rose"],
             tickCount: 5,
             index: "timestamp",
             data: chartData,
@@ -169,7 +168,6 @@ const AnalyticsDashboard = ({
                             <CustomAreaChart
                                 {...defaultGraphProps}
                                 categories={["cost"]}
-                                colors={["cyan-600"]}
                                 valueFormatter={(value) => formatCurrency(value)}
                             />
                         ) : (
@@ -197,11 +195,7 @@ const AnalyticsDashboard = ({
                         }
                     >
                         {hasData ? (
-                            <CustomAreaChart
-                                {...defaultGraphProps}
-                                categories={["total_tokens"]}
-                                colors={["cyan-600"]}
-                            />
+                            <CustomAreaChart {...defaultGraphProps} categories={["total_tokens"]} />
                         ) : (
                             <EmptyChart className={emptyStateClass} />
                         )}

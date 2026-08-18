@@ -3,10 +3,12 @@ import {useCallback, useMemo} from "react"
 import {
     archiveSessionRemote,
     deleteSessionRemote,
+    invalidateSessionListQueries,
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
+import {useAltKey} from "@agenta/shared/hooks"
 import {useQueryClient} from "@tanstack/react-query"
 import {App, Input} from "antd"
 import type {MenuProps} from "antd"
@@ -53,7 +55,9 @@ export const useSessionActions = () => {
 
     const revalidate = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ["sessions-page"]})
-        void queryClient.invalidateQueries({queryKey: ["session-list"]})
+        // Token match — the sidebar nests the same list options behind `["sidebar", ...]`, which a
+        // `["session-list"]` prefix never reaches, so its rows outlived an archive/delete.
+        invalidateSessionListQueries()
     }, [queryClient])
 
     /** Is this session in the owning agent's local tab cache? Decides who makes the server call. */
@@ -90,7 +94,7 @@ export const useSessionActions = () => {
                     const title = next.trim()
                     if (!title) return
                     if (isCached(target) && target.appId) {
-                        store.set(renameSessionAtomFamily(target.appId), {
+                        await store.set(renameSessionAtomFamily(target.appId), {
                             id: target.sessionId,
                             title,
                         })
@@ -118,7 +122,9 @@ export const useSessionActions = () => {
                 const local = target.archived
                     ? unarchiveSessionAtomFamily
                     : archiveSessionAtomFamily
-                store.set(local(target.appId), target.sessionId)
+                // Awaited: the atom's own server write is fire-and-forget, so revalidating straight
+                // after it refetched the row in its PRE-archive state and the lists kept showing it.
+                await store.set(local(target.appId), target.sessionId)
             } else {
                 const call = target.archived ? unarchiveSessionRemote : archiveSessionRemote
                 const ok = await call({sessionId: target.sessionId, projectId})
@@ -143,7 +149,8 @@ export const useSessionActions = () => {
                 okButtonProps: {danger: true},
                 onOk: async () => {
                     if (isCached(target) && target.appId) {
-                        store.set(deleteSessionAtomFamily(target.appId), target.sessionId)
+                        // Await for the same reason as archive above — the lists refetch next.
+                        await store.set(deleteSessionAtomFamily(target.appId), target.sessionId)
                     } else {
                         const ok = await deleteSessionRemote({
                             sessionId: target.sessionId,
@@ -162,20 +169,42 @@ export const useSessionActions = () => {
     )
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
+    const altKey = useAltKey()
 
-    /** The one menu both surfaces render. `onOpen` is omitted where the session is already open. */
+    /**
+     * The one menu both surfaces render. `onOpen` is omitted where the session is already open;
+     * `shortcuts` is opt-in because only the playground's tab strip has the keyboard bindings —
+     * the sidebar and the sessions page render the same menu without them.
+     */
     const menuItems = useCallback(
-        (target: SessionActionTarget, options?: {onOpen?: () => void}): MenuProps["items"] => [
-            ...(options?.onOpen
-                ? [{key: "open", label: "Open in playground", disabled: !target.appId}]
-                : []),
-            {key: "rename", label: "Rename"},
-            {key: "pin", label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin"},
-            {type: "divider" as const},
-            {key: "archive", label: target.archived ? "Unarchive" : "Archive"},
-            {key: "delete", label: "Delete", danger: true},
-        ],
-        [pinnedSet],
+        (
+            target: SessionActionTarget,
+            options?: {onOpen?: () => void; shortcuts?: boolean},
+        ): MenuProps["items"] => {
+            const withShortcut = (label: string, keys: string) =>
+                options?.shortcuts ? (
+                    <span className="flex items-center justify-between gap-6">
+                        {label}
+                        <span className="text-colorTextDescription">{keys}</span>
+                    </span>
+                ) : (
+                    label
+                )
+            return [
+                ...(options?.onOpen
+                    ? [{key: "open", label: "Open in playground", disabled: !target.appId}]
+                    : []),
+                {key: "rename", label: withShortcut("Rename", `${altKey}R`)},
+                {key: "pin", label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin"},
+                {type: "divider" as const},
+                {
+                    key: "archive",
+                    label: target.archived ? "Unarchive" : withShortcut("Archive", `${altKey}A`),
+                },
+                {key: "delete", label: "Delete", danger: true},
+            ]
+        },
+        [altKey, pinnedSet],
     )
 
     const onMenuClick = useCallback(
