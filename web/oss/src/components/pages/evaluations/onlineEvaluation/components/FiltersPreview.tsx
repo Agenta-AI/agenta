@@ -154,9 +154,9 @@ const FiltersPreview = ({filtering, filters, className, compact}: FiltersPreview
     return (
         <div className={clsx("flex flex-col gap-1", className)}>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,2fr] mb-1.5">
-                <Text className="text-[11px] uppercase text-[var(--ag-c-667085)]">Field</Text>
-                <Text className="text-[11px] uppercase text-[var(--ag-c-667085)]">Operator</Text>
-                <Text className="text-[11px] uppercase text-[var(--ag-c-667085)]">Value</Text>
+                <Text className="text-xs uppercase text-[var(--ag-c-667085)]">Field</Text>
+                <Text className="text-xs uppercase text-[var(--ag-c-667085)]">Operator</Text>
+                <Text className="text-xs uppercase text-[var(--ag-c-667085)]">Value</Text>
             </div>
             {normalizedFilters.map((item) => (
                 <div key={item.id} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,2fr]">

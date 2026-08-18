@@ -19,7 +19,6 @@
 import {useCallback, type ReactNode} from "react"
 
 import {
-    describeCron,
     getScheduleMessagePreview,
     isEntityActive,
     triggerDeliveriesDrawerAtom,
@@ -45,9 +44,12 @@ import {
 import {
     ArrowsClockwise,
     Clock,
+    Flask,
     Lightning,
     ListChecks,
+    Pause,
     PencilSimpleLine,
+    Play,
     Plus,
     Trash,
     XCircle,
@@ -61,7 +63,7 @@ import TriggerSubscriptionDrawer from "../../gatewayTrigger/drawers/TriggerSubsc
 import {AddTextLink} from "./AddTextLink"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
-import {TriggerRow} from "./triggerManagement/TriggerRow"
+import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 
 export {AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
@@ -83,7 +85,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
         refresh: refreshSubscription,
         revoke: revokeSubscription,
     } = useTriggerSubscription()
-    const {remove: removeSchedule} = useTriggerSchedule()
+    const {remove: removeSchedule, setActive: setScheduleActive} = useTriggerSchedule()
 
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
@@ -125,6 +127,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                     onSelect={() => {
                         if (record.id)
                             openDeliveries({
+                                mode: "owner-history",
                                 owner: {kind: "subscription", id: record.id},
                                 name: record.name ?? undefined,
                                 playgroundEntityId: entityId ?? undefined,
@@ -208,13 +211,35 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
     )
 
     // ---- schedule actions ----
+    const toggleSchedule = useCallback(
+        async (record: TriggerSchedule, next: boolean) => {
+            if (!record.id) return
+            try {
+                await setScheduleActive(record.id, next)
+                message.success(next ? "Schedule resumed" : "Schedule paused")
+            } catch {
+                message.error("Failed to update schedule")
+            }
+        },
+        [setScheduleActive],
+    )
+
     const scheduleMenu = useCallback(
         (record: TriggerSchedule): ReactNode => (
             <>
                 <DropdownMenuItem
+                    disabled={disabled || !record.id}
+                    onSelect={() => simulateSchedule(record)}
+                >
+                    <Flask size={16} />
+                    Run in playground
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
                     onSelect={() => {
                         if (record.id)
                             openDeliveries({
+                                mode: "owner-history",
                                 owner: {kind: "schedule", id: record.id},
                                 name: record.name ?? undefined,
                                 playgroundEntityId: entityId ?? undefined,
@@ -237,6 +262,23 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                     <PencilSimpleLine size={16} />
                     Edit
                 </DropdownMenuItem>
+                {isEntityActive(record) ? (
+                    <DropdownMenuItem
+                        disabled={disabled || !record.id}
+                        onSelect={() => toggleSchedule(record, false)}
+                    >
+                        <Pause size={16} />
+                        Pause
+                    </DropdownMenuItem>
+                ) : (
+                    <DropdownMenuItem
+                        disabled={disabled || !record.id}
+                        onSelect={() => toggleSchedule(record, true)}
+                    >
+                        <Play size={16} />
+                        Resume
+                    </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                     variant="destructive"
@@ -256,7 +298,15 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 </DropdownMenuItem>
             </>
         ),
-        [openDeliveries, openScheduleDrawer, removeSchedule, entityId, disabled],
+        [
+            openDeliveries,
+            openScheduleDrawer,
+            removeSchedule,
+            simulateSchedule,
+            toggleSchedule,
+            entityId,
+            disabled,
+        ],
     )
 
     // Create flows for the per-section "+" and empty-state links — both default-bind to this agent.
@@ -309,6 +359,9 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 }
                 defaultOpen={scopedSubscriptions.length > 0}
                 animateInitialOpen
+                // Same expanded-header band Tools uses (see AgentTemplateSectionList): white while
+                // collapsed, recoloured while open. The bleed matches this region's px-4 container.
+                headerBand="-mx-4 px-4"
             >
                 {scopedSubscriptions.length > 0 ? (
                     // Grouped by provider. The connections + catalog queries live inside this child
@@ -317,12 +370,10 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                         scopedSubscriptions={scopedSubscriptions}
                         entityId={entityId}
                         disabled={disabled}
-                        defaultReferences={defaultReferences}
-                        defaultBoundLabel={defaultBoundLabel}
                         subscriptionMenu={subscriptionMenu}
                     />
                 ) : !disabled ? (
-                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    <span className="text-xs text-[var(--ag-zinc-5)]">
                         No subscriptions yet —{" "}
                         <AddTextLink label="add a subscription" onClick={openSubscriptionCreate} />
                     </span>
@@ -339,39 +390,29 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 defaultOpen={scopedSchedules.length > 0}
                 noDivider
                 animateInitialOpen
+                headerBand="-mx-4 px-4"
             >
                 {scopedSchedules.length > 0 ? (
                     <div className="flex flex-col gap-2">
-                        {scopedSchedules.map((record) => {
-                            const cron = record.data?.schedule
-                            const named = !!record.name?.trim()
-                            const message = getScheduleMessagePreview(record.data?.inputs_fields)
-                            return (
-                                <TriggerRow
-                                    key={`schedule-${record.id}`}
-                                    icon={<Clock size={15} />}
-                                    name={named ? (record.name as string) : "Untitled schedule"}
-                                    nameMuted={!named}
-                                    chip={cron ? describeCron(cron) : undefined}
-                                    subtitle={message || "No message set"}
-                                    active={isEntityActive(record)}
-                                    disabled={disabled}
-                                    runDisabled={disabled || !record.id}
-                                    onRun={() => simulateSchedule(record)}
-                                    onOpen={() =>
-                                        record.id &&
-                                        openScheduleDrawer({
-                                            scheduleId: record.id,
-                                            playgroundEntityId: entityId ?? undefined,
-                                        })
-                                    }
-                                    menu={scheduleMenu(record)}
-                                />
-                            )
-                        })}
+                        {scopedSchedules.map((record) => (
+                            <ScheduleTriggerRow
+                                key={`schedule-${record.id}`}
+                                record={record}
+                                entityId={entityId}
+                                disabled={disabled}
+                                onOpen={() =>
+                                    record.id &&
+                                    openScheduleDrawer({
+                                        scheduleId: record.id,
+                                        playgroundEntityId: entityId ?? undefined,
+                                    })
+                                }
+                                menu={scheduleMenu(record)}
+                            />
+                        ))}
                     </div>
                 ) : !disabled ? (
-                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    <span className="text-xs text-[var(--ag-zinc-5)]">
                         No schedules yet —{" "}
                         <AddTextLink label="add a schedule" onClick={openScheduleCreate} />
                     </span>

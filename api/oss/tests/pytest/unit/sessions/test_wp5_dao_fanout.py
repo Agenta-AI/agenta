@@ -21,6 +21,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import text
 
+from oss.src.apis.fastapi.sessions.utils import compute_session_response_windowing
+from oss.src.core.sessions.dtos import SessionOrigin
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionCreate,
     SessionInteractionData,
@@ -30,6 +32,12 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
     SessionInteractionTransition,
 )
+from oss.src.core.sessions.streams.dtos import (
+    SessionStreamQuery,
+    SessionStreamReadOptions,
+)
+from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.mounts.dtos import MountCreate, MountQuery
 import oss.src.models.db_models  # noqa: F401
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
@@ -546,3 +554,370 @@ async def test_query_mounts_without_windowing_orders_oldest_first(mounts_dao, pr
     )
 
     assert [m.id for m in queried] == [mounts[1].id, mounts[2].id, mounts[0].id]
+
+
+async def test_stream_origin_filters_preserve_null_and_unstamped_rows(
+    streams_dao, project
+):
+    project_id = project["project_id"]
+    rows = [
+        (uuid.uuid4(), "trigger", '{"ag.origin": "trigger"}'),
+        (uuid.uuid4(), "unstamped", '{"team": "support"}'),
+        (uuid.uuid4(), "null-tags", None),
+    ]
+    async with get_transactions_engine().session() as session:
+        for row_id, suffix, tags in rows:
+            await session.execute(
+                text(
+                    "INSERT INTO session_streams "
+                    "(id, project_id, session_id, flags, tags) VALUES "
+                    "(:id, :project_id, :session_id, CAST(:flags AS jsonb), "
+                    "CAST(:tags AS jsonb))"
+                ),
+                {
+                    "id": row_id,
+                    "project_id": project_id,
+                    "session_id": f"origin-{suffix}-{uuid.uuid4().hex[:8]}",
+                    "flags": "{}",
+                    "tags": tags,
+                },
+            )
+        await session.commit()
+
+    included = await streams_dao.query(
+        project_id=project_id,
+        filter=SessionStreamQuery(origins=[SessionOrigin.trigger]),
+    )
+    excluded = await streams_dao.query(
+        project_id=project_id,
+        filter=SessionStreamQuery(exclude_origins=[SessionOrigin.trigger]),
+    )
+
+    assert [result.stream.id for result in included] == [rows[0][0]]
+    assert {result.stream.id for result in excluded} == {rows[1][0], rows[2][0]}
+
+
+@pytest.mark.parametrize("order", ["ascending", "descending"])
+async def test_stream_tied_activity_cursor_pages_without_duplicates(
+    streams_dao, project, order
+):
+    project_id = project["project_id"]
+    activity = datetime(2026, 8, 10, tzinfo=timezone.utc)
+    row_ids = sorted(uuid.uuid4() for _ in range(5))
+    async with get_transactions_engine().session() as session:
+        for index, row_id in enumerate(row_ids):
+            await session.execute(
+                text(
+                    "INSERT INTO session_streams "
+                    "(id, project_id, session_id, created_at, updated_at, flags) VALUES "
+                    "(:id, :project_id, :session_id, :activity, :activity, "
+                    "CAST(:flags AS jsonb))"
+                ),
+                {
+                    "id": row_id,
+                    "project_id": project_id,
+                    "session_id": f"cursor-{order}-{index}-{uuid.uuid4().hex[:8]}",
+                    "activity": activity,
+                    "flags": "{}",
+                },
+            )
+        await session.commit()
+
+    first_page = await streams_dao.query(
+        project_id=project_id,
+        filter=SessionStreamQuery(),
+        windowing=Windowing(limit=2, order=order),
+    )
+    first_page_streams = [result.stream for result in first_page]
+    cursor = compute_session_response_windowing(
+        sessions=first_page_streams,
+        requested=Windowing(limit=2, order=order),
+    )
+    second_page = await streams_dao.query(
+        project_id=project_id,
+        filter=SessionStreamQuery(),
+        windowing=cursor,
+    )
+
+    expected = sorted(row_ids, reverse=order == "descending")
+    second_page_streams = [result.stream for result in second_page]
+    assert [
+        stream.id for stream in first_page_streams + second_page_streams
+    ] == expected[:4]
+    assert {stream.id for stream in first_page_streams}.isdisjoint(
+        stream.id for stream in second_page_streams
+    )
+
+
+async def test_trigger_expansion_isolates_project_and_kind_for_live_and_deleted_names(
+    streams_dao, project
+):
+    engine = get_transactions_engine()
+    project_id = project["project_id"]
+    user_id = project["user_id"]
+    configuration_id = uuid.uuid4()
+    schedule_stream_id = uuid.uuid4()
+    subscription_stream_id = uuid.uuid4()
+    other_project_id = uuid.uuid4()
+    schedule_tags = (
+        '{"ag.origin":"trigger","ag.trigger.id":"'
+        f'{configuration_id}","ag.trigger.kind":"schedule"}}'
+    )
+    subscription_tags = (
+        '{"ag.origin":"trigger","ag.trigger.id":"'
+        f'{configuration_id}","ag.trigger.kind":"subscription"}}'
+    )
+    async with engine.session() as session:
+        scope = (
+            (
+                await session.execute(
+                    text(
+                        "SELECT workspace_id, organization_id FROM projects WHERE id = :id"
+                    ),
+                    {"id": project_id},
+                )
+            )
+            .mappings()
+            .one()
+        )
+        await session.execute(
+            text(
+                "INSERT INTO projects "
+                "(id, project_name, workspace_id, organization_id) "
+                "VALUES (:id, :name, :workspace_id, :organization_id)"
+            ),
+            {
+                "id": other_project_id,
+                "name": "trigger-join-isolation-project",
+                "workspace_id": scope["workspace_id"],
+                "organization_id": scope["organization_id"],
+            },
+        )
+        for scoped_project_id, suffix in (
+            (project_id, "target"),
+            (other_project_id, "other"),
+        ):
+            await session.execute(
+                text(
+                    "INSERT INTO gateway_connections "
+                    "(id, project_id, created_by_id, slug, provider_key, integration_key) "
+                    "VALUES (:id, :project_id, :user_id, :slug, :provider, :integration)"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "project_id": scoped_project_id,
+                    "user_id": user_id,
+                    "slug": f"trigger-join-{suffix}",
+                    "provider": "composio",
+                    "integration": "github",
+                },
+            )
+        connections = (
+            await session.execute(
+                text(
+                    "SELECT project_id, id FROM gateway_connections "
+                    "WHERE project_id IN (:project_id, :other_project_id) "
+                    "AND slug IN ('trigger-join-target', 'trigger-join-other')"
+                ),
+                {
+                    "project_id": project_id,
+                    "other_project_id": other_project_id,
+                },
+            )
+        ).all()
+        connection_by_project = {row.project_id: row.id for row in connections}
+
+        for scoped_project_id, schedule_name, subscription_name in (
+            (project_id, "Target schedule", "Target subscription"),
+            (other_project_id, "Other schedule", "Other subscription"),
+        ):
+            await session.execute(
+                text(
+                    "INSERT INTO trigger_schedules (id, project_id, name) "
+                    "VALUES (:id, :project_id, :name)"
+                ),
+                {
+                    "id": configuration_id,
+                    "project_id": scoped_project_id,
+                    "name": schedule_name,
+                },
+            )
+            await session.execute(
+                text(
+                    "INSERT INTO trigger_subscriptions "
+                    "(id, project_id, connection_id, name) "
+                    "VALUES (:id, :project_id, :connection_id, :name)"
+                ),
+                {
+                    "id": configuration_id,
+                    "project_id": scoped_project_id,
+                    "connection_id": connection_by_project[scoped_project_id],
+                    "name": subscription_name,
+                },
+            )
+
+        await session.execute(
+            text(
+                "INSERT INTO session_streams (id, project_id, session_id, tags) VALUES "
+                "(:schedule_stream_id, :project_id, :schedule_session_id, "
+                "CAST(:schedule_tags AS jsonb)), "
+                "(:subscription_stream_id, :project_id, :subscription_session_id, "
+                "CAST(:subscription_tags AS jsonb))"
+            ),
+            {
+                "schedule_stream_id": schedule_stream_id,
+                "subscription_stream_id": subscription_stream_id,
+                "project_id": project_id,
+                "schedule_session_id": "trigger-join-schedule",
+                "subscription_session_id": "trigger-join-subscription",
+                "schedule_tags": schedule_tags,
+                "subscription_tags": subscription_tags,
+            },
+        )
+        await session.commit()
+
+    options = SessionStreamReadOptions(include_trigger_details=True)
+    service = SessionStreamsService(streams_dao=streams_dao, lock_engine=object())
+    try:
+        unexpanded = await service.query_streams(
+            project_id=project_id,
+            filter=SessionStreamQuery(),
+        )
+        assert len(unexpanded) == 2
+        assert all(row.trigger.name is None for row in unexpanded)
+
+        live = await service.query_streams(
+            project_id=project_id,
+            filter=SessionStreamQuery(),
+            read_options=options,
+        )
+        assert len(live) == 2
+        live_by_id = {row.id: row for row in live}
+        assert set(live_by_id) == {schedule_stream_id, subscription_stream_id}
+        assert live_by_id[schedule_stream_id].trigger.name == "Target schedule"
+        assert live_by_id[subscription_stream_id].trigger.name == "Target subscription"
+
+        async with engine.session() as session:
+            await session.execute(
+                text(
+                    "UPDATE trigger_schedules "
+                    "SET name = :name, deleted_at = now() "
+                    "WHERE project_id = :project_id AND id = :id"
+                ),
+                {
+                    "name": "Deleted schedule",
+                    "project_id": project_id,
+                    "id": configuration_id,
+                },
+            )
+            await session.execute(
+                text(
+                    "UPDATE trigger_subscriptions "
+                    "SET name = :name, deleted_at = now() "
+                    "WHERE project_id = :project_id AND id = :id"
+                ),
+                {
+                    "name": "Deleted subscription",
+                    "project_id": project_id,
+                    "id": configuration_id,
+                },
+            )
+            await session.commit()
+
+        historical = await service.query_streams(
+            project_id=project_id,
+            filter=SessionStreamQuery(),
+            read_options=options,
+        )
+        assert len(historical) == 2
+        historical_by_id = {row.id: row for row in historical}
+        assert set(historical_by_id) == {schedule_stream_id, subscription_stream_id}
+        assert historical_by_id[schedule_stream_id].trigger.name == "Deleted schedule"
+        assert (
+            historical_by_id[subscription_stream_id].trigger.name
+            == "Deleted subscription"
+        )
+        assert all(
+            row.trigger.id == configuration_id for row in historical_by_id.values()
+        )
+    finally:
+        async with engine.session() as session:
+            await session.execute(
+                text("DELETE FROM projects WHERE id = :id"),
+                {"id": other_project_id},
+            )
+            await session.commit()
+
+
+async def test_trigger_expansion_guards_malformed_uuid_and_keeps_delivery(
+    streams_dao, project
+):
+    project_id = project["project_id"]
+    stream_id = uuid.uuid4()
+    delivery_id = uuid.uuid4()
+    tags = (
+        '{"ag.origin":"trigger","ag.trigger.id":"not-a-uuid",'
+        '"ag.trigger.kind":"schedule","ag.trigger.delivery_id":"'
+        f'{delivery_id}"}}'
+    )
+    async with get_transactions_engine().session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO session_streams (id, project_id, session_id, tags) "
+                "VALUES (:id, :project_id, :session_id, CAST(:tags AS jsonb))"
+            ),
+            {
+                "id": stream_id,
+                "project_id": project_id,
+                "session_id": f"malformed-trigger-{uuid.uuid4().hex[:8]}",
+                "tags": tags,
+            },
+        )
+        await session.commit()
+
+    service = SessionStreamsService(streams_dao=streams_dao, lock_engine=object())
+    rows = await service.query_streams(
+        project_id=project_id,
+        filter=SessionStreamQuery(),
+        read_options=SessionStreamReadOptions(include_trigger_details=True),
+    )
+
+    result = next(row for row in rows if row.id == stream_id)
+    assert result.trigger is None
+    assert result.delivery.id == delivery_id
+
+
+async def test_missing_trigger_configuration_keeps_typed_identity(streams_dao, project):
+    project_id = project["project_id"]
+    stream_id = uuid.uuid4()
+    trigger_id = uuid.uuid4()
+    tags = (
+        '{"ag.origin":"trigger","ag.trigger.id":"'
+        f'{trigger_id}","ag.trigger.kind":"subscription"}}'
+    )
+    async with get_transactions_engine().session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO session_streams (id, project_id, session_id, tags) "
+                "VALUES (:id, :project_id, :session_id, CAST(:tags AS jsonb))"
+            ),
+            {
+                "id": stream_id,
+                "project_id": project_id,
+                "session_id": f"missing-trigger-{uuid.uuid4().hex[:8]}",
+                "tags": tags,
+            },
+        )
+        await session.commit()
+
+    service = SessionStreamsService(streams_dao=streams_dao, lock_engine=object())
+    rows = await service.query_streams(
+        project_id=project_id,
+        filter=SessionStreamQuery(),
+        read_options=SessionStreamReadOptions(include_trigger_details=True),
+    )
+
+    result = next(row for row in rows if row.id == stream_id)
+    assert result.trigger.name is None
+    assert result.trigger.id == trigger_id
+    assert result.trigger.kind.value == "subscription"

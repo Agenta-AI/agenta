@@ -153,7 +153,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                         <SelectItem value="oauth" disabled>
                             <span className="flex flex-1 items-center justify-between gap-2">
                                 OAuth
-                                <Badge className="text-[10px]">Soon</Badge>
+                                <Badge className="text-[12px]">Soon</Badge>
                             </span>
                         </SelectItem>
                     </SelectContent>

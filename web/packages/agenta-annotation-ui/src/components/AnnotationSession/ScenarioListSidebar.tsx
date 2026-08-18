@@ -101,7 +101,7 @@ const ScenarioListSidebar = memo(function ScenarioListSidebar() {
         <div className="flex flex-col h-full border-r border-solid border-[var(--ant-color-border-secondary)] w-[60px] min-w-[60px]">
             {/* Header */}
             <div className="px-2 py-3 border-b border-solid border-[var(--ant-color-border-secondary)] text-center">
-                <Typography.Text type="secondary" className="text-[10px]">
+                <Typography.Text type="secondary" className="text-[12px]">
                     {progress.completed}/{progress.total}
                 </Typography.Text>
             </div>

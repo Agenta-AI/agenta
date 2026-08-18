@@ -31,6 +31,7 @@
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
 import { mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 
 import { apiBase } from "../../apiBase.ts";
 
@@ -83,6 +84,7 @@ import {
   uploadSystemPromptToSandbox,
   writeSystemPromptLocal,
 } from "./pi-assets.ts";
+import { piModelsJsonProviderId } from "./pi-model-config.ts";
 import {
   AGENT_MOUNT_ENV_VAR,
   agentMountPath,
@@ -771,6 +773,13 @@ export async function acquireEnvironment(
       isPi: plan.isPi,
       agentMountedPath: environment.agentMountedPath,
       agentMountSkipped: !!agentMountSkipped,
+      // Mirrors prepareWorkspace's materialization split: Pi reads an immutable
+      // `agents/skills/<digest>` snapshot; other harnesses read `.{acpAgent}/skills/<name>`.
+      skillsPath: plan.workspace.skillDirs.length
+        ? plan.isPi
+          ? join(plan.workspace.cwd, "agents", "skills")
+          : join(plan.workspace.cwd, `.${plan.acpAgent}`, "skills")
+        : undefined,
       toolNames: plan.tools.toolSpecs.map((spec) => spec.name),
     });
     const guidedPlan = guidance
@@ -921,9 +930,8 @@ export async function acquireEnvironment(
                 : undefined,
           ])
         : undefined;
-    const claudeAppendixMeta: ClaudeSystemPromptMeta | undefined = claudeAppendix
-      ? claudeSystemPromptMeta(claudeAppendix)
-      : undefined;
+    const claudeAppendixMeta: ClaudeSystemPromptMeta | undefined =
+      claudeAppendix ? claudeSystemPromptMeta(claudeAppendix) : undefined;
     // Claude-only: request visible ("summarized") extended-thinking display so the model's
     // reasoning reaches the runner (and the playground). Without it, recent Claude models
     // return signature-only thinking and no reasoning surfaces. See `claude-thinking.ts`.
@@ -1033,9 +1041,14 @@ export async function acquireEnvironment(
     // openai provider live) would be selected ahead of the custom `<slug>/<model>` when both share
     // the model id. That would silently route to api.openai.com instead of the user's endpoint.
     // The qualified id is an EXACT match, so it always wins over any bare-suffix collision.
+    //
+    // A model-registration plan reaches the same qualified id from the other direction: it was
+    // DERIVED by splitting the wire model on its provider prefix, so re-joining reproduces
+    // `request.model` exactly. Going through the plan either way keeps one rule — ask for the id
+    // that was registered.
     const wantedModel =
       piModelConfig && piModelConfig.models.length > 0
-        ? `${piModelConfig.providerId}/${piModelConfig.models[0].id}`
+        ? `${piModelsJsonProviderId(piModelConfig)}/${piModelConfig.models[0].id}`
         : request.model;
     environment.model = await (deps.applyModel ?? applyModel)(
       environment.session,

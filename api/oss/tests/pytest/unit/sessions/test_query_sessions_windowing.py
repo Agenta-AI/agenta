@@ -91,6 +91,29 @@ def test_updated_at_cursor_rides_coalesced_updated_at():
     _assert_created_at_only_inside_coalesce(where)
 
 
+def test_updated_at_ascending_cursor_uses_oldest_with_id_tiebreak():
+    oldest = datetime.now(timezone.utc)
+    next_id = uuid7()
+    stmt = apply_windowing(
+        stmt=select(SessionStreamDBE),
+        DBE=SessionStreamDBE,
+        attribute="updated_at",
+        order="descending",
+        windowing=Windowing(
+            oldest=oldest,
+            next=next_id,
+            limit=20,
+            order="ascending",
+        ),
+    )
+    where = str(stmt.whereclause.compile(compile_kwargs={"literal_binds": True}))
+
+    assert f"{COALESCE_EXPR} >=" in where
+    assert f"{COALESCE_EXPR} >" in where
+    assert "session_streams.id >" in where
+    _assert_created_at_only_inside_coalesce(where)
+
+
 def test_created_at_attribute_behavior_is_unchanged():
     """Regression pin: current behavior for `attribute="created_at"` (observed
     directly against `apply_windowing` before this change) must not shift."""

@@ -8,6 +8,8 @@ clients never see a silent connection.
 """
 
 import json
+import math
+import threading
 from typing import Any, AsyncIterator, Callable, Optional
 
 from oss.src.dbs.redis.sessions.contract import (
@@ -21,6 +23,53 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 HEARTBEAT_FRAME = ": heartbeat\n\n"
+
+# ---------------------------------------------------------------------------
+# Server-shutdown release.
+#
+# Uvicorn's graceful shutdown drains in-flight responses BEFORE it runs lifespan
+# shutdown, and an SSE response never completes on its own — so without a release
+# every reload/stop waits on these generators forever (live symptom: the dev
+# stack's `uvicorn --reload` logs "Reloading..." and the API stays dead until a
+# hard container restart, since any open browser tab holds a watch stream).
+# `Server.handle_exit` is the first thing uvicorn does on SIGINT/SIGTERM — before
+# the drain — so hooking it (the sse-starlette approach) releases every stream
+# within one poll interval and lets the drain complete. A client disconnect
+# already releases a stream by cancelling the generator; this covers the server
+# side. A `threading.Event` because the hook may run from a signal frame: no
+# event-loop affinity, and polling it is cheap.
+# ---------------------------------------------------------------------------
+
+_shutdown = threading.Event()
+
+# Upper bound on how long a stream keeps waiting on Redis before it re-checks the
+# shutdown flag, so a reload never waits a full heartbeat interval (15s default).
+_SHUTDOWN_POLL_SECONDS = 1.0
+
+
+def request_shutdown() -> None:
+    """Release every open watch stream (idempotent; wired into uvicorn's exit path)."""
+    _shutdown.set()
+
+
+def _install_uvicorn_exit_hook() -> None:
+    try:
+        from uvicorn.server import Server  # noqa: PLC0415 — optional dependency
+    except Exception:  # pragma: no cover — no uvicorn (workers, bare test runs)
+        return
+    if getattr(Server.handle_exit, "_agenta_watch_hook", False):  # pragma: no cover
+        return
+    original = Server.handle_exit
+
+    def handle_exit(self: Any, sig: Any, frame: Any) -> Any:
+        request_shutdown()
+        return original(self, sig, frame)
+
+    handle_exit._agenta_watch_hook = True  # type: ignore[attr-defined]
+    Server.handle_exit = handle_exit  # type: ignore[method-assign]
+
+
+_install_uvicorn_exit_hook()
 
 
 def retry_frame(retry_milliseconds: int) -> str:
@@ -37,7 +86,10 @@ _KNOWN_EVENTS = {
     WATCH_EVENT_RECORDS_CHANGED,
     WATCH_EVENT_LIFECYCLE,
     WATCH_EVENT_INTERACTION,
+    "session-changed",
+    "workflow-changed",
 }
+# Each project event family also needs its view permission in the project route's conjunction.
 
 
 def format_watch_frame(raw: Any) -> Optional[str]:
@@ -80,21 +132,37 @@ async def watch_event_stream(
 
     The subscription is torn down in ``finally`` — a client disconnect cancels
     the generator (GeneratorExit/CancelledError), which is exactly the cleanup
-    path, so no Redis subscription outlives its SSE connection.
+    path, so no Redis subscription outlives its SSE connection. CancelledError is
+    never swallowed here: the ``finally`` guards only the best-effort teardown.
+
+    Server shutdown is the OTHER release path: the loop re-checks the module
+    shutdown flag at least every ``_SHUTDOWN_POLL_SECONDS``, and returns as soon
+    as it is set — uvicorn's drain would otherwise wait on this generator forever
+    (see the module comment). The heartbeat cadence is preserved by counting idle
+    polls rather than lengthening the wait.
     """
     pubsub = pubsub_factory()
     try:
         await pubsub.subscribe(channel)
         yield retry_frame(retry_milliseconds)
         yield ready_frame()
-        while True:
+        poll_seconds = min(heartbeat_seconds, _SHUTDOWN_POLL_SECONDS)
+        idle_polls_per_heartbeat = max(1, math.ceil(heartbeat_seconds / poll_seconds))
+        idle_polls = 0
+        while not _shutdown.is_set():
             message = await pubsub.get_message(
                 ignore_subscribe_messages=True,
-                timeout=heartbeat_seconds,
+                timeout=poll_seconds,
             )
+            if _shutdown.is_set():
+                break
             if message is None:
-                yield HEARTBEAT_FRAME
+                idle_polls += 1
+                if idle_polls >= idle_polls_per_heartbeat:
+                    idle_polls = 0
+                    yield HEARTBEAT_FRAME
                 continue
+            idle_polls = 0
             if message.get("type") != "message":
                 continue
             frame = format_watch_frame(message.get("data"))

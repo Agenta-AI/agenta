@@ -209,13 +209,9 @@ class ComposioCatalogClient:
         """
         page_limit = min(limit, MAX_PAGE_SIZE) if limit else DEFAULT_PAGE_SIZE
 
-        # Do NOT pin ``toolkit_versions=latest`` here: Composio's "latest" toolkit
-        # version emits SHORT action slugs (e.g. GITHUB_ACCEPT_REPOSITORY_INVITATION)
-        # that its single-tool GET and execute endpoints reject unless the same
-        # version is threaded through — and execute rejects the latest short slugs
-        # outright. The default (pinned) toolkit version emits the canonical LONG
-        # slugs (GITHUB_ACCEPT_A_REPOSITORY_INVITATION) that get_action AND execute
-        # both accept with no version param, so list/get/execute stay consistent.
+        # The shared Composio base URL pins every adapter to v3.1. Do not add a
+        # per-call version override here: list, search, get, and execute must use
+        # the same scope or discovery can return slugs that resolution rejects.
         params: Dict[str, Any] = {
             "toolkit_slug": integration_key,
             "include_deprecated": False,

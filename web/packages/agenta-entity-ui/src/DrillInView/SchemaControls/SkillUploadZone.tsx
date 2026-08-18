@@ -57,17 +57,17 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
             }}
             className={cn(
                 "flex flex-col items-center justify-center gap-2 rounded border border-dashed px-4 py-5 text-center transition-colors",
-                "border-[var(--ag-c-D6DEE6,#d6dee6)]",
-                over && "border-[var(--ag-c-586673,#586673)] bg-[var(--ag-c-F5F7FA,#f5f7fa)]",
+                "border-[var(--ag-zinc-3)]",
+                over && "border-[var(--ag-c-586673)] bg-[var(--ag-c-F5F7FA)]",
                 disabled && "opacity-60",
             )}
         >
             {busy ? (
                 <Spinner size="small" />
             ) : (
-                <UploadSimple size={20} className="text-[var(--ag-c-586673,#586673)]" />
+                <UploadSimple size={20} className="text-[var(--ag-c-586673)]" />
             )}
-            <div className="text-xs text-[var(--ag-c-586673,#586673)]">
+            <div className="text-xs text-[var(--ag-c-586673)]">
                 Drag a skill folder, <span className="font-mono">.zip</span>, or{" "}
                 <span className="font-mono">.skill</span> here
             </div>
@@ -78,9 +78,7 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
             >
                 Browse files
             </Button>
-            {error ? (
-                <div className="text-xs text-[var(--ag-c-FF4D4F,#ff4d4f)]">{error}</div>
-            ) : null}
+            {error ? <div className="text-xs text-colorError">{error}</div> : null}
             <input
                 ref={inputRef}
                 type="file"

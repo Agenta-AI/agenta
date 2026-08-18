@@ -101,9 +101,11 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.evaluations.service import SimpleQueuesService
 from oss.src.core.tracing.service import SimpleTracesService
+from oss.src.core.providers.service import ProviderProbeService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.providers.router import ProvidersRouter
 from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
@@ -595,6 +597,8 @@ vault_service = VaultService(
     secrets_dao=secrets_dao,
 )
 
+provider_probe_service = ProviderProbeService()
+
 
 webhooks_service = WebhooksService(
     webhooks_dao=webhooks_dao,
@@ -660,6 +664,7 @@ session_turns_service = SessionTurnsService(
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
     static_catalog=StaticWorkflowCatalog(),
+    watch_publisher=_sessions_watch_publisher,
 )
 
 environments_service = EnvironmentsService(
@@ -799,6 +804,7 @@ else:
 
 tools_adapter_registry = ToolsGatewayRegistry(
     adapters=_composio_adapters,
+    unconfigured=({} if env.composio.enabled else {"composio": "COMPOSIO_API_KEY"}),
 )
 
 tools_service = ToolsService(
@@ -817,6 +823,7 @@ if env.composio.enabled:
 
 triggers_adapter_registry = TriggersGatewayRegistry(
     adapters=_composio_triggers_adapters,
+    unconfigured=({} if env.composio.enabled else {"composio": "COMPOSIO_API_KEY"}),
 )
 
 triggers_dao = TriggersDAO(engine=_transactions_engine)
@@ -882,6 +889,7 @@ _triggers_broker = ProducerOnlyRedisStreamBroker(
 
 _triggers_dispatcher = TriggersDispatcher(
     triggers_dao=triggers_dao,
+    session_claims_dao=session_streams_dao,
     workflows_service=workflows_service,
     dispatch_fn=_dispatch_detached_run,
 )
@@ -938,6 +946,10 @@ _t_routers = time.perf_counter()
 
 secrets = VaultRouter(
     vault_service=vault_service,
+)
+
+providers = ProvidersRouter(
+    provider_probe_service=provider_probe_service,
 )
 
 webhooks = WebhooksRouter(
@@ -1093,6 +1105,8 @@ sessions_service = SessionsService(
     turns_service=session_turns_service,
     interactions_service=interactions_service,
     mounts_service=mounts_service,
+    # Read-only, for the list's message preview — records themselves stay the records router's.
+    records_service=records_service,
 )
 
 sessions = SessionsRouter(
@@ -1123,6 +1137,19 @@ _t_mount_routers = time.perf_counter()
 app.include_router(
     router=secrets.router,
     tags=["Secrets"],
+)
+
+app.include_router(
+    router=providers.router,
+    tags=["Secrets"],
+)
+
+# The probe is also reachable under the vault's legacy prefix, so a client that already
+# addresses connections as /vault/v1/secrets/ can test one without switching base paths.
+app.include_router(
+    router=providers.router,
+    prefix="/vault/v1",
+    include_in_schema=False,
 )
 
 ## DEPRECATED

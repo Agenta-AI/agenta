@@ -1731,8 +1731,10 @@ describe("runSandboxAgent orchestration", () => {
       [{ name: "server_tool", kind: "callback" }],
       undefined,
     ]);
-    // The relay carries execution only (no permissions argument): no runContext here.
-    assert.equal(calls.toolRelayArgs?.[4], undefined);
+    // The relay carries execution only (no permissions argument). The request sent no
+    // runContext, but the runner augments its dispatch copy with the live session id so
+    // $ctx.session.id bindings resolve (RunContext.session is runner-filled).
+    assert.deepEqual(calls.toolRelayArgs?.[4], { session: { id: "session-1" } });
     // Trailing arg is the relay callbacks object (client-tool + park handlers).
     assert.deepEqual(
       Object.keys((calls.toolRelayArgs?.[5] ?? {}) as object).sort(),

@@ -33,6 +33,46 @@ _requires_connected_account = pytest.mark.skipif(
 )
 
 
+def _create_workflow(authed_api):
+    """Build a workflow + variant + committed revision; return its slug."""
+    slug = f"sub-wf-{uuid4().hex[:8]}"
+
+    wf = authed_api(
+        "POST", "/workflows/", json={"workflow": {"slug": slug, "name": slug}}
+    )
+    assert wf.status_code == 200, wf.text
+    workflow_id = wf.json()["workflow"]["id"]
+
+    variant = authed_api(
+        "POST",
+        "/workflows/variants/",
+        json={
+            "workflow_variant": {
+                "slug": f"{slug}-v",
+                "name": "Default",
+                "workflow_id": workflow_id,
+            }
+        },
+    )
+    assert variant.status_code == 200, variant.text
+    variant_id = variant.json()["workflow_variant"]["id"]
+
+    commit = authed_api(
+        "POST",
+        "/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": f"{slug}-v1",
+                "workflow_id": workflow_id,
+                "workflow_variant_id": variant_id,
+                "message": "initial",
+            }
+        },
+    )
+    assert commit.status_code == 200, commit.text
+    return slug
+
+
 # ---------------------------------------------------------------------------
 # DB-only: reads, queries, 404s (no Composio needed)
 # ---------------------------------------------------------------------------
@@ -116,49 +156,99 @@ class TestTriggerSubscriptionsLifecycle:
 
     def test_create_list_disable_delete_keeps_connection(self, authed_api):
         connection_id = self._create_connection(authed_api)
+        workflow_slug = _create_workflow(authed_api)
 
-        # CREATE — binds the event to a workflow reference on the shared connection
-        create = authed_api(
-            "POST",
-            "/triggers/subscriptions/",
-            json={
-                "subscription": {
-                    "name": f"sub-{uuid4().hex[:8]}",
-                    "connection_id": connection_id,
-                    "data": {
-                        "event_key": "GITHUB_STAR_ADDED_EVENT",
-                        "trigger_config": {"owner": "acme", "repo": "widgets"},
-                        "inputs_fields": {"repo": "$.event.attributes.repository"},
-                        "references": {"workflow": {"slug": "triage"}},
-                    },
-                }
-            },
-        )
-        assert create.status_code == 200, create.text
-        sub = create.json()["subscription"]
-        subscription_id = sub["id"]
-        assert sub["connection_id"] == connection_id
-        assert sub["trigger_id"] is not None
-        assert sub["flags"]["is_active"] is True
+        try:
+            # CREATE — binds the event to a workflow reference on the shared connection
+            create = authed_api(
+                "POST",
+                "/triggers/subscriptions/",
+                json={
+                    "subscription": {
+                        "name": f"sub-{uuid4().hex[:8]}",
+                        "connection_id": connection_id,
+                        "data": {
+                            "event_key": "GITHUB_STAR_ADDED_EVENT",
+                            "trigger_config": {"owner": "acme", "repo": "widgets"},
+                            "inputs_fields": {"repo": "$.event.attributes.repository"},
+                            "references": {"workflow": {"slug": workflow_slug}},
+                        },
+                    }
+                },
+            )
+            assert create.status_code == 200, create.text
+            sub = create.json()["subscription"]
+            subscription_id = sub["id"]
+            assert sub["connection_id"] == connection_id
+            assert sub["trigger_id"] is not None
+            assert sub["flags"]["is_active"] is True
 
-        # LIST
-        listing = authed_api("GET", "/triggers/subscriptions/").json()
-        assert any(s["id"] == subscription_id for s in listing["subscriptions"])
+            # LIST
+            listing = authed_api("GET", "/triggers/subscriptions/").json()
+            assert any(s["id"] == subscription_id for s in listing["subscriptions"])
 
-        # DISABLE (revoke the subscription, not the connection)
-        revoke = authed_api("POST", f"/triggers/subscriptions/{subscription_id}/revoke")
-        assert revoke.status_code == 200, revoke.text
-        assert revoke.json()["subscription"]["flags"]["is_active"] is False
+            # DISABLE (revoke the subscription, not the connection)
+            revoke = authed_api(
+                "POST", f"/triggers/subscriptions/{subscription_id}/revoke"
+            )
+            assert revoke.status_code == 200, revoke.text
+            assert revoke.json()["subscription"]["flags"]["is_active"] is False
+            revoked = revoke.json()["subscription"]
 
-        # DELETE
-        delete = authed_api("DELETE", f"/triggers/subscriptions/{subscription_id}")
-        assert delete.status_code == 204
+            # DELETE
+            delete = authed_api("DELETE", f"/triggers/subscriptions/{subscription_id}")
+            assert delete.status_code == 204
 
-        fetch = authed_api("GET", f"/triggers/subscriptions/{subscription_id}")
-        assert fetch.status_code == 404
+            fetch = authed_api("GET", f"/triggers/subscriptions/{subscription_id}")
+            assert fetch.status_code == 200, fetch.text
+            fetched = fetch.json()
+            assert fetched["count"] == 1
+            historical = fetched["subscription"]
+            assert historical["id"] == subscription_id
+            assert historical["connection_id"] == revoked["connection_id"]
+            assert historical["name"] == revoked["name"]
+            assert historical["data"] == revoked["data"]
+            assert historical["flags"] == revoked["flags"]
+            assert historical["deleted_at"] is not None
+            assert historical["deleted_by_id"] is not None
 
-        # C7: deleting the subscription must NOT delete/revoke the connection.
-        conn = authed_api("GET", f"/tools/connections/{connection_id}")
-        assert conn.status_code == 200, conn.text
+            list_response = authed_api("GET", "/triggers/subscriptions/")
+            assert list_response.status_code == 200, list_response.text
+            listing = list_response.json()
+            assert all(
+                item["id"] != subscription_id for item in listing["subscriptions"]
+            )
+            query_response = authed_api(
+                "POST",
+                "/triggers/subscriptions/query",
+                json={"subscription": {"name": historical["name"]}},
+            )
+            assert query_response.status_code == 200, query_response.text
+            query = query_response.json()
+            assert all(item["id"] != subscription_id for item in query["subscriptions"])
 
-        authed_api("DELETE", f"/tools/connections/{connection_id}")
+            rejected_edit = authed_api(
+                "PUT",
+                f"/triggers/subscriptions/{subscription_id}",
+                json={
+                    "subscription": {
+                        "id": subscription_id,
+                        "connection_id": historical["connection_id"],
+                        "name": historical["name"],
+                        "description": historical.get("description"),
+                        "data": historical["data"],
+                        "flags": historical["flags"],
+                    }
+                },
+            )
+            assert rejected_edit.status_code == 404, rejected_edit.text
+            rejected_start = authed_api(
+                "POST", f"/triggers/subscriptions/{subscription_id}/start"
+            )
+            assert rejected_start.status_code == 404, rejected_start.text
+
+            # C7: deleting the subscription must NOT delete/revoke the connection.
+            conn = authed_api("GET", f"/tools/connections/{connection_id}")
+            assert conn.status_code == 200, conn.text
+        finally:
+            authed_api("DELETE", f"/tools/connections/{connection_id}")

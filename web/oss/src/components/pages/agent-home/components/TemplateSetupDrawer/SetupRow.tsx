@@ -17,7 +17,7 @@ const SetupRow = ({icon, title, subtitle, right}: SetupRowProps) => {
             <div className="min-w-0 flex-1">
                 <div className="text-xs font-medium text-[var(--ag-colorText)]">{title}</div>
                 {subtitle ? (
-                    <div className="text-[11px] leading-snug text-[var(--ag-colorTextSecondary)]">
+                    <div className="text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                         {subtitle}
                     </div>
                 ) : null}

@@ -55,7 +55,7 @@ export function PermissionPolicySelect({
                     <SelectItem key={option.value} value={option.value}>
                         <span className="flex flex-col py-0.5">
                             <span>{option.title}</span>
-                            <span className="text-[11px] leading-snug text-colorTextTertiary">
+                            <span className="text-xs leading-snug text-colorTextTertiary">
                                 {option.help}
                             </span>
                         </span>

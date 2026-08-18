@@ -4,7 +4,7 @@ requires-python = ">=3.11, <3.14"
 
 [[package]]
 name = "agenta"
-version = "0.111.0"
+version = "0.112.2"
 source = { editable = "." }
 dependencies = [
     { name = "agenta-client" },
@@ -85,7 +85,7 @@ dev = [
 
 [[package]]
 name = "agenta-client"
-version = "0.111.0"
+version = "0.112.2"
 source = { editable = "../../clients/python" }
 dependencies = [
     { name = "httpx" },
@@ -97,6 +97,9 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "pydantic", specifier = ">=2,<3" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8,<9" }]
 
 [[package]]
 name = "aiofiles"

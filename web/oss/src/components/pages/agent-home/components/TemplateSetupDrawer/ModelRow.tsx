@@ -15,7 +15,7 @@ const ModelRow = ({model}: {model: string}) => {
                 title="Model"
                 subtitle={`Agenta-managed · Pi · ${model}`}
                 right={
-                    <span className="flex items-center gap-1 text-[11px] font-medium text-[var(--ag-colorSuccess)]">
+                    <span className="flex items-center gap-1 text-xs font-medium text-[var(--ag-colorSuccess)]">
                         <CheckCircle size={13} weight="fill" />
                         Ready
                     </span>

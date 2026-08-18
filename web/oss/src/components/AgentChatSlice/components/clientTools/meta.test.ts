@@ -6,10 +6,17 @@
  * `{approved: false}` envelope. Reading it as a parked client tool made the fallback overwrite that
  * envelope with `{status: "not_handled"}`, so the model saw a failed tool and retried the same call.
  */
-import type {ToolUIPart} from "ai"
+import {isHitlPending, type RenderHintLike} from "@agenta/playground"
+import type {ToolUIPart, UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {isClientToolPart} from "./meta"
+import {getPendingApprovals} from "../ApprovalDock"
+import {getPendingConnectInteraction} from "../InteractionDock"
+
+import ConnectToolWidget from "./ConnectToolWidget"
+import ElicitationWidget from "./ElicitationWidget"
+import {clientToolMeta, isClientToolPart} from "./meta"
+import {resolveClientToolHandler} from "./registry"
 
 const settledCtx = {isStreaming: false, isLastMessage: true}
 
@@ -20,6 +27,63 @@ const toolPart = (part: Record<string, unknown>): ToolUIPart =>
         input: {path: "/x"},
         ...part,
     }) as unknown as ToolUIPart
+
+const EARLIER_PENDING_MESSAGES = [
+    {
+        id: "assistant-pending",
+        role: "assistant",
+        parts: [
+            {
+                type: "tool-browser_connection",
+                toolCallId: "call-connect",
+                state: "input-available",
+                input: {integration: "github"},
+            },
+            {
+                type: "data-render",
+                data: {toolCallId: "call-connect", render: {kind: "connect"}},
+            },
+            {
+                type: "tool-delete_file",
+                toolCallId: "call-approval",
+                state: "approval-requested",
+                input: {path: "notes.txt"},
+                approval: {id: "approval-earlier"},
+            },
+            {
+                type: "data-approval-manifest",
+                data: {toolCallId: "call-approval", manifest: {files: ["notes.txt"]}},
+            },
+        ],
+    },
+    {
+        id: "user-next",
+        role: "user",
+        parts: [{type: "text", text: "continue"}],
+    },
+    {
+        id: "assistant-last",
+        role: "assistant",
+        parts: [{type: "text", text: "Starting the next turn"}],
+    },
+] as unknown as UIMessage[]
+
+describe("pending interaction geometry", () => {
+    it("keeps earlier cards discoverable after a later message", () => {
+        expect(isHitlPending(EARLIER_PENDING_MESSAGES)).toBe(true)
+        expect(getPendingConnectInteraction(EARLIER_PENDING_MESSAGES)?.toolCallId).toBe(
+            "call-connect",
+        )
+        expect(getPendingApprovals(EARLIER_PENDING_MESSAGES)).toEqual([
+            {
+                approvalId: "approval-earlier",
+                toolName: "delete_file",
+                input: {path: "notes.txt"},
+                manifest: {files: ["notes.txt"]},
+            },
+        ])
+    })
+})
 
 describe("isClientToolPart", () => {
     it("does NOT claim a denied approval part (output-denied)", () => {
@@ -54,5 +118,53 @@ describe("isClientToolPart", () => {
             output: {connected: true},
         })
         expect(isClientToolPart(part, settledCtx)).toBe(true)
+    })
+})
+
+/**
+ * Registry dispatch. `request_input` MUST resolve to the elicitation form on both axes: the
+ * `render.kind` sibling part (the wire contract) and its tool name (the safety net for a replayed
+ * or old transcript that carries no hint). Falling through to the fallback answers the agent
+ * `{status: "not_handled"}` instead of showing the form.
+ */
+describe("resolveClientToolHandler", () => {
+    const renderMapFor = (kind: string): Map<string, RenderHintLike> =>
+        new Map([["call_1", {kind}]])
+
+    it("resolves request_input by its render kind", () => {
+        const part = toolPart({type: "tool-request_input", state: "input-available"})
+        expect(resolveClientToolHandler(clientToolMeta(part, renderMapFor("elicitation")))).toBe(
+            ElicitationWidget,
+        )
+    })
+
+    it("resolves request_input by tool name when no render hint arrived", () => {
+        const part = toolPart({type: "tool-request_input", state: "input-available"})
+        expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ElicitationWidget)
+    })
+
+    it("falls back to tool name when the render kind is unknown", () => {
+        const part = toolPart({type: "tool-request_input", state: "input-available"})
+        expect(resolveClientToolHandler(clientToolMeta(part, renderMapFor("display")))).toBe(
+            ElicitationWidget,
+        )
+    })
+
+    it("still resolves the connect widget on both axes", () => {
+        const part = toolPart({type: "tool-request_connection", state: "input-available"})
+        expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ConnectToolWidget)
+        expect(resolveClientToolHandler(clientToolMeta(part, renderMapFor("connect")))).toBe(
+            ConnectToolWidget,
+        )
+    })
+
+    it("leaves an unknown client tool to the fallback", () => {
+        const part = toolPart({type: "tool-mysteryTool", state: "input-available"})
+        expect(resolveClientToolHandler(clientToolMeta(part))).toBeNull()
+    })
+
+    it("claims a parked request_input while the turn is still streaming (known tool)", () => {
+        const part = toolPart({type: "tool-request_input", state: "input-available"})
+        expect(isClientToolPart(part, {isStreaming: true, isLastMessage: true})).toBe(true)
     })
 })

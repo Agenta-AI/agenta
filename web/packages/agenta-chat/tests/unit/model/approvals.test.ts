@@ -5,7 +5,7 @@ import {getPendingApprovals} from "../../../src/model/approvals"
 import approvalTurnFixture from "../fixtures/approvalTurn.json"
 
 describe("getPendingApprovals", () => {
-    it("returns the pending approvals off the last assistant turn, in order", () => {
+    it("returns pending approvals in transcript order", () => {
         const messages = approvalTurnFixture as UIMessage[]
         expect(getPendingApprovals(messages)).toEqual([
             {approvalId: "appr_1", toolName: "delete_file", input: {path: "notes.txt"}},
@@ -13,15 +13,19 @@ describe("getPendingApprovals", () => {
         ])
     })
 
-    it("is empty when the last message is from the user", () => {
-        const messages: UIMessage[] = [
+    it("finds approvals before a trailing user message", () => {
+        const messages = [
+            ...(approvalTurnFixture as UIMessage[]),
             {
-                id: "u1",
+                id: "u2",
                 role: "user",
                 parts: [{type: "text", text: "hi"}],
             } as unknown as UIMessage,
         ]
-        expect(getPendingApprovals(messages)).toEqual([])
+        expect(getPendingApprovals(messages)).toEqual([
+            {approvalId: "appr_1", toolName: "delete_file", input: {path: "notes.txt"}},
+            {approvalId: "appr_2", toolName: "send_mail", input: {to: "a@b.com"}},
+        ])
     })
 
     it("is empty for an empty message list", () => {
