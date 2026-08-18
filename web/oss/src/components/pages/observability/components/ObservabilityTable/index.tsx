@@ -1,6 +1,6 @@
 import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
-import {openTraceDrawerAtom, setTraceDrawerActiveSpanAtom} from "@agenta/observability/traceDrawer"
+import {setTraceDrawerActiveSpanAtom} from "@agenta/observability/traceDrawer"
 import {AUTO_REFRESH_INTERVAL} from "@agenta/observability-ui"
 import {
     getDefaultHiddenObservabilityColumnKeys,
@@ -52,7 +52,6 @@ const ObservabilityTable = () => {
         rateLimitMessage,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
-    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isNewUser = useAtomValue(isNewUserAtom)
     const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
     const hasReceivedTraces = useAtomValue(hasReceivedTracesAtom)
@@ -160,12 +159,6 @@ const ObservabilityTable = () => {
 
             setSelectedTraceId(targetTraceId)
             setTraceDrawerActiveSpan(targetSpanId || null)
-            // Open the drawer DIRECTLY. It used to open as a side effect of the URL write below:
-            // `?trace=` → `syncTraceStateFromUrl` → `openTraceDrawerAtom`. That round trip is gone
-            // (the params never survive the navigation), so the row click did nothing at all.
-            // Every other opener in the app — the chat turn, the agent message, the session tree,
-            // the generation result — already calls this atom; this table was the one that didn't.
-            openTraceDrawer({traceId: targetTraceId, activeSpanId: targetSpanId || null})
             setTraceParam(targetTraceId)
             if (targetSpanId) {
                 setSpanParam(targetSpanId)
@@ -178,7 +171,6 @@ const ObservabilityTable = () => {
             traceTabs,
             setSelectedTraceId,
             setTraceDrawerActiveSpan,
-            openTraceDrawer,
             setTraceParam,
             setSpanParam,
         ],
