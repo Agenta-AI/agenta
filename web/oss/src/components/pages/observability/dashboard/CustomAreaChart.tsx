@@ -44,7 +44,7 @@ const CustomAreaChart: React.FC<CustomAreaChartProps> = ({
     return (
         <div className={`w-full ${className}`}>
             <ResponsiveContainer width="100%" height="100%">
-                <ReAreaChart data={data} margin={{top: 5, right: 5, left: -20, bottom: 0}}>
+                <ReAreaChart data={data} margin={{top: 5, right: 5, left: 0, bottom: 0}}>
                     <defs>
                         {categories.map((category, idx) => {
                             const color = resolveColor(idx)
