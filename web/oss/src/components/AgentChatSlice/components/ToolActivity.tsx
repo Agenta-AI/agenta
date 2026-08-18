@@ -1,6 +1,10 @@
 import {memo} from "react"
 
 import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {
     CaretRight,
@@ -25,10 +29,6 @@ import {
     type ToolDisplay,
 } from "../assets/toolDisplay"
 import {formatToolValue, stripFence} from "../assets/toolFormat"
-import {
-    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
-    DEFERRED_NOT_EXECUTED_PREFIX,
-} from "../assets/transcriptToMessages"
 import {
     expandedValueAtomFamily,
     setExpandedAtom,

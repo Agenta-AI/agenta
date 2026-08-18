@@ -18,6 +18,11 @@ import {
     partitionElicitationDraft,
     serializeElicitationContent,
 } from "../../src/utils/elicitation"
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+    isDeferredToolSentinel,
+} from "../../src/utils/toolSentinels"
 
 const fixture = (name: string) =>
     JSON.parse(readFileSync(join(__dirname, "..", "fixtures", name), "utf-8"))
@@ -673,5 +678,49 @@ describe("deriveElicitationPartState", () => {
                 errorText: buildDegradationErrorText("missing message"),
             }),
         ).toBe("degraded")
+    })
+
+    it("treats a runner pause sentinel as deferred, not degraded (both sentinels)", () => {
+        // Verbatim runner settle for a call parked behind another approval (otel.ts
+        // TOOL_NOT_EXECUTED_PAUSED) — the #6106 "Couldn't render this request" regression.
+        expect(
+            deriveElicitationPartState({
+                state: "output-error",
+                errorText: `${DEFERRED_NOT_EXECUTED_PREFIX}: paused for another approval; retry the same call if still required.`,
+            }),
+        ).toBe("deferred")
+        expect(
+            deriveElicitationPartState({
+                state: "output-error",
+                errorText: APPROVED_EXECUTION_RESULT_UNKNOWN,
+            }),
+        ).toBe("deferred")
+    })
+
+    it("keeps a genuine errorText degraded", () => {
+        expect(
+            deriveElicitationPartState({
+                state: "output-error",
+                errorText: buildDegradationErrorText("missing message"),
+            }),
+        ).toBe("degraded")
+        expect(
+            deriveElicitationPartState({state: "output-error", errorText: "boom"}),
+        ).toBe("degraded")
+    })
+})
+
+describe("isDeferredToolSentinel", () => {
+    it("matches both sentinel codes by prefix", () => {
+        expect(isDeferredToolSentinel(`${DEFERRED_NOT_EXECUTED_PREFIX}: paused`)).toBe(true)
+        expect(isDeferredToolSentinel(APPROVED_EXECUTION_RESULT_UNKNOWN)).toBe(true)
+        expect(isDeferredToolSentinel("APPROVED_EXECUTION_RESULT_UNKNOWN: and more")).toBe(true)
+    })
+
+    it("rejects real errors and non-strings", () => {
+        expect(isDeferredToolSentinel("connection refused")).toBe(false)
+        expect(isDeferredToolSentinel(buildDegradationErrorText("missing message"))).toBe(false)
+        expect(isDeferredToolSentinel(undefined)).toBe(false)
+        expect(isDeferredToolSentinel(null)).toBe(false)
     })
 })

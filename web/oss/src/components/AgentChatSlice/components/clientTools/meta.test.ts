@@ -158,6 +158,21 @@ describe("resolveClientToolHandler", () => {
         )
     })
 
+    it("resolves harness-wrapped request_input names when no render hint arrived", () => {
+        for (const wrapped of [
+            "mcp__agenta-tools__request_input",
+            "mcp.agenta-tools.request_input",
+        ]) {
+            const part = toolPart({type: `tool-${wrapped}`, state: "input-available"})
+            expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ElicitationWidget)
+        }
+    })
+
+    it("does NOT unwrap a third-party MCP tool onto a platform widget", () => {
+        const part = toolPart({type: "tool-mcp__github__request_input", state: "input-available"})
+        expect(resolveClientToolHandler(clientToolMeta(part))).toBeNull()
+    })
+
     it("leaves an unknown client tool to the fallback", () => {
         const part = toolPart({type: "tool-mysteryTool", state: "input-available"})
         expect(resolveClientToolHandler(clientToolMeta(part))).toBeNull()

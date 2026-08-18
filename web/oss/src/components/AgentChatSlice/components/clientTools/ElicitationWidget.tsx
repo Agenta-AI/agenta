@@ -30,7 +30,15 @@ import {
 } from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {ShortcutHint} from "@agenta/ui/rich-chat-input"
-import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
+import {
+    CaretRight,
+    CheckCircle,
+    Clock,
+    Prohibit,
+    Question,
+    Warning,
+    XCircle,
+} from "@phosphor-icons/react"
 import {Button, Form, Typography} from "antd"
 import dayjs from "dayjs"
 
@@ -210,6 +218,37 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
         output: meta.output,
         errorText: (meta.part as {errorText?: string}).errorText,
     })
+
+    // Runner deferral (paused on another approval): nothing to answer — show the request read-only.
+    if (partState === "deferred") {
+        if (!parsed.ok)
+            return (
+                <Chip icon={<Clock size={13} className="shrink-0 text-colorTextTertiary" />}>
+                    Waiting on another approval
+                </Chip>
+            )
+        return (
+            <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary p-3 my-1 max-w-2xl">
+                <div className="flex items-start gap-2">
+                    <Clock size={14} className="shrink-0 mt-0.5 text-colorTextTertiary" />
+                    <div className="flex min-w-0 flex-col">
+                        <Text className="!text-xs">{parsed.payload.message}</Text>
+                        <Text type="secondary" className="!text-xs">
+                            Asked by {resolveToolDisplay(meta.toolName).label} · Waiting on another
+                            approval
+                        </Text>
+                    </div>
+                </div>
+                <SchemaForm
+                    schema={parsed.payload.requestedSchema as unknown as Record<string, unknown>}
+                    form={form}
+                    formats
+                    openEnums
+                    disabled
+                />
+            </div>
+        )
+    }
 
     // Settled replays: chip copy comes from the envelope (`humanFriendlyMessage`), never re-resolved.
     if (partState !== "pending") {

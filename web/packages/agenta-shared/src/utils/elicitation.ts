@@ -14,6 +14,7 @@
  * ride platform-owned flows whose data path bypasses the chat wire, never schema-driven forms.
  * Full design: docs/design/agent-chat-interaction-kinds/decisions.md
  */
+import {isDeferredToolSentinel} from "./toolSentinels"
 
 /** Wire value for `render.kind` on elicitation interactions (REQUIRED on emissions). */
 export const ELICITATION_RENDER_KIND = "elicitation"
@@ -294,19 +295,28 @@ export function buildDegradationErrorText(reason: string): string {
     return `elicitation: unsupported payload — ${reason}`
 }
 
-export type ElicitationPartState = "pending" | "submitted" | "declined" | "cancelled" | "degraded"
+export type ElicitationPartState =
+    | "pending"
+    | "deferred"
+    | "submitted"
+    | "declined"
+    | "cancelled"
+    | "degraded"
 
 /**
  * Derive the replayable card state from an AI SDK tool part. Mirrors the ClientToolPart settle
- * semantics: `output-error`/`errorText` is degradation only; user actions land in `output`.
- * An output with no recognizable action replays as submitted (tolerant reader).
+ * semantics: `output-error`/`errorText` is degradation only — except a runner pause sentinel,
+ * which means the call was deferred (the runner told the model to re-issue it), not that it
+ * failed. User actions land in `output`; an output with no recognizable action replays as
+ * submitted (tolerant reader).
  */
 export function deriveElicitationPartState(part: {
     state?: string
     output?: unknown
     errorText?: string
 }): ElicitationPartState {
-    if (part.state === "output-error" || typeof part.errorText === "string") return "degraded"
+    if (part.state === "output-error" || typeof part.errorText === "string")
+        return isDeferredToolSentinel(part.errorText) ? "deferred" : "degraded"
     if (part.state !== "output-available") return "pending"
     const action = isRecord(part.output) ? part.output.action : undefined
     if (action === "decline") return "declined"

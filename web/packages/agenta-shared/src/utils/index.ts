@@ -241,6 +241,14 @@ export {
     type ElicitationResult,
 } from "./elicitation"
 
+// Runner pause sentinels on tool results (mirrors services/runner/src/tracing/otel.ts)
+export {
+    APPROVED_EXECUTION_RESULT_UNKNOWN,
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+    isDeferredToolSentinel,
+} from "./toolSentinels"
+
 // Polling utilities
 export {shortPoll} from "./shortPoll"
 

@@ -10,6 +10,7 @@
  * re-ask — the settled part itself can't be re-resolved).
  */
 import {isInteractionEndedOutput} from "@agenta/shared/clientTools"
+import {DEFERRED_NOT_EXECUTED_PREFIX} from "@agenta/shared/utils"
 import {
     ArrowClockwise,
     CheckCircle,
@@ -24,14 +25,6 @@ import type {ClientToolHandlerProps} from "./types"
 import {settledFailureChip, useConnectFlow, type ConnectOutput} from "./useConnectFlow"
 
 const {Text} = Typography
-
-/**
- * The runner parks only ONE interaction per turn; a second `request_connection` in the same step is
- * force-settled with this sentinel and RE-REQUESTED next turn (services/runner otel.ts
- * `TOOL_NOT_EXECUTED_PAUSED`). It is a deferral, not a failure — render it quietly with no Retry, so
- * the user waits for the agent's re-ask instead of starting a flow that races it.
- */
-const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 
 const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     const {
@@ -48,12 +41,12 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     } = useConnectFlow(meta, settle)
 
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
-    // connection failure); see DEFERRED_SENTINEL.
+    // connection failure); the agent RE-REQUESTS it next turn, so render quietly with no Retry.
     const partErrorText = (meta.part as {errorText?: unknown}).errorText
     const deferredByRunner =
         meta.state === "output-error" &&
         typeof partErrorText === "string" &&
-        partErrorText.startsWith(DEFERRED_SENTINEL)
+        partErrorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
 
     // ── Connecting: a post-settle manual retry's popup is open ───────────────────────────────────
     if (phase === "connecting") {

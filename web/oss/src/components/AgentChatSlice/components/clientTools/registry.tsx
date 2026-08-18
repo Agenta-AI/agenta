@@ -29,6 +29,8 @@ import type {ComponentType} from "react"
 
 import {CLIENT_TOOL_DESCRIPTORS} from "@agenta/shared/clientTools"
 
+import {canonicalToolName} from "../../assets/toolDisplay"
+
 import ConnectToolWidget from "./ConnectToolWidget"
 import ElicitationWidget from "./ElicitationWidget"
 import type {ClientToolHandlerProps, ClientToolMeta} from "./types"
@@ -49,10 +51,12 @@ const BY_TOOL_NAME: Record<string, ClientToolHandler> = {
     [CLIENT_TOOL_DESCRIPTORS.elicitation.toolName]: ElicitationWidget,
 }
 
-/** Resolve the widget for a client tool, or `null` when none is registered. */
+/** Resolve the widget for a client tool, or `null` when none is registered. The name lookup
+ * unwraps harness MCP wrappers (`mcp__agenta-tools__request_input`, `mcp.agenta-tools.…`) via
+ * `canonicalToolName`, so a wrapped call still dispatches when the render hint is missing. */
 export const resolveClientToolHandler = (meta: ClientToolMeta): ClientToolHandler | null =>
     (meta.renderKind ? BY_RENDER_KIND[meta.renderKind] : undefined) ??
-    BY_TOOL_NAME[meta.toolName] ??
+    BY_TOOL_NAME[canonicalToolName(meta.toolName)] ??
     null
 
 /** Whether this client tool has a dedicated widget (used to route known tools in every state). */
