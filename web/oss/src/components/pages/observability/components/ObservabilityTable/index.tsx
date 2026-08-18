@@ -1,4 +1,4 @@
-import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
+import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState, useRef} from "react"
 
 import {setTraceDrawerActiveSpanAtom} from "@agenta/observability/traceDrawer"
 import {AUTO_REFRESH_INTERVAL} from "@agenta/observability-ui"
@@ -68,6 +68,12 @@ const ObservabilityTable = () => {
         : ((spanParamValue as string | undefined) ?? "")
 
     const {patchQuery} = useAppNavigation()
+    // The trace id whose params the row click has already queued. The effect below also pushes
+    // `selectedTraceId` into the URL, and it reads a `traceParam` that is still stale at that
+    // point — so it fired a SECOND navigation ~50ms behind the click's, in the same tick. Next
+    // cancels the first when the second arrives (`Router.replace` returned false), and the
+    // survivor landed with only one of the two params. One writer per gesture.
+    const requestedTraceRef = useRef<string | null>(null)
 
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     // One derivation, in the package, so /m gets the same columns.
@@ -90,11 +96,18 @@ const ObservabilityTable = () => {
     )
 
     useEffect(() => {
+        // The URL has caught up with the row click — stop treating that selection as in flight.
+        if (traceParam && requestedTraceRef.current === traceParam) requestedTraceRef.current = null
         if (traceParam && traceParam !== selectedTraceId) {
             setSelectedTraceId(traceParam)
             return
         }
         if (!traceParam && !selectedTraceId) {
+            // A row click whose params have not landed in `traceParam` yet reads exactly like
+            // "nothing is selected", and this branch then wiped `?span=` — 300ms after the click
+            // put both params on the URL. The drawer opens off `?trace=`, so the clear closed it
+            // again: click, flash, gone. Hold off while a selection is in flight.
+            if (requestedTraceRef.current) return
             setTraceDrawerActiveSpan(null)
             setSpanParam(undefined, {shallow: true})
         }
@@ -109,6 +122,9 @@ const ObservabilityTable = () => {
 
     useEffect(() => {
         if (!selectedTraceId || selectedTraceId === traceParam) return
+        // Already queued by the row click, params and all — writing it again here is the
+        // navigation that cancels that one.
+        if (requestedTraceRef.current === selectedTraceId) return
         setTraceParam(selectedTraceId, {shallow: true})
     }, [selectedTraceId, traceParam, setTraceParam])
 
@@ -168,6 +184,7 @@ const ObservabilityTable = () => {
             // committed yet. The pair raced, the survivor lost the other's key, and the drawer —
             // which opens off `?trace=` via `syncTraceStateFromUrl` — opened and closed again as
             // the param appeared and vanished.
+            requestedTraceRef.current = targetTraceId
             patchQuery({trace: targetTraceId, span: targetSpanId || undefined})
         },
         [setSelectedNode, traceTabs, setSelectedTraceId, setTraceDrawerActiveSpan, patchQuery],
