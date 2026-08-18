@@ -15,6 +15,10 @@ export const PlaygroundModeSwitch = ({className}: {className?: string}) => {
     return (
         <Segmented
             aria-label="Playground mode"
+            // 24px, like every other control in the agent header. At the default 28 it was the
+            // tallest thing in the bar and set its height, so the bar stood 45px against the
+            // desktop app's 41 and carried the whole config pane down with it.
+            size="sm"
             className={className}
             value={chatMaximized ? "chat" : "build"}
             onChange={(value) => setChatMaximized(value === "chat")}

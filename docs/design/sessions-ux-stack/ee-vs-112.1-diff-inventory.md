@@ -747,23 +747,32 @@ config is `gpt-5.6-luna`, which shows **`Connect key`** on BOTH builds (only Ant
 keyed on these projects), so the notice is state, not a defect. Switching Model → Anthropic →
 `Haiku 4.5` clears it on both. Per Arda, Anthropic + Haiku is the model to use here.
 
-### P-01 — the whole config pane sits 7px low — **CONFIRMED, not yet fixed**
+### P-01 — the whole config pane sat 7px low — **FIXED**
 
-Ink bands down the config pane, matched agents, dark, seven bands: local is offset **+14
-device px = +7 CSS px on every one of them**, with no accumulation — a single origin shift.
+Ink bands down the config pane, matched agents, dark: local was offset **+14 device px = +7 CSS
+px on every one of seven bands**, with no accumulation — a single origin shift.
 
-| band | prod | local |
-|---|---|---|
-| 1 | 26 | 40 |
-| 2 | 125 | 139 |
-| 3 | 210 | 224 |
-| … | … | … |
-| 7 | 528 | 542 |
+**My first decomposition of this was wrong** and is corrected here. I reported "+4 from the
+pane's top padding, +3 from the gap under the title row". There is no gap difference and no
+padding difference: the agent header is `h-[48px]` locally against the desktop app's **41px**
+(`py-2` + a 24px row + the border). A 24px row centres at y=12 in a 48px box and y=8 in a 41px
+one, which is where the phantom "+4 padding" came from. One cause, not two.
 
-Decomposed by querying the elements: the agent title row starts at **y=8 on prod, y=12 on
-local** (+4, the pane's top padding), and the gap from that row to the `Configuration` bar is
-**9px on prod, 12px on local** (+3). The `Configuration` bar itself is 48px tall on both, so
-nothing below contributes. 4 + 3 = the 7.
+Two fixes, both measured back to prod exactly (header 41px, `Configuration` label y=56 on both):
+
+1. `AgentPageHeader` fixed its height at 48px. That is a **phone touch target**, not a desktop
+   height — the component is shared with `/m` and is full of `sm:` breakpoints. Now
+   `min-h-[48px] sm:min-h-0`, so phones keep the target and desktop sizes to content.
+2. That left +4: the `Build | Chat` `Segmented` renders at the default `h-control` (**28px**)
+   while every other control in that bar is 24px, so it became the tallest thing and set the
+   bar's height. Measured live: `BuildChat:28`, `default:24`, `Build:24`, `Chat:24`. Now
+   `size="sm"` (`h-control-sm` = 24px) — which aligns it with its own neighbours, not just
+   with prod.
+
+Result: config-top **10.78% → 4.89%**, config 5.91% → 3.98%, chat 6.61% → 6.08%.
+
+What remains in config-top is the `Deploy` button (D-04, awaiting a product call) and a small
+~2-4px residual in the instructions-preview block, not yet chased.
 
 ### Also seen, already-known
 
