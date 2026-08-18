@@ -6,6 +6,7 @@ description: "Set an agent's permission policy, override it for individual tools
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 Permissions decide which tool calls an agent can make on its own and which need your approval. Set a default on the agent, override it for individual tools, and approve calls while the agent runs. For the underlying model, see [Permissions](/concepts/permissions).
@@ -18,17 +19,11 @@ Permissions decide which tool calls an agent can make on its own and which need 
 
 ## Set the agent's default policy
 
-1. In the playground, set **Playground mode** to `Build`.
-2. In the **Configuration** column, click **Advanced**.
-3. Open the **Permissions** section.
-4. Pick a `Policy`, then click `Save`.
+1. In the **Configuration** column, click **Advanced**.
+2. Open the **Permissions** section.
+3. Pick a `Policy`, then click `Save`.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/advanced-permissions-policy-options.png")}
-  alt="The Policy dropdown open, showing Allow reads, Allow all, Ask, and Deny all with their descriptions"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="043728b716bd954b6084a6fb8d247b1b" height="400px" />
 
 | `Policy` | What it does |
 |---|---|
