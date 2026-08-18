@@ -1018,9 +1018,13 @@ async def sign_secret_token(
         if not _SECRET_KEY:
             raise InternalServerErrorException()
 
+        # One instant for both claims, so a token's age and its remaining life always sum
+        # to exactly the lifetime it was minted with.
+        _issued_at = datetime.now(timezone.utc)
+
         _exp = int(
             (
-                datetime.now(timezone.utc)
+                _issued_at
                 + timedelta(
                     seconds=expires_in if expires_in is not None else _SECRET_EXP
                 )
@@ -1034,11 +1038,15 @@ async def sign_secret_token(
             "workspace_id": workspace_id,
             "organization_id": organization_id,
             "organization_name": organization_name,
+            # `iat` pairs with `exp` so a rejected credential can report how OLD it is, not
+            # only that it expired. Export-failure diagnostics read both; without `iat` the
+            # age is unknowable and a stale credential looks like a wrong one.
+            "iat": int(_issued_at.timestamp()),
             "exp": _exp,
         }
 
-        # Unscoped tokens keep their exact historical payload shape — the claim is
-        # omitted entirely, never emitted as null.
+        # An unscoped token carries no `scope` key at all, rather than a null one, so its
+        # payload stays the shape every existing holder was issued.
         if scope is not None:
             auth_context["scope"] = scope
 

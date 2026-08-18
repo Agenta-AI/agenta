@@ -229,6 +229,32 @@ async def test_expiry_override_changes_exp_and_the_default_stays_fifteen_minutes
 
 
 @pytest.mark.asyncio
+async def test_every_token_records_when_it_was_issued(log):
+    """A rejected credential has to be able to say how OLD it is, not only that it expired.
+
+    The export-failure diagnostics report credential age from `iat`; without it a stale
+    credential is indistinguishable from a wrong one, which is what made this class of 401
+    take a week to diagnose.
+    """
+    now = datetime.now(timezone.utc).timestamp()
+
+    for token in (
+        await auth.sign_secret_token(user_id="u"),
+        await auth.sign_secret_token(user_id="u", scope=auth.TRACE_INGEST_SCOPE),
+        await auth.sign_secret_token(user_id="u", expires_in=60),
+    ):
+        assert now - 5 < _claims(token)["iat"] < now + 5
+
+
+@pytest.mark.asyncio
+async def test_issued_at_and_expiry_span_exactly_the_requested_lifetime(log):
+    # Both derive from one instant, so age + remaining life never drift apart.
+    claims = _claims(await auth.sign_secret_token(user_id="u", expires_in=7200))
+
+    assert claims["exp"] - claims["iat"] == 7200
+
+
+@pytest.mark.asyncio
 async def test_expired_scoped_token_is_rejected_as_expired(log):
     token = await auth.sign_secret_token(
         user_id="u",
