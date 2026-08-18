@@ -560,6 +560,26 @@ export function writeOtlpAuthFile(
 }
 
 /**
+ * Put the turn's OTLP bearer in the read-once auth file, for a run that has both.
+ *
+ * Called at environment build AND again at every turn dispatch. The second call is what keeps a
+ * warm session's exports authenticated: the extension consumes the file once per turn, and the
+ * bearer expires in minutes while a session lives for hours, so a turn that reused the bearer
+ * the session was BUILT with would have every span batch rejected.
+ *
+ * Only local Pi has a path here — it is the one placement where the harness exports its own
+ * spans. Everywhere else the runner exports them itself, from the incoming request each turn.
+ */
+export function refreshOtlpAuthFile(
+  path: string | undefined,
+  authorization: string | undefined,
+  log: Log = () => {},
+): void {
+  if (!path || !authorization) return;
+  writeOtlpAuthFile(path, authorization, log);
+}
+
+/**
  * Install the extension bundle into a local Pi agent dir's extensions/. Reports whether the
  * install succeeded so the caller can fail closed when the policy needs it (a missing bundle or
  * an unwritable dir returns false rather than silently proceeding with no enforcement).

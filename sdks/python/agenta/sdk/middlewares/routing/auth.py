@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Dict
+from typing import Callable, Optional, Dict, Tuple
 from os import getenv
 from json import dumps
 
@@ -74,7 +74,7 @@ async def get_credentials(
     host: str,
     scope_type: Optional[str] = None,
     scope_id: Optional[str] = None,
-) -> Optional[str]:
+) -> Tuple[Optional[str], Optional[str]]:
     """
     Shared credential verification logic.
 
@@ -85,14 +85,18 @@ async def get_credentials(
         scope_id: Optional scope ID for permission check
 
     Returns:
-        The credentials string if verified, None otherwise
+        A ``(credentials, telemetry_credentials)`` pair. ``credentials`` is the
+        caller's general-purpose credential; ``telemetry_credentials`` is a
+        dedicated trace-ingest-scoped credential the platform may issue alongside
+        it (``None`` on platforms that do not issue one — callers must fall back
+        to ``credentials``).
 
     Raises:
         DenyException: If authentication/authorization fails
     """
     try:
         if not _AUTH_ENABLED:
-            return request.headers.get("authorization", None)
+            return request.headers.get("authorization", None), None
 
         # HEADERS
         authorization = request.headers.get("authorization", None)
@@ -133,10 +137,10 @@ async def get_credentials(
         )
 
         if _CACHE_ENABLED:
-            credentials = _cache.get(_hash)
+            cached = _cache.get(_hash)
 
-            if credentials:
-                return credentials
+            if cached and cached.get("credentials"):
+                return cached.get("credentials"), cached.get("telemetry_credentials")
 
         try:
             async with httpx.AsyncClient() as client:
@@ -226,10 +230,19 @@ async def get_credentials(
                     )
 
                 credentials = auth.get("credentials")
+                # Optional, trace-ingest-scoped credential (absent on platforms
+                # that do not issue one; callers fall back to `credentials`).
+                telemetry_credentials = auth.get("telemetry_credentials")
 
-                _cache.put(_hash, credentials)
+                _cache.put(
+                    _hash,
+                    {
+                        "credentials": credentials,
+                        "telemetry_credentials": telemetry_credentials,
+                    },
+                )
 
-                return credentials
+                return credentials, telemetry_credentials
 
         except DenyException as deny:
             raise deny
@@ -282,14 +295,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 request.state.auth = {}
 
             else:
-                credentials = await get_credentials(
+                credentials, telemetry_credentials = await get_credentials(
                     request,
                     self.host,
                     self.scope_type,
                     self.scope_id,
                 )
 
-                request.state.auth = {"credentials": credentials}
+                request.state.auth = {
+                    "credentials": credentials,
+                    "telemetry_credentials": telemetry_credentials,
+                }
 
             return await call_next(request)
 

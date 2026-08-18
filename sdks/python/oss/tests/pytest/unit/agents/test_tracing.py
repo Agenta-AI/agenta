@@ -27,6 +27,66 @@ def test_trace_context_keeps_authorization_without_traceparent(monkeypatch):
     assert context.authorization == "ApiKey invoke-credential"
 
 
+def test_trace_context_prefers_telemetry_credentials(monkeypatch):
+    # The dedicated trace-ingest credential outlives the caller's general credential, so
+    # when the platform issues one the exporter must use it instead of the Authorization
+    # header that `inject` re-emits from the general credential.
+    monkeypatch.setattr(
+        tracing,
+        "inject",
+        lambda _headers: {"Authorization": "Secret general-credential"},
+    )
+    monkeypatch.setattr(
+        tracing.TracingContext,
+        "get",
+        lambda: SimpleNamespace(telemetry_credentials="Secret telemetry-credential"),
+    )
+
+    context = tracing.trace_context()
+
+    assert context is not None
+    assert context.authorization == "Secret telemetry-credential"
+
+
+def test_trace_context_falls_back_to_authorization_without_telemetry_credentials(
+    monkeypatch,
+):
+    # Older platforms issue no telemetry credential; the exporter keeps using the
+    # caller's general credential exactly as before.
+    monkeypatch.setattr(
+        tracing,
+        "inject",
+        lambda _headers: {"Authorization": "Secret general-credential"},
+    )
+    monkeypatch.setattr(
+        tracing.TracingContext,
+        "get",
+        lambda: SimpleNamespace(telemetry_credentials=None),
+    )
+
+    context = tracing.trace_context()
+
+    assert context is not None
+    assert context.authorization == "Secret general-credential"
+
+
+def test_trace_context_keeps_telemetry_credentials_without_traceparent(monkeypatch):
+    # A run holding only the telemetry credential (no traceparent, no general credential)
+    # still yields a TraceContext so its spans can export.
+    monkeypatch.setattr(tracing, "inject", lambda _headers: {})
+    monkeypatch.setattr(
+        tracing.TracingContext,
+        "get",
+        lambda: SimpleNamespace(telemetry_credentials="Secret telemetry-credential"),
+    )
+
+    context = tracing.trace_context()
+
+    assert context is not None
+    assert context.traceparent is None
+    assert context.authorization == "Secret telemetry-credential"
+
+
 def test_trace_context_none_without_traceparent_or_authorization(monkeypatch):
     monkeypatch.setattr(tracing, "inject", lambda _headers: {})
 

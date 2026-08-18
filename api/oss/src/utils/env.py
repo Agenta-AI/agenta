@@ -357,6 +357,14 @@ class OTLPConfig(BaseModel):
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
 
+    # Lifetime of the trace-ingest-scoped Secret token minted for telemetry export.
+    # It may exceed the general credential's 15 minutes only because the token is
+    # path-scoped to OTLP trace upload; keep it overridable so expiry-then-refresh
+    # can be exercised without waiting the full lifetime.
+    token_ttl_seconds: int = int(
+        os.getenv("AGENTA_OTLP_TOKEN_TTL_SECONDS") or str(2 * 60 * 60)
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 

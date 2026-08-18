@@ -89,6 +89,15 @@ _INVITATION_POLICY_ENDPOINT_IDENTIFIERS = (
 _SECRET_KEY = env.agenta.auth_key
 _SECRET_EXP = 15 * 60  # 15 minutes
 
+TRACE_INGEST_SCOPE = "trace-ingest"
+
+# Request paths each token scope is valid on. `ApiPrefixStripMiddleware` strips leading
+# `/api` segments before auth runs, so these are the post-strip paths — no `/api/...`
+# variants belong here.
+_SCOPE_ALLOWED_PATHS = {
+    TRACE_INGEST_SCOPE: {"/otlp/v1/traces"},
+}
+
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 _NULL_UUID = "null"
 
@@ -912,6 +921,24 @@ async def verify_secret_token(
             algorithms=["HS256"],
         )
 
+        # A scoped token may carry a TTL far beyond `_SECRET_EXP`; that is safe ONLY
+        # because this check confines it to its scope's allowed paths. It lives here,
+        # not at any call site, so no caller can bypass it. Unknown scopes fail closed.
+        token_scope = auth_context.get("scope")
+        if token_scope is not None:
+            allowed_paths = _SCOPE_ALLOWED_PATHS.get(token_scope)
+
+            if allowed_paths is None or request.url.path not in allowed_paths:
+                log.warn(
+                    "[auth] secret token unauthorized",
+                    path=request.url.path,
+                    method=request.method,
+                    reason="scope_forbidden",
+                    scope=token_scope,
+                )
+
+                raise UnauthorizedException(reason="scope_forbidden")
+
         request.state.user_id = auth_context.get("user_id")
         request.state.user_email = auth_context.get("user_email")
         request.state.project_id = auth_context.get("project_id")
@@ -942,6 +969,11 @@ async def verify_secret_token(
         )
 
         raise UnauthorizedException(reason="invalid_token") from exc
+
+    except HTTPException as exc:
+        # Scope rejections (and any other deliberate 401/5xx) must reach the client
+        # with their status — never collapsed into a 500 by the catch-all below.
+        raise exc
 
     except Exception as exc:  # pylint: disable=bare-except
         raise InternalServerErrorException() from exc
@@ -979,13 +1011,20 @@ async def sign_secret_token(
     workspace_id: Optional[str] = None,
     organization_id: Optional[str] = None,
     organization_name: Optional[str] = None,
+    scope: Optional[str] = None,
+    expires_in: Optional[int] = None,
 ):
     try:
         if not _SECRET_KEY:
             raise InternalServerErrorException()
 
         _exp = int(
-            (datetime.now(timezone.utc) + timedelta(seconds=_SECRET_EXP)).timestamp()
+            (
+                datetime.now(timezone.utc)
+                + timedelta(
+                    seconds=expires_in if expires_in is not None else _SECRET_EXP
+                )
+            ).timestamp()
         )
 
         auth_context = {
@@ -997,6 +1036,11 @@ async def sign_secret_token(
             "organization_name": organization_name,
             "exp": _exp,
         }
+
+        # Unscoped tokens keep their exact historical payload shape — the claim is
+        # omitted entirely, never emitted as null.
+        if scope is not None:
+            auth_context["scope"] = scope
 
         secret_token = encode(
             payload=auth_context,

@@ -61,6 +61,7 @@ import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import { conciseError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import { findSwallowedPiError } from "./pi-error.ts";
+import { refreshOtlpAuthFile } from "./pi-assets.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
 import {
   buildApprovedContentWiring,
@@ -257,6 +258,16 @@ export async function runTurn(
       : reconstructed || historicalAttachmentsPresent
         ? buildTurnText(request, logger)
         : plan.prompt.turnText;
+
+    // Hand the sandbox's own exporter THIS turn's bearer, the same way the tool relay below is
+    // started from the incoming request's `toolCallback` rather than the parked copy. Only a
+    // local-Pi environment has a path here; every other placement exports from this process,
+    // which reads the incoming request directly (just below).
+    refreshOtlpAuthFile(
+      env.otlpAuthFilePath,
+      request.telemetry?.exporters?.otlp?.headers?.authorization,
+      logger,
+    );
 
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,

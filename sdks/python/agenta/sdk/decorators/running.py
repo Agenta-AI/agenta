@@ -93,6 +93,7 @@ class Workflow:
         #
         secrets: Optional[list] = None,
         credentials: Optional[str] = None,
+        telemetry_credentials: Optional[str] = None,
         #
         **kwargs,
     ) -> Union[WorkflowBatchResponse, WorkflowStreamingResponse]: ...
@@ -101,6 +102,7 @@ class Workflow:
         self,
         *,
         credentials: Optional[str] = None,
+        telemetry_credentials: Optional[str] = None,
         #
         **kwargs,
     ) -> WorkflowInvokeRequest: ...
@@ -345,6 +347,7 @@ class workflow:
         #
         secrets: Optional[list] = None,
         credentials: Optional[str] = None,
+        telemetry_credentials: Optional[str] = None,
         #
         **kwargs,
     ) -> Union[WorkflowBatchResponse, WorkflowStreamingResponse]:
@@ -368,6 +371,7 @@ class workflow:
             tracing_ctx = TracingContext.get()
 
             tracing_ctx.credentials = credentials
+            tracing_ctx.telemetry_credentials = telemetry_credentials
 
             tracing_ctx.flags = _flags
             tracing_ctx.tags = _tags
@@ -433,6 +437,7 @@ class workflow:
         self,
         *,
         credentials: Optional[str] = None,
+        telemetry_credentials: Optional[str] = None,
         #
         **kwargs,
     ) -> WorkflowInvokeRequest:
@@ -440,6 +445,7 @@ class workflow:
             tracing_ctx = TracingContext.get()
 
             tracing_ctx.credentials = credentials
+            tracing_ctx.telemetry_credentials = telemetry_credentials
 
             tracing_ctx.references = self.references
             tracing_ctx.links = self.links

@@ -4,7 +4,8 @@ from uuid import UUID
 from fastapi import APIRouter, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from oss.src.middlewares.auth import sign_secret_token
+from oss.src.middlewares.auth import TRACE_INGEST_SCOPE, sign_secret_token
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.context import get_auth_context, get_auth_scope
@@ -27,12 +28,14 @@ class Allow(JSONResponse):
     def __init__(
         self,
         credentials: Optional[str] = None,
+        telemetry_credentials: Optional[str] = None,
     ) -> None:
         super().__init__(
             status_code=200,
             content={
                 "effect": "allow",
                 "credentials": credentials,
+                "telemetry_credentials": telemetry_credentials,
             },
         )
 
@@ -145,6 +148,21 @@ class AccessRouter:
         )
         credentials_header = f"Secret {secret_token}"
 
+        # Trace exports outlive the 15-minute credential, so telemetry gets its own
+        # longer-lived token. The longer TTL is acceptable only because the token is
+        # scope-bound to trace ingest and rejected everywhere else.
+        telemetry_token = await sign_secret_token(
+            user_id=user_id,
+            user_email=getattr(request.state, "user_email", None),
+            project_id=project_id,
+            workspace_id=str(ctx.scope.workspace_id),
+            organization_id=str(ctx.scope.organization_id),
+            organization_name=getattr(request.state, "organization_name", None),
+            scope=TRACE_INGEST_SCOPE,
+            expires_in=env.agenta.otlp.token_ttl_seconds,
+        )
+        telemetry_credentials_header = f"Secret {telemetry_token}"
+
         cache_key = {
             "action": action,
             "scope_type": scope_type,
@@ -166,7 +184,10 @@ class AccessRouter:
             )
 
             if allow == "allow":
-                return Allow(credentials_header)
+                return Allow(
+                    credentials_header,
+                    telemetry_credentials=telemetry_credentials_header,
+                )
             if allow == "deny":
                 log.warn("Permission denied")
                 raise Deny()
@@ -231,7 +252,10 @@ class AccessRouter:
                         key=cache_key,
                         value="allow",
                     )
-                    return Allow(credentials_header)
+                    return Allow(
+                        credentials_header,
+                        telemetry_credentials=telemetry_credentials_header,
+                    )
 
             elif isinstance(allow_resource, int):
                 if allow_resource <= 0:
@@ -245,7 +269,10 @@ class AccessRouter:
                     )
                     raise Deny()
                 else:
-                    return Allow(credentials_header)
+                    return Allow(
+                        credentials_header,
+                        telemetry_credentials=telemetry_credentials_header,
+                    )
 
             log.warn("Resource access denied")
             await set_cache(

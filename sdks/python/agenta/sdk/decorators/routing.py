@@ -628,6 +628,7 @@ class route:
 
         async def invoke_endpoint(req: Request, request: WorkflowInvokeRequest):
             credentials = req.state.auth.get("credentials")
+            telemetry_credentials = req.state.auth.get("telemetry_credentials")
 
             apply_invoke_prelude(req, request)
 
@@ -637,6 +638,7 @@ class route:
                         request=request,
                         secrets=None,
                         credentials=credentials,
+                        telemetry_credentials=telemetry_credentials,
                     )
 
                 status = getattr(response, "status", None)
@@ -654,6 +656,7 @@ class route:
 
         async def inspect_endpoint(req: Request, request: WorkflowInspectRequest):
             credentials = req.state.auth.get("credentials")
+            telemetry_credentials = req.state.auth.get("telemetry_credentials")
 
             try:
                 with tracing_context_manager(_get_request_tracing_context(req)):
@@ -670,10 +673,12 @@ class route:
                         result = await inspect_workflow(
                             request=request,
                             credentials=credentials,
+                            telemetry_credentials=telemetry_credentials,
                         )
                     else:
                         result = await wf.inspect(
                             credentials=credentials,
+                            telemetry_credentials=telemetry_credentials,
                         )
 
                 return await handle_inspect_success(result)

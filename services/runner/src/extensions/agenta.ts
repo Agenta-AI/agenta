@@ -81,6 +81,28 @@ export function readOtlpAuthFile(path?: string): string | undefined {
 }
 import { runResolvedTool } from "../tools/dispatch.ts";
 
+/**
+ * The OTLP bearer to export the CURRENT turn with.
+ *
+ * The bearer is a short-lived credential (minutes), but a warm session keeps this process alive
+ * across turns for hours, so one captured at process start is expired for every turn after the
+ * first and each export is rejected. The runner rewrites the auth file at every turn dispatch;
+ * this re-reads it per turn, keeping the read-once-then-delete handling the file has always had.
+ *
+ * A turn whose file is absent keeps the previous bearer rather than dropping to none: that is
+ * the credential this process would have used anyway, so a failed write can never make the
+ * export worse than it was before the file was rewritten per turn.
+ */
+export function createOtlpAuthRefresher(
+  path?: string,
+): () => string | undefined {
+  let current: string | undefined;
+  return () => {
+    current = readOtlpAuthFile(path) ?? current;
+    return current;
+  };
+}
+
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
 }
@@ -466,7 +488,7 @@ const factory = (pi: ExtensionAPI): void => {
   const otel = createAgentaOtel({
     traceparent: process.env.TRACEPARENT,
     endpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-    authorization: readOtlpAuthFile(process.env.AGENTA_AGENT_OTLP_AUTH_FILE),
+    // No bearer here: it is read per turn, below.
     captureContent:
       process.env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED !== "false",
     // The skills that loaded for this run (author + forced `_agenta.*`), stamped on the agent
@@ -474,6 +496,19 @@ const factory = (pi: ExtensionAPI): void => {
     skills: parseSkillsLoaded(process.env.AGENTA_AGENT_SKILLS_LOADED),
   });
   otel.register(pi); // lifecycle handlers (spans + usage accumulation)
+
+  // `agent_start` is where the otel state pins this turn's export target, so the turn's own
+  // bearer has to be in `config` before then — `before_agent_start` is the last point that is
+  // still true, for every turn, on a session the runner keeps warm. A usage-only run reads the
+  // file never: it exports nothing, so it must not consume a bearer.
+  if (hasTracing) {
+    const refreshOtlpAuthorization = createOtlpAuthRefresher(
+      process.env.AGENTA_AGENT_OTLP_AUTH_FILE,
+    );
+    pi.on("before_agent_start", async () => {
+      otel.config.authorization = refreshOtlpAuthorization();
+    });
+  }
 
   pi.on("agent_end", async () => {
     if (hasTracing) await otel.flush(); // invoke_agent has a remote parent → flush by id

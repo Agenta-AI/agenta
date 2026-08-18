@@ -13,6 +13,11 @@ class TracingContext(BaseModel):
     baggage: Optional[dict] = None
     #
     credentials: Optional[str] = None
+    # Dedicated trace-ingest-scoped credential (longer-lived than `credentials`,
+    # allowed to upload traces and nothing else). It is ONLY for the trace
+    # exporter: it must never ride `inject()`'s Authorization header, or it would
+    # replace the caller's credential on unrelated outbound calls.
+    telemetry_credentials: Optional[str] = None
     #
     script: Optional[dict] = None
     parameters: Optional[dict] = None

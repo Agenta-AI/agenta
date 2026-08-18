@@ -12,7 +12,8 @@
  * The lifecycle design gives the runtime a large role: `bootstrap`, `reconfigure`, `restart`. It
  * has none of that here, because the runner cannot do any of it yet. The daemon environment is
  * built ONCE, before the sandbox starts, and is immutable afterwards (see `AcquireContext`'s
- * invariant 1). There is no restart path and no credential refresh.
+ * invariant 1). There is no restart path, and the one credential a running environment can still
+ * be handed is the OTLP bearer, which rides a FILE precisely because the env map is frozen.
  *
  * So this unit is the runtime's TEARDOWN and its file handles, and nothing more. Inventing a
  * `restart()` that throws would suggest the seam exists; leaving it out says plainly that it does
@@ -39,8 +40,8 @@ import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
   configurePiSkillSnapshot,
+  refreshOtlpAuthFile,
   resolvePiToolSpecsDelivery,
-  writeOtlpAuthFile,
   writePiToolSpecsFileLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
 import { applyClaudeConnectionEnv } from "../engines/sandbox_agent/runtime-policy.ts";
@@ -178,7 +179,8 @@ export interface RuntimeEnvironment {
  * THE OTLP BEARER RIDES A FILE, NEVER AN ENV VAR. The daemon environment is inherited by the
  * harness process, so a prompt-injected sandbox could read and echo a plain env var holding the
  * caller's reusable bearer. Only the PATH goes into the env; the extension reads the file once
- * and deletes it, and `removeRuntimeFiles` above is the backstop for a harness that never ran.
+ * per turn and deletes it, and `removeRuntimeFiles` above is the backstop for a harness that
+ * never ran. The bearer written HERE only ever serves turn one — see `refreshOtlpAuthFile`.
  */
 export function buildRuntimeEnvironment(
   input: BuildRuntimeEnvironmentInput,
@@ -209,11 +211,13 @@ export function buildRuntimeEnvironment(
   // specs, scoped env, callback endpoints, and callback auth in runner memory.
   const otlpAuthFilePath =
     p.isPi && !p.isDaytona ? `${p.workspace.relayDir}.otlp-auth` : undefined;
-  const otlpAuthorization =
-    r.telemetry?.exporters?.otlp?.headers?.authorization;
-  if (otlpAuthFilePath && otlpAuthorization) {
-    writeOtlpAuthFile(otlpAuthFilePath, otlpAuthorization, input.log);
-  }
+  // Turn one's bearer. Every later turn rewrites this file at dispatch (`runTurn`), because the
+  // bearer outlives neither a warm session nor the extension's read-once consumption of it.
+  refreshOtlpAuthFile(
+    otlpAuthFilePath,
+    r.telemetry?.exporters?.otlp?.headers?.authorization,
+    input.log,
+  );
 
   const piExtEnv: Record<string, string> = p.isPi
     ? buildPiExtensionEnv(input.request, !p.isDaytona, {

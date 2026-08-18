@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
-from jwt import encode
+from jwt import decode, encode
 from starlette.requests import Request
 
 from oss.src.middlewares import auth
@@ -46,12 +46,12 @@ def _log(monkeypatch):
     return recorder
 
 
-def _request() -> Request:
+def _request(path: str = "/otlp/v1/traces") -> Request:
     return Request(
         {
             "type": "http",
             "method": "POST",
-            "path": "/otlp/v1/traces",
+            "path": path,
             "headers": [],
             "query_string": b"",
             "scheme": "http",
@@ -121,3 +121,125 @@ def test_unauthorized_reason_reads_the_raiser_s_reason():
         == "expired_signature"
     )
     assert auth._unauthorized_reason(HTTPException(401, "Unauthorized")) is None
+
+
+def _claims(token: str) -> dict:
+    return decode(
+        jwt=token,
+        key=SECRET_KEY,
+        algorithms=["HS256"],
+        options={"verify_exp": False},
+    )
+
+
+@pytest.mark.asyncio
+async def test_unscoped_token_round_trips_on_any_path_with_no_scope_claim(log):
+    token = await auth.sign_secret_token(user_id="u", project_id="p")
+
+    assert "scope" not in _claims(token)
+
+    request = _request(path="/workflows/123/revisions/commit")
+
+    await auth.verify_secret_token(request=request, secret_token=token)
+
+    assert request.state.user_id == "u"
+    assert request.state.project_id == "p"
+    assert request.state.credentials == f"Secret {token}"
+    assert log.calls == []
+
+
+@pytest.mark.asyncio
+async def test_trace_ingest_token_verifies_on_the_otlp_ingest_path(log):
+    token = await auth.sign_secret_token(
+        user_id="u",
+        project_id="p",
+        scope=auth.TRACE_INGEST_SCOPE,
+        expires_in=2 * 60 * 60,
+    )
+
+    request = _request(path="/otlp/v1/traces")
+
+    await auth.verify_secret_token(request=request, secret_token=token)
+
+    assert request.state.user_id == "u"
+    assert request.state.project_id == "p"
+    assert log.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/workflows/123/revisions/commit",
+        "/vault/v1/secrets",
+    ],
+)
+async def test_trace_ingest_token_is_rejected_everywhere_else(log, path):
+    token = await auth.sign_secret_token(
+        user_id="u",
+        project_id="p",
+        scope=auth.TRACE_INGEST_SCOPE,
+        expires_in=2 * 60 * 60,
+    )
+
+    with pytest.raises(UnauthorizedException) as raised:
+        await auth.verify_secret_token(request=_request(path=path), secret_token=token)
+
+    assert raised.value.status_code == 401
+    assert raised.value.detail["reason"] == "scope_forbidden"
+
+    (_, event, fields) = log.of("warn")[0]
+    assert event == "[auth] secret token unauthorized"
+    assert fields["reason"] == "scope_forbidden"
+    assert fields["scope"] == auth.TRACE_INGEST_SCOPE
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/otlp/v1/traces",
+        "/workflows/123/revisions/commit",
+        "/vault/v1/secrets",
+    ],
+)
+async def test_unknown_scope_is_rejected_on_every_path(log, path):
+    token = await auth.sign_secret_token(
+        user_id="u",
+        project_id="p",
+        scope="garbage-scope",
+    )
+
+    with pytest.raises(UnauthorizedException) as raised:
+        await auth.verify_secret_token(request=_request(path=path), secret_token=token)
+
+    assert raised.value.detail["reason"] == "scope_forbidden"
+
+
+@pytest.mark.asyncio
+async def test_expiry_override_changes_exp_and_the_default_stays_fifteen_minutes(log):
+    now = datetime.now(timezone.utc).timestamp()
+
+    overridden = await auth.sign_secret_token(user_id="u", expires_in=60)
+    assert now + 55 < _claims(overridden)["exp"] < now + 65
+
+    # No override = the general credential's unchanged 15-minute lifetime.
+    default = await auth.sign_secret_token(user_id="u")
+    assert now + 15 * 60 - 5 < _claims(default)["exp"] < now + 15 * 60 + 5
+
+
+@pytest.mark.asyncio
+async def test_expired_scoped_token_is_rejected_as_expired(log):
+    token = await auth.sign_secret_token(
+        user_id="u",
+        scope=auth.TRACE_INGEST_SCOPE,
+        expires_in=-3600,
+    )
+
+    with pytest.raises(UnauthorizedException) as raised:
+        await auth.verify_secret_token(
+            request=_request(path="/otlp/v1/traces"),
+            secret_token=token,
+        )
+
+    assert raised.value.detail["reason"] == "expired_signature"

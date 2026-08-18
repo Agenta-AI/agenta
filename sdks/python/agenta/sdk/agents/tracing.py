@@ -43,9 +43,11 @@ def trace_context() -> Optional[TraceContext]:
 
     Threading the ``/invoke`` span's ``traceparent`` into the run makes the agent's spans
     children of that span, so the whole run shows up under the response's ``trace_id`` the
-    way completion/chat nest their LLM spans. The caller's credential rides along (via
-    ``inject``'s ``Authorization`` re-emit from ``TracingContext.credentials``) — the runner
-    authenticates its session-coordination calls AS the caller with it. Best-effort: any
+    way completion/chat nest their LLM spans. The exporter credential prefers
+    ``TracingContext.telemetry_credentials`` — a dedicated trace-ingest-scoped token whose
+    lifetime covers warm agent sessions, unlike the caller's short-lived general credential —
+    and falls back to the caller's credential (``inject``'s ``Authorization`` re-emit from
+    ``TracingContext.credentials``) on platforms that do not issue one. Best-effort: any
     failure returns ``None`` and the run is traced standalone (or not at all) using the
     runner's env config.
     """
@@ -53,7 +55,14 @@ def trace_context() -> Optional[TraceContext]:
         headers = inject({})
 
         traceparent = headers.get("traceparent")
-        authorization = headers.get("Authorization")
+        # The telemetry credential deliberately does NOT ride `inject()`'s
+        # Authorization header (that one authenticates the caller's own outbound
+        # calls); it is read off the context here, for the exporter only. A run
+        # holding only a telemetry credential (no traceparent, no general
+        # credential) still yields a TraceContext so its spans can export.
+        authorization = TracingContext.get().telemetry_credentials or headers.get(
+            "Authorization"
+        )
         if not traceparent and not authorization:
             return None
 
