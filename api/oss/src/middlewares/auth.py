@@ -102,6 +102,16 @@ def _auth_id_tail(value: Optional[str]) -> Optional[str]:
     return value[-12:]
 
 
+def _unauthorized_reason(exc: HTTPException) -> Optional[str]:
+    """The `reason` a 401 was raised with, when its raiser named one (see `verify_secret_token`).
+
+    `reason` also reaches the caller in the response body, which is the point: it is how a
+    client tells "refresh your credential" from "your credential is wrong". Keep it a closed
+    vocabulary of stable literals — never free text, never an exception string.
+    """
+    return exc.detail.get("reason") if isinstance(exc.detail, dict) else None
+
+
 def _log_bearer_auth_denied(
     *,
     request: Request,
@@ -186,7 +196,14 @@ async def auth_middleware(request: Request, call_next):
             log.error("%s: %s", exc.status_code, exc.detail)
         elif 400 <= exc.status_code < 500:
             if exc.status_code in [401]:
-                log.debug("%s: %s", exc.status_code, exc.detail)
+                log.debug(
+                    "[auth] unauthorized",
+                    status_code=exc.status_code,
+                    path=request.url.path,
+                    method=request.method,
+                    reason=_unauthorized_reason(exc),
+                    detail=exc.detail,
+                )
             else:
                 log.warn("%s: %s", exc.status_code, exc.detail)
 
@@ -903,14 +920,56 @@ async def verify_secret_token(
         request.state.organization_name = auth_context.get("organization_name")
         request.state.credentials = f"{_SECRET_TOKEN_PREFIX}{secret_token}"
 
-    except DecodeError as exc:
-        raise UnauthorizedException() from exc
-
     except ExpiredSignatureError as exc:
-        raise UnauthorizedException() from exc
+        # The signature verified, so this is our own token presented past `_SECRET_EXP` — a
+        # caller that never re-acquired, which is a live client bug, hence warning over debug.
+        log.warn(
+            "[auth] secret token unauthorized",
+            path=request.url.path,
+            method=request.method,
+            reason="expired_signature",
+            expired_seconds_ago=_expired_seconds_ago(secret_token),
+        )
+
+        raise UnauthorizedException(reason="expired_signature") from exc
+
+    except DecodeError as exc:
+        log.debug(
+            "[auth] secret token unauthorized",
+            path=request.url.path,
+            method=request.method,
+            reason="invalid_token",
+        )
+
+        raise UnauthorizedException(reason="invalid_token") from exc
 
     except Exception as exc:  # pylint: disable=bare-except
         raise InternalServerErrorException() from exc
+
+
+def _expired_seconds_ago(secret_token: str) -> Optional[int]:
+    """Seconds since the token's `exp` passed — the age an aged-out credential reports.
+
+    Verification is off: the caller only reaches this after `decode` already verified the
+    signature, and the claim feeds a log field, never a decision.
+    """
+    try:
+        claims = decode(
+            jwt=secret_token,
+            key=_SECRET_KEY,
+            algorithms=["HS256"],
+            options={"verify_signature": False, "verify_exp": False},
+        )
+
+        expiry = claims.get("exp")
+
+        if not isinstance(expiry, (int, float)):
+            return None
+
+        return int(datetime.now(timezone.utc).timestamp() - expiry)
+
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
 
 
 async def sign_secret_token(

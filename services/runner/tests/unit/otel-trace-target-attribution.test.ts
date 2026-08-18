@@ -21,7 +21,7 @@
  *
  * Run: pnpm exec vitest run tests/unit/otel-trace-target-attribution.test.ts
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExportResult } from "@opentelemetry/core";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
@@ -42,7 +42,11 @@ vi.mock("@opentelemetry/exporter-trace-otlp-proto", () => {
       this.authorization = config.headers?.Authorization;
     }
     export(spans: ReadableSpan[], cb: (r: ExportResult) => void): void {
-      fakeExports.push({ url: this.url, authorization: this.authorization, spans });
+      fakeExports.push({
+        url: this.url,
+        authorization: this.authorization,
+        spans,
+      });
       cb({ code: 0 /* ExportResultCode.SUCCESS */ });
     }
     async shutdown(): Promise<void> {}
@@ -60,8 +64,19 @@ function exportsTo(endpoint: string): ReadableSpan[] {
   return fakeExports.filter((e) => e.url === endpoint).flatMap((e) => e.spans);
 }
 
+beforeEach(() => {
+  // Pin the env fallback target so the "nothing fell back to the default" assertions below are
+  // real. Empty API urls keep `defaultTarget()` on the cloud base the assertions name, and the
+  // credential is what keeps a fallback batch EXPORTING: without one it would be skipped
+  // (Agenta ingest never takes an unauthenticated export) and the guard would pass vacuously.
+  vi.stubEnv("AGENTA_API_INTERNAL_URL", "");
+  vi.stubEnv("AGENTA_API_URL", "");
+  vi.stubEnv("AGENTA_CREDENTIALS", "Secret fallback-credential");
+});
+
 afterEach(() => {
   fakeExports.length = 0;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -113,7 +128,9 @@ describe("otel traceTargets — per-run target attribution across a shared trace
     expect(atB.length).toBeGreaterThan(0);
 
     // No batch fell back to the env default while a run was still registered.
-    expect(exportsTo("https://cloud.agenta.ai/api/otlp/v1/traces")).toHaveLength(0);
+    expect(
+      exportsTo("https://cloud.agenta.ai/api/otlp/v1/traces"),
+    ).toHaveLength(0);
 
     // Attribution is correct, not merely present: A's spans carry A's prompt, B's carry B's.
     // `input.value` is itself a JSON-encoded string attribute, so the nested quotes are escaped.
@@ -164,14 +181,23 @@ describe("otel traceTargets — per-run target attribution across a shared trace
 
     for (const [label, endpoint] of Object.entries(TARGETS)) {
       const spans = exportsTo(endpoint);
-      expect(spans.length, `${label} should have exported to its own target`).toBeGreaterThan(0);
+      expect(
+        spans.length,
+        `${label} should have exported to its own target`,
+      ).toBeGreaterThan(0);
       const text = JSON.stringify(spans.map((s) => s.attributes));
-      expect(text).toContain(`\\"prompt\\":\\"prompt-${label.toLowerCase()}\\"`);
+      expect(text).toContain(
+        `\\"prompt\\":\\"prompt-${label.toLowerCase()}\\"`,
+      );
       for (const other of Object.keys(TARGETS)) {
         if (other === label) continue;
-        expect(text).not.toContain(`\\"prompt\\":\\"prompt-${other.toLowerCase()}\\"`);
+        expect(text).not.toContain(
+          `\\"prompt\\":\\"prompt-${other.toLowerCase()}\\"`,
+        );
       }
     }
-    expect(exportsTo("https://cloud.agenta.ai/api/otlp/v1/traces")).toHaveLength(0);
+    expect(
+      exportsTo("https://cloud.agenta.ai/api/otlp/v1/traces"),
+    ).toHaveLength(0);
   });
 });
