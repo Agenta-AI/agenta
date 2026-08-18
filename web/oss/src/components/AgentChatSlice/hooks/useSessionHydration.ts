@@ -35,6 +35,12 @@ const REMOTE_RUN_POLL_MS = 15_000
  * records until it returns) is still followed. */
 const REMOTE_RUN_POLL_MAX_MS = 60_000
 
+/** Retry budget for the stranded-first-send record check when the fetch itself fails
+ * (`records: null`). Bounded so a down endpoint gets a short burst, not a hammer; when the budget
+ * runs out the check re-arms and waits for the next dependency change instead. */
+const STRANDED_CHECK_MAX_ATTEMPTS = 3
+const STRANDED_CHECK_RETRY_MS = 2_000
+
 /**
  * Whether the records-changed relay's catch-up refetch must skip this tick.
  *
@@ -461,29 +467,51 @@ export const useSessionHydration = ({
     // A restored transcript whose tail is an unanswered user turn, with the backend idle and the
     // durable record log EMPTY, means the send died client-side before it ever reached the runner
     // (aborted mid-prepare, a lost seed handoff). Without this check the session reads as
-    // busy-forever on every reopen. One-shot per mount, and only for the zero-records case —
-    // `records: []` is a confirmed-empty log, `records: null` is a failed fetch and never stamps.
+    // busy-forever on every reopen. One-shot per mount, but the shot only counts once the fetch is
+    // CONCLUSIVE: `records: []` is a confirmed-empty log and stamps; `records: null` is a failed
+    // fetch and never stamps — it retries a bounded burst, then re-arms so a later dependency
+    // change can try again instead of latching the recovery out for the rest of the mount.
     const liveness = useAtomValue(sessionLivenessAtomFamily(sessionId))
-    const strandedCheckedRef = useRef(false)
+    const strandedCheckRef = useRef<"idle" | "pending" | "done">("idle")
     useEffect(() => {
-        if (strandedCheckedRef.current || isHydrating || busy) return
+        if (strandedCheckRef.current !== "idle" || isHydrating || busy) return
         if (liveness.isLoading || liveness.nest.isRunning) return
         if (!hasStrandedTail(messagesRef.current)) return
-        strandedCheckedRef.current = true
+        strandedCheckRef.current = "pending"
         let cancelled = false
-        void getDefaultStore()
-            .set(fetchSessionRecordsAtom, sessionId)
-            .then(({records}) => {
-                if (cancelled || busyRef.current) return
-                if (!records || records.length > 0) return
-                const current = messagesRef.current
-                if (!hasStrandedTail(current)) return
-                const stamped = [...current, strandedRunErrorCarrier()]
-                setMessages(stamped)
-                persistMessages({id: sessionId, messages: stamped})
-            })
+        let retryTimer: ReturnType<typeof setTimeout> | undefined
+        let attempts = 0
+        const check = () => {
+            attempts += 1
+            void getDefaultStore()
+                .set(fetchSessionRecordsAtom, sessionId)
+                .then(({records}) => {
+                    if (cancelled) return
+                    if (!records) {
+                        if (attempts < STRANDED_CHECK_MAX_ATTEMPTS) {
+                            retryTimer = setTimeout(check, STRANDED_CHECK_RETRY_MS)
+                        } else {
+                            strandedCheckRef.current = "idle"
+                        }
+                        return
+                    }
+                    strandedCheckRef.current = "done"
+                    if (busyRef.current) return
+                    if (records.length > 0) return
+                    const current = messagesRef.current
+                    if (!hasStrandedTail(current)) return
+                    const stamped = [...current, strandedRunErrorCarrier()]
+                    setMessages(stamped)
+                    persistMessages({id: sessionId, messages: stamped})
+                })
+        }
+        check()
         return () => {
             cancelled = true
+            if (retryTimer) clearTimeout(retryTimer)
+            // A dependency change mid-flight must retry, not deadlock on a shot that never
+            // concluded.
+            if (strandedCheckRef.current === "pending") strandedCheckRef.current = "idle"
         }
     }, [isHydrating, busy, liveness, sessionId, messagesRef, busyRef, setMessages, persistMessages])
 

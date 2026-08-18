@@ -31,11 +31,14 @@ export const buildRequestWithinDeadline = async <T>(
                     timer = setTimeout(() => reject(new Error(PREPARE_HUNG_MESSAGE)), remaining)
                 }),
             ])
-            if (result) return result
+            if (result !== null) return result
         } finally {
             clearTimeout(timer)
         }
-        await new Promise((resolve) => setTimeout(resolve, retryMs))
+        // Never sleep past the deadline: a null build resolving just before it must fail AT the
+        // deadline, not up to a full retry interval after.
+        const delay = Math.min(retryMs, Math.max(0, deadline - Date.now()))
+        if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
     }
     throw new Error(PREPARE_NOT_READY_MESSAGE)
 }
