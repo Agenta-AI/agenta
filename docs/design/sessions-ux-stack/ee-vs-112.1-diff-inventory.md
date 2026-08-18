@@ -1004,6 +1004,43 @@ Sessions + Automation runs + a Configuration summary with an `Edit` into the pla
 Local's sidebar agent rows link straight to `/playground`. Whether local has the route at
 all is unverified.
 
+## 4i. Sessions list — the toolbar sat 12px low
+
+Measured by ink band down the content column, both themes, both builds:
+
+| band | prod | local (before) | local (after) |
+|---|---|---|---|
+| `Sessions` title | 68 – 87 | 68 – 87 | 68 – 87 |
+| filters toolbar | 116 – 146 | **128 – 158** | 116 – 146 |
+
+### S-01 — `SessionFiltersBar`'s own top padding stacks under the page title — **FIXED**
+
+The page was rewritten in the lane (#5833: one shared filters shell for desktop and mobile),
+so this is not a dropped line — it is the shared bar paying for a header it does not render
+here. 112.2's desktop-only bar was `flex flex-wrap items-center gap-3 pb-3`; the shared one
+is `… px-4 pb-3 pt-3`, and the page already cancels the horizontal half (`!px-0`, with a
+comment saying why). `!pt-0` cancels the other half for the same reason: on this page
+`PageLayout` owns the title, so the bar's top padding is pure double-spacing. Mobile, where
+the bar IS the header, keeps it.
+
+Verified by re-measuring the bands, light and dark. Strips: content-top 2.89% → 2.21%
+(light), 2.12% (dark); content 0.98% → 0.75%.
+
+### S-02 — the agent picker is 28px tall against prod's 26 — **P3, not fixed**
+
+Both are 192px wide at x=736. The 2px is the kit `SelectTrigger`'s default height against
+antd's `size="small"` selector (24 + 2 border). Changing it means changing the kit default
+for every surface including `/m`, where the taller target is wanted. Left alone.
+
+### Trap — a loading SKELETON is pixel-quiet, so `shot.sh` will happily shoot it
+
+The first dark capture scored **18.89%** on content-top: local was still showing the session
+list's skeleton rows while prod had data. Skeletons do not animate here, so the settle gate
+saw two identical frames and passed. Re-capturing after the list resolved gave 2.12%. The
+existing "wedged API invents missing rows" note (§4c) has a sibling: **a static placeholder
+invents a whole-block finding.** Whenever a capture follows a theme switch or a route change
+on the dev build, check the shot has real content before scoring it.
+
 ## 5. Coverage — NOT yet done
 
 This inventory is **not complete**. Untouched so far:

@@ -106,9 +106,12 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                 <div className="flex min-h-0 flex-1 flex-col">
                     {/* No `title` here — `PageLayout` already carries it; the bar would repeat it.
                         `!px-0` drops the bar's own gutters: inside the page column they would
-                        indent search 16px past the rows underneath it. */}
+                        indent search 16px past the rows underneath it. `!pt-0` for the same
+                        reason on the other axis — the bar's own top padding is for the screens
+                        where it IS the header, and here it stacks under `PageLayout`'s title,
+                        pushing the whole toolbar 12px below where the desktop app puts it. */}
                     <SessionFiltersBar
-                        className="!px-0"
+                        className="!px-0 !pt-0"
                         waitingCount={list.waitingCount}
                         agents={agentOptions}
                         hideAgentFilter={Boolean(scopedAgentId)}
