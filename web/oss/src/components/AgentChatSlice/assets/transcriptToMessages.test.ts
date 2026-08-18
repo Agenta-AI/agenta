@@ -4,10 +4,11 @@ import type {
     SessionRecord,
 } from "@agenta/entities/session"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
+import {APPROVED_EXECUTION_RESULT_UNKNOWN} from "@agenta/shared/utils"
 import {describe, expect, it} from "vitest"
 
 import abandonedFormSession from "./__fixtures__/abandonedFormSession.json"
-import {APPROVED_EXECUTION_RESULT_UNKNOWN, transcriptToMessages} from "./transcriptToMessages"
+import {transcriptToMessages} from "./transcriptToMessages"
 
 const record = (id: string, payload: Record<string, unknown>, sender = "agent"): SessionRecord => ({
     id,

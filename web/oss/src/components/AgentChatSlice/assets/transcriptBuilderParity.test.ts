@@ -13,15 +13,15 @@
  */
 import {transcriptToMessages as pkgTranscriptToMessages} from "@agenta/chat/assets"
 import type {SessionRecord} from "@agenta/entities/session"
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN,
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
 import {GOLDEN_SESSIONS} from "./__fixtures__/goldenSessions"
-import {
-    APPROVED_EXECUTION_RESULT_UNKNOWN,
-    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
-    transcriptToMessages as ossTranscriptToMessages,
-} from "./transcriptToMessages"
+import {transcriptToMessages as ossTranscriptToMessages} from "./transcriptToMessages"
 
 type AnyPart = Record<string, unknown>
 

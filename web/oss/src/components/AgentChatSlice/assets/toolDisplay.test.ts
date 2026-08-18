@@ -105,6 +105,7 @@ describe("canonicalToolName", () => {
 
     it("unwraps the Codex dot form of the same server", () => {
         expect(canonicalToolName("mcp.agenta-tools.commit_revision")).toBe("commit_revision")
+        expect(canonicalToolName("mcp.agenta-tools.request_input")).toBe("request_input")
     })
 
     it("leaves another server's tool wrapped, so it cannot collide with a platform tool", () => {
@@ -129,10 +130,42 @@ describe("resolveToolDisplay under an MCP wrapper", () => {
         )
     })
 
+    it("applies the override under the Codex dot wrapper too", () => {
+        const summary = resolveToolDisplay("mcp.agenta-tools.commit_revision").summary
+        expect(summary?.({workflow_revision: {message: "Add the skill."}}, null)).toBe(
+            "Add the skill.",
+        )
+    })
+
     it("still presents it as an MCP tool, and keeps the raw name reachable", () => {
         const display = resolveToolDisplay("mcp__agenta-tools__commit_revision")
 
         expect(display.kind).toBe("mcp")
         expect(display.raw).toBe("mcp__agenta-tools__commit_revision")
+    })
+})
+
+// Regression #6106: the Codex mcp.<server>.<tool> form title-cased raw, producing
+// "Mcp.agenta tools.request input" instead of the mcp__ form's "Request input" header.
+describe("resolveToolDisplay name shapes", () => {
+    it("renders the Claude mcp__ form as tool from 'Server · MCP'", () => {
+        const display = resolveToolDisplay("mcp__agenta-tools__request_input")
+        expect(display.label).toBe("Request input")
+        expect(display.source).toBe("Agenta tools · MCP")
+        expect(display.kind).toBe("mcp")
+    })
+
+    it("renders the Codex mcp. form identically to the mcp__ form", () => {
+        const codex = resolveToolDisplay("mcp.agenta-tools.request_input")
+        const claude = resolveToolDisplay("mcp__agenta-tools__request_input")
+        expect(codex.label).toBe(claude.label)
+        expect(codex.source).toBe(claude.source)
+        expect(codex.kind).toBe("mcp")
+    })
+
+    it("treats mcp. as an MCP wrapper only with server AND tool segments", () => {
+        const display = resolveToolDisplay("mcp.something")
+        expect(display.kind).not.toBe("mcp")
+        expect(display.source).toBeUndefined()
     })
 })

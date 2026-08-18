@@ -16,6 +16,10 @@ import type {
 } from "@agenta/entities/session"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 
 /**
@@ -41,14 +45,13 @@ export function attachmentContentUrl(sessionId: string, attachmentId: string): s
     return `${getAgentaApiUrl()}/sessions/attachments/${encodeURIComponent(attachmentId)}/content?${params.toString()}`
 }
 
-// Mirrors services/runner/src/tracing/otel.ts; park sentinels report skipped or unobserved work, not final results.
-export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED"
-export const APPROVED_EXECUTION_RESULT_UNKNOWN =
-    "APPROVED_EXECUTION_RESULT_UNKNOWN: the approved call started but its result was not observed before the pause ended the turn; do not assume it failed and do not retry a side-effecting call."
-export const APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX = APPROVED_EXECUTION_RESULT_UNKNOWN.slice(
-    0,
-    APPROVED_EXECUTION_RESULT_UNKNOWN.indexOf(":"),
-)
+// Park sentinels (@agenta/shared mirror of services/runner/src/tracing/otel.ts) report skipped
+// or unobserved work, not final results.
+export {
+    APPROVED_EXECUTION_RESULT_UNKNOWN,
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+} from "@agenta/shared/utils"
 
 interface DraftMessage {
     id: string

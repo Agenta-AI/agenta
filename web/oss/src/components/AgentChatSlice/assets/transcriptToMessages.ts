@@ -4,6 +4,7 @@ import type {
     SessionRecord,
 } from "@agenta/entities/session"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
+import {APPROVED_EXECUTION_RESULT_UNKNOWN, DEFERRED_NOT_EXECUTED_PREFIX} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 
 import {attachmentContentUrl} from "./attachmentMedia"
@@ -24,15 +25,6 @@ import {attachmentContentUrl} from "./attachmentMedia"
  */
 
 type Part = Record<string, unknown>
-
-// Mirrors services/runner/src/tracing/otel.ts; park sentinels report skipped or unobserved work, not final results.
-export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED"
-export const APPROVED_EXECUTION_RESULT_UNKNOWN =
-    "APPROVED_EXECUTION_RESULT_UNKNOWN: the approved call started but its result was not observed before the pause ended the turn; do not assume it failed and do not retry a side-effecting call."
-export const APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX = APPROVED_EXECUTION_RESULT_UNKNOWN.slice(
-    0,
-    APPROVED_EXECUTION_RESULT_UNKNOWN.indexOf(":"),
-)
 
 interface DraftMessage {
     id: string

@@ -82,6 +82,18 @@ const parseNameShape = (raw: string): {label: string; source?: string; kind: Too
             kind: "mcp",
         }
     }
+    // Codex wraps the same tools as mcp.{server}.{tool}. Only with both server and tool segments —
+    // a bare "mcp.something" is not an MCP wrapper and title-cases like any other name.
+    if (raw.startsWith("mcp.")) {
+        const parts = raw.split(".").filter(Boolean)
+        if (parts.length >= 3) {
+            return {
+                label: parseGatewayToolName(parts[parts.length - 1]).label,
+                source: `${parseGatewayToolName(parts[1]).label} · MCP`,
+                kind: "mcp",
+            }
+        }
+    }
     const parsed = parseGatewayToolName(raw)
     return {...parsed, kind: parsed.source ? "gateway" : "platform"}
 }
