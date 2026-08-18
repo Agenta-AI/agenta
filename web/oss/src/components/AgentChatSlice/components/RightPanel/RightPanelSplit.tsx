@@ -1,4 +1,4 @@
-import {useEffect, useState, type ReactNode} from "react"
+import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {SplitPane} from "@agenta/ui/ui"
 import {useAtom, type WritableAtom} from "jotai"
@@ -49,29 +49,35 @@ const RightPanelSplit = ({
     const [live, setLive] = useState(persisted)
     const [dragging, setDragging] = useState(false)
 
-    // Flip detection during render so the animate flag lands in the same commit as the size flip.
-    const [prevOpen, setPrevOpen] = useState(open)
+    // Flip detection during render so the animate flag lands in the SAME commit as the size flip.
+    // It has to be a REF, not state: a render-phase `setPrevOpen` makes React re-render before it
+    // commits, and the re-render sees prevOpen === open — so `justToggled` was always false in the
+    // committed output, `holdAnimate` only arrived in an effect (after the new width was painted),
+    // and the panel snapped open and shut. A ref survives into the commit. Same shape MainLayout
+    // uses for the config pane.
+    const prevOpenRef = useRef(open)
     const [closing, setClosing] = useState(false)
     const [holdAnimate, setHoldAnimate] = useState(false)
-    const justToggled = prevOpen !== open
-    if (justToggled) {
-        setPrevOpen(open)
-        if (!open) setClosing(true)
-    }
-    // On close the panel content stays mounted until the collapse finishes, so it slides out
-    // instead of blanking to an empty sliver.
+    const justToggled = prevOpenRef.current !== open
+    // One effect per flip: hold the transition class ~SLIDE_MS so removing it doesn't snap, and
+    // keep the panel's content mounted for the same window so it slides out instead of blanking to
+    // an empty sliver. Deps = `open` ONLY, and guarded on the ref, so mount and re-renders during
+    // the hold don't re-arm (which would cancel the timer and leave the class stuck on).
     useEffect(() => {
-        if (!closing) return
-        const timer = setTimeout(() => setClosing(false), SLIDE_MS + 40)
-        return () => clearTimeout(timer)
-    }, [closing])
-    // Animate ONLY around a flip: a permanent basis transition would lag pointer drags.
-    useEffect(() => {
+        if (prevOpenRef.current === open) return
+        prevOpenRef.current = open
         setHoldAnimate(true)
-        const timer = setTimeout(() => setHoldAnimate(false), SLIDE_MS + 40)
+        if (!open) setClosing(true)
+        const timer = setTimeout(() => {
+            setHoldAnimate(false)
+            setClosing(false)
+        }, SLIDE_MS + 40)
         return () => clearTimeout(timer)
     }, [open])
     const animate = (justToggled || holdAnimate) && !dragging
+    // `justToggled` covers the closing frame itself — `closing` is only set in the effect above, so
+    // without it the panel would unmount for one frame and remount to slide out.
+    const keepPanelMounted = open || closing || justToggled
 
     // Re-sync to the stored width each time the panel opens.
     useEffect(() => {
@@ -95,7 +101,9 @@ const RightPanelSplit = ({
             className="h-full min-h-0 w-full flex-1"
             // The divider spans the pane height minus the absolute session bar's inset, so it
             // starts below the bar; transitioned on the build↔chat flip to move with the panes.
-            barClassName="h-[calc(100%-var(--agent-bar-inset,0px))] self-end [transition:height_240ms_cubic-bezier(0.4,0,0.2,1)]"
+            // `flex-basis` is listed HERE too: this class lands after SplitPane's own slide in the
+            // merge, so a height-only declaration would silently drop the bar's open/close slide.
+            barClassName="h-[calc(100%-var(--agent-bar-inset,0px))] self-end [transition:height_240ms_cubic-bezier(0.4,0,0.2,1),flex-basis_240ms_cubic-bezier(0.4,0,0.2,1)]"
             onResizeStart={() => setDragging(true)}
             onResize={(size, total) => {
                 if (open) setLive(clampWidth(size, total, min, max))
@@ -104,7 +112,7 @@ const RightPanelSplit = ({
                 setDragging(false)
                 if (open) setPersisted(clampWidth(size, total, min, max))
             }}
-            pane={open || closing ? panel : null}
+            pane={keepPanelMounted ? panel : null}
             fill={children}
         />
     )

@@ -184,20 +184,47 @@ export function SplitPane({
               }
             : undefined
 
+    // The open width, remembered so a collapsed pane still knows how wide its content was.
+    const lastOpenSizeRef = React.useRef(paneSize)
+    if (paneSize > 0) lastOpenSizeRef.current = paneSize
+    const sliding = animate && !dragging
+
     const paneNode = (
         <div
             data-slot="split-pane-pane"
             className={cn(
                 // min-w-0: a flex item floors at min-content otherwise, so a pane whose content has
                 // an intrinsic width would refuse to follow `paneSize` down. The basis is the truth.
-                "box-border min-h-0 min-w-0 shrink-0 overflow-hidden",
+                "relative box-border min-h-0 min-w-0 shrink-0 overflow-hidden",
                 paneGrow ? "grow" : "grow-0",
-                animate && !dragging && SLIDE,
+                sliding && SLIDE,
                 paneClassName,
             )}
             style={{flexBasis: paneSize}}
         >
-            {pane}
+            {/* During the slide the content is TAKEN OUT OF FLOW at a FIXED pixel width and pinned
+                to the edge the pane collapses towards, so the shrinking box translates it out of
+                view and clips it. Nothing inside ever sees an intermediate width: without this the
+                content re-lays-out on every frame — tiles reflow into fewer columns, labels rewrap,
+                the column grows taller than the pane — which is far uglier than the motion it was
+                meant to be part of. Static + `w-full` again once the slide ends, so a DRAG still
+                reflows the content live (there the reflow IS the feedback).
+                Start-side pins right / end-side pins left: the anchored edge is the one the box's
+                own edge is moving along, which is what turns a width change into a translation. */}
+            <div
+                data-slot="split-pane-pane-content"
+                className={cn("h-full min-h-0", sliding && "absolute inset-y-0")}
+                style={
+                    sliding
+                        ? {
+                              width: lastOpenSizeRef.current,
+                              ...(paneSide === "start" ? {right: 0} : {left: 0}),
+                          }
+                        : {width: "100%"}
+                }
+            >
+                {pane}
+            </div>
         </div>
     )
 

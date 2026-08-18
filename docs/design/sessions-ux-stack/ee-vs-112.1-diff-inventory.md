@@ -954,6 +954,57 @@ panel's bar box to 0 — measured, prod's four bars are all width 0 — so this 
 `barHidden={!open}` on both. The chat column reclaims 18px and the composer lands at x=811
 against prod's 809, where it had been 9px off centre.
 
+### P-11 — the Files panel never animated at all, and both panes reflowed while sliding — **FIXED**
+
+Two separate faults, found by measuring rather than watching.
+
+**a. `RightPanelSplit` never animated.** It detected the flip with `useState` and a
+render-phase `setPrevOpen`. React re-renders before committing when you set state during
+render, and the re-render sees `prevOpen === open` — so `justToggled` was **always false in
+the committed output**, and `holdAnimate` only arrived in an effect, after the new width had
+already painted. Measured: opening the Files pane fired zero `flex-basis` transition events.
+A `useRef` survives into the commit (the shape `MainLayout` already used). Now: pane and bar
+both report `flex-basis` start → end at `elapsedTime 240` in both directions.
+
+One trap on top: `RightPanelSplit` passes a `barClassName` with its own
+`[transition:height_…]`, which lands after `SplitPane`'s slide in the class merge and
+silently dropped the bar's `flex-basis` transition. That class now declares both properties.
+
+**b. Animating the width reflowed the contents** (Arda, observed). While the pane narrowed,
+everything inside it saw a new width every frame: file tiles reflowed into fewer columns,
+labels rewrapped, the column grew taller than the pane. The motion drew attention to exactly
+the thing it should have hidden.
+
+The fix is Arda's: **translate, don't resize.** For the duration of the slide the pane's
+content is taken out of flow at a FIXED pixel width (the width it had while open) and pinned
+to the edge the box is collapsing towards — `right: 0` for a start-side pane, `left: 0` for
+an end-side one. The box keeps animating its `flex-basis` (so the layout still reclaims the
+space and the fill still grows), but the content it clips never changes width, so the shrink
+reads as a translation. It goes back to static `w-full` the moment the slide ends, so a DRAG
+still reflows live — there the reflow IS the feedback.
+
+Measured through a collapse (sampled at fixed offsets; rAF is useless on this build):
+
+| t | Files pane box | content width | content x |
+|---|---|---|---|
+| 30ms | 620 | 620 | 1174 |
+| 80ms | 430 | 620 | 1364 |
+| 130ms | 125 | 620 | 1669 |
+| 230ms | 1 | 620 | 1793 |
+| 400ms | 0 | — | back to static |
+
+620px of travel, zero change in content width. The config pane mirrors it: 440 wide
+throughout, x from 256 to −184, sliding out to the left.
+
+### Harness note — `press.sh` double-fires this button
+
+Driving the Files pane's collapse through `press.sh` produced TWO transition cycles and left
+the pane open; a plain `.click()` produced one and it stayed shut. The full pointer sequence
+`press.sh` dispatches (needed for Radix, which listens on `pointerdown`) is seen twice by a
+plain `onClick` button that also gets the synthesised `click`. Use `.click()` for ordinary
+buttons and keep `press.sh` for Radix triggers. I nearly filed a "the Files pane reopens
+when you close it" bug on the strength of it.
+
 ### P-04 — the whole config pane sits 1 CSS px left of prod's — **P3, measured, not fixed**
 
 Every label in the pane (`Configuration`, `Model`, `Instructions`, `Tools`,
