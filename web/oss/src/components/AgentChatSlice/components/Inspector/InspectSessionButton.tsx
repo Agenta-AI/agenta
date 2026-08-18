@@ -18,8 +18,10 @@ export default function InspectSessionButton({sessionId}: {sessionId: string | n
 
     if (!inspectorEnabled) return null
 
+    // placement="left": near the page's right edge a top-centered tooltip overflows the
+    // viewport for a frame (horizontal-scrollbar flicker).
     return (
-        <Tooltip title={open ? "Hide inspector" : "Inspect session"}>
+        <Tooltip title={open ? "Hide inspector" : "Inspect session"} placement="left">
             <Button
                 type={open ? "primary" : "text"}
                 size="small"

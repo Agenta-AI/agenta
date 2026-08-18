@@ -22,7 +22,9 @@ from fastapi import FastAPI, HTTPException, Request
 
 from oss.src.apis.fastapi.sessions.router import SessionsRootRouter
 from oss.src.apis.fastapi.sessions.models import SessionQueryRequest
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.sessions.dtos import SessionQueryPage
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.shared.dtos import Windowing
 
 
 def _make_authed_request(app: FastAPI, project_id, user_id, method="POST") -> Request:
@@ -54,7 +56,7 @@ def _patched_access(allowed: bool):
 
 async def test_query_sessions_delegates_to_service():
     sessions_service = AsyncMock()
-    sessions_service.query_sessions.return_value = []
+    sessions_service.query_sessions_page.return_value = SessionQueryPage()
     router = SessionsRootRouter(sessions_service=sessions_service)
 
     project_id = uuid4()
@@ -62,7 +64,7 @@ async def test_query_sessions_delegates_to_service():
     app = FastAPI()
     request = _make_authed_request(app, project_id, user_id)
 
-    target_ref = Reference(id=uuid4(), slug="wf", version="v1")
+    target_ref = SessionReference(id=uuid4(), slug="wf", version="v1")
     body = SessionQueryRequest(
         references=[target_ref], windowing=Windowing(order="descending")
     )
@@ -71,10 +73,10 @@ async def test_query_sessions_delegates_to_service():
         result = await router.query_sessions(request=request, body=body)
 
     assert result.count == 0
-    sessions_service.query_sessions.assert_awaited_once()
-    call_kwargs = sessions_service.query_sessions.await_args.kwargs
+    sessions_service.query_sessions_page.assert_awaited_once()
+    call_kwargs = sessions_service.query_sessions_page.await_args.kwargs
     assert call_kwargs["project_id"] == project_id
-    assert call_kwargs["query"].references == [target_ref]
+    assert call_kwargs["query"].turn_references == [target_ref]
     assert call_kwargs["windowing"].order == "descending"
 
 
@@ -92,7 +94,10 @@ async def test_query_sessions_rejects_without_view_permission():
             await router.query_sessions(request=request, body=SessionQueryRequest())
 
     assert exc_info.value.status_code == 403
-    sessions_service.query_sessions.assert_not_awaited()
+    # The router calls `query_sessions_page`, not `query_sessions` — asserting on
+    # the latter is tautological (an AsyncMock auto-creates it and it's never
+    # awaited regardless of what the router actually does).
+    sessions_service.query_sessions_page.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

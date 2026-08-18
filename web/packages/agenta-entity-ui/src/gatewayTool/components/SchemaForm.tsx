@@ -8,26 +8,40 @@ import {
     useState,
 } from "react"
 
-import {cronToBuilder, describeBuilder} from "@agenta/entities/gatewayTrigger"
+import {cronToBuilder, summarizeSchedule} from "@agenta/entities/gatewayTrigger"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
-import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
 import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+    AutosizeTextarea,
     Button,
-    Collapse,
-    DatePicker,
-    Form,
     Input,
     InputNumber,
-    Switch,
-    Select,
-    Tag,
-    Typography,
-} from "antd"
-import type {FormInstance, InputRef} from "antd"
+    TimePicker,
+} from "@agenta/ui/ui"
+import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
+// DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
+// validateFields, useWatch). The `form: FormInstance` prop is cross-package public API:
+// web/oss ElicitationWidget drives it with `Form.useWatch`/`validateFields`/`setFieldsValue`,
+// and gatewayTrigger's SubscriptionForm prefills it via `setFieldsValue`. Removing the engine
+// here would break those hosts; it needs its own coordinated chunk that owns them.
+import {Form} from "antd"
+import type {FormInstance} from "antd"
 
+import {HelpTip} from "../../drawers/shared/HelpTip"
 import {ScheduleBuilderField} from "../../gatewayTrigger/drawers/ScheduleBuilderField"
 
+import {
+    ChipsInput,
+    Chip,
+    DateTimeInput,
+    FormSwitch,
+    MultiSelect,
+    SelectControl,
+} from "./schemaFormControls"
 import {
     DEFAULT_CRON,
     OTHER_ENUM_OPTION,
@@ -62,6 +76,8 @@ export interface StepInfo {
 
 export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>
+    /** Current values, raw and unvalidated (e.g. for copy-to-clipboard). */
+    getRawValues: () => Record<string, unknown>
     /** Stepper mode: jump to the step holding this field (e.g. after a validation failure). */
     goToField?: (name: string | (string | number)[]) => void
     /** Stepper mode: advance one step (into review at the end); no-op otherwise. */
@@ -72,7 +88,8 @@ export interface SchemaFormHandle {
 
 interface Props {
     schema: Record<string, unknown> | null | undefined
-    form: FormInstance
+    /** Optional external form instance (cross-package hosts pass one; internal use omits it). */
+    form?: FormInstance
     disabled?: boolean
     jsonMode?: boolean
     /** Render optional fields inline instead of behind an "Optional (N)" collapse. */
@@ -93,7 +110,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
     (
         {
             schema,
-            form,
+            form: formProp,
             disabled,
             jsonMode,
             flat,
@@ -105,6 +122,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
         },
         ref,
     ) => {
+        const [form] = Form.useForm(formProp)
         const fields = useMemo(
             () =>
                 buildFormFieldsFromSchema(schema, "", {
@@ -202,6 +220,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         return cleanFormValues(values)
                     }
                 },
+                getRawValues: () => form.getFieldsValue(true) as Record<string, unknown>,
                 goToField: (name) => {
                     const flatName = Array.isArray(name) ? name.join(".") : name
                     const i = fields.findIndex((f) => f.name === flatName)
@@ -215,9 +234,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
 
         if (fields.length === 0 && !jsonMode) {
             return (
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-colorTextDescription">
                     No input parameters required.
-                </Typography.Text>
+                </span>
             )
         }
 
@@ -236,11 +255,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             disabled={disabled}
                         />
                     </div>
-                    {jsonError && (
-                        <Typography.Text type="danger" className="text-xs">
-                            {jsonError}
-                        </Typography.Text>
-                    )}
+                    {jsonError && <span className="text-xs text-colorError">{jsonError}</span>}
                 </div>
             )
         }
@@ -276,7 +291,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 if (
                                     t.tagName === "INPUT" ||
                                     t.tagName === "TEXTAREA" ||
-                                    t.closest(".ant-select, .ant-picker")
+                                    t.closest(
+                                        "[data-slot=select-trigger], [data-slot=multi-select-trigger], [data-slot=chips-input]",
+                                    )
                                 )
                                     return
                             }
@@ -293,7 +310,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                     key={f.name}
                                     className={`h-0.5 flex-1 rounded-full ${
                                         i < (onReview ? fields.length : step + 1)
-                                            ? "bg-[var(--ant-color-primary)]"
+                                            ? "bg-colorPrimary"
                                             : "bg-colorFillSecondary"
                                     }`}
                                 />
@@ -303,33 +320,28 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             {/* Stepper promotes the active question to a header — field labels
                                 are hidden below (hideLabel), this IS the question. */}
                             {onReview ? (
-                                <Typography.Text className="!text-[13px] !font-semibold">
-                                    Review answers
-                                </Typography.Text>
+                                <span className="text-[13px] font-semibold">Review answers</span>
                             ) : (
                                 <div className="flex min-w-0 flex-col">
-                                    <Typography.Text className="!text-[13px] !font-semibold">
+                                    <span className="text-[13px] font-semibold">
                                         <span className="text-colorPrimary">{`${step + 1}. `}</span>
                                         {fields[step].label}
                                         {fields[step].required && (
                                             <span className="text-red-500 ml-1">*</span>
                                         )}
-                                    </Typography.Text>
+                                    </span>
                                     {fields[step].description && (
-                                        <Typography.Text
-                                            type="secondary"
-                                            className="!text-xs leading-snug"
-                                        >
+                                        <span className="text-xs leading-snug text-colorTextDescription">
                                             {fields[step].description}
-                                        </Typography.Text>
+                                        </span>
                                     )}
                                 </div>
                             )}
                             <div className="flex shrink-0 items-center gap-0.5">
                                 {!onReview && !fields[step].required && (
                                     <Button
-                                        type="text"
-                                        className="!h-6 !px-1.5 !text-[11px] opacity-60"
+                                        variant="ghost"
+                                        className="h-6 px-1.5 text-xs opacity-60"
                                         onClick={() => {
                                             // Skip = no answer: clear the field (incl. a schema
                                             // default the user didn't endorse). setFieldValue
@@ -347,24 +359,23 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                     </Button>
                                 )}
                                 <Button
-                                    type="text"
+                                    variant="ghost"
+                                    size="icon-sm"
                                     aria-label="Previous question"
-                                    className="!h-6 !w-6 !p-0 !text-colorPrimary"
+                                    className="h-6 w-6 p-0 text-colorPrimary"
                                     disabled={step === 0}
                                     onClick={() => setStep(step - 1)}
                                 >
                                     <CaretLeft size={12} />
                                 </Button>
-                                <Typography.Text
-                                    type="secondary"
-                                    className="!text-[11px] tabular-nums"
-                                >
+                                <span className="text-xs tabular-nums text-colorTextDescription">
                                     {`${Math.min(step + 1, fields.length)}/${fields.length}`}
-                                </Typography.Text>
+                                </span>
                                 <Button
-                                    type="text"
+                                    variant="ghost"
+                                    size="icon-sm"
                                     aria-label={onReview ? "On review" : "Next question"}
-                                    className="!h-6 !w-6 !p-0 !text-colorPrimary"
+                                    className="h-6 w-6 p-0 text-colorPrimary"
                                     disabled={onReview}
                                     onClick={() => setStep(step + 1)}
                                 >
@@ -382,7 +393,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             >
                                 {/* No auto-advance on pick — the user pages with Next / arrows so a
                                     choice never skips ahead before they've seen the next question. */}
-                                <SchemaFormField field={field} hideLabel />
+                                <SchemaFormField field={field} hideLabel disabled={disabled} />
                             </div>
                         ))}
                         {onReview && (
@@ -405,17 +416,17 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                             }}
                                             className="flex cursor-pointer items-center justify-between gap-3 rounded-md bg-colorFillQuaternary px-3 py-2 hover:bg-colorFillTertiary"
                                         >
-                                            <Typography.Text type="secondary" className="!text-xs">
+                                            <span className="text-xs text-colorTextDescription">
                                                 {field.label}
-                                            </Typography.Text>
+                                            </span>
                                             {empty && field.required ? (
-                                                <Typography.Text type="danger" className="!text-xs">
+                                                <span className="text-xs text-colorError">
                                                     Required
-                                                </Typography.Text>
+                                                </span>
                                             ) : (
-                                                <Typography.Text className="!text-xs max-w-[60%] truncate">
+                                                <span className="text-xs max-w-[60%] truncate">
                                                     {formatReviewValue(field, value)}
-                                                </Typography.Text>
+                                                </span>
                                             )}
                                         </div>
                                     )
@@ -426,41 +437,44 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 ) : (
                     <>
                         {requiredFields.map((field) => (
-                            <SchemaFormField key={field.name} field={field} />
+                            <SchemaFormField key={field.name} field={field} disabled={disabled} />
                         ))}
 
                         {/* The collapse de-emphasizes optional EXTRAS below required fields; with no
                     required fields there is nothing to de-emphasize, so render inline. */}
                         {flat || requiredFields.length === 0
                             ? optionalFields.map((field) => (
-                                  <SchemaFormField key={field.name} field={field} />
+                                  <SchemaFormField
+                                      key={field.name}
+                                      field={field}
+                                      disabled={disabled}
+                                  />
                               ))
                             : optionalFields.length > 0 && (
-                                  <Collapse
-                                      ghost
-                                      size="small"
-                                      className="!-mx-4 !mt-1"
-                                      items={[
-                                          {
-                                              key: "optional",
-                                              // Collapsed Form.Items must still register their
-                                              // initialValues (schema defaults) — without forceRender an
-                                              // untouched submit silently drops every collapsed default.
-                                              forceRender: true,
-                                              label: (
-                                                  <Typography.Text
-                                                      type="secondary"
-                                                      className="text-xs"
-                                                  >
-                                                      Optional ({optionalFields.length})
-                                                  </Typography.Text>
-                                              ),
-                                              children: optionalFields.map((field) => (
-                                                  <SchemaFormField key={field.name} field={field} />
-                                              )),
-                                          },
-                                      ]}
-                                  />
+                                  <Accordion type="multiple" variant="ghost" className="-mx-4 mt-1">
+                                      <AccordionItem value="optional">
+                                          <AccordionTrigger className="py-2 text-xs">
+                                              <span className="text-xs text-colorTextDescription">
+                                                  Optional ({optionalFields.length})
+                                              </span>
+                                          </AccordionTrigger>
+                                          {/* forceMount: collapsed fields must stay registered
+                                              (schema defaults) — an untouched submit would
+                                              silently drop every collapsed default otherwise. */}
+                                          <AccordionContent
+                                              forceMount
+                                              className="data-[state=closed]:hidden"
+                                          >
+                                              {optionalFields.map((field) => (
+                                                  <SchemaFormField
+                                                      key={field.name}
+                                                      field={field}
+                                                      disabled={disabled}
+                                                  />
+                                              ))}
+                                          </AccordionContent>
+                                      </AccordionItem>
+                                  </Accordion>
                               )}
                     </>
                 )}
@@ -514,19 +528,19 @@ function cleanFormValues(values: Record<string, unknown>): Record<string, unknow
 // Field components
 // ---------------------------------------------------------------------------
 
+/**
+ * A field's label, with its description behind a `?`. Provider schemas ship descriptions that
+ * run to several sentences (Gmail's `label_ids` enumerates eleven label constants); rendering
+ * them inline buried every control under a paragraph it only needed to read once.
+ */
 function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
-        <div className="flex flex-col leading-tight">
-            <span>
-                {field.label}
-                {field.required && <span className="text-red-500 ml-1">*</span>}
-            </span>
-            {field.description && (
-                <Typography.Text type="secondary" className="!text-[11px] font-normal leading-snug">
-                    {field.description}
-                </Typography.Text>
-            )}
-        </div>
+        <span className="inline-flex items-center gap-1 leading-tight">
+            {/* No required marker: a form of mostly-required provider fields reads as noise,
+                and the validation message on submit is the honest signal. */}
+            <span>{field.label}</span>
+            {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
+        </span>
     )
 }
 
@@ -557,7 +571,7 @@ function EnumWithOther({
 
     return (
         <div className="flex flex-col gap-2">
-            <Select
+            <SelectControl
                 placeholder={placeholder}
                 allowClear={allowClear}
                 disabled={disabled}
@@ -593,8 +607,8 @@ function EnumWithOther({
 /**
  * Multi-select with the same "Other…" escape hatch as EnumWithOther: picking Other… reveals a
  * text input that appends ONE custom chip (repeatable). Without options (a free string list),
- * it degrades to tags mode — plain typed entries. Off-options values (defaults, replays) render
- * as chips natively.
+ * it degrades to a chip input — plain typed entries. Off-options values (defaults, replays)
+ * render as chips natively.
  */
 function MultiEnumWithOther({
     value,
@@ -614,14 +628,11 @@ function MultiEnumWithOther({
 
     if (options.length === 0) {
         return (
-            <Select
-                mode="tags"
+            <ChipsInput
                 placeholder={placeholder}
                 disabled={disabled}
                 value={selected}
-                onChange={(next: string[]) => onChange?.(next.length ? next : undefined)}
-                open={false}
-                suffixIcon={null}
+                onChange={onChange}
             />
         )
     }
@@ -634,22 +645,21 @@ function MultiEnumWithOther({
 
     return (
         <div className="flex flex-col gap-2">
-            <Select
-                mode="multiple"
+            <MultiSelect
                 placeholder={placeholder}
                 disabled={disabled}
                 value={selected}
                 onChange={(next: string[]) => {
-                    const {values, openOther} = splitOtherFromSelection(next)
-                    if (openOther) setOtherDraft("")
-                    // Opening the Other… draft is not a value change — a no-op onChange would
-                    // fire the required rule before the user can type.
-                    const unchanged =
-                        (values ?? []).length === selected.length &&
-                        (values ?? []).every((v, i) => v === selected[i])
-                    if (!unchanged) onChange?.(values)
+                    // The "Other…" entry lives outside the value set (extraItem) — a pick opens
+                    // the draft input without firing a value change, so the required rule can't
+                    // fire before the user types.
+                    const {values} = splitOtherFromSelection(next)
+                    onChange?.(values)
                 }}
-                options={selectOptionsWithOther(options)}
+                options={selectOptionsWithOther(options).filter(
+                    (o) => o.value !== OTHER_ENUM_OPTION,
+                )}
+                extraItem={{label: "Other…", onSelect: () => setOtherDraft("")}}
             />
             {otherDraft !== null && (
                 <Input
@@ -658,7 +668,8 @@ function MultiEnumWithOther({
                     placeholder="Type a value and press Enter"
                     value={otherDraft}
                     onChange={(e) => setOtherDraft(e.target.value)}
-                    onPressEnter={(e) => {
+                    onKeyDown={(e) => {
+                        if (e.key !== "Enter") return
                         // preventDefault marks the press handled — the stepper's Enter-advance
                         // must not fire on a chip commit.
                         e.preventDefault()
@@ -685,7 +696,7 @@ const choiceCardCls = (selected: boolean) =>
 const DigitBadge = ({digit}: {digit: number}) => (
     <span
         aria-hidden
-        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-[11px] leading-none text-colorTextTertiary"
+        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-xs leading-none text-colorTextTertiary"
     >
         {digit}
     </span>
@@ -699,7 +710,7 @@ const CardIndicator = ({checked, multiple}: {checked: boolean; multiple?: boolea
             multiple ? "rounded" : "rounded-full"
         } ${
             checked
-                ? "border-colorPrimary bg-[var(--ant-color-primary)]"
+                ? "border-colorPrimary bg-colorPrimary"
                 : "border-colorBorder bg-colorBgContainer"
         }`}
     >
@@ -736,7 +747,7 @@ function ChoiceCards({
     /** Fires after a single-select pick — the stepper auto-advances on it. */
     onPicked?: () => void
 }) {
-    const otherInputRef = useRef<InputRef>(null)
+    const otherInputRef = useRef<HTMLInputElement>(null)
     // Multi: pending chip text (commits on Enter/blur). Single: mirror of the committed custom
     // value — the value commits as the user types (typeCustomValue).
     const [otherText, setOtherText] = useState("")
@@ -836,51 +847,49 @@ function ChoiceCards({
                 >
                     <CardIndicator checked={isChecked(o.value)} multiple={multiple} />
                     <div className="flex min-w-0 flex-col">
-                        <Typography.Text className="!text-xs font-medium">
-                            {o.label ?? o.value}
-                        </Typography.Text>
+                        <span className="text-xs font-medium">{o.label ?? o.value}</span>
                         {o.description && (
-                            <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                            <span className="text-xs leading-snug text-colorTextDescription">
                                 {o.description}
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                     {i < 9 && <DigitBadge digit={i + 1} />}
                 </div>
             ))}
-            <div
-                role={multiple ? "checkbox" : "radio"}
-                aria-checked={otherActive}
-                tabIndex={-1}
-                onClick={focusOther}
-                onKeyDown={(e) => {
-                    // Enter/Space on the focused Other card jumps into its input, mirroring how a
-                    // normal card is keyboard-actionable. Ignore keys bubbling up from the input.
-                    if (e.target !== e.currentTarget) return
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        focusOther()
-                    }
-                }}
-                className={choiceCardCls(otherActive)}
-            >
+            {/* The radio/checkbox role sits on the LABEL, not the card: this card also holds a text
+                input, and interactive-inside-interactive is axe `nested-interactive`. */}
+            <div onClick={focusOther} className={choiceCardCls(otherActive)}>
                 <CardIndicator checked={otherActive} multiple={multiple} />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <Typography.Text className="!text-xs font-medium">Other</Typography.Text>
+                    <span
+                        role={multiple ? "checkbox" : "radio"}
+                        aria-checked={otherActive}
+                        tabIndex={-1}
+                        onKeyDown={(e) => {
+                            // Enter/Space on the focused Other card jumps into its input.
+                            if (e.target !== e.currentTarget) return
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                focusOther()
+                            }
+                        }}
+                        className="text-xs font-medium"
+                    >
+                        Other
+                    </span>
                     {multiple && customValues.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                             {customValues.map((v) => (
-                                <Tag
+                                <Chip
                                     key={v}
-                                    closable={!disabled}
-                                    onClose={(e) => {
-                                        e.preventDefault()
+                                    label={v}
+                                    disabled={disabled}
+                                    onRemove={() => {
                                         const next = selected.filter((x) => x !== v)
                                         onChange?.(next.length ? next : undefined)
                                     }}
-                                >
-                                    {v}
-                                </Tag>
+                                />
                             ))}
                         </div>
                     )}
@@ -891,7 +900,8 @@ function ChoiceCards({
                         value={otherText}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => typeOther(e.target.value)}
-                        onPressEnter={(e) => {
+                        onKeyDown={(e) => {
+                            if (e.key !== "Enter") return
                             e.preventDefault()
                             if (multiple) {
                                 // Handled press — the stepper's Enter-advance must not fire on a
@@ -911,9 +921,9 @@ function ChoiceCards({
                             if (multiple) commitDraft()
                             else if (otherText !== otherText.trim()) typeOther(otherText.trim())
                         }}
-                        variant="borderless"
+                        variant="ghost"
                         spellCheck={false}
-                        className="!bg-colorBgContainer !px-2"
+                        className="bg-colorBgContainer px-2"
                     />
                 </div>
                 {options.length < 9 && <DigitBadge digit={options.length + 1} />}
@@ -930,15 +940,15 @@ function CronField({value, onChange}: {value?: string; onChange?: (cron: string)
 
 /** Compact review-row value: option labels, joined chips, Yes/No, formatted dates. */
 export function formatReviewValue(field: FormFieldDescriptor, value: unknown): string {
-    if (value === undefined || value === null || value === "") return "\u2014"
+    if (value === undefined || value === null || value === "") return "—"
     if (field.format === "cron" && typeof value === "string") {
         try {
-            return describeBuilder(cronToBuilder(value).state)
+            return summarizeSchedule(cronToBuilder(value).state)
         } catch {
             return value
         }
     }
-    if (Array.isArray(value)) return value.map(String).join(", ") || "\u2014"
+    if (Array.isArray(value)) return value.map(String).join(", ") || "—"
     if (typeof value === "object" && typeof (value as {format?: unknown}).format === "function")
         return (value as {format: (f: string) => string}).format("YYYY-MM-DD HH:mm")
     if (typeof value === "boolean") return value ? "Yes" : "No"
@@ -951,6 +961,7 @@ function SchemaFormField({
     depth = 0,
     hideLabel,
     onAnswered,
+    disabled,
 }: {
     field: FormFieldDescriptor
     depth?: number
@@ -958,6 +969,8 @@ function SchemaFormField({
     hideLabel?: boolean
     /** Stepper mode: a completed single-select answer auto-advances to the next question. */
     onAnswered?: () => void
+    /** Threaded explicitly — the replaced leaves don't read antd's Form disabled context. */
+    disabled?: boolean
 }) {
     const rules = field.required ? [{required: true, message: `${field.label} is required`}] : []
     const label = hideLabel ? undefined : <FieldLabel field={field} />
@@ -965,37 +978,38 @@ function SchemaFormField({
     // Object with nested children → render in a collapsible section
     if (field.type === "object" && field.children && field.children.length > 0) {
         return (
-            <Collapse
-                ghost
-                size="small"
-                defaultActiveKey={field.required ? ["obj"] : undefined}
-                className={depth > 0 ? "!-mx-2 border-l border-gray-200 ml-2" : "!-mx-4 !mb-2"}
-                items={[
-                    {
-                        key: "obj",
-                        label: (
-                            <div className="flex flex-col leading-tight">
-                                <span className="font-medium">
-                                    {field.label}
-                                    {field.required && <span className="text-red-500 ml-1">*</span>}
+            <Accordion
+                type="multiple"
+                variant="ghost"
+                defaultValue={field.required ? ["obj"] : undefined}
+                className={depth > 0 ? "-mx-2 border-l border-gray-200 ml-2" : "-mx-4 mb-2"}
+            >
+                <AccordionItem value="obj">
+                    <AccordionTrigger className="py-2">
+                        <div className="flex flex-col leading-tight">
+                            <span className="font-medium">
+                                {field.label}
+                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                            </span>
+                            {field.description && (
+                                <span className="text-xs leading-snug text-colorTextDescription">
+                                    {field.description}
                                 </span>
-                                {field.description && (
-                                    <Typography.Text
-                                        type="secondary"
-                                        className="!text-xs leading-snug"
-                                    >
-                                        {field.description}
-                                    </Typography.Text>
-                                )}
-                            </div>
-                        ),
-                        children: field.children.map((child) => (
-                            <SchemaFormField key={child.name} field={child} depth={depth + 1} />
-                        )),
-                        forceRender: true,
-                    },
-                ]}
-            />
+                            )}
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent forceMount className="data-[state=closed]:hidden">
+                        {field.children.map((child) => (
+                            <SchemaFormField
+                                key={child.name}
+                                field={child}
+                                depth={depth + 1}
+                                disabled={disabled}
+                            />
+                        ))}
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
         )
     }
 
@@ -1020,6 +1034,7 @@ function SchemaFormField({
                 ]}
             >
                 <JsonFieldEditor
+                    disabled={disabled}
                     placeholder={field.type === "object" ? '{"key": "value"}' : '[{"item": 1}]'}
                 />
             </Form.Item>
@@ -1037,9 +1052,13 @@ function SchemaFormField({
                 initialValue={field.default}
             >
                 {wantsChoiceCards(field) ? (
-                    <ChoiceCards multiple options={enumOptionsOf(field)} />
+                    <ChoiceCards multiple options={enumOptionsOf(field)} disabled={disabled} />
                 ) : (
-                    <MultiEnumWithOther options={enumOptionsOf(field)} placeholder={field.label} />
+                    <MultiEnumWithOther
+                        options={enumOptionsOf(field)}
+                        placeholder={field.label}
+                        disabled={disabled}
+                    />
                 )}
             </Form.Item>
         )
@@ -1047,7 +1066,15 @@ function SchemaFormField({
 
     // Array with structured item schema → Form.List with add/remove
     if (field.type === "array") {
-        return <ArrayField field={field} rules={rules} depth={depth} hideLabel={hideLabel} />
+        return (
+            <ArrayField
+                field={field}
+                rules={rules}
+                depth={depth}
+                hideLabel={hideLabel}
+                disabled={disabled}
+            />
+        )
     }
 
     switch (field.type) {
@@ -1059,7 +1086,7 @@ function SchemaFormField({
                     valuePropName="checked"
                     initialValue={field.default ?? false}
                 >
-                    <Switch size="small" />
+                    <FormSwitch size="sm" disabled={disabled} />
                 </Form.Item>
             )
 
@@ -1071,7 +1098,7 @@ function SchemaFormField({
                     rules={rules}
                     initialValue={field.default}
                 >
-                    <InputNumber className="w-full" placeholder={field.label} />
+                    <InputNumber className="w-full" placeholder={field.label} disabled={disabled} />
                 </Form.Item>
             )
 
@@ -1084,17 +1111,23 @@ function SchemaFormField({
                     initialValue={field.default}
                 >
                     {wantsChoiceCards(field) ? (
-                        <ChoiceCards options={enumOptionsOf(field)} onPicked={onAnswered} />
+                        <ChoiceCards
+                            options={enumOptionsOf(field)}
+                            onPicked={onAnswered}
+                            disabled={disabled}
+                        />
                     ) : field.allowCustomEnum ? (
                         <EnumWithOther
                             options={enumOptionsOf(field)}
                             placeholder={field.label}
                             allowClear={!field.required}
+                            disabled={disabled}
                         />
                     ) : (
-                        <Select
+                        <SelectControl
                             placeholder={field.label}
                             allowClear={!field.required}
+                            disabled={disabled}
                             options={(field.enumValues ?? []).map((v) => ({value: v, label: v}))}
                         />
                     )}
@@ -1117,15 +1150,26 @@ function SchemaFormField({
                     </Form.Item>
                 )
             }
+            if (field.format === "time") {
+                return (
+                    <Form.Item
+                        name={field.name.split(".")}
+                        label={label}
+                        rules={rules}
+                        initialValue={field.default}
+                    >
+                        <TimePicker disabled={disabled} />
+                    </Form.Item>
+                )
+            }
             if (field.format === "date" || field.format === "date-time") {
-                // No initialValue: a wire default is an ISO STRING and DatePicker requires dayjs —
-                // a string value crashes it. Date fields render empty; other types prefill.
+                // No initialValue: a wire default is an ISO STRING and the control emits dayjs —
+                // date fields render empty; other types prefill.
                 return (
                     <Form.Item name={field.name.split(".")} label={label} rules={rules}>
-                        <DatePicker
-                            className="w-full"
+                        <DateTimeInput
                             showTime={field.format === "date-time"}
-                            placeholder={field.label}
+                            disabled={disabled}
                         />
                     </Form.Item>
                 )
@@ -1138,7 +1182,12 @@ function SchemaFormField({
                         rules={rules}
                         initialValue={field.default}
                     >
-                        <Input.TextArea rows={3} placeholder={field.label} />
+                        {/* Autosize owns the height, so there is no grabber to drag off the card. */}
+                        <AutosizeTextarea
+                            autoSize={{minRows: 3, maxRows: 20}}
+                            placeholder={field.label}
+                            disabled={disabled}
+                        />
                     </Form.Item>
                 )
             }
@@ -1153,7 +1202,7 @@ function SchemaFormField({
                     ]}
                     initialValue={field.default}
                 >
-                    <Input placeholder={field.label} />
+                    <Input placeholder={field.label} disabled={disabled} />
                 </Form.Item>
             )
     }
@@ -1168,11 +1217,13 @@ function ArrayField({
     rules,
     depth,
     hideLabel,
+    disabled,
 }: {
     field: FormFieldDescriptor
     rules: {required: boolean; message: string}[]
     depth: number
     hideLabel?: boolean
+    disabled?: boolean
 }) {
     const namePath = field.name.split(".")
     const hasObjectItems = !!field.itemChildren && field.itemChildren.length > 0
@@ -1188,12 +1239,9 @@ function ArrayField({
                             {field.required && <span className="text-red-500 ml-1">*</span>}
                         </span>
                         {field.description && (
-                            <Typography.Text
-                                type="secondary"
-                                className="!text-[11px] font-normal leading-snug"
-                            >
+                            <span className="text-xs font-normal leading-snug text-colorTextDescription">
                                 {field.description}
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                 </div>
@@ -1218,9 +1266,9 @@ function ArrayField({
                 {(fields, {add, remove}) => (
                     <div className="flex flex-col gap-2">
                         {fields.length === 0 && (
-                            <Typography.Text type="secondary" className="text-xs">
+                            <span className="text-xs text-colorTextDescription">
                                 No items added
-                            </Typography.Text>
+                            </span>
                         )}
 
                         {fields.map(({key, name, ...restField}) =>
@@ -1231,7 +1279,7 @@ function ArrayField({
                                     restField={restField}
                                     itemChildren={field.itemChildren!}
                                     onRemove={() => remove(name)}
-                                    depth={depth}
+                                    disabled={disabled}
                                 />
                             ) : (
                                 <div key={key} className="flex items-start gap-2">
@@ -1245,29 +1293,37 @@ function ArrayField({
                                             <InputNumber
                                                 className="w-full"
                                                 placeholder={`${field.label} item`}
+                                                disabled={disabled}
                                             />
                                         ) : (
-                                            <Input placeholder={`${field.label} item`} />
+                                            <Input
+                                                placeholder={`${field.label} item`}
+                                                disabled={disabled}
+                                            />
                                         )}
                                     </Form.Item>
                                     <Button
-                                        type="text"
+                                        variant="ghost"
+                                        size="icon"
                                         aria-label="Remove item"
-                                        icon={<MinusCircle size={16} />}
                                         onClick={() => remove(name)}
+                                        disabled={disabled}
                                         className="mt-0.5 opacity-50 hover:opacity-100"
-                                    />
+                                    >
+                                        <MinusCircle size={16} />
+                                    </Button>
                                 </div>
                             ),
                         )}
 
                         <Button
-                            type="dashed"
+                            variant="dashed"
+                            size="sm"
                             onClick={() => add(hasObjectItems ? {} : undefined)}
-                            icon={<Plus size={14} />}
-                            size="small"
+                            disabled={disabled}
                             className="self-start"
                         >
+                            <Plus size={14} />
                             Add {field.label}
                         </Button>
                     </div>
@@ -1286,42 +1342,42 @@ function ArrayObjectItem({
     restField,
     itemChildren,
     onRemove,
-    depth,
+    disabled,
 }: {
     name: number
     restField: {fieldKey?: number}
     itemChildren: FormFieldDescriptor[]
     onRemove: () => void
-    depth: number
+    disabled?: boolean
 }) {
     return (
-        <Collapse
-            ghost
-            size="small"
-            defaultActiveKey={["item"]}
-            className="!-mx-2 border border-solid border-gray-200 rounded-lg"
-            items={[
-                {
-                    key: "item",
-                    label: (
-                        <div className="flex items-center justify-between w-full">
-                            <Typography.Text className="text-xs">Item {name + 1}</Typography.Text>
-                        </div>
-                    ),
-                    extra: (
-                        <Button
-                            type="text"
-                            size="small"
-                            aria-label="Remove object item"
-                            icon={<MinusCircle size={14} />}
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                onRemove()
-                            }}
-                            className="opacity-50 hover:opacity-100"
-                        />
-                    ),
-                    children: itemChildren.map((child) => {
+        <Accordion
+            type="multiple"
+            variant="ghost"
+            defaultValue={["item"]}
+            className="relative -mx-2 rounded-lg border border-solid border-gray-200"
+        >
+            {/* antd Collapse `extra` slot — a button can't nest in the Radix trigger button,
+                so the remove action overlays the header's right edge instead. */}
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Remove object item"
+                disabled={disabled}
+                onClick={(e) => {
+                    e.stopPropagation()
+                    onRemove()
+                }}
+                className="absolute right-2 top-1.5 z-10 opacity-50 hover:opacity-100"
+            >
+                <MinusCircle size={14} />
+            </Button>
+            <AccordionItem value="item">
+                <AccordionTrigger className="py-2">
+                    <span className="text-xs">Item {name + 1}</span>
+                </AccordionTrigger>
+                <AccordionContent forceMount className="data-[state=closed]:hidden">
+                    {itemChildren.map((child) => {
                         const childRules = child.required
                             ? [{required: true, message: `${child.label} is required`}]
                             : []
@@ -1334,20 +1390,21 @@ function ArrayObjectItem({
                             child.children.length > 0
                         ) {
                             return (
-                                <Collapse
+                                <Accordion
                                     key={child.name}
-                                    ghost
-                                    size="small"
-                                    className="!-mx-2 ml-2 border-l border-gray-200"
-                                    items={[
-                                        {
-                                            key: "nested",
-                                            label: (
-                                                <Typography.Text className="font-medium">
-                                                    {child.label}
-                                                </Typography.Text>
-                                            ),
-                                            children: child.children.map((gc) => (
+                                    type="multiple"
+                                    variant="ghost"
+                                    className="-mx-2 ml-2 border-l border-gray-200"
+                                >
+                                    <AccordionItem value="nested">
+                                        <AccordionTrigger className="py-2">
+                                            <span className="font-medium">{child.label}</span>
+                                        </AccordionTrigger>
+                                        <AccordionContent
+                                            forceMount
+                                            className="data-[state=closed]:hidden"
+                                        >
+                                            {child.children.map((gc) => (
                                                 <Form.Item
                                                     key={gc.name}
                                                     {...restField}
@@ -1364,13 +1421,15 @@ function ArrayObjectItem({
                                                             : []
                                                     }
                                                 >
-                                                    <Input placeholder={gc.label} />
+                                                    <Input
+                                                        placeholder={gc.label}
+                                                        disabled={disabled}
+                                                    />
                                                 </Form.Item>
-                                            )),
-                                            forceRender: true,
-                                        },
-                                    ]}
-                                />
+                                            ))}
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
                             )
                         }
 
@@ -1384,7 +1443,7 @@ function ArrayObjectItem({
                                     valuePropName="checked"
                                     initialValue={child.default ?? false}
                                 >
-                                    <Switch size="small" />
+                                    <FormSwitch size="sm" disabled={disabled} />
                                 </Form.Item>
                             )
                         }
@@ -1399,7 +1458,11 @@ function ArrayObjectItem({
                                     rules={childRules}
                                     initialValue={child.default}
                                 >
-                                    <InputNumber className="w-full" placeholder={child.label} />
+                                    <InputNumber
+                                        className="w-full"
+                                        placeholder={child.label}
+                                        disabled={disabled}
+                                    />
                                 </Form.Item>
                             )
                         }
@@ -1414,8 +1477,9 @@ function ArrayObjectItem({
                                     rules={childRules}
                                     initialValue={child.default}
                                 >
-                                    <Select
+                                    <SelectControl
                                         placeholder={child.label}
+                                        disabled={disabled}
                                         options={(child.enumValues ?? []).map((v) => ({
                                             value: v,
                                             label: v,
@@ -1435,14 +1499,13 @@ function ArrayObjectItem({
                                 rules={childRules}
                                 initialValue={child.default}
                             >
-                                <Input placeholder={child.label} />
+                                <Input placeholder={child.label} disabled={disabled} />
                             </Form.Item>
                         )
-                    }),
-                    forceRender: true,
-                },
-            ]}
-        />
+                    })}
+                </AccordionContent>
+            </AccordionItem>
+        </Accordion>
     )
 }
 

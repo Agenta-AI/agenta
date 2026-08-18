@@ -1,3 +1,4 @@
+from os import environ
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -31,12 +32,19 @@ from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 
-EXPECTED_DEFAULT_BUILD_KIT_OPS = (
+# The build kit has two shapes, one per state of the ordered-operations switch: with the
+# switch on, the catalog defines `read_config` and the kit carries the read half of the
+# read-then-edit loop. Both are written out in full, and the switch is read here rather
+# than through the catalog, so this stays a statement about the flag instead of a copy of
+# the code it checks.
+EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "discover_tools",
     "commit_revision",
     "annotate_trace",
     "query_spans",
     "test_run",
+    "rename_session",
+    "rename_agent",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
@@ -45,6 +53,51 @@ EXPECTED_DEFAULT_BUILD_KIT_OPS = (
     "test_subscription",
     "remove_schedule",
     "remove_subscription",
+)
+
+EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
+    "discover_tools",
+    "read_config",
+    "commit_revision",
+    "annotate_trace",
+    "query_spans",
+    "test_run",
+    "rename_session",
+    "rename_agent",
+    "discover_triggers",
+    "create_schedule",
+    "create_subscription",
+    "list_schedules",
+    "list_deliveries",
+    "test_subscription",
+    "remove_schedule",
+    "remove_subscription",
+)
+
+
+def _ordered_operations_enabled() -> bool:
+    # Spelled out rather than imported, so the expectation cannot move with the code under
+    # test. The default (on) and the accepted spellings are pinned equal in
+    # `unit/workflows/test_ordered_operations_flag.py`.
+    value = environ.get("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", "").strip()
+    if not value:
+        return True
+    return value.lower() in {
+        "true",
+        "1",
+        "t",
+        "y",
+        "yes",
+        "on",
+        "enable",
+        "enabled",
+    }
+
+
+EXPECTED_DEFAULT_BUILD_KIT_OPS = (
+    EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG
+    if _ordered_operations_enabled()
+    else EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG
 )
 
 CUT_BUILD_KIT_OPS = (
@@ -79,7 +132,18 @@ def test_agent_template_overlay_tools_list_is_pinned():
     request_input = catalog.retrieve_revision(slug=REQUEST_INPUT_WORKFLOW_SLUG)
 
     assert overlay["tools"] == [
-        *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
+        *[
+            {
+                "type": "platform",
+                "op": op_name,
+                **(
+                    {"permission": "allow"}
+                    if op_name in {"rename_session", "rename_agent"}
+                    else {}
+                ),
+            }
+            for op_name in DEFAULT_BUILD_KIT_OPS
+        ],
         {
             "@ag.embed": {
                 "@ag.references": {
@@ -111,8 +175,25 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
     assert set(DEFAULT_BUILD_KIT_OPS) <= set(PLATFORM_OPS)
     assert set(DEFAULT_BUILD_KIT_OPS).isdisjoint(CUT_BUILD_KIT_OPS)
     assert platform_tools == [
-        {"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS
+        {
+            "type": "platform",
+            "op": op_name,
+            **(
+                {"permission": "allow"}
+                if op_name in {"rename_session", "rename_agent"}
+                else {}
+            ),
+        }
+        for op_name in DEFAULT_BUILD_KIT_OPS
     ]
+    assert [
+        tool["op"] for tool in platform_tools if tool.get("permission") == "allow"
+    ] == ["rename_session", "rename_agent"]
+    assert all(
+        "permission" not in tool
+        for tool in platform_tools
+        if tool["op"] not in {"rename_session", "rename_agent"}
+    )
 
     authoring_skill = StaticWorkflowCatalog().retrieve_revision(
         slug=BUILD_AN_AGENT_SLUG

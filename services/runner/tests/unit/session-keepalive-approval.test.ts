@@ -13,6 +13,9 @@
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
+
 import type {
   AgentEvent,
   AgentRunRequest,
@@ -28,10 +31,16 @@ import {
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import {
   computeCredentialEpoch,
+  configFingerprint,
   mountExpiryMs,
   type InstalledMountExpiries,
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
+import {
+  appliedStateForRequest,
+  AppliedState,
+  type AppliedEnvironmentState,
+} from "../../src/engines/sandbox_agent/applied-state.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import {
   acquireEnvironment,
@@ -97,6 +106,9 @@ interface TurnScript {
 
 interface DispatchFakeEnv {
   id: number;
+  /** The environment owns what it applied (lifecycle migration, step 2). The pool reads it. */
+  readonly appliedState: AppliedEnvironmentState;
+  commitApplied: (result: AppliedCommit) => void;
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
@@ -135,9 +147,16 @@ function makeApprovalEngine(
   const holds = new Map<number, () => void>();
 
   let nextEnvId = 1;
-  const makeEnv = (): DispatchFakeEnv => {
+  // Seeded from the acquiring request, exactly as `prepareEnvironmentSetup` does. The approval
+  // tests care about this most: a resume must NOT be able to move it.
+  const makeEnv = (request: AgentRunRequest): DispatchFakeEnv => {
+    const applied = appliedStateForRequest(request);
     const env: DispatchFakeEnv = {
       id: nextEnvId++,
+      get appliedState() {
+        return applied.appliedState;
+      },
+      commitApplied: (result) => applied.commitApplied(result),
       destroyed: 0,
       turnsCleared: 0,
       lastTurnToolCallIds: [],
@@ -248,9 +267,9 @@ function makeApprovalEngine(
       calls.resolveMount += 1;
       return signedMount();
     },
-    async acquireEnvironment(_request, _signal, _presigned) {
+    async acquireEnvironment(request, _signal, _presigned) {
       calls.acquire += 1;
-      const env = makeEnv();
+      const env = makeEnv(request);
       const expiry = mountExpiryMs(mountOpts.expiresAt);
       if (expiry !== undefined) env.installedMountExpiries.cwd = expiry;
       calls.acquiredEnvs.push(env);
@@ -1547,6 +1566,8 @@ function pausableHarness(
     logs: [] as string[],
     resolvePrompt: undefined as ((value: unknown) => void) | undefined,
     promptCount: 0,
+    /** Ordered marks for the settle-before-terminal-record invariant (see the test at the end). */
+    journal: [] as string[],
   };
   const captured = {
     onEvent: undefined as ((event: any) => void) | undefined,
@@ -1679,6 +1700,8 @@ function pausableHarness(
       },
       setUsage() {},
       finish() {
+        // The real otel hands the terminal `done` straight to its sink here.
+        calls.journal.push("done");
         return "assistant output";
       },
       recordError() {},
@@ -2082,6 +2105,187 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     }
   });
 
+  it("resolves an in-band answer the harness never re-gated (the orphan fix)", async () => {
+    // The live orphan: a mobile resume trips `approval-mismatch (history)`, evicts, and runs
+    // COLD. The transcript already holds the human's answer, so the agent just proceeds and no
+    // permission request is ever raised — nothing calls the reply path. Meanwhile the turn-start
+    // stale sweep EXEMPTED this token on the promise that the resume would resolve it, so the
+    // row is left `pending` forever, actionable in both inboxes. The turn must settle it itself.
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const coldResume: AgentRunRequest = {
+        harness: "claude",
+        model: "m1",
+        sessionId: "sess-orphan",
+        turnId: "turn-cold-replay",
+        ...auth,
+        messages: [
+          { role: "user", content: "do X" },
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                output: { approved: true, interactionToken: "tok-orphan" },
+              },
+            ],
+          },
+        ],
+      };
+      const acquired = await acquireEnvironment(coldResume, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      // No `resume` opts and NO permission request: exactly a cold replay whose agent proceeds.
+      const turn = runTurn(env, coldResume, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await turn;
+      assert.equal(result.ok, true);
+      assert.notEqual(result.stopReason, "paused");
+      for (
+        let attempt = 0;
+        attempt < 10 &&
+        !posted.some(({ url }) =>
+          url.endsWith("/sessions/interactions/transition"),
+        );
+        attempt += 1
+      ) {
+        await flush();
+      }
+
+      const settled = posted.filter(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.equal(settled.length, 1, JSON.stringify(posted));
+      // `resolved` with the human's real verdict — NOT `cancelled`, which would record a granted
+      // approval as abandoned.
+      assert.deepEqual(settled[0].body, {
+        session_id: "sess-orphan",
+        token: "tok-orphan",
+        status: "resolved",
+        resolution: { verdict: "approved", tool_call_id: "tc-gate" },
+      });
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("does not double-settle a gate the reply path already resolved", async () => {
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps, captured } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const coldResume: AgentRunRequest = {
+        harness: "claude",
+        model: "m1",
+        sessionId: "sess-once",
+        turnId: "turn-cold-regate",
+        ...auth,
+        messages: [
+          { role: "user", content: "do X" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_call",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                input: { message: "hi" },
+              },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                input: { message: "hi" },
+                output: { approved: true, interactionToken: "tok-once" },
+              },
+            ],
+          },
+        ],
+      };
+      const acquired = await acquireEnvironment(coldResume, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      const turn = runTurn(env, coldResume, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      // The harness DOES re-raise the same call: the stored decision map answers it and the reply
+      // path resolves the row. The turn-end settle must then be a no-op, not a second write.
+      captured.onPermissionRequest!({
+        id: "perm-regate",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          toolCallId: "tc-gate",
+          name: "commit",
+          rawInput: { message: "hi" },
+        },
+      });
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await turn;
+      assert.equal(result.ok, true);
+      for (let attempt = 0; attempt < 10; attempt += 1) await flush();
+
+      const settled = posted.filter(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.equal(settled.length, 1, JSON.stringify(settled));
+      assert.equal(settled[0].body["token"], "tok-once");
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("preserves a denied call failed frame while a sibling gate is carried", async () => {
     const { calls, deps, captured } = pausableHarness();
     const acquired = await acquireEnvironment(engineReq, deps);
@@ -2224,10 +2428,20 @@ describe("runTurn: real approval park + respondPermission resume", () => {
         carriedForward: [carried],
       },
     });
-    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
-      await Promise.resolve();
+    // The resume holds the pause OPEN until the freshly-approved execution closes (issue
+    // #5907): answer lands first, then the harness streams the real completion, and only
+    // then does the carried sibling re-arm the pause. Deliver the frames in that order.
+    for (let i = 0; i < 20 && calls.permissionReplies.length === 0; i += 1) {
+      await flush();
     }
-    assert.equal(env.currentTurn?.pause.active, true);
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "once" },
+    ]);
+    assert.equal(
+      env.currentTurn?.pause.active,
+      false,
+      "the carried sibling must not re-park before the answered execution's closure window",
+    );
     captured.onEvent!(
       updateEvent({
         sessionUpdate: "tool_call_update",
@@ -2244,6 +2458,10 @@ describe("runTurn: real approval park + respondPermission resume", () => {
         content: "answered result",
       }),
     );
+    for (let i = 0; i < 20 && !env.currentTurn?.pause.active; i += 1) {
+      await flush();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
     const result = await resumeTurn;
 
     assert.equal(result.stopReason, "paused");
@@ -2253,6 +2471,24 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     assert.deepEqual([...env.parkedApprovals.keys()], ["tc-g2"]);
     assert.equal(env.approvalGateCount, 1);
     const run = calls.runs[1];
+    // The answered gate's REAL result must survive the carried sibling's re-park — the
+    // assertion issue #5907 found missing: before the ordering fix the pause destroyed the
+    // session first and this frame was replaced with APPROVED_EXECUTION_RESULT_UNKNOWN.
+    assert.equal(
+      run.handled.some(
+        (update) =>
+          update.toolCallId === "tc-g1" &&
+          update.status === "completed" &&
+          update.content === "answered result",
+      ),
+      true,
+      "the answered gate's real completion must reach the tracer",
+    );
+    assert.equal(
+      run.settled.some((entry) => entry.id === "tc-g1"),
+      false,
+      "no sentinel may replace the answered gate's real result",
+    );
     assert.equal(
       run.handled.some((update) => update.toolCallId === "tc-g2"),
       false,
@@ -2267,6 +2503,127 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       run.settled.some((entry) => entry.id === "tc-g2"),
       false,
       "the carried gate receives no sentinel",
+    );
+
+    await env.destroy();
+  });
+
+  it("holds the carried sibling's re-park open until the approved execution reports its result", async () => {
+    // The live shape of issue #5907: the freshly-approved execution reports its result a few
+    // ticks after the answer, and it only gets OBSERVED while the turn's closure window is
+    // open. Before the ordering fix, the carried sibling's re-park fired synchronously after
+    // the answer batch — before the race, before any window — and the settle replaced the
+    // real result with APPROVED_EXECUTION_RESULT_UNKNOWN. This test delivers the completion
+    // only while the pause has not yet re-armed — red before the fix, green after.
+    const { calls, deps, captured } = pausableHarness();
+    // A short per-call closure bound so the red state fails fast instead of hanging.
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000_000,
+      idleMs: 500_000,
+      ttfbMs: 500_000,
+      toolCallMs: 50,
+    });
+    deps.createRunLimits = () => ({
+      onTrip() {},
+      noteToolCallStart() {},
+      noteToolCallEnd() {},
+      wrapEmit: (emit: (event: any) => void) => emit,
+      notePaused() {},
+      dispose() {},
+    });
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    for (const [toolCallId, title] of [
+      ["tc-g1", "commit"],
+      ["tc-g2", "deploy"],
+    ]) {
+      captured.onEvent!(
+        updateEvent({ sessionUpdate: "tool_call", toolCallId, title }),
+      );
+    }
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-g1", name: "commit", rawInput: {} },
+    });
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-g2", name: "deploy", rawInput: {} },
+    });
+    await firstTurn;
+
+    const answered = env.parkedApprovals.get("tc-g1")!;
+    const carried = env.parkedApprovals.get("tc-g2")!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: answered.permissionId,
+            reply: "once",
+            toolCallId: answered.toolCallId,
+            toolName: answered.toolName,
+            args: answered.args,
+            interactionToken: answered.interactionToken,
+            promptPromise: answered.promptPromise,
+          },
+        ],
+        carriedForward: [carried],
+      },
+    });
+    for (let i = 0; i < 20 && calls.permissionReplies.length === 0; i += 1) {
+      await flush();
+    }
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "once" },
+    ]);
+    // The approved execution takes two ticks to report — and its report is only
+    // observed while the re-park has not yet fired (the closure window the fix opens).
+    setImmediate(() => {
+      setImmediate(() => {
+        if (env.currentTurn?.pause.active) return;
+        captured.onEvent!(
+          updateEvent({
+            sessionUpdate: "tool_call_update",
+            toolCallId: "tc-g1",
+            status: "completed",
+            content: "real output",
+          }),
+        );
+      });
+    });
+    const result = await resumeTurn;
+
+    assert.equal(result.stopReason, "paused");
+    const run = calls.runs[1];
+    assert.equal(
+      run.handled.some(
+        (update) =>
+          update.toolCallId === "tc-g1" &&
+          update.status === "completed" &&
+          update.content === "real output",
+      ),
+      true,
+      "the approved execution's real completion must land inside the pre-park closure window",
+    );
+    assert.equal(
+      run.settled.some((entry) => entry.id === "tc-g1"),
+      false,
+      "the deferred sentinel must not replace the approved execution's result",
+    );
+    assert.deepEqual(
+      [...env.parkedApprovals.keys()],
+      ["tc-g2"],
+      "the carried gate still re-parks",
     );
 
     await env.destroy();
@@ -3368,5 +3725,75 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     );
 
     await env.destroy();
+  });
+});
+
+describe("runTurn: the in-band settle lands before the terminal record", () => {
+  it("resolves the durable row before finish() publishes `done`", async () => {
+    const TOKEN = "tok-inband-order";
+    const TOOL_CALL_ID = "toolu_inband_1";
+    const { calls, deps } = pausableHarness();
+
+    // A cold replay: the transcript already carries the human's yes, so the harness never
+    // re-raises the gate and only the end-of-turn settle can transition the row.
+    const request: AgentRunRequest = {
+      ...engineReq,
+      telemetry: {
+        exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+      },
+      messages: [
+        { role: "user", content: "write out.txt" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: TOOL_CALL_ID,
+              toolName: "Write",
+              input: { path: "out.txt" },
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: TOOL_CALL_ID,
+              toolName: "Write",
+              output: { approved: true, interactionToken: TOKEN },
+            },
+          ],
+        },
+      ],
+    } as AgentRunRequest;
+
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: any) => {
+      if (String(input).includes("/sessions/interactions/transition")) {
+        calls.journal.push("resolve");
+      }
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const turn = runTurn(acquired.env, request, undefined, undefined, {});
+      await flush();
+      calls.resolvePrompt?.({});
+      await turn;
+      await acquired.env.destroy();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    assert.deepEqual(
+      calls.journal,
+      ["resolve", "done"],
+      "the API cancels a still-pending gate the moment it consumes `done`; settling after that " +
+        "files a decision the human actually made as an abandonment",
+    );
   });
 });

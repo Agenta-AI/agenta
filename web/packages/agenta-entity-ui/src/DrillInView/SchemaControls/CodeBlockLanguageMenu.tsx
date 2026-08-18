@@ -13,8 +13,8 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {useLexicalComposerContext} from "@agenta/ui"
+import {Combobox} from "@agenta/ui/ui"
 import {$isCodeNode, getCodeLanguageOptions, getLanguageFriendlyName} from "@lexical/code"
-import {Select} from "antd"
 import {$getNodeByKey, $getRoot} from "lexical"
 import {createPortal} from "react-dom"
 
@@ -27,8 +27,14 @@ interface BlockMenu {
 
 export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
     const [editor] = useLexicalComposerContext()
+    // Friendly name in list AND trigger, so antd's `labelRender` has nothing left to do.
     const options = useMemo(
-        () => getCodeLanguageOptions().map(([value, label]) => ({value, label})),
+        () =>
+            getCodeLanguageOptions().map(([value, label]) => ({
+                value,
+                label: getLanguageFriendlyName(value) || label,
+                searchValue: `${label} ${value}`,
+            })),
         [],
     )
     const [menus, setMenus] = useState<BlockMenu[]>([])
@@ -98,18 +104,7 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
             {menus.map((m) => (
                 <div
                     key={m.key}
-                    className={[
-                        "fixed z-[1100] rounded-md bg-[var(--ant-color-bg-elevated)]",
-                        "[&_.ant-select-selector]:!h-6 [&_.ant-select-selector]:!px-2",
-                        "[&_.ant-select-selection-item]:!text-[11px] [&_.ant-select-selection-item]:!leading-6",
-                        "[&_.ant-select-selection-placeholder]:!text-[11px] [&_.ant-select-selection-placeholder]:!leading-6",
-                        "[&_.ant-select-selection-search-input]:!h-6",
-                        // Portaled to <body>, antd sets a serif fallback font on the inner item; make
-                        // it inherit the app font set on the wrapper below.
-                        "[&_.ant-select-selection-item]:!font-[inherit]",
-                        "[&_.ant-select-selection-placeholder]:!font-[inherit]",
-                        "[&_.ant-select-selection-search-input]:!font-[inherit]",
-                    ].join(" ")}
+                    className="fixed z-[1100] rounded-md bg-[var(--ant-color-bg-elevated)]"
                     style={{
                         top: m.top + 7,
                         right: m.right + 8,
@@ -118,21 +113,16 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
                     // Don't let interactions here reach the editor.
                     onMouseDown={(e) => e.stopPropagation()}
                 >
-                    <Select
-                        showSearch
+                    <Combobox
+                        aria-label="Code block language"
                         disabled={!editable}
                         value={m.lang || undefined}
                         placeholder="Plain text"
                         options={options}
-                        onChange={(lang) => setLanguage(m.key, lang)}
-                        optionFilterProp="label"
-                        popupMatchSelectWidth={false}
-                        variant="borderless"
-                        className="min-w-[96px]"
-                        // Show the friendly name ("JavaScript") for the selected value, not the raw id.
-                        labelRender={({value}) =>
-                            value ? getLanguageFriendlyName(String(value)) : "Plain text"
-                        }
+                        onChange={(lang) => lang && setLanguage(m.key, lang)}
+                        variant="ghost"
+                        className="h-6 min-w-[96px] text-xs"
+                        contentClassName="w-auto min-w-[160px]"
                     />
                 </div>
             ))}

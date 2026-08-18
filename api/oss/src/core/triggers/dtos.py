@@ -32,6 +32,12 @@ from oss.src.core.shared.dtos import (
 
 TRIGGER_MAX_RETRIES = 5
 
+# The one delivery status that a retry may re-claim (P1-8): a transient failure
+# (the runner was unreachable) rather than a permanent one (invalid config,
+# unresolvable reference). Shared by the dedup pre-check and the atomic claim so
+# they can never disagree on what counts as retryable.
+TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE = "500"
+
 
 # ---------------------------------------------------------------------------
 # Trigger Enums
@@ -361,6 +367,9 @@ class TriggerScheduleQuery(BaseModel):
 
 class TriggerDeliveryData(BaseModel):
     event_key: Optional[str] = None
+    # The session this delivery produced. Minted by the dispatcher rather than read back from the
+    # run, so the link survives the detached path (which returns only a run id).
+    session_id: Optional[str] = None
     #
     references: Optional[Dict[str, Reference]] = None
     inputs: Optional[Dict[str, Any]] = None

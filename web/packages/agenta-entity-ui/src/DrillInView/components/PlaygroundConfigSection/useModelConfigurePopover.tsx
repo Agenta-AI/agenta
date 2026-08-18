@@ -10,12 +10,13 @@
 
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {selectedOptionLabel} from "@agenta/entities/secret"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {getOptionsFromSchema} from "@agenta/shared/utils"
 import type {DrillInUIComponents} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
+import {Button, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Tabs, Typography} from "antd"
 
 import {getModelSchema, getLLMConfigValue, getLLMConfigProperties} from "../../SchemaControls"
 
@@ -35,6 +36,12 @@ import {
 import {ModelConfigEditor} from "./ModelConfigEditor"
 import {RetryConfigTab} from "./RetryConfigTab"
 import type {ConfigureTabKey, FallbackDetailState, PathSchema} from "./types"
+
+// antd's nav overrides, as classes: equal-width tabs across the header fill, no nav margin,
+// and the scrolling pane inset that used to live on `.ant-tabs-content-holder`.
+const CONFIGURE_TAB_LIST_CLS = "mb-0 flex w-full gap-0 bg-[var(--ag-c-F6F8FA)]"
+const CONFIGURE_TAB_CLS = "flex-1 basis-0 justify-center"
+const CONFIGURE_PANE_CLS = "max-h-[452px] overflow-y-auto px-3 py-3"
 
 interface UseModelConfigurePopoverParams {
     activeData: {parameters?: Record<string, unknown>} | null
@@ -59,6 +66,9 @@ export function useModelConfigurePopover({
 }: UseModelConfigurePopoverParams) {
     const [isModelConfigOpen, setIsModelConfigOpen] = useState(false)
     const [activeConfigureTab, setActiveConfigureTab] = useState<ConfigureTabKey>("model")
+    // antd Tabs keeps a visited pane mounted; Radix unmounts on switch. Tracking the visited
+    // set lets `forceMount` reproduce that (without mounting every pane up front).
+    const [visitedConfigureTabs, setVisitedConfigureTabs] = useState<ConfigureTabKey[]>(["model"])
     const [fallbackDetail, setFallbackDetail] = useState<FallbackDetailState | null>(null)
 
     // Extract model + LLM config info from prompt section.
@@ -89,6 +99,7 @@ export function useModelConfigurePopover({
         const modelSchema = getModelSchema(promptSchema as EntitySchemaProperty | null)
         const optionsResult = getOptionsFromSchema(modelSchema)
         const modelOptions = optionsResult?.options ?? []
+        const modelCatalog = optionsResult?.grouped
 
         const llmConfigValue = getLLMConfigValue(promptValue)
         const currentModel = llmConfigValue?.model as string | undefined
@@ -101,6 +112,7 @@ export function useModelConfigurePopover({
         return {
             modelSchema,
             modelOptions,
+            modelCatalog,
             currentModel,
             promptValue,
             promptSchemaProps,
@@ -115,25 +127,29 @@ export function useModelConfigurePopover({
     // - Legacy nested: parameters.prompt.llm_config.{key}
     // - Legacy flat: parameters.prompt.{key}
     // - Canonical: parameters.llms[0].{key}
-    const updatePromptLLMConfigKey = useCallback(
-        (key: string, newValue: unknown) => {
+    const updatePromptLLMConfigKeys = useCallback(
+        (changes: Record<string, unknown>) => {
             if (disabled || !activeData) return
+
+            const applyChanges = (base: Record<string, unknown> | undefined) =>
+                Object.entries(changes).reduce(
+                    (acc, [key, value]) => updateConfigKey(acc, key, value),
+                    {...(base ?? {})},
+                )
 
             // Canonical: llms array at root level
             if (Array.isArray(parameters.llms)) {
                 const currentLlms = parameters.llms as Record<string, unknown>[]
-                const updatedFirst = updateConfigKey(currentLlms[0], key, newValue)
                 dispatchUpdate(revisionId, {
                     ...parameters,
-                    llms: [updatedFirst, ...currentLlms.slice(1)],
+                    llms: [applyChanges(currentLlms[0]), ...currentLlms.slice(1)],
                 })
                 return
             }
 
             // Canonical/root-level prompt without an llms array.
             if (promptModelInfo?.isRootLevel) {
-                const nextParameters = updateConfigKey(parameters, key, newValue)
-                dispatchUpdate(revisionId, nextParameters)
+                dispatchUpdate(revisionId, applyChanges(parameters))
                 return
             }
 
@@ -146,14 +162,12 @@ export function useModelConfigurePopover({
                 const llmConfigKey = currentPrompt.llm_config ? "llm_config" : "llmConfig"
                 updatedPrompt = {
                     ...currentPrompt,
-                    [llmConfigKey]: updateConfigKey(
+                    [llmConfigKey]: applyChanges(
                         currentPrompt[llmConfigKey] as Record<string, unknown> | undefined,
-                        key,
-                        newValue,
                     ),
                 }
             } else {
-                updatedPrompt = updateConfigKey(currentPrompt, key, newValue)
+                updatedPrompt = applyChanges(currentPrompt)
             }
 
             dispatchUpdate(revisionId, {
@@ -162,6 +176,11 @@ export function useModelConfigurePopover({
             })
         },
         [disabled, activeData, parameters, revisionId, dispatchUpdate, promptModelInfo],
+    )
+
+    const updatePromptLLMConfigKey = useCallback(
+        (key: string, newValue: unknown) => updatePromptLLMConfigKeys({[key]: newValue}),
+        [updatePromptLLMConfigKeys],
     )
 
     const updatePromptRootFields = useCallback(
@@ -292,13 +311,37 @@ export function useModelConfigurePopover({
         }))
     }, [promptModelInfo])
 
-    const fallbackModelOptions = useMemo(
-        () => [
-            ...(llmProviderConfig?.extraOptionGroups ?? []),
-            ...(promptModelInfo?.modelOptions ?? []),
+    // The whole menu: one group per stored provider connection, each option carrying the
+    // connection slug the model pick persists beside the model. The schema's static catalog no
+    // longer contributes groups of its own — a vendor the project holds no key for was offered
+    // there and then failed at run time, and a connected one appeared twice under one name. The
+    // catalog still feeds a connection that saved no model list of its own.
+    const modelOptions = useMemo(
+        () =>
+            llmProviderConfig?.connectionGroupsFor?.(promptModelInfo?.modelCatalog) ??
+            llmProviderConfig?.extraOptionGroups ??
+            [],
+        [
+            llmProviderConfig?.connectionGroupsFor,
+            llmProviderConfig?.extraOptionGroups,
+            promptModelInfo?.modelCatalog,
         ],
-        [llmProviderConfig?.extraOptionGroups, promptModelInfo?.modelOptions],
     )
+
+    // What the closed trigger prints: the menu's own name for the stored model. Falling back to the
+    // id matches the merged-in current-selection row, which labels an unoffered model with its id.
+    const selectedModelLabel = useMemo(() => {
+        const model = promptModelInfo?.llmConfigValue?.model
+        if (typeof model !== "string" || !model) return null
+        const connection = promptModelInfo?.llmConfigValue?.connection
+        return (
+            selectedOptionLabel({
+                groups: modelOptions,
+                model,
+                connectionSlug: typeof connection === "string" ? connection : null,
+            }) ?? model
+        )
+    }, [modelOptions, promptModelInfo?.llmConfigValue])
 
     const handleRetryConfigFieldChange = useCallback(
         (key: "max_retries" | "base_delay", nextValue: number | null) => {
@@ -358,18 +401,25 @@ export function useModelConfigurePopover({
         [fallbackConfigs],
     )
 
-    const handleFallbackDetailChange = useCallback((key: string, nextValue: unknown) => {
+    const handleFallbackDetailChanges = useCallback((changes: Record<string, unknown>) => {
         setFallbackDetail((current) => {
             if (!current) return current
             const nextDraft = {...current.draft}
-            if (nextValue === null || nextValue === undefined) {
-                delete nextDraft[key]
-            } else {
-                nextDraft[key] = nextValue
+            for (const [key, nextValue] of Object.entries(changes)) {
+                if (nextValue === null || nextValue === undefined) {
+                    delete nextDraft[key]
+                } else {
+                    nextDraft[key] = nextValue
+                }
             }
             return {...current, draft: nextDraft}
         })
     }, [])
+
+    const handleFallbackDetailChange = useCallback(
+        (key: string, nextValue: unknown) => handleFallbackDetailChanges({[key]: nextValue}),
+        [handleFallbackDetailChanges],
+    )
 
     const handleCommitFallbackDetail = useCallback(() => {
         if (!fallbackDetail) return
@@ -509,13 +559,25 @@ export function useModelConfigurePopover({
     )
 
     const handleConfigureTabChange = useCallback((key: string) => {
-        setActiveConfigureTab(key as ConfigureTabKey)
+        const nextTab = key as ConfigureTabKey
+        setActiveConfigureTab(nextTab)
+        setVisitedConfigureTabs((current) =>
+            current.includes(nextTab) ? current : [...current, nextTab],
+        )
         setFallbackDetail(null)
     }, [])
 
     const handlePrimaryModelConfigChange = useCallback(
         (key: string, next: unknown) => updatePromptLLMConfigKey(key, next),
         [updatePromptLLMConfigKey],
+    )
+
+    // Model and connection are one choice, so they must land in one dispatch — two sequential
+    // single-key writes would both build on the same stale `parameters` and the second would
+    // drop the first.
+    const handlePrimaryModelChange = useCallback(
+        (changes: Record<string, unknown>) => updatePromptLLMConfigKeys(changes),
+        [updatePromptLLMConfigKeys],
     )
 
     const handleFallbackPolicyChange = useCallback(
@@ -535,29 +597,34 @@ export function useModelConfigurePopover({
                     <div className="flex items-center gap-2 min-w-0">
                         {fallbackDetail && (
                             <Button
-                                size="small"
-                                type="text"
-                                icon={<ArrowLeft size={16} />}
+                                size="icon-sm"
+                                variant="ghost"
                                 onClick={handleCommitFallbackDetail}
                                 disabled={disabled}
                                 aria-label="Back to fallback models"
-                                className="flex items-center justify-center"
-                            />
+                            >
+                                <ArrowLeft size={16} />
+                            </Button>
                         )}
-                        <Typography.Text className="truncate font-medium">
+                        <span className="truncate text-sm font-medium">
                             {fallbackDetail
                                 ? fallbackDetail.mode === "new"
                                     ? "Add Fallback Model"
                                     : "Edit Fallback Model"
                                 : "Configure"}
-                        </Typography.Text>
+                        </span>
                         {fallbackDetail?.mode === "new" && (
                             <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
                                 new
                             </span>
                         )}
                     </div>
-                    <Button size="small" onClick={handleActiveConfigureReset} disabled={disabled}>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleActiveConfigureReset}
+                        disabled={disabled}
+                    >
                         Reset to default
                     </Button>
                 </div>
@@ -567,115 +634,130 @@ export function useModelConfigurePopover({
                         <ModelConfigEditor
                             value={fallbackDetail.draft}
                             onChange={handleFallbackDetailChange}
+                            onModelChange={handleFallbackDetailChanges}
                             llmConfigProps={promptModelInfo?.llmConfigProps ?? {}}
-                            modelOptions={fallbackModelOptions}
+                            modelOptions={modelOptions}
                             footerContent={llmProviderConfig?.footerContent}
+                            emptyState={llmProviderConfig?.emptyStateContent}
                             disabled={disabled}
                             excludeKeys={PROMPT_EXTENSION_KEYS}
                         />
                     </div>
                 ) : (
-                    <Tabs
-                        activeKey={activeConfigureTab}
-                        onChange={handleConfigureTabChange}
-                        className="[&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-nav]:!bg-[var(--ag-c-F6F8FA)] [&_.ant-tabs-nav]:!px-0 [&_.ant-tabs-nav-wrap]:!w-full [&_.ant-tabs-nav-list]:!w-full [&_.ant-tabs-tab]:!basis-0 [&_.ant-tabs-tab]:!flex-1 [&_.ant-tabs-tab]:!justify-center [&_.ant-tabs-tab]:!mx-0 [&_.ant-tabs-tab-btn]:!mx-auto [&_.ant-tabs-content-holder]:max-h-[452px] [&_.ant-tabs-content-holder]:overflow-y-auto [&_.ant-tabs-content-holder]:px-3 [&_.ant-tabs-content-holder]:py-3"
-                        items={[
-                            {
-                                key: "model",
-                                label: "Model",
-                                children: promptModelInfo ? (
-                                    <ModelConfigEditor
-                                        value={
-                                            (promptModelInfo.llmConfigValue ?? {}) as Record<
-                                                string,
-                                                unknown
-                                            >
+                    <Tabs value={activeConfigureTab} onValueChange={handleConfigureTabChange}>
+                        <TabsList className={CONFIGURE_TAB_LIST_CLS}>
+                            <TabsTrigger value="model" className={CONFIGURE_TAB_CLS}>
+                                Model
+                            </TabsTrigger>
+                            {hasPromptExtensionFields && (
+                                <>
+                                    <TabsTrigger value="fallback" className={CONFIGURE_TAB_CLS}>
+                                        Fallback
+                                    </TabsTrigger>
+                                    <TabsTrigger value="retry" className={CONFIGURE_TAB_CLS}>
+                                        Retry
+                                    </TabsTrigger>
+                                </>
+                            )}
+                        </TabsList>
+                        {/* `forceMount` keeps a visited pane mounted (antd's behaviour); Radix ties
+                            its own `hidden` to `present`, so the inactive pane is hidden here. */}
+                        <TabsContent
+                            value="model"
+                            forceMount={visitedConfigureTabs.includes("model") || undefined}
+                            hidden={activeConfigureTab !== "model"}
+                            className={CONFIGURE_PANE_CLS}
+                        >
+                            {promptModelInfo ? (
+                                <ModelConfigEditor
+                                    value={
+                                        (promptModelInfo.llmConfigValue ?? {}) as Record<
+                                            string,
+                                            unknown
+                                        >
+                                    }
+                                    onChange={handlePrimaryModelConfigChange}
+                                    onModelChange={handlePrimaryModelChange}
+                                    llmConfigProps={promptModelInfo.llmConfigProps}
+                                    modelOptions={modelOptions}
+                                    footerContent={llmProviderConfig?.footerContent}
+                                    emptyState={llmProviderConfig?.emptyStateContent}
+                                    disabled={disabled}
+                                    excludeKeys={PROMPT_EXTENSION_KEYS}
+                                />
+                            ) : null}
+                        </TabsContent>
+                        {hasPromptExtensionFields && (
+                            <>
+                                <TabsContent
+                                    value="fallback"
+                                    forceMount={
+                                        visitedConfigureTabs.includes("fallback") || undefined
+                                    }
+                                    hidden={activeConfigureTab !== "fallback"}
+                                    className={CONFIGURE_PANE_CLS}
+                                >
+                                    <FallbackConfigTab
+                                        fallbackPolicy={
+                                            (promptModelInfo?.promptValue.fallback_policy as
+                                                | string
+                                                | null
+                                                | undefined) ?? null
                                         }
-                                        onChange={handlePrimaryModelConfigChange}
-                                        llmConfigProps={promptModelInfo.llmConfigProps}
-                                        modelOptions={[
-                                            ...(llmProviderConfig?.extraOptionGroups ?? []),
-                                            ...promptModelInfo.modelOptions,
-                                        ]}
-                                        footerContent={llmProviderConfig?.footerContent}
+                                        fallbackConfigs={fallbackConfigs}
+                                        fallbackConfigKeys={fallbackConfigKeys}
+                                        fallbackPolicyOptions={fallbackPolicyOptions}
+                                        fallbackPolicySchema={
+                                            promptModelInfo?.promptSchemaProps.fallback_policy as
+                                                | EntitySchemaProperty
+                                                | undefined
+                                        }
+                                        fallbackConfigsSchema={
+                                            promptModelInfo?.promptSchemaProps.fallback_configs as
+                                                | EntitySchemaProperty
+                                                | undefined
+                                        }
+                                        onPolicyChange={handleFallbackPolicyChange}
+                                        onAddFallbackModel={handleAddFallbackModel}
+                                        onEditFallbackModel={handleEditFallbackModel}
+                                        onRemoveFallbackModel={handleRemoveFallbackModel}
                                         disabled={disabled}
-                                        excludeKeys={PROMPT_EXTENSION_KEYS}
                                     />
-                                ) : null,
-                            },
-                            ...(hasPromptExtensionFields
-                                ? [
-                                      {
-                                          key: "fallback",
-                                          label: "Fallback",
-                                          children: (
-                                              <FallbackConfigTab
-                                                  fallbackPolicy={
-                                                      (promptModelInfo?.promptValue
-                                                          .fallback_policy as
-                                                          | string
-                                                          | null
-                                                          | undefined) ?? null
-                                                  }
-                                                  fallbackConfigs={fallbackConfigs}
-                                                  fallbackConfigKeys={fallbackConfigKeys}
-                                                  fallbackPolicyOptions={fallbackPolicyOptions}
-                                                  fallbackPolicySchema={
-                                                      promptModelInfo?.promptSchemaProps
-                                                          .fallback_policy as
-                                                          | EntitySchemaProperty
-                                                          | undefined
-                                                  }
-                                                  fallbackConfigsSchema={
-                                                      promptModelInfo?.promptSchemaProps
-                                                          .fallback_configs as
-                                                          | EntitySchemaProperty
-                                                          | undefined
-                                                  }
-                                                  onPolicyChange={handleFallbackPolicyChange}
-                                                  onAddFallbackModel={handleAddFallbackModel}
-                                                  onEditFallbackModel={handleEditFallbackModel}
-                                                  onRemoveFallbackModel={handleRemoveFallbackModel}
-                                                  disabled={disabled}
-                                              />
-                                          ),
-                                      },
-                                      {
-                                          key: "retry",
-                                          label: "Retry",
-                                          children: (
-                                              <RetryConfigTab
-                                                  retryPolicy={
-                                                      (promptModelInfo?.promptValue.retry_policy as
-                                                          | string
-                                                          | null
-                                                          | undefined) ?? null
-                                                  }
-                                                  retryPolicyOptions={retryPolicyOptions}
-                                                  retryPolicySchema={
-                                                      promptModelInfo?.promptSchemaProps
-                                                          .retry_policy as
-                                                          | EntitySchemaProperty
-                                                          | undefined
-                                                  }
-                                                  retryConfigSchema={
-                                                      promptModelInfo?.promptSchemaProps
-                                                          .retry_config as
-                                                          | EntitySchemaProperty
-                                                          | undefined
-                                                  }
-                                                  maxRetries={effectiveRetryConfig.max_retries}
-                                                  baseDelay={effectiveRetryConfig.base_delay}
-                                                  onPolicyChange={handleRetryPolicyChange}
-                                                  onConfigFieldChange={handleRetryConfigFieldChange}
-                                                  disabled={disabled}
-                                              />
-                                          ),
-                                      },
-                                  ]
-                                : []),
-                        ]}
-                    />
+                                </TabsContent>
+                                <TabsContent
+                                    value="retry"
+                                    forceMount={visitedConfigureTabs.includes("retry") || undefined}
+                                    hidden={activeConfigureTab !== "retry"}
+                                    className={CONFIGURE_PANE_CLS}
+                                >
+                                    <RetryConfigTab
+                                        retryPolicy={
+                                            (promptModelInfo?.promptValue.retry_policy as
+                                                | string
+                                                | null
+                                                | undefined) ?? null
+                                        }
+                                        retryPolicyOptions={retryPolicyOptions}
+                                        retryPolicySchema={
+                                            promptModelInfo?.promptSchemaProps.retry_policy as
+                                                | EntitySchemaProperty
+                                                | undefined
+                                        }
+                                        retryConfigSchema={
+                                            promptModelInfo?.promptSchemaProps.retry_config as
+                                                | EntitySchemaProperty
+                                                | undefined
+                                        }
+                                        maxRetries={effectiveRetryConfig.max_retries}
+                                        baseDelay={effectiveRetryConfig.base_delay}
+                                        onPolicyChange={handleRetryPolicyChange}
+                                        onConfigFieldChange={handleRetryConfigFieldChange}
+                                        disabled={disabled}
+                                    />
+                                </TabsContent>
+                            </>
+                        )}
+                    </Tabs>
                 )}
             </div>
         ),
@@ -687,7 +769,7 @@ export function useModelConfigurePopover({
             fallbackConfigKeys,
             fallbackConfigs,
             fallbackDetail,
-            fallbackModelOptions,
+            modelOptions,
             fallbackPolicyOptions,
             handleActiveConfigureReset,
             handleAddFallbackModel,
@@ -695,16 +777,19 @@ export function useModelConfigurePopover({
             handleConfigureTabChange,
             handleEditFallbackModel,
             handleFallbackDetailChange,
+            handleFallbackDetailChanges,
             handleFallbackPolicyChange,
+            handlePrimaryModelChange,
             handlePrimaryModelConfigChange,
             handleRemoveFallbackModel,
             handleRetryConfigFieldChange,
             handleRetryPolicyChange,
             hasPromptExtensionFields,
-            llmProviderConfig?.extraOptionGroups,
+            llmProviderConfig?.emptyStateContent,
             llmProviderConfig?.footerContent,
             promptModelInfo,
             retryPolicyOptions,
+            visitedConfigureTabs,
         ],
     )
 
@@ -713,6 +798,7 @@ export function useModelConfigurePopover({
         handleConfigureOpenChange,
         isModelConfigOpen,
         promptModelInfo,
+        selectedModelLabel,
     }
 }
 

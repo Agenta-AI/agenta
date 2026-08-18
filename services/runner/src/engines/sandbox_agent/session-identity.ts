@@ -37,7 +37,15 @@ const APPROVAL_TTL_ENV = "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS";
 const POOL_MAX_ENV = "AGENTA_RUNNER_SESSION_POOL_MAX";
 
 const DEFAULT_TTL_MS = 60_000;
-const DEFAULT_APPROVAL_TTL_MS = 300_000;
+// Ten minutes. An approval park by definition has a pending interaction row waiting on a human,
+// and answers increasingly arrive from a phone minutes later (mobile approvals plan,
+// 2026-07-27 §4b-4): a 5-minute window pushed most of those onto the slower cold-replay path.
+// Thirty was the first attempt at covering that; ten covers the same phone-latency case without
+// holding a pool slot for half an hour on a gate nobody is coming back to.
+// The window is still bounded by the mount-credential expiry check, expiry degrades to cold
+// (never fails the turn), and an awaiting_approval entry keeps holding a pool slot — override
+// via AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS if warm slots are contended.
+const DEFAULT_APPROVAL_TTL_MS = 600_000;
 const DEFAULT_POOL_MAX = 8;
 const DAYTONA_TTL_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS";
 const DAYTONA_POOL_MAX_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM";
@@ -195,9 +203,16 @@ function canonicalJson(value: unknown): string {
  * every hash, the credential epoch included — each turn's relay uses the INCOMING request's
  * `toolCallback` (see `CredentialEpoch` and `run-turn.ts`), so the parked copy never executes
  * anything.
+ *
+ * LIFECYCLE MIGRATION, STEP 1. The workflow REVISION id, the revision version, and the draft flag
+ * were in this hash and are now out. They are turn METADATA, not environment identity: nothing in
+ * the sandbox, the daemon, the workspace, or the harness session changes when a revision id
+ * changes. Keeping them here meant that committing a revision mid-conversation threw away a warm
+ * sandbox that was still perfectly usable, which is the exact cost this project exists to remove.
+ * They stay in `runContext` for tool binding and observability; they simply no longer decide
+ * whether an environment may be reused.
  */
 export function configFingerprint(request: AgentRunRequest): string {
-  const workflow = request.runContext?.workflow;
   const shape = {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
@@ -247,13 +262,7 @@ export function configFingerprint(request: AgentRunRequest): string {
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
     harnessFiles: request.harnessFiles ?? null,
-    workflowRevision: workflow?.revision
-      ? {
-          id: workflow.revision.id ?? null,
-          version: workflow.revision.version ?? null,
-        }
-      : null,
-    isDraft: workflow?.is_draft ?? null,
+    // No `workflowRevision` and no `isDraft`. See the doc comment above.
   };
   return sha256(canonicalJson(shape));
 }
@@ -527,6 +536,23 @@ export interface CredentialEpoch {
   /** The credentials this session was built with. Compared, never read. */
   secrets: CredentialMaterial;
   /**
+   * The half of that material a live delivery can NEVER reach: public model config
+   * (`modelConnection.environment`) and `local_use` credentials.
+   *
+   * WHY IT IS SPLIT OUT (lifecycle migration, step 8). A `local_use` credential is read by the
+   * provider SDK inside the sandbox, so it is baked into the daemon environment at create and no
+   * amount of vault work changes it; only the `opaque_http` half lives behind a Daytona Secret
+   * reference the runner can rotate in place. `configFingerprint` strips credential VALUES, so a
+   * rotated `AWS_SECRET_ACCESS_KEY` is invisible to it and surfaces ONLY as a moved epoch.
+   *
+   * Without this field the live credential route would answer such a rotation by updating vault
+   * records that do not hold it, report success, and keep a sandbox running on the OLD value.
+   * The route therefore requires this half to be unchanged and rebuilds otherwise. Same material,
+   * same never-logged holder; it is a second question asked of the same secrets, not a second copy
+   * of anything the epoch did not already retain.
+   */
+  direct: CredentialMaterial;
+  /**
    * Parked epochs only: the environment's installed-mount lease as epoch millis, or undefined when
    * it has no mounts. Incoming epochs never carry one.
    */
@@ -574,7 +600,21 @@ export function computeCredentialEpoch(
       })),
     ),
   });
-  return { secrets: new CredentialMaterial(material) };
+  // The half no live delivery can reach. See `CredentialEpoch.direct`: these values are read
+  // locally by the provider SDK, so they are baked into the daemon environment at create.
+  const directMaterial = canonicalJson({
+    modelEnvironment: request.modelConnection?.environment ?? {},
+    localUseCredentials: (request.modelConnection?.credentials ?? [])
+      .filter((credential) => credential.usage === "local_use")
+      .map((credential) => ({
+        binding: credential.binding,
+        value: credential.value,
+      })),
+  });
+  return {
+    secrets: new CredentialMaterial(material),
+    direct: new CredentialMaterial(directMaterial),
+  };
 }
 
 /** True when credentials baked into a parked sandbox/session changed (rotation ⇒ evict). */

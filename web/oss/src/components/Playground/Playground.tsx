@@ -1,16 +1,14 @@
-import {type ComponentProps, type FC, useCallback, useEffect, useMemo} from "react"
+import {type ComponentProps, type FC, useEffect} from "react"
 
 import {executeToolCall} from "@agenta/entities/gatewayTool"
-import {loadableController} from "@agenta/entities/loadable"
-import {testcaseMolecule} from "@agenta/entities/testcase"
 import {
     GatewayToolAssistantActions,
     type ChatTurnAssistantActionsProps,
     type PlaygroundUIProviders,
 } from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
-import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
-import {useAtomValue, useSetAtom} from "jotai"
+import {preloadEditorPlugins} from "@agenta/ui"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 // Synchronous thin frame (Splitter + Tabs + region slots): its real structure paints immediately;
@@ -28,6 +26,7 @@ import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 import AgentCatalogPrefetcher from "./Components/AgentCatalogPrefetcher"
 import PlaygroundMainView from "./Components/MainLayout"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
+import PlaygroundSyncStateTag from "./Components/PlaygroundSyncStateTag"
 import {OSSPlaygroundShell} from "./OSSPlaygroundShell"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
 import PlaygroundPageTitle from "./PlaygroundPageTitle"
@@ -42,40 +41,6 @@ const CatalogDrawer = dynamic(
     () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
     {ssr: false},
 )
-
-/**
- * Sync state tag slot — renders the sync state badge in each row header.
- * Shown only when connected to an API-backed testset.
- * - "new" (green): row was added locally and is not yet in the connected testset
- * - "modified" (blue): row has local edits not yet synced; shows discard × on hover
- * - "unmodified": no changes — nothing rendered
- */
-// TODO: This should not live here, it should be in the separate component
-function PlaygroundSyncStateTag({rowId, loadableId}: {rowId: string; loadableId: string}) {
-    const mode = useAtomValue(loadableController.selectors.mode(loadableId)) as
-        | "local"
-        | "connected"
-        | null
-    const isDirty = useAtomValue(useMemo(() => testcaseMolecule.isDirty(rowId), [rowId])) as boolean
-    const discard = useSetAtom(testcaseMolecule.actions.discard)
-
-    const handleDiscard = useCallback(() => discard(rowId), [discard, rowId])
-
-    // Only show sync tags when connected to an API-backed testset
-    if (mode !== "connected") return null
-
-    // New IDs are prefixed with "new-" or "local-" (established convention in the codebase)
-    const isNew = rowId.startsWith("new-") || rowId.startsWith("local-")
-    const syncState = isNew ? "new" : isDirty ? "modified" : "unmodified"
-
-    return (
-        <SyncStateTag
-            syncState={syncState}
-            dismissible={syncState === "modified"}
-            onDismiss={syncState === "modified" ? handleDiscard : undefined}
-        />
-    )
-}
 
 const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     const uri = "playground" // Static value, no need for complex data subscription
@@ -134,7 +99,7 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     const content = (
         <OSSPlaygroundShell providers={providers}>
             <PlaygroundPageTitle onboarding={onboarding} />
-            <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
+            <div className="flex flex-col w-full h-dvh overflow-hidden">
                 {prefetchAgentCatalogs ? <AgentCatalogPrefetcher /> : null}
                 <PlaygroundOnboarding />
                 <PlaygroundHeader key={`${uri}-header`} />

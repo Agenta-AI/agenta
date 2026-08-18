@@ -17,9 +17,11 @@ import {
   ConversationDecisions,
   extractApprovalDecisions,
   extractClientToolOutputs,
+  extractInBandApprovalAnswers,
 } from "../../responder.ts";
 import {
-  buildWorkflowReferences,
+  buildInteractionData,
+  buildWorkflowReferenceList,
   createInteraction,
   resolveInteraction,
 } from "../../sessions/interactions.ts";
@@ -60,6 +62,10 @@ import { conciseError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import { findSwallowedPiError } from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
+import {
+  buildApprovedContentWiring,
+  createCommitAuthorizationState,
+} from "./approved-content.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import {
   RUN_LIMIT_TRIPPED,
@@ -100,6 +106,9 @@ export async function runTurn(
   const { plan, logger, deps } = env;
   const credential = opts.credential ?? (() => runCredential(request));
   const sessionId = env.sessionId;
+  const toolRunContext = env.sessionId
+    ? { ...request.runContext, session: { id: env.sessionId } }
+    : request.runContext;
   // Race marker for a user Stop (the control-plane `cancel`/`steer` command drops the alive lock, the
   // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
   // (honest interrupted transcript, keep-warm) instead of falling through to the error catch.
@@ -125,12 +134,20 @@ export async function runTurn(
   env.parkedApprovals.clear();
   env.parkedApproval = undefined;
   env.approvalGateCount = 0;
+  // A fresh turn never inherits an approval. Only a resume may consume records minted before
+  // the park; anything else starts empty, so no call can execute on the strength of an approval
+  // raised for an earlier turn.
+  if (!opts.resume) env.commitAuthorization = undefined;
   env.nonParkablePauseCount = 0;
   // Hoisted so the catch can flush a partial trace (mirroring the pre-split `otel?` handling —
   // a createOtel throw must still return `{ ok: false }`, not propagate raw) and the finally can
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
+  // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
+  // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
+  // consumed. Without it, a resume the harness does not re-gate leaves them `pending` forever.
+  let settleInBandInteractions: (() => Promise<void>) | undefined;
 
   // Time-based run deadlines (total/idle/TTFB/per-tool-call) for THIS turn: an idle/wedged harness
   // has no deadline anywhere, so a silent or hung turn would hold its sandbox forever. Tripping a
@@ -350,7 +367,7 @@ export async function runTurn(
           }
         : undefined;
     if (turnLedgerContext) {
-      const workflowRefs = buildWorkflowReferences(
+      const workflowRefs = buildWorkflowReferenceList(
         request.runContext?.workflow,
       );
       // Row existence proves only that a turn started. Native continuation is trustworthy only
@@ -364,7 +381,7 @@ export async function runTurn(
           turnId: request.turnId,
           agentSessionId: env.session?.agentSessionId,
           sandboxId: env.sandbox?.sandboxId,
-          references: workflowRefs ? Object.values(workflowRefs) : undefined,
+          references: workflowRefs,
           traceId: run.traceId() ?? request.runContext?.trace?.trace_id,
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,
@@ -587,23 +604,15 @@ export async function runTurn(
     ): void => {
       const cred = runCredential(request);
       if (!cred) return;
-      const references = buildWorkflowReferences(request.runContext?.workflow);
-      // Every gate leaves a durable inbox/audit row; workflow references are attribution, not a precondition.
+      // Every gate leaves a durable inbox/audit row; workflow references are attribution, not a
+      // precondition. The row also carries the turn's effective config when the SDK stamped one,
+      // so an out-of-band answer replays THIS turn, not the referenced variant's HEAD.
       void createInteraction(
         sessionId,
         request.turnId ?? "",
         token,
         kind,
-        {
-          request: {
-            tool: toolName ?? token,
-            args: toolArgs,
-            // The gate id (`token`) and the harness's tool-call id differ; an out-of-band answer
-            // needs the latter to name the call it is answering.
-            ...(toolCallId ? { tool_call_id: toolCallId } : {}),
-          },
-          references,
-        },
+        buildInteractionData(request, toolName ?? token, toolArgs, toolCallId),
         () => cred,
       );
     };
@@ -614,10 +623,12 @@ export async function runTurn(
     // interactions-plane answer already transitioned it to responded, and an in-band answer is
     // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
     // row stays pending until this resolve lands it as resolved, never cancelled.
+    const resolvedInteractionTokens = new Set<string>();
     const resolveInteractionToken = (
       token: string,
       verdict?: { approved: boolean; toolCallId: string },
     ): void => {
+      resolvedInteractionTokens.add(token);
       if (verdict) {
         run.emitEvent({
           type: "interaction_response",
@@ -639,6 +650,43 @@ export async function runTurn(
             }
           : undefined,
       );
+    };
+    // A resume's approval envelope is a CONSUMED decision even when the harness never re-raises
+    // the gate: on a cold replay the transcript already contains the human's answer, so the agent
+    // just proceeds and no reply path ever reaches `resolveInteractionToken`. That is exactly how a
+    // gate outlives its turn as a forever-actionable `pending` row. Settle the leftovers here, with
+    // the verdict the human actually gave, so the row lands `resolved` and not `cancelled`. A row
+    // already terminal (resolved by the reply path, or cancelled by the turn-start sweep) simply
+    // 404s the transition — the CAS is the arbiter, this is only a last writer.
+    //
+    // Deliberately does NOT go through `resolveInteractionToken`: that emits an
+    // `interaction_response` event, and this can run once the turn's event stream is closed,
+    // which would land a record after the turn's terminal `done`. The durable row is the only
+    // thing to fix.
+    //
+    // Awaited, and awaited BEFORE the terminal record is emitted. `record()` hands `done`
+    // straight to the sink, so the moment `finish()` runs the API's gate reconciliation may
+    // consume it and cancel this still-pending row — after which the transition below finds a
+    // terminal row and 404s, filing a decision the human actually made as an abandonment.
+    settleInBandInteractions = async (): Promise<void> => {
+      const cred = runCredential(request);
+      if (!cred) return;
+      const settling: Promise<void>[] = [];
+      for (const answer of extractInBandApprovalAnswers(request)) {
+        if (resolvedInteractionTokens.has(answer.token)) continue;
+        resolvedInteractionTokens.add(answer.token);
+        logger(
+          `[HITL] settling in-band answer with no harness gate token=${answer.token} ` +
+            `approved=${answer.approved}`,
+        );
+        settling.push(
+          resolveInteraction(sessionId, answer.token, () => cred, {
+            verdict: answer.approved ? "approved" : "denied",
+            tool_call_id: answer.toolCallId,
+          }),
+        );
+      }
+      await Promise.all(settling);
     };
     const serverPermissions = serverPermissionsFromRequest(request);
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
@@ -704,6 +752,26 @@ export async function runTurn(
         );
       }
     };
+    // `@ag.file` markers: resolve and freeze at the gate, verify and consume at the relay. The
+    // relay hook runs on EVERY harness and does not depend on a dialog, which is what keeps a
+    // forged request file from executing a commit the guard's non-Pi `ask` pass-through would
+    // otherwise let through. Built before the responder because the gate hook is one of its
+    // callbacks.
+    env.commitAuthorization ??= createCommitAuthorizationState();
+    const approvedContent = buildApprovedContentWiring({
+      state: env.commitAuthorization,
+      isDaytona: plan.isDaytona,
+      workspaceCwd: plan.workspace.cwd,
+      sandbox: env.sandbox,
+      callback: request.toolCallback as ToolCallbackContext | undefined,
+      runContext: request.runContext,
+      permissionPlan,
+      toolSpecs: plan.tools.toolSpecs,
+      turnId: request.turnId ?? "",
+      sessionId,
+      log: logger,
+    });
+
     // Build the per-turn permission handler WITHOUT attaching to the live session: the
     // session-lifetime `onPermissionRequest` (in acquireEnvironment) routes into it via
     // `currentTurn`. A capturing shim reuses attachPermissionResponder unchanged; its
@@ -724,7 +792,11 @@ export async function runTurn(
       onPause: () => pause.pause(),
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onAllowedExecution: (id) => pause.markAllowedExecution(id),
-      onAnsweredDeny: (id) => pause.markAnsweredDeny(id),
+      onAnsweredDeny: (id) => {
+        pause.markAnsweredDeny(id);
+        // A denied call keeps no approved content. See `onDenied`.
+        approvedContent.onDenied(id);
+      },
       onNonParkablePause: () => {
         env.nonParkablePauseCount += 1;
       },
@@ -759,6 +831,10 @@ export async function runTurn(
       // call, so the seam consumes the grant instead of asking the human a second time.
       onExecutableGateAllowed: (info) =>
         executionGrants.grant(info.toolName, info.args),
+      // Runs only after a non-deny verdict, and only for a gate about to pause: a denied call
+      // must perform zero workspace reads.
+      onResolveApprovedContent: approvedContent.onResolveApprovedContent,
+      shouldRegateStaleApproval: approvedContent.shouldRegateStaleApproval,
       // Record EVERY parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume each one live. Fires per pending gate, so parallel gated tool calls in one turn
       // all park, each keyed by its own tool-call id. `info.gateType` names the ACP gate type so
@@ -805,6 +881,7 @@ export async function runTurn(
             pause,
             recordPendingInteraction,
             toolCallIndex: env.toolCallIndex,
+            permissionPlan,
             executionGrants,
             log: logger,
           })
@@ -829,7 +906,7 @@ export async function runTurn(
         plan.workspace.relayDir,
         plan.tools.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
-        request.runContext,
+        toolRunContext,
         env.clientToolRelayRef.current,
         relayGuard,
         {
@@ -839,6 +916,7 @@ export async function runTurn(
           writePausedAnswer: relayWritesPausedAnswer(
             plan.tools.clientToolPauseDisposition,
           ),
+          authorizer: approvedContent.authorizer,
         },
       );
       // Ordering invariant: the relay's stale-file sweep must complete before the
@@ -893,6 +971,9 @@ export async function runTurn(
         if (decision.reply === "reject") {
           run.markToolCallDenied(decision.toolCallId);
           pause.markAnsweredDeny(decision.toolCallId);
+          // Before the harness is answered, and for the same reason as the ACP deny path above:
+          // the records this call parked on must not outlive the human's "no".
+          approvedContent.onDenied(decision.toolCallId);
         }
         // Answer this gate on the live session. Each parked gate holds its OWN pending
         // `respondPermission` on the harness, so answering them one by one settles each
@@ -912,9 +993,28 @@ export async function runTurn(
           `[keepalive] resume answered gate reply=${decision.reply} tool=${decision.toolName ?? "?"}`,
         );
       }
-      // The harness still holds carried gates inside the original prompt, so re-arm the pause after
-      // this answer batch and let the normal park path refresh their approval TTL.
-      if (opts.resume.carriedForward.length > 0) pause.pause();
+      // The harness still holds carried gates inside the original prompt, so the turn must end
+      // paused again — but pause() both destroys the live session and settles the race signal
+      // below, so pausing here would kill a freshly-approved execution mid-flight and the
+      // paused-settle would replace its REAL result with the UNKNOWN sentinel (issue #5907).
+      // Give each answered/allowed execution its closure window FIRST, on the same per-call
+      // bound the paused-settle uses, then re-arm the pause and let the normal park path
+      // refresh the carried gates' approval TTL. Pi is exempt on purpose: it prepares the whole
+      // batch before executing any call, so while a carried sibling gate is pending closure is
+      // impossible and the paused-settle's park-and-carry branch owns those spans.
+      if (opts.resume.carriedForward.length > 0) {
+        if (!plan.isPi) {
+          const answeredAllowedIds = decisions
+            .filter((decision) => decision.reply === "once")
+            .map((decision) => decision.toolCallId);
+          await Promise.all(
+            answeredAllowedIds.map((toolCallId) =>
+              waitForToolCallClosure(toolCallId, resolvedRunLimits.toolCallMs),
+            ),
+          );
+        }
+        pause.pause();
+      }
     } else {
       promptPromise = Promise.resolve(
         env.session.prompt(promptBlocks),
@@ -1062,6 +1162,8 @@ export async function runTurn(
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
+    // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
+    await settleInBandInteractions?.();
     const output = run.finish(stopReason);
     await run.flush();
     const turnEndedAt = new Date().toISOString();
@@ -1134,6 +1236,8 @@ export async function runTurn(
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);
+    // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
+    await settleInBandInteractions?.();
     // finish() must not throw uncaught — tracing must not mask the run error.
     try {
       otel?.finish();
@@ -1141,6 +1245,10 @@ export async function runTurn(
     await otel?.flush().catch(() => {});
     return { ok: false, error };
   } finally {
+    // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
+    // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and
+    // never throws — a row whose gate is gone is unanswerable however the turn ended.
+    void settleInBandInteractions?.();
     // Release every run-limits timer (idempotent, never re-arms on a late event) on EVERY path.
     runLimits.dispose();
     // This turn owns its relay: stop it on EVERY exit path (the happy path already stopped it
@@ -1149,5 +1257,11 @@ export async function runTurn(
     // orphan it.
     await activeTurn?.toolRelay?.stop().catch(() => {});
     if (activeTurn) activeTurn.toolRelay = undefined;
+    // Release the turn's frozen approval bytes unless a gate parked on them. A parked approval
+    // is the ONE case that must survive: the human is about to answer it, and the resume commits
+    // the exact bytes they saw. Everything else — a finished turn, an abort, a denial, a crash —
+    // drops the whole store, which is the backstop against a long-lived parked session leaking
+    // megabytes of frozen content.
+    if (env.parkedApprovals.size === 0) env.commitAuthorization = undefined;
   }
 }

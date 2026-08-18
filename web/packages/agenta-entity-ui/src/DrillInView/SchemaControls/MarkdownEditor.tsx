@@ -37,8 +37,8 @@ import {
 } from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
+import {Badge} from "@agenta/ui/ui"
 import {registerCodeHighlighting} from "@lexical/code"
-import {Tag} from "antd"
 
 import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
 
@@ -213,7 +213,7 @@ export function MarkdownEditor({
             type="button"
             onClick={() => setView(markdownView ? "rendered" : "source")}
             disabled={disabled}
-            className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-[var(--ag-c-97A4B0,#97a4b0)] transition-colors hover:text-[var(--ag-c-586673,#586673)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-[var(--ag-zinc-5)] transition-colors hover:text-[var(--ag-c-586673)] disabled:cursor-not-allowed disabled:opacity-50"
         >
             {markdownView ? "Rich text" : "Source"}
         </button>
@@ -222,7 +222,7 @@ export function MarkdownEditor({
     // Toolbar row pinned above a scroll area this component owns, so it never moves with content.
     // `justify-between` puts formatting on the left and the source/rich toggle hard-right.
     const toolbar = (
-        <div className="flex shrink-0 items-center justify-between gap-1 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-1.5">
+        <div className="flex shrink-0 items-center justify-between gap-1 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
             <MarkdownToolbar disabled={editorDisabled || markdownView} />
             {viewToggle}
         </div>
@@ -231,12 +231,11 @@ export function MarkdownEditor({
     const plainHeader = hideHeader ? undefined : (
         <div className="flex w-full items-center justify-between gap-2">
             {filename ? (
-                <Tag
-                    bordered
-                    className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
-                >
+                // antd v6's default Tag variant is `filled` (borderless), so the `bordered` this
+                // carried was a no-op — the neutral Badge is the exact equivalent.
+                <Badge className="font-mono text-xs font-normal leading-[22.4px] text-[var(--ag-c-586673)]">
                     {filename}
-                </Tag>
+                </Badge>
             ) : (
                 <span />
             )}
@@ -281,15 +280,19 @@ export function MarkdownEditor({
         <div
             className={cn(
                 "flex flex-col overflow-hidden",
-                bordered && "rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]",
+                bordered && "rounded-md border border-solid border-[var(--ag-c-BDC7D1)]",
             )}
             style={boundStyle}
         >
             {toolbar}
-            <div className="md-prose min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
+            {/* tabIndex: a scroll region must be keyboard-reachable (axe scrollable-region-focusable)
+                — in rendered/read-only view it has no focusable content of its own. */}
+            <div tabIndex={0} className="md-prose min-h-0 flex-1 overflow-y-auto">
+                {editorEl}
+            </div>
         </div>
     ) : boundStyle ? (
-        <div className="md-prose overflow-y-auto" style={boundStyle}>
+        <div tabIndex={0} className="md-prose overflow-y-auto" style={boundStyle}>
             {editorEl}
         </div>
     ) : (
@@ -314,7 +317,7 @@ export function MarkdownEditor({
                     {body}
                     {dragOver ? (
                         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg,rgba(22,119,255,0.08))]">
-                            <span className="rounded-md bg-[var(--ant-color-bg-elevated,#fff)] px-3 py-1.5 text-xs font-medium text-[var(--ag-c-586673,#586673)] shadow-sm">
+                            <span className="rounded-md bg-[var(--ant-color-bg-elevated,#fff)] px-3 py-1.5 text-xs font-medium text-[var(--ag-c-586673)] shadow-sm">
                                 Drop a Markdown file to replace the content
                             </span>
                         </div>

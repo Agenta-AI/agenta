@@ -142,25 +142,41 @@ const CORE: Row[] = [
     ["colorFillSecondary", palette.fill.secondary],
     ["colorFillTertiary", palette.fill.tertiary],
     ["colorFillQuaternary", palette.fill.quaternary],
+    ["colorFillChip", palette.fill.chip],
     ["colorSplit", palette.border.split],
     ["colorPrimary", palette.accent.primary],
+    ["colorPrimaryHover", palette.accent.primaryHover],
     ["colorPrimaryText", palette.accent.primaryText],
+    // Links on an ink overlay. `colorLink` is an antd seed token and stays out of this list; this
+    // one is ours, because a tooltip is dark in both themes and needs a step that ignores the mode.
+    ["colorLinkOnInk", palette.accent.linkOnInk],
     ["colorSuccess", palette.semantic.success],
     ["colorWarning", palette.semantic.warning],
     ["colorWarningText", palette.semantic.warningText],
     ["colorErrorText", palette.semantic.errorText],
     ["colorError", palette.semantic.error],
+    ["colorErrorHover", palette.semantic.errorHover],
+    ["colorErrorActive", palette.semantic.errorActive],
     ["colorErrorBorder", palette.semantic.errorBorder],
     ["colorInfo", palette.semantic.info],
     ["colorInfoBorder", palette.semantic.infoBorder],
+    ["colorPrimaryBorder", palette.semantic.primaryBorder],
+    ["colorPrimaryBorderHover", palette.semantic.primaryBorderHover],
     ["colorSuccessBorder", palette.semantic.successBorder],
+    ["colorSuccessBg", palette.semantic.successBg],
     ["colorWarningBorder", palette.semantic.warningBorder],
     ["colorWarningBg", palette.semantic.warningBg],
+    ["colorErrorBg", palette.semantic.errorBg],
     ["colorBgContainerDisabled", palette.surface.containerDisabled],
     ["colorInfoBg", palette.surface.infoBg],
+    ["colorInfoBgHover", palette.surface.infoBgHover],
     ["controlItemBgActive", palette.surface.controlItemBgActive],
+    ["controlItemBgActiveHover", palette.surface.controlItemBgActiveHover],
+    ["controlOutline", palette.surface.controlOutline],
+    ["errorOutline", palette.surface.errorOutline],
     ["colorWhite", palette.surface.white],
     ["boxShadowTertiary", palette.shadow.tertiary],
+    ["boxShadowSecondary", palette.shadow.overlay],
 ]
 
 function rampRows(prefix: string, ramp: Record<number, Pair>): Row[] {
@@ -203,17 +219,48 @@ const aliasDark = (curDark: string): {value: string; aliased: boolean} => {
 }
 
 // ---------------------------------------------------------------------------
-// SHIM — legacy --ag-c-* codemod tokens (frozen in legacy-shim.ts). Light = the
-// original hex; dark is ALIASED to a core role wherever it resolves to that role's
-// value (so editing a role propagates to legacy classes — this is where the 30
-// light tokens collapse onto one dark surface role), else kept literal.
+// SHIM — legacy --ag-c-* codemod tokens (frozen in legacy-shim.ts). Dark is ALIASED
+// to a core role wherever it resolves to that role's value (so editing a role
+// propagates to legacy classes — this is where the 30 light tokens collapse onto one
+// dark surface role), else kept literal.
+//
+// Light was the frozen original hex until the 2026-08-11 recolor moved the light
+// system off the navy ramp. The shim is a generator INPUT, so those literals cannot
+// follow palette.ts on their own and would keep ~250 component usages navy. This table
+// aliases each retired navy step to the role that now owns it — the light twin of the
+// dark aliasing above. Only the navy ramp is listed; every other legacy literal
+// (Tailwind slate/gray leftovers, brand hues) stays frozen.
 // ---------------------------------------------------------------------------
+const LIGHT_RECOLOR_ALIASES: Record<string, string> = {
+    "#051729": "--ag-zinc-10",
+    "#1c2c3d": "--ag-colorText",
+    "#394857": "--ag-zinc-8",
+    "#586673": "--ag-colorTextSecondary",
+    "#758391": "--ag-colorTextTertiary",
+    "#97a4b0": "--ag-zinc-5",
+    "#bdc7d1": "--ag-colorBorder",
+    "#d6dee6": "--ag-zinc-3",
+    "#eaeff5": "--ag-colorBorderSecondary",
+    "#f5f7fa": "--ag-zinc-1",
+    // #051729 at the five codemod alpha steps → the warm --ag-rgba-* fills.
+    "#05172905": "--ag-rgba-051729-02",
+    "#0517290a": "--ag-rgba-051729-04",
+    "#0517290f": "--ag-rgba-051729-06",
+    "#05172916": "--ag-rgba-051729-08",
+    "#0517291a": "--ag-rgba-051729-10",
+}
+
 let shimAliased = 0
+let shimLightAliased = 0
 function buildShim() {
     const root: string[] = []
     const dark: string[] = []
     for (const [name, {light, dark: d}] of Object.entries(legacyShim)) {
-        if (light != null) root.push(`    ${name}: ${light};`)
+        if (light != null) {
+            const role = LIGHT_RECOLOR_ALIASES[norm(light)]
+            if (role) shimLightAliased++
+            root.push(`    ${name}: ${role ? `var(${role})` : light};`)
+        }
         if (d != null) {
             const a = aliasDark(d)
             if (a.aliased) shimAliased++
@@ -271,9 +318,16 @@ const FEATURES: [string, FVal][] = [
     ...Object.entries(pf.compareTint).map(
         ([n, p]) => [`cmp-tint-${n}`, pairOf(p)] as [string, FVal],
     ),
+    ...pf.chartSeries.map((p, i) => [`chart-series-${i}`, pairOf(p)] as [string, FVal]),
+    ...Object.entries(pf.chart).map(
+        ([k, p]) => [`chart-${camelToKebab(k)}`, pairOf(p)] as [string, FVal],
+    ),
+    ...Object.entries(pf.runStatus).map(
+        ([k, p]) => [`run-status-${camelToKebab(k)}`, pairOf(p)] as [string, FVal],
+    ),
     ...Object.entries(pf.workflowType).flatMap(([k, x]) => [
-        [`type-${k}-bg`, {dark: x.bg}] as [string, FVal],
-        [`type-${k}-text`, {dark: x.text}] as [string, FVal],
+        [`type-${k}-bg`, pairOf(x.bg)] as [string, FVal],
+        [`type-${k}-text`, pairOf(x.text)] as [string, FVal],
     ]),
     ...Object.entries(pf.playgroundSurface).map(
         ([k, p]) => [`surface-${SURFACE_NAME[k]}`, pairOf(p)] as [string, FVal],
@@ -288,12 +342,59 @@ const FEATURES: [string, FVal][] = [
     ["app-variant-row", pairOf(pf.appVariantCell.row)],
     ["app-variant-label", pairOf(pf.appVariantCell.label)],
     ["app-variant-chip-bg", pairOf(pf.appVariantCell.chipBg)],
+    ["draft-text", pairOf(pf.draftTag.text)],
+    ["draft-bg", pairOf(pf.draftTag.bg)],
+    ["draft-border", pairOf(pf.draftTag.border)],
+    ["preset-blue-bg", pairOf(pf.presetTag.blueBg)],
+    ["preset-blue-text", pairOf(pf.presetTag.blueText)],
+    ["preset-green-bg", pairOf(pf.presetTag.greenBg)],
+    ["preset-green-text", pairOf(pf.presetTag.greenText)],
+    ["preset-orange-bg", pairOf(pf.presetTag.orangeBg)],
+    ["preset-orange-text", pairOf(pf.presetTag.orangeText)],
+    ["preset-red-bg", pairOf(pf.presetTag.redBg)],
+    ["preset-red-text", pairOf(pf.presetTag.redText)],
+    ["preset-purple-bg", pairOf(pf.presetTag.purpleBg)],
+    ["preset-purple-text", pairOf(pf.presetTag.purpleText)],
+    ["preset-cyan-bg", pairOf(pf.presetTag.cyanBg)],
+    ["preset-cyan-text", pairOf(pf.presetTag.cyanText)],
+    ["preset-magenta-bg", pairOf(pf.presetTag.magentaBg)],
+    ["preset-magenta-text", pairOf(pf.presetTag.magentaText)],
+    ["preset-gold-bg", pairOf(pf.presetTag.goldBg)],
+    ["preset-gold-text", pairOf(pf.presetTag.goldText)],
+    ["preset-pink-bg", pairOf(pf.presetTag.pinkBg)],
+    ["preset-pink-text", pairOf(pf.presetTag.pinkText)],
+    ["preset-yellow-bg", pairOf(pf.presetTag.yellowBg)],
+    ["preset-yellow-text", pairOf(pf.presetTag.yellowText)],
+    ["preset-volcano-bg", pairOf(pf.presetTag.volcanoBg)],
+    ["preset-volcano-text", pairOf(pf.presetTag.volcanoText)],
+    ["preset-geekblue-bg", pairOf(pf.presetTag.geekblueBg)],
+    ["preset-geekblue-text", pairOf(pf.presetTag.geekblueText)],
+    ["preset-lime-bg", pairOf(pf.presetTag.limeBg)],
+    ["preset-lime-text", pairOf(pf.presetTag.limeText)],
+    ["tab-item", pairOf(pf.tabs.item)],
+    ["tab-item-hover", pairOf(pf.tabs.itemHover)],
+    ...Object.entries(pf.emptyImage).map(([k, p]) => [`empty-${k}`, pairOf(p)] as [string, FVal]),
+    ["btn-primary-text", pairOf(pf.button.primaryText)],
+    ["btn-primary-hover", pairOf(pf.button.primaryHover)],
+    ["btn-primary-active", pairOf(pf.button.primaryActive)],
+    ["btn-default-bg", pairOf(pf.button.defaultBg)],
+    ["btn-default-hover-bg", pairOf(pf.button.defaultHoverBg)],
+    ["btn-default-active-bg", pairOf(pf.button.defaultActiveBg)],
+    ["btn-text-hover-bg", pairOf(pf.button.textHoverBg)],
+    ["btn-text-active-bg", pairOf(pf.button.textActiveBg)],
+    ["btn-link", pairOf(pf.button.link)],
+    ["btn-link-hover", pairOf(pf.button.linkHover)],
+    ["btn-link-active", pairOf(pf.button.linkActive)],
+    ["input-disabled-border", pairOf(pf.button.disabledInputBorder)],
     ["status-error-bg", pairOf(pf.status.errorBg)],
     ["status-error-border", pairOf(pf.status.errorBorder)],
     ["status-error-text", pairOf(pf.status.errorText)],
     ["status-success-bg", pairOf(pf.status.successBg)],
     ["status-success-border", pairOf(pf.status.successBorder)],
     ["status-success-text", pairOf(pf.status.successText)],
+    ["status-warning-bg", pairOf(pf.status.warningBg)],
+    ["status-warning-border", pairOf(pf.status.warningBorder)],
+    ["status-warning-text", pairOf(pf.status.warningText)],
     ["surface-error-well", pairOf(pf.status.errorWell)],
     ["surface-error-well-border", pairOf(pf.status.errorWellBorder)],
     ...Object.entries(pf.drawerDark).map(
@@ -305,10 +406,19 @@ const FEATURES: [string, FVal][] = [
     ["strip-card-border", pairOf(pf.templateStrip.cardBorder)],
     ["strip-card-border-hover", pairOf(pf.templateStrip.cardBorderHover)],
     ["strip-card-hover-shadow", pairOf(pf.templateStrip.cardHoverShadow)],
+    ["surface-paper", pairOf(pf.tintedSurface.paper)],
+    ["surface-section-header", pairOf(pf.tintedSurface.sectionHeader)],
+    ["surface-section-content", pairOf(pf.tintedSurface.sectionContent)],
     ["shell-rail-bg", pairOf(pf.shell.railBg)],
     ["shell-line", pairOf(pf.shell.line)],
     ["scroll-thumb", pairOf(pf.shell.scrollThumb)],
     ["scroll-thumb-hover", pairOf(pf.shell.scrollThumbHover)],
+    ["shell-selected-bg", pairOf(pf.shell.selectedBg)],
+    ["shell-selected-border", pairOf(pf.shell.selectedBorder)],
+    ["shell-selected-text", pairOf(pf.shell.selectedText)],
+    ["hero-action-bg", pairOf(pf.heroAction.bg)],
+    ["hero-action-hover-bg", pairOf(pf.heroAction.hoverBg)],
+    ["hero-action-text", pairOf(pf.heroAction.text)],
     ["sidebar-bg", {light: "var(--ag-shell-rail-bg)", dark: "var(--ag-shell-rail-bg)"}],
 ]
 
@@ -388,20 +498,33 @@ function buildAntdOverrides(): string {
         Object.entries(obj)
             .map(([k, v]) => {
                 const json = JSON.stringify(v)
-                const line = `${indent}${k}: ${json},`
-                return line.length > 100 ? `${indent}${k}:\n${indent}    ${json},` : line
+                const key = /^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)
+                const line = `${indent}${key}: ${json},`
+                return line.length > 100 ? `${indent}${key}:\n${indent}    ${json},` : line
             })
             .join("\n")
-    const nested = Object.entries(p.componentsDark)
-        .map(([name, tokens]) => `    ${name}: {\n${flat(tokens, "        ")}\n    },`)
-        .join("\n")
+    const componentBlock = (map: Record<string, Record<string, string>>) =>
+        Object.entries(map)
+            .map(([name, tokens]) => `    ${name}: {\n${flat(tokens, "        ")}\n    },`)
+            .join("\n")
     return `// GENERATED from palette.ts by scripts/generate-tailwind-tokens.ts — do not edit by hand.
 export const DARK_TOKEN_OVERRIDES = {
 ${flat(o, "    ")}
 }
 
 export const darkComponents = {
-${nested}
+${componentBlock(p.componentsDark)}
+}
+
+// Light mode feeds antd the full token dump in styles/tokens/antd-themeConfig.json,
+// which still carries the pre-recolor navy system — so these palette-derived values
+// are spread AFTER it to land in the rendered --ant-* variables.
+export const LIGHT_TOKEN_OVERRIDES = {
+${flat(p.antdLight, "    ")}
+}
+
+export const lightComponents = {
+${componentBlock(p.componentsLight)}
 }
 `
 }
@@ -505,6 +628,7 @@ if (process.env.BASELINE_CSS) {
     console.log(`  dark mismatches:      ${mismatches.length}`)
     console.log(`  light mismatches:     ${lightMismatches.length}`)
     console.log(`  --ag-c-* dark aliased: ${shimAliased}`)
+    console.log(`  --ag-c-* light re-aliased (recolor): ${shimLightAliased}`)
     console.log(`  baseline root vars NOT emitted: ${uncovered.length}`)
     console.log(`  baseline dark vars NOT emitted: ${darkUncovered.length}`)
     if (mismatches.length) console.log("\nDARK MISMATCHES:\n" + mismatches.slice(0, 40).join("\n"))

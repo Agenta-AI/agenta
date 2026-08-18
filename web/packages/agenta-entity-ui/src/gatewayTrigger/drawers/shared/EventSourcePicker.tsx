@@ -1,7 +1,13 @@
 import {useRef, useState, type ReactNode} from "react"
 
-import {ClockCountdown, Lightning} from "@phosphor-icons/react"
-import {Empty, Popover, Spin} from "antd"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from "@agenta/ui/ui"
+import {ClockCountdown, X} from "@phosphor-icons/react"
 
 /**
  * A real event sampled from the provider — used to build the inputs mapping against
@@ -19,6 +25,14 @@ export interface SampledEvent {
     payload: unknown
 }
 
+// antd Popover `placement` → Radix side/align.
+const PLACEMENTS = {
+    bottomRight: {side: "bottom", align: "end"},
+    topRight: {side: "top", align: "end"},
+    bottomLeft: {side: "bottom", align: "start"},
+    topLeft: {side: "top", align: "start"},
+} as const
+
 /**
  * Shared popover for sourcing a real event: "wait for a new event" (live capture) or one
  * of the recent events. Used in two places in the subscription drawer — the mapping
@@ -35,10 +49,10 @@ export function EventSourcePicker({
     onWaitForEvent,
     onOpenChange,
     placement = "bottomRight",
-    waitLabel = "Wait for a new event",
     waitHint,
-    autoWaitOnOpen,
     captureMode,
+    defaultOpen,
+    container,
 }: {
     /** The element that opens the popover (a button). */
     trigger: ReactNode
@@ -49,16 +63,20 @@ export function EventSourcePicker({
     /** Fired when the popover opens/closes — use to lazy-load `recentEvents` on open. */
     onOpenChange?: (open: boolean) => void
     placement?: "bottomRight" | "topRight" | "bottomLeft" | "topLeft"
-    waitLabel?: string
     waitHint?: string
-    /** Start the live capture immediately when the popover opens (single-click test). */
-    autoWaitOnOpen?: boolean
     /** Data-capture wait (picks apply data, not actions): survives popover close, and a resolved event keeps the popover open. */
     captureMode?: boolean
+    /** Start open (forced-open parity stories / initial-open UX). */
+    defaultOpen?: boolean
+    /** Portal target for the popover; defaults to document.body. */
+    container?: HTMLElement | null
 }) {
-    const [open, setOpen] = useState(false)
+    const [open, setOpen] = useState(defaultOpen ?? false)
     const [waiting, setWaiting] = useState(false)
     const settledRef = useRef(false)
+    // Identifies the current wait so cancelling can disown it. A ref, not `settledRef`:
+    // cancelling must not also block a wait the user starts again straight after.
+    const waitIdRef = useRef(0)
 
     const pick = (event: SampledEvent) => {
         settledRef.current = true
@@ -68,10 +86,11 @@ export function EventSourcePicker({
 
     const wait = async () => {
         if (!onWaitForEvent || waiting) return
+        const id = ++waitIdRef.current
         setWaiting(true)
         try {
             const event = await onWaitForEvent()
-            if (event && !settledRef.current) {
+            if (event && !settledRef.current && waitIdRef.current === id) {
                 settledRef.current = true
                 // Capture mode keeps the popover open — the event lands in recentEvents.
                 if (!captureMode) setOpen(false)
@@ -81,8 +100,15 @@ export function EventSourcePicker({
             // Callers surface their own error before rejecting; swallow so the fire-and-forget
             // `void wait()` never becomes an unhandled rejection.
         } finally {
-            setWaiting(false)
+            if (waitIdRef.current === id) setWaiting(false)
         }
+    }
+
+    // Stop waiting. The provider poll it started can't be aborted from here, so the wait is
+    // disowned instead: whatever it returns is discarded rather than landing minutes later.
+    const cancelWait = () => {
+        waitIdRef.current += 1
+        setWaiting(false)
     }
 
     const handleOpenChange = (next: boolean) => {
@@ -90,7 +116,6 @@ export function EventSourcePicker({
         onOpenChange?.(next)
         if (next) {
             settledRef.current = false
-            if (autoWaitOnOpen && onWaitForEvent) void wait()
         } else if (!captureMode) {
             // A wait resolving after the popover closed must not fire onPick — unless it's
             // a data capture (that flow sends users away from the popover).
@@ -98,83 +123,99 @@ export function EventSourcePicker({
         }
     }
 
-    const content = (
-        <div className="w-[280px]">
-            {onWaitForEvent && (
-                <button
-                    type="button"
-                    onClick={wait}
-                    disabled={waiting}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded border-0 bg-transparent px-2.5 py-2 text-left hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-default"
-                >
-                    {waiting ? (
-                        <Spin size="small" />
-                    ) : (
-                        <ClockCountdown size={16} className="text-[var(--ag-colorTextSecondary)]" />
-                    )}
-                    <span className="min-w-0 flex-1">
-                        <span className="block text-xs text-[var(--ag-colorText)]">
-                            {waiting ? "Waiting for an event…" : waitLabel}
-                        </span>
-                        {waitHint && !waiting && (
-                            <span className="block text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                {waitHint}
-                            </span>
-                        )}
-                    </span>
-                </button>
-            )}
-
-            <div className="mb-1 mt-1.5 px-2.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                Recent events
-            </div>
-            {recentEvents.length === 0 ? (
-                <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description={
-                        <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
-                            None captured yet
-                        </span>
-                    }
-                    className="!my-2"
-                />
-            ) : (
-                <div className="flex flex-col">
-                    {recentEvents.map((event) => (
-                        <button
-                            key={event.id}
-                            type="button"
-                            onClick={() => pick(event)}
-                            className="flex cursor-pointer items-center gap-2.5 rounded border-0 bg-transparent px-2.5 py-1.5 text-left hover:bg-[var(--ag-colorFillTertiary)]"
-                        >
-                            <Lightning size={15} className="text-[var(--ag-colorTextSecondary)]" />
-                            <span className="min-w-0 flex-1">
-                                <span className="block truncate text-xs text-[var(--ag-colorText)]">
-                                    {event.label}
-                                    {event.preview ? ` · ${event.preview}` : ""}
-                                </span>
-                                {event.timeAgo && (
-                                    <span className="block text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                        {event.timeAgo}
-                                    </span>
-                                )}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    )
-
+    const {side, align} = PLACEMENTS[placement]
     return (
-        <Popover
-            open={open}
-            onOpenChange={handleOpenChange}
-            trigger="click"
-            placement={placement}
-            content={content}
-        >
-            {trigger}
-        </Popover>
+        <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+            <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+            <DropdownMenuContent
+                side={side}
+                align={align}
+                aria-label="Select event source"
+                className="w-[280px]"
+                container={container}
+            >
+                {onWaitForEvent && (
+                    <DropdownMenuItem
+                        // The wait resolves minutes later; closing the menu on click would
+                        // leave no sign that it is still running.
+                        onSelect={(e) => {
+                            e.preventDefault()
+                            void wait()
+                        }}
+                        className="items-start"
+                    >
+                        {waiting ? (
+                            // Same "this is live" language as the connection dots, and honest
+                            // about a wait measured in minutes rather than a spinner's seconds.
+                            <span className="relative mt-1 flex size-2 shrink-0 items-center justify-center">
+                                <span className="absolute inline-flex size-full rounded-full bg-colorInfo opacity-60 motion-safe:animate-ping" />
+                                <span className="relative inline-flex size-1.5 rounded-full bg-colorInfo" />
+                            </span>
+                        ) : (
+                            <ClockCountdown
+                                size={14}
+                                className="mt-0.5 text-[var(--ag-colorTextSecondary)]"
+                            />
+                        )}
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-xs">
+                                {waiting ? "Waiting for an event…" : "Wait for a new event"}
+                            </span>
+                            {waitHint && !waiting && (
+                                <span className="block text-xs text-[var(--ag-colorTextTertiary)]">
+                                    {waitHint}
+                                </span>
+                            )}
+                        </span>
+                    </DropdownMenuItem>
+                )}
+
+                {/* Its own item, not a nested button: Radix owns roving focus inside a menu and
+                    intercepts Tab, so anything tabbable within an item is unreachable. */}
+                {waiting && (
+                    <DropdownMenuItem
+                        onSelect={(e) => {
+                            e.preventDefault()
+                            cancelWait()
+                        }}
+                    >
+                        <X size={12} className="text-[var(--ag-colorTextTertiary)]" />
+                        <span className="text-xs">Stop waiting</span>
+                    </DropdownMenuItem>
+                )}
+
+                <DropdownMenuLabel className="mt-1 text-xs font-medium text-[var(--ag-colorTextDescription)]">
+                    Recent events
+                </DropdownMenuLabel>
+
+                {recentEvents.length === 0 ? (
+                    // The same dashed one-liner EventFieldList uses for "nothing sampled yet",
+                    // rather than a second empty-state language a few pixels away.
+                    <div className="mx-1 mb-1 rounded-md border border-dashed border-[var(--ag-colorBorder)] px-2 py-3 text-center text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
+                        Events you capture appear here.
+                    </div>
+                ) : (
+                    recentEvents.map((event) => (
+                        <DropdownMenuItem key={event.id} onSelect={() => pick(event)}>
+                            {/* Content leads, timestamp is metadata on the right — the row
+                                grammar the revision list already uses. */}
+                            <span className="min-w-0 flex-1 truncate text-xs">
+                                {event.label}
+                                {event.preview ? (
+                                    <span className="text-[var(--ag-colorTextTertiary)]">
+                                        {` · ${event.preview}`}
+                                    </span>
+                                ) : null}
+                            </span>
+                            {event.timeAgo && (
+                                <span className="shrink-0 text-xs text-[var(--ag-colorTextDescription)]">
+                                    {event.timeAgo}
+                                </span>
+                            )}
+                        </DropdownMenuItem>
+                    ))
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }

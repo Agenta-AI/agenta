@@ -33,6 +33,13 @@ export const PLAYGROUND_NATIVE_ONBOARDING =
 export const TEMPLATE_STRIP_MODE =
     (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_STRIP") || "").toLowerCase() !== "false"
 
+/** Returning users start a task with an agent they already have; first-run users describe an
+ * agent to create. Different question, different verb. */
+/** No subtitle: the composer's placeholder asks the same thing one line below it. */
+export const RETURNING_HERO = {
+    title: "What do you want to do?",
+}
+
 export const HERO = {
     eyebrowNew: "New",
     eyebrowLabel: "Agent builder",

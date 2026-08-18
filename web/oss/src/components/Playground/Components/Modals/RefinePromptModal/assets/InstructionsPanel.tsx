@@ -143,7 +143,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
                             <p className="mb-1 text-[12px]">
                                 Describe how you want to refine your prompt
                             </p>
-                            <p className="text-[11px]">Or pick a suggestion below</p>
+                            <p className="text-xs">Or pick a suggestion below</p>
                         </div>
                     </div>
                 ) : (
@@ -167,7 +167,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
                 {isLoading ? (
                     <div className="mt-3 flex items-center gap-2 text-[var(--ag-rgba-051729-45)]">
                         <Spin size="small" />
-                        <span className="text-[11px]">Refining prompt…</span>
+                        <span className="text-xs">Refining prompt…</span>
                     </div>
                 ) : null}
             </div>

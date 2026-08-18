@@ -1,8 +1,7 @@
 import type {ReactNode} from "react"
 
 import type {PlaygroundTestResult as TestResult} from "@agenta/playground"
-
-import {EnhancedButtonProps} from "../../../../EnhancedUIs/Button/types"
+import type {EnhancedButtonProps} from "@agenta/ui/components/presentational"
 
 export interface TestsetDrawerButtonProps extends EnhancedButtonProps {
     icon?: boolean

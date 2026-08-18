@@ -35,6 +35,9 @@ export type {CodeConfigControlProps} from "./CodeConfigControl"
 export {SchemasConfigControl} from "./SchemasConfigControl"
 export type {SchemasConfigControlProps} from "./SchemasConfigControl"
 
+export {SchemaTree} from "./SchemaTree"
+export type {SchemaTreeProps} from "./SchemaTree"
+
 // ============================================================================
 // CONTROLS WITH CONTEXT INJECTION
 // ============================================================================
@@ -47,6 +50,9 @@ export type {MessagesSchemaControlProps} from "./MessagesSchemaControl"
 
 export {ResponseFormatControl, responseFormatModalOpenAtom} from "./ResponseFormatControl"
 export type {ResponseFormatValue, ResponseFormatControlProps} from "./ResponseFormatControl"
+
+export {ResponseFormatControlView} from "./ResponseFormatControlView"
+export type {ResponseFormatControlViewProps} from "./ResponseFormatControlView"
 
 export {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
 export type {
@@ -76,8 +82,72 @@ export {
     readHarnessAllowList,
     findGrantableHarnessTool,
     withHarnessToolAllow,
+    PLATFORM_OPS,
 } from "./toolPermission"
 export type {GrantableTool, ToolPermission, GrantableHarnessTool} from "./toolPermission"
+
+// Model / harness / permission write-through from outside the drawer (the chat composer's `/`).
+export {
+    withModel,
+    withHarnessKind,
+    withRunnerPermission,
+    readModelId,
+    readModelConnectionSlug,
+    readHarnessKind,
+    readRunnerPermission,
+    readAgentItems,
+} from "./agentConfigPatch"
+export type {ModelPatch} from "./agentConfigPatch"
+export {
+    DEFAULT_PERMISSION_POLICY,
+    isPermissionPolicy,
+    PERMISSION_POLICY_OPTIONS,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+    permissionPolicyOptionsForSchema,
+    permissionPolicySchema,
+} from "./permissionPolicy"
+export type {PermissionPolicy, PermissionPolicyOption} from "./permissionPolicy"
+export {
+    allowedDeployments,
+    allowedProviders,
+    buildModelOptionGroups,
+    harnessAllowsModel,
+    modelLabel,
+    providerForModel,
+    vaultModelGroups,
+    vaultPickedProviderFamily,
+} from "./connectionUtils"
+export type {ModelOptionGroup, VaultModelSource} from "./connectionUtils"
+// Connection-first model menu (the playground picker's rows + the payload a pick persists).
+export {
+    buildConnectionPickerRows,
+    connectionModelIds,
+    effectiveHarnesses,
+    modelRowKey,
+    pickerSelectionFrom,
+    selectedModelRowKey,
+    selectionFromModelRow,
+    SUBSCRIPTION_HARNESSES,
+} from "./connectionPicker"
+export type {
+    BuildPickerRowsArgs,
+    PickerConnectionRow,
+    PickerModelRow,
+    PickerOptionMetadata,
+    PickerSelection,
+} from "./connectionPicker"
+// Row presentation for config items (name/description/tags), shared with the `/` palette.
+export {
+    describeMcp,
+    describeSkill,
+    describeTool,
+    staticEmbedSlug,
+    toolName,
+} from "./agentTemplate/itemDescriptors"
+export type {ItemDescriptor} from "./agentTemplate/itemDescriptors"
+export {HARNESS_META, harnessMetaFor, selectableHarnesses} from "./harnessMeta"
+export type {HarnessMeta} from "./harnessMeta"
 
 export {McpServerItemControl} from "./McpServerItemControl"
 export type {McpServerItemControlProps} from "./McpServerItemControl"

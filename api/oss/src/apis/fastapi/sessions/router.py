@@ -28,15 +28,21 @@ from fastapi import (
     Response,
     status,
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import ValidationError
 
 # FastAPI route params need fastapi.UploadFile; request.form() yields starlette's base class.
 from fastapi import UploadFile as FastAPIUploadFile
 from starlette.datastructures import UploadFile
 from typing import Any, Optional, Union
 
+from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
+
+from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
+from oss.src.dbs.redis.shared.engine import get_streams_engine
+from oss.src.apis.fastapi.sessions.watch import watch_event_stream
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -90,7 +96,7 @@ from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.sessions.turns.dtos import SessionTurnComplete, SessionTurnCreate
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.turns.types import SessionTurnNotFound
-from oss.src.core.sessions.dtos import SessionQuery
+from oss.src.core.sessions.dtos import SessionExpansion
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
@@ -127,6 +133,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionInteractionCreateRequest,
     SessionInteractionQueryRequest,
     SessionInteractionRespondRequest,
+    SessionInteractionResolution,
     SessionInteractionResponse,
     SessionInteractionsResponse,
     SessionInteractionTransitionRequest,
@@ -148,6 +155,11 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionQueryRequest,
     SessionResponse,
     SessionsResponse,
+)
+from oss.src.apis.fastapi.sessions.utils import (
+    compute_session_response_windowing,
+    normalize_session_query_request,
+    sanitize_session_stream,
 )
 
 log = get_module_logger(__name__)
@@ -335,6 +347,23 @@ class SessionStreamsRouter:
             tags=["Sessions"],
         )
 
+        self.router.add_api_route(
+            "/sessions/streams/watch",
+            self.watch_session_stream,
+            methods=["GET"],
+            operation_id="watch_session_stream",
+            tags=["Sessions"],
+            response_model=None,
+        )
+        self.router.add_api_route(
+            "/sessions/watch",
+            self.watch_project,
+            methods=["GET"],
+            operation_id="watch_project",
+            tags=["Sessions"],
+            response_model=None,
+        )
+
     @intercept_exceptions()
     @_handle_session_exceptions()
     async def set_session_stream(
@@ -383,7 +412,7 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        return SessionStreamResponse(stream=stream)
+        return SessionStreamResponse(stream=sanitize_session_stream(stream))
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -459,9 +488,12 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        return await self._service.heartbeat(
+        heartbeat = await self._service.heartbeat(
             project_id=project_id,
             request=payload,
+        )
+        return heartbeat.model_copy(
+            update={"stream": sanitize_session_stream(heartbeat.stream)}
         )
 
     @intercept_exceptions()
@@ -492,7 +524,10 @@ class SessionStreamsRouter:
                 ),
             ),
         )
-        return SessionStreamsResponse(count=len(streams), streams=streams)
+        return SessionStreamsResponse(
+            count=len(streams),
+            streams=[sanitize_session_stream(stream) for stream in streams],
+        )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -518,7 +553,115 @@ class SessionStreamsRouter:
             session_id=session_id,
             header=header,
         )
-        return SessionStreamResponse(stream=stream)
+        return SessionStreamResponse(stream=sanitize_session_stream(stream))
+
+    @intercept_exceptions()
+    @_handle_session_exceptions()
+    async def watch_session_stream(
+        self,
+        request: Request,
+        session_id: str = Query(...),
+    ) -> StreamingResponse:
+        """Server-sent events relay for one session (M3 live relay).
+
+        Emits change notifications only — never record payloads; clients
+        revalidate through the regular query endpoints on each event:
+
+        - ``event: records-changed`` — ``{"session_id"}``; new/updated rows
+          landed in the record log (published post-DB-commit).
+        - ``event: lifecycle`` — ``{"session_id", "state": "running"|"ended"}``.
+        - ``event: interaction`` — ``{"session_id", "status": "pending"|"resolved"}``.
+        - ``: heartbeat`` comment frames while idle (keep-alive).
+
+        Auth is the standard middleware (cookie ``sAccessToken``, ApiKey, or
+        Bearer) evaluated once at connect; scope is the credential's project.
+        Browsers authenticate by cookie — ``EventSource`` cannot set headers —
+        so a connect landing on an expired access token 401s like any other
+        request. There is no interceptor to refresh-and-retry a stream, so the
+        client must refresh the session itself and reopen (see the web hooks).
+
+        The stream has no replay/cursor semantics — ``EventSource`` reconnects
+        and clients revalidate once on every ``open``, which covers any missed
+        notifications.
+
+        NOTE (spec surface): this route appears in OpenAPI for documentation,
+        but Fern does not model SSE — consume it with a native ``EventSource``
+        (same-origin ``/api`` + cookie auth needs no custom headers), not the
+        generated client.
+        """
+        _validate_session_id_http(session_id)
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        stream = watch_event_stream(
+            channel=watch_channel(str(project_id), session_id),
+            # One pubsub connection per SSE connection (v1 — simplest correct
+            # teardown story; revisit with a shared listener if counts grow).
+            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
+            retry_milliseconds=env.sessions.watch_retry_milliseconds,
+        )
+        return StreamingResponse(
+            stream,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                # Disable proxy buffering so frames flush immediately.
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @intercept_exceptions()
+    async def watch_project(
+        self,
+        request: Request,
+        project_id: UUID = Query(...),
+    ) -> StreamingResponse:
+        """Relay low-frequency entity changes for the authorized project.
+
+        A caller with only one required view permission cannot open this stream and falls back to
+        the lists' polling behavior.
+        """
+        user_id = request.state.user_id
+        authorized_project_id = request.state.project_id
+
+        can_view_sessions = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(authorized_project_id),
+            permission=Permission.VIEW_SESSIONS,
+        )
+        can_view_workflows = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(authorized_project_id),
+            permission=Permission.VIEW_WORKFLOWS,
+        )
+        if not (can_view_sessions and can_view_workflows):
+            raise FORBIDDEN_EXCEPTION
+
+        stream = watch_event_stream(
+            channel=project_watch_channel(str(authorized_project_id)),
+            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
+            retry_milliseconds=env.sessions.watch_retry_milliseconds,
+        )
+        return StreamingResponse(
+            stream,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
 
 class RecordsRouter:
@@ -639,10 +782,15 @@ class InteractionsRouter:
         interactions_service: SessionInteractionsService,
         workflows_service: WorkflowsService,
         respond_task: Optional[Any] = None,
+        # InteractionsDispatcher (typed loosely, like respond_task: the API layer does not
+        # import the tasks layer). When present, the no-worker respond fallback goes through
+        # it so both paths share ONE answer-composition implementation.
+        interactions_dispatcher: Optional[Any] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
         self.respond_task = respond_task
+        self.interactions_dispatcher = interactions_dispatcher
 
         self.router = APIRouter()
 
@@ -732,10 +880,10 @@ class InteractionsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        resolution = (
-            body.resolution.model_dump() if body.resolution is not None else None
-        )
-        if resolution is not None:
+        resolution = body.resolution
+        # `resolved` is approval-only whether or not an answer rides along, so the row lookup
+        # runs for a bare `resolved` transition too.
+        if resolution is not None or body.status == SessionInteractionStatus.resolved:
             interactions = await self.interactions_service.query_interactions(
                 project_id=project_id,
                 query=SessionInteractionQuery(session_id=body.session_id),
@@ -753,11 +901,25 @@ class InteractionsRouter:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Interaction not found or already terminal",
                 )
-            if source.kind != SessionInteractionKind.user_approval:
+            if (
+                body.status == SessionInteractionStatus.resolved
+                and source.kind != SessionInteractionKind.user_approval
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Resolution is only valid for user approval interactions",
+                    detail=f"Resolved status is not valid for {source.kind.value} interactions",
                 )
+            if (
+                resolution is not None
+                and source.kind == SessionInteractionKind.user_approval
+            ):
+                try:
+                    SessionInteractionResolution.model_validate(resolution)
+                except ValidationError as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=e.errors(include_context=False),
+                    ) from e
 
         try:
             interaction = await self.interactions_service.transition_interaction(
@@ -910,13 +1072,21 @@ class InteractionsRouter:
                 detail="Interaction is no longer pending",
             )
 
-        # Enqueue onto the interactions worker when wired; otherwise fall back to an
-        # inline blocking invoke (keeps the route usable in minimal/test compositions).
+        # Enqueue onto the interactions worker when wired; otherwise fall back to the
+        # dispatcher directly (same answer composition, fired in-process), or as a last
+        # resort an inline blocking invoke (keeps minimal/test compositions usable).
         if self.respond_task is not None:
             await self.respond_task.kiq(
                 project_id=str(project_id),
                 user_id=str(user_id),
                 interaction_id=str(interaction_id),
+                answer=answer,
+            )
+        elif self.interactions_dispatcher is not None:
+            await self.interactions_dispatcher.respond(
+                project_id=UUID(str(project_id)),
+                user_id=UUID(str(user_id)),
+                interaction_id=interaction_id,
                 answer=answer,
             )
         else:
@@ -1556,16 +1726,45 @@ class SessionsRootRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        sessions = await self.sessions_service.query_sessions(
+        if SessionExpansion.trigger in body.expand and not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_TRIGGERS,
+        ):
+            # Every other trigger read gates on VIEW_TRIGGERS; this one only checked
+            # VIEW_SESSIONS, so a custom role with the former but not the latter could
+            # read trigger names through the expansion (P2-3). Degrade rather than 403 —
+            # drop the expansion so `trigger.name` comes back None like an unrequested
+            # expansion, and the rest of the row still renders.
+            body = body.model_copy(
+                update={
+                    "expand": [
+                        expansion
+                        for expansion in body.expand
+                        if expansion != SessionExpansion.trigger
+                    ]
+                }
+            )
+
+        normalized = normalize_session_query_request(body)
+        page = await self.sessions_service.query_sessions_page(
             project_id=UUID(str(project_id)),
-            query=SessionQuery(
-                references=body.references,
-                include_ended=body.include_ended,
-                include_archived=body.include_archived,
-            ),
-            windowing=body.windowing,
+            query=normalized.predicates,
+            lifecycle=normalized.lifecycle,
+            options=normalized.options,
+            windowing=normalized.windowing,
         )
-        return SessionsResponse(count=len(sessions), sessions=sessions)
+        response_windowing = compute_session_response_windowing(
+            sessions=page.sessions,
+            requested=normalized.windowing,
+        )
+        sessions = [sanitize_session_stream(session) for session in page.sessions]
+        return SessionsResponse(
+            count=len(page.sessions),
+            total=page.total,
+            sessions=sessions,
+            windowing=response_windowing,
+        )
 
     @intercept_exceptions()
     async def delete_session(
@@ -1613,7 +1812,10 @@ class SessionsRootRouter:
             user_id=UUID(str(user_id)),
             session_id=session_id,
         )
-        return SessionResponse(count=1 if session else 0, session=session)
+        return SessionResponse(
+            count=1 if session else 0,
+            session=sanitize_session_stream(session),
+        )
 
     @intercept_exceptions()
     async def unarchive_session(
@@ -1637,7 +1839,10 @@ class SessionsRootRouter:
             user_id=UUID(str(user_id)),
             session_id=session_id,
         )
-        return SessionResponse(count=1 if session else 0, session=session)
+        return SessionResponse(
+            count=1 if session else 0,
+            session=sanitize_session_stream(session),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1671,6 +1876,7 @@ class SessionsRouter:
         turns_service: SessionTurnsService,
         sessions_service: SessionsService,
         respond_task: Optional[Any] = None,
+        interactions_dispatcher: Optional[Any] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
             service=streams_service,
@@ -1681,6 +1887,7 @@ class SessionsRouter:
             interactions_service=interactions_service,
             workflows_service=workflows_service,
             respond_task=respond_task,
+            interactions_dispatcher=interactions_dispatcher,
         )
         self.attachments = SessionAttachmentsRouter(
             attachments_service=attachments_service,

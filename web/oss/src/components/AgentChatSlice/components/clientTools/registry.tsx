@@ -4,16 +4,17 @@
  * Dispatch precedence is **`render.kind` → `toolName` → generic fallback**. `render.kind` is a
  * REQUIRED wire field for interaction kinds — it arrives as a sibling `data-render` part (AI SDK
  * tool chunks are strict), resolved into `meta.renderKind` via the message-scoped render map
- * (@agenta/playground `buildRenderMap`). The `toolName` axis remains for the shipped connect
- * widget, whose v1 wire predates the guarantee. Each later kind is one added entry, not a
- * protocol change. Contract: docs/design/agent-chat-interaction-kinds/decisions.md
+ * (@agenta/playground `buildRenderMap`). The `toolName` axis is the safety net for a hint that
+ * is missing or unknown — the connect widget's v1 wire predates the guarantee, and a transcript
+ * persisted before the replay path carried the sibling part has none. Each later kind is one added entry,
+ * not a protocol change. Contract: docs/design/agent-chat-interaction-kinds/decisions.md
  *
  *   runner interaction_request ──▶ tool part (+ sibling data-render part)
  *                                        │ AgentMessage: buildRenderMap(message.parts)
  *                                        ▼
  *                    ClientToolPart → resolveClientToolHandler(meta)
  *                    render.kind ──▶ BY_RENDER_KIND   (elicitation, connect, …)
- *                    toolName ─────▶ BY_TOOL_NAME     (request_connection)
+ *                    toolName ─────▶ BY_TOOL_NAME     (request_connection, request_input)
  *                    neither ──────▶ UnhandledClientTool (neutral "not handled", auto-settles)
  *                                        │ widget settles: output {action,…} | errorText
  *                                        ▼
@@ -26,6 +27,8 @@
  */
 import type {ComponentType} from "react"
 
+import {CLIENT_TOOL_DESCRIPTORS} from "@agenta/shared/clientTools"
+
 import ConnectToolWidget from "./ConnectToolWidget"
 import ElicitationWidget from "./ElicitationWidget"
 import type {ClientToolHandlerProps, ClientToolMeta} from "./types"
@@ -34,21 +37,23 @@ type ClientToolHandler = ComponentType<ClientToolHandlerProps>
 
 /** Handlers keyed by `render.kind` (checked first — the finer dispatch axis). */
 const BY_RENDER_KIND: Record<string, ClientToolHandler> = {
-    connect: ConnectToolWidget,
-    elicitation: ElicitationWidget,
+    [CLIENT_TOOL_DESCRIPTORS.connection.renderKind]: ConnectToolWidget,
+    [CLIENT_TOOL_DESCRIPTORS.elicitation.renderKind]: ElicitationWidget,
 }
 
-/** Handlers keyed by `toolName` (checked when no render hint matched). */
+/** Handlers keyed by `toolName` (checked when no render hint matched). Both entries are
+ * platform-reserved static tools, so the name is a safe second axis when the hint is missing —
+ * an old persisted transcript, or any replay path that didn't carry the sibling part. */
 const BY_TOOL_NAME: Record<string, ClientToolHandler> = {
-    request_connection: ConnectToolWidget,
+    [CLIENT_TOOL_DESCRIPTORS.connection.toolName]: ConnectToolWidget,
+    [CLIENT_TOOL_DESCRIPTORS.elicitation.toolName]: ElicitationWidget,
 }
 
 /** Resolve the widget for a client tool, or `null` when none is registered. */
-export const resolveClientToolHandler = (meta: ClientToolMeta): ClientToolHandler | null => {
-    if (meta.renderKind && BY_RENDER_KIND[meta.renderKind]) return BY_RENDER_KIND[meta.renderKind]
-    if (BY_TOOL_NAME[meta.toolName]) return BY_TOOL_NAME[meta.toolName]
-    return null
-}
+export const resolveClientToolHandler = (meta: ClientToolMeta): ClientToolHandler | null =>
+    (meta.renderKind ? BY_RENDER_KIND[meta.renderKind] : undefined) ??
+    BY_TOOL_NAME[meta.toolName] ??
+    null
 
 /** Whether this client tool has a dedicated widget (used to route known tools in every state). */
 export const hasClientToolHandler = (meta: ClientToolMeta): boolean =>

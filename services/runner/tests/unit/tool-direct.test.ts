@@ -28,13 +28,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  agentaErrorDetail,
   assembleBody,
+  resolveEphemeralArgs,
   deepDelete,
   deepMerge,
   deepSet,
   directCallUrl,
+  MAX_ERROR_DETAIL_CHARS,
   pathParamNames,
   resolveCtxToken,
+  stripEphemeralArgs,
   type DirectCall,
 } from "../../src/tools/direct.ts";
 import {
@@ -47,7 +51,9 @@ import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
 // A fake run context (direct-call tools, Phase 3a). The keys are the snake_case binding namespace
 // a `call.context` value (`"$ctx.<dotted.path>"`) addresses.
 const RUN_CONTEXT: RunContext = {
+  session: { id: "session-self" },
   workflow: {
+    artifact: { id: "agent-self" },
     variant: { id: "own-variant" },
     revision: { id: "rev_self" },
     is_draft: false,
@@ -180,6 +186,43 @@ describe("assembleBody", () => {
 // ---------------------------------------------------------------------------
 
 describe("assembleBody context binding", () => {
+  it("binds the runner-augmented $ctx.session.id", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/sessions/streams/header?session_id={session_id}",
+      context: { session_id: "$ctx.session.id" },
+    };
+    const body = assembleBody(
+      call,
+      { name: "Agent naming" },
+      RUN_CONTEXT,
+      "rename_session",
+    );
+    assert.deepEqual(body, {
+      name: "Agent naming",
+      session_id: "session-self",
+    });
+  });
+
+  it("names the tool when its session binding is missing", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/sessions/streams/header?session_id={session_id}",
+      context: { session_id: "$ctx.session.id" },
+    };
+    const { session: _session, ...runContextWithoutSession } = RUN_CONTEXT;
+    assert.throws(
+      () =>
+        assembleBody(
+          call,
+          { name: "Agent naming" },
+          runContextWithoutSession,
+          "rename_session",
+        ),
+      /missing run-context value for direct-call binding 'session_id' for tool 'rename_session'/,
+    );
+  });
+
   it("binds a $ctx value from the run context, deep-set at the mapped path", () => {
     const call: DirectCall = {
       method: "POST",
@@ -412,6 +455,46 @@ describe("directCallUrl", () => {
     );
   });
 
+  it("substitutes rename_session's bound id without weakening URL confinement", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/sessions/streams/header?session_id={session_id}",
+    };
+    const url = directCallUrl(ENDPOINT, call, {
+      session_id: "session/1?next=https://evil.example",
+    });
+    assert.equal(
+      url,
+      "https://agenta.example/api/sessions/streams/header?session_id=session%2F1%3Fnext%3Dhttps%3A%2F%2Fevil.example",
+    );
+    assert.equal(new URL(url).origin, "https://agenta.example");
+    assert.equal(new URL(url).pathname, "/api/sessions/streams/header");
+
+    for (const unsafePath of [
+      "https://evil.example/api/sessions/streams/header?session_id={session_id}",
+      "//evil.example/api/sessions/streams/header?session_id={session_id}",
+    ]) {
+      assert.throws(
+        () =>
+          directCallUrl(
+            ENDPOINT,
+            { ...call, path: unsafePath },
+            { session_id: "self" },
+          ),
+        /must be an absolute path starting with a single '\/'/,
+      );
+    }
+    assert.throws(
+      () =>
+        directCallUrl(
+          ENDPOINT,
+          { ...call, path: "/admin?session_id={session_id}" },
+          { session_id: "self" },
+        ),
+      /is outside the Agenta API mount '\/api'/,
+    );
+  });
+
   it("allows DELETE and substitutes scalar path parameters", () => {
     const url = directCallUrl(
       ENDPOINT,
@@ -451,10 +534,10 @@ describe("directCallUrl", () => {
     );
   });
 
-  it("rejects a disallowed method", () => {
+  it("rejects a method outside the four-item allowlist", () => {
     assert.throws(
       () => directCallUrl(ENDPOINT, { method: "PATCH" as any, path: "/api/x" }),
-      /method 'PATCH' is not allowed/,
+      /GET\/POST\/PUT\/DELETE only/,
     );
   });
 
@@ -653,6 +736,69 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
     });
   });
 
+  it("passes the tool name through a missing direct-call context error", async () => {
+    const selfSpec: ResolvedToolSpec = {
+      name: "rename_session",
+      kind: "callback",
+      call: {
+        method: "POST",
+        path: "/api/sessions/streams/header?session_id={session_id}",
+        context: { session_id: "$ctx.session.id" },
+      },
+    };
+    const { session: _session, ...runContextWithoutSession } = RUN_CONTEXT;
+    const res = await relayOnce(
+      selfSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { name: "Agent naming" },
+      runContextWithoutSession,
+    );
+
+    assert.equal(res.ok, false);
+    assert.match(
+      res.error ?? "",
+      /missing run-context value for direct-call binding 'session_id' for tool 'rename_session'/,
+    );
+  });
+
+  it("dispatches rename_agent with a PUT JSON body and bound URL", async () => {
+    const calls = stubFetch("renamed");
+    const renameAgentSpec: ResolvedToolSpec = {
+      name: "rename_agent",
+      kind: "callback",
+      call: {
+        method: "PUT",
+        path: "/api/workflows/{workflow_id}",
+        args_into: "workflow",
+        context: {
+          workflow_id: "$ctx.workflow.artifact.id",
+          "workflow.id": "$ctx.workflow.artifact.id",
+        },
+      },
+    };
+    const res = await relayOnce(
+      renameAgentSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      {
+        name: "Support triage",
+        description: "Routes and summarizes incoming support requests.",
+      },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init.method, "PUT");
+    assert.equal(calls[0].url, "https://agenta.example/api/workflows/agent-self");
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {
+      workflow: {
+        name: "Support triage",
+        description: "Routes and summarizes incoming support requests.",
+        id: "agent-self",
+      },
+    });
+  });
+
   it("strips substituted path params out of the POST body", async () => {
     const calls = stubFetch("paused");
     // A lifecycle op like pause_schedule: `id` names a path param AND is the only model arg.
@@ -707,5 +853,556 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
     assert.equal(res.error, "direct tool call failed: HTTP 500");
     assert.doesNotMatch(res.error ?? "", /agenta\.example/);
     assert.doesNotMatch(res.error ?? "", /stack trace|secret detail/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ephemeral arguments (the per-call `description`, R12)
+//
+// A builder tool call may carry a model-authored `description`: one or two sentences saying what
+// the call does and why. The frontend shows it beside the call, so it must stay in the RECORDED
+// call, and it must never reach the API. The runner therefore strips it at dispatch, on both
+// branches, before either one builds a request.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Error detail: our envelope reaches the model, anything else stays redacted
+// ---------------------------------------------------------------------------
+
+describe("agentaErrorDetail", () => {
+  it("returns a structured change-set refusal, so the agent can recover by itself", () => {
+    // The whole point. `out_of_scope` names what the agent did wrong and `next_step` says what to
+    // do instead. Reduced to `HTTP 422`, neither reaches the model and recovery is guesswork.
+    const detail = agentaErrorDetail(
+      JSON.stringify({
+        detail: {
+          code: "out_of_scope",
+          message: "The target 'parameters.secret' is outside this scope.",
+          next_step: "Target a field under 'parameters.agent'.",
+          retryable: false,
+        },
+      }),
+    );
+    assert.ok(detail);
+    assert.match(detail, /out_of_scope/);
+    assert.match(detail, /next_step/);
+    assert.match(detail, /parameters\.agent/);
+  });
+
+  it("returns a string detail unquoted", () => {
+    assert.equal(
+      agentaErrorDetail(JSON.stringify({ detail: "The variant is busy." })),
+      "The variant is busy.",
+    );
+  });
+
+  it("returns a FastAPI validation list, which is also our envelope", () => {
+    const detail = agentaErrorDetail(
+      JSON.stringify({ detail: [{ loc: ["body", "target"], msg: "field required" }] }),
+    );
+    assert.ok(detail);
+    assert.match(detail, /field required/);
+  });
+
+  for (const [name, body] of [
+    ["an HTML error page from a proxy", "<html><body>502 Bad Gateway</body></html>"],
+    ["a plain-text body", "upstream connect error"],
+    ["an empty body", ""],
+    ["JSON that is not an object", "[1, 2, 3]"],
+    ["an object with no detail", JSON.stringify({ error: "boom", host: "10.0.0.4" })],
+    ["a null detail", JSON.stringify({ detail: null })],
+    ["an empty-string detail", JSON.stringify({ detail: "" })],
+  ] as const) {
+    it(`stays redacted for ${name}`, () => {
+      assert.equal(agentaErrorDetail(body), undefined);
+    });
+  }
+
+  it("caps a long detail and says it did", () => {
+    const detail = agentaErrorDetail(
+      JSON.stringify({ detail: "x".repeat(MAX_ERROR_DETAIL_CHARS * 2) }),
+    );
+    assert.ok(detail);
+    assert.ok(
+      detail.length < MAX_ERROR_DETAIL_CHARS + 40,
+      "a huge upstream body cannot flood the tool result",
+    );
+    assert.match(detail, /\(truncated\)$/);
+  });
+});
+
+describe("a failed direct call, through the relay the model reads", () => {
+  it("carries the change-set code and next step into the tool result", async () => {
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          detail: {
+            code: "duplicate_item_key",
+            message: "Two skills share the name 'pdf'.",
+            next_step: "Rename one of them, then send the commit again.",
+            retryable: false,
+          },
+        }),
+        { status: 422 },
+      )) as typeof fetch;
+
+    const res = await relayOnce(
+      refSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { city: "Berlin" },
+    );
+
+    // The relay turns the throw into a tool ERROR result, so the model loop continues and reads
+    // this text. QA saw exactly this field carry `direct tool call failed: HTTP 422` and nothing
+    // else, which is why recovery by discovery was impossible.
+    assert.equal(res.ok, false);
+    const text = String((res as { error: string }).error);
+    assert.match(text, /HTTP 422/);
+    assert.match(text, /duplicate_item_key/);
+    assert.match(text, /Rename one of them/);
+  });
+
+  it("keeps a proxy error page redacted, so no internal detail reaches the model", async () => {
+    globalThis.fetch = (async () =>
+      new Response("<html><head><title>504</title></head><body>upstream 10.0.0.4</body></html>", {
+        status: 504,
+      })) as typeof fetch;
+
+    const res = await relayOnce(
+      refSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { city: "Berlin" },
+    );
+
+    assert.equal(res.ok, false);
+    const text = String((res as { error: string }).error);
+    assert.match(text, /HTTP 504/);
+    assert.doesNotMatch(text, /10\.0\.0\.4/);
+    assert.doesNotMatch(text, /html/);
+  });
+});
+
+describe("stripEphemeralArgs", () => {
+  it("removes only the declared top-level names", () => {
+    const args = { description: "why", workflow_revision: { message: "m" } };
+    assert.deepEqual(stripEphemeralArgs(args, ["description"]), {
+      workflow_revision: { message: "m" },
+    });
+  });
+
+  it("leaves a same-named NESTED field alone", () => {
+    // `create_schedule` and friends have a real `description` inside their payload object.
+    const args = { schedule: { description: "a real payload field" } };
+    assert.deepEqual(stripEphemeralArgs(args, ["description"]), args);
+  });
+
+  it("returns the same object when there is nothing to strip", () => {
+    const args = { a: 1 };
+    assert.equal(stripEphemeralArgs(args, ["description"]), args);
+    assert.equal(stripEphemeralArgs(args, []), args);
+    assert.equal(stripEphemeralArgs(args, undefined), args);
+  });
+
+  it("does not mutate the caller's arguments", () => {
+    const args = { description: "why", keep: 1 };
+    stripEphemeralArgs(args, ["description"]);
+    assert.deepEqual(args, { description: "why", keep: 1 });
+  });
+
+  it("passes a non-object through untouched", () => {
+    assert.equal(stripEphemeralArgs("plain", ["description"]), "plain");
+    assert.equal(stripEphemeralArgs(undefined, ["description"]), undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The misplaced description (R12 lift)
+// ---------------------------------------------------------------------------
+
+/** A commit-shaped schema: a payload object with no `description` field of its own. */
+const COMMIT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    workflow_revision: {
+      type: "object",
+      additionalProperties: false,
+      properties: { message: { type: "string" }, delta: { type: "object" } },
+    },
+  },
+};
+
+describe("resolveEphemeralArgs", () => {
+  it("lifts a description the model wrote inside the payload", () => {
+    // The whole point. A closed schema REJECTS this call, so the note the agent wrote for the
+    // human stops the build instead of decorating it.
+    const args = {
+      workflow_revision: { message: "Add pdf-tools.", description: "why I did it" },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], COMMIT_SCHEMA);
+
+    assert.deepEqual(out.lifted, [
+      { name: "description", from: "workflow_revision", value: "why I did it" },
+    ]);
+    assert.deepEqual(out.args, {
+      workflow_revision: { message: "Add pdf-tools." },
+    });
+    assert.deepEqual(out.shadowed, []);
+  });
+
+  it("prefers the top level and drops the nested copy", () => {
+    const args = {
+      description: "the one the model meant",
+      workflow_revision: { message: "m", description: "the stray copy" },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], COMMIT_SCHEMA);
+
+    assert.deepEqual(out.lifted, [], "nothing to lift: the top level said it");
+    assert.deepEqual(out.shadowed, [
+      { name: "description", from: "workflow_revision" },
+    ]);
+    assert.deepEqual(out.args, { workflow_revision: { message: "m" } });
+  });
+
+  it("never lifts a field the endpoint actually declares", () => {
+    // The guard that lets this be a RULE rather than a list of tool names. Four platform ops carry
+    // a real `description` inside their payload; none accepts the ephemeral one today, and this is
+    // what keeps that from being load-bearing.
+    const scheduleSchema = {
+      type: "object",
+      properties: {
+        schedule: {
+          type: "object",
+          properties: { description: { type: "string" }, cron: { type: "string" } },
+        },
+      },
+    };
+    const args = { schedule: { description: "a real payload field", cron: "* * * * *" } };
+
+    const out = resolveEphemeralArgs(args, ["description"], scheduleSchema);
+
+    assert.deepEqual(out.lifted, []);
+    assert.deepEqual(out.shadowed, []);
+    assert.equal(out.args, args, "the arguments are handed on untouched");
+  });
+
+  it("lifts a property the catalog marks ephemeral, even though the schema declares it", () => {
+    // SCHEMA TOLERANCE (cross-lane, verify-api). The catalog now ADVERTISES `description` in the
+    // position models keep writing to, so the call validates instead of being refused. The marker
+    // is what keeps it a note rather than a field: without this branch the note stops being
+    // stripped and lands in `workflow_revision.description`, a REAL persisted column, which
+    // read-config.md 12.3 forbids.
+    const tolerantSchema = {
+      type: "object",
+      properties: {
+        workflow_revision: {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+            description: {
+              type: "string",
+              maxLength: 500,
+              "x-ag-ephemeral": true,
+            },
+          },
+        },
+      },
+    };
+    const args = {
+      workflow_revision: { message: "m", description: "my note" },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], tolerantSchema);
+
+    assert.deepEqual(out.lifted, [
+      { name: "description", from: "workflow_revision", value: "my note" },
+    ]);
+    assert.deepEqual(out.args, { workflow_revision: { message: "m" } });
+  });
+
+  it("treats a falsy or missing marker as a genuine field", () => {
+    // Only a literal `true` opts in. Anything else leaves the guard intact, which is what keeps
+    // `create_schedule` and the three other ops with a real payload `description` untouched.
+    for (const marker of [false, "true", 1, undefined]) {
+      const schema = {
+        type: "object",
+        properties: {
+          schedule: {
+            type: "object",
+            properties: {
+              description: {
+                type: "string",
+                ...(marker === undefined ? {} : { "x-ag-ephemeral": marker }),
+              },
+            },
+          },
+        },
+      };
+      const args = { schedule: { description: "a real payload field" } };
+
+      const out = resolveEphemeralArgs(args, ["description"], schema);
+
+      assert.deepEqual(out.lifted, [], `marker ${String(marker)} must not opt in`);
+      assert.equal(out.args, args);
+    }
+  });
+
+  it("refuses to lift when the payload schema is unknown", () => {
+    // A rejected call is visible and recoverable. A silently deleted field is neither, so an
+    // unknown schema keeps today's behavior.
+    const args = { mystery: { description: "cannot prove this is ephemeral" } };
+
+    const out = resolveEphemeralArgs(args, ["description"], undefined);
+
+    assert.deepEqual(out.lifted, []);
+    assert.equal(out.args, args);
+  });
+
+  it("looks one level down and no deeper", () => {
+    // `parameters.agent.skills[].description` is a real field a user asked to commit. A deeper
+    // walk would delete it.
+    const args = {
+      workflow_revision: {
+        delta: { set: { parameters: { agent: { skills: [{ description: "a real skill note" }] } } } },
+      },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], COMMIT_SCHEMA);
+
+    assert.deepEqual(out.lifted, []);
+    assert.equal(out.args, args);
+  });
+
+  it("lifts the first of several and reports the rest", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        first: { type: "object", properties: { a: {} } },
+        second: { type: "object", properties: { b: {} } },
+      },
+    };
+    const args = {
+      first: { a: 1, description: "one" },
+      second: { b: 2, description: "two" },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], schema);
+
+    assert.deepEqual(out.lifted, [
+      { name: "description", from: "first", value: "one" },
+    ]);
+    assert.deepEqual(out.shadowed, [{ name: "description", from: "second" }]);
+    assert.deepEqual(out.args, { first: { a: 1 }, second: { b: 2 } });
+  });
+
+  it("leaves a tool that declares no ephemeral args completely alone", () => {
+    const args = { workflow_revision: { description: "not ephemeral here" } };
+
+    assert.equal(resolveEphemeralArgs(args, undefined, COMMIT_SCHEMA).args, args);
+    assert.equal(resolveEphemeralArgs(args, [], COMMIT_SCHEMA).args, args);
+  });
+
+  it("does not mutate the caller's arguments, so the recorded call keeps the note", () => {
+    // The recorded call and the approval card read the model's own arguments. The dispatch copy is
+    // the only thing that loses the note.
+    const args = {
+      workflow_revision: { message: "m", description: "why I did it" },
+    };
+    const snapshot = structuredClone(args);
+
+    resolveEphemeralArgs(args, ["description"], COMMIT_SCHEMA);
+
+    assert.deepEqual(args, snapshot);
+  });
+});
+
+describe("relay strips ephemeral args before it builds a request", () => {
+  /** A builder op: self-targeting, and it accepts the ephemeral description. */
+  const commitSpec: ResolvedToolSpec = {
+    name: "commit_revision",
+    kind: "callback",
+    call: {
+      method: "POST",
+      path: "/api/workflows/revisions/commit",
+      context: {
+        "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id",
+      },
+    },
+    ephemeralArgs: ["description"],
+  };
+
+  it("keeps the description out of the direct-call request body", async () => {
+    const calls = stubFetch("committed");
+    const res = await relayOnce(
+      commitSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      {
+        description: "Adding the pdf-tools skill you asked for.",
+        workflow_revision: { message: "Add the pdf-tools skill." },
+      },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    const body = JSON.parse(calls[0].init.body as string);
+    assert.equal(
+      body.description,
+      undefined,
+      "the ephemeral note never reaches the API",
+    );
+    assert.deepEqual(body, {
+      workflow_revision: {
+        message: "Add the pdf-tools skill.",
+        workflow_variant_id: "own-variant",
+      },
+    });
+  });
+
+  it("lifts a nested description out of the dispatched body", async () => {
+    // The production shape: the model writes the note one level down, and the endpoint's closed
+    // schema refuses the whole call. The lift makes the commit land while the recorded call keeps
+    // the note for the human.
+    const calls = stubFetch("committed");
+    const liftSpec: ResolvedToolSpec = {
+      ...commitSpec,
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          workflow_revision: {
+            type: "object",
+            additionalProperties: false,
+            properties: { message: { type: "string" } },
+          },
+        },
+      },
+    };
+
+    const res = await relayOnce(
+      liftSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      {
+        workflow_revision: {
+          message: "Add the pdf-tools skill.",
+          description: "Adding the pdf-tools skill you asked for.",
+        },
+      },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    const body = JSON.parse(calls[0].init.body as string);
+    // Asserted before the whole-shape check below, which narrows `body` to the literal type.
+    assert.equal(
+      body.workflow_revision.description,
+      undefined,
+      "the misplaced note never reaches the API, so the call is no longer refused",
+    );
+    assert.deepEqual(body, {
+      workflow_revision: {
+        message: "Add the pdf-tools skill.",
+        workflow_variant_id: "own-variant",
+      },
+    });
+  });
+
+  it("sends the same body when the model writes no description", async () => {
+    const calls = stubFetch("committed");
+    const res = await relayOnce(
+      commitSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { workflow_revision: { message: "Add the pdf-tools skill." } },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    const body = JSON.parse(calls[0].init.body as string);
+    // No empty key appears: absent and present-then-stripped produce one identical request.
+    assert.deepEqual(body, {
+      workflow_revision: {
+        message: "Add the pdf-tools skill.",
+        workflow_variant_id: "own-variant",
+      },
+    });
+    assert.ok(!("description" in body));
+  });
+
+  it("strips BEFORE args_into, so the note cannot land inside the payload", async () => {
+    // This is the failure the strip point prevents: with `args_into` every model argument is
+    // deep-set at that path, so a description left in place would become `data.inputs.description`.
+    const calls = stubFetch("ok");
+    const spec: ResolvedToolSpec = {
+      ...refSpec,
+      ephemeralArgs: ["description"],
+    };
+    const res = await relayOnce(
+      spec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { description: "Checking the weather first.", city: "Berlin" },
+    );
+
+    assert.equal(res.ok, true);
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {
+      data: { inputs: { city: "Berlin" } },
+      references: { workflow_revision: { id: "rev_abc123" } },
+    });
+  });
+
+  it("strips on the gateway branch too (handler-mode ops post through /tools/call)", async () => {
+    const calls = stubFetch(JSON.stringify({ ok: true }));
+    // `test_run` is handler-mode: it carries a callRef, not a `call` descriptor.
+    const testRunSpec: ResolvedToolSpec = {
+      name: "test_run",
+      kind: "callback",
+      callRef: "tools.agenta.test_run",
+      contextBindings: {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id",
+      },
+      ephemeralArgs: ["description"],
+    };
+    const res = await relayOnce(
+      testRunSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      {
+        description: "Trying the new instructions once.",
+        inputs: { messages: [] },
+      },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(
+      (calls[0].init.body as string).includes(
+        "Trying the new instructions once.",
+      ),
+      false,
+      "the ephemeral note never reaches /tools/call",
+    );
+  });
+
+  it("leaves `description` alone for an op that did not declare it ephemeral", async () => {
+    // A payload field named `description` is normal (a schedule, a subscription). Only a spec
+    // that declares the name loses it, so the strip can never eat someone else's data.
+    const calls = stubFetch("ok");
+    const plainSpec: ResolvedToolSpec = {
+      name: "create_thing",
+      kind: "callback",
+      call: { method: "POST", path: "/api/things" },
+    };
+    const res = await relayOnce(
+      plainSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { description: "a real field" },
+    );
+
+    assert.equal(res.ok, true);
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {
+      description: "a real field",
+    });
   });
 });

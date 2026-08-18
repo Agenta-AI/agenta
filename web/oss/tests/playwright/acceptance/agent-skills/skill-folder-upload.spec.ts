@@ -9,7 +9,7 @@ import {
     TestSpeedType,
     TestcaseType,
 } from "@agenta/web-tests/playwright/config/testTags"
-import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {expect} from "@agenta/web-tests/utils"
 import type {Page} from "@playwright/test"
@@ -24,6 +24,20 @@ import {
 import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
+
+const test = baseTest.extend<{
+    registerAgentAppForCleanup: (appId: string) => void
+}>({
+    registerAgentAppForCleanup: async ({apiHelpers}, use) => {
+        let appId: string | undefined
+        await use((createdAppId) => {
+            appId = createdAppId
+        })
+        if (appId) {
+            await apiHelpers.archiveApp(appId)
+        }
+    },
+})
 
 const scenarios = createScenarios(test)
 
@@ -92,10 +106,12 @@ const selectBundledFile = async (page: Page, label: string) => {
         .click()
 }
 
-test(
+// Skipped per release-gate decision (Mahmoud, 2026-08-10): rotating environment-sensitive
+// failure in CI (gate run 31401605372). Tracked for repair, not deleted.
+test.skip(
     "uploading a skill package parses the folded description and keeps bundled files isolated",
     {tag: tags},
-    async ({page, uiHelpers}) => {
+    async ({page, uiHelpers, registerAgentAppForCleanup}) => {
         const appName = `e2e-skill-upload-${Date.now()}`
         const descriptionField = () =>
             skillDrawer(page).getByPlaceholder("When the agent should reach for this skill")
@@ -135,8 +151,13 @@ test(
                 {timeout: 90000},
             )
             await uiHelpers.clickButton("Create", appCreateDrawer)
+            // Match the dialog by role, not by a component-library class:
+            // `EntityCommitModal` renders through `EnhancedModal`, now a facade over
+            // the @agenta/ui (Radix) `Dialog`, so no `.ant-modal-wrap` exists here.
+            // Radix `aria-hidden`s the launching antd drawer while the modal is open,
+            // so exactly one dialog resolves.
             const confirmModal = page
-                .locator(".ant-modal-wrap")
+                .getByRole("dialog")
                 .filter({has: page.getByRole("button", {name: "Create", exact: true})})
                 .last()
             await expect(confirmModal).toBeVisible({timeout: 15000})
@@ -145,6 +166,7 @@ test(
             const createResponse = await createResponsePromise
             expect(createResponse.ok()).toBe(true)
             const created = (await createResponse.json()) as {workflow: {id: string}}
+            registerAgentAppForCleanup(created.workflow.id)
 
             // Environments without the agent platform (e.g. OSS previews with the feature
             // flags off) silently create a prompt-type app here, so the Skills UI under test

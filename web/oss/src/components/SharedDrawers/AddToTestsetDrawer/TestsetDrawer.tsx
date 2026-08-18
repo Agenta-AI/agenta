@@ -79,7 +79,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                 headerExtra="Add to testset"
                 closeButtonProps={{"data-tour": "add-to-testset-close"}}
                 footer={
-                    <div className="flex flex-col gap-3 py-2 px-3">
+                    <div className="flex flex-col gap-3 py-2 px-3 w-full">
                         {/* Commit message input */}
                         <div className="flex flex-col gap-1">
                             <Typography.Text className="text-gray-500">

@@ -4,6 +4,7 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
+import {agentNameFromTask} from "../assets/agentName"
 import {
     captureFirstAgentIntent,
     classifyAgentIntent,
@@ -46,7 +47,14 @@ export function useAgentHomeActions(
                     intentValue: classifyAgentIntent(message),
                 })
             }
-            return createAgent({name: templateName, seedMessage: message, autoSendSeed})
+            // A template names the agent after itself; free text names it after the task. Without
+            // this every composer-created agent was literally called "New agent", which made the
+            // roster and the session list's agent column carry no information.
+            return createAgent({
+                name: templateName || agentNameFromTask(message) || undefined,
+                seedMessage: message,
+                autoSendSeed,
+            })
         },
         [createAgent, posthog, readPrompt, autoSendSeed],
     )

@@ -2,7 +2,7 @@
  * AgentTemplateControl
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
- * of collapsible accordion sections (Model & harness, Instructions, Tools, MCP servers,
+ * of collapsible accordion sections (Model, Instructions, Tools, MCP servers,
  * Advanced), built on the reusable {@link ConfigAccordionSection} primitive so the same
  * pattern can roll out to other config surfaces.
  *
@@ -29,24 +29,10 @@ import {agentCreationPrefsAtom, workflowBuildKitEnabledAtomFamily} from "@agenta
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
-import {HeightCollapse} from "@agenta/ui/components"
-import {
-    ConfigAccordionSection,
-    useRecentFlag,
-    type SectionIndicatorTone,
-} from "@agenta/ui/components/presentational"
+import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {
-    Cpu,
-    FileText,
-    GraduationCap,
-    Plugs,
-    Plus,
-    SlidersHorizontal,
-    Wrench,
-} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Cpu, FileText, GraduationCap, Plugs, SlidersHorizontal, Wrench} from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
@@ -56,17 +42,23 @@ import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 import {AddTextLink} from "./AddTextLink"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
+import {
+    AgentTemplateSectionList,
+    type AgentTemplateSectionDescriptor,
+} from "./agentTemplate/AgentTemplateSectionList"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
+import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
     revertPathsTo,
     useAgentSectionChanges,
     type PanelSectionKey,
 } from "./agentTemplate/sectionChanges"
+import {SectionTitleBadge} from "./agentTemplate/SectionTitleBadge"
 import {ToolManagementList} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
@@ -76,7 +68,6 @@ import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
-import {SectionQuickAction} from "./SectionQuickAction"
 import {
     isHarnessBuiltinTool,
     parseGatewayTool,
@@ -119,9 +110,8 @@ export interface AgentTemplateControlProps {
 //     must run BELOW the providers — wrapping its output in them does nothing. A body rendered from
 //     the parent's `mh` silently ignores both filters.
 //  2. Cost. `useModelHarness` carries harness-catalog + vault-secrets + build-kit-overlay
-//     subscriptions; mounting it per body keeps them scoped to a body that is actually on screen
-//     (`SectionDrawer` uses `destroyOnClose`; the inline body mounts only while a section has
-//     uncommitted changes).
+//     subscriptions; mounting it per body keeps them scoped to the bodies that are on screen
+//     (`SectionDrawer` uses `destroyOnClose`).
 const ModelHarnessSectionBody = ({
     section,
     ...params
@@ -132,7 +122,7 @@ const ModelHarnessSectionBody = ({
     if (section === "advanced") {
         return <>{mh.advancedDrawerBody}</>
     }
-    return <>{mh.modelHarnessDrawerBody}</>
+    return <>{mh.modelHarnessBody}</>
 }
 
 // The four list sections whose open-state is controlled so the accordion can auto-expand when
@@ -242,7 +232,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         sectionBaseline.current = null
     }, [])
 
-    // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → Model & harness).
+    // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → the Model section).
     const [openSectionRequest, setOpenSectionRequest] = useAtom(openAgentConfigSectionAtom)
     useEffect(() => {
         if (!openSectionRequest) return
@@ -257,7 +247,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (draftConfig !== null) {
             onChange(draftConfig)
             // Remember the harness/model/connection pick for future agent creations — only on an
-            // explicit Model & harness save, not on every keystroke or the Advanced section.
+            // explicit Model-section save, not on every keystroke or the Advanced section.
             if (openSection === "model-harness") {
                 const harness = draftConfig.harness
                 const harnessKind =
@@ -371,10 +361,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             draftBuildKit !== null ? {value: draftBuildKit, onChange: setDraftBuildKit} : undefined,
         [draftBuildKit],
     )
-    // "Current" marks the SAVED harness (from the live entity), not the draft pick.
-    const savedHarnessValue =
-        ((config.harness as Record<string, unknown> | undefined)?.kind as string | undefined) ??
-        null
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
@@ -528,7 +514,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         disabled={disabled}
                         withTooltip={withTooltip}
                         revisionId={revisionId}
-                        savedHarnessValue={savedHarnessValue}
                     />
                 </SectionChangeBody>
             )
@@ -543,7 +528,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             onChange,
             withTooltip,
             revisionId,
-            savedHarnessValue,
         ],
     )
 
@@ -723,28 +707,21 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
         return undefined
     }
-    // A short pill rendered next to a section title for the blocking cases the user must resolve,
-    // matching the header indicator's tone. Kept terse so it never crowds the title (the section
-    // shell truncates the title and keeps the pill `shrink-0`).
-    const sectionBadge = (key: string): React.ReactNode => {
-        if (key !== "model-harness") return null
-        const pill = (label: string, tone: "warning" | "error") => (
-            <span
-                className={cn(
-                    "whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium leading-none",
-                    tone === "error"
-                        ? "bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorError)]"
-                        : "bg-[var(--ag-colorWarningBg)] text-[var(--ag-colorWarning)]",
-                )}
-            >
-                {label}
-            </span>
-        )
-        if (mh.hasModelOrHarness && !modelIdFromConfig(config.llm)) return pill("No model", "error")
-        if (mh.modelUnsupported) return pill("Unavailable", "error")
-        if (mh.needsProviderKey) return pill("Connect key", "warning")
-        return null
-    }
+    // Final header indicator for a section: validation/draft state, falling back to the agent's
+    // self-commit mark, with the cross-pane draft pulse layered on. One place so the drawers, the
+    // marks, and the header can never disagree.
+    const sectionIndicator = (key: string) =>
+        withDraftPulse(key, headerIndicator(key) ?? agentChangeIndicator(key))
+
+    // The blocking cases the user must resolve, as a short pill next to the Model section title.
+    const modelHarnessBadge: React.ReactNode =
+        mh.hasModelOrHarness && !modelIdFromConfig(config.llm) ? (
+            <SectionTitleBadge label="No model" tone="error" />
+        ) : mh.modelUnsupported ? (
+            <SectionTitleBadge label="Unavailable" tone="error" />
+        ) : mh.needsProviderKey ? (
+            <SectionTitleBadge label="Connect key" tone="warning" />
+        ) : null
 
     const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
         ? {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
@@ -772,49 +749,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         onOpenIntegration: gatewayTools?.enabled ? openIntegration : undefined,
     }
 
-    // Compact "+" for a section header's `extra` slot (stops propagation, so it never toggles open).
-    // The header keeps a uniform height regardless of this button — ConfigAccordionSection collapses
-    // the extra slot's vertical footprint (see its `-my-2`), so no per-button sizing is needed here.
+    // Compact "+" for a section header's `extra` slot. The header keeps a uniform height regardless
+    // of this button — ConfigAccordionSection collapses the extra slot's vertical footprint (see its
+    // `-my-2`), so no per-button sizing is needed here.
     const headerAddButton = (label: string, onClick: () => void) => (
-        <Tooltip title={label}>
-            <Button type="text" icon={<Plus size={16} />} onClick={onClick} aria-label={label} />
-        </Tooltip>
+        <SectionAddButton label={label} onClick={onClick} />
     )
 
-    // The inline "what changed" bodies for the two drawer-backed sections. Null when the section is
-    // clean (or the variant is off), which is what keeps it a plain drawer-opening row.
-    const modelChangeBody = changeBodyFor("model-harness")
+    // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
+    // is clean, which is what keeps it a plain drawer-opening row.
     const advancedChangeBody = changeBodyFor("advanced")
-
-    /**
-     * Only a BLOCKING problem opens a section by itself. "Can't run without a provider key" is a
-     * demand and earns the interruption; "you changed something" is an answer to a question the
-     * reader may not be asking — the header indicator already says a change is there, and expanding
-     * every changed section on mount would greet them with an unfolded panel every edit. So the
-     * change body is what the section shows WHEN OPENED, not a reason to open it.
-     */
-    const needsProviderKeyInline = Boolean(mh.needsProviderKey && mh.providerCredentialsInline)
-
-    // Graceful exit: when the key lands, `needsProviderKeyInline` flips false and the section would
-    // swap straight to its resolved (drawer-opening) row — the inline pane vanishing in one frame.
-    // Hold the inline branch mounted for one collapse cycle so the pane can animate closed instead.
-    // The transition is detected during render (not in an effect) so there's never an un-held frame
-    // where the pane has already been replaced by the resolved row.
-    const KEY_PANE_EXIT_MS = 320
-    const prevNeedsKeyInlineRef = useRef(needsProviderKeyInline)
-    const [keyPaneExiting, setKeyPaneExiting] = useState(false)
-    if (prevNeedsKeyInlineRef.current !== needsProviderKeyInline) {
-        if (prevNeedsKeyInlineRef.current && !needsProviderKeyInline) setKeyPaneExiting(true)
-        prevNeedsKeyInlineRef.current = needsProviderKeyInline
-    }
-    useEffect(() => {
-        if (!keyPaneExiting) return
-        const t = window.setTimeout(() => setKeyPaneExiting(false), KEY_PANE_EXIT_MS)
-        return () => window.clearTimeout(t)
-    }, [keyPaneExiting])
-    // Show (and keep mounting) the inline pane while it's needed OR animating out.
-    const showKeyPane =
-        (needsProviderKeyInline || keyPaneExiting) && Boolean(mh.providerCredentialsInline)
 
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
     // tabs / cards) without duplicating the content. Schema-gated, like before.
@@ -822,61 +766,37 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         mh.hasModelOrHarness && {
             key: "model-harness",
             icon: <Cpu size={16} />,
-            title: "Model & harness",
+            title: "Model",
+            titleBadge: modelHarnessBadge,
             summary: mh.modelSummary,
-            indicator: headerIndicator("model-harness"),
-            defaultOpen: needsProviderKeyInline,
-            // What the section surfaces inline, in precedence order. Dropping `onOpen` is what makes
-            // a section expand inline instead of routing to the drawer.
-            //   1. Required info missing (no provider key) — BLOCKING, so it wins: the same key field
-            //      the drawer uses, right here.
-            //   2. Uncommitted changes — informational: what changed (see `changeBodyFor`).
-            //   3. Neither — the plain drawer row it has always been.
-            ...(showKeyPane
-                ? {
-                      // The body owns its padding (inside the collapse) so it can collapse to zero
-                      // height with no residual — the section body wrapper adds none.
-                      bodyClassName: "",
-                      content: (
-                          <HeightCollapse open={needsProviderKeyInline} fade>
-                              <div className="flex flex-col gap-3 pb-4 pt-1">
-                                  <SectionQuickAction
-                                      onOpenDetails={() => openSectionDrawer("model-harness")}
-                                      disabled={disabled}
-                                  >
-                                      {mh.providerCredentialsInline}
-                                  </SectionQuickAction>
-                              </div>
-                          </HeightCollapse>
-                      ),
-                  }
-                : modelChangeBody
-                  ? {content: modelChangeBody}
-                  : {
-                        onOpen: () => openSectionDrawer("model-harness"),
-                        content: mh.modelHarnessDrawerBody,
-                    }),
+            indicator: sectionIndicator("model-harness"),
+            // A model still to connect is the one thing that opens the section by itself — the list
+            // holds the affordance that fixes it.
+            defaultOpen: Boolean(mh.needsProviderKey),
+            // The section EXPANDS (it carries no `onOpen`, which is what routes a header to a drawer
+            // instead): the connection list renders right here. The drawer survives for the chat's
+            // "connect a model" banner and for the Advanced section; it is just no longer where this
+            // header leads.
+            content: (
+                <ChangedPathsProvider changes={panelChangedPaths}>
+                    <ModelHarnessSectionBody
+                        section="model-harness"
+                        schema={schema}
+                        config={config}
+                        onChange={onChange}
+                        disabled={disabled}
+                        withTooltip={withTooltip}
+                        revisionId={revisionId}
+                    />
+                </ChangedPathsProvider>
+            ),
         },
         hasInstructions && {
             key: "instructions",
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
             summary: countSummary(1, "file"),
-            indicator: headerIndicator("instructions"),
-            // The + is inert until the backend stores multiple instruction files; the section is
-            // already a list so it lights up with no rework when that lands.
-            extra: !disabled ? (
-                <Tooltip title="Multiple instruction files coming soon">
-                    <span>
-                        <Button
-                            type="text"
-                            icon={<Plus size={16} />}
-                            disabled
-                            aria-label="Add instruction file"
-                        />
-                    </span>
-                </Tooltip>
-            ) : undefined,
+            indicator: sectionIndicator("instructions"),
             defaultOpen: true,
             content: (
                 <div className="flex flex-col gap-2">
@@ -894,20 +814,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             icon: <Wrench size={16} />,
             title: fieldTitle("tools", "Tools"),
             summary: countSummary(visibleToolCount, "tool"),
-            indicator: headerIndicator("tools"),
+            indicator: sectionIndicator("tools"),
             extra: !disabled ? (
                 <AgentToolSelectorPopover
                     {...toolSelectorProps}
-                    trigger={
-                        <Tooltip title="Add tool">
-                            <Button
-                                type="text"
-                                icon={<Plus size={16} />}
-                                disabled={disabled}
-                                aria-label="Add tool"
-                            />
-                        </Tooltip>
-                    }
+                    trigger={<SectionAddButton label="Add tool" disabled={disabled} />}
                 />
             ) : undefined,
             defaultOpen: visibleToolCount > 0,
@@ -936,7 +847,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             icon: <Plugs size={16} />,
             title: fieldTitle("mcps", "MCPs"),
             summary: countSummary(mcpServers.length, "server"),
-            indicator: headerIndicator("mcp"),
+            indicator: sectionIndicator("mcp"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
             content: (
@@ -957,7 +868,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             icon: <GraduationCap size={16} />,
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
-            indicator: headerIndicator("skills"),
+            indicator: sectionIndicator("skills"),
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
             content: (
@@ -977,7 +888,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
-            indicator: headerIndicator("advanced"),
+            indicator: sectionIndicator("advanced"),
             // Never self-opening: nothing in Advanced blocks a run (see `needsProviderKeyInline`).
             defaultOpen: false,
             summary: mh.advancedSummary,
@@ -990,18 +901,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       content: mh.advancedDrawerBody,
                   }),
         },
-    ].filter(Boolean) as {
-        key: string
-        icon: React.ReactNode
-        title: React.ReactNode
-        summary?: React.ReactNode
-        extra?: React.ReactNode
-        indicator?: {tone: SectionIndicatorTone; tooltip?: string}
-        defaultOpen?: boolean
-        onOpen?: () => void
-        bodyClassName?: string
-        content: React.ReactNode
-    }[]
+    ].filter(Boolean) as AgentTemplateSectionDescriptor[]
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
     // goes null on close; retaining the last value and driving `open` off the live state lets the
@@ -1015,48 +915,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     return (
         <div className={cn("flex flex-col", className)}>
-            {sections.length === 0 ? (
-                <Typography.Text type="secondary" className="text-xs">
-                    No agent configuration fields are available for this schema.
-                </Typography.Text>
-            ) : (
-                sections.map((s, index) => {
-                    // Controlled keys drive `open`/`onOpenChange` so the agent can auto-expand them;
-                    // everything else keeps the mount-collapsed-then-unfold `defaultOpen` behaviour.
-                    const controlled = CONTROLLED_SECTION_KEYS.has(s.key)
-                    return (
-                        <ConfigAccordionSection
-                            key={s.key}
-                            icon={s.icon}
-                            title={s.title}
-                            titleBadge={sectionBadge(s.key)}
-                            summary={s.summary}
-                            extra={s.extra}
-                            indicator={withDraftPulse(
-                                s.key,
-                                s.indicator ?? agentChangeIndicator(s.key),
-                            )}
-                            onOpen={s.onOpen}
-                            bodyClassName={s.bodyClassName}
-                            // The panel body sits in the config section's `px-4` field wrapper
-                            // (PlaygroundConfigSection), so the expanded header's fill bleeds 16px
-                            // each side to the panel edges while its text stays aligned with the
-                            // content below.
-                            headerBand="-mx-4 px-4"
-                            noDivider={index === sections.length - 1}
-                            {...(controlled
-                                ? {
-                                      open: sectionOpen[s.key] ?? s.defaultOpen ?? false,
-                                      onOpenChange: (open: boolean) =>
-                                          setSectionOpenByKey(s.key, open),
-                                  }
-                                : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
-                        >
-                            {s.content}
-                        </ConfigAccordionSection>
-                    )
-                })
-            )}
+            <AgentTemplateSectionList
+                sections={sections}
+                controlledKeys={CONTROLLED_SECTION_KEYS}
+                openByKey={sectionOpen}
+                onOpenChange={setSectionOpenByKey}
+            />
 
             {shownEditing
                 ? (() => {
@@ -1127,7 +991,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
             <SectionDrawer
                 open={openSection === "model-harness"}
-                title="Model & harness"
+                title="Model"
                 icon={<Cpu size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
@@ -1150,7 +1014,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         withTooltip={withTooltip}
                         revisionId={revisionId}
                         buildKitEnabledOverride={draftBuildKitOverride}
-                        savedHarnessValue={savedHarnessValue}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
@@ -1175,7 +1038,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         withTooltip={withTooltip}
                         revisionId={revisionId}
                         buildKitEnabledOverride={draftBuildKitOverride}
-                        savedHarnessValue={savedHarnessValue}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>

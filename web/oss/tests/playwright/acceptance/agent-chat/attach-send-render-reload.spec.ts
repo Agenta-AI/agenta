@@ -39,6 +39,9 @@ test(
     "an uploaded attachment renders after send and after reload",
     {tag: tags},
     async ({page, seedAgentChatApp, navigateToAgentPlayground}) => {
+        // API seeding + 2 navigations + file upload + SSE-mocked run + reload is heavier
+        // than the 60s default (siblings that do less than this already bump to 120s+, #5695).
+        test.setTimeout(120000)
         await expectAuthenticatedSession(page)
         const appId = await seedAgentChatApp()
         await navigateToAgentPlayground(appId)
@@ -85,12 +88,15 @@ test(
 
         const runRequest = await runRequestPromise
         expect(runRequest.postData() ?? "").not.toContain("data:")
-        await expect(page.getByText(IMAGE_NAME, {exact: true}).last()).toBeVisible()
+        // FileCard (@ant-design/x) renders an image attachment as just an <img>, with the
+        // filename only in `alt` — there is no separate visible text caption for images
+        // (unlike the file/audio/video card types, which do render a name label).
+        await expect(page.getByAltText(IMAGE_NAME).last()).toBeVisible()
         await expect.poll(() => contentReads).toBeGreaterThanOrEqual(1)
 
         await page.reload({waitUntil: "domcontentloaded"})
 
-        await expect(page.getByText(IMAGE_NAME, {exact: true}).last()).toBeVisible()
+        await expect(page.getByAltText(IMAGE_NAME).last()).toBeVisible()
         await expect.poll(() => contentReads).toBeGreaterThanOrEqual(2)
     },
 )

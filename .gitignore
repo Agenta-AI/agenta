@@ -74,6 +74,11 @@ services/runner/tests/results/
 !.github/**
 !.husky/
 !.husky/**
+!.coderabbit.yaml
+
+# QA gate run outputs: machine artifacts with per-run probe tokens that trip secret
+# scanners (and once rode a blanket commit onto a public branch). Never tracked.
+.agents/skills/agent-release-gate/qa-gate-runs/
 !.dockerignore
 !api/.dockerignore
 !services/.dockerignore
@@ -100,6 +105,9 @@ services/runner/tests/results/
 !.agents/skills/write-pr-description/
 !.agents/skills/write-social-announcement/
 !.agents/skills/write-template-playbooks/
+!.agents/skills/mobile-app-structure/
+!.agents/skills/mobile-shadcn-conventions/
+!.agents/skills/mobile-motion-patterns/
 !.claude/
 .claude/*
 !.claude/skills/
@@ -124,6 +132,9 @@ services/runner/tests/results/
 !.claude/skills/resolve-findings
 !.claude/skills/sync-findings
 !.claude/skills/test-codebase
+!.claude/skills/mobile-app-structure
+!.claude/skills/mobile-shadcn-conventions
+!.claude/skills/mobile-motion-patterns
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
@@ -148,3 +159,11 @@ pyrightconfig.json
 
 # Agent skills lockfile (npx skills add)
 skills-lock.json
+
+# Storybook config is real source — carve it out of the dotfile ignore above.
+!web/storybook/.storybook/
+!web/storybook/.storybook/**
+
+# @agenta/sessions test artifacts (vitest writes a junit report on every run).
+web/packages/agenta-sessions/test-results/
+junit.xml

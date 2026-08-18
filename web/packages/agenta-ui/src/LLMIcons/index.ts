@@ -28,6 +28,7 @@ import Mistral from "./assets/Mistral"
 import OpenAi from "./assets/OpenAi"
 import OpenRouter from "./assets/OpenRouter"
 import Perplexity from "./assets/Perplexity"
+import Pi from "./assets/Pi"
 import Replicate from "./assets/Replicate"
 import Sagemaker from "./assets/Sagemaker"
 import Together from "./assets/Together"
@@ -82,6 +83,7 @@ export {
     OpenAi,
     OpenRouter,
     Perplexity,
+    Pi,
     Replicate,
     Sagemaker,
     Together,

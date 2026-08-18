@@ -111,4 +111,18 @@ describe("nextCronRuns", () => {
             "2026-07-06T00:00:00.000Z",
         ])
     })
+
+    it("describes an hourly minute rather than falling back to the expression", () => {
+        expect(describeCron("5 * * * *")).toBe("Every hour at :05 (UTC)")
+    })
+
+    it("describes an hour step", () => {
+        expect(describeCron("30 */2 * * *")).toBe("Every 2 hours at :30 (UTC)")
+    })
+
+    it("describes a day range", () => {
+        expect(describeCron("0 9 * * 1-5")).toBe(
+            "Monday, Tuesday, Wednesday, Thursday, Friday at 09:00 UTC",
+        )
+    })
 })

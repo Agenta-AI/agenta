@@ -1,9 +1,14 @@
+import {enableMapSet} from "immer"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithImmer} from "jotai-immer"
 
 import type {ColumnViewportVisibilityEvent} from "../types"
+
+// This module's producers mutate Maps; registering here (idempotent) closes the race
+// where a fresh session reaches this atom before _app's module-scope enableMapSet().
+enableMapSet()
 
 const DEFAULT_SCOPE = "__default__"
 const resolveScopeKey = (scopeId: string | null) => scopeId ?? DEFAULT_SCOPE

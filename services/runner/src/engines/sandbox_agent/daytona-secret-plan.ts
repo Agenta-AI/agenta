@@ -1,6 +1,11 @@
 import { isIP } from "node:net";
 
 import type { McpServerConfig, ModelConnection } from "../../protocol.ts";
+import {
+  slotKey,
+  type CredentialSlot,
+  type CredentialSlotKey,
+} from "../../providers/credential-delivery-port.ts";
 
 /**
  * One credential that QUALIFIES to be hidden behind a Daytona Secret, before any Secret record
@@ -59,6 +64,34 @@ export interface DaytonaSecretPlan {
   candidates: DaytonaSecretCandidate[];
   /** Non-secret config and local-use credentials that Daytona may receive directly. */
   environment: Record<string, string>;
+}
+
+/**
+ * The candidate's identity in the credential-delivery vocabulary, WITHOUT its value.
+ *
+ * One vocabulary across the create-time and delivery-time paths (`CredentialSlot` says so by
+ * name). This is the only place the two consumer spellings are reconciled: the plan calls an MCP
+ * consumer `http_mcp` because that is the transport it qualified, and the port calls it `mcp`
+ * because delivery does not care about the transport. Deriving delivery slots anywhere else would
+ * let the create-time and delivery-time keys drift, and a drifted key means a rotation silently
+ * updates nothing.
+ */
+export function credentialSlotFor(
+  candidate: DaytonaSecretCandidate,
+): CredentialSlot {
+  return {
+    consumer:
+      candidate.consumer.kind === "model"
+        ? { kind: "model" }
+        : { kind: "mcp", server: candidate.consumer.server },
+    binding: candidate.binding,
+    allowedHost: candidate.allowedHost,
+  };
+}
+
+/** The plan's slot identities, sorted. The create-time half of the slot-set comparison. */
+export function planSlotKeys(plan: DaytonaSecretPlan): CredentialSlotKey[] {
+  return plan.candidates.map((c) => slotKey(credentialSlotFor(c))).sort();
 }
 
 const PROHIBITED_BINDINGS = new Set([

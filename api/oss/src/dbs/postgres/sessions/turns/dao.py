@@ -1,7 +1,7 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, delete as sa_delete, or_, select
+from sqlalchemy import and_, delete as sa_delete, func, or_, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 
@@ -13,7 +13,7 @@ from oss.src.core.sessions.turns.dtos import (
     SessionTurnQuery,
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE
 from oss.src.dbs.postgres.sessions.turns.mappings import (
@@ -128,6 +128,32 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         if dbe is None:
             return None
         return map_turn_dbe_to_dto(turn_dbe=dbe)
+
+    async def query_session_ids_by_references(
+        self,
+        *,
+        project_id: UUID,
+        references: List[Reference],
+        limit: int,
+    ) -> List[str]:
+        turn_references = query_turn_references(SessionTurnQuery(references=references))
+        if turn_references is None:
+            return []
+        async with self.engine.session() as session:
+            # GROUP BY, not DISTINCT, so the cap can keep the most recently active
+            # sessions instead of an arbitrary `limit` of the matches.
+            stmt = (
+                select(SessionTurnDBE.session_id)
+                .where(
+                    SessionTurnDBE.project_id == project_id,
+                    SessionTurnDBE.references.contains(turn_references),
+                )
+                .group_by(SessionTurnDBE.session_id)
+                .order_by(func.max(SessionTurnDBE.start_time).desc().nullslast())
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [row[0] for row in result.all()]
 
     async def query_turns(
         self,
@@ -272,6 +298,35 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         if dbe is None:
             return None
         return map_turn_dbe_to_dto(turn_dbe=dbe)
+
+    async def latest_turn_per_session(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> Dict[str, SessionTurn]:
+        """Batch resume-read: one row per `session_id`, the highest `turn_index` (WP0-R3
+        list-row hydration — a single query instead of N `latest_turn` calls). The IN-list
+        is bounded by the caller's page (windowing limit); it is unbounded only for the
+        currently-unpaginated OSS `/sessions` list."""
+        if not session_ids:
+            return {}
+        async with self.engine.session() as session:
+            stmt = (
+                select(SessionTurnDBE)
+                .distinct(SessionTurnDBE.session_id)
+                .where(
+                    SessionTurnDBE.project_id == project_id,
+                    SessionTurnDBE.session_id.in_(session_ids),
+                )
+                .order_by(
+                    SessionTurnDBE.session_id,
+                    SessionTurnDBE.turn_index.desc(),
+                )
+            )
+            result = await session.execute(stmt)
+            dbes = result.scalars().all()
+        return {dbe.session_id: map_turn_dbe_to_dto(turn_dbe=dbe) for dbe in dbes}
 
     async def delete_by_session_id(
         self,

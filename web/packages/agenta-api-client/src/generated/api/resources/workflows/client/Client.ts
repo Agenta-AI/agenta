@@ -2405,6 +2405,8 @@ export class WorkflowsClient {
     }
 
     /**
+     * The human and SDK route: no write scope, the caller owns the whole revision.
+     *
      * @param {AgentaApi.WorkflowRevisionCommitRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *

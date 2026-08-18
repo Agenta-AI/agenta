@@ -1,7 +1,9 @@
-import {Button, Form} from "antd"
-import dynamic from "next/dynamic"
+import {useRef} from "react"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import type {CustomProviderFormHandle} from "@agenta/entity-ui/secretProvider"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Button} from "@agenta/ui/ui"
+import dynamic from "next/dynamic"
 
 import {ConfigureProviderDrawerProps} from "./assets/types"
 
@@ -19,10 +21,10 @@ const ConfigureProviderDrawer = ({
     initialProviderKind,
     ...props
 }: ConfigureProviderDrawerProps) => {
-    const [form] = Form.useForm()
+    const formRef = useRef<CustomProviderFormHandle | null>(null)
 
     const onClose = () => {
-        form.resetFields()
+        formRef.current?.reset()
         props.onClose?.({} as any)
     }
 
@@ -33,8 +35,10 @@ const ConfigureProviderDrawer = ({
             onClose={onClose}
             footer={
                 <div className="flex justify-end items-center gap-2 py-2 px-3">
-                    <Button onClick={onClose}>Cancel</Button>
-                    <Button type="primary" onClick={() => form.submit()}>
+                    <Button variant="outline" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button variant="default" onClick={() => formRef.current?.submit()}>
                         Submit
                     </Button>
                 </div>
@@ -42,7 +46,7 @@ const ConfigureProviderDrawer = ({
             {...props}
         >
             <ConfigureProviderDrawerContent
-                form={form}
+                formRef={formRef}
                 selectedProvider={selectedProvider}
                 initialProviderKind={initialProviderKind}
                 onClose={onClose}

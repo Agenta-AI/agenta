@@ -21,7 +21,7 @@ export const DriveBreadcrumb = ({
     const segs = shown.split("/").filter(Boolean)
     return (
         <div
-            className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-[11px] text-colorTextTertiary"
+            className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-xs text-colorTextTertiary"
             title={shown}
         >
             <button
@@ -29,10 +29,10 @@ export const DriveBreadcrumb = ({
                 onClick={() => onNavigate("")}
                 aria-label={rootLabel}
                 title={rootLabel}
-                // Explicit text-[11px]: preflight is OFF, so <button>s DON'T inherit the parent
+                // Explicit text-xs: preflight is OFF, so <button>s DON'T inherit the parent
                 // font-size — without this the clickable crumbs render larger than the current-crumb
                 // span, so a segment appears to change size as you navigate (it becomes a button).
-                className="flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 text-[11px] text-colorTextTertiary hover:text-colorText"
+                className="flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 text-xs text-colorTextTertiary hover:text-colorText"
             >
                 <House size={12} />
                 {/* Label the root "root" only when it's alone — a bare home icon reads as empty. Once
@@ -46,14 +46,14 @@ export const DriveBreadcrumb = ({
                     <span key={path} className="flex shrink-0 items-center gap-1">
                         <span className="text-colorTextQuaternary">/</span>
                         {isLast ? (
-                            <span className="font-mono text-[11px]">{seg}</span>
+                            <span className="font-mono text-xs">{seg}</span>
                         ) : (
-                            // text-[11px]: preflight OFF → this <button> won't inherit 11px, so
+                            // text-xs: preflight OFF → this <button> won't inherit 11px, so
                             // without it the ancestor crumbs render bigger than the current span.
                             <button
                                 type="button"
                                 onClick={() => onNavigate(path)}
-                                className="cursor-pointer rounded border-0 bg-transparent p-0 font-mono text-[11px] text-colorTextTertiary hover:text-colorText hover:underline"
+                                className="cursor-pointer rounded border-0 bg-transparent p-0 font-mono text-xs text-colorTextTertiary hover:text-colorText hover:underline"
                             >
                                 {seg}
                             </button>

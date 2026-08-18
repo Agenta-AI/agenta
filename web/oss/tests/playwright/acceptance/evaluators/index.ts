@@ -10,6 +10,7 @@ import {
     TestRoleType,
     TestcaseType,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {pollLocatorState} from "@agenta/web-tests/utils"
 
 import {buildAcceptanceTags} from "../utils/tags"
 
@@ -49,62 +50,74 @@ import {
 } from "./tests"
 
 const testEvaluators = () => {
-    test(
-        "should navigate to the evaluators page and display both automatic and human evaluator tabs",
-        {
-            tag: [
-                createTagString("scope", TestScope.EVALUATIONS),
-                createTagString("coverage", TestCoverage.SMOKE),
-                createTagString("coverage", TestCoverage.LIGHT),
-                createTagString("coverage", TestCoverage.FULL),
-                createTagString("path", TestPath.HAPPY),
-            ],
-        },
-        async ({page, navigateToEvaluators}) => {
-            // Navigate to the evaluators page and verify the initial state
-            await navigateToEvaluators()
+    // Retry-eligible (Mahmoud, see AGENTS.md/session notes): read-only navigation flow that
+    // neither mutates state nor destroys data. waitForEvaluatorsQuery (tests.ts) has a
+    // low-confidence timeout, not a stale selector, so a retry is safe here. Narrowest scope:
+    // this one test only.
+    test.describe("Should navigate to the evaluators page and display both automatic and human evaluator tabs (retry-eligible)", () => {
+        test.describe.configure({retries: 2})
 
-            // Verify page title is visible
-            await expect(page.getByTitle(EVALUATORS_PAGE_TITLE).first()).toBeVisible()
+        test(
+            "should navigate to the evaluators page and display both automatic and human evaluator tabs",
+            {
+                tag: [
+                    createTagString("scope", TestScope.EVALUATIONS),
+                    createTagString("coverage", TestCoverage.SMOKE),
+                    createTagString("coverage", TestCoverage.LIGHT),
+                    createTagString("coverage", TestCoverage.FULL),
+                    createTagString("path", TestPath.HAPPY),
+                ],
+            },
+            async ({page, navigateToEvaluators}) => {
+                // Navigate to the evaluators page and verify the initial state
+                await navigateToEvaluators()
 
-            // Verify the Automatic Evaluators tab is visible and selected by default
-            const automaticTab = page.getByRole("tab", {name: EVALUATOR_TAB_AUTOMATIC}).first()
-            await expect(automaticTab).toBeVisible()
-            await expect(automaticTab).toHaveAttribute("aria-selected", "true")
-            // Note: on initial load the URL param may be absent (null) — the tab atom defaults
-            // to "automatic" without writing to the URL. Once a tab is explicitly clicked the
-            // param is set, which is what the later assertions verify.
+                // Verify page title is visible
+                await expect(page.getByTitle(EVALUATORS_PAGE_TITLE).first()).toBeVisible()
 
-            // Verify the Human Evaluators tab is visible but not selected
-            const humanTab = page.getByRole("tab", {name: EVALUATOR_TAB_HUMAN}).first()
-            await expect(humanTab).toBeVisible()
-            await expect(humanTab).toHaveAttribute("aria-selected", "false")
+                // Verify the Automatic Evaluators tab is visible and selected by default
+                const automaticTab = page.getByRole("tab", {name: EVALUATOR_TAB_AUTOMATIC}).first()
+                await expect(automaticTab).toBeVisible()
+                await expect(automaticTab).toHaveAttribute("aria-selected", "true")
+                // Note: on initial load the URL param may be absent (null) — the tab atom defaults
+                // to "automatic" without writing to the URL. Once a tab is explicitly clicked the
+                // param is set, which is what the later assertions verify.
 
-            // Verify the Create new button is visible on the Automatic tab
-            await expect(
-                page.getByRole("button", {name: EVALUATOR_CREATE_BUTTON_LABEL}).first(),
-            ).toBeVisible()
+                // Verify the Human Evaluators tab is visible but not selected
+                const humanTab = page.getByRole("tab", {name: EVALUATOR_TAB_HUMAN}).first()
+                await expect(humanTab).toBeVisible()
+                await expect(humanTab).toHaveAttribute("aria-selected", "false")
 
-            // Switch to the Human Evaluators tab
-            await ensureEvaluatorTab(page, EVALUATOR_TAB_HUMAN, EVALUATOR_TAB_PARAM_HUMAN)
+                // Verify the Create new button is visible on the Automatic tab
+                await expect(
+                    page.getByRole("button", {name: EVALUATOR_CREATE_BUTTON_LABEL}).first(),
+                ).toBeVisible()
 
-            // Verify Human tab is now selected and URL updated
-            await expect(humanTab).toHaveAttribute("aria-selected", "true")
-            await expect(automaticTab).toHaveAttribute("aria-selected", "false")
-            await expect
-                .poll(() => new URL(page.url()).searchParams.get("tab"))
-                .toBe(EVALUATOR_TAB_PARAM_HUMAN)
+                // Switch to the Human Evaluators tab
+                await ensureEvaluatorTab(page, EVALUATOR_TAB_HUMAN, EVALUATOR_TAB_PARAM_HUMAN)
 
-            // Verify the Create new button is still visible on the Human tab
-            await expect(
-                page.getByRole("button", {name: EVALUATOR_CREATE_BUTTON_LABEL}).first(),
-            ).toBeVisible()
+                // Verify Human tab is now selected and URL updated
+                await expect(humanTab).toHaveAttribute("aria-selected", "true")
+                await expect(automaticTab).toHaveAttribute("aria-selected", "false")
+                await expect
+                    .poll(() => new URL(page.url()).searchParams.get("tab"))
+                    .toBe(EVALUATOR_TAB_PARAM_HUMAN)
 
-            // Switch back to Automatic tab and verify
-            await ensureEvaluatorTab(page, EVALUATOR_TAB_AUTOMATIC, EVALUATOR_TAB_PARAM_AUTOMATIC)
-            await expect(automaticTab).toHaveAttribute("aria-selected", "true")
-        },
-    )
+                // Verify the Create new button is still visible on the Human tab
+                await expect(
+                    page.getByRole("button", {name: EVALUATOR_CREATE_BUTTON_LABEL}).first(),
+                ).toBeVisible()
+
+                // Switch back to Automatic tab and verify
+                await ensureEvaluatorTab(
+                    page,
+                    EVALUATOR_TAB_AUTOMATIC,
+                    EVALUATOR_TAB_PARAM_AUTOMATIC,
+                )
+                await expect(automaticTab).toHaveAttribute("aria-selected", "true")
+            },
+        )
+    })
 
     test(
         "should create an Exact Match evaluator from the template dropdown",
@@ -183,7 +196,7 @@ const testEvaluators = () => {
             // Use the search input to narrow results, then poll via [data-row-key]
             // (same approach as the auto-evaluation modal row selection).
             const searchInput = page.locator('input[placeholder="Search"]').first()
-            if (await searchInput.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => searchInput.isVisible())) {
                 await searchInput.fill(evaluatorName)
             }
             await expect
@@ -270,7 +283,7 @@ const testEvaluators = () => {
             await expect(popover).toBeVisible({timeout: 5000})
 
             const noItemsText = popover.getByText(EVALUATOR_NO_APPS_TEXT)
-            if (await noItemsText.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => noItemsText.isVisible())) {
                 test.skip(
                     true,
                     "No apps available in this environment to test the evaluator playground",
@@ -312,10 +325,9 @@ const testEvaluators = () => {
                 await item.click()
                 await expect(revisionPanel).toBeVisible({timeout: 5000})
                 const revisionItems = revisionPanel.locator('[role="option"]')
-                const hasRevision = await revisionItems
-                    .first()
-                    .isVisible({timeout: 5000})
-                    .catch(() => false)
+                const hasRevision = await pollLocatorState(() =>
+                    revisionItems.first().isVisible({timeout: 5000}),
+                )
                 if (hasRevision) {
                     revisionItem = revisionItems.first()
                     break
@@ -331,11 +343,9 @@ const testEvaluators = () => {
             await revisionItem.click()
 
             // Step 5: Verify completion-app UI (Testcase Data section) appears.
-            const isCompletionApp = await page
-                .getByText("Testcase Data")
-                .first()
-                .isVisible({timeout: 10000})
-                .catch(() => false)
+            const isCompletionApp = await pollLocatorState(() =>
+                page.getByText("Testcase Data").first().isVisible({timeout: 10000}),
+            )
             if (!isCompletionApp) {
                 test.skip(
                     true,
@@ -389,18 +399,21 @@ const testEvaluators = () => {
             await createHumanEvaluatorFromDrawer(page, {evaluatorName, feedbackName})
 
             // Step 4: Verify the success message (already checked inside the helper,
-            // but we confirm the final state here as well)
+            // but we confirm the final state here as well).
+            // The HUMAN evaluator path toasts through `@agenta/ui/app-message`, which
+            // renders a `role="status"` notification rather than an antd `.ant-message`
+            // node. The automatic-evaluator assertions elsewhere in this file still use
+            // `.ant-message` and are still correct: that path toasts through antd
+            // (`WorkflowRevisionDrawerWrapper` imports `message` from "antd"). Same
+            // message text, two different emitters.
             await expect(
-                page
-                    .locator(".ant-message")
-                    .getByText(HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE)
-                    .first(),
+                page.getByRole("status").getByText(HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
             ).toBeVisible({timeout: 10000})
 
             // Step 5: Verify the new evaluator appears in the Human tab table.
             // Use the search input to narrow results, then poll via [data-row-key].
             const searchInput = page.locator('input[placeholder="Search"]').first()
-            if (await searchInput.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => searchInput.isVisible())) {
                 await searchInput.fill(evaluatorName)
             }
             await expect
@@ -673,7 +686,7 @@ const testEvaluators = () => {
             // (validates the registry's row-click handler, not just post-create).
             await navigateToEvaluators()
             const searchInput = page.locator('input[placeholder="Search"]').first()
-            if (await searchInput.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => searchInput.isVisible())) {
                 await searchInput.fill(evaluatorName)
             }
             await expect
@@ -744,7 +757,7 @@ const testEvaluators = () => {
             // Navigate back to the registry, then click the row.
             await navigateToEvaluators()
             const searchInput = page.locator('input[placeholder="Search"]').first()
-            if (await searchInput.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => searchInput.isVisible())) {
                 await searchInput.fill(evaluatorName)
             }
             await expect

@@ -205,4 +205,44 @@ class TestTriggerSchedulesLifecycle:
         assert delete.status_code == 204
 
         fetch = authed_api("GET", f"/triggers/schedules/{schedule_id}")
-        assert fetch.status_code == 404
+        assert fetch.status_code == 200, fetch.text
+        fetched = fetch.json()
+        assert fetched["count"] == 1
+        historical = fetched["schedule"]
+        assert historical["id"] == schedule_id
+        assert historical["name"] == edited["name"]
+        assert historical["description"] == edited["description"]
+        assert historical["data"] == edited["data"]
+        assert historical["flags"] == edited["flags"]
+        assert historical["deleted_at"] is not None
+        assert historical["deleted_by_id"] is not None
+
+        list_response = authed_api("GET", "/triggers/schedules/")
+        assert list_response.status_code == 200, list_response.text
+        listing = list_response.json()
+        assert all(item["id"] != schedule_id for item in listing["schedules"])
+        query_response = authed_api(
+            "POST",
+            "/triggers/schedules/query",
+            json={"schedule": {"name": edited["name"]}},
+        )
+        assert query_response.status_code == 200, query_response.text
+        query = query_response.json()
+        assert all(item["id"] != schedule_id for item in query["schedules"])
+
+        rejected_edit = authed_api(
+            "PUT",
+            f"/triggers/schedules/{schedule_id}",
+            json={
+                "schedule": {
+                    "id": schedule_id,
+                    "name": historical["name"],
+                    "description": historical["description"],
+                    "data": historical["data"],
+                    "flags": historical["flags"],
+                }
+            },
+        )
+        assert rejected_edit.status_code == 404, rejected_edit.text
+        rejected_start = authed_api("POST", f"/triggers/schedules/{schedule_id}/start")
+        assert rejected_start.status_code == 404, rejected_start.text

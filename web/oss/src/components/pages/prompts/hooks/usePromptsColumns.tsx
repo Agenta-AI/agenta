@@ -29,7 +29,9 @@ export function createPromptsColumns(actions: PromptsColumnActions) {
                     return (
                         <div className="h-full flex items-center gap-2 truncate">
                             <span className="flex-shrink-0 flex items-center text-gray-400">
-                                <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
+                                <FolderFilled
+                                    style={{fontSize: 16, color: "var(--ag-colorTextQuaternary)"}}
+                                />
                             </span>
                             <span className="truncate">{record.name}</span>
                         </div>

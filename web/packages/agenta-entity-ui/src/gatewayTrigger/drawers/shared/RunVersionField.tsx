@@ -1,4 +1,4 @@
-import {Select, Typography} from "antd"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} from "@agenta/ui/ui"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
 import {
@@ -128,6 +128,41 @@ export function buildRunVersionReferences({
 }
 
 /**
+ * Compose the version-picker's resolved label from a revision-keyed lookup and a
+ * fallback lookup, for a bound id that can't be resolved as a revision.
+ *
+ * `extractBoundWorkflowId` returns whatever id is most specific in the stored family —
+ * a `application_revision` id, but also (when the pin never named a revision, e.g. the
+ * "runs whatever the variant currently deploys" default bind) an `application_variant`
+ * id. Callers resolve the primary `artifact`/`variant` names by treating that id as a
+ * REVISION id; for a variant-only pin that lookup returns null, so a `fallbackArtifact`/
+ * `fallbackVariant` resolved by workflow id + variant list (not a revision id) recovers
+ * the label instead. `version` is omitted for a variant-only pin — it isn't pinned to one.
+ */
+export function composeRevisionLabel({
+    artifact,
+    fallbackArtifact,
+    variant,
+    fallbackVariant,
+    version,
+}: {
+    artifact?: string | null
+    fallbackArtifact?: string | null
+    variant?: string | null
+    fallbackVariant?: string | null
+    version?: number | string | null
+}): string | null {
+    const resolvedArtifact = artifact ?? fallbackArtifact ?? null
+    const resolvedVariant = variant ?? fallbackVariant ?? null
+    const segs: string[] = []
+    if (resolvedArtifact) segs.push(resolvedArtifact)
+    if (resolvedVariant && resolvedVariant !== resolvedArtifact) segs.push(resolvedVariant)
+    let label = segs.join(" / ")
+    if (version != null) label = label ? `${label} · v${version}` : `v${version}`
+    return label || null
+}
+
+/**
  * Shared "Which version runs?" control for the trigger drawers (schedule + subscription):
  * a Pinned/Deployed rail on the left, and on the right either a workflow-revision picker
  * (pinned) or an environment select (deployed). Purely presentational — each drawer owns
@@ -141,7 +176,6 @@ export function RunVersionField({
     revisionPlaceholder,
     onRevisionSelect,
     revisionHint = "Runs one exact variant + revision.",
-    hideEnvironment = false,
     envOptions,
     envLoading,
     environmentSlug,
@@ -156,9 +190,6 @@ export function RunVersionField({
     revisionPlaceholder?: string
     onRevisionSelect: (selection: WorkflowRevisionSelectionResult) => void
     revisionHint?: string
-    /** TEMPORARY: drop the Deployed option, leaving a Pinned-only rail. Set by the trigger
-     *  drawers; the tool "Reference by" control still offers both. */
-    hideEnvironment?: boolean
     envOptions?: {value: string; label: string}[]
     envLoading?: boolean
     environmentSlug?: string | null
@@ -168,43 +199,59 @@ export function RunVersionField({
     /** Left-rail width (Tailwind class). Override to align with a sibling section's rail. */
     railWidth?: string
 }) {
+    const revisionPicker = (
+        <>
+            <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
+                {revisionHint}
+            </span>
+            <EntityPicker<WorkflowRevisionSelectionResult>
+                variant="popover-cascader"
+                adapter={revisionAdapter}
+                onSelect={onRevisionSelect}
+                className="!flex w-full max-w-prose !justify-between"
+                placeholder={revisionPlaceholder}
+            />
+        </>
+    )
+
     return (
         <SectionRail
             items={[
                 {value: "revision", label: "Pinned"},
-                ...(hideEnvironment ? [] : [{value: "environment", label: "Deployed"}]),
+                {value: "environment", label: "Deployed"},
             ]}
             value={bindMode}
             onChange={(v) => onBindModeChange(v as RunVersionBindMode)}
             railWidth={railWidth}
         >
-            {bindMode === "revision" || hideEnvironment ? (
-                <>
-                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
-                        {revisionHint}
-                    </Typography.Text>
-                    <EntityPicker<WorkflowRevisionSelectionResult>
-                        variant="popover-cascader"
-                        adapter={revisionAdapter}
-                        onSelect={onRevisionSelect}
-                        className="!flex w-full max-w-prose !justify-between"
-                        placeholder={revisionPlaceholder}
-                    />
-                </>
+            {bindMode === "revision" ? (
+                revisionPicker
             ) : (
                 <>
-                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                    <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                         {envHint}
-                    </Typography.Text>
+                    </span>
                     <Select
-                        placeholder="Select an environment"
-                        className="w-full max-w-prose"
                         value={environmentSlug ?? undefined}
-                        onChange={onEnvironmentChange}
-                        loading={envLoading}
-                        options={envOptions}
-                        notFoundContent={envNotFound}
-                    />
+                        onValueChange={(slug) => onEnvironmentChange?.(slug)}
+                    >
+                        <SelectTrigger className="w-full max-w-prose">
+                            <SelectValue placeholder="Select an environment" />
+                            {envLoading ? <Spinner size="small" /> : null}
+                        </SelectTrigger>
+                        <SelectContent>
+                            {(envOptions ?? []).map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                            {(envOptions ?? []).length === 0 && (
+                                <div className="px-3 py-2 text-xs text-[var(--ag-colorTextDescription)]">
+                                    {envNotFound ?? "No data"}
+                                </div>
+                            )}
+                        </SelectContent>
+                    </Select>
                 </>
             )}
         </SectionRail>

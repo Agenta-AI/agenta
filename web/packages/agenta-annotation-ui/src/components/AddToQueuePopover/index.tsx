@@ -239,7 +239,7 @@ const QueueListContent = ({
                                 >
                                     {queue.name || "Untitled"}
                                 </Typography.Text>
-                                <Typography.Text type="secondary" className="text-[10px]">
+                                <Typography.Text type="secondary" className="text-[12px]">
                                     Updated{" "}
                                     {queue.updated_at ? dayjs(queue.updated_at)?.fromNow() : "—"}
                                 </Typography.Text>
@@ -302,6 +302,21 @@ const AddToQueuePopover = ({
                 ) : null
             }
             styles={{container: {padding: 0}}}
+            // The trace drawer is a Radix Sheet (modal): it sets pointer-events: none on
+            // <body> and re-enables it only on its own content. This antd Popover portals
+            // to a separate spot in <body> Radix doesn't know about, so it inherits the
+            // block — visually on top, but fully unclickable. Force it back on.
+            rootClassName="!pointer-events-auto"
+            // Radix's focus trap (from the same Sheet/Dialog) also redirects focus back
+            // inside itself whenever something outside its DOM subtree gets focused — the
+            // search input would never keep focus while portaled to <body>. Render the
+            // popup as a descendant of the enclosing Sheet/Dialog content instead, so Radix
+            // recognizes it as "inside" and leaves it alone.
+            getPopupContainer={(triggerNode) =>
+                (triggerNode.closest(
+                    '[data-slot="sheet-content"], [data-slot="dialog-content"]',
+                ) as HTMLElement | null) ?? document.body
+            }
         >
             <span
                 role="button"

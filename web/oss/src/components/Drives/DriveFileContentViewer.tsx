@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import {type Mount} from "@agenta/entities/session"
 import {DownloadSimple} from "@phosphor-icons/react"
-import {Button} from "antd"
+import {Button, Tooltip} from "antd"
 import {AnimatePresence, motion} from "motion/react"
 
 import {resolveDriveFileKind} from "./driveKinds"
@@ -54,25 +54,27 @@ export const DriveFileContentViewer = ({
 }
 
 /** Download button for one file — raw bytes, so every type round-trips (not just text). Shared by
- * the drawer header and the file preview, so both report a failure the same way. */
+ * the drawer header and the file preview, so both report a failure the same way. Icon-only: the
+ * label crowded the pane header, and the tooltip carries the word. */
 export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; path: string}) => {
     const download = useDriveFileDownload()
     const [downloading, setDownloading] = useState(false)
     return (
-        <Button
-            icon={<DownloadSimple size={13} />}
-            disabled={!mount}
-            loading={downloading}
-            onClick={async () => {
-                setDownloading(true)
-                try {
-                    await download(mount, path)
-                } finally {
-                    setDownloading(false)
-                }
-            }}
-        >
-            Download
-        </Button>
+        <Tooltip title="Download">
+            <Button
+                icon={<DownloadSimple size={13} />}
+                aria-label="Download"
+                disabled={!mount}
+                loading={downloading}
+                onClick={async () => {
+                    setDownloading(true)
+                    try {
+                        await download(mount, path)
+                    } finally {
+                        setDownloading(false)
+                    }
+                }}
+            />
+        </Tooltip>
     )
 }

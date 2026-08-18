@@ -382,6 +382,45 @@ export function extractApprovalDecisions(
   return decisions;
 }
 
+/** One approval envelope this turn received in-band, carrying its durable row's token. */
+export type InBandApprovalAnswer = {
+  /** The `session_interactions.token` of the row the human answered. */
+  token: string;
+  approved: boolean;
+  toolCallId: string;
+};
+
+/**
+ * The approval envelopes THIS turn received in-band, keyed by the durable interaction token the
+ * client echoed back. A resume delivers the human's yes/no as a `tool_result` envelope; the turn
+ * consumes that decision whether or not the harness re-raises the gate. When it does re-raise,
+ * the responder resolves the row on reply; when it does NOT (a cold replay whose transcript
+ * already contains the envelope, so the agent simply proceeds), nothing else ever touches the
+ * row — it is this list that lets the turn settle it instead of orphaning it as `pending`.
+ *
+ * Scoped to the CURRENT turn (results at/after the latest user message) so a long session does
+ * not re-settle every prior turn's already-terminal row on every turn. Envelopes without an
+ * `interactionToken` are skipped: without it there is no durable row to key on.
+ */
+export function extractInBandApprovalAnswers(
+  request: AgentRunRequest,
+): InBandApprovalAnswer[] {
+  const answers: InBandApprovalAnswer[] = [];
+  const seen = new Set<string>();
+  for (const block of currentTurnToolResultBlocks(request)) {
+    const stored = storedApprovalDecisionOf(block);
+    const token = stored?.interactionToken;
+    if (!stored || !token || seen.has(token)) continue;
+    seen.add(token);
+    answers.push({
+      token,
+      approved: stored.decision === "allow",
+      toolCallId: block.toolCallId ?? token,
+    });
+  }
+  return answers;
+}
+
 /**
  * Build the client-tool output store from the inbound history: every NON-approval `tool_result`
  * is a browser-fulfilled client-tool output. Keyed by the cold-replay anchor

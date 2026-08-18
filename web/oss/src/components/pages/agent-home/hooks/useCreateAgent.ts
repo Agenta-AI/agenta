@@ -11,7 +11,7 @@ import {App} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
-import {agentFirstRunSeedAtom} from "@/oss/components/AgentChatSlice/state/firstRunSeed"
+import {addFirstRunSeedAtom} from "@/oss/components/AgentChatSlice/state/firstRunSeed"
 import {registerCreatedAgent} from "@/oss/components/pages/agents/store"
 import {urlAtom} from "@/oss/state/url"
 
@@ -116,7 +116,7 @@ export function useCreateAgent() {
                 }
 
                 if (seedMessage?.trim()) {
-                    store.set(agentFirstRunSeedAtom, {
+                    store.set(addFirstRunSeedAtom, {
                         appId,
                         revisionId,
                         seedMessage: seedMessage.trim(),

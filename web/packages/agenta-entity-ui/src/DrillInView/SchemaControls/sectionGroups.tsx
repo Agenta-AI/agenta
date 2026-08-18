@@ -14,8 +14,15 @@
 import type {ReactNode} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
+import {
+    Badge,
+    Button,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plugs, Plus} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip} from "antd"
 import Image from "next/image"
 
 /** A connected-app logo square; a plug glyph when no logo is known (catalog not loaded yet). */
@@ -36,11 +43,10 @@ export function ProviderLogo({logo, size = 24}: {logo?: string | null; size?: nu
 /** A sub-section label above a group of rows: uppercase text + a bordered count tag. */
 export function SubSectionHeader({label, count}: {label: string; count: number}) {
     return (
-        <div className="flex items-center gap-1.5 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+        <div className="flex items-center gap-1.5 px-0.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
             <span>{label}</span>
-            <Tag bordered className="m-0 !px-1.5 !text-[10px] font-normal leading-[16px]">
-                {count}
-            </Tag>
+            {/* antd v6 `bordered` (truthy) is a no-op; colourless Tag == Badge `default`. */}
+            <Badge className="m-0 px-1.5 text-[12px] font-normal leading-4">{count}</Badge>
         </div>
     )
 }
@@ -62,8 +68,8 @@ export function CollapsibleProviderGroup({
 }: {
     logo?: string | null
     name: string
-    /** Right-aligned summary line, e.g. "2 active · 3 total" or "3 tools". */
-    countText: string
+    /** Right-aligned summary line, e.g. "2 active · 3 total" or "3 tools"; omit to hide it. */
+    countText?: string
     open: boolean
     onToggle: () => void
     /** Per-group add affordance; omit to hide the button (e.g. read-only). */
@@ -75,19 +81,12 @@ export function CollapsibleProviderGroup({
     children: ReactNode
 }) {
     return (
-        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
+        // White sheet on the expanded section's band; the header keeps its own fill on top.
+        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)]">
+            {/* Header stays clickable but is not the role=button node — it holds the + button
+                (nested-interactive). The role lives on the name span below. */}
             <div
-                role="button"
-                tabIndex={0}
-                aria-expanded={open}
                 onClick={onToggle}
-                onKeyDown={(e) => {
-                    if (e.target !== e.currentTarget) return
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        onToggle()
-                    }
-                }}
                 // pr = section header's caret gutter (14px caret + 8px gap) minus the card border,
                 // so the group's + button sits in the same column as the section header's +.
                 className="flex cursor-pointer items-center gap-2.5 bg-[var(--ag-colorFillQuaternary)] py-2 pl-3 pr-[21px] transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
@@ -101,23 +100,46 @@ export function CollapsibleProviderGroup({
                     />
                 )}
                 <ProviderLogo logo={logo} size={20} />
-                <span className="min-w-0 flex-1 truncate text-xs font-medium">{name}</span>
-                {statusTag ? <span className="shrink-0">{statusTag}</span> : null}
-                <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
-                    {countText}
+                <span
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={open}
+                    onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            onToggle()
+                        }
+                    }}
+                    className="min-w-0 flex-1 truncate text-xs font-medium"
+                >
+                    {name}
                 </span>
+                {statusTag ? <span className="shrink-0">{statusTag}</span> : null}
+                {countText ? (
+                    <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
+                        {countText}
+                    </span>
+                ) : null}
                 {onAdd ? (
-                    <Tooltip title={addLabel}>
-                        <Button
-                            type="text"
-                            icon={<Plus size={16} />}
-                            aria-label={addLabel}
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                onAdd()
-                            }}
-                        />
-                    </Tooltip>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={addLabel}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onAdd()
+                                    }}
+                                >
+                                    <Plus size={16} />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{addLabel}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 ) : null}
             </div>
             <HeightCollapse open={open}>

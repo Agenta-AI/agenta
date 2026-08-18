@@ -147,12 +147,21 @@ export interface ResolvedToolSpec {
    * `call` XOR `callRef`. Plumbing only here: nothing emits or dispatches it yet.
    */
   call?: {
-    method: "GET" | "POST" | "DELETE";
+    method: "GET" | "POST" | "PUT" | "DELETE";
     path: string;
     body?: Record<string, unknown>;
     context?: Record<string, string>;
     args_into?: string;
   };
+  /**
+   * Top-level argument names the model may write but the request must NOT carry. The runner
+   * deletes them from the model's arguments before it builds either request (direct or gateway),
+   * so the field reaches the human — the recorded call and the approval card keep it — and never
+   * reaches the API. Today the list holds one name, `description`: the ephemeral per-call note the
+   * agent writes to explain what it is doing (R12). Executor-private, like `contextBindings`: it
+   * never goes to a harness child process.
+   */
+  ephemeralArgs?: string[];
   kind?: "callback" | "code" | "client";
   render?: RenderHint;
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
@@ -190,8 +199,8 @@ export interface RunContextReference {
  * `workflow` mirrors the platform's three workflow entities — the `artifact` (the workflow), the
  * `variant`, and the `revision` — so the run's identity reads the same way the rest of the platform
  * names a workflow; `is_draft` says whether the run targets a committed revision (`false`) or an
- * uncommitted playground draft (`true`). The conversation id is NOT carried here — it rides the
- * top-level `sessionId` field, and the runner owns the live id across turns.
+ * uncommitted playground draft (`true`). The service does not carry the conversation id here — it
+ * rides the top-level `sessionId` field, and the runner augments its dispatch copy with the live id.
  *
  * The inner keys are deliberately snake_case (`workflow.variant.id`, `trace.trace_id`): they are
  * the binding NAMESPACE a `call.context` value (`"$ctx.<dotted.path>"`) addresses, so they match
@@ -211,6 +220,13 @@ export interface RunContext {
    * over the mount-derived project scope when keying its parked-session pool (`poolKeyFor`).
    */
   project?: {
+    id?: string;
+  };
+  /**
+   * The live session id, filled by the runner from its session environment for tool dispatch and
+   * never filled by the service's `/run` request context.
+   */
+  session?: {
     id?: string;
   };
   workflow?: {
@@ -680,6 +696,18 @@ export interface AgentRunRequest {
    * the runner can include it in heartbeat and record-ingest calls. Absent otherwise.
    */
   projectId?: string;
+  /**
+   * The post-hydration config this turn runs, produced by the SDK (`agents/utils/wire.py`) and
+   * OPAQUE here: the runner never reads inside it and never derives behavior from it. It is
+   * echoed verbatim onto the `data.parameters` of every interaction row this turn writes, so a
+   * client that answers the gate without being able to reproduce the config (mobile, the M2
+   * dispatcher) can replay the exact turn instead of hydrating the referenced variant's HEAD.
+   *
+   * Deliberately NOT part of `configFingerprint` (`session-identity.ts`): it is a projection of
+   * fields already in the fingerprint, so hashing it would let a cosmetic config-serialization
+   * change evict warm sessions. Session runs only; absent otherwise.
+   */
+  effectiveParameters?: Record<string, unknown>;
   /**
    * The session's `session_streams` row id, captured for free from the alive-watchdog's
    * heartbeat response (`sessions/alive.ts`) and threaded here before the engine runs. Present

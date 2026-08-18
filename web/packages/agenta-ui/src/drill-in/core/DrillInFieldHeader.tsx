@@ -270,9 +270,9 @@ const MappingPopoverContent = memo(
                         danger
                         size="small"
                         className="justify-start"
-                        icon={closeIcon}
                         onClick={handleUnmap}
                     >
+                        {closeIcon}
                         Remove mapping
                     </Button>
                 </div>
@@ -300,7 +300,7 @@ const MappingPopoverContent = memo(
                                 onChange={(e) => setNewColumnName(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && handleCreateColumn()}
                                 autoFocus
-                                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                                className="flex-1 px-2 py-1 text-sm border border-solid border-gray-300 rounded"
                             />
                         )}
                         <Button size="small" type="primary" onClick={handleCreateColumn}>
@@ -311,7 +311,7 @@ const MappingPopoverContent = memo(
                     <Button
                         type="text"
                         size="small"
-                        className="justify-start text-blue-600 dark:text-[#58a6ff]"
+                        className="justify-start text-[var(--ag-btn-link)]"
                         onClick={() => setShowNewColumnInput(true)}
                     >
                         + Create new column
@@ -319,7 +319,7 @@ const MappingPopoverContent = memo(
                 )}
                 {columnOptions && columnOptions.length > 0 && (
                     <>
-                        <div className="border-t border-gray-200 my-1" />
+                        <div className="border-0 border-t border-solid border-gray-200 my-1" />
                         {columnOptions.map((opt) => (
                             <Button
                                 key={opt.value}
@@ -506,9 +506,10 @@ const DrillInFieldHeader = memo(
                                 type="text"
                                 size="small"
                                 className="!px-1 !h-6 text-xs text-gray-500"
-                                icon={copiedField === name ? checkIcon : copyIcon}
                                 onClick={handleCopy}
-                            />
+                            >
+                                {copiedField === name ? checkIcon : copyIcon}
+                            </Button>
                         </Tooltip>
                     )}
                     {showRawInVariant && onToggleRawMode && (
@@ -516,10 +517,11 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
-                                icon={codeIcon}
+                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-[var(--ag-btn-link)]" : "text-gray-500"}`}
                                 onClick={onToggleRawMode}
-                            />
+                            >
+                                {codeIcon}
+                            </Button>
                         </Tooltip>
                     )}
                     {showMarkdownInVariant && onToggleMarkdownView && (
@@ -527,10 +529,11 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
-                                icon={isMarkdownView ? textIcon : markdownIcon}
+                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-[var(--ag-btn-link)]" : "text-gray-500"}`}
                                 onClick={onToggleMarkdownView}
-                            />
+                            >
+                                {isMarkdownView ? textIcon : markdownIcon}
+                            </Button>
                         </Tooltip>
                     )}
                     {showDrillInInVariant && expandable && onDrillIn && (
@@ -558,8 +561,9 @@ const DrillInFieldHeader = memo(
                                         type="text"
                                         size="small"
                                         className={`!px-1 !h-6 text-xs ${isMapped ? "text-green-500" : "text-gray-500"}`}
-                                        icon={isMapped ? mapPinFilledIcon : mapPinIcon}
-                                    />
+                                    >
+                                        {isMapped ? mapPinFilledIcon : mapPinIcon}
+                                    </Button>
                                 </Tooltip>
                             </Popover>
                         ) : (
@@ -569,25 +573,22 @@ const DrillInFieldHeader = memo(
                                         type="text"
                                         size="small"
                                         className={`!px-1 !h-6 text-xs ${isMapped ? "text-green-500" : "text-gray-500"}`}
-                                        icon={isMapped ? mapPinFilledIcon : mapPinIcon}
                                         onClick={() => setPopoverOpen(!popoverOpen)}
-                                    />
+                                    >
+                                        {isMapped ? mapPinFilledIcon : mapPinIcon}
+                                    </Button>
                                 </Tooltip>
                                 {popoverOpen && (
-                                    <div className="absolute right-0 top-full mt-1 bg-[var(--ant-color-bg-elevated)] rounded-md shadow-lg border border-gray-200 dark:shadow-none dark:border-[rgba(255,255,255,0.16)] z-50">
+                                    <div className="absolute right-0 top-full mt-1 bg-[var(--ant-color-bg-elevated)] rounded-md shadow-lg border border-solid border-gray-200 dark:shadow-none dark:border-[rgba(255,255,255,0.16)] z-50">
                                         {mappingContent}
                                     </div>
                                 )}
                             </div>
                         ))}
                     {showDelete && onDelete && (
-                        <Button
-                            type="text"
-                            size="small"
-                            danger
-                            icon={deleteIcon}
-                            onClick={onDelete}
-                        />
+                        <Button type="text" size="small" danger onClick={onDelete}>
+                            {deleteIcon}
+                        </Button>
                     )}
                 </div>
             </div>

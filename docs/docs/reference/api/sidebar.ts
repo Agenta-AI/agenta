@@ -2272,6 +2272,12 @@ const sidebar: SidebarsConfig = {
           label: "Delete Secret",
           className: "api-method delete",
         },
+        {
+          type: "doc",
+          id: "reference/api/probe-provider",
+          label: "Probe Provider",
+          className: "api-method post",
+        },
       ],
     },
     {
@@ -2667,6 +2673,18 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/watch-session-stream",
+          label: "Watch Session Stream",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/watch-project",
+          label: "Watch Project",
+          className: "api-method get",
         },
         {
           type: "doc",

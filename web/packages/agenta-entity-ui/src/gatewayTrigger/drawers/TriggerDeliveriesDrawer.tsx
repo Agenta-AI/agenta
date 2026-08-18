@@ -5,85 +5,109 @@ import {
     triggerDeliveriesDrawerAtom,
     triggerDeliveriesOwnerAtom,
     triggerDeliveriesPaginatedStore,
+    useTriggerDelivery,
+    type ExactDeliveryDrawerState,
+    type OwnerDeliveriesDrawerState,
+    type TriggerDelivery,
     type TriggerDeliveryRow,
 } from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
+import {CopyButton, EnhancedModal, message, ModalContent} from "@agenta/ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     useTableManager,
 } from "@agenta/ui/table"
+import {
+    Badge,
+    Button,
+    EmptyState,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {Code, Play, TreeView} from "@phosphor-icons/react"
-import {Drawer, Empty, Tag, Tooltip, Typography, message} from "antd"
-import type {ColumnsType} from "antd/es/table"
+import {Skeleton} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
-// ---------------------------------------------------------------------------
-// TriggerDeliveriesDrawer — delivery history for one subscription OR one
-// schedule (a delivery belongs to exactly one of the two; XOR).
-//
-// One audit row per dispatch to the bound workflow: status, event_id,
-// result/error, timestamps. Rendered with the InfiniteVirtualTable so the body
-// owns its own virtualized vertical scroll. Per-row actions replay a captured
-// delivery into the playground or inspect its full payload.
-// ---------------------------------------------------------------------------
+import {DeliveryDetails, deliveryStatusColor, isStuckDelivery} from "./DeliveryDetails"
+import {openLinkedDeliverySession} from "./linkedSessionAction"
+import {TriggerDeliveriesDrawerContent} from "./TriggerDeliveriesDrawerContent"
 
-function statusColor(type?: string | null): string {
-    switch ((type ?? "").toLowerCase()) {
-        case "success":
-        case "delivered":
-        case "ok":
-            return "green"
-        case "error":
-        case "failed":
-        case "failure":
-            return "red"
-        case "pending":
-        case "running":
-            return "blue"
-        default:
-            return "default"
-    }
+export interface TriggerDeliveriesDrawerProps {
+    onOpenSession?: (sessionId: string, applicationId: string) => void
 }
 
-function deliveryInputs(record: TriggerDeliveryRow): Record<string, unknown> {
+function deliveryInputs(record: TriggerDelivery): Record<string, unknown> {
     return (record.data?.inputs ?? {}) as Record<string, unknown>
 }
 
-function deliveryTraceId(record: TriggerDeliveryRow): string | null {
+function deliveryTraceId(record: TriggerDelivery): string | null {
     const traceId = record.data?.result?.trace_id
     return typeof traceId === "string" && traceId ? traceId : null
 }
 
-function deliverySpanId(record: TriggerDeliveryRow): string | null {
+function deliverySpanId(record: TriggerDelivery): string | null {
     const spanId = record.data?.result?.span_id
     return typeof spanId === "string" && spanId ? spanId : null
 }
 
-export default function TriggerDeliveriesDrawer() {
-    const [state, setState] = useAtom(triggerDeliveriesDrawerAtom)
-    const open = !!state
-    const owner = state?.owner
-    const playgroundEntityId = state?.playgroundEntityId
-    const {openTrace} = useDrillInUI()
+function ExactDeliveryView({
+    state,
+    onOpenSession,
+}: {
+    state: ExactDeliveryDrawerState
+    onOpenSession?: TriggerDeliveriesDrawerProps["onOpenSession"]
+}) {
+    const {delivery, isLoading, error, refetch} = useTriggerDelivery(state.deliveryId)
 
+    if (isLoading) {
+        return <Skeleton active paragraph={{rows: 8}} title={false} />
+    }
+    if (error) {
+        return (
+            <EmptyState description="Couldn't load this delivery">
+                <Button onClick={() => void refetch()}>Retry</Button>
+            </EmptyState>
+        )
+    }
+    if (!delivery) return <EmptyState description="Delivery not found" />
+
+    return (
+        <DeliveryDetails
+            delivery={delivery}
+            deliveryIdFallback={state.deliveryId}
+            onOpenSession={onOpenSession}
+        />
+    )
+}
+
+function OwnerDeliveryHistory({
+    state,
+    onOpenSession,
+}: {
+    state: OwnerDeliveriesDrawerState
+    onOpenSession?: TriggerDeliveriesDrawerProps["onOpenSession"]
+}) {
+    const {owner, playgroundEntityId} = state
+    const {openTrace} = useDrillInUI()
+    const setDrawerState = useSetAtom(triggerDeliveriesDrawerAtom)
     const setOwner = useSetAtom(triggerDeliveriesOwnerAtom)
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
     const [viewing, setViewing] = useState<TriggerDeliveryRow | null>(null)
 
-    // Drive the paginated store's query off the open owner; clear it on close so
-    // a stale owner doesn't refetch behind the next opener.
     useEffect(() => {
-        setOwner(owner ?? null)
+        setOwner(owner)
         return () => setOwner(null)
     }, [owner, setOwner])
 
     const table = useTableManager<TriggerDeliveryRow>({
         datasetStore: triggerDeliveriesPaginatedStore.store as never,
-        scopeId: `trigger-deliveries-${owner?.kind ?? "none"}-${owner?.id ?? "none"}`,
+        scopeId: `trigger-deliveries-${owner.kind}-${owner.id}`,
         pageSize: 50,
         clickableRows: false,
     })
@@ -91,23 +115,22 @@ export default function TriggerDeliveriesDrawer() {
     const runInPlayground = useMemo(() => {
         if (!playgroundEntityId) return undefined
         return (record: TriggerDeliveryRow) => {
-            const label = state?.name || record.data?.event_key || "trigger"
+            const label = state.name || record.data?.event_key || "trigger"
             const eventKey = record.data?.event_key
-            // Replay the actual mapped message; JSON only as a non-chat fallback.
-            const msg = getScheduleMessagePreview(deliveryInputs(record))
-            const text = msg.trim()
-                ? msg
+            const messagePreview = getScheduleMessagePreview(deliveryInputs(record))
+            const text = messagePreview.trim()
+                ? messagePreview
                 : `[Triggered by ${label}${eventKey ? ` · ${eventKey}` : ""}]\n\`\`\`json\n${JSON.stringify(
                       deliveryInputs(record),
                       null,
                       2,
                   )}\n\`\`\``
             setPendingRun({text, nonce: Date.now(), newSession: true})
-            setState(null)
+            setDrawerState(null)
         }
-    }, [playgroundEntityId, state?.name, setPendingRun, setState])
+    }, [playgroundEntityId, setDrawerState, setPendingRun, state.name])
 
-    const columns = useMemo<ColumnsType<TriggerDeliveryRow>>(
+    const columns = useMemo(
         () =>
             createStandardColumns<TriggerDeliveryRow>([
                 {
@@ -118,12 +141,24 @@ export default function TriggerDeliveriesDrawer() {
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
                         const type = record.status?.type ?? record.status?.code
-                        return (
-                            <Tooltip title={record.status?.message ?? undefined}>
-                                <Tag color={statusColor(record.status?.type)}>
+                        const badge = (
+                            <span className="flex flex-wrap items-center gap-1">
+                                <Badge variant={deliveryStatusColor(type)}>
                                     {type ?? "unknown"}
-                                </Tag>
-                            </Tooltip>
+                                </Badge>
+                                {isStuckDelivery(record) ? (
+                                    <Badge variant="red">Stuck</Badge>
+                                ) : null}
+                            </span>
+                        )
+                        if (!record.status?.message) return badge
+                        return (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>{badge}</TooltipTrigger>
+                                    <TooltipContent>{record.status.message}</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         )
                     },
                 },
@@ -135,13 +170,18 @@ export default function TriggerDeliveriesDrawer() {
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
                         return (
-                            <Typography.Text
-                                className="!text-xs"
-                                copyable={{text: record.event_id}}
-                                ellipsis
-                            >
-                                {record.event_id}
-                            </Typography.Text>
+                            <span className="flex min-w-0 items-center gap-1">
+                                <span className="min-w-0 truncate text-xs">{record.event_id}</span>
+                                <CopyButton
+                                    text={record.event_id}
+                                    icon
+                                    buttonText=""
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    successMessage="Event ID copied"
+                                    stopPropagation
+                                />
+                            </span>
                         )
                     },
                 },
@@ -154,22 +194,19 @@ export default function TriggerDeliveriesDrawer() {
                         if (record.__isSkeleton) return null
                         if (record.data?.error) {
                             return (
-                                <Typography.Text
-                                    type="danger"
-                                    className="!text-xs whitespace-normal break-words"
-                                >
+                                <span className="whitespace-normal break-words text-xs text-colorErrorText">
                                     {record.data.error}
-                                </Typography.Text>
+                                </span>
                             )
                         }
                         const result = record.data?.result
                         if (!result || Object.keys(result).length === 0) {
-                            return <Typography.Text type="secondary">-</Typography.Text>
+                            return <span className="text-colorTextTertiary">-</span>
                         }
                         return (
-                            <Typography.Text className="!text-xs whitespace-normal break-words">
+                            <span className="whitespace-normal break-words text-xs">
                                 {JSON.stringify(result)}
-                            </Typography.Text>
+                            </span>
                         )
                     },
                 },
@@ -180,11 +217,11 @@ export default function TriggerDeliveriesDrawer() {
                     width: 180,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
-                        const ts = record.status?.timestamp ?? record.created_at
+                        const timestamp = record.status?.timestamp ?? record.created_at
                         return (
-                            <Typography.Text className="!text-xs">
-                                {ts ? new Date(ts).toLocaleString() : "-"}
-                            </Typography.Text>
+                            <span className="text-xs">
+                                {timestamp ? new Date(timestamp).toLocaleString() : "-"}
+                            </span>
                         )
                     },
                 },
@@ -242,32 +279,16 @@ export default function TriggerDeliveriesDrawer() {
             ...(table.shellProps.tableProps ?? {}),
             size: "small" as const,
             bordered: true,
-            locale: {emptyText: <Empty description="No deliveries yet" />},
+            locale: {emptyText: <EmptyState description="No deliveries yet" />},
         }),
         [table.shellProps.tableProps],
     )
 
     return (
-        <Drawer
-            open={open}
-            onClose={() => {
-                // This drawer stays mounted (atom-driven), so the payload-modal state
-                // would otherwise survive a close and flash on the next open.
-                setViewing(null)
-                setState(null)
-            }}
-            title={`Deliveries${state?.name ? ` · ${state.name}` : ""}`}
-            size={820}
-            destroyOnClose
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
-            }}
-        >
+        <>
             <div className="flex h-full min-h-0 grow flex-col px-6 pt-4">
                 <InfiniteVirtualTableFeatureShell<TriggerDeliveryRow>
                     {...table.shellProps}
-                    // Read-only audit log: no table-level multi-row actions, so no
-                    // selection column.
                     rowSelection={undefined}
                     columns={columns}
                     tableProps={tableProps}
@@ -278,20 +299,75 @@ export default function TriggerDeliveriesDrawer() {
                     store={getDefaultStore()}
                 />
             </div>
-
             <EnhancedModal
                 open={!!viewing}
                 onCancel={() => setViewing(null)}
-                title="Delivery payload"
+                title="Delivery details"
                 footer={null}
-                width={640}
+                width={720}
             >
                 <ModalContent>
-                    <pre className="m-0 max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded bg-[var(--ag-colorFillQuaternary)] p-3 text-[12px] leading-snug">
-                        {viewing ? JSON.stringify(viewing.data ?? viewing, null, 2) : ""}
-                    </pre>
+                    {viewing ? (
+                        <DeliveryDetails delivery={viewing} onOpenSession={onOpenSession} />
+                    ) : null}
                 </ModalContent>
             </EnhancedModal>
-        </Drawer>
+        </>
+    )
+}
+
+export default function TriggerDeliveriesDrawer({onOpenSession}: TriggerDeliveriesDrawerProps) {
+    const [state, setState] = useAtom(triggerDeliveriesDrawerAtom)
+    const ownerState = state?.mode === "owner-history" ? state : null
+    const exactState = state?.mode === "exact-delivery" ? state : null
+    const openLinkedSession = onOpenSession
+        ? (sessionId: string, applicationId: string) =>
+              openLinkedDeliverySession({
+                  closeDrawer: () => setState(null),
+                  navigate: onOpenSession,
+                  sessionId,
+                  applicationId,
+              })
+        : undefined
+
+    return (
+        <EnhancedDrawer
+            open={Boolean(state)}
+            onClose={() => setState(null)}
+            title={
+                exactState
+                    ? "Delivery details"
+                    : `Deliveries${ownerState?.name ? ` · ${ownerState.name}` : ""}`
+            }
+            width={ownerState ? 820 : 720}
+            destroyOnClose
+            styles={{
+                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
+            }}
+        >
+            {state ? (
+                <TriggerDeliveriesDrawerContent
+                    state={state}
+                    ownerHistory={
+                        ownerState ? (
+                            <OwnerDeliveryHistory
+                                state={ownerState}
+                                onOpenSession={openLinkedSession}
+                            />
+                        ) : null
+                    }
+                    exactDelivery={
+                        exactState ? (
+                            <div className="h-full overflow-y-auto p-6">
+                                <ExactDeliveryView
+                                    state={exactState}
+                                    onOpenSession={openLinkedSession}
+                                />
+                            </div>
+                        ) : null
+                    }
+                />
+            ) : null}
+        </EnhancedDrawer>
     )
 }

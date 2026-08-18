@@ -72,8 +72,16 @@ export function useConsumePendingTemplate(): boolean {
         void (async () => {
             const won = await claimTemplate(pendingGeneration)
             if (!won) {
-                if (startedRef.current === generationId) startedRef.current = null
-                setHolding(false)
+                // The generation was already claimed, so its agent exists (or is being created by
+                // the winner). Drop the key rather than leaving it stored to re-arm this hook — and
+                // flash the onboarding loader — on every later page.
+                clearTemplate(pendingGeneration)
+                // Only drop the loader if this generation is still the current one — a later
+                // capture may have re-armed it while this claim was in flight.
+                if (startedRef.current === generationId) {
+                    startedRef.current = null
+                    setHolding(false)
+                }
                 return
             }
 

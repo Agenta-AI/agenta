@@ -3,7 +3,7 @@ import {useMemo} from "react"
 
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {dayjs} from "@agenta/shared/utils"
-import {EnvironmentTag} from "@agenta/ui"
+import {Tag as AgentaTag} from "@agenta/ui"
 import {EntityListItemLabel, VersionBadge} from "@agenta/ui/components/presentational"
 import {Card, Space, Tag, Typography} from "antd"
 
@@ -27,11 +27,11 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
         <Card
             className={deploymentCardClass}
             style={{
-                borderColor: selectedEnv === env.name ? "#1C2C3D" : undefined,
+                borderColor: selectedEnv === env.name ? "var(--ag-colorText)" : undefined,
             }}
             {...props}
         >
-            <EnvironmentTag environment={env.name} />
+            <AgentaTag env={env.name} />
 
             <Space className="justify-between">
                 <Typography.Text>Variant</Typography.Text>

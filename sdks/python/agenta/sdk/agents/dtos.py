@@ -516,9 +516,9 @@ class RunContext(BaseModel):
 
     The inner keys are deliberately snake_case (``workflow.variant.id``, ``trace.trace_id``): they
     are the binding NAMESPACE that a catalog entry's ``$ctx.<dotted.path>`` token addresses, so
-    they match those tokens exactly rather than the wire's camelCase convention. The conversation
-    id is NOT carried here — it rides the top-level ``sessionId`` field, and the runner owns the
-    live id across turns; duplicating it in run context would only let it go stale. ``to_wire``
+    they match those tokens exactly rather than the wire's camelCase convention. The service sends
+    the conversation id through the top-level ``sessionId`` field; the runner adds the live
+    ``$ctx.session.id`` token to its internal dispatch blob, never through this model. ``to_wire``
     emits only the sub-objects/fields that are set, so a run with no identity yields an empty blob
     (and the serializer omits the key entirely)."""
 
@@ -1110,6 +1110,11 @@ class SessionConfig(BaseModel):
     # wire when unset, so a run that needs no binding is byte-identical to before.
     run_context: Optional[RunContext] = None
     session_id: Optional[str] = None
+    # The post-hydration config this turn runs, carried verbatim so the runner can stamp it on
+    # the interaction row of any HITL gate the turn parks (see
+    # ``agents/utils/effective_config.py``). Wire-emitted only for a session run; never consumed
+    # by a harness, so it changes nothing about how the turn executes.
+    effective_parameters: Optional[Dict[str, Any]] = Field(default=None, repr=False)
     tool_specs: List[ToolSpec] = Field(
         default_factory=list,
         validation_alias=AliasChoices("tool_specs", "custom_tools"),

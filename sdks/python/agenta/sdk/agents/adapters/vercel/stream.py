@@ -69,6 +69,54 @@ _REQUIRES_TOOL_CALL_ID = {
 _REQUIRES_TOOL_NAME = {"tool-input-start", "tool-input-available"}
 
 
+# Envelope keys an MCP-style tool call wraps its real arguments in.
+_TOOL_ARGUMENT_ENVELOPE_KEYS = frozenset(
+    {"tool", "server", "name", "toolName", "serverName", "tool_name", "server_name"}
+)
+
+
+def _unwrap_tool_arguments(value: Any) -> Any:
+    """Unwrap a ``{tool, server, arguments}`` MCP transport envelope to the bare arguments.
+
+    A card body reads its fields at the top level (``input.workflow_revision``), so a call that
+    streams as the envelope drops to the raw-JSON fallback the same call renders a card for. Unwrap
+    only when every sibling of ``arguments`` is a string-valued envelope key, so a tool whose real
+    input carries its own ``arguments`` field passes through untouched. Deliberately the same
+    conservative rule as ``unwrapToolArguments`` in the replay builder (transcriptToMessages.ts) —
+    live and replay must agree on the shape.
+    """
+    if not isinstance(value, dict):
+        return value
+    args = value.get("arguments")
+    if not isinstance(args, dict):
+        return value
+    siblings = [key for key in value if key != "arguments"]
+    if not siblings:
+        return value
+    if all(
+        key in _TOOL_ARGUMENT_ENVELOPE_KEYS and isinstance(value[key], str)
+        for key in siblings
+    ):
+        return args
+    return value
+
+
+def _tool_call_input(source: Dict[str, Any]) -> Any:
+    """The real args to show for a tool call.
+
+    Prefer ``rawInput`` (the tool's real args, per ACP); the runner leaves the plain ``input`` empty
+    on some tool-call paths. ``is not None`` (not truthiness): a legit empty ``{}`` is real args, not
+    absent. Then strip the MCP envelope so every path — gated, ungated, and the ungated re-emit that
+    lands after a gate — shows the same bare arguments.
+    """
+    raw = (
+        source["rawInput"]
+        if source.get("rawInput") is not None
+        else source.get("input")
+    )
+    return _unwrap_tool_arguments(raw)
+
+
 def _conform(part: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Normalize a part at the yield boundary so it never violates the AI SDK's strict
     ``uiMessageChunkSchema``. Returns ``None`` when the part is unsalvageable and must be
@@ -215,15 +263,7 @@ async def _agent_run_to_vercel_parts_impl(
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
-                    # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
-                    # plain `input` empty on some tool-call paths — mirrors the approval /
-                    # client-tool reads in `_interaction_parts` so every path shows real args.
-                    # `is not None` (not truthiness): a legit empty `{}` is real args, not absent.
-                    "input": (
-                        data["rawInput"]
-                        if data.get("rawInput") is not None
-                        else data.get("input")
-                    ),
+                    "input": _tool_call_input(data),
                 }
                 if _conform(input_part) is not None:
                     content_parts_emitted += 1
@@ -505,15 +545,7 @@ async def _agent_stream_to_vercel_stream_impl(
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
-                    # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
-                    # plain `input` empty on some tool-call paths — mirrors the approval /
-                    # client-tool reads in `_interaction_parts` so every path shows real args.
-                    # `is not None` (not truthiness): a legit empty `{}` is real args, not absent.
-                    "input": (
-                        data["rawInput"]
-                        if data.get("rawInput") is not None
-                        else data.get("input")
-                    ),
+                    "input": _tool_call_input(data),
                 }
                 if _conform(input_part) is not None:
                     content_parts_emitted += 1
@@ -683,11 +715,7 @@ def _interaction_parts(
             # (which carries only the drift-prone ACP title) cannot downgrade it back and re-break
             # the resume key. See the tool_call handler's `tool_names_by_id.get(...)` preference.
             names[tool_call_id] = tool_name
-            real_input = (
-                tool_call["rawInput"]
-                if tool_call.get("rawInput") is not None
-                else tool_call.get("input")
-            )
+            real_input = _tool_call_input(tool_call)
             # EGRESS side of the HITL key: what name+args the FE persists on the approval part
             # (and folds back on resume). Compare to the runner's live `[HITL] gate` identity.
             log.info(
@@ -726,6 +754,22 @@ def _interaction_parts(
                     "toolName": tool_name,
                     "input": real_input,
                 }
+        # Workspace content the runner resolved and froze for this gate (imported files, and the
+        # diff for a field replaced from one). It rides its OWN data part because
+        # `tool-approval-request` is a strict object with an exact key set, and because it is
+        # runner-derived metadata, not the model's arguments — putting it in `input` would show
+        # the human a payload the model never wrote.
+        manifest = payload.get("manifest")
+        if manifest is not None:
+            yield {
+                "type": "data-approval-manifest",
+                "id": tool_call_id,
+                "data": {
+                    "toolCallId": tool_call_id,
+                    "approvalId": data.get("id"),
+                    "manifest": manifest,
+                },
+            }
         yield {
             "type": TOOL_APPROVAL_REQUEST,
             "approvalId": data.get("id"),
@@ -752,6 +796,7 @@ def _interaction_parts(
                 if tool_call.get("rawInput") is not None
                 else tool_call.get("input")
             )
+        real_input = _unwrap_tool_arguments(real_input)
         if tool_call_id is not None and tool_call_id not in seen_tool_calls:
             seen_tool_calls.add(tool_call_id)
             yield {
@@ -846,7 +891,15 @@ def _committed_revision_data(tool_name: Any, output: Any) -> Optional[Dict[str, 
             payload = json.loads(payload)
         except json.JSONDecodeError:
             return None
-    if not isinstance(payload, dict) or not payload.get("count"):
+    if not isinstance(payload, dict):
+        return None
+    # Two success shapes exist. The handler-mode commit (the migration) answers
+    # {"status": "committed", "workflow_revision": {...}} and carries no "count";
+    # the legacy route shape carried {"count": N, ...}. Gate on either, because a
+    # projector that recognizes only one silently drops the playground's refresh
+    # signal for the other (live incident, session b024a6b0: commits stored fine
+    # and the playground never switched to the new version).
+    if payload.get("status") != "committed" and not payload.get("count"):
         return None
 
     revision = payload.get("workflow_revision")

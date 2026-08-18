@@ -255,8 +255,10 @@ const PlaygroundVariantConfig: React.FC<
         [viewMode, setViewMode],
     )
 
+    // `grow`: inside the scroller's flex column this stretches to the pane's full height so the last
+    // region's white sheet reaches the bottom edge (no-op where the parent isn't a flex column).
     return (
-        <div className={clsx("w-full", "relative", "flex flex-col", className)} {...divProps}>
+        <div className={clsx("w-full", "relative", "flex flex-col grow", className)} {...divProps}>
             {/* Section 1: Configuration. Its own wrapper so the sticky header is scoped to THIS
                 section — scrolling past it lets the next section's header (Triggers/Mounts, agent
                 mode) take over the pinned slot instead of Configuration presiding over the whole
@@ -278,7 +280,7 @@ const PlaygroundVariantConfig: React.FC<
                         // agent_config field wrapper use — without it the skeleton renders flush
                         // (432px wide, no inset) and its rows jump when the next gate / real content
                         // lands.
-                        <div className="px-4 pb-3 pt-1">
+                        <div className="bg-[var(--ag-surface-section-content)] px-4 pb-3 pt-1">
                             <AgentConfigSkeleton />
                         </div>
                     ) : (

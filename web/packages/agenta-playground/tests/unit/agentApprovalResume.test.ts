@@ -328,6 +328,23 @@ describe("agentShouldResumeAfterApproval", () => {
         expect(agentShouldResumeAfterApproval({messages})).toBe(true)
     })
 
+    it("resumes a named client-tool result in an earlier message only with its live marker", () => {
+        const messages = [
+            user("connect github"),
+            assistantWithClientTool("output-available", {connected: true}),
+            user("continue"),
+            {id: "a2", role: "assistant", parts: [{type: "text", text: "Starting"}]},
+        ]
+
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "client_tool", id: "call_c"},
+            }),
+        ).toBe(true)
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
     it("does NOT resume while a client tool is still parked (input-available)", () => {
         const messages = [user("connect github"), assistantWithClientTool("input-available")]
         expect(agentShouldResumeAfterApproval({messages})).toBe(false)

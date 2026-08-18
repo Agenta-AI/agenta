@@ -18,8 +18,19 @@ import React, {useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 
 import {cn} from "@agenta/ui"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
+import {
+    Button,
+    Checkbox,
+    EmptyState,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Spinner,
+    Tabs,
+    TabsList,
+    TabsTrigger,
+} from "@agenta/ui/ui"
 import {CaretDown, Plus, X} from "@phosphor-icons/react"
-import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
@@ -32,6 +43,17 @@ const POPOVER_CASCADER_TEST_IDS = {
     rootPanel: "popover-cascader-root-panel",
     childPanel: "popover-cascader-child-panel",
 } as const
+
+/** antd `placement` → Radix `side`/`align`. */
+const PLACEMENT_MAP = {
+    bottomLeft: {side: "bottom", align: "start"},
+    bottomRight: {side: "bottom", align: "end"},
+    topLeft: {side: "top", align: "start"},
+    topRight: {side: "top", align: "end"},
+} as const satisfies Record<string, {side: "top" | "bottom"; align: "start" | "end"}>
+
+/** antd Button `size` → @agenta/ui Button `size`. */
+const BUTTON_SIZE_MAP = {small: "sm", middle: "default", large: "lg"} as const
 
 // ============================================================================
 // CHILD PANEL (internal component)
@@ -117,7 +139,7 @@ function ChildPanelContent({
     if (query.isPending) {
         return (
             <div className="flex items-center justify-center py-4 px-6" style={panelStyle}>
-                <Spin size="small" />
+                <Spinner size="small" />
             </div>
         )
     }
@@ -129,13 +151,13 @@ function ChildPanelContent({
                 <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span
-                            className="block truncate text-[10px] font-medium"
+                            className="block truncate text-[12px] font-medium"
                             title={parentLabel}
                         >
                             {parentLabel}
                         </span>
                         {multiSelect && (
-                            <span className="text-zinc-500 text-[10px]">
+                            <span className="text-colorTextSecondary text-[12px]">
                                 {selectedCount} of {filteredItems.length} selected
                             </span>
                         )}
@@ -144,9 +166,10 @@ function ChildPanelContent({
                         enabledChildren.length > 0 &&
                         selectedCount < enabledChildren.length && (
                             <Button
-                                type="link"
-                                size="small"
-                                className="shrink-0 !h-auto !p-0 !text-[10px]"
+                                type="button"
+                                variant="link"
+                                size="sm"
+                                className="shrink-0 h-auto p-0 text-[12px]"
                                 onClick={handleSelectAll}
                             >
                                 Select all
@@ -158,11 +181,7 @@ function ChildPanelContent({
             {/* Child items */}
             <div className="overflow-y-auto py-1 px-1" style={{maxHeight}}>
                 {filteredItems.length === 0 ? (
-                    <Empty
-                        description="No items"
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        className="my-4"
-                    />
+                    <EmptyState description="No items" image="simple" className="my-4" />
                 ) : multiSelect ? (
                     filteredItems.map((item) => {
                         const itemId = childLevelConfig.getId(item)
@@ -187,6 +206,7 @@ function ChildPanelContent({
                                 <Checkbox
                                     checked={isChecked}
                                     disabled={isDisabled}
+                                    tabIndex={-1}
                                     className="pointer-events-none"
                                 />
                                 <span className="truncate text-sm" title={label}>
@@ -245,7 +265,7 @@ function SelectedChildChips({
             {chips.map((chip) => (
                 <span
                     key={chip.id}
-                    className="inline-flex items-center gap-1 rounded bg-[var(--ag-rgba-051729-06)] px-1.5 py-0.5 text-[10px] leading-none"
+                    className="inline-flex items-center gap-1 rounded bg-[var(--ag-rgba-051729-06)] px-1.5 py-0.5 text-[12px] leading-none"
                 >
                     {chip.label}
                     <X
@@ -310,10 +330,9 @@ function RootItemRenderer({
     const prefixNode = showParentCheckboxes ? (
         <span onClick={(e) => e.stopPropagation()} className="flex items-center">
             <Checkbox
-                checked={isChecked}
-                indeterminate={isIndeterminate}
+                checked={isIndeterminate ? "indeterminate" : isChecked}
                 disabled={isParentSelectionPending}
-                onChange={() => onParentCheckboxChange(item, !isChecked)}
+                onCheckedChange={() => onParentCheckboxChange(item, !isChecked)}
             />
         </span>
     ) : undefined
@@ -683,14 +702,13 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         setOpen(false)
     }, [])
 
-    const handleAfterOpenChange = useCallback(
-        (isOpen: boolean) => {
-            if (isOpen || !pendingCreateRef.current) return
-            pendingCreateRef.current = false
-            onCreateNew?.()
-        },
-        [onCreateNew],
-    )
+    // Replaces antd's `afterOpenChange`: fire onCreateNew only once the popover is gone.
+    // Radix unmounts the panel in the same commit that flips `open`, so this effect is that point.
+    useEffect(() => {
+        if (open || !pendingCreateRef.current) return
+        pendingCreateRef.current = false
+        onCreateNew?.()
+    }, [open, onCreateNew])
 
     // Shared props for RootItemRenderer
     const rootItemProps = useMemo(
@@ -739,7 +757,8 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     />
                 </div>
                 {onCreateNew && (
-                    <Button type="primary" icon={<Plus size={14} />} onClick={handleCreateNew}>
+                    <Button type="button" onClick={handleCreateNew}>
+                        <Plus size={14} />
                         {createNewLabel ?? `New ${rootLabel}`}
                     </Button>
                 )}
@@ -748,21 +767,22 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             {/* TABS (optional, only when adapter provides tabs) */}
             {tabs && tabs.length > 0 && (
                 <Tabs
-                    activeKey={activeTabKey}
-                    onChange={setActiveTabKey}
-                    items={tabs.map((tab) => ({
-                        key: tab.key,
-                        label: tab.label,
-                    }))}
-                    size="small"
-                    tabBarGutter={16}
+                    value={activeTabKey}
+                    onValueChange={setActiveTabKey}
                     className={cn(
-                        "[&_.ant-tabs-nav]:px-3 [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-nav::before]:border-b-0",
-                        "[&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2",
-                        "[&_.ant-tabs-nav-wrap]:pb-0",
                         "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
                     )}
-                />
+                >
+                    {/* Tab bar only — the panels below are rendered outside Tabs, so there is
+                        no TabsContent. gap-4 = antd tabBarGutter 16. */}
+                    <TabsList className="mb-0 gap-4 border-b-0 px-3">
+                        {tabs.map((tab) => (
+                            <TabsTrigger key={tab.key} value={tab.key} className="py-2 text-xs">
+                                {tab.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
             )}
 
             {/* PANELS: Root + Child side-by-side */}
@@ -776,14 +796,15 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     {/* Selection summary */}
                     {selectionSummaryText ? (
                         <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center justify-between">
-                            <span className="text-zinc-500 text-[10px]">
+                            <span className="text-colorTextSecondary text-[12px]">
                                 {selectionSummaryText}
                             </span>
                             {onClearAll && (selectedChildIds?.size ?? 0) > 0 && (
                                 <Button
-                                    type="link"
-                                    size="small"
-                                    className="!h-auto !p-0 !text-[10px]"
+                                    type="button"
+                                    variant="link"
+                                    size="sm"
+                                    className="h-auto p-0 text-[12px]"
                                     onClick={onClearAll}
                                 >
                                     Clear all
@@ -796,12 +817,12 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     <div className="overflow-y-auto flex-1 py-0.5 px-1" style={{maxHeight}}>
                         {rootQuery.isPending ? (
                             <div className="flex items-center justify-center py-4">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         ) : tabFilteredRootItems.length === 0 ? (
-                            <Empty
+                            <EmptyState
                                 description="No items found"
-                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                image="simple"
                                 className="my-4"
                             />
                         ) : groupedItems ? (
@@ -812,7 +833,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                         <div key={groupKey}>
                                             {showGroupHeaders && (
                                                 <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                                                    <span className="text-[10px] font-medium text-zinc-400">
+                                                    <span className="text-[12px] font-medium text-colorTextDescription">
                                                         {rootLevel.getGroupLabel?.(groupKey) ??
                                                             groupKey}
                                                     </span>
@@ -833,7 +854,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                     <div>
                                         {showGroupHeaders && groupedItems.groups.size > 0 && (
                                             <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                                                <span className="text-[10px] font-medium text-zinc-400">
+                                                <span className="text-[12px] font-medium text-colorTextDescription">
                                                     Other
                                                 </span>
                                                 <div className="flex-1 h-px bg-[var(--ag-rgba-051729-06)]" />
@@ -905,31 +926,33 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     onComplete={() => setPendingParentSelection(null)}
                 />
             ) : null}
-            <Popover
-                content={content}
-                trigger="click"
-                open={open}
-                onOpenChange={handleOpenChange}
-                afterOpenChange={handleAfterOpenChange}
-                placement={placement}
-                styles={{container: {padding: 0}}}
-                arrow={false}
-                destroyOnHidden
-                autoAdjustOverflow
-            >
-                <Button
-                    size={size}
-                    disabled={disabled}
-                    className={
-                        className
-                            ? `flex items-center gap-1 ${className}`
-                            : "flex items-center gap-1"
-                    }
+            <Popover open={open} onOpenChange={handleOpenChange}>
+                <PopoverTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size={BUTTON_SIZE_MAP[size]}
+                        disabled={disabled}
+                        className={
+                            className
+                                ? `flex items-center gap-1 ${className}`
+                                : "flex items-center gap-1"
+                        }
+                    >
+                        {icon}
+                        {placeholder}
+                        {showDropdownIcon ? <CaretDown size={10} /> : null}
+                    </Button>
+                </PopoverTrigger>
+                {/* Radix unmounts content on close (antd destroyOnHidden), collides by default
+                    (autoAdjustOverflow) and draws no arrow — all three antd props are the default here. */}
+                <PopoverContent
+                    side={PLACEMENT_MAP[placement].side}
+                    align={PLACEMENT_MAP[placement].align}
+                    className="p-0"
                 >
-                    {icon}
-                    {placeholder}
-                    {showDropdownIcon ? <CaretDown size={10} /> : null}
-                </Button>
+                    {content}
+                </PopoverContent>
             </Popover>
         </>
     )

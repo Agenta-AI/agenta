@@ -103,13 +103,13 @@ export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
                         {meta ? (
                             <Tag
                                 color={meta.color}
-                                className="m-0 shrink-0 !text-[10px] leading-[16px]"
+                                className="m-0 shrink-0 !text-[12px] leading-[16px]"
                             >
                                 {meta.label}
                             </Tag>
                         ) : null}
                     </span>
-                    <Text type="secondary" className="!text-[11px]">
+                    <Text type="secondary" className="!text-xs">
                         {fileTypeLabel(path)}
                         {resolved?.size != null ? <> · {humanSize(resolved.size)}</> : null}
                     </Text>

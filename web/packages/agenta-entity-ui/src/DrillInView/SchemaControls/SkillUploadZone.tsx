@@ -8,8 +8,8 @@
 import {useCallback, useRef, useState} from "react"
 
 import {cn} from "@agenta/ui/styles"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {UploadSimple} from "@phosphor-icons/react"
-import {Button, Spin} from "antd"
 
 import {parseSkillFromDataTransfer, parseSkillFromFileList, type ParsedSkill} from "./skillUpload"
 
@@ -57,26 +57,28 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
             }}
             className={cn(
                 "flex flex-col items-center justify-center gap-2 rounded border border-dashed px-4 py-5 text-center transition-colors",
-                "border-[var(--ag-c-D6DEE6,#d6dee6)]",
-                over && "border-[var(--ag-c-586673,#586673)] bg-[var(--ag-c-F5F7FA,#f5f7fa)]",
+                "border-[var(--ag-zinc-3)]",
+                over && "border-[var(--ag-c-586673)] bg-[var(--ag-c-F5F7FA)]",
                 disabled && "opacity-60",
             )}
         >
             {busy ? (
-                <Spin size="small" />
+                <Spinner size="small" />
             ) : (
-                <UploadSimple size={20} className="text-[var(--ag-c-586673,#586673)]" />
+                <UploadSimple size={20} className="text-[var(--ag-c-586673)]" />
             )}
-            <div className="text-xs text-[var(--ag-c-586673,#586673)]">
+            <div className="text-xs text-[var(--ag-c-586673)]">
                 Drag a skill folder, <span className="font-mono">.zip</span>, or{" "}
                 <span className="font-mono">.skill</span> here
             </div>
-            <Button onClick={() => inputRef.current?.click()} disabled={disabled || busy}>
+            <Button
+                variant="outline"
+                onClick={() => inputRef.current?.click()}
+                disabled={disabled || busy}
+            >
                 Browse files
             </Button>
-            {error ? (
-                <div className="text-xs text-[var(--ag-c-FF4D4F,#ff4d4f)]">{error}</div>
-            ) : null}
+            {error ? <div className="text-xs text-colorError">{error}</div> : null}
             <input
                 ref={inputRef}
                 type="file"

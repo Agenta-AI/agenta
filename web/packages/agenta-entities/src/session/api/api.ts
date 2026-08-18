@@ -8,6 +8,9 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
+import type {AgentaApi} from "@agentaai/api-client"
+import {z} from "zod"
+
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
@@ -17,6 +20,7 @@ import {
     sessionRecordsQueryResponseSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
+    sessionStreamSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
     sessionStreamsResponseSchema,
@@ -26,8 +30,12 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
+    type SessionExpansion,
+    type SessionOrigin,
     type SessionStream,
     type SessionStreamCommandResponse,
+    type SessionsQueryResponse,
+    type SessionWindowing,
 } from "../core/schema"
 
 import {
@@ -87,7 +95,11 @@ export interface SessionScopedParams {
     abortSignal?: AbortSignal
 }
 
-export interface QueryInteractionsParams extends SessionScopedParams {
+export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
+    /** Omit for a PROJECT-WIDE query — the backend treats `session_id` as optional, so one call
+     * returns every matching interaction across the project (the pending-approvals badge
+     * primitive). */
+    sessionId?: string
     kind?: SessionInteractionKind
     status?: SessionInteractionStatusCode
     /** Only requests still awaiting an answer. */
@@ -95,9 +107,9 @@ export interface QueryInteractionsParams extends SessionScopedParams {
 }
 
 /**
- * List a session's HITL interactions (pending approvals etc.). Used to know whether a
- * record-rendered request is still actionable — NOT as the render source (the record renders
- * the question; interactions hold the answer-state).
+ * List HITL interactions (pending approvals etc.) — one session's, or the whole project's when
+ * `sessionId` is omitted. Used to know whether a record-rendered request is still actionable —
+ * NOT as the render source (the record renders the question; interactions hold the answer-state).
  */
 export async function queryInteractions({
     sessionId,
@@ -108,7 +120,7 @@ export async function queryInteractions({
     status,
     actionableOnly,
 }: QueryInteractionsParams): Promise<SessionInteraction[] | null> {
-    if (!projectId || !sessionId) return null
+    if (!projectId) return null
 
     const data = await callFern("[queryInteractions]", () =>
         getSessionsClient().queryInteractions(
@@ -163,13 +175,62 @@ export interface RespondInteractionParams extends InteractionScopedParams {
     answer: Record<string, unknown>
 }
 
+/** True for the backend's `409 Interaction is no longer pending` (someone already answered).
+ * Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
+export const isInteractionConflict = (error: unknown): boolean =>
+    (error as {statusCode?: number} | null)?.statusCode === 409
+
+export interface TransitionInteractionParams extends SessionScopedParams {
+    token: string
+    status: SessionInteractionStatusCode
+    resolution?: Record<string, unknown>
+}
+
 /**
- * Resolve a HITL interaction (approve/deny/input). Returns the updated record, or `null`.
+ * Write a row lifecycle transition by `session_id` + `token`, not row id.
+ * Status and resolution stay atomic so the stale sweep cannot win between writes.
+ */
+export async function transitionInteraction({
+    sessionId,
+    token,
+    status,
+    resolution,
+    projectId,
+    appId,
+    abortSignal,
+}: TransitionInteractionParams): Promise<SessionInteraction | null> {
+    if (!projectId || !sessionId || !token) return null
+
+    const data = await getSessionsClient().transitionInteraction(
+        {
+            session_id: sessionId,
+            token,
+            status,
+            // The generated type predates the widened resolution payload.
+            resolution: resolution as AgentaApi.SessionInteractionResolution | undefined,
+        },
+        projectScopedRequest(projectId, appId, abortSignal),
+    )
+
+    const validated = safeParseWithLogging(
+        sessionInteractionResponseSchema,
+        data,
+        "[transitionInteraction]",
+    )
+    return validated?.interaction ?? null
+}
+
+/**
+ * Resolve a HITL interaction (approve/deny/input) — the detached respond dispatcher.
  *
- * NOTE (2026-06): per JP, decoupled interactions are deferred/"not a priority" — approvals +
- * tool-calls currently flow through MESSAGES (the live `addToolApprovalResponse` +
- * `tool_approvals` transport path), which stays. This is the durable replacement, ready but
- * not yet wired (runner doesn't auto-create rows; respond doesn't transition status).
+ * The backend CAS-flips the row to `responded` and enqueues the resume invoke, which rebuilds
+ * the turn's history from the durable records and replays the gate's stamped effective config.
+ * A caller must NOT hand-build an `/invoke` resume instead: that lands as a fresh turn and
+ * leaves the row `pending`.
+ *
+ * Unlike the read wrappers here this THROWS on failure rather than returning `null` — it is a
+ * mutation, and the caller has to tell a real failure from an already-answered gate
+ * (`isInteractionConflict`). Identify the row by its `id`, not its `token`.
  */
 export async function respondInteraction({
     interactionId,
@@ -180,13 +241,10 @@ export async function respondInteraction({
 }: RespondInteractionParams): Promise<SessionInteraction | null> {
     if (!projectId || !interactionId) return null
 
-    const data = await callFern("[respondInteraction]", () =>
-        getSessionsClient().respondInteraction(
-            {interaction_id: interactionId, answer},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
+    const data = await getSessionsClient().respondInteraction(
+        {interaction_id: interactionId, answer},
+        projectScopedRequest(projectId, appId, abortSignal),
     )
-    if (!data) return null
 
     const validated = safeParseWithLogging(
         sessionInteractionResponseSchema,
@@ -234,51 +292,192 @@ export async function querySessionStreams({
     return validated?.streams ?? null
 }
 
-export interface QuerySessionsParams {
+interface SessionPredicatesParams {
+    search?: string
+    liveness?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
+    origins?: SessionOrigin[]
+}
+
+interface SessionExcludeParams {
+    sessionIds?: string[]
+    origins?: SessionOrigin[]
+}
+
+type SessionWindowingParams = Pick<
+    SessionWindowing,
+    "limit" | "next" | "newest" | "oldest" | "order"
+>
+
+export interface QuerySessionsPageParams {
     projectId: string
-    /** Workflow refs to scope by — pass `[{id: appId}]` for one agent's sessions (JSONB `@>`
-     * containment against the turns' references). Omit for every session in the project. */
-    references?: {id?: string; slug?: string; version?: string}[]
-    /** Include ended (killed) sessions so the list keeps resumable history — default true. With
-     * this, an absent session means hard-deleted, which the reconciler uses to prune the cache. */
+    session?: SessionPredicatesParams
+    sessionIds?: string[]
+    exclude?: SessionExcludeParams
+    turnReferences?: {id?: string; slug?: string; version?: string}[]
     includeEnded?: boolean
-    /** Include archived sessions — default true so the reconciler can carry an `archived` flag and
-     * hide them by display filter, rather than mistake an archived row for a hard-delete and prune
-     * it. Set false only for a view that wants strictly non-archived rows. */
     includeArchived?: boolean
+    includeTotal?: boolean
+    expand?: SessionExpansion[]
+    windowing?: SessionWindowingParams
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
 }
 
+/** Temporary flat options retained for list-only callers that have not migrated. */
+export interface QuerySessionsParams {
+    projectId: string
+    references?: {id?: string; slug?: string; version?: string}[]
+    includeEnded?: boolean
+    includeArchived?: boolean
+    search?: string
+    flags?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
+    sessionIds?: string[]
+    excludeSessionIds?: string[]
+    origin?: SessionOrigin
+    excludeOrigin?: SessionOrigin
+    appId?: string
+    abortSignal?: AbortSignal
+    lowPriority?: boolean
+    limit?: number
+    next?: string
+    newest?: string
+    oldest?: string
+    order?: "ascending" | "descending"
+}
+
+/** `sessionsQueryResponseSchema` with `sessions` loosened to `unknown[]` — the envelope
+ * (`count`/`total`/`windowing`) still validates as a whole, but each row is parsed
+ * individually below so one bad row can't fail the page (P2-9). */
+const sessionsQueryEnvelopeSchema = sessionsQueryResponseSchema.extend({
+    sessions: z.array(z.unknown()),
+})
+
+/**
+ * Validates a `/sessions/query` response per row instead of as one array: a single
+ * malformed row (a schema drift, a value the frontend enum doesn't know yet) is dropped and
+ * logged, not treated as a reason to empty the whole page. Logs unconditionally — including
+ * production — since a silently shrinking session list is worse than a noisy console.
+ */
+function parseSessionsQueryResponse(data: unknown, context: string): SessionsQueryResponse | null {
+    const envelope = sessionsQueryEnvelopeSchema.safeParse(data)
+    if (!envelope.success) {
+        console.error(`${context} Invalid response envelope:`, envelope.error.flatten())
+        return null
+    }
+    const sessions: SessionStream[] = []
+    envelope.data.sessions.forEach((row, index) => {
+        const parsed = sessionStreamSchema.safeParse(row)
+        if (parsed.success) {
+            sessions.push(parsed.data)
+        } else {
+            console.error(
+                `${context} Dropping invalid session row at index ${index}:`,
+                parsed.error.flatten(),
+            )
+        }
+    })
+    return {...envelope.data, sessions}
+}
+
 /**
  * The durable session list for the project: merged stream rows (id, `name` title, flags,
  * `created_at`, `deleted_at`=ended), filtered by the turns' workflow `references`. This is the
- * server source the reconciling sidebar merges over its localStorage cache. Returns `null` on
- * failure / missing project scope.
+ * server source the reconciling sidebar merges over its localStorage cache. Ordered by last
+ * activity (`updated_at`) server-side. Returns `null` on failure / missing project scope.
  */
-export async function querySessions({
+export async function querySessionsPage({
     projectId,
-    references,
-    includeEnded = true,
-    includeArchived = true,
+    session,
+    exclude,
+    turnReferences,
+    includeEnded,
+    includeArchived,
+    includeTotal,
+    expand,
+    windowing,
+    sessionIds,
     appId,
     abortSignal,
     lowPriority,
-}: QuerySessionsParams): Promise<SessionStream[] | null> {
+}: QuerySessionsPageParams): Promise<SessionsQueryResponse | null> {
     if (!projectId) return null
 
     const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
-    const data = await callFern("[querySessions]", () =>
+    const data = await callFern("[querySessionsPage]", () =>
         client.querySessions(
-            {references, include_ended: includeEnded, include_archived: includeArchived},
+            {
+                session,
+                session_ids: sessionIds,
+                exclude: exclude
+                    ? {session_ids: exclude.sessionIds, origins: exclude.origins}
+                    : undefined,
+                turn_references: turnReferences,
+                include_ended: includeEnded,
+                include_archived: includeArchived,
+                include_total: includeTotal,
+                expand,
+                windowing,
+            },
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
     if (!data) return null
 
-    const validated = safeParseWithLogging(sessionsQueryResponseSchema, data, "[querySessions]")
-    return validated?.sessions ?? null
+    return parseSessionsQueryResponse(data, "[querySessionsPage]")
+}
+
+/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
+export async function querySessions({
+    projectId,
+    references,
+    includeEnded = true,
+    includeArchived = true,
+    search,
+    flags,
+    sessionIds,
+    excludeSessionIds,
+    origin,
+    excludeOrigin,
+    appId,
+    abortSignal,
+    lowPriority,
+    limit,
+    next,
+    newest,
+    oldest,
+    order,
+}: QuerySessionsParams): Promise<SessionStream[] | null> {
+    const page = await querySessionsPage({
+        projectId,
+        session:
+            search !== undefined || flags !== undefined || origin !== undefined
+                ? {search, liveness: flags, origins: origin ? [origin] : undefined}
+                : undefined,
+        sessionIds,
+        exclude:
+            excludeSessionIds !== undefined || excludeOrigin !== undefined
+                ? {
+                      sessionIds: excludeSessionIds,
+                      origins: excludeOrigin ? [excludeOrigin] : undefined,
+                  }
+                : undefined,
+        turnReferences: references,
+        includeEnded,
+        includeArchived,
+        windowing:
+            limit !== undefined ||
+            next !== undefined ||
+            newest !== undefined ||
+            oldest !== undefined ||
+            order !== undefined
+                ? {limit, next, newest, oldest, order}
+                : undefined,
+        appId,
+        abortSignal,
+        lowPriority,
+    })
+    return page?.sessions ?? null
 }
 
 export interface SetSessionHeaderParams {
@@ -358,11 +557,10 @@ export interface CommandSessionStreamParams extends SessionScopedParams {
  * delivered out-of-band (see the agent-chat transport). Use `force` to steal the lock,
  * `detached` for fire-and-forget.
  *
- * FOLLOWUP(sessions,lifecycle): steer/cancel/attach are NOT surfaced in the user-facing chat on
- * purpose — on the product path they only edit Redis locks; the runner doesn't cooperatively
- * cancel/steer, and there's no live-turn re-watch, so wiring them into chat would be a no-op stub.
- * The chat's send/stop (via `/invoke` + useChat abort) and `killSession` are the real ops. Revisit
- * when the runner cooperates. See docs/designs/sessions/frontend-integration.md.
+ * FOLLOWUP(sessions,lifecycle): steer/attach remain unwired in the user-facing desktop chat;
+ * cancel IS consumed by the mobile StopButton (cooperative ≤30s; clean "cancelled" settle
+ * arrives with the agent-cancel-steer runner work). There's still no live-turn re-watch.
+ * See docs/designs/sessions/frontend-integration.md.
  */
 export async function commandSessionStream({
     sessionId,
@@ -508,6 +706,43 @@ export async function querySessionMounts({
         data,
         "[querySessionMounts]",
     )
+    return validated?.mounts ?? null
+}
+
+/**
+ * The durable drive bound to an AGENT rather than to a session — the files an agent carries
+ * between runs (its brief, its reference material) as opposed to a session's scratch mount.
+ *
+ * Backed by `POST /mounts/agents/query`, which takes the workflow ARTIFACT id and resolves the
+ * canonical agent id server-side, so callers pass the same id the rest of the app calls `appId`.
+ * Returns at most one mount; the list shape mirrors the session endpoint.
+ */
+export async function queryAgentMounts({
+    artifactId,
+    projectId,
+    appId,
+    abortSignal,
+    lowPriority,
+}: {
+    artifactId: string
+    projectId: string
+    appId?: string
+    abortSignal?: AbortSignal
+    lowPriority?: boolean
+}): Promise<Mount[] | null> {
+    if (!projectId || !artifactId) return null
+
+    const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    // maxRetries 1: a small query; recover a transient blip once, but never a long retry pit.
+    const data = await callFern("[queryAgentMounts]", () =>
+        client.queryAgentMount(
+            {artifact_id: artifactId},
+            projectScopedRequest(projectId, appId, abortSignal, 1),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(sessionMountsResponseSchema, data, "[queryAgentMounts]")
     return validated?.mounts ?? null
 }
 

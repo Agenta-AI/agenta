@@ -29,8 +29,8 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {message} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Button} from "@agenta/ui/ui"
 import {Plugs} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useSetAtom} from "jotai"
 
 import {CatalogChooser} from "../../../drawers/shared/CatalogChooser"
@@ -317,12 +317,12 @@ export function AgentIntegrationDrawer({
             }}
             footer={
                 <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
                         {addedCount > 0
                             ? `${addedCount} app ${addedCount === 1 ? "tool" : "tools"} added`
                             : "Pick actions from a connected app — added instantly."}
                     </span>
-                    <Button type="primary" onClick={onClose}>
+                    <Button variant="default" onClick={onClose}>
                         Done
                     </Button>
                 </div>
