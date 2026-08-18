@@ -17,7 +17,8 @@
  *    use (`usage.ts`, `pi-assets.ts`). That is what lets a test stand a Pi transcript up inside a
  *    remote sandbox without a live Daytona.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
@@ -128,7 +129,14 @@ export async function runSilentTurn(
   const readFsFilePaths: string[] = [];
   const store = new SessionContinuityStore();
   const events: AgentEvent[] = [];
-  const cwd = options.cwd ?? "/tmp/agenta-silent-turn-cwd";
+  // A run without an explicit cwd still gets a private one. A fixed shared /tmp path would let a
+  // stray Pi transcript left by any other run (or an earlier failed one) be picked up as this
+  // turn's swallowed error — which would silently flip the empty-turn expectations and look
+  // exactly like the fix landing. Cleaned up below, since only this call knows it owns it.
+  const ownedCwd = options.cwd
+    ? undefined
+    : mkdtempSync(join(tmpdir(), "agenta-silent-turn-run-"));
+  const cwd = options.cwd ?? (ownedCwd as string);
 
   let eventHandler: ((event: unknown) => void) | undefined;
   let permissionHandler: ((request: unknown) => void) | undefined;
@@ -230,19 +238,23 @@ export async function runSilentTurn(
     sessionContinuityStore: store,
   };
 
-  const result = await runSandboxAgent(
-    {
-      harness: "pi_core",
-      messages: [{ role: "user", content: "hello" }],
-      sessionId: SESSION_ID,
-      ...request,
-    } as AgentRunRequest,
-    (event) => events.push(event),
-    undefined,
-    deps,
-  );
+  try {
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        sessionId: SESSION_ID,
+        ...request,
+      } as AgentRunRequest,
+      (event) => events.push(event),
+      undefined,
+      deps,
+    );
 
-  return { result, events, readFsFilePaths, store };
+    return { result, events, readFsFilePaths, store };
+  } finally {
+    if (ownedCwd) rmSync(ownedCwd, { recursive: true, force: true });
+  }
 }
 
 /** A Pi session transcript whose last assistant turn failed with `message`. */

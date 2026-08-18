@@ -690,23 +690,71 @@ def check_no_blank_success_on_refusal(turns: list[Turn], log_lines: list[str]) -
     return {"refusals": refused_ids, "violations": violations}
 
 
+# Frame types that carry no content: the stream scaffolding, the model's private reasoning, and
+# the error frames. Everything else the adapter emits IS content — text, tool input/output,
+# approval requests, `file`, attachment delivery, and every `data-<name>` payload.
+#
+# This mirrors `content_parts_emitted` in the product's own egress
+# (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py`), which counts message/message_delta,
+# tool_call, tool_result, interaction_request, data, file and attachment_delivery, and does NOT
+# count reasoning, usage, done, or error. Keep the two definitions in step: if the adapter starts
+# counting a new event as content, a turn carrying only that event stops being silent.
+#
+# It is a deny-list on purpose. `data-<name>` payloads are open-ended, so an allow-list would
+# treat an unknown-but-real content frame as silence and FAIL a healthy turn. A deny-list errs the
+# other way — an unrecognised frame reads as content — which can only ever under-report.
+_NON_CONTENT_FRAMES = frozenset(
+    {
+        "start",
+        "start-step",
+        "finish-step",
+        "finish",
+        "reasoning-start",
+        "reasoning-delta",
+        "reasoning-end",
+        "error",
+        "data-agent-error",
+    }
+)
+_TEXT_FRAMES = frozenset({"text-start", "text-delta", "text-end"})
+
+
+def _turn_produced_content(turn: Turn) -> bool:
+    """Did this turn put anything in front of the user (by the product's own definition)?"""
+    if turn.reply.strip():
+        return True
+    for frame in turn.frames:
+        if frame in _NON_CONTENT_FRAMES:
+            continue
+        # Text frames arrived but the reply is blank/whitespace: nothing was actually said.
+        if frame in _TEXT_FRAMES:
+            continue
+        return True
+    return False
+
+
 def check_no_silent_turn(turns: list[Turn]) -> dict:
     """The silent-turn invariant: a turn that said nothing, did nothing, asked nothing, and
     reported nothing must never be treated as a completed turn.
 
     That combination is the signature of a swallowed provider failure (ASD-EST100): the model
     call is rejected, the error is dropped on the way back, and the turn arrives as a clean
-    empty finish. The user sees a blank bubble with no reason anywhere.
+    empty finish. The user sees a blank bubble with no reason anywhere. It is dangerous precisely
+    in cells whose PASS depends on something NOT appearing — a turn that produced nothing also
+    produced no error, no leak, and no blank success, so it satisfies those cells by doing
+    nothing at all.
 
-    A turn is NOT silent when it produced assistant text, called a tool, raised an approval gate,
-    or carried an error frame — so a parked turn (which always raises a gate) and a failed turn
-    (which carries an error) both pass. Returns {"violations": [...]}; a cell should treat any
-    non-empty `violations` as an automatic FAIL regardless of its own assertions. The one case a
-    cell must filter out itself is a turn it deliberately aborted, which legitimately ends bare.
+    A turn is NOT silent when it produced any content frame (text, a tool call or result, an
+    approval request, a file, an attachment delivery, any `data-<name>` payload) or carried an
+    error. So a parked turn (which raises a gate) and a failed turn (which carries an error) both
+    pass. Returns {"violations": [...]}; a cell should treat any non-empty `violations` as an
+    automatic FAIL regardless of its own assertions. The one case a cell must filter out itself
+    is a turn it deliberately aborted or interrupted, which legitimately ends bare — pass only
+    the turns that were meant to answer (see `matrix_w5.py`, which excludes its interrupted turn).
     """
     violations = []
     for index, turn in enumerate(turns):
-        if turn.reply.strip() or turn.tool_calls or turn.approvals or turn.errors:
+        if _turn_produced_content(turn) or turn.errors:
             continue
         violations.append(
             {

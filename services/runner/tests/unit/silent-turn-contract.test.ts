@@ -178,6 +178,21 @@ describe("empty turns that still pass silently", () => {
     assert.equal(result.output, "The answer is 4.");
   });
 
+  it("puts a tool call in the stream (guards the expectation below)", async () => {
+    // The tool-call expectation below is `it.fails`, so its own in-body check that the tool call
+    // arrived would be satisfied by a fixture that stopped emitting one — the test would sit at
+    // "expected fail" forever, including after the fix lands. This guard is the external one.
+    const { events } = await runSilentTurn(
+      { harness: "pi_core" },
+      { promptEvents: [toolCallChunk("tool-1")] },
+    );
+
+    assert.ok(
+      types(events).includes("tool_call"),
+      `the fixture must emit a tool_call event, got: ${types(events)}`,
+    );
+  });
+
   it("strips a banner-only turn down to nothing (guards the expectation below)", async () => {
     // The premise of the banner case: after stripping, a turn that streamed only the banner is
     // indistinguishable from a turn that streamed nothing. Asserting it here rather than inside
