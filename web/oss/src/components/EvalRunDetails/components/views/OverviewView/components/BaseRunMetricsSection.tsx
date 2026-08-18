@@ -4,9 +4,9 @@ import {Alert} from "antd"
 
 import {isBooleanMetricStats} from "@/oss/components/EvalRunDetails/utils/metricDistributions"
 import type {TemporalMetricPoint} from "@/oss/components/Evaluations/atoms/runMetrics"
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
 
 import EvaluatorMetricsChart from "../../../EvaluatorMetricsChart"
-import {DEFAULT_SPIDER_SERIES_COLOR, SPIDER_SERIES_COLORS} from "../constants"
 import {useRunMetricData, type EvaluatorRef} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
 
@@ -52,8 +52,8 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
     const baseDescriptor = runDescriptors[0]
     const runDisplayName = baseDescriptor?.displayName ?? baseRunId
 
-    const baseColor =
-        runColorMap.get(baseRunId) ?? SPIDER_SERIES_COLORS[0] ?? DEFAULT_SPIDER_SERIES_COLOR
+    const seriesColors = useChartSeries()
+    const baseColor = runColorMap.get(baseRunId) ?? seriesColors[0]
 
     const comparisonMeta = useMemo(
         () =>
@@ -62,10 +62,10 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
                 runName: descriptor.displayName,
                 color:
                     runColorMap.get(descriptor.runId) ??
-                    SPIDER_SERIES_COLORS[(index + 1) % SPIDER_SERIES_COLORS.length] ??
-                    DEFAULT_SPIDER_SERIES_COLOR,
+                    seriesColors[(index + 1) % seriesColors.length] ??
+                    seriesColors[0],
             })),
-        [runColorMap, runDescriptors],
+        [runColorMap, runDescriptors, seriesColors],
     )
 
     const {chartEntries, hasLoading, errorMessage, attemptedMetrics} = useMemo(() => {

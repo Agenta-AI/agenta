@@ -163,12 +163,13 @@ export function useMountFileObjectUrl(
 /**
  * Upload a file into a mount folder, reporting real progress via axios `onUploadProgress` (the
  * Fern client uses fetch, which can't stream upload progress). `destFolder` is the mount-relative
- * directory ("" = root); the filename is appended.
+ * directory ("" = root); `destName` is appended to it, defaulting to the filename.
  */
 export async function uploadMountFile({
     mountId,
     destFolder,
     file,
+    destName,
     projectId,
     onProgress,
     signal,
@@ -176,15 +177,22 @@ export async function uploadMountFile({
     mountId: string
     destFolder: string
     file: File
+    /** Destination path relative to `destFolder`. May be nested ("sub/a.txt") — a dropped folder
+     * keeps its structure, and the backend creates the intermediate directories. */
+    destName?: string
     projectId?: string | null
     onProgress?: (percent: number) => void
     signal?: AbortSignal
 }): Promise<void> {
     const form = new FormData()
     form.append("file", file, file.name)
-    const path = destFolder ? `${destFolder.replace(/\/$/, "")}/${file.name}` : file.name
+    const name = destName || file.name
+    const path = destFolder ? `${destFolder.replace(/\/$/, "")}/${name}` : name
+    // The explicit header matters: the shared instance defaults to application/json, and
+    // axios then JSON-serializes the FormData, collapsing the File to {}.
     await axios.post(`${getAgentaApiUrl()}/mounts/${mountId}/files/upload`, form, {
         params: {path, project_id: projectId},
+        headers: {"Content-Type": "multipart/form-data"},
         signal,
         onUploadProgress: (e) => {
             if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))

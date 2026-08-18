@@ -14,6 +14,7 @@ import {atomFamily} from "jotai/utils"
 
 import {type DriveId} from "./DriveExplorer"
 import {useDriveArtifactId} from "./driveSessionContext"
+import {type DroppedFile} from "./dropEntries"
 import {FilesDrawer} from "./FilesDrawer"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {useSessionDriveSummary} from "./useSessionDrive"
@@ -24,10 +25,13 @@ export const filesDrawerOpenAtomFamily = atomFamily((_sessionId: string) => atom
 
 // Files staged by a drop on the chat rail's Files peek, awaiting a destination in the drawer. Keyed
 // per session like the open flag; setting it (with the drawer opened) shows ghost tiles in the grid.
-export const filesDrawerStagedAtomFamily = atomFamily((_sessionId: string) => atom<File[]>([]))
+export const filesDrawerStagedAtomFamily = atomFamily((_sessionId: string) =>
+    atom<DroppedFile[]>([]),
+)
 
 // A requested path may be a tool-path tail; match it against a full drive path by suffix.
-const matchesTail = (filePath: string, requested: string): boolean =>
+// (Shared with SessionFilesPane, the docked variant of this host.)
+export const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
 
 export function SessionFilesDrawer({sessionId}: {sessionId: string}) {

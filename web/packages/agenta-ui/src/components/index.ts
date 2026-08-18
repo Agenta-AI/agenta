@@ -61,27 +61,21 @@ export {ModalContent, ModalFooter, type ModalContentProps, type ModalFooterProps
 // ============================================================================
 
 export {
-    CopyButtonDropdown,
-    type CopyButtonDropdownProps,
-    type CopyOption,
-} from "./CopyButtonDropdown"
-
-export {
     DropdownButton,
     type DropdownButtonOption,
     type DropdownButtonOptionStatus,
     type DropdownButtonProps,
 } from "./DropdownButton"
 
-export {DraftTag, type DraftTagProps} from "./DraftTag"
 export {HeightCollapse, type HeightCollapseProps} from "./HeightCollapse"
-export {SyncStateTag, type SyncState, type SyncStateTagProps} from "./SyncStateTag"
 
 // ============================================================================
 // LAYOUT COMPONENTS
 // ============================================================================
 
 export {default as PageLayout, type PageLayoutProps} from "./PageLayout"
+
+export {pageContentWidthClass, pageGutterClass} from "./pageWidth"
 
 export {EntityCard, type EntityCardProps} from "./EntityCard"
 

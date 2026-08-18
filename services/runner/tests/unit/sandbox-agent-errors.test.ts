@@ -80,4 +80,34 @@ describe("conciseError", () => {
   it("falls back to the first line", () => {
     assert.equal(conciseError(new Error("first line\nsecond line"), "pi"), "first line");
   });
+
+  it("lets an auth-fault diagnosis replace the add-a-key line", () => {
+    // A subscription run uses no vault key, so "add the project's OpenAI key" is the wrong advice
+    // when the mounted login is what is broken (issue #5692).
+    assert.equal(
+      conciseError(new Error("401 unauthorized"), "codex", "openai", {
+        authFault: () => "codex: the mounted ChatGPT login is empty or unreadable.",
+      }),
+      "codex: the mounted ChatGPT login is empty or unreadable.",
+    );
+  });
+
+  it("keeps the generic auth line when the fault check finds nothing, and never consults it otherwise", () => {
+    let consulted = 0;
+    const authFault = () => {
+      consulted += 1;
+      return undefined;
+    };
+    assert.equal(
+      conciseError(new Error("401 unauthorized"), "codex", "openai", { authFault }),
+      "codex: model authentication failed — add the project's OpenAI key to the project vault, or log in (OAuth).",
+    );
+    assert.equal(consulted, 1);
+
+    assert.equal(
+      conciseError(new Error("something else entirely"), "codex", "openai", { authFault }),
+      "something else entirely",
+    );
+    assert.equal(consulted, 1, "the fault check is only run on the auth branch");
+  });
 });

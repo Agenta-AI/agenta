@@ -12,11 +12,13 @@ import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
+import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
 import {TestsetsClient} from "@agentaai/api-client/resources/testsets"
 import {ToolsClient} from "@agentaai/api-client/resources/tools"
 import {TracesClient} from "@agentaai/api-client/resources/traces"
+import {TriggersClient} from "@agentaai/api-client/resources/triggers"
 import {WorkflowsClient} from "@agentaai/api-client/resources/workflows"
 
 import {buildClientOptions, withLowPriorityFetch} from "./config"
@@ -89,12 +91,22 @@ export function getSessionsClient(): SessionsClient {
     return (_sessions ??= new SessionsClient(buildClientOptions()))
 }
 
+let _triggers: TriggersClient | undefined
+export function getTriggersClient(): TriggersClient {
+    return (_triggers ??= new TriggersClient(buildClientOptions()))
+}
+
 let _sessionsLowPriority: SessionsClient | undefined
 /** Same host/auth as `getSessionsClient`, but requests carry `priority: "low"` — for secondary
  * session reads (record-replay hydration, liveness polling) that must yield to the live
  * conversation stream. */
 export function getLowPrioritySessionsClient(): SessionsClient {
     return (_sessionsLowPriority ??= new SessionsClient(withLowPriorityFetch(buildClientOptions())))
+}
+
+let _projects: ProjectsClient | undefined
+export function getProjectsClient(): ProjectsClient {
+    return (_projects ??= new ProjectsClient(buildClientOptions()))
 }
 
 let _mounts: MountsClient | undefined

@@ -14,31 +14,45 @@ from pydantic import ValidationError
 from agenta.sdk.agents.capabilities import (
     CLAUDE_MODEL_ALIASES,
     HARNESS_CONNECTION_CAPABILITIES,
+    PROVIDER_DEFAULT_MODELS,
     harness_catalog_document,
 )
 from agenta.sdk.agents.model_catalog import (
     ModelCatalogEntry,
     ModelRatings,
     claude_model_catalog,
+    codex_model_catalog,
     load_claude_model_catalog,
+    load_codex_model_catalog,
     load_pi_model_catalog,
     model_catalog_entries,
+    model_input_modalities,
     pi_model_catalog,
 )
 
-_ALL_HARNESSES = ("pi_core", "pi_agenta", "claude")
+_ALL_HARNESSES = ("pi_core", "pi_agenta", "claude", "codex")
 
 
 def test_data_files_load_and_validate():
     pi = load_pi_model_catalog()
     claude = load_claude_model_catalog()
+    codex = load_codex_model_catalog()
     assert pi.schema_version == "1"
     assert claude.schema_version == "1"
+    assert codex.schema_version == "1"
     assert pi.models, "pi catalog is empty"
     assert claude.models, "claude catalog is empty"
+    assert codex.models, "codex catalog is empty"
     # Every entry is a validated ModelCatalogEntry (pydantic enforced on load).
     assert all(isinstance(e, ModelCatalogEntry) for e in pi.models)
     assert all(isinstance(e, ModelCatalogEntry) for e in claude.models)
+    assert all(isinstance(e, ModelCatalogEntry) for e in codex.models)
+
+
+def test_every_codex_model_declares_image_input():
+    entries = codex_model_catalog().models
+    assert entries, "codex catalog is empty"
+    assert all(entry.modalities and "image" in entry.modalities for entry in entries)
 
 
 def test_ratings_are_enforced_1_to_5():
@@ -155,6 +169,67 @@ def test_model_catalog_entries_helper_matches_the_published_field():
     assert model_catalog_entries("some-future-harness") == []
 
 
+@pytest.mark.parametrize("harness", ["pi_core", "pi_agenta"])
+def test_pi_input_modalities_lookup_joins_resolved_provider_and_model(harness):
+    assert model_input_modalities(harness, "gpt-5.5", provider="openai") == [
+        "text",
+        "image",
+    ]
+
+
+def test_input_modalities_lookup_is_case_insensitive_on_provider():
+    # Provider names are matched case-insensitively everywhere else (environment resolver,
+    # connection matching); a mixed-case provider must not silently drop the modality fact.
+    assert model_input_modalities(
+        "pi_core", "gpt-5.5", provider="OpenAI"
+    ) == model_input_modalities("pi_core", "gpt-5.5", provider="openai")
+    assert model_input_modalities("pi_core", "OpenAI/gpt-5.5", provider="OpenAI") == [
+        "text",
+        "image",
+    ]
+    assert model_input_modalities(
+        "claude", "claude-sonnet-4-6", provider="Anthropic"
+    ) == ["text", "image"]
+
+
+def test_claude_input_modalities_lookup_uses_bare_alias():
+    assert model_input_modalities("claude", "sonnet", provider="anthropic") == [
+        "text",
+        "image",
+    ]
+
+
+def test_codex_input_modalities_lookup_uses_bare_model_id():
+    assert model_input_modalities("codex", "gpt-5.6-sol", provider="openai") == [
+        "text",
+        "image",
+    ]
+
+
+def test_unknown_codex_model_input_modalities_returns_none():
+    assert model_input_modalities("codex", "codex-not-real", provider="openai") is None
+
+
+@pytest.mark.parametrize("model_id", ["claude-sonnet-4-6", "claude-opus-4-8"])
+def test_claude_dated_model_input_modalities_reuse_pi_catalog_fact(model_id):
+    assert model_input_modalities("claude", model_id, provider="anthropic") == [
+        "text",
+        "image",
+    ]
+
+
+def test_input_modalities_lookup_miss_returns_none():
+    assert (
+        model_input_modalities("pi_core", "workspace-only-model", provider="openai")
+        is None
+    )
+    assert model_input_modalities("future-harness", "sonnet") is None
+    assert (
+        model_input_modalities("claude", "claude-not-real", provider="anthropic")
+        is None
+    )
+
+
 def test_claude_model_catalog_ids_match_the_models_map():
     # For Claude the catalog id set equals the published models map (the accepted alias set), so a
     # picker reading either stays consistent.
@@ -170,3 +245,55 @@ def test_pricing_and_ratings_never_collide_in_type():
             assert isinstance(entry.pricing.input_per_mtok, float)
         if entry.ratings is not None and entry.ratings.cost is not None:
             assert isinstance(entry.ratings.cost, int)
+
+
+def test_default_models_are_published_per_harness_in_its_own_spelling():
+    catalog = harness_catalog_document()
+
+    pi_defaults = catalog["pi_core"]["capabilities"]["default_models"]
+    assert set(pi_defaults) == set(PROVIDER_DEFAULT_MODELS)
+    # Pi spells the openai family bare and every other family provider-prefixed; the defaults
+    # follow the accepted set rather than the curated list's canonical spelling.
+    assert pi_defaults["openai"] == ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+    assert pi_defaults["anthropic"] == [
+        "anthropic/claude-fable-5",
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-4-5",
+    ]
+    assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
+
+    # Claude selects by alias: `claude-fable-5` is its own alias, and the versioned sonnet and
+    # haiku ids arrive under the tier alias Claude actually accepts. Opus is absent because it
+    # is not curated yet, not because the alias is missing.
+    assert catalog["claude"]["capabilities"]["default_models"] == {
+        "anthropic": ["claude-fable-5", "sonnet", "haiku"]
+    }
+    # Codex reaches openai only, and names its models bare.
+    assert catalog["codex"]["capabilities"]["default_models"] == {
+        "openai": ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+    }
+
+
+def test_default_models_are_a_subset_of_what_the_harness_can_select():
+    for harness, caps in HARNESS_CONNECTION_CAPABILITIES.items():
+        for provider, defaults in caps.default_models.items():
+            # Scoped to the provider: an id under another provider's catalog is not something
+            # this provider's connection can select.
+            catalog_ids = {
+                str(entry["id"])
+                for entry in caps.model_catalog
+                if entry.get("provider") == provider
+            }
+            assert provider in caps.providers, harness
+            selectable = set(caps.models.get(provider) or []) | catalog_ids
+            assert set(defaults) <= selectable, (harness, provider)
+
+
+def test_curated_default_models_exist_in_the_pinned_pi_catalog():
+    catalog_ids = {entry.id for entry in pi_model_catalog().models}
+    for provider, models in PROVIDER_DEFAULT_MODELS.items():
+        for model_id in models:
+            assert model_id in catalog_ids, (provider, model_id)
+    # Pending a catalog refresh: the founder-approved Anthropic list also names Opus 5, which
+    # the pinned pi-ai version does not carry yet (see the note in capabilities.py).
+    assert "anthropic/claude-opus-5" not in catalog_ids

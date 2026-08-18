@@ -31,6 +31,7 @@ from .mcp import (
     mcp_servers_to_wire,
     parse_mcp_server_configs,
 )
+from .pi_builtins import PI_BUILTIN_TOOL_NAMES
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
@@ -52,6 +53,7 @@ class HarnessKind(str, Enum):
     PI = "pi_core"
     CLAUDE = "claude"
     AGENTA = "pi_agenta"
+    CODEX = "codex"
 
     @classmethod
     def coerce(cls, value: "HarnessKind | str") -> "HarnessKind":
@@ -104,6 +106,11 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         value=HarnessKind.CLAUDE.value,
         slug=f"agenta:harness:{HarnessKind.CLAUDE.value}:v0",
         name="Claude Code",
+    ),
+    HarnessIdentity(
+        value=HarnessKind.CODEX.value,
+        slug=f"agenta:harness:{HarnessKind.CODEX.value}:v0",
+        name="Codex",
     ),
 ]
 
@@ -241,11 +248,14 @@ class ContentBlock(BaseModel):
     ``services/runner/src/protocol.ts``.
     """
 
-    type: str  # "text" | "image" | "resource" | "tool_call" | "tool_result"
+    type: str  # "text" | "image" | "resource" | "attachment" | "tool_call" | "tool_result"
     text: Optional[str] = None
     data: Optional[str] = None  # base64 payload, used when type != "text"
     mime_type: Optional[str] = None
     uri: Optional[str] = None
+    attachment_id: Optional[str] = None
+    filename: Optional[str] = None
+    size: Optional[int] = None
     # Tool-turn carriers (used by tool_call / tool_result blocks).
     tool_call_id: Optional[str] = None
     tool_name: Optional[str] = None
@@ -263,6 +273,12 @@ class ContentBlock(BaseModel):
             block["mimeType"] = self.mime_type
         if self.uri is not None:
             block["uri"] = self.uri
+        if self.attachment_id is not None:
+            block["attachmentId"] = self.attachment_id
+        if self.filename is not None:
+            block["filename"] = self.filename
+        if self.size is not None:
+            block["size"] = self.size
         if self.tool_call_id is not None:
             block["toolCallId"] = self.tool_call_id
         if self.tool_name is not None:
@@ -289,6 +305,9 @@ class ContentBlock(BaseModel):
                 data=raw.get("data"),
                 mime_type=raw.get("mimeType") or raw.get("mime_type"),
                 uri=raw.get("uri"),
+                attachment_id=raw.get("attachmentId") or raw.get("attachment_id"),
+                filename=raw.get("filename"),
+                size=raw.get("size"),
                 tool_call_id=raw.get("toolCallId") or raw.get("tool_call_id"),
                 tool_name=raw.get("toolName") or raw.get("tool_name"),
                 input=raw.get("input"),
@@ -360,8 +379,9 @@ def to_messages(raw: Optional[List[Any]]) -> List[Message]:
 class Event(BaseModel):
     """One structured event from a run, mapped from an ACP ``session/update``.
 
-    ``type`` is one of ``message``, ``thought``, ``tool_call``, ``tool_result``, ``usage``,
-    ``error``, ``done``. ``data`` carries the rest verbatim.
+    ``type`` is one of ``message``, ``thought``, ``tool_call``, ``tool_result``, ``data``,
+    ``file``, ``interaction_*``, ``attachment_delivery``, ``usage``, ``error``, or ``done``.
+    ``data`` carries the rest verbatim.
     """
 
     type: str
@@ -496,9 +516,9 @@ class RunContext(BaseModel):
 
     The inner keys are deliberately snake_case (``workflow.variant.id``, ``trace.trace_id``): they
     are the binding NAMESPACE that a catalog entry's ``$ctx.<dotted.path>`` token addresses, so
-    they match those tokens exactly rather than the wire's camelCase convention. The conversation
-    id is NOT carried here — it rides the top-level ``sessionId`` field, and the runner owns the
-    live id across turns; duplicating it in run context would only let it go stale. ``to_wire``
+    they match those tokens exactly rather than the wire's camelCase convention. The service sends
+    the conversation id through the top-level ``sessionId`` field; the runner adds the live
+    ``$ctx.session.id`` token to its internal dispatch blob, never through this model. ``to_wire``
     emits only the sub-objects/fields that are set, so a run with no identity yields an empty blob
     (and the serializer omits the key entirely)."""
 
@@ -694,17 +714,12 @@ class HarnessAgentTemplate(BaseModel):
     harness: ClassVar[HarnessKind]
 
     agents_md: Optional[str] = None
-    # ``model`` stays the back-compat plain string the adapter hands to the harness.
-    # ``model_ref`` carries the structured ref when one is supplied; it is populated only from
-    # structured input (a dict / a ``ModelRef``), so a plain-string ``model`` leaves it
-    # ``None`` and the wire is unchanged. See :meth:`wire_model_ref`.
+    # ``model`` stays the plain string handed to the harness. ``model_ref`` carries author
+    # intent for resolution; only the resolved connection crosses the runner boundary.
     model: Optional[str] = None
     model_ref: Optional[ModelRef] = None
-    # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``
-    # (threaded down from ``SessionConfig``). It is the authoritative source of the non-secret
-    # provider/model descriptor on the wire when present; unset leaves the wire unchanged (the
-    # golden contract). Its ``env`` is the secret channel and never reaches the wire here (it
-    # rides ``secrets``). See :meth:`wire_resolved_connection`.
+    # ``resolved_connection`` carries the route and typed credential bindings produced by the
+    # resolver. It serializes as one consumer-owned ``modelConnection`` object.
     resolved_connection: Optional[ResolvedConnection] = None
     tool_callback: Optional[ToolCallback] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
@@ -795,54 +810,57 @@ class HarnessAgentTemplate(BaseModel):
         no harness knowledge."""
         return {}
 
-    def wire_model_ref(self) -> Dict[str, Any]:
-        """The non-secret provider/connection fields for the ``/run`` payload.
+    def wire_harness_mode(self) -> Dict[str, Any]:
+        """The harness-specific ACP session mode override for the ``/run`` payload."""
+        return {}
 
-        Empty when ``model_ref`` is unset, so a string-only config's payload is byte-identical
-        to before (the golden wire contract). When a structured ref is present this emits only
-        the fields known at config-build time: ``provider`` (when set) and ``connection`` (when
-        it carries non-default info). ``deployment`` / ``endpoint`` / ``credentialMode`` come
-        from a :class:`ResolvedConnection`, which Slice 1 does not yet thread, so they are not
-        emitted here. The plain ``model`` string still rides the wire separately for back-compat.
+    def wire_connection_ref(self) -> Dict[str, Any]:
+        """The author's connection CHOICE for the ``/run`` payload, not its resolved contents.
+
+        This is the reference the author picked in the config (``self_managed``, or an Agenta
+        connection named by slug). It stays separate from ``modelConnection`` because the two
+        answer different questions: this one is "which connection did the author select", which
+        the runner reads to route a named OpenAI-compatible Pi run through its models.json path
+        (``pi-model-config.ts``); ``modelConnection`` is "what did that connection resolve to",
+        which is credential material.
+
+        Empty when ``model_ref`` is unset, and empty for the project default (``agenta`` with no
+        slug) because that carries no information beyond the model itself, so a default run's
+        payload stays byte-identical.
         """
         if self.model_ref is None:
             return {}
-        out: Dict[str, Any] = {}
-        if self.model_ref.provider:
-            out["provider"] = self.model_ref.provider
         connection = self.model_ref.connection
-        # Two modes only: the project default is ``agenta`` with no slug and carries no info
-        # beyond the model, so it is omitted (byte-identical wire). Emit the connection only when
-        # it is ``self_managed`` or names a slug.
-        is_default = connection.mode == "agenta" and connection.slug is None
-        if not is_default:
-            wire_connection: Dict[str, Any] = {"mode": connection.mode}
-            if connection.slug is not None:
-                wire_connection["slug"] = connection.slug
-            out["connection"] = wire_connection
-        return out
+        if connection.mode == "agenta" and connection.slug is None:
+            return {}
+        wire: Dict[str, Any] = {"mode": connection.mode}
+        if connection.slug is not None:
+            wire["slug"] = connection.slug
+        return {"connection": wire}
 
-    def wire_resolved_connection(self) -> Dict[str, Any]:
-        """The non-secret resolved-connection descriptor for the ``/run`` payload.
+    def wire_model_connection(self) -> Dict[str, Any]:
+        """The resolved model route and credentials, grouped under their consumer.
 
-        Empty when ``resolved_connection`` is unset, so a config without a resolved connection
-        is byte-identical to before (the golden wire contract). When a resolved connection is
-        present this is the AUTHORITATIVE source of the provider/model descriptor: it emits
-        ``provider``, ``model`` (the resolved exact model), ``deployment``, ``credentialMode``,
-        and ``endpoint`` (via :meth:`ResolvedConnection.to_wire`, which NEVER emits ``env``). It
-        is spread AFTER the base ``model`` and after :meth:`wire_model_ref` in
-        ``request_to_wire``, so the resolved ``provider``/``model`` win over the config-build
-        values while ``connection`` (the author's ``{mode, slug}`` intent) is preserved. The
-        secret ``env`` rides the existing ``secrets`` wire field, never here."""
+        ``modelCapabilities`` (resolved input modalities) is hoisted to the top level of the
+        request: the runner's attachment-delivery chain reads ``request.modelCapabilities``,
+        not the connection object.
+        """
         if self.resolved_connection is None:
             return {}
-        return self.resolved_connection.to_wire()
+        connection_wire = self.resolved_connection.to_wire()
+        out: Dict[str, Any] = {"model": self.resolved_connection.model}
+        capabilities = connection_wire.pop("modelCapabilities", None)
+        if capabilities is not None:
+            out["modelCapabilities"] = capabilities
+        out["modelConnection"] = connection_wire
+        return out
 
 
 class PiAgentTemplate(HarnessAgentTemplate):
-    """Pi's config. Built-in tools by name plus resolved specs delivered natively (Pi has no
-    MCP; the runner registers them through the Pi extension). Pi has no native gate; the runner
-    relay enforces the shared permission plan.
+    """Pi's config. Resolved tool specs are delivered natively (Pi has no MCP; the runner
+    registers them through the Pi extension). Built-in tools are not configured here: the
+    runner activates all of them on every run. Pi has no native gate; the runner relay
+    enforces the shared permission plan.
 
     ``system`` and ``append_system`` are Pi's two system-prompt layers, distinct from
     ``agents_md``. ``system`` *replaces* Pi's built-in base prompt outright (Pi's ``SYSTEM.md``
@@ -854,10 +872,23 @@ class PiAgentTemplate(HarnessAgentTemplate):
 
     harness: ClassVar[HarnessKind] = HarnessKind.PI
 
-    builtin_names: List[str] = Field(
-        default_factory=list,
-        validation_alias=AliasChoices("builtin_names", "builtin_tools"),
-    )
+    def wire_model_connection(self) -> Dict[str, Any]:
+        """Keep Pi's selector provider-qualified so equal model suffixes cannot misroute.
+
+        ``modelConnection.provider`` describes credential ownership, but Pi routes on the
+        top-level model string. Agenta inherits this behavior; Claude keeps its bare aliases.
+        """
+        wire = super().wire_model_connection()
+        if not wire or self.resolved_connection is None:
+            return wire
+        provider = self.resolved_connection.provider
+        model = self.resolved_connection.model
+        prefix = f"{provider}/" if provider else ""
+        wire["model"] = (
+            model if not prefix or model.startswith(prefix) else f"{prefix}{model}"
+        )
+        return wire
+
     tool_specs: List[ToolSpec] = Field(
         default_factory=list,
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
@@ -871,16 +902,14 @@ class PiAgentTemplate(HarnessAgentTemplate):
         return [coerce_tool_spec(item) for item in value or []]
 
     @property
-    def builtin_tools(self) -> List[str]:
-        return list(self.builtin_names)
-
-    @property
     def custom_tools(self) -> List[Dict[str, Any]]:
         return [tool_spec.to_wire() for tool_spec in self.tool_specs]
 
     def wire_tools(self) -> Dict[str, Any]:
         return {
-            "tools": list(self.builtin_names),
+            # Deprecated field, ignored by a current runner. Populated with every built-in so an
+            # older runner (which still reads it as a grant list) activates the same set.
+            "tools": list(PI_BUILTIN_TOOL_NAMES),
             "customTools": [tool_spec.to_wire() for tool_spec in self.tool_specs],
             "toolCallback": self.tool_callback.to_wire()
             if self.tool_callback
@@ -953,6 +982,98 @@ class ClaudeAgentTemplate(HarnessAgentTemplate):
         return {"harnessFiles": files}
 
 
+class CodexAgentTemplate(HarnessAgentTemplate):
+    """Codex's config. No Pi built-ins; tools are delivered over MCP."""
+
+    harness: ClassVar[HarnessKind] = HarnessKind.CODEX
+
+    tool_specs: List[ToolSpec] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("tool_specs", "custom_tools"),
+    )
+
+    @field_validator("tool_specs", mode="before")
+    @classmethod
+    def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
+        return [coerce_tool_spec(item) for item in value or []]
+
+    @property
+    def custom_tools(self) -> List[Dict[str, Any]]:
+        return [tool_spec.to_wire() for tool_spec in self.tool_specs]
+
+    def wire_tools(self) -> Dict[str, Any]:
+        return {
+            "tools": [],  # Codex has no Pi built-in tools
+            "customTools": [tool_spec.to_wire() for tool_spec in self.tool_specs],
+            "toolCallback": self.tool_callback.to_wire()
+            if self.tool_callback
+            else None,
+            **self.wire_permissions(),
+        }
+
+    def wire_harness_mode(self) -> Dict[str, Any]:
+        """The author's Codex ACP session-mode override, from the ``permissions.mode`` option.
+
+        One of ``agent`` / ``read-only`` / ``agent-full-access``; absent means the platform default
+        ``agent-full-access`` (D-008). Every mode now raises Codex's own permission gate for a tool
+        call: the runner image patches codex-acp's full-access preset from ``approvalPolicy:
+        "never"`` to ``on-request`` (D-008 amendment, 2026-07-31), so tool approvals park warm on
+        the runner's keep-alive path instead of resuming cold on a follow-up turn. Texture caveat
+        for ``agent`` mode, unchanged: Codex's own bubblewrap sandbox fails to initialize in our
+        containers, so SHELL-command approvals under ``agent`` are noisy and nondeterministic (a
+        gate phrased "the sandbox failed, may I rerun?", sometimes the bwrap error returned instead
+        of a prompt). Full access keeps shell gate-free, because Codex only asks for exec approval
+        when the filesystem sandbox is restricted. Tool-level approvals are unaffected either way.
+        An invalid value emits nothing (byte-identical wire; the golden contract)."""
+        mode = self.harness_permissions.get("mode")
+        if mode not in {"agent", "read-only", "agent-full-access"}:
+            return {}
+        return {"harnessMode": mode}
+
+    def wire_harness_files(self) -> Dict[str, Any]:
+        """Render the Codex harness's configuration into a ``.codex/config.toml`` file the runner
+        drops in the cwd (``CODEX_HOME`` points at ``<cwd>/.codex``). This is the Codex adapter
+        (Layer 1 translation), done in Python: parse the author's first-class ``harness_permissions``
+        slice, carrying Codex's native ``approval_policy`` and ``sandbox_mode`` options verbatim.
+        Omitted when Codex has nothing authored to write, so a text-only Codex run is byte-identical
+        to before (the golden wire contract) and Codex runs under the ACP adapter's default mode.
+        Layer 2 and Layer 3 rule derivation, and the platform default posture (decision D-008),
+        land in the permissions milestone; no defaults are baked here (the ``codex-acp`` bridge
+        overrides a config-file ``sandbox_mode`` with its per-turn ACP mode preset anyway, per
+        ``spike/derisk-findings.md`` P2)."""
+        # Lazy import: ``adapters.codex_settings`` is light, but importing it at module top would
+        # run ``adapters/__init__`` (which imports the harness adapters, which import this module),
+        # so it is imported here to keep ``dtos`` free of that cycle.
+        from .adapters.codex_settings import build_codex_settings_files
+
+        # Managed vs subscription decides the file-free auth provider block (D-002 final ruling).
+        # The resolved connection is the authority (``credential_mode`` "env"/"none" = managed,
+        # "runtime_provided" = subscription). When it is not threaded, fall back to the author's
+        # connection intent so an explicit ``self_managed`` (subscription) is still excluded;
+        # everything else defaults to managed, matching the runner's ``isManagedCodexRun``.
+        credential_mode: Optional[str] = None
+        if self.resolved_connection is not None:
+            credential_mode = self.resolved_connection.credential_mode
+        elif (
+            self.model_ref is not None
+            and self.model_ref.connection is not None
+            and self.model_ref.connection.mode == "self_managed"
+        ):
+            credential_mode = "runtime_provided"
+
+        files = build_codex_settings_files(
+            self.harness_permissions,
+            self.sandbox_permission,
+            self.mcp_servers,
+            self.tool_specs,
+            self.permission_default,
+            credential_mode=credential_mode,
+        )
+        if not files:
+            return {}
+        return {"harnessFiles": files}
+
+
 class AgentaAgentTemplate(PiAgentTemplate):
     """The Agenta harness's config. It *is* a Pi config (same engine, same tool delivery and
     system-prompt layers). ``skills`` ride the inherited :meth:`wire_skills` seam as resolved
@@ -969,20 +1090,18 @@ class AgentaAgentTemplate(PiAgentTemplate):
 class SessionConfig(BaseModel):
     """Everything one run needs except where it runs.
 
-    ``agent`` is the agent definition. ``secrets`` are provider keys injected as harness
-    env, never written to the agent filesystem. The ``builtin_tools`` / ``custom_tools`` /
-    ``tool_callback`` triple is the resolved tool delivery (Agenta produces it server-side;
-    empty for a bare standalone run). The agent config's ``sandbox`` field is a
+    ``agent`` is the agent definition. Model routing and credentials are carried by
+    ``resolved_connection``. The ``custom_tools`` / ``tool_callback`` pair
+    is the resolved tool delivery (Agenta produces it server-side; empty for a bare standalone
+    run); built-in tools are not part of it, the runner activates them. The agent config's
+    ``sandbox`` field is a
     backend/environment concern: the caller reads it to pick a backend BEFORE the session is
     built, and the run itself never consumes it (no adapter reads ``agent.sandbox``)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     agent: AgentTemplate
-    secrets: Dict[str, str] = Field(default_factory=dict, repr=False)
-    # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``.
-    # ``secrets`` is the compatibility alias for ``resolved_connection.env`` during the
-    # transition: Slice 1 still ships the credential through ``secrets`` on the wire.
+    # ``resolved_connection`` is the single source of model routing and credentials.
     resolved_connection: Optional[ResolvedConnection] = None
     permission_default: PermissionMode = "allow_reads"
     trace: Optional[TraceContext] = None
@@ -991,10 +1110,11 @@ class SessionConfig(BaseModel):
     # wire when unset, so a run that needs no binding is byte-identical to before.
     run_context: Optional[RunContext] = None
     session_id: Optional[str] = None
-    builtin_names: List[str] = Field(
-        default_factory=list,
-        validation_alias=AliasChoices("builtin_names", "builtin_tools"),
-    )
+    # The post-hydration config this turn runs, carried verbatim so the runner can stamp it on
+    # the interaction row of any HITL gate the turn parks (see
+    # ``agents/utils/effective_config.py``). Wire-emitted only for a session run; never consumed
+    # by a harness, so it changes nothing about how the turn executes.
+    effective_parameters: Optional[Dict[str, Any]] = Field(default=None, repr=False)
     tool_specs: List[ToolSpec] = Field(
         default_factory=list,
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
@@ -1016,10 +1136,6 @@ class SessionConfig(BaseModel):
             else ResolvedMCPServer.model_validate(item)
             for item in value or []
         ]
-
-    @property
-    def builtin_tools(self) -> List[str]:
-        return list(self.builtin_names)
 
     @property
     def custom_tools(self) -> List[Dict[str, Any]]:

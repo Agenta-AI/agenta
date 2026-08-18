@@ -16,7 +16,17 @@ const fmt = (seconds: number): string => {
  * in the composer tray before sending, and in the transcript afterwards — so both surfaces share
  * this rather than showing an inert file chip.
  */
-const AudioPlayer = ({src, name, className}: {src: string; name: string; className?: string}) => {
+const AudioPlayer = ({
+    src,
+    name,
+    className,
+    onError,
+}: {
+    src: string
+    name: string
+    className?: string
+    onError?: () => void
+}) => {
     const audioRef = useRef<HTMLAudioElement>(null)
     // True while we nudge the element to resolve an unknown duration (below); the seek would
     // otherwise show up as a wild current-time reading.
@@ -101,7 +111,7 @@ const AudioPlayer = ({src, name, className}: {src: string; name: string; classNa
                     <Text className="!text-xs truncate" title={name}>
                         {name}
                     </Text>
-                    <Text type="secondary" className="!text-[11px] shrink-0 tabular-nums">
+                    <Text type="secondary" className="!text-xs shrink-0 tabular-nums">
                         {fmt(current)}
                         {duration > 0 ? ` / ${fmt(duration)}` : ""}
                     </Text>
@@ -113,7 +123,13 @@ const AudioPlayer = ({src, name, className}: {src: string; name: string; classNa
                     />
                 </div>
             </div>
-            <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
+            <audio
+                ref={audioRef}
+                src={src}
+                preload="metadata"
+                onError={onError}
+                className="hidden"
+            />
         </div>
     )
 }

@@ -27,13 +27,13 @@ const PlaygroundLoadingShell = ({agent, children}: PlaygroundLoadingShellProps =
     const earlyAgent = useAtomValue(playgroundEarlyAgentStateAtom) === "agent"
     const isAgent = agent ?? earlyAgent
     return (
-        <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
+        <div className="flex flex-col w-full h-dvh overflow-hidden">
             <div
                 className={`flex items-center justify-between gap-4 px-2.5 py-2 ${bgColors.active}`}
             >
                 {isAgent ? (
                     <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-[var(--ag-c-13C2C2)]">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ag-type-agent-bg)] text-[var(--ag-type-agent-text)]">
                             <Robot size={15} weight="fill" />
                         </span>
                         <Typography className="text-[16px] leading-[18px] font-[600]">

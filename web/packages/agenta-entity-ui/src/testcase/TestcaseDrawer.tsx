@@ -1,8 +1,18 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {copyToClipboard} from "@agenta/ui"
+import {DropdownButton, type DropdownButtonOption} from "@agenta/ui/components"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ViewModeDropdown} from "@agenta/ui/drill-in"
+import {
+    Alert,
+    Button,
+    Skeleton,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {
     ArrowsInLineVertical,
     CaretDoubleRight,
@@ -13,7 +23,6 @@ import {
     CornersIn,
     CornersOut,
 } from "@phosphor-icons/react"
-import {Alert, Button, Dropdown, Skeleton, Space, Tooltip} from "antd"
 
 import type {RootDrawerViewMode} from "./codeFormat"
 
@@ -223,106 +232,166 @@ function TestcaseDrawer<TData = unknown>({
         [testcaseId, isNewRow],
     )
 
+    const applyMenuOptions = useMemo<DropdownButtonOption[]>(
+        () => [
+            ...(onOpenCommitModal
+                ? [
+                      {
+                          key: "commit",
+                          label: "Apply and Commit Changes",
+                          disabled: !hasSessionDirty,
+                      },
+                  ]
+                : []),
+            ...(onSaveTestset
+                ? [
+                      {
+                          key: "save",
+                          label: "Apply and Save Testset",
+                          disabled: !hasSessionDirty,
+                      },
+                  ]
+                : []),
+        ],
+        [onOpenCommitModal, onSaveTestset, hasSessionDirty],
+    )
+
     const title = useMemo(
         () => (
-            <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-1">
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<CaretDoubleRight size={14} />}
-                        onClick={handleCancel}
-                    />
-                    {showExpandButton && (
-                        <Tooltip
-                            title={isDrawerExpanded ? "Restore drawer width" : "Expand drawer"}
+            // TooltipProvider scopes the Radix tooltip context to the header cluster —
+            // the only place this component renders tooltips.
+            <TooltipProvider>
+                <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-1">
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Close drawer"
+                            onClick={handleCancel}
                         >
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={
-                                    isDrawerExpanded ? (
-                                        <CornersIn size={14} />
-                                    ) : (
-                                        <CornersOut size={14} />
-                                    )
-                                }
-                                onClick={() => setIsDrawerExpanded((value) => !value)}
-                            />
-                        </Tooltip>
-                    )}
-                    {(onPrevious || onNext) && (
-                        <div className="flex items-center">
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<CaretUp size={14} />}
-                                disabled={!hasPrevious}
-                                onClick={onPrevious}
-                            />
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<CaretDown size={14} />}
-                                disabled={!hasNext}
-                                onClick={onNext}
-                            />
-                        </div>
-                    )}
-                    <span className="font-medium text-sm">
-                        {isNewRow ? "New Testcase" : `Testcase ${testcaseNumber ?? ""}`}
-                    </span>
-                    {!skipDeferredFlow && isDirty && (
-                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                            edited
-                        </span>
-                    )}
-                    {testcaseId && !isNewRow && (
-                        <Tooltip title={isIdCopied ? "Copied!" : "Copy ID"}>
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<Copy size={14} />}
-                                onClick={handleCopyId}
-                            />
-                        </Tooltip>
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
-                    {enableRootViewMode && (
-                        <>
-                            {rootViewMode === "form" && (
-                                <Tooltip title="Collapse all">
+                            <CaretDoubleRight size={14} />
+                        </Button>
+                        {showExpandButton && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
                                     <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<ArrowsInLineVertical size={14} />}
-                                        onClick={handleCollapseAll}
-                                        aria-label="Collapse all fields"
-                                    />
-                                </Tooltip>
-                            )}
-                            <Tooltip title={isPayloadCopied ? "Copied" : "Copy testcase"}>
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={
-                                        isPayloadCopied ? <Check size={14} /> : <Copy size={14} />
-                                    }
-                                    onClick={handleCopyPayload}
-                                    aria-label="Copy testcase payload"
-                                />
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label={
+                                            isDrawerExpanded
+                                                ? "Restore drawer width"
+                                                : "Expand drawer"
+                                        }
+                                        onClick={() => setIsDrawerExpanded((value) => !value)}
+                                    >
+                                        {isDrawerExpanded ? (
+                                            <CornersIn size={14} />
+                                        ) : (
+                                            <CornersOut size={14} />
+                                        )}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {isDrawerExpanded ? "Restore drawer width" : "Expand drawer"}
+                                </TooltipContent>
                             </Tooltip>
-                            <ViewModeDropdown<RootDrawerViewMode>
-                                value={rootViewMode}
-                                options={ROOT_VIEW_OPTIONS}
-                                onChange={setRootViewMode}
-                            />
-                        </>
-                    )}
-                    {renderAddToQueue ? renderAddToQueue(queueItemIds) : null}
+                        )}
+                        {(onPrevious || onNext) && (
+                            <div className="flex items-center">
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Previous testcase"
+                                    disabled={!hasPrevious}
+                                    onClick={onPrevious}
+                                >
+                                    <CaretUp size={14} />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Next testcase"
+                                    disabled={!hasNext}
+                                    onClick={onNext}
+                                >
+                                    <CaretDown size={14} />
+                                </Button>
+                            </div>
+                        )}
+                        <span className="font-medium text-sm">
+                            {isNewRow ? "New Testcase" : `Testcase ${testcaseNumber ?? ""}`}
+                        </span>
+                        {!skipDeferredFlow && isDirty && (
+                            <span className="text-[12px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                                edited
+                            </span>
+                        )}
+                        {testcaseId && !isNewRow && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Copy ID"
+                                        onClick={handleCopyId}
+                                    >
+                                        <Copy size={14} />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {isIdCopied ? "Copied!" : "Copy ID"}
+                                </TooltipContent>
+                            </Tooltip>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {enableRootViewMode && (
+                            <>
+                                {rootViewMode === "form" && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                onClick={handleCollapseAll}
+                                                aria-label="Collapse all fields"
+                                            >
+                                                <ArrowsInLineVertical size={14} />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Collapse all</TooltipContent>
+                                    </Tooltip>
+                                )}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            onClick={handleCopyPayload}
+                                            aria-label="Copy testcase payload"
+                                        >
+                                            {isPayloadCopied ? (
+                                                <Check size={14} />
+                                            ) : (
+                                                <Copy size={14} />
+                                            )}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {isPayloadCopied ? "Copied" : "Copy testcase"}
+                                    </TooltipContent>
+                                </Tooltip>
+                                <ViewModeDropdown<RootDrawerViewMode>
+                                    value={rootViewMode}
+                                    options={ROOT_VIEW_OPTIONS}
+                                    onChange={setRootViewMode}
+                                />
+                            </>
+                        )}
+                        {renderAddToQueue ? renderAddToQueue(queueItemIds) : null}
+                    </div>
                 </div>
-            </div>
+            </TooltipProvider>
         ),
         [
             testcaseId,
@@ -367,52 +436,26 @@ function TestcaseDrawer<TData = unknown>({
             footer={
                 skipDeferredFlow ? null : (
                     <div className="w-full flex items-center justify-end gap-3">
-                        <Button onClick={handleCancel}>Cancel</Button>
-                        <Space.Compact>
-                            <Button
-                                type="primary"
-                                onClick={handleApply}
-                                disabled={!hasSessionDirty}
-                                loading={isSavingTestset}
-                            >
-                                Apply and Continue Editing
-                            </Button>
-                            <Dropdown
-                                placement="topRight"
-                                menu={{
-                                    items: [
-                                        ...(onOpenCommitModal
-                                            ? [
-                                                  {
-                                                      key: "commit",
-                                                      label: "Apply and Commit Changes",
-                                                      onClick: handleOpenCommitModal,
-                                                      disabled: !hasSessionDirty,
-                                                  },
-                                              ]
-                                            : []),
-                                        ...(onSaveTestset
-                                            ? [
-                                                  {
-                                                      key: "save",
-                                                      label: "Apply and Save Testset",
-                                                      onClick: handleSaveTestset,
-                                                      disabled: !hasSessionDirty,
-                                                  },
-                                              ]
-                                            : []),
-                                    ],
-                                }}
-                            >
-                                <Button
-                                    type="primary"
-                                    icon={<CaretUp size={14} />}
-                                    disabled={
-                                        !hasSessionDirty || (!onOpenCommitModal && !onSaveTestset)
-                                    }
-                                />
-                            </Dropdown>
-                        </Space.Compact>
+                        <Button variant="outline" onClick={handleCancel}>
+                            Cancel
+                        </Button>
+                        {/* Split button (replaces antd Space.Compact + Dropdown) — main action
+                         *  applies, the chevron menu holds commit/save variants. */}
+                        <DropdownButton
+                            label="Apply and Continue Editing"
+                            variant="default"
+                            onClick={handleApply}
+                            disabled={!hasSessionDirty}
+                            loading={isSavingTestset}
+                            dropdownDisabled={!onOpenCommitModal && !onSaveTestset}
+                            placement="topRight"
+                            dropdownIcon={<CaretUp size={14} />}
+                            options={applyMenuOptions}
+                            onOptionSelect={(key) => {
+                                if (key === "commit") handleOpenCommitModal()
+                                else if (key === "save") void handleSaveTestset()
+                            }}
+                        />
                     </div>
                 )
             }

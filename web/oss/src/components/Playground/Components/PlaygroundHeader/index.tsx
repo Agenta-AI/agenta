@@ -85,6 +85,9 @@ type PlaygroundHeaderProps = BaseContainerProps
 /** Entity types that represent evaluator downstream nodes */
 const EVALUATOR_ENTITY_TYPES = ["workflow"]
 
+// Build/Chat switch parked (not removed): Build is the only reachable mode until this flips back.
+const SHOW_MODE_SWITCH = false
+
 /** Resolves a user UUID to a display name via workspace members */
 const MemberAuthor: React.FC<{userId: string}> = ({userId}) => {
     const memberAtom = useMemo(() => workspaceMemberByIdFamily(userId), [userId])
@@ -263,7 +266,8 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
     // Build/Chat mode: "chat" maximizes the chat pane (config hidden, session rail shown); "build"
     // is the 2-panel edit view. The boolean maximize atom is the single source of truth (also read
-    // by MainLayout + the chat panel), surfaced here as a persistent, labeled mode switch.
+    // by MainLayout + the chat panel). The switch is hidden for now — Build is the only reachable
+    // mode — but the atom and the Chat rendering register stay wired for its return.
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
 
@@ -666,7 +670,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     {isAgentWorkflow ? (
                         <div className="flex min-w-0 items-center gap-2">
                             <Tooltip title="Agent">
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ag-type-agent-bg)] text-[var(--ag-type-agent-text)]">
                                     <Robot size={15} weight="fill" />
                                 </span>
                             </Tooltip>
@@ -806,15 +810,19 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     )}
                     {isAgentWorkflow && !chromeHidden && (
                         <>
-                            <Segmented
-                                aria-label="Playground mode"
-                                value={chatMaximized ? "chat" : "build"}
-                                onChange={(value) => setChatMaximized(value === "chat")}
-                                options={[
-                                    {label: "Build", value: "build"},
-                                    {label: "Chat", value: "chat"},
-                                ]}
-                            />
+                            {/* Build/Chat switch hidden for now (Chat mode stays in the codebase);
+                                the playground runs in Build until the switch returns. */}
+                            {SHOW_MODE_SWITCH && (
+                                <Segmented
+                                    aria-label="Playground mode"
+                                    value={chatMaximized ? "chat" : "build"}
+                                    onChange={(value) => setChatMaximized(value === "chat")}
+                                    options={[
+                                        {label: "Build", value: "build"},
+                                        {label: "Chat", value: "chat"},
+                                    ]}
+                                />
+                            )}
                             {(settingsMenuItems?.length ?? 0) > 0 && (
                                 <Dropdown
                                     trigger={["click"]}

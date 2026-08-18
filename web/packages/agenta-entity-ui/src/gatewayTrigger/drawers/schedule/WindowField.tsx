@@ -1,12 +1,51 @@
 /** The schedule drawer's optional [start, end) active-window bounds. */
+import {useId} from "react"
+
 import {localFaceToUtcIso, utcIsoToLocalFace} from "@agenta/entities/gatewayTrigger"
-import {DatePicker, Typography} from "antd"
+import {DateTimePicker} from "@agenta/ui/ui"
 
 // ---------------------------------------------------------------------------
-// WindowField — optional UTC start/end bounds. [start, end): a tick fires only
-// at or after start and strictly before end; either side empty = unbounded.
-// Past end_time auto-stops the schedule on the next backend refresh.
+// WindowField — optional UTC start/end bounds. [start, end): the schedule runs only at or after
+// start and strictly before end; either side empty = unbounded. Past end_time auto-stops the
+// schedule on the next backend refresh.
+//
+// Each bound is one `DateTimePicker`, which owns the date/time merge. This field only maps the
+// stored UTC instant onto the same local clock face and back, so the user picks the UTC
+// wall-clock directly (a schedule's cron is UTC).
 // ---------------------------------------------------------------------------
+
+function Row({
+    label,
+    placeholder,
+    value,
+    onChange,
+}: {
+    label: string
+    /** Says what leaving this bound empty means, not just that it is empty. */
+    placeholder: string
+    value: string | null
+    onChange: (next: string | null) => void
+}) {
+    // Names both halves of the picker from the visible row label (axe label rule).
+    const labelId = useId()
+    return (
+        <div className="flex items-center gap-3">
+            <span
+                id={labelId}
+                className="w-[86px] shrink-0 text-xs text-[var(--ag-colorTextDescription)]"
+            >
+                {label}
+            </span>
+            <DateTimePicker
+                value={utcIsoToLocalFace(value)}
+                onChange={(next) => onChange(localFaceToUtcIso(next ?? null))}
+                placeholder={placeholder}
+                aria-labelledby={labelId}
+                className="min-w-0 flex-1"
+            />
+        </div>
+    )
+}
 
 export function WindowField({
     startTime,
@@ -21,38 +60,17 @@ export function WindowField({
 }) {
     return (
         <div className="flex flex-col gap-2">
-            <div className="flex gap-3">
-                <div className="flex w-[116px] shrink-0 flex-col gap-2">
-                    <span className="flex h-8 items-center px-2.5 text-xs text-[var(--ag-colorTextSecondary)]">
-                        Start
-                    </span>
-                    <span className="flex h-8 items-center px-2.5 text-xs text-[var(--ag-colorTextSecondary)]">
-                        End
-                    </span>
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-2 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                    <DatePicker
-                        showTime={{format: "HH:mm"}}
-                        format="YYYY-MM-DD HH:mm"
-                        placeholder="Unbounded"
-                        className="w-full max-w-prose"
-                        value={utcIsoToLocalFace(startTime)}
-                        onChange={(d) => onChangeStart(localFaceToUtcIso(d))}
-                    />
-                    <DatePicker
-                        showTime={{format: "HH:mm"}}
-                        format="YYYY-MM-DD HH:mm"
-                        placeholder="Unbounded"
-                        className="w-full max-w-prose"
-                        value={utcIsoToLocalFace(endTime)}
-                        onChange={(d) => onChangeEnd(localFaceToUtcIso(d))}
-                    />
-                </div>
-            </div>
-            <Typography.Text type="secondary" className="!text-[11px] leading-snug">
-                Schedule fires only within [start, end). Leave either empty for no bound; past end
-                auto-stops it.
-            </Typography.Text>
+            <Row
+                label="Start"
+                placeholder="Starts right away"
+                value={startTime}
+                onChange={onChangeStart}
+            />
+            <Row label="End" placeholder="Never ends" value={endTime} onChange={onChangeEnd} />
+            <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
+                Times are UTC. Leave either empty for no limit — a start in the future delays the
+                first run, and an end in the past stops the schedule.
+            </span>
         </div>
     )
 }

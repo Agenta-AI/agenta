@@ -9,5 +9,5 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface MountCreateRequest {
-    mount: AgentaApi.MountCreate;
+    mount: AgentaApi.PublicMountCreate;
 }

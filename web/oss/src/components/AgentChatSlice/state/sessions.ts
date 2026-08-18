@@ -114,6 +114,34 @@ const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
 )
 
 /**
+ * Ids the user deleted whose server row may still be listed — a tombstone set, per scope.
+ *
+ * `serverKnown` only flips on a successful reconcile, but the durable row exists from the first
+ * message onward, so a session deleted before the next poll used to delete locally ONLY and get
+ * re-adopted by the very next reconcile, fully titled (#5543). Firing the remote delete
+ * unconditionally closes that window, but not the two where the row outlives the request: the
+ * delete failed (offline/5xx), or a server list fetched before it landed still carries the row.
+ *
+ * So a delete records the id here, and the reconciler refuses to adopt a tombstoned id and re-fires
+ * its delete until the server stops listing it — at which point the tombstone is dropped. Pruning
+ * against the server list is what bounds this: an id the server never had (a purely local husk)
+ * clears on the first reconcile after the delete.
+ *
+ * That pruning only applies where a reconcile actually runs. `projectSessions`'s query is gated on
+ * `isQueryableScope` (a real app UUID), so the `__global__`, `drawer:<entityId>` and `onboarding`
+ * scopes never reconcile at all — which is also why `serverKnown` was never set there and the
+ * delete stayed local FOREVER rather than for one poll cycle (#5831). Nothing can re-adopt in those
+ * scopes either, so a tombstone has nothing to guard there; it is simply never pruned. Bounded by
+ * how many sessions a user deletes in that scope, so it is left as-is rather than special-cased.
+ */
+const deletedIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
+    "agenta:agent-chat:deleted-sessions",
+    {},
+    tabLocalStorage(),
+    STORAGE_OPTS,
+)
+
+/**
  * Which sessions are open as tabs, per scope, in tab order.
  *
  * Migration: before this atom is ever written for a scope, the open set defaults to the whole
@@ -135,9 +163,11 @@ const activeByAppAtom = atomWithStorage<Record<string, string>>(
 )
 
 /** Persisted messages per session id. Written when a conversation's stream settles. Session ids
- * are globally unique, so this store has no scope dimension. */
+ * are globally unique, so this store has no scope dimension.
+ * v2: caches written by the pre-fix mapper hold duplicated approval parts; the key bump forces
+ * one re-sync from records (the watermark otherwise keeps the stale copy authoritative). */
 export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
-    "agenta:agent-chat:messages",
+    "agenta:agent-chat:messages:v2",
     {},
     tabLocalStorage(),
     STORAGE_OPTS,
@@ -152,7 +182,7 @@ export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
  * goes through `persistSessionMessagesAtom` and every delete through `dropSessionMessages`.
  */
 const sessionRecordCountsAtom = atomWithStorage<Record<string, number>>(
-    "agenta:agent-chat:record-counts",
+    "agenta:agent-chat:record-counts:v2",
     {},
     tabLocalStorage(),
     STORAGE_OPTS,
@@ -223,10 +253,13 @@ export const openSessionIdsAtomFamily = atomFamily((key: string) =>
     atom((get) => new Set(currentOpenIds(get, key))),
 )
 
-/** Create a session and make it the active open tab. Returns the new id. */
+/** Create a session and make it the active open tab. Returns the new id. An explicit `id` lets a
+ * caller that already addressed something to this session — a composer's seeded message — name it
+ * before the session exists. Callers wired straight to a click handler pass an event, not options,
+ * so the id is read defensively. */
 export const addSessionAtomFamily = atomFamily((key: string) =>
-    atom(null, (get, set) => {
-        const id = generateId()
+    atom(null, (get, set, options?: {id?: string}) => {
+        const id = options?.id || generateId()
         // Brand-new, never-run session: no backend records yet, so skip its empty-cache hydration.
         markSessionFresh(id)
         // Read open ids BEFORE mutating history, else the fallback would re-count the new id.
@@ -333,7 +366,6 @@ export const adoptSessionAtomFamily = atomFamily((key: string) =>
 export const deleteSessionAtomFamily = atomFamily((key: string) =>
     atom(null, (get, set, id: string) => {
         const all = get(sessionsByAppAtom)
-        const target = (all[key] ?? []).find((s) => s.id === id)
         set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
 
         const open = currentOpenIds(get, key)
@@ -350,11 +382,30 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
 
         clearSessionEphemera(id)
 
-        // Propagate a user delete to the server so it disappears everywhere — but only for a
-        // server-known session (a purely-local husk has no row; the reconciler's own drop path
-        // does its own cleanup and never routes here, so this can't loop).
+        // Tombstone BEFORE the request: it is what keeps the reconciler from re-adopting the row
+        // if the delete fails or an in-flight server list still carries it, and it carries the
+        // retry (see `deletedIdsByAppAtom`).
+        const tombstones = get(deletedIdsByAppAtom)
+        const scoped = tombstones[key] ?? []
+        if (!scoped.includes(id)) {
+            set(deletedIdsByAppAtom, {...tombstones, [key]: [...scoped, id]})
+        }
+
+        // Propagate a user delete to the server so it disappears everywhere. Fired for ANY session,
+        // not just a `serverKnown` one: that flag lags the durable row by up to a poll cycle, and
+        // skipping the call in that window is exactly how a deleted session came back (#5543). A
+        // session the server never had just 404s, which `callFern` swallows. The reconciler's own
+        // drop path does its own cleanup and never routes here, so this can't loop.
+        //
+        // `.catch` rather than `void`: `callFern` RETHROWS aborts/timeouts, so a bare `void` on a
+        // fire-and-forget call is an unhandled rejection. Nothing to do on failure — the tombstone
+        // above carries the retry.
+        // Returned, not just fired: callers that must not revalidate a list before the server has
+        // the change (see `useSessionActions`) await it.
         const projectId = get(projectIdAtom)
-        if (projectId && target?.serverKnown) void deleteSessionRemote({sessionId: id, projectId})
+        return projectId
+            ? deleteSessionRemote({sessionId: id, projectId}).catch(() => {})
+            : undefined
     }),
 )
 
@@ -380,9 +431,11 @@ export const archiveSessionAtomFamily = atomFamily((key: string) =>
             set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
         }
 
-        // Server-known sessions archive remotely; a purely-local session just carries the local flag.
+        // Ungated and returned for the same reasons as the delete path above (#5543).
         const projectId = get(projectIdAtom)
-        if (projectId && target.serverKnown) void archiveSessionRemote({sessionId: id, projectId})
+        return projectId
+            ? archiveSessionRemote({sessionId: id, projectId}).catch(() => {})
+            : undefined
     }),
 )
 
@@ -399,8 +452,11 @@ export const unarchiveSessionAtomFamily = atomFamily((key: string) =>
             [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, archived: false} : s)),
         })
 
+        // Ungated for the same reason as archive above.
         const projectId = get(projectIdAtom)
-        if (projectId && target.serverKnown) void unarchiveSessionRemote({sessionId: id, projectId})
+        return projectId
+            ? unarchiveSessionRemote({sessionId: id, projectId}).catch(() => {})
+            : undefined
     }),
 )
 
@@ -418,7 +474,9 @@ export interface ServerSessionSummary {
 /**
  * Fold the server's durable session list for a scope over the localStorage cache:
  *  - adopt sessions the server knows and we don't (cross-device / post-localStorage-wipe),
- *  - enrich `title`/`createdAt` from the server (a local user title always wins),
+ *  - enrich `title`/`createdAt` from the server (a non-empty server title wins: every local
+ *    title is also persisted server-side, and a server-side rename — e.g. the agent's own
+ *    `rename_session` tool — must show without a reload),
  *  - drop a session the server DROPPED — present-before, gone-now = hard-deleted elsewhere —
  *    but never a purely-local optimistic session (one the server never confirmed).
  * Open tabs / active stay per-device. Idempotent: a no-op when already reconciled.
@@ -432,6 +490,29 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
         const existing = get(sessionsByAppAtom)[key] ?? []
         const existingIds = new Set(existing.map((s) => s.id))
 
+        // Settle tombstones first — before the `changed` early-return below, since the steady state
+        // for a delete whose request failed is "server list unchanged", which would otherwise skip
+        // the retry forever. An id the server still lists gets its delete re-fired; one it no longer
+        // lists has landed and is forgotten.
+        const tombstoned = new Set(get(deletedIdsByAppAtom)[key] ?? [])
+        if (tombstoned.size > 0) {
+            // `!existingIds.has(id)` is a safety catch, not bookkeeping: if the id is back in local
+            // history the user deliberately brought it back (a deep link re-adopts by id), and a
+            // stale tombstone would otherwise keep re-deleting the session under them.
+            const unsettled = [...tombstoned].filter(
+                (id) => serverById.has(id) && !existingIds.has(id),
+            )
+            if (unsettled.length !== tombstoned.size) {
+                set(deletedIdsByAppAtom, {...get(deletedIdsByAppAtom), [key]: unsettled})
+            }
+            const projectId = get(projectIdAtom)
+            if (projectId) {
+                for (const id of unsettled) {
+                    deleteSessionRemote({sessionId: id, projectId}).catch(() => {})
+                }
+            }
+        }
+
         const dropped: string[] = []
         const merged: AgentChatSession[] = []
         for (const s of existing) {
@@ -440,7 +521,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                 merged.push({
                     ...s,
                     serverKnown: true,
-                    title: s.title?.trim() ? s.title : remote.title,
+                    title: remote.title?.trim() ? remote.title : s.title,
                     createdAt: s.createdAt ?? remote.createdAt,
                     // Keep the freshest activity time: a local turn just settled may lead the
                     // server heartbeat, and vice-versa across devices.
@@ -457,6 +538,8 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
         }
         for (const s of server) {
             if (existingIds.has(s.id)) continue
+            // Deleted here, still listed there — adopting it would undo the user's delete (#5543).
+            if (tombstoned.has(s.id)) continue
             merged.push({
                 id: s.id,
                 title: s.title,
@@ -589,8 +672,11 @@ export const renameSessionAtomFamily = atomFamily((key: string) =>
         // Persist the title to the durable stream header so it syncs across devices and survives a
         // localStorage wipe. Best-effort/optimistic — the local update above already shows it. Send
         // the trimmed string (empty clears the server name too, since the header merge is partial).
+        // Returned so a caller that revalidates a list next can await the header write first.
         const projectId = get(projectIdAtom)
-        if (projectId) void setSessionHeader({sessionId: id, projectId, name: title.trim()})
+        return projectId
+            ? setSessionHeader({sessionId: id, projectId, name: title.trim()}).catch(() => {})
+            : undefined
     }),
 )
 
@@ -611,7 +697,8 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         const all = get(sessionsByAppAtom)
         const session = (all[key] ?? []).find((s) => s.id === id)
         if (!session || session.title?.trim()) return
-        const title = trimmed.slice(0, AUTO_TITLE_MAX_CHARS)
+        // Cut on code points, not UTF-16 units, so an emoji straddling the cap isn't halved.
+        const title = Array.from(trimmed).slice(0, AUTO_TITLE_MAX_CHARS).join("")
         set(sessionsByAppAtom, {
             ...all,
             [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, title} : s)),
@@ -827,6 +914,22 @@ export const sessionFirstUserTextAtomFamily = atomFamily((id: string) =>
     selectAtom(sessionMessagesAtom, (all) => firstUserText(all[id])),
 )
 
+/** Active tab title without subscribing to streamed assistant content. */
+export const activeSessionTitleAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const sessions = get(sessionsListAtomFamily(key))
+        const rawActiveId = get(activeSessionIdAtomFamily(key))
+        const activeSession =
+            sessions.find((session) => session.id === rawActiveId) ?? sessions[0] ?? null
+        if (!activeSession) return {title: "", firstUserMessage: ""}
+
+        return {
+            title: activeSession.title?.trim() ?? "",
+            firstUserMessage: get(sessionFirstUserTextAtomFamily(activeSession.id)),
+        }
+    }),
+)
+
 /**
  * Run state of a session's live conversation — the single source of truth for "what is this
  * session doing right now", surfaced as the tab bar's status dot AND the session inspector's
@@ -862,20 +965,46 @@ export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
     atom((get) => get(sessionStatusByIdAtom)[id] === "running"),
 )
 
+/**
+ * When each session's LOCAL run last settled (ms epoch), stamped when an active run becomes idle
+ * or errors. Read by the running-elsewhere derivation: backend liveness is a poll snapshot
+ * up to 15s stale, so a flag fetched BEFORE our own turn ended says nothing about whether anyone
+ * else is running it (#5844). In-memory only — it describes this browser tab, not history.
+ */
+const sessionLocalSettledAtByIdAtom = atom<Record<string, number>>({})
+
+/** When this browser's run of a session last settled; `undefined` if it never ran one here. */
+export const sessionLocalSettledAtAtomFamily = atomFamily((id: string) =>
+    selectAtom(sessionLocalSettledAtByIdAtom, (map) => map[id]),
+)
+
 /** Set a session's run state. "idle" is the default, so it's stored as ABSENCE: passing "idle"
  * deletes the entry (clear-on-unmount) instead of accumulating idle keys for every closed session. */
 export const setSessionStatusAtom = atom(
     null,
     (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
         const cur = get(sessionStatusByIdAtom)
+        const wasActive = cur[id] === "running" || cur[id] === "awaiting"
         if (status === "idle") {
             if (!(id in cur)) return
+            if (wasActive) {
+                set(sessionLocalSettledAtByIdAtom, {
+                    ...get(sessionLocalSettledAtByIdAtom),
+                    [id]: Date.now(),
+                })
+            }
             const next = {...cur}
             delete next[id]
             set(sessionStatusByIdAtom, next)
             return
         }
         if (cur[id] === status) return
+        if (status === "error" && wasActive) {
+            set(sessionLocalSettledAtByIdAtom, {
+                ...get(sessionLocalSettledAtByIdAtom),
+                [id]: Date.now(),
+            })
+        }
         set(sessionStatusByIdAtom, {...cur, [id]: status})
     },
 )

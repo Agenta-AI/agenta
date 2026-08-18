@@ -21,11 +21,11 @@ The fields and the full schema follow.
 |---|---|---|---|
 | `agents_md` | string (textarea) | hello-world prompt | The agent's system prompt, its AGENTS.md. |
 | `model` | string (`grouped_choice`) | `"gpt-5.5"` | Model the agent runs on. A plain id (`"gpt-5.5"`) or a structured `{provider, connection}` ref. See [Model connection resolution](../in-service/model-connection-resolution.md). |
-| `tools` | `(ToolConfig \| EmbedRef)[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, `client`, `reference` (a workflow referenced as a tool — `type: "reference"` — the service runs server-side as a callback tool), or `platform` (an existing Agenta endpoint exposed to the agent — `type: "platform"` — the runner calls it directly). A workflow value can also be inlined via `@ag.embed`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
+| `tools` | `(ToolConfig \| EmbedRef)[]` | `[]` — Pi's built-ins are always active and are never listed here | Runnable tools: `builtin`, `gateway`, `code`, `client`, `reference` (a workflow referenced as a tool — `type: "reference"` — the service runs server-side as a callback tool), or `platform` (an existing Agenta endpoint exposed to the agent — `type: "platform"` — the runner calls it directly). A workflow value can also be inlined via `@ag.embed`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
 | `mcp_servers` | `MCPServerConfig[]` | `[]` | External HTTP MCP servers; named header-secret references resolve from the vault per run. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
 | `harness` | `"pi_core" \| "claude" \| "pi_agenta"` (see slug+name note) | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
-| `permissions` | `{default: "allow" \| "ask" \| "deny" \| "allow_reads", rules?: [...]}` | `{default: "allow_reads"}` | The agent-wide policy. `allow_reads` runs read-hinted tools and asks for everything else; `allow` runs everything; `ask` asks for everything; `deny` runs nothing unless a tool explicitly allows it. `rules` are optional authored patterns (for example `Bash(rm:*)`) that override the default for matching harness builtins. |
+| `permissions` | `{default: "allow" \| "ask" \| "deny" \| "allow_reads", rules?: [...]}` | `{default: "allow_reads"}` | The agent-wide policy. `allow_reads` runs read-hinted tools and asks for everything else; `allow` runs everything; `ask` asks for everything; `deny` runs nothing unless a tool explicitly allows it. `rules` are the authored patterns from `harness.permissions.{allow, ask, deny}` that override the default for matching tools; for the seven Pi built-ins the tool name is matched case-insensitively. See [the supported rule syntax](#which-rule-syntax-the-pi-matcher-supports). |
 | `sandbox_permission` | `SandboxPermission \| null` | `null` (form pre-fills one) | The declared network and filesystem boundary. See [Sandbox permission](../in-service/sandbox-permission.md). |
 | `skills` | `(SkillConfig \| EmbedRef)[]` | `[]` (the playground overlay embeds the `build-an-agent` playbook) | Inline SKILL.md packages, or `@ag.embed` references the backend inlines before the runner sees them. |
 
@@ -92,6 +92,56 @@ every field in its default state:
 }
 ```
 
+`tools` carries no built-in entries. The runner activates all seven Pi built-ins (`read`, `bash`,
+`edit`, `write`, `grep`, `find`, `ls`) on every Pi run, whatever the config says. The canonical
+table is `PI_BUILTIN_TOOL_IDENTITY` in `services/runner/src/permission-plan.ts`, mirrored in Python
+as `PI_BUILTIN_TOOL_NAMES` (`sdks/python/agenta/sdk/agents/pi_builtins.py`) and pinned by the
+shared golden fixture
+`sdks/python/oss/tests/pytest/unit/agents/golden/pi_builtin_tools.json`, which also carries each
+built-in's canonical rule name and its read-only flag.
+
+Being active is not the same as being allowed to run: under the default `permissions.default` of
+`allow_reads`, the read-only built-ins (`read`, `grep`, `find`, `ls`) run without asking, and
+`bash`, `edit` and `write` raise an approval on every call. To change that, write a rule into
+`harness.permissions.allow`, `.ask` or `.deny`. See
+[Tools](../../documentation/tools.md) for the activation path and the permission relay.
+
+The `/run` wire still carries a `tools` field, and the SDK still fills it with all seven names for
+a Pi run, but a current runner ignores it. It exists only so a runner from before this change —
+which reads it as a grant list — activates the same seven. It is deprecated and will be removed.
+
+Revisions saved before this change still carry four `{"type": "builtin", ...}` entries. They are
+accepted, ignored with a warning, and rendered nowhere. Nothing repairs them, and nothing needs
+to: their agents run all seven built-ins either way.
+
+The seven names are reserved for the built-ins. A tool of any other type that takes one is
+refused at resolve time (`ReservedToolNameError`), because the harness keys custom tools and
+built-ins in one registry: a custom `read` would replace the built-in `read` with no error and no
+sign in the UI. The runner skips such a tool as well, for a request that reaches it another way.
+
+### Which rule syntax the Pi matcher supports
+
+The `harness.permissions` lists borrow Claude's rule syntax, but the Pi matcher implements only
+part of it. Supported:
+
+- A bare tool name, for example `Bash`. For the seven built-ins the comparison is
+  case-insensitive, so `bash` and `BASH` work too. Every other tool name is case-significant.
+- A prefix pattern, `Tool(prefix:*)`, matched against the call's first string argument, for
+  example `Bash(npm run:*)`. The tool part follows the same case rule as a bare name; the prefix
+  body is always case-sensitive, because a shell command's case is significant. A call whose
+  arguments hold no string never matches a prefix rule, so it falls through to the default.
+
+Not supported:
+
+- `mcp__*` patterns. `wire_author_permission_rules`
+  (`sdks/python/agenta/sdk/agents/permission_rules.py`) drops them before the wire, so they never
+  reach the runner plan.
+- Every other Claude form — exact-argument rules, negation, and globs anywhere but the trailing
+  `:*` — falls through to a plain string comparison and therefore never matches.
+
+A tool name outside the seven built-ins that reaches the gate with no matching rule fails closed:
+`buildPiGateDescriptor` returns nothing and the caller rejects the gate.
+
 The skill embed above comes from the playground **build-kit overlay**
 (`build_agent_template_overlay` in `api/oss/src/apis/fastapi/applications/overlay.py`), not
 from the bare default: the overlay adds the default platform ops (`DEFAULT_BUILD_KIT_OPS`),
@@ -126,7 +176,8 @@ Either form is valid:
 ### `tools[]` (a concrete variant — incl. `type: "reference"` — or an `@ag.embed` workflow)
 
 ```jsonc
-// builtin: a harness built-in by name
+// builtin: LEGACY. Built-in tools are always active and are no longer configured here; a saved
+// entry is accepted, ignored with a warning, and rendered nowhere.
 { "type": "builtin", "name": "read", "permission": null, "render": null }
 
 // gateway: a server-side action (e.g. Composio); runs in Agenta, key stays server-side
@@ -270,6 +321,8 @@ not `SKILL.md` itself.
   `agenta:builtin:agent:v0`, whose default calls the same builder bare.
 - `sdks/python/agenta/sdk/agents/dtos.py`: the permissive runtime `AgentConfig` parser and
   `SandboxPermission`.
+- `sdks/python/agenta/sdk/agents/pi_builtins.py`: `PI_BUILTIN_TOOL_NAMES`, the built-in names the
+  SDK sends on the deprecated wire field for older runners.
 
 ## Watch for when changing
 
@@ -279,6 +332,11 @@ not `SKILL.md` itself.
   without updating the catalog breaks the form silently.
 - **The default config.** It is shipped on `/inspect` and is what an untouched form runs. It
   has one source, `build_agent_v0_default`; change a default field there, not in each consumer.
+- **The built-in tool table.** `PI_BUILTIN_TOOL_NAMES` must stay equal to the runner's
+  `PI_BUILTIN_TOOL_IDENTITY`. Both are pinned against
+  `sdks/python/oss/tests/pytest/unit/agents/golden/pi_builtin_tools.json`; change the fixture and
+  both languages, or the parity tests fail. The fixture also pins each built-in's `readOnly` flag,
+  which is what decides whether it auto-runs under `allow_reads`.
 - **Nested shapes.** `tools`, `mcp_servers`, `skills`, and `sandbox_permission` each have
   their own page and their own wire fields. A change here usually means a change there and a
   golden fixture.

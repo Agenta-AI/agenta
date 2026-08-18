@@ -16,12 +16,16 @@ import {type MountFile} from "@agenta/entities/session"
 import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
 
 import {type StagedTileItem} from "./DrivePendingTiles"
+import {type DroppedFile} from "./dropEntries"
 import {useDriveDrop} from "./useDriveDrop"
 import {useImagePreviews} from "./useImagePreviews"
 import {fileKey, type MountUploadItem, useMountUpload} from "./useMountUpload"
 import {type SessionDriveData} from "./useSessionDrive"
 
-const NO_FILES: File[] = []
+const NO_FILES: DroppedFile[] = []
+
+/** The staged tile's id — stable per position + destination path, and the handle removeStaged uses. */
+const stagedId = (dropped: DroppedFile, index: number) => `${index}-${dropped.relativePath}`
 
 export function useDriveUploads({
     drive,
@@ -29,22 +33,25 @@ export function useDriveUploads({
     select,
     stagedFiles,
     onStagedChange,
+    onUploaded,
 }: {
     drive: SessionDriveData
     /** Local-file mode — there is no mount to write to, so every upload affordance stays off. */
     explicitFiles?: MountFile[]
     /** The explorer's selection callback — a drop springs-loads into the hovered folder. */
     select: (path: string | null) => void
-    stagedFiles?: File[]
-    onStagedChange?: (files: File[]) => void
+    stagedFiles?: DroppedFile[]
+    onStagedChange?: (files: DroppedFile[]) => void
+    /** One file's write landed, at its presented path — see {@link useUploadReveal}. */
+    onUploaded?: (path: string) => void
 }) {
     // Upload state lives here (above the tree) so in-flight uploads can be injected as synthetic files —
     // buildDriveTree then nests each UNDER its destination folder, and the real tree row / file tile
     // renders it in place (decorated via pendingUploadByPath), rather than a separate pinned list.
-    const mountUpload = useMountUpload()
+    const mountUpload = useMountUpload(onUploaded)
     const uploadPath = useCallback(
         (it: MountUploadItem) =>
-            it.presentedFolder ? `${it.presentedFolder}/${it.name}` : it.name,
+            it.presentedFolder ? `${it.presentedFolder}/${it.relativePath}` : it.relativePath,
         [],
     )
     const uploadFiles = useMemo<MountFile[]>(
@@ -62,7 +69,7 @@ export function useDriveUploads({
     const uploadInputRef = useRef<HTMLInputElement>(null)
     const canUpload = isAgentFileUploadsEnabled() && !explicitFiles && !!drive.mount
     const uploadIntoFolder = useCallback(
-        (picked: File[], folder: string) => {
+        (picked: DroppedFile[], folder: string) => {
             const resolved = drive.resolveMount(folder)
             if (!resolved) return
             mountUpload.upload(picked, {
@@ -92,21 +99,20 @@ export function useDriveUploads({
     // destination and clicks "Upload here" — ghost tiles in the grid meanwhile. Only for writable
     // mounts (never the local-file preview). Image previews come from the shared hook.
     const staged = canUpload ? (stagedFiles ?? NO_FILES) : NO_FILES
-    const stagedPreviews = useImagePreviews(staged)
+    const stagedPreviews = useImagePreviews(useMemo(() => staged.map((d) => d.file), [staged]))
     const stagedItems = useMemo<StagedTileItem[]>(
         () =>
-            staged.map((f, i) => ({
-                id: `${i}-${f.name}`,
-                name: f.name,
-                file: f,
-                previewUrl: stagedPreviews.get(f) ?? null,
+            staged.map((d, i) => ({
+                id: stagedId(d, i),
+                name: d.file.name,
+                file: d.file,
+                previewUrl: stagedPreviews.get(d.file) ?? null,
             })),
         [staged, stagedPreviews],
     )
     const removeStaged = useCallback(
-        (id: string) =>
-            onStagedChange?.(stagedItems.filter((it) => it.id !== id).map((it) => it.file)),
-        [stagedItems, onStagedChange],
+        (id: string) => onStagedChange?.(staged.filter((d, i) => stagedId(d, i) !== id)),
+        [staged, onStagedChange],
     )
     // Single source of truth: a file that is in-flight (uploading OR failed) must never ALSO remain
     // staged. Reconcile the staged inbox against in-flight keys on every change, so re-staging a file

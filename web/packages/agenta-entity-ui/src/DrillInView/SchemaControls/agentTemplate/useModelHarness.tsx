@@ -1,8 +1,8 @@
 /**
- * useModelHarness — the Model & harness + Advanced sections (the panel's most stateful part). One
+ * useModelHarness — the Model + Advanced sections (the panel's most stateful part). One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
-import {useCallback, useEffect, useMemo, useRef, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, type ReactNode} from "react"
 
 import {
     customSecretsAtom,
@@ -20,24 +20,14 @@ import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {cn} from "@agenta/ui/styles"
-import {
-    ArrowCounterClockwise,
-    Check,
-    Cube,
-    Lightbulb,
-    ShieldCheck,
-    Sparkle,
-    Warning,
-} from "@phosphor-icons/react"
-import {Alert, Button, Popconfirm, Select, Typography} from "antd"
+import {Cube, ShieldCheck} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
 import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
-import {RailField, railInfoLabel} from "../../../drawers/shared/RailField"
-import {SectionRail} from "../../../drawers/shared/SectionRail"
+import {RailField} from "../../../drawers/shared/RailField"
 import {ClaudePermissionsControl} from "../ClaudePermissionsControl"
+import type {PickerSelection} from "../connectionPicker"
 import {
     allowedConnectionModes,
     buildModelOptionGroups,
@@ -54,13 +44,20 @@ import {
 } from "../connectionUtils"
 import {EnumSelectControl, getEnumOptions} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
-import {HarnessSelectControl} from "../HarnessSelectControl"
-import {PiAutoApproveControl} from "../PiAutoApproveControl"
-import {PiSettingsControl} from "../PiSettingsControl"
+import {selectableHarnesses} from "../harnessMeta"
+import {
+    isPermissionPolicy,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+} from "../permissionPolicy"
+import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
-import {enumLabel} from "./agentTemplateUtils"
-import ProviderCredentialsSection from "./ProviderCredentialsSection"
+import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
+import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
+import ModelPickerControl from "./ModelPickerControl"
+import {PermissionPolicySelect} from "./PermissionPolicySelect"
+import {RevertGroupButton} from "./RevertGroupButton"
 import {useBuildKit} from "./useBuildKit"
 
 // Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
@@ -68,23 +65,7 @@ import {useBuildKit} from "./useBuildKit"
 // flash a false "Connect key" warning on the section, rail item, and config-panel row.
 const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
-type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
-
-const PERMISSION_POLICY_OPTIONS: {value: PermissionPolicy; label: string; help: string}[] = [
-    {value: "allow_reads", label: "Allow reads", help: "Reads run, writes ask; default"},
-    {value: "allow", label: "Allow all", help: "Every tool runs without asking"},
-    {value: "ask", label: "Ask", help: "A human approves every tool call"},
-    {value: "deny", label: "Deny all", help: "Every tool call is refused"},
-]
-const PERMISSION_POLICY_VALUES = new Set<string>(
-    PERMISSION_POLICY_OPTIONS.map((option) => option.value),
-)
-
-const HIDDEN_HARNESSES = new Set(["pi_agenta"])
-
-function isPermissionPolicy(value: unknown): value is PermissionPolicy {
-    return typeof value === "string" && PERMISSION_POLICY_VALUES.has(value)
-}
+// Shared with the chat composer's model palette so a hidden harness stays hidden everywhere.
 
 export function useModelHarness({
     schema,
@@ -94,7 +75,6 @@ export function useModelHarness({
     withTooltip,
     revisionId,
     buildKitEnabledOverride,
-    savedHarnessValue,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -104,12 +84,6 @@ export function useModelHarness({
     revisionId?: string | null
     /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
     buildKitEnabledOverride?: {value: boolean; onChange: (value: boolean) => void}
-    /**
-     * The SAVED (committed) harness value, for the "Current" badge — so it marks the persisted harness
-     * even while `config` holds an unsaved draft pick (the draft pick is shown by the radio, not the
-     * badge). Defaults to this instance's own harness, so the live instance is unaffected.
-     */
-    savedHarnessValue?: string | null
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
@@ -152,21 +126,11 @@ export function useModelHarness({
         (key: string, sectionValue: unknown) => onChange({...config, [key]: sectionValue}),
         [config, onChange],
     )
-    // Set one flat field of the agent definition (here `llm` and `tools`).
+    // Set one flat field of the agent definition (here `llm`).
     const setAgentField = useCallback(
         (key: string, fieldValue: unknown) => onChange({...config, [key]: fieldValue}),
         [config, onChange],
     )
-    const setAgentTools = useCallback(
-        (tools: unknown[] | undefined) => {
-            const next = {...config}
-            if (tools === undefined) delete next.tools
-            else next.tools = tools
-            onChange(next)
-        },
-        [config, onChange],
-    )
-
     const sandboxValue = typeof sandbox.kind === "string" ? sandbox.kind : null
     useEffect(() => {
         const availableValue = sandboxOptions.some((option) => option.value === sandboxValue)
@@ -182,7 +146,7 @@ export function useModelHarness({
     // carries through extra keys (e.g. `extras`) so a form edit never silently drops them. The picker
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
-    const harnessValue = typeof harness.kind === "string" ? (harness.kind as string) : null
+    const harnessValue = effectiveHarnessValue(harness)
     const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
@@ -251,10 +215,7 @@ export function useModelHarness({
         !providerVaultEntry.key
 
     // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
-    // `deployment.isCloud` gates the Provider credentials section's "Use subscription" toggle
-    // (design.md D6) — absent (older OSS providers) reads as not-cloud, i.e. ungated.
-    const {llmProviderConfig, deployment} = useDrillInUI()
-    const isCloud = deployment?.isCloud ?? false
+    const {llmProviderConfig} = useDrillInUI()
 
     // Harness-filtered model options: the inspect catalog PLUS the vault custom_provider models,
     // so a configured Bedrock model is selectable. Empty when the harness publishes none AND the
@@ -293,23 +254,23 @@ export function useModelHarness({
                       ? null
                       : connection.slug
             // Provider is always the model FAMILY — a vault connection's own `provider` is its
-            // DEPLOYMENT kind (bedrock/…), which would fail the harness provider check. For a vault
-            // pick, `vaultPickedProviderFamily` prefers the id-encoded family and only falls back to
-            // the connection's own kind when that kind is ALREADY a plain family (not a deployment
-            // kind); either way, never drop to null while a prior provider exists (guarantees a
-            // model pick never silently clears `llm.provider`).
+            // DEPLOYMENT kind (bedrock/…), which would fail the harness provider check, so
+            // `vaultPickedProviderFamily` resolves the family from the id, the kind, or the driving
+            // harness. A MODEL SWITCH never inherits the outgoing model's family: an unresolved
+            // family writes none, because a wrong provider fails the run where a missing one lets
+            // the vault record speak for itself.
             let nextProvider: string | null
             if (patch.provider !== undefined) {
                 nextProvider = patch.provider
             } else if (patch.modelId !== undefined) {
                 nextProvider = patch.slug
-                    ? (vaultPickedProviderFamily(
+                    ? vaultPickedProviderFamily(
                           nextModelId,
                           patch.metadataProvider,
                           capabilities,
-                      ) ?? connection.provider)
-                    : (providerForModel(capabilities, harnessValue, nextModelId) ??
-                      connection.provider)
+                          harnessValue,
+                      )
+                    : providerForModel(capabilities, harnessValue, nextModelId)
             } else {
                 nextProvider = connection.provider
             }
@@ -327,31 +288,36 @@ export function useModelHarness({
         [setAgentField, modelId, connection, llm, capabilities, harnessValue],
     )
 
-    // Adopt a custom provider created FROM this pane: after the user opens the Configure-provider
-    // drawer via an "Add custom provider" rail row, the first NEW vault connection that appears becomes the
-    // selection — its first model + its connection slug — so the pane reflects what was just added.
-    // Armed per click so a provider created elsewhere (e.g. Settings → Secrets) never steals the model.
-    const knownCustomSecretKeysRef = useRef<Set<string> | null>(null)
-    const adoptNextCustomProviderRef = useRef(false)
-    useEffect(() => {
-        const keys = new Set(customSecrets.map((secret) => secret.id ?? secret.name ?? ""))
-        const known = knownCustomSecretKeysRef.current
-        knownCustomSecretKeysRef.current = keys
-        if (!known || !adoptNextCustomProviderRef.current) return
-        const added = customSecrets.find((secret) => !known.has(secret.id ?? secret.name ?? ""))
-        if (!added) return
-        adoptNextCustomProviderRef.current = false
-        const firstModel = (added.models ?? []).find(Boolean)
-        if (firstModel && added.name) writeModel({modelId: firstModel, slug: added.name})
-    }, [customSecrets, writeModel])
-    const openConfigureProviderAdopting = useMemo(() => {
-        const open = llmProviderConfig?.openConfigureProvider
-        if (!open) return undefined
-        return (kind: string) => {
-            adoptNextCustomProviderRef.current = true
-            open(kind)
-        }
-    }, [llmProviderConfig?.openConfigureProvider])
+    // A picked connection row carries its model, provider family, connection and harness. All four
+    // land in ONE `onChange`: writing `llm` and `harness` through two calls would have the second
+    // overwrite the first, since both compose from the same (stale) `config`.
+    //
+    // The provider comes from the PICK alone — never from the config being replaced. A row whose
+    // family cannot be resolved writes none: keeping the previous model's family would persist a
+    // connection contradicting it (a Bedrock pick under Claude Code carrying a leftover
+    // "openrouter"), which the server rejects on the resolved (provider, deployment) pair.
+    const applyPickerSelection = useCallback(
+        (selection: PickerSelection) => {
+            const nextHarness = selection.harness ?? harnessValue
+            const nextLlm = composeModelValue({
+                modelId: selection.modelId,
+                provider:
+                    selection.provider ??
+                    providerForModel(capabilities, nextHarness, selection.modelId),
+                mode: selection.mode,
+                slug: selection.slug,
+                existing: llm,
+            })
+            onChange({
+                ...config,
+                llm: nextLlm,
+                ...(nextHarness && nextHarness !== harnessValue
+                    ? {harness: {...harness, kind: nextHarness}}
+                    : {}),
+            })
+        },
+        [capabilities, config, connection.provider, harness, harnessValue, llm, onChange],
+    )
 
     // Model is deliberately NOT cleared on a harness switch that can't reach it: the compatibility
     // panel flags it instead, so the user's choice survives (Arda's call; may error at run time).
@@ -387,34 +353,19 @@ export function useModelHarness({
 
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     const hasClaudePermissions = harnessValue === "claude"
-    const hasPiSettings = isPiHarness
-    const agentTools = useMemo(
-        () => (Array.isArray(config.tools) ? (config.tools as unknown[]) : null),
-        [config.tools],
+    const hasPiPermissions = isPiHarness
+    // Shared with the composer's `/permissions` palette, so the two lists cannot drift.
+    const runnerPermissionOptions = useMemo(
+        () =>
+            permissionPolicyOptionsForEnum(runnerPermissionSchema?.enum).map((option) => ({
+                value: option.value,
+                title: option.label,
+                help: option.help,
+            })),
+        [runnerPermissionSchema],
     )
-    const runnerPermissionOptions = useMemo(() => {
-        const schemaValues = Array.isArray(runnerPermissionSchema?.enum)
-            ? new Set((runnerPermissionSchema.enum as unknown[]).filter(isPermissionPolicy))
-            : null
-        return PERMISSION_POLICY_OPTIONS.filter(
-            (option) => !schemaValues || schemaValues.has(option.value),
-        ).map((option) => ({
-            value: option.value,
-            title: option.label,
-            label: (
-                <div className="flex flex-col py-0.5">
-                    <span>{option.label}</span>
-                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
-                        {option.help}
-                    </span>
-                </div>
-            ),
-        }))
-    }, [runnerPermissionSchema])
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
-    const runnerPermissionSummary = PERMISSION_POLICY_OPTIONS.find(
-        (option) => option.value === currentRunnerPermission,
-    )?.label
+    const runnerPermissionSummary = permissionPolicyLabel(currentRunnerPermission)
 
     // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
     // sandbox-permission keys the overlay overrides for the user's own permission control below.
@@ -431,7 +382,7 @@ export function useModelHarness({
     // `SectionDrawer` uses `destroyOnClose`, so this re-evaluates on every open.
     const sandboxChanged = useHasChangedUnder("sandbox")
     const runnerChanged = useHasChangedUnder("runner")
-    // Only `harness.permissions` belongs to this group — `harness.kind` is the Model & harness
+    // Only `harness.permissions` belongs to this group — `harness.kind` is the Model
     // section's, so a harness selection must not light the Permissions header (or its group-revert).
     const harnessPermsChanged = useHasChangedUnder("harness.permissions")
     const permissionsChanged = runnerChanged || harnessPermsChanged
@@ -449,40 +400,9 @@ export function useModelHarness({
         revertHarnessPerms?.()
     }, [revertRunner, revertHarnessPerms])
 
-    // Model & harness sub-sections (drawer): each owns one property bucket — harness.kind / llm.model /
-    // llm.connection.* — so the same mark + section-scoped revert the Advanced groups get. Scoped to
-    // `harness.kind` (NOT all of `harness`) so a permissions edit doesn't light up the Harness header.
-    const harnessKindChanged = useHasChangedUnder("harness.kind")
-    const modelChanged = useHasChangedUnder("llm.model")
-    const credentialsChanged = useHasChangedUnder("llm.connection")
-    const revertHarnessKind = useRevertUnder("harness.kind")
-    const revertModel = useRevertUnder("llm.model")
-    const revertCredentials = useRevertUnder("llm.connection")
-    // Confirmed, because unlike the per-row undo (which is reached THROUGH the popover showing the
-    // exact value it restores — see `RailField`) this one discards every change in the group at once
-    // and names none of them.
+    // Confirmed — see `RevertGroupButton`, which owns the confirm step.
     const revertAction = (onRevert: (() => void) | null) =>
-        onRevert ? (
-            <Popconfirm
-                title="Revert this group?"
-                description="Every unsaved change in it goes back to the committed value."
-                okText="Revert"
-                cancelText="Cancel"
-                placement="bottomRight"
-                onConfirm={onRevert}
-            >
-                <Button
-                    type="text"
-                    icon={<ArrowCounterClockwise size={13} />}
-                    // The header is a toggle — don't collapse the group while undoing inside it.
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={disabled}
-                    className="!h-auto !px-1 !py-0.5 !text-[11px] !text-[var(--ag-colorTextSecondary)]"
-                >
-                    Revert
-                </Button>
-            </Popconfirm>
-        ) : undefined
+        onRevert ? <RevertGroupButton onConfirm={onRevert} disabled={disabled} /> : undefined
 
     // FOCUS (see FocusPathsContext): when a surface narrows to the properties that matter — e.g. the
     // config panel showing only what changed — a group renders only if it owns one of them, and the
@@ -492,7 +412,7 @@ export function useModelHarness({
     const focus = useFocusPaths()
     const sandboxInFocus = useHasFocusUnder("sandbox")
     const runnerInFocus = useHasFocusUnder("runner")
-    // Split like the changed/revert side: harness.kind focuses the Model & harness section,
+    // Split like the changed/revert side: harness.kind focuses the Model section,
     // harness.permissions the Permissions group — so neither pulls the other into focus.
     const harnessKindInFocus = useHasFocusUnder("harness.kind")
     const harnessPermsInFocus = useHasFocusUnder("harness.permissions")
@@ -500,23 +420,31 @@ export function useModelHarness({
     const focusedGroupCount = (sandboxInFocus ? 1 : 0) + (permissionsInFocus ? 1 : 0)
     const flatFocus = focus.active && focusedGroupCount <= 1
 
-    // Same, for the Model & harness inline body: its three groups own harness.kind / llm.model /
-    // llm.connection.*, so under a change filter only the group(s) that actually changed render (a
-    // model swap shows the Model group, and Provider credentials too only if it moved the connection),
-    // flat when just one survives — instead of unfolding the entire section.
+    // Same, for the Model section body: the connection list owns both `llm.model` and the
+    // `harness.kind` a picked row sets, so a change filter keeps it whenever either is in scope.
     const modelInFocus = useHasFocusUnder("llm.model")
-    const credentialsInFocus = useHasFocusUnder("llm.connection")
-    const modelHarnessFocusedCount =
-        (harnessKindInFocus ? 1 : 0) + (modelInFocus ? 1 : 0) + (credentialsInFocus ? 1 : 0)
-    const modelHarnessFlatFocus = focus.active && modelHarnessFocusedCount <= 1
 
     const hasAdvanced = Boolean(
         sandboxProps.kind ||
         sandboxProps.permissions ||
         runnerProps.permissions ||
         hasClaudePermissions ||
-        hasPiSettings ||
+        hasPiPermissions ||
         hasBuildKitOverlay,
+    )
+
+    // Harness list, from the inspect capabilities map. Model compatibility is shown per-card
+    // (below); the model picker also needs it, to cross each connection with the harnesses that
+    // may drive it.
+    // GAP (tracked): harness_capabilities covers model/provider/mode/hosting only — NOT tools/skills/
+    // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
+    const schemaHarnesses = Array.isArray(harnessProps.kind?.enum)
+        ? (harnessProps.kind.enum as unknown[]).map(String)
+        : []
+    const harnessList = useMemo(
+        () => selectableHarnesses(capabilities ? Object.keys(capabilities) : schemaHarnesses),
+
+        [capabilities, schemaHarnesses.join(",")],
     )
 
     // The Model picker (inspect-filtered when available, else the schema catalog), as a rail row —
@@ -524,7 +452,10 @@ export function useModelHarness({
     // The bare model control (no label). In the capabilities layout the "Model" section header carries
     // the label (matching the schedule drawer's "Name" section — title + bare input), so we render this
     // directly; the flat/no-capabilities branch wraps it in a labelled `RailField` (`modelPicker`).
-    const modelControl = props.llm ? (
+    // The pre-connections menu: the harness's own catalog grouped by provider family, plus the
+    // vault's custom-provider models. It stays as the fallback for a backend that publishes no
+    // capabilities, and for a project whose connections yield no rows.
+    const catalogModelControl = props.llm ? (
         hasInspectModels ? (
             <SelectLLMProviderBase
                 showGroup
@@ -568,314 +499,75 @@ export function useModelHarness({
         )
     ) : null
 
-    const modelPicker = modelControl ? (
-        <RailField
-            label={
-                hasInspectModels
-                    ? railInfoLabel(
-                          "Model",
-                          "Filtered to the models this harness can reach. Selecting a model also sets its provider.",
-                      )
-                    : "Model"
-            }
-            align="center"
-            path="llm.model"
-        >
-            {modelControl}
-        </RailField>
+    // Connection-first cascade: level 1 is one row per connection (and per subscription), level 2
+    // that connection's models flat, one row per model AND harness pair. Picking one writes model,
+    // provider, connection and harness together, which is why this section has no harness control.
+    const modelControl = props.llm ? (
+        <ModelPickerControl
+            capabilities={capabilities}
+            harnessIds={harnessList}
+            harness={harnessValue}
+            modelId={modelId}
+            mode={connection.mode}
+            slug={connection.slug ?? null}
+            disabled={disabled}
+            // A subscription is a login mounted into the deployment; cloud has nowhere to mount one.
+            // isCloud is really isEE today, which would hide subscriptions on self-hosted EE,
+            // exactly where mounted logins exist. Ungated until a real cloud signal exists.
+            showSubscriptions={true}
+            onSelect={applyPickerSelection}
+            fallback={catalogModelControl}
+        />
     ) : null
 
-    // Shared version-history placeholder for the section drawers (real revision diffs are deferred).
-    const versionHistorySkeleton = (
-        <div>
-            <div className="mb-2 flex items-center gap-1.5">
-                <span className="text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                    Version history
-                </span>
-                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[10px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                    soon
-                </span>
-            </div>
-            <div className="flex flex-col gap-2.5 opacity-50">
-                {["w-[42%]", "w-[32%]", "w-[38%]"].map((widthClass, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
-                        <span
-                            className={cn(
-                                "h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]",
-                                widthClass,
-                            )}
-                        />
-                    </div>
-                ))}
-            </div>
-        </div>
-    )
-
-    // Harness list, from the inspect capabilities map. Model compatibility is shown per-card (below).
-    // GAP (tracked): harness_capabilities covers model/provider/mode/hosting only — NOT tools/skills/
-    // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
-    const schemaHarnesses = Array.isArray(harnessProps.kind?.enum)
-        ? (harnessProps.kind.enum as unknown[]).map(String)
-        : []
-    const harnessList = (capabilities ? Object.keys(capabilities) : schemaHarnesses).filter(
-        (harnessId) => !HIDDEN_HARNESSES.has(harnessId),
-    )
-
-    // Harness as a `[rail │ detail]` (experiment): the harness list on the rail with a model-compat dot,
-    // the selected harness's providers / hosting / models + compatibility badge in the content panel.
+    // The harness is no longer chosen here — each model row carries its own — so the section shows
+    // no harness control. What survives is the compatibility check behind the section's badge.
     const selectedCaps = harnessValue ? capabilities?.[harnessValue] : null
     const selectedProviders = selectedCaps?.providers ?? []
-    const selectedDeployments = selectedCaps?.deployments ?? []
-    const selectedModelCount = selectedCaps
-        ? Object.values(selectedCaps.models ?? {}).reduce(
-              (n, arr) => n + (Array.isArray(arr) ? arr.length : 0),
-              0,
-          )
-        : 0
     // A harness supports the model if it lists the exact id OR the model's PROVIDER family (harnesses use
     // different id namespaces; the provider is the reliable cross-harness signal on the config).
     const selectedKeepsModel =
         !modelId ||
-        harnessAllowsModel(capabilities, harnessValue, modelId) ||
+        harnessAllowsModel(
+            capabilities,
+            harnessValue,
+            modelId,
+            customSecrets,
+            connection.slug || null,
+        ) ||
         (!!connection.provider && selectedProviders.includes(connection.provider))
-    const selectedIsCurrent = !!harnessValue && (savedHarnessValue ?? harnessValue) === harnessValue
-    const selectedHarnessLabel =
-        (harnessValue ? enumLabel(harnessProps.kind, harnessValue) : null) || harnessValue
 
-    const harnessSection = (
-        <SectionRail
-            disabled={disabled}
-            // No per-harness status dot: a harness isn't invalid because of the model — model
-            // compatibility is a property of the *model* choice, shown on the selected harness's
-            // detail ("supports your model" / "model not available") and on the Model section.
-            items={harnessList.map((h) => ({
-                value: h,
-                label: enumLabel(harnessProps.kind, h) || h,
-            }))}
-            value={harnessValue ?? ""}
-            onChange={(h) => setSection("harness", {...harness, kind: h})}
-        >
-            <div className="flex flex-col gap-3 py-0.5">
-                <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="text-sm font-medium">{selectedHarnessLabel}</span>
-                    {selectedIsCurrent ? (
-                        <span className="rounded-full bg-[var(--ag-colorFillSecondary)] px-2 py-0.5 text-[11px] text-[var(--ag-colorPrimary)]">
-                            Current
-                        </span>
-                    ) : null}
-                    {modelId ? (
-                        <span
-                            className={cn(
-                                "inline-flex items-center gap-1 text-[11px]",
-                                selectedKeepsModel
-                                    ? "text-[var(--ag-colorSuccess)]"
-                                    : "text-[var(--ag-colorWarning)]",
-                            )}
-                        >
-                            {selectedKeepsModel ? <Check size={12} /> : <Warning size={12} />}
-                            {selectedKeepsModel ? "supports your model" : "model not available"}
-                        </span>
-                    ) : null}
-                </div>
-                {selectedProviders.length > 0 ? (
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                            Providers
-                        </span>
-                        <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                            {selectedProviders.slice(0, 4).join(" · ")}
-                            {selectedProviders.length > 4
-                                ? ` +${selectedProviders.length - 4}`
-                                : ""}
-                            {selectedModelCount ? ` · ${selectedModelCount} models` : ""}
-                        </span>
-                    </div>
-                ) : null}
-                {selectedDeployments.length > 0 ? (
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                            Hosting
-                        </span>
-                        <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                            {selectedDeployments.join(" · ")}
-                        </span>
-                    </div>
-                ) : null}
-            </div>
-        </SectionRail>
+    // The Model section's body: the picker, and nothing else. It carries no rail label — that would
+    // only restate the section title and cost the narrow panel its label gutter. A focus filter
+    // keeps it as long as either property it owns is in scope: the model, or the harness a picked
+    // row sets.
+    const catalogUnavailableNotice = <CatalogUnavailableNotice onRetry={() => retryCatalog()} />
+
+    const modelHarnessControls = (
+        <>
+            {!capabilities && catalogUnavailable ? catalogUnavailableNotice : null}
+            {modelInFocus || harnessKindInFocus ? modelControl : null}
+        </>
     )
 
-    // Provider credentials section: identical in both the capability-aware and flat layouts below,
-    // rendered once and reused so the two branches don't carry a duplicate prop list.
-    const providerCredentialsProps = props.llm
-        ? {
-              mode: connection.mode,
-              onModeChange: (m: ConnectionMode) => writeModel({mode: m}),
-              selectedProviderFamily,
-              selectedConnectionSlug: connection.slug ?? null,
-              modeOptions,
-              isCloud,
-              selfHostingGuideUrl: deployment?.selfHostingGuideUrl,
-              providerNeedsKey,
-              openConfigureProvider: openConfigureProviderAdopting,
-              disabled,
-              revisionId: revisionId ?? null,
-              indicator: changedIndicator(credentialsChanged),
-              revertControl: revertAction(revertCredentials),
-          }
-        : null
-    // The full pane (own header + rail) for the drawer body; the `bare` variant (toggle + key form /
-    // self-managed, no header, no rail) for the inline "Connect key" quick-action under the section.
-    const providerCredentialsSection = providerCredentialsProps ? (
-        <ProviderCredentialsSection {...providerCredentialsProps} />
-    ) : null
-    const providerCredentialsInline = providerCredentialsProps ? (
-        <ProviderCredentialsSection
-            {...providerCredentialsProps}
-            bare
-            modelControl={modelControl}
-        />
-    ) : null
-
-    // Model & harness drawer body. With inspect capabilities: harness cards + model picker on the
-    // left (each card owns its model-compat state), version history on the right — same two-panel
-    // shape as the Advanced drawer. Without capabilities: the plain harness select, single column.
-    // Shared Model & harness controls — rendered by both the wide drawer body and the tabs-inline body.
-    // A focused (change/connect-key) surface renders only the groups that own a changed property, and
-    // drops to FLAT chrome when just one survives; unfocused (drawer/tabs) everything renders as-is.
-    const modelControlGroup = (
-        <div className="flex flex-col gap-2 py-0.5">
-            {modelControl}
-            {!focus.active && hasInspectModels ? (
-                <Typography.Text type="secondary" className="!text-[11px] !leading-snug">
-                    Filtered to the models this harness can reach. Selecting a model also sets its
-                    provider.
-                </Typography.Text>
-            ) : null}
+    // Single column: the list owns the drawer's full width.
+    const modelHarnessBody = (
+        <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
+            {modelHarnessControls}
         </div>
     )
 
-    const catalogUnavailableNotice = (
-        <Alert
-            type="warning"
-            showIcon
-            message="Couldn't load the model catalog"
-            description="The harness and model options come from the server. Until it responds, only the basic controls are available."
-            action={
-                <Button size="small" onClick={() => retryCatalog()}>
-                    Retry
-                </Button>
-            }
-        />
-    )
-
-    const modelHarnessControls = capabilities ? (
-        <>
-            {harnessKindInFocus ? (
-                modelHarnessFlatFocus ? (
-                    harnessSection
-                ) : (
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<Cube size={15} />}
-                        title="Harness"
-                        status={harnessValue ? "complete" : "default"}
-                        indicator={changedIndicator(harnessKindChanged)}
-                        extra={revertAction(revertHarnessKind)}
-                        summary={selectedHarnessLabel ?? undefined}
-                        summaryCollapsedOnly
-                    >
-                        {focus.active ? null : (
-                            <div className="flex gap-2.5 rounded-md bg-[var(--ag-colorFillQuaternary)] p-3">
-                                <Lightbulb
-                                    size={16}
-                                    className="mt-0.5 shrink-0 text-[var(--ag-colorTextSecondary)]"
-                                />
-                                <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
-                                    The harness is the runtime that executes your agent. It decides
-                                    which providers, hosting and connection options you can use.
-                                </span>
-                            </div>
-                        )}
-                        {harnessSection}
-                    </ConfigAccordionSection>
-                )
-            ) : null}
-
-            {modelInFocus ? (
-                modelHarnessFlatFocus ? (
-                    // Flat (a change surface narrowed to just the model): a labelled RailField row, so
-                    // the changed control marks itself and its label opens the committed-value + Restore
-                    // popover — the same property-scoped affordance the Advanced rows get.
-                    <RailField label="Model" align="center" path="llm.model">
-                        {modelControl}
-                    </RailField>
-                ) : (
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<Sparkle size={15} />}
-                        title="Model"
-                        status={!modelId || !selectedKeepsModel ? "warning" : "complete"}
-                        indicator={changedIndicator(modelChanged)}
-                        extra={revertAction(revertModel)}
-                        summary={modelId ?? undefined}
-                        summaryCollapsedOnly
-                    >
-                        {modelControlGroup}
-                    </ConfigAccordionSection>
-                )
-            ) : null}
-
-            {credentialsInFocus ? providerCredentialsSection : null}
-        </>
-    ) : (
-        <>
-            {catalogUnavailable ? catalogUnavailableNotice : null}
-            {harnessKindInFocus && harnessProps.kind && (
-                <RailField label="Harness" align="center" path="harness.kind">
-                    <HarnessSelectControl
-                        schema={harnessProps.kind}
-                        visibleValues={harnessList}
-                        value={(harness.kind as string | null) ?? null}
-                        onChange={(v) => setSection("harness", {...harness, kind: v})}
-                        withTooltip={withTooltip}
-                        disabled={disabled}
-                    />
-                </RailField>
-            )}
-            {modelInFocus ? modelPicker : null}
-            {credentialsInFocus ? providerCredentialsSection : null}
-        </>
-    )
-
-    // The two-panel layout (controls + version-history aside) is DRAWER chrome. Under a focus filter
-    // this same body renders INLINE in the config panel (the "what changed" view), where the version
-    // history and its fixed-width aside don't belong — drop to a single column of the narrowed controls.
-    const modelHarnessDrawerBody =
-        capabilities && !focus.active ? (
-            <div className="flex h-full min-h-0 gap-6">
-                <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-                    {modelHarnessControls}
-                </div>
-                <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
-            </div>
-        ) : (
-            <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
-        )
-
-    // Advanced header summary: sandbox only now — mode UI moved to the Provider credentials section.
+    // Advanced header summary: sandbox only — the connection mode now comes with the picked model.
     const advancedSummary = sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined
 
-    // Advanced drawer body: two panels like Model & harness (settings left, version history right).
     const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
     const hasPermissionsGroup = Boolean(
-        runnerPermissionSchema || hasClaudePermissions || hasPiSettings,
+        runnerPermissionSchema || hasClaudePermissions || hasPiPermissions,
     )
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
     // and tools drawers); inside, configuration reads as the drawer's `[rail | content]` rhythm via
-    // `SectionRail` (mode groups) and `RailField` (labelled control rows).
+    // `RailField` (labelled control rows).
     /**
      * One Advanced group. Under a focus filter it disappears unless it owns a focused property, and
      * drops its chrome entirely when it's the only survivor — the body (the real controls) is the
@@ -947,7 +639,7 @@ export function useModelHarness({
         <>
             {runnerPermissionSchema ? (
                 <RailField label="Policy" align="center" path="runner.permissions.default">
-                    <Select<PermissionPolicy>
+                    <PermissionPolicySelect
                         value={currentRunnerPermission}
                         onChange={(v) =>
                             setSection("runner", {
@@ -956,9 +648,8 @@ export function useModelHarness({
                             })
                         }
                         options={runnerPermissionOptions}
-                        optionLabelProp="title"
                         disabled={disabled}
-                        className="w-full"
+                        aria-label="Policy"
                     />
                 </RailField>
             ) : null}
@@ -967,7 +658,7 @@ export function useModelHarness({
                     {/* Caption then peer rail rows (mode / allow / ask / deny) sharing the
                         section rail — the control renders its own RailField rows. */}
                     {focus.active ? null : (
-                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[12px] text-[var(--ant-color-primary-text)]">
                             Claude harness
                         </span>
                     )}
@@ -987,23 +678,16 @@ export function useModelHarness({
                     />
                 </>
             ) : null}
-            {hasPiSettings ? (
+            {hasPiPermissions ? (
                 <>
                     {focus.active ? null : (
-                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[12px] text-[var(--ant-color-primary-text)]">
                             Pi harness
                         </span>
                     )}
-                    {/* Availability, not permission — it declares no config path, so a focus
-                        filter drops it and only the changed permission rows remain. */}
-                    {focus.active ? null : (
-                        <PiSettingsControl
-                            tools={agentTools}
-                            onChange={setAgentTools}
-                            disabled={disabled}
-                        />
-                    )}
-                    <PiAutoApproveControl
+                    {/* Peer rail rows (allow / ask / deny) sharing the section rail. Each
+                        declares its config path, so a focus filter keeps the changed row. */}
+                    <PiPermissionsControl
                         value={(harness.permissions as Record<string, unknown> | null) ?? null}
                         onChange={(permissions) => setSection("harness", {...harness, permissions})}
                         disabled={disabled}
@@ -1029,13 +713,10 @@ export function useModelHarness({
                           title: "Execution environment",
                           summary: sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined,
                           caption: (
-                              <Typography.Text
-                                  type="secondary"
-                                  className="text-[11px] leading-snug"
-                              >
+                              <span className="text-xs leading-snug text-colorTextDescription">
                                   Where the agent&apos;s tools and code run, and what that sandbox
                                   may touch.
-                              </Typography.Text>
+                              </span>
                           ),
                       },
                       executionBody,
@@ -1053,12 +734,9 @@ export function useModelHarness({
                           title: "Permissions",
                           summary: runnerPermissionSummary,
                           caption: (
-                              <Typography.Text
-                                  type="secondary"
-                                  className="text-[11px] leading-snug"
-                              >
+                              <span className="text-xs leading-snug text-colorTextDescription">
                                   What the agent may do on its own before it must ask.
-                              </Typography.Text>
+                              </span>
                           ),
                       },
                       permissionsBody,
@@ -1069,18 +747,9 @@ export function useModelHarness({
 
     // The stacked sections carry their own dividers; drop the trailing one on whichever section
     // renders last (they're conditional, so target the last child rather than a fixed section).
-    // Same as Model & harness: the version-history aside is drawer chrome; under a focus filter this
-    // body renders inline in the panel, so drop to a single column of the narrowed controls.
-    const advancedDrawerBody = focus.active ? (
+    const advancedDrawerBody = (
         <div className="flex h-full flex-col overflow-y-auto [&>*:last-child]:!border-b-0">
             {advancedControls}
-        </div>
-    ) : (
-        <div className="flex h-full min-h-0 gap-6">
-            <div className="flex min-w-0 flex-1 flex-col overflow-y-auto pr-1 [&>*:last-child]:!border-b-0">
-                {advancedControls}
-            </div>
-            <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
         </div>
     )
 
@@ -1088,19 +757,15 @@ export function useModelHarness({
         hasModelOrHarness,
         mcpSupported,
         // The selected model's provider has a standard vault slot but no key yet — the config panel
-        // highlights the Model & harness section and the chat gates on it until it's connected.
+        // highlights the Model section and the chat gates on it until it's connected.
         needsProviderKey: providerNeedsKey,
-        // The compact `bare` credentials pane (mode toggle + selected provider's key form or
-        // self-managed card; no nested header/badge, no rail) for the inline "Connect key"
-        // quick-action under the section header — aligned with the drawer without duplicating it.
-        providerCredentialsInline,
-        // A model is selected but the chosen harness can't run it — a *model* problem (the harness
-        // itself stays valid), so the config panel flags the Model & harness section as invalid.
+        // A model is selected but its harness can't run it — a *model* problem, so the config panel
+        // flags the Model section as invalid.
         modelUnsupported: !!modelId && !selectedKeepsModel,
         modelSummary,
-        modelHarnessDrawerBody,
-        // The capability-aware (two-panel) drawer is wider than the plain one.
-        modelHarnessDrawerWidth: capabilities ? 880 : 560,
+        modelHarnessBody,
+        // One column of connection rows; it needs no more room than the plain drawer.
+        modelHarnessDrawerWidth: 560,
         hasAdvanced,
         advancedSummary,
         advancedDrawerBody,

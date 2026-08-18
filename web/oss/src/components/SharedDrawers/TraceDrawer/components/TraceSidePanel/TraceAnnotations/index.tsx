@@ -173,7 +173,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                 evaluator={group.evaluator}
                                 fallbackLabel={group.refId}
                             >
-                                <Typography.Text type="secondary" className="text-[10px]">
+                                <Typography.Text type="secondary" className="text-[12px]">
                                     {group?.evaluator?.name || group.refId}
                                 </Typography.Text>
                             </EvaluatorDetailsPopover>

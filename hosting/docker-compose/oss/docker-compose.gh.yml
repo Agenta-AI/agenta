@@ -15,6 +15,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -23,6 +25,36 @@ services:
             - "traefik.http.routers.web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.web.entrypoints=web"
             - "traefik.http.services.web.loadbalancer.server.port=3000"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    web-mobile:
+        # === ACTIVATION =========================================== #
+        # Opt-in while the mobile app is pre-GA (run.sh --with-mobile).
+        profiles:
+            - with-web-mobile
+        # === IMAGE ================================================ #
+        # build:
+        #     context: ../../../web
+        #     dockerfile: mobile/docker/Dockerfile.gh
+        image: ghcr.io/agenta-ai/${AGENTA_WEB_MOBILE_IMAGE_NAME:-agenta-web-mobile}:${AGENTA_WEB_MOBILE_IMAGE_TAG:-latest}
+        # === EXECUTION ============================================ #
+        command: sh -c "node ./mobile/server.js"
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-oss-gh-network
+        # === LABELS =============================================== #
+        # (Path(`/m`) || PathPrefix(`/m/`)) auto-wins over the web catch-all PathPrefix(`/`)
+        # by rule length; no stripprefix — the app is built with basePath /m.
+        labels:
+            - "traefik.http.routers.web-mobile.rule=(Path(`/m`) || PathPrefix(`/m/`))"
+            - "traefik.http.routers.web-mobile.entrypoints=web"
+            - "traefik.http.services.web-mobile.loadbalancer.server.port=3000"
         # === LIFECYCLE ============================================ #
         restart: always
 
@@ -319,6 +351,7 @@ services:
             AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS: ${AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS:-}
             AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
+            AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS: ${AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS:-}
             # This service has no env_file (see above), so the session flags must be listed
             # here or they can never be set. Both default ON: absent or empty means on, and
             # only the literal "false" disables. Disable AGENTA_SESSIONS_RECONSTRUCT together

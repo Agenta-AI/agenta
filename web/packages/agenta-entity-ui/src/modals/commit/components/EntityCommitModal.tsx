@@ -115,7 +115,6 @@ export interface EntityCommitModalProps {
 }
 
 const SLUG_CONFLICT_MESSAGE = "A resource with this slug already exists in this project."
-const AGENT_TWO_PANE_ROOT_CLASS = "agenta-agent-commit-two-pane"
 
 function getErrorStatus(error: unknown): number | undefined {
     return (error as {response?: {status?: number}})?.response?.status
@@ -490,48 +489,41 @@ export function EntityCommitModal({
     )
 
     return (
-        <>
-            {/* Scoped override: zero antd's container padding for the agent two-pane layout only.
-                This antd build puts the padding on `.ant-modal-container` (not `.ant-modal-content`). */}
-            {isAgentTwoPane ? (
-                <style>{`.${AGENT_TWO_PANE_ROOT_CLASS} .ant-modal-container{padding:0 !important;overflow:hidden;}`}</style>
-            ) : null}
-            <EnhancedModal
-                open={isOpen}
-                onCancel={handleClose}
-                afterClose={handleAfterClose}
-                rootClassName={isAgentTwoPane ? AGENT_TWO_PANE_ROOT_CLASS : undefined}
-                // Agent commits render title + footer inside the body (two full-bleed panels).
-                title={isAgentTwoPane ? null : <EntityCommitTitle />}
-                footer={isAgentTwoPane ? null : footerNode}
-                width={hasDiffData ? 900 : 520}
-                styles={
-                    isAgentTwoPane
-                        ? {
-                              container: {padding: 0, overflow: "hidden"},
-                              body: {padding: 0, overflow: "hidden"},
-                          }
-                        : {
-                              body: {
-                                  maxHeight: "calc(80vh - 110px)",
-                                  overflow: "hidden",
-                                  display: "flex",
-                                  flexDirection: "column",
-                              },
-                          }
-                }
-            >
-                <EntityCommitContent
-                    commitModes={commitModes}
-                    selectedMode={selectedMode}
-                    onModeChange={setSelectedMode}
-                    extraContent={renderModeContent?.({mode: selectedMode})}
-                    modeLabel={modeLabel}
-                    entityNameEditable={isEntityNameEditable}
-                    entityNameLabel={resolvedEntityNameLabel}
-                    footerSlot={isAgentTwoPane ? footerNode : undefined}
-                />
-            </EnhancedModal>
-        </>
+        <EnhancedModal
+            open={isOpen}
+            onCancel={handleClose}
+            afterClose={handleAfterClose}
+            // Agent commits render title + footer inside the body (two full-bleed panels).
+            title={isAgentTwoPane ? null : <EntityCommitTitle />}
+            aria-label={`${actionLabel} changes`}
+            footer={isAgentTwoPane ? null : footerNode}
+            width={hasDiffData ? 900 : 520}
+            styles={
+                isAgentTwoPane
+                    ? {
+                          container: {padding: 0, overflow: "hidden"},
+                          body: {padding: 0, overflow: "hidden"},
+                      }
+                    : {
+                          body: {
+                              maxHeight: "calc(80vh - 110px)",
+                              overflow: "hidden",
+                              display: "flex",
+                              flexDirection: "column",
+                          },
+                      }
+            }
+        >
+            <EntityCommitContent
+                commitModes={commitModes}
+                selectedMode={selectedMode}
+                onModeChange={setSelectedMode}
+                extraContent={renderModeContent?.({mode: selectedMode})}
+                modeLabel={modeLabel}
+                entityNameEditable={isEntityNameEditable}
+                entityNameLabel={resolvedEntityNameLabel}
+                footerSlot={isAgentTwoPane ? footerNode : undefined}
+            />
+        </EnhancedModal>
     )
 }

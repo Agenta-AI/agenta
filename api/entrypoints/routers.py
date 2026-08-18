@@ -25,6 +25,7 @@ from oss.src.dbs.redis.shared.engine import (
     get_cache_engine,
     get_streams_engine,
 )
+from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 
 from oss.databases.postgres.migrations.core.utils import (
     check_for_new_migrations as check_for_new_core_migrations,
@@ -100,9 +101,11 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.evaluations.service import SimpleQueuesService
 from oss.src.core.tracing.service import SimpleTracesService
+from oss.src.core.providers.service import ProviderProbeService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.providers.router import ProvidersRouter
 from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
@@ -165,6 +168,10 @@ from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.sessions.mounts.service import SessionMountsService
+from oss.src.core.sessions.attachments.dtos import AttachmentLimits
+from oss.src.core.sessions.attachments.service import SessionAttachmentsService
+from oss.src.dbs.postgres.sessions.attachments.dao import SessionAttachmentsDAO
+from oss.src.tasks.asyncio.sessions.attachment_sweep import attachment_sweep_loop
 from oss.src.apis.fastapi.mounts.router import MountsRouter
 
 # Session streams
@@ -271,6 +278,16 @@ async def lifespan(*args, **kwargs):
         orphan_sweep_loop(_transactions_engine, _lock_engine)
     )
 
+    _attachment_sweep_task = asyncio.create_task(
+        attachment_sweep_loop(
+            attachments_dao=session_attachments_dao,
+            original_store=mounts_service,
+            lock_engine=_lock_engine,
+            pending_ttl_seconds=env.agenta.sessions.attachments.pending_ttl_seconds,
+            unreferenced_ttl_seconds=env.agenta.sessions.attachments.unreferenced_ttl_seconds,
+            sweep_interval_seconds=env.agenta.sessions.attachments.sweep_interval_seconds,
+        )
+    )
     # Best-effort: ingestion re-resolves on demand if this fails.
     if env.composio.enabled:
         try:
@@ -282,7 +299,16 @@ async def lifespan(*args, **kwargs):
 
     yield
 
-    _orphan_sweep_task.cancel()
+    for task in (
+        _orphan_sweep_task,
+        _attachment_sweep_task,
+    ):
+        task.cancel()
+    await asyncio.gather(
+        _orphan_sweep_task,
+        _attachment_sweep_task,
+        return_exceptions=True,
+    )
 
     await _triggers_broker.shutdown()
 
@@ -559,6 +585,7 @@ session_turns_dao = SessionTurnsDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
+session_attachments_dao = SessionAttachmentsDAO(engine=_transactions_engine)
 
 # SERVICES ---------------------------------------------------------------------
 
@@ -569,6 +596,8 @@ _t_services = time.perf_counter()
 vault_service = VaultService(
     secrets_dao=secrets_dao,
 )
+
+provider_probe_service = ProviderProbeService()
 
 
 webhooks_service = WebhooksService(
@@ -618,9 +647,14 @@ folders_service = FoldersService(
 
 _lock_engine = get_lock_engine()
 
+# M3 live relay: lifecycle/interaction change notifications for the SSE watch
+# endpoint, published fire-and-forget on the durable plane.
+_sessions_watch_publisher = SessionsWatchPublisher()
+
 session_streams_service = SessionStreamsService(
     streams_dao=session_streams_dao,
     lock_engine=_lock_engine,
+    watch_publisher=_sessions_watch_publisher,
 )
 
 session_turns_service = SessionTurnsService(
@@ -630,6 +664,7 @@ session_turns_service = SessionTurnsService(
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
     static_catalog=StaticWorkflowCatalog(),
+    watch_publisher=_sessions_watch_publisher,
 )
 
 environments_service = EnvironmentsService(
@@ -769,6 +804,7 @@ else:
 
 tools_adapter_registry = ToolsGatewayRegistry(
     adapters=_composio_adapters,
+    unconfigured=({} if env.composio.enabled else {"composio": "COMPOSIO_API_KEY"}),
 )
 
 tools_service = ToolsService(
@@ -787,6 +823,7 @@ if env.composio.enabled:
 
 triggers_adapter_registry = TriggersGatewayRegistry(
     adapters=_composio_triggers_adapters,
+    unconfigured=({} if env.composio.enabled else {"composio": "COMPOSIO_API_KEY"}),
 )
 
 triggers_dao = TriggersDAO(engine=_transactions_engine)
@@ -795,6 +832,7 @@ interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
 
 interactions_service = SessionInteractionsService(
     interactions_dao=interactions_dao,
+    watch_publisher=_sessions_watch_publisher,
 )
 
 triggers_service = TriggersService(
@@ -830,6 +868,7 @@ _interactions_broker = ProducerOnlyRedisStreamBroker(
 _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
+    records_service=records_service,
     dispatch_fn=_dispatch_detached_run,
 )
 
@@ -850,6 +889,7 @@ _triggers_broker = ProducerOnlyRedisStreamBroker(
 
 _triggers_dispatcher = TriggersDispatcher(
     triggers_dao=triggers_dao,
+    session_claims_dao=session_streams_dao,
     workflows_service=workflows_service,
     dispatch_fn=_dispatch_detached_run,
 )
@@ -883,6 +923,21 @@ session_mounts_service = SessionMountsService(
     mounts_service=mounts_service,
 )
 
+session_attachments_service = SessionAttachmentsService(
+    attachments_dao=session_attachments_dao,
+    original_store=mounts_service,
+    limits=AttachmentLimits(
+        max_image_bytes=env.agenta.sessions.attachments.max_image_bytes,
+        max_audio_bytes=env.agenta.sessions.attachments.max_audio_bytes,
+        max_document_bytes=env.agenta.sessions.attachments.max_document_bytes,
+        max_other_bytes=env.agenta.sessions.attachments.max_other_bytes,
+        max_per_session_count=env.agenta.sessions.attachments.max_per_session_count,
+        max_per_session_bytes=env.agenta.sessions.attachments.max_per_session_bytes,
+        max_pending_per_session=env.agenta.sessions.attachments.max_pending_per_session,
+        pending_ttl_seconds=env.agenta.sessions.attachments.pending_ttl_seconds,
+    ),
+)
+
 _t_services_done = time.perf_counter() - _t_services
 print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
 _t_routers = time.perf_counter()
@@ -891,6 +946,10 @@ _t_routers = time.perf_counter()
 
 secrets = VaultRouter(
     vault_service=vault_service,
+)
+
+providers = ProvidersRouter(
+    provider_probe_service=provider_probe_service,
 )
 
 webhooks = WebhooksRouter(
@@ -1046,6 +1105,8 @@ sessions_service = SessionsService(
     turns_service=session_turns_service,
     interactions_service=interactions_service,
     mounts_service=mounts_service,
+    # Read-only, for the list's message preview — records themselves stay the records router's.
+    records_service=records_service,
 )
 
 sessions = SessionsRouter(
@@ -1053,11 +1114,13 @@ sessions = SessionsRouter(
     records_service=records_service,
     interactions_service=interactions_service,
     workflows_service=workflows_service,
+    attachments_service=session_attachments_service,
     session_mounts_service=session_mounts_service,
     mounts_service=mounts_service,
     turns_service=session_turns_service,
     sessions_service=sessions_service,
     respond_task=_interactions_worker.respond_interaction,
+    interactions_dispatcher=_interactions_dispatcher,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------
@@ -1074,6 +1137,19 @@ _t_mount_routers = time.perf_counter()
 app.include_router(
     router=secrets.router,
     tags=["Secrets"],
+)
+
+app.include_router(
+    router=providers.router,
+    tags=["Secrets"],
+)
+
+# The probe is also reachable under the vault's legacy prefix, so a client that already
+# addresses connections as /vault/v1/secrets/ can test one without switching base paths.
+app.include_router(
+    router=providers.router,
+    prefix="/vault/v1",
+    include_in_schema=False,
 )
 
 ## DEPRECATED
@@ -1480,6 +1556,12 @@ app.include_router(
     router=mounts.router,
     prefix="/mounts",
     tags=["Mounts"],
+)
+
+app.include_router(
+    router=sessions.attachments.router,
+    prefix="/sessions",
+    tags=["Sessions"],
 )
 
 app.include_router(

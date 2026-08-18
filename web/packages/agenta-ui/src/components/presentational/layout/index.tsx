@@ -6,19 +6,19 @@
  *
  * @example
  * ```tsx
- * import { SplitPanelLayout, NumberedStep, StepContainer } from '@agenta/ui'
+ * import { SplitPanelLayout, NumberedStep } from '@agenta/ui'
  *
  * <SplitPanelLayout
  *   leftWidth={280}
  *   left={
- *     <StepContainer>
+ *     <div className="flex flex-col grow gap-3">
  *       <NumberedStep number={1} title="Name">
  *         <Input />
  *       </NumberedStep>
  *       <NumberedStep number={2} title="Review">
- *         <Text>Preview content</Text>
+ *         <span>Preview content</span>
  *       </NumberedStep>
- *     </StepContainer>
+ *     </div>
  *   }
  *   right={<TablePreview />}
  * />
@@ -26,8 +26,6 @@
  */
 
 import type {ReactNode} from "react"
-
-import {Typography} from "antd"
 
 import {
     borderColors,
@@ -38,8 +36,6 @@ import {
     textColors,
     textSizes,
 } from "../../../utils/styles"
-
-const {Text} = Typography
 
 // ============================================================================
 // TYPES
@@ -68,22 +64,6 @@ export interface NumberedStepProps {
     className?: string
 }
 
-export interface StepContainerProps {
-    /**
-     * Steps to render
-     */
-    children: ReactNode
-    /**
-     * Gap between steps
-     * @default gapClasses.md
-     */
-    gap?: string
-    /**
-     * Additional CSS class
-     */
-    className?: string
-}
-
 // ============================================================================
 // COMPONENTS
 // ============================================================================
@@ -97,7 +77,7 @@ export function NumberedStep({number, title, subtitle, children, className}: Num
         <div
             className={cn(
                 flexLayouts.column,
-                "rounded-lg border",
+                "rounded-lg border border-solid",
                 spacingClasses.card,
                 gapClasses.md,
                 borderColors.secondary,
@@ -106,19 +86,12 @@ export function NumberedStep({number, title, subtitle, children, className}: Num
         >
             <div className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
                 <span className={cn("font-medium", textColors.tertiary)}>{number}.</span>
-                <Text className={cn("font-medium", textSizes.sm, textColors.primary)}>{title}</Text>
-                {subtitle && <Text className={textColors.tertiary}>{subtitle}</Text>}
+                <span className={cn("font-medium", textSizes.sm, textColors.primary)}>{title}</span>
+                {subtitle && <span className={textColors.tertiary}>{subtitle}</span>}
             </div>
             {children}
         </div>
     )
-}
-
-/**
- * A container for numbered steps with consistent spacing.
- */
-export function StepContainer({children, gap = gapClasses.md, className}: StepContainerProps) {
-    return <div className={cn(flexLayouts.column, "grow", gap, className)}>{children}</div>
 }
 
 // ============================================================================
@@ -128,3 +101,10 @@ export function StepContainer({children, gap = gapClasses.md, className}: StepCo
 export {SplitPanelLayout, type SplitPanelLayoutProps} from "./SplitPanelLayout"
 export {ModalContentLayout, type ModalContentLayoutProps} from "./ModalContentLayout"
 export {PanelFooter, type PanelFooterProps} from "./PanelFooter"
+export {
+    PanelSurface,
+    PanelScroll,
+    PanelSection,
+    PANEL_ACTION_CLASS,
+    type PanelSectionProps,
+} from "./PanelSection"

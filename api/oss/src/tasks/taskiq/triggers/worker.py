@@ -1,9 +1,9 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from taskiq import AsyncBroker, Context, TaskiqDepends
 
-from oss.src.core.triggers.dtos import TRIGGER_MAX_RETRIES, TriggerSchedule
+from oss.src.core.triggers.dtos import TRIGGER_MAX_RETRIES
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.utils.env import env
@@ -93,11 +93,29 @@ class TriggersWorker:
             project_id: str,
             event_id: str,
             event: Dict[str, Any],
-            schedule: Dict[str, Any],
+            schedule_id: Optional[str] = None,
+            schedule: Optional[Dict[str, Any]] = None,
             #
             context: Context = TaskiqDepends(),
         ) -> None:
-            entity = TriggerSchedule.model_validate(schedule)
+            queued_schedule_id = schedule_id or (schedule or {}).get("id")
+            if queued_schedule_id is None:
+                log.warning(
+                    "[TASK] triggers.dispatch_schedule Missing schedule id — skipping"
+                )
+                return
+
+            resolved_project_id = UUID(project_id)
+            entity = await self.triggers_dao.fetch_schedule(
+                project_id=resolved_project_id,
+                schedule_id=UUID(str(queued_schedule_id)),
+            )
+            if entity is None or not entity.flags.is_active:
+                log.info(
+                    "[TASK] triggers.dispatch_schedule Schedule %s is deleted or inactive — skipping",
+                    queued_schedule_id,
+                )
+                return
 
             log.info(
                 f"[TASK] triggers.dispatch_schedule "
@@ -105,7 +123,7 @@ class TriggersWorker:
             )
 
             await self.dispatcher.dispatch_schedule(
-                project_id=UUID(project_id),
+                project_id=resolved_project_id,
                 schedule=entity,
                 event_id=event_id,
                 event=event,

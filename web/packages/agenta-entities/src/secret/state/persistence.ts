@@ -19,10 +19,9 @@ import type {LlmProvider} from "@agenta/shared/types"
 import {experimental_createQueryPersister} from "@tanstack/query-persist-client-core"
 import type {PersistedQuery} from "@tanstack/query-persist-client-core"
 
-import type {NamedSecretRow} from "../core/types"
+import {VAULT_PERSIST_REDACTED, type NamedSecretRow} from "../core/types"
 
-/** Truthy, obviously-not-a-key sentinel written to disk in place of secret values. */
-export const VAULT_PERSIST_REDACTED = "[redacted]"
+export {VAULT_PERSIST_REDACTED}
 
 const VAULT_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000
 

@@ -127,4 +127,38 @@ describe("reconstructMessages", () => {
   it("returns an empty history for no records", () => {
     assert.deepEqual(reconstructMessages([]), []);
   });
+
+  it("rebuilds user attachment references before exactly one text block", () => {
+    const attachmentId = "11111111-1111-4111-8111-111111111111";
+    const out = reconstructMessages([
+      rec("user", {
+        type: "message",
+        text: "inspect this",
+        attachments: [
+          {
+            attachmentId,
+            filename: "report.pdf",
+            mediaType: "application/pdf",
+            size: 42,
+          },
+        ],
+      }),
+    ]);
+
+    assert.deepEqual(out, [
+      {
+        role: "user",
+        content: [
+          {
+            type: "attachment",
+            attachmentId,
+            filename: "report.pdf",
+            mimeType: "application/pdf",
+            size: 42,
+          },
+          { type: "text", text: "inspect this" },
+        ],
+      },
+    ]);
+  });
 });

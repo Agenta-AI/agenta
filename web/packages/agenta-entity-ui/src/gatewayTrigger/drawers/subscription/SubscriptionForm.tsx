@@ -25,54 +25,51 @@ import {
     type TriggerSubscriptionEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
-import {appWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {FlowArrow, GitBranch, Lightning, Tag} from "@phosphor-icons/react"
-import {Form, Input, Spin} from "antd"
+import {HeightCollapse} from "@agenta/ui/components"
+import {Input} from "@agenta/ui/ui"
+import {CaretDown, SlidersHorizontal} from "@phosphor-icons/react"
+// The SchemaForm bridge: SchemaForm (gatewayTool) still requires an antd FormInstance.
+import {Form} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {DrawerFooter} from "../../../drawers/shared/DrawerFooter"
+import {Labelled} from "../../../drawers/shared/Labelled"
 import {type SchemaFormHandle} from "../../../gatewayTool/components/SchemaForm"
-import {
-    createWorkflowRevisionAdapter,
-    type WorkflowRevisionSelectionResult,
-} from "../../../selection"
+import {AgentField} from "../shared/AgentField"
 import {loadRecentSamples, waitForNewDelivery} from "../shared/deliveries"
 import {type SampledEvent} from "../shared/EventSourcePicker"
+import {SubscriptionFormSkeleton} from "../shared/FormSkeleton"
 import {normalizeJson} from "../shared/normalizeJson"
-import {RequiredTitle} from "../shared/RequiredTitle"
 import {
-    RunVersionField,
-    buildRunVersionReferences,
-    extractBoundWorkflowId,
-    isRunVersionBound,
-} from "../shared/RunVersionField"
+    bindingKey,
+    buildTriggerReferences,
+    useBoundAgentShape,
+    useTriggerBinding,
+    type TriggerBinding,
+} from "../shared/useTriggerBinding"
+import {VersionField} from "../shared/VersionField"
 
-import {applicationRevisionAdapter, browseHeaderAtom, DEFAULT_INPUTS_MAPPING} from "./constants"
-import {eventExampleFromPayload, extractBoundRevId, connectionName} from "./helpers"
+import {browseHeaderAtom, DEFAULT_INPUTS_MAPPING} from "./constants"
+import {eventExampleFromPayload, suggestSubscriptionName} from "./helpers"
 import {MappingSection} from "./MappingSection"
-import {RunSubscriptionButton} from "./RunSubscriptionButton"
 import {SourceBrowsePage} from "./SourceBrowsePage"
-import {SourceField} from "./SourceField"
+import {EventFiltersField, SourceField} from "./SourceField"
 
 // ---------------------------------------------------------------------------
-// SubscriptionForm — the sectioned config (mirrors the schedule form sections):
-// Name / When this happens / Which version runs? / What the agent gets, + footer.
+// SubscriptionForm — a flat field stack: Name, Trigger, Message, and an Advanced disclosure
+// holding the bound version and the event's own filters. Mirrors the schedule form.
 // ---------------------------------------------------------------------------
 
 export function SubscriptionForm({
     subscriptionId,
     onClose,
-    hidden,
-    onNameChange,
     onSaved,
 }: {
     subscriptionId?: string
     onClose: () => void
-    hidden?: boolean
-    onNameChange?: (name: string) => void
     onSaved?: (savedId: string) => void
 }) {
     const [state] = useAtom(triggerSubscriptionDrawerAtom)
@@ -88,15 +85,17 @@ export function SubscriptionForm({
         create,
         edit,
     } = useTriggerSubscription(subscriptionId)
+    const isDeleted = Boolean(subscription?.deleted_at)
 
     const [name, setName] = useState("")
     const [connectionId, setConnectionId] = useState<string | undefined>(state?.connectionId)
     const [eventKey, setEventKey] = useState(state?.eventKey ?? "")
+    // Carried through save, not editable here — active/paused is toggled from the triggers list.
     const [enabled, setEnabled] = useState(true)
-    const [workflowRevId, setWorkflowRevId] = useState<string | null>(null)
-    const [workflowSelection, setWorkflowSelection] =
-        useState<WorkflowRevisionSelectionResult | null>(null)
-    const [workflowLabel, setWorkflowLabel] = useState<string | null>(null)
+    const [advancedOpen, setAdvancedOpen] = useState(false)
+    // Settings picks the agent; the playground and edit mode resolve it (see `resolved`).
+    const [agentWorkflowId, setAgentWorkflowId] = useState<string | null>(null)
+    const [binding, setBinding] = useState<TriggerBinding | null>(null)
     const [inputsText, setInputsText] = useState(DEFAULT_INPUTS_MAPPING)
     const [inputsError, setInputsError] = useState<string | null>(null)
     // The field UI sources from the RAW event only: a draft's /test probe (raw
@@ -113,70 +112,35 @@ export function SubscriptionForm({
     // Publish browse state to the drawer header (only while this form is the visible one).
     const setBrowseHeader = useSetAtom(browseHeaderAtom)
     useEffect(() => {
-        if (browsing && !hidden) {
+        if (browsing) {
             setBrowseHeader({onBack: () => setBrowsing(false)})
             return () => setBrowseHeader(null)
         }
         return undefined
-    }, [browsing, hidden, setBrowseHeader])
+    }, [browsing, setBrowseHeader])
 
-    const [bindMode, setBindMode] = useState<"revision" | "environment">("revision")
-    const [environmentSlug, setEnvironmentSlug] = useState<string | null>(null)
-    const [appSlug, setAppSlug] = useState<string | null>(null)
-
-    // Resolve the playground workflow so the version picker + env list scope to this agent.
-    const playgroundWorkflow = useAtomValue(
-        workflowMolecule.selectors.data(playgroundEntityId ?? ""),
-    )
-    const workflowRevId0 = playgroundEntityId ?? null
-    // The binding as persisted — the picker's leaf can't represent every shape the BE accepts.
+    // The binding as persisted — never re-picked on open, so opening a trigger can't rebind it.
     const storedReferences = subscription?.data?.references
-    const versionChosen = isRunVersionBound({
-        bindMode,
-        workflowRevId,
-        environmentSlug,
-        storedReferences,
+    const resolved = useTriggerBinding({
+        storedReferences: isEdit ? storedReferences : state?.defaultReferences,
+        playgroundEntityId,
+        agentWorkflowId,
     })
-    const revisionAdapter = useMemo(() => {
-        if (!playgroundEntityId) return applicationRevisionAdapter
-        return createWorkflowRevisionAdapter({
-            workflowListAtom: appWorkflowsListQueryStateAtom,
-            workflowId: playgroundWorkflow?.workflow_id ?? playgroundEntityId,
-            excludeRevisionZero: true,
-            parentLabel: "Variant",
-        })
-    }, [playgroundEntityId, playgroundWorkflow?.workflow_id])
-    const playgroundAppName = useAtomValue(
-        workflowMolecule.selectors.artifactName(playgroundEntityId ?? ""),
-    )
-    // Friendly name for the bound revision (used when no fresh-pick label is set, e.g.
-    // after create/edit reload) so the version picker never shows a raw id.
-    const resolvedRevisionName = useAtomValue(
-        workflowMolecule.selectors.artifactName(workflowRevId ?? ""),
-    )
+    // Baseline excludes the agent the user picked, or a rebind would move both sides of the
+    // dirty check together and leave Save disabled.
+    const baselineBinding = useTriggerBinding({
+        storedReferences: isEdit ? storedReferences : state?.defaultReferences,
+        playgroundEntityId,
+    })
+    const activeBinding = binding ?? resolved
+    const versionChosen = !!activeBinding.workflowId || !!activeBinding.variantId
 
-    /* Unused while the Deployed option is hidden — restore with the call site below.
-    const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
-    const environments = envQuery.data?.environments ?? []
-    const appIdForEnv = playgroundEntityId
-        ? (playgroundWorkflow?.workflow_id ?? playgroundEntityId)
-        : ""
-    const appDeployments = useAtomValue(appEnvironmentsQueryAtomFamily(appIdForEnv))
-    const envOptions = useMemo<{value: string; label: string}[]>(() => {
-        if (!playgroundEntityId) {
-            return environments.map((e) => ({value: e.slug ?? "", label: e.name || e.slug || ""}))
-        }
-        return (appDeployments.data ?? [])
-            .filter((d) => d.deployedRevisionId || d.deployedVariantId)
-            .map((d) => ({
-                value: d.slug ?? "",
-                label:
-                    d.deployedVariantName && d.revision
-                        ? `${d.name} · ${d.deployedVariantName} v${d.revision}`
-                        : (d.name ?? d.slug ?? ""),
-            }))
-    }, [playgroundEntityId, environments, appDeployments.data])
-    */
+    // The bound agent's display name — the Name placeholder uses it.
+    const agentName = useAtomValue(
+        workflowMolecule.selectors.artifactName(
+            activeBinding.workflowId ?? playgroundEntityId ?? "",
+        ),
+    )
 
     const {subscriptions} = useTriggerSubscriptions()
     const alreadySubscribed = useMemo(
@@ -210,18 +174,6 @@ export function SubscriptionForm({
         setConnectionId(subscription.connection_id)
         setEventKey(subscription.data?.event_key ?? "")
         setEnabled(isEntityActive(subscription))
-        const refs = subscription.data?.references
-        const envRef = refs?.environment
-        if (envRef) {
-            setBindMode("environment")
-            setEnvironmentSlug(envRef.slug ?? null)
-            setAppSlug(refs?.application?.slug ?? null)
-        } else {
-            setWorkflowRevId(extractBoundWorkflowId(refs))
-            // Don't store the raw revision id as the label — resolve a friendly name from
-            // the molecule (resolvedRevisionName) for the picker placeholder instead.
-            setWorkflowLabel(null)
-        }
         setInputsText(
             subscription.data?.inputs_fields
                 ? JSON.stringify(subscription.data.inputs_fields, null, 2)
@@ -230,33 +182,8 @@ export function SubscriptionForm({
         if (subscription.data?.trigger_config) {
             configForm.setFieldsValue(subscription.data.trigger_config)
         }
+        // The binding is derived from the stored references, never re-picked on open.
     }, [isEdit, subscription, subFetching, subscriptionId, configForm])
-
-    // Create-mode default-bind to the playground agent (or `defaultReferences`).
-    useEffect(() => {
-        if (isEdit) return
-        const refs = state?.defaultReferences
-        setAppSlug(refs?.application?.slug ?? null)
-        const variantId = extractBoundRevId(refs) ?? workflowRevId0
-        if (!variantId) return
-        const appId = refs?.application?.id ?? playgroundWorkflow?.workflow_id ?? null
-        const label = state?.defaultBoundLabel ?? playgroundAppName ?? appId ?? variantId
-        setWorkflowRevId(variantId)
-        setWorkflowLabel(label)
-        setWorkflowSelection({
-            type: "workflowRevision",
-            id: variantId,
-            label,
-            path: [],
-            metadata: {
-                workflowId: appId ?? "",
-                workflowName: state?.defaultBoundLabel ?? "",
-                variantId,
-                variantName: "",
-                revision: 0,
-            },
-        })
-    }, [isEdit])
 
     const selectedConnection = useMemo<TriggerConnection | undefined>(
         () => connections.find((c) => c.id === connectionId),
@@ -270,18 +197,21 @@ export function SubscriptionForm({
         unknown
     > | null
 
+    // Shown as the placeholder and saved verbatim when the field is left empty, so a trigger
+    // is never nameless — "Issue opened — Bug report".
+    const namePlaceholder = useMemo(
+        () => suggestSubscriptionName(eventDetail?.name ?? eventKey, agentName),
+        [eventDetail?.name, eventKey, agentName],
+    )
+
     const baselineSnapshot = useMemo(() => {
         if (isEdit && subscription) {
-            const refs = subscription.data?.references
-            const envRef = refs?.environment
             return JSON.stringify({
                 name: subscription.name ?? "",
                 connectionId: subscription.connection_id ?? null,
                 eventKey: subscription.data?.event_key ?? "",
                 enabled: isEntityActive(subscription),
-                bindMode: envRef ? "environment" : "revision",
-                environmentSlug: envRef?.slug ?? null,
-                workflowRevId: extractBoundWorkflowId(refs),
+                binding: bindingKey(baselineBinding),
                 inputs: subscription.data?.inputs_fields
                     ? JSON.stringify(subscription.data.inputs_fields)
                     : normalizeJson(DEFAULT_INPUTS_MAPPING),
@@ -292,12 +222,10 @@ export function SubscriptionForm({
             connectionId: state?.connectionId ?? null,
             eventKey: state?.eventKey ?? "",
             enabled: true,
-            bindMode: "revision",
-            environmentSlug: null,
-            workflowRevId: extractBoundRevId(state?.defaultReferences) ?? workflowRevId0,
+            binding: bindingKey(baselineBinding),
             inputs: normalizeJson(DEFAULT_INPUTS_MAPPING),
         })
-    }, [isEdit, subscription, state?.connectionId, state?.eventKey])
+    }, [isEdit, subscription, state?.connectionId, state?.eventKey, baselineBinding])
 
     const isDirty = useMemo(
         () =>
@@ -307,22 +235,10 @@ export function SubscriptionForm({
                 connectionId: connectionId ?? null,
                 eventKey,
                 enabled,
-                bindMode,
-                environmentSlug: environmentSlug ?? null,
-                workflowRevId: workflowRevId ?? null,
+                binding: bindingKey(activeBinding),
                 inputs: normalizeJson(inputsText),
             }),
-        [
-            baselineSnapshot,
-            name,
-            connectionId,
-            eventKey,
-            enabled,
-            bindMode,
-            environmentSlug,
-            workflowRevId,
-            inputsText,
-        ],
+        [baselineSnapshot, name, connectionId, eventKey, enabled, activeBinding, inputsText],
     )
 
     const buildData = useCallback(async (): Promise<TriggerSubscriptionData | null> => {
@@ -334,18 +250,8 @@ export function SubscriptionForm({
             message.error("Select an event")
             return null
         }
-        if (bindMode === "environment" && !environmentSlug) {
-            message.error("Select an environment")
-            return null
-        }
-        // Deployed binding resolves via app slug + environment; without the app the reference
-        // is ambiguous (an env can host many apps). Fail loud rather than persist it.
-        if (bindMode === "environment" && !appSlug) {
-            message.error("This trigger isn't linked to an app — use Pinned (a specific revision)")
-            return null
-        }
-        if (bindMode === "revision" && !versionChosen) {
-            message.error("Bind a workflow")
+        if (!versionChosen) {
+            message.error("Pick the agent this trigger runs")
             return null
         }
 
@@ -365,43 +271,25 @@ export function SubscriptionForm({
             return null
         }
 
-        const references = buildRunVersionReferences({
-            bindMode,
-            environmentSlug,
-            appSlug,
-            workflowSelection,
-            workflowRevId,
-            fallbackReferences: storedReferences,
-        })
-
         return {
             event_key: eventKey,
             trigger_config: triggerConfig,
             inputs_fields: inputsFields,
-            references,
+            references: buildTriggerReferences(activeBinding, storedReferences),
         }
-    }, [
-        connectionId,
-        eventKey,
-        bindMode,
-        environmentSlug,
-        appSlug,
-        workflowRevId,
-        versionChosen,
-        inputsText,
-        workflowSelection,
-        subscription,
-    ])
+    }, [connectionId, eventKey, versionChosen, activeBinding, storedReferences, inputsText])
 
     const handleSubmit = useCallback(async () => {
+        if (isDeleted) return
         const data = await buildData()
         if (!data || !connectionId) return
+        const resolvedName = name.trim() || namePlaceholder || null
         try {
             let savedId: string | null = null
             if (isEdit && subscription) {
                 const body: TriggerSubscriptionEdit = {
                     id: subscription.id as string,
-                    name: name || null,
+                    name: resolvedName,
                     description: subscription.description ?? null,
                     tags: subscription.tags ?? null,
                     meta: subscription.meta ?? null,
@@ -422,7 +310,7 @@ export function SubscriptionForm({
                 message.success("Trigger updated")
             } else {
                 const body: TriggerSubscriptionCreate = {
-                    name: name || null,
+                    name: resolvedName,
                     connection_id: connectionId,
                     data,
                     // Honor the Active toggle at creation (BE defaults to active; is_valid
@@ -454,11 +342,13 @@ export function SubscriptionForm({
         isEdit,
         subscription,
         name,
+        namePlaceholder,
         enabled,
         edit,
         create,
         onClose,
         onSaved,
+        isDeleted,
     ])
 
     // Recent real deliveries to offer in the picker (edit mode only — a saved sub has history).
@@ -551,38 +441,39 @@ export function SubscriptionForm({
         }
     }, [connectionId, eventKey, subscriptionId, sampleLabel])
 
-    // Section status + summaries.
     const sourceChosen = !!connectionId && !!eventKey
-    const sourceSummary = sourceChosen
-        ? eventDetail?.name
-            ? `${eventDetail.name}${
-                  connectionName(selectedConnection)
-                      ? ` · ${connectionName(selectedConnection)}`
-                      : ""
-              }`
-            : eventKey
-        : undefined
-    const versionSummary =
-        bindMode === "revision"
-            ? (workflowLabel ?? resolvedRevisionName ?? undefined)
-            : environmentSlug
-              ? `env: ${environmentSlug}`
-              : undefined
-    const mappingStatus = inputsError ? "warning" : inputsText.trim() ? "complete" : "default"
     // Create is gated on completeness, not on dirtiness: a trigger seeded from the catalog
     // (connection + event + default binding) already matches its baseline, and gating on
     // `isDirty` would leave Create disabled until the user edited an unrelated field.
-    const canSubmit = isEdit ? isDirty : sourceChosen && versionChosen
+    const canSubmit = !isDeleted && (isEdit ? isDirty : sourceChosen && versionChosen)
 
     // Agent-type-aware mapping target (same split as the schedule composer): chat agents
     // take a `messages` array, completion agents the first string input from their schema.
-    const schemaSourceId = playgroundEntityId ?? workflowRevId ?? ""
+    // Most specific id the molecule can resolve, so a settings-created trigger doesn't read
+    // as a completion app and write to the wrong input key.
+    const schemaSourceId =
+        playgroundEntityId ??
+        activeBinding.revisionId ??
+        activeBinding.variantId ??
+        activeBinding.workflowId ??
+        ""
     // Only agent workflows get the token composer; non-agent bound workflows keep the
     // raw-JSON mapping editor (committed behavior).
-    const isAgent = useAtomValue(workflowMolecule.selectors.isAgent(schemaSourceId))
+    // The molecule only resolves where an app is open (the playground); from settings it never
+    // does, so fall back to the bound revision's own flags.
+    const boundShape = useBoundAgentShape(activeBinding)
+    // Raw JSON is for workflows we KNOW aren't agents; an unbound drawer shows the composer
+    // rather than greeting the user with a JSON blob.
+    const isAgent =
+        useAtomValue(workflowMolecule.selectors.isAgent(schemaSourceId)) ||
+        boundShape.isAgent ||
+        !boundShape.resolved
     const isChatInput =
-        useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat"
-    const agentInputSchema = useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId))
+        useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat" ||
+        boundShape.isChat
+    const agentInputSchema =
+        useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId)) ??
+        boundShape.inputSchema
     const primaryInputKey = useMemo(() => {
         if (isChatInput) return "messages"
         const ports = extractInputPortsFromSchema(agentInputSchema)
@@ -608,19 +499,16 @@ export function SubscriptionForm({
     )
 
     if (isEdit && subLoading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Spin />
-            </div>
-        )
+        return <SubscriptionFormSkeleton showAgent={!playgroundEntityId} />
     }
 
     if (browsing) {
         return (
             <SourceBrowsePage
-                hidden={hidden}
                 connections={connections}
-                defaultIntegrationKey={state?.integrationKey}
+                // Re-opening an already-chosen trigger lands on that app's event list, not
+                // back at the app grid — the user is changing the event, not the app.
+                defaultIntegrationKey={selectedConnection?.integration_key ?? state?.integrationKey}
                 onPick={(cid, ek) => {
                     setConnectionId(cid)
                     setEventKey(ek)
@@ -631,109 +519,68 @@ export function SubscriptionForm({
     }
 
     return (
-        <div
-            className={`flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden${
-                hidden ? " hidden" : ""
-            }`}
-        >
-            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                <Form layout="vertical">
-                    <ConfigAccordionSection
-                        size="compact"
-                        collapsible={false}
-                        icon={<Tag size={15} />}
-                        title="Name"
-                        status={name.trim() ? "complete" : "default"}
-                    >
+        <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+            {isDeleted ? (
+                <p className="m-0 bg-colorWarningBg px-6 py-3 text-xs text-colorWarningText">
+                    This event subscription was deleted. Its saved configuration is read-only.
+                </p>
+            ) : null}
+            <fieldset disabled={isDeleted} className="contents">
+                {/* ag-scroll-quiet: no resting scrollbar over the form, thumb on hover/focus,
+                    stable gutter so revealing it never reflows the fields. */}
+                <div className="ag-scroll-quiet flex flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-6 py-5">
+                    <Labelled label="Name">
                         <Input
-                            placeholder="Trigger name"
+                            placeholder={namePlaceholder}
                             value={name}
-                            onChange={(e) => {
-                                setName(e.target.value)
-                                onNameChange?.(e.target.value)
-                            }}
+                            onChange={(e) => setName(e.target.value)}
                         />
-                    </ConfigAccordionSection>
+                    </Labelled>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<Lightning size={15} />}
-                        title={<RequiredTitle>When this happens</RequiredTitle>}
-                        status={sourceChosen ? "complete" : "warning"}
-                        summary={sourceSummary}
-                        summaryCollapsedOnly
-                    >
+                    {!playgroundEntityId && (
+                        <Labelled label="Agent">
+                            <AgentField
+                                workflowId={activeBinding.workflowId}
+                                onChange={(id) => {
+                                    setAgentWorkflowId(id)
+                                    // A different agent invalidates any pinned revision.
+                                    setBinding(null)
+                                }}
+                                disabled={isMutating}
+                            />
+                        </Labelled>
+                    )}
+
+                    <Labelled label="Trigger">
                         <SourceField
                             connections={connections}
                             connectionId={connectionId}
                             eventKey={eventKey}
                             eventName={eventDetail?.name ?? undefined}
                             onBrowse={() => setBrowsing(true)}
-                            isEdit={isEdit}
-                            triggerConfigSchema={triggerConfigSchema}
-                            configForm={configForm}
-                            configFormRef={configFormRef}
-                        />
-                    </ConfigAccordionSection>
-
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<GitBranch size={15} />}
-                        title={<RequiredTitle>Which version runs?</RequiredTitle>}
-                        status={versionChosen ? "complete" : "warning"}
-                        summary={versionSummary}
-                        summaryCollapsedOnly
-                    >
-                        <RunVersionField
-                            railWidth="w-[200px]"
-                            bindMode={bindMode}
-                            onBindModeChange={setBindMode}
-                            revisionAdapter={revisionAdapter}
-                            revisionPlaceholder={
-                                workflowLabel ??
-                                resolvedRevisionName ??
-                                (playgroundEntityId
-                                    ? "Select a variant revision"
-                                    : "Select workflow revision")
-                            }
-                            onRevisionSelect={(selection) => {
-                                setWorkflowRevId(selection.id)
-                                setWorkflowSelection(selection)
-                                const m = selection.metadata
-                                const app = playgroundAppName ?? m.workflowName
-                                const segs: string[] = []
-                                if (app) segs.push(app)
-                                if (m.variantName && m.variantName !== app) segs.push(m.variantName)
-                                let label = segs.join(" / ")
-                                if (m.revision != null)
-                                    label = label ? `${label} · v${m.revision}` : `v${m.revision}`
-                                setWorkflowLabel(label || selection.label)
+                            onClear={() => {
+                                setConnectionId(undefined)
+                                setEventKey("")
+                                // The filters belong to the event's own schema.
+                                configForm.resetFields()
                             }}
-                            hideEnvironment
-                            /* Deployed option temporarily hidden — drop `hideEnvironment`
-                               and uncomment to restore.
-                            envOptions={envOptions}
-                            envLoading={
-                                playgroundEntityId ? appDeployments.isLoading : envQuery.isLoading
-                            }
-                            environmentSlug={environmentSlug}
-                            onEnvironmentChange={setEnvironmentSlug}
-                            envNotFound={
-                                playgroundEntityId
-                                    ? "This agent isn't deployed to any environment yet."
-                                    : undefined
-                            }
-                            */
+                            isEdit={isEdit}
                         />
-                    </ConfigAccordionSection>
+                    </Labelled>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<FlowArrow size={15} />}
-                        title="What the agent gets"
-                        status={mappingStatus}
-                        summaryCollapsedOnly
-                    >
+                    {/* Not Advanced: many events (GitHub's owner/repo) can't fire without these,
+                        so they belong in the main flow right under the event they filter. */}
+                    {sourceChosen && triggerConfigSchema ? (
+                        <Labelled label="Event filters">
+                            <EventFiltersField
+                                triggerConfigSchema={triggerConfigSchema}
+                                configForm={configForm}
+                                configFormRef={configFormRef}
+                            />
+                        </Labelled>
+                    ) : null}
+
+                    <Labelled label="What the agent gets">
                         <MappingSection
                             value={inputsText}
                             onChange={setInputsText}
@@ -746,28 +593,61 @@ export function SubscriptionForm({
                             recentEvents={recentSamples}
                             isAgent={isAgent}
                             isEdit={isEdit}
+                            hasSource={sourceChosen}
                             isChat={isChatInput}
                             primaryKey={primaryInputKey}
+                            disabled={isDeleted}
                         />
-                    </ConfigAccordionSection>
-                </Form>
-            </div>
+                    </Labelled>
+
+                    <div className="flex flex-col">
+                        <button
+                            type="button"
+                            onClick={() => setAdvancedOpen((v) => !v)}
+                            aria-expanded={advancedOpen}
+                            // px-0/font-[inherit]: preflight is off, so a bare button keeps the
+                            // UA's 6px inline padding (misaligning it from the fields) and Arial.
+                            className="flex items-center justify-between border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-0 py-3 font-[inherit]"
+                        >
+                            <span className="flex items-center gap-2">
+                                <SlidersHorizontal
+                                    size={15}
+                                    className="text-[var(--ag-colorTextSecondary)]"
+                                />
+                                <span className="text-xs font-medium text-[var(--ag-colorText)]">
+                                    Advanced
+                                </span>
+                            </span>
+                            <CaretDown
+                                size={14}
+                                className={`text-[var(--ag-colorIcon)] transition-transform ${
+                                    advancedOpen ? "" : "-rotate-90"
+                                }`}
+                            />
+                        </button>
+                        <HeightCollapse open={advancedOpen}>
+                            <div className="flex flex-col gap-5 pb-2 pt-1">
+                                <Labelled label="Version">
+                                    <VersionField
+                                        workflowId={activeBinding.workflowId}
+                                        binding={activeBinding}
+                                        onChange={setBinding}
+                                        disabled={isMutating}
+                                    />
+                                </Labelled>
+                            </div>
+                        </HeightCollapse>
+                    </div>
+                </div>
+            </fieldset>
 
             <DrawerFooter
-                enabled={enabled}
-                onEnabledChange={setEnabled}
-                onCancel={onClose}
-                run={
-                    playgroundEntityId ? (
-                        <RunSubscriptionButton
-                            playgroundEntityId={playgroundEntityId}
-                            name={name}
-                            eventKey={eventKey}
-                            disabled={!isEdit}
-                            onClose={onClose}
-                        />
+                left={
+                    isDeleted ? (
+                        <span className="text-xs text-colorTextSecondary">Deleted</span>
                     ) : undefined
                 }
+                onCancel={onClose}
                 isMutating={isMutating}
                 canSave={canSubmit && !alreadySubscribed}
                 submitLabel={isEdit ? "Save" : "Create"}

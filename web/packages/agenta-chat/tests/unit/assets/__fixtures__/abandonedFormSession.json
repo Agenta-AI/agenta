@@ -1,0 +1,845 @@
+[
+  {
+    "id": "3ac1e196-9d0c-4137-84d5-5b187bfe07fa",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 0,
+    "sender": "user",
+    "session_update": "message",
+    "payload": {
+      "text": "I want to create an agent that sends me … <91 chars elided>",
+      "type": "message",
+      "attachments": []
+    },
+    "created_at": "2026-08-10T14:11:51.213Z"
+  },
+  {
+    "id": "e84f5a4c-de6b-50b6-baa0-fc4d51dd5efc",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_6Ev3NNVyPlFdRIoDRF4RKN3w|fc_0127887… <83 chars elided>",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <195 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:12:00.250Z"
+  },
+  {
+    "id": "79419f2e-dc56-5fad-8c26-c1e1a4141efa",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_6Ev3NNVyPlFdRIoDRF4RKN3w|fc_0127887… <83 chars elided>",
+      "type": "tool_result",
+      "output": "---\nname: \"build-an-agent\"\ndescription: … <12820 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:12:00.250Z"
+  },
+  {
+    "id": "e5298ef8-e9ec-5f4b-be19-b29c42530216",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 3,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_9TZhCpuETAWXy0ruPgYnC8v7|fc_0127887… <83 chars elided>",
+      "name": "find",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <171 chars elided>",
+        "pattern": "references/agent-templates/index.md"
+      }
+    },
+    "created_at": "2026-08-10T14:12:03.568Z"
+  },
+  {
+    "id": "73479402-304b-59b6-a5bc-6513e88587ec",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 4,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_9TZhCpuETAWXy0ruPgYnC8v7|fc_0127887… <83 chars elided>",
+      "type": "tool_result",
+      "output": "error: Found argument '--no-require-git'… <248 chars elided>",
+      "isError": true
+    },
+    "created_at": "2026-08-10T14:12:03.568Z"
+  },
+  {
+    "id": "ee4ad8c7-26c9-57f3-b031-f61ccb997694",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 5,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_F4rCCLQOVRBsIyguLveYaXqs|fc_0127887… <83 chars elided>",
+      "name": "ls",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <171 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:12:08.479Z"
+  },
+  {
+    "id": "05dd224f-ab2a-543b-a29c-626c1369618c",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 6,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_F4rCCLQOVRBsIyguLveYaXqs|fc_0127887… <83 chars elided>",
+      "type": "tool_result",
+      "output": ".agenta-skill-set.json\nbuild-an-agent/",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:12:08.479Z"
+  },
+  {
+    "id": "8ab7d51a-cc84-5717-98cc-ef4574171ef8",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 7,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_CgCsnin4iSnw6I6orMZ0bBxV|fc_0127887… <83 chars elided>",
+      "name": "ls",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <186 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:12:13.783Z"
+  },
+  {
+    "id": "5834b100-6263-5b08-b736-619ee43ba8e5",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 8,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_CgCsnin4iSnw6I6orMZ0bBxV|fc_0127887… <83 chars elided>",
+      "type": "tool_result",
+      "output": "references/\nSKILL.md",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:12:13.783Z"
+  },
+  {
+    "id": "993c66a9-88b5-5ed7-94dc-7c525b5a90c4",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 9,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_07YbzYFCW64e3ZGooV6NQ2ze|fc_0127887… <83 chars elided>",
+      "name": "ls",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <197 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:12:16.713Z"
+  },
+  {
+    "id": "59c17422-16c7-5f73-830d-f6371858c49a",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 10,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_07YbzYFCW64e3ZGooV6NQ2ze|fc_0127887… <83 chars elided>",
+      "type": "tool_result",
+      "output": "Path not found: /tmp/agenta/mounts/019fe… <213 chars elided>",
+      "isError": true
+    },
+    "created_at": "2026-08-10T14:12:16.713Z"
+  },
+  {
+    "id": "cb8df4c3-0f3b-53b9-84df-085dd77fec5e",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 11,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_QdfzWu4Fit44c3RZPp0mhpmx|fc_0127887… <83 chars elided>",
+      "name": "ls",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <197 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:12:20.808Z"
+  },
+  {
+    "id": "51d28fd7-369d-5c56-be06-4076d0180327",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 12,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_QdfzWu4Fit44c3RZPp0mhpmx|fc_0127887… <83 chars elided>",
+      "type": "tool_result",
+      "output": "agent-templates/\nconfig-schema.md\ntrigger-inputs.md",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:12:20.808Z"
+  },
+  {
+    "id": "be6802e8-1542-4450-b4c7-c01258befc17",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 13,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "d137b4d128625070c9eebad694a71953"
+    },
+    "created_at": "2026-08-10T14:12:21.338Z"
+  },
+  {
+    "id": "3f1d20ed-1b65-4c73-ac3c-c20096ccbbdc",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 0,
+    "sender": "user",
+    "session_update": "message",
+    "payload": {
+      "text": "I want to create an agent that sends me … <91 chars elided>",
+      "type": "message",
+      "attachments": []
+    },
+    "created_at": "2026-08-10T14:14:26.788Z"
+  },
+  {
+    "id": "a2eceda2-906a-4122-924b-1c9edd512a6b",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "thought",
+    "payload": {
+      "text": "**Inspecting playbook index**\n\nI need to… <408 chars elided>",
+      "type": "thought"
+    },
+    "created_at": "2026-08-10T14:14:36.716Z"
+  },
+  {
+    "id": "ee4b58b0-6a1d-5b4e-9d0c-6e54309f9c84",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_cos65iPtQcwoSeCo274tHxpu|fc_0b9b71f… <83 chars elided>",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <222 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:14:36.716Z"
+  },
+  {
+    "id": "576070fa-22a9-51f3-a551-6147266fe841",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 3,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_36OO60wY2e9UxrP0QmiATv3K|fc_0b9b71f… <83 chars elided>",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c20-8d… <174 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:14:36.716Z"
+  },
+  {
+    "id": "c501dd36-8025-579e-9ac8-ff8d6a101524",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 4,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_OaTDsWsrPzndHArJ2NYK6zaZ|fc_0b9b71f… <83 chars elided>",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <212 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:14:36.716Z"
+  },
+  {
+    "id": "08e4ac6e-9613-5a96-84e2-96962a5b8b77",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 5,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_36OO60wY2e9UxrP0QmiATv3K|fc_0b9b71f… <83 chars elided>",
+      "type": "tool_result",
+      "output": "ENOENT: no such file or directory, acces… <218 chars elided>",
+      "isError": true
+    },
+    "created_at": "2026-08-10T14:14:36.716Z"
+  },
+  {
+    "id": "e76810df-57c4-530f-b570-2e7d6ef68f91",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 6,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_OaTDsWsrPzndHArJ2NYK6zaZ|fc_0b9b71f… <83 chars elided>",
+      "type": "tool_result",
+      "output": "ENOENT: no such file or directory, acces… <256 chars elided>",
+      "isError": true
+    },
+    "created_at": "2026-08-10T14:14:36.716Z"
+  },
+  {
+    "id": "9c081ac3-5ad4-599d-9033-00953a19c0c2",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 7,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_cos65iPtQcwoSeCo274tHxpu|fc_0b9b71f… <83 chars elided>",
+      "type": "tool_result",
+      "output": "# Agent template playbooks\n\nMatch the us… <4532 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:14:36.716Z"
+  },
+  {
+    "id": "3d60f877-2509-4e9d-9d72-3da71d4f8dc4",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 8,
+    "sender": "agent",
+    "session_update": "thought",
+    "payload": {
+      "text": "**Correcting path typo**\n\nI need to ensu… <370 chars elided>",
+      "type": "thought"
+    },
+    "created_at": "2026-08-10T14:14:40.072Z"
+  },
+  {
+    "id": "59a87425-5a4b-5fba-88f2-c9e8abf00f89",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 9,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_y3gX69Fmcfs71YOv3iBQQ0mS|fc_0b9b71f… <83 chars elided>",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <214 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:14:40.072Z"
+  },
+  {
+    "id": "6cdbefee-cd0a-5295-9fdc-e28fe9885ee3",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 10,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_5gXdoIef4ScubRAhB2KCD3Ig|fc_0b9b71f… <83 chars elided>",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <212 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:14:40.072Z"
+  },
+  {
+    "id": "8a056135-afc4-55ef-8723-d9493ed9f9ef",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 11,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_tIalLuExYiDMiSN8Otvoaz1a|fc_0b9b71f… <83 chars elided>",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe7de-5e28-7c70-b3… <195 chars elided>",
+        "limit": 220,
+        "offset": 1
+      }
+    },
+    "created_at": "2026-08-10T14:14:40.072Z"
+  },
+  {
+    "id": "29be8628-0dc3-5e31-b339-aeb3e7688c85",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 12,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_5gXdoIef4ScubRAhB2KCD3Ig|fc_0b9b71f… <83 chars elided>",
+      "type": "tool_result",
+      "output": "ENOENT: no such file or directory, acces… <256 chars elided>",
+      "isError": true
+    },
+    "created_at": "2026-08-10T14:14:40.072Z"
+  },
+  {
+    "id": "a7020368-b0e0-528d-b756-5adfbb6c939d",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 13,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_tIalLuExYiDMiSN8Otvoaz1a|fc_0b9b71f… <83 chars elided>",
+      "type": "tool_result",
+      "output": "---\nname: \"build-an-agent\"\ndescription: … <12820 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:14:40.072Z"
+  },
+  {
+    "id": "68816998-c664-580b-9067-010ed834cc77",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 14,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_y3gX69Fmcfs71YOv3iBQQ0mS|fc_0b9b71f… <83 chars elided>",
+      "type": "tool_result",
+      "output": "# The agent config, field by field\n\nRead… <17820 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:14:40.072Z"
+  },
+  {
+    "id": "c1291959-a913-49a9-850f-8f2457578368",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 15,
+    "sender": "agent",
+    "session_update": "thought",
+    "payload": {
+      "text": "**Clarifying user details**\n\nI need to c… <485 chars elided>",
+      "type": "thought"
+    },
+    "created_at": "2026-08-10T14:14:45.386Z"
+  },
+  {
+    "id": "e4c0cfd3-b9d3-5abc-9875-824f571ac42d",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 16,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_oKZiZXfG0lf35KE3WNAOIDws|fc_0b9b71f… <83 chars elided>",
+      "name": "discover_tools",
+      "type": "tool_call",
+      "input": {
+        "provider": "composio",
+        "use_cases": [
+          "send a Telegram message"
+        ],
+        "limit_alternatives": 5
+      }
+    },
+    "created_at": "2026-08-10T14:14:45.386Z"
+  },
+  {
+    "id": "1d3449e5-3595-5e2a-bf8e-f74abde84fcc",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 17,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6",
+      "name": "request_input",
+      "type": "tool_call",
+      "input": {
+        "message": "To schedule this correctly, tell me when and where to send the daily Arabic poem. The Telegram chat ID or username is not a secret; Telegram credentials will be connected separately.",
+        "requestedSchema": {
+          "type": "object",
+          "required": [
+            "time_of_day",
+            "timezone",
+            "telegram_chat"
+          ],
+          "properties": {
+            "timezone": {
+              "type": "string",
+              "title": "Timezone",
+              "default": "Asia/Riyadh",
+              "description": "IANA timezone, for example Asia/Riyadh or Europe/London"
+            },
+            "time_of_day": {
+              "type": "string",
+              "title": "Morning delivery time",
+              "format": "time",
+              "default": "08:00"
+            },
+            "poetry_style": {
+              "type": "string",
+              "title": "Poetry preference",
+              "format": "multiline",
+              "default": "A short Arabic poem or excerpt, with the poet’s name and a brief English explanation.",
+              "description": "Optional: classical or modern, poet preferences, translation/explanation, and desired length"
+            },
+            "telegram_chat": {
+              "type": "string",
+              "title": "Telegram chat ID or @username"
+            }
+          },
+          "x-ag-stepper": true
+        }
+      }
+    },
+    "created_at": "2026-08-10T14:14:45.984Z"
+  },
+  {
+    "id": "bfb8bee4-a8bf-5edb-a5b0-b90136a1c532",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 18,
+    "sender": "agent",
+    "session_update": "interaction_request",
+    "payload": {
+      "id": "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6",
+      "kind": "client_tool",
+      "type": "interaction_request",
+      "payload": {
+        "input": {
+          "message": "To schedule this correctly, tell me when and where to send the daily Arabic poem. The Telegram chat ID or username is not a secret; Telegram credentials will be connected separately.",
+          "requestedSchema": {
+            "type": "object",
+            "required": [
+              "time_of_day",
+              "timezone",
+              "telegram_chat"
+            ],
+            "properties": {
+              "timezone": {
+                "type": "string",
+                "title": "Timezone",
+                "default": "Asia/Riyadh",
+                "description": "IANA timezone, for example Asia/Riyadh or Europe/London"
+              },
+              "time_of_day": {
+                "type": "string",
+                "title": "Morning delivery time",
+                "format": "time",
+                "default": "08:00"
+              },
+              "poetry_style": {
+                "type": "string",
+                "title": "Poetry preference",
+                "format": "multiline",
+                "default": "A short Arabic poem or excerpt, with the poet’s name and a brief English explanation.",
+                "description": "Optional: classical or modern, poet preferences, translation/explanation, and desired length"
+              },
+              "telegram_chat": {
+                "type": "string",
+                "title": "Telegram chat ID or @username"
+              }
+            },
+            "x-ag-stepper": true
+          }
+        },
+        "render": {
+          "kind": "elicitation"
+        },
+        "toolCall": {
+          "id": "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6",
+          "kind": "client",
+          "name": "request_input",
+          "input": {
+            "message": "To schedule this correctly, tell me when and where to send the daily Arabic poem. The Telegram chat ID or username is not a secret; Telegram credentials will be connected separately.",
+            "requestedSchema": {
+              "type": "object",
+              "required": [
+                "time_of_day",
+                "timezone",
+                "telegram_chat"
+              ],
+              "properties": {
+                "timezone": {
+                  "type": "string",
+                  "title": "Timezone",
+                  "default": "Asia/Riyadh",
+                  "description": "IANA timezone, for example Asia/Riyadh or Europe/London"
+                },
+                "time_of_day": {
+                  "type": "string",
+                  "title": "Morning delivery time",
+                  "format": "time",
+                  "default": "08:00"
+                },
+                "poetry_style": {
+                  "type": "string",
+                  "title": "Poetry preference",
+                  "format": "multiline",
+                  "default": "A short Arabic poem or excerpt, with the poet’s name and a brief English explanation.",
+                  "description": "Optional: classical or modern, poet preferences, translation/explanation, and desired length"
+                },
+                "telegram_chat": {
+                  "type": "string",
+                  "title": "Telegram chat ID or @username"
+                }
+              },
+              "x-ag-stepper": true
+            }
+          },
+          "rawInput": {
+            "message": "To schedule this correctly, tell me when and where to send the daily Arabic poem. The Telegram chat ID or username is not a secret; Telegram credentials will be connected separately.",
+            "requestedSchema": {
+              "type": "object",
+              "required": [
+                "time_of_day",
+                "timezone",
+                "telegram_chat"
+              ],
+              "properties": {
+                "timezone": {
+                  "type": "string",
+                  "title": "Timezone",
+                  "default": "Asia/Riyadh",
+                  "description": "IANA timezone, for example Asia/Riyadh or Europe/London"
+                },
+                "time_of_day": {
+                  "type": "string",
+                  "title": "Morning delivery time",
+                  "format": "time",
+                  "default": "08:00"
+                },
+                "poetry_style": {
+                  "type": "string",
+                  "title": "Poetry preference",
+                  "format": "multiline",
+                  "default": "A short Arabic poem or excerpt, with the poet’s name and a brief English explanation.",
+                  "description": "Optional: classical or modern, poet preferences, translation/explanation, and desired length"
+                },
+                "telegram_chat": {
+                  "type": "string",
+                  "title": "Telegram chat ID or @username"
+                }
+              },
+              "x-ag-stepper": true
+            }
+          },
+          "toolCallId": "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6"
+        },
+        "toolName": "request_input",
+        "toolCallId": "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6"
+      }
+    },
+    "created_at": "2026-08-10T14:14:45.984Z"
+  },
+  {
+    "id": "2086d496-82a7-5b11-969d-4a1f6fc0f000",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 19,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_oKZiZXfG0lf35KE3WNAOIDws|fc_0b9b71f… <83 chars elided>",
+      "type": "tool_result",
+      "output": "aborted",
+      "isError": true
+    },
+    "created_at": "2026-08-10T14:14:45.984Z"
+  },
+  {
+    "id": "b204d7dd-2daf-44b9-8a51-6e46723b37ca",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 20,
+    "sender": "agent",
+    "session_update": "usage",
+    "payload": {
+      "cost": 0.043811699999999995,
+      "type": "usage",
+      "input": 9,
+      "total": 63654,
+      "output": 1119
+    },
+    "created_at": "2026-08-10T14:14:48.282Z"
+  },
+  {
+    "id": "e96de44b-ef83-4323-a3f6-d7520f0282ca",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 21,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "aeb7c12a4619a3254805c080f76b59f2",
+      "stopReason": "paused"
+    },
+    "created_at": "2026-08-10T14:14:48.282Z"
+  },
+  {
+    "id": "99df840c-a4f0-4f9c-ba77-855ac6f1d037",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 0,
+    "sender": "agent",
+    "session_update": "thought",
+    "payload": {
+      "text": "**Responding to cancellation**\n\nI need t… <367 chars elided>",
+      "type": "thought"
+    },
+    "created_at": "2026-08-10T14:16:13.079Z"
+  },
+  {
+    "id": "ca72d92d-f2c3-56d8-83c5-6d703e17c214",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_iLvfcJo0QEc2TmNlKZrFyeD6|fc_0a6f77e… <83 chars elided>",
+      "name": "rename_session",
+      "type": "tool_call",
+      "input": {
+        "name": "Daily Arabic Poetry",
+        "description": "Setting up a Telegram agent to send Arab… <128 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:16:13.079Z"
+  },
+  {
+    "id": "aac33e87-9647-5341-afcf-4528dde3d6b1",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_QKleioohKPLZ8UoK09ayHOIX|fc_0a6f77e… <83 chars elided>",
+      "name": "rename_agent",
+      "type": "tool_call",
+      "input": {
+        "name": "Arabic Poetry Scheduler",
+        "description": "Configures and schedules daily Arabic poetry messages to Telegram."
+      }
+    },
+    "created_at": "2026-08-10T14:16:14.787Z"
+  },
+  {
+    "id": "c40ab7cc-837a-5151-b8a6-1e8194a9cbc9",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 3,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_iLvfcJo0QEc2TmNlKZrFyeD6|fc_0a6f77e… <83 chars elided>",
+      "type": "tool_result",
+      "output": "{\"stream\":{\"created_at\":\"2026-08-10T14:0… <725 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:16:14.787Z"
+  },
+  {
+    "id": "57ae39da-d135-54ab-bd3c-3d342ff52c9a",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 4,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_QKleioohKPLZ8UoK09ayHOIX|fc_0a6f77e… <83 chars elided>",
+      "type": "tool_result",
+      "output": "{\"count\":1,\"workflow\":{\"flags\":{\"is_appl… <482 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:16:14.787Z"
+  },
+  {
+    "id": "f6e7b701-fa76-4845-9931-b067e321a98e",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 5,
+    "sender": "agent",
+    "session_update": "usage",
+    "payload": {
+      "cost": 0.030453400000000002,
+      "type": "usage",
+      "input": 6,
+      "total": 43212,
+      "output": 176
+    },
+    "created_at": "2026-08-10T14:16:16.788Z"
+  },
+  {
+    "id": "db7c3e26-3870-4c36-8f43-eb80c027d2b8",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 6,
+    "sender": "agent",
+    "session_update": "message",
+    "payload": {
+      "text": "No problem. When you’re ready, send the … <165 chars elided>",
+      "type": "message"
+    },
+    "created_at": "2026-08-10T14:16:16.788Z"
+  },
+  {
+    "id": "f0f14d71-ada0-42d8-93b3-df02e530ace0",
+    "session_id": "0b6a8c44-a975-4431-90e7-adbcab87c8e8",
+    "project_id": "019fe7de-5e28-7c70-b374-e855b88410a9",
+    "event_index": 7,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "f9a838ce54c84ee28f0b51555e82b03f"
+    },
+    "created_at": "2026-08-10T14:16:16.788Z"
+  }
+]

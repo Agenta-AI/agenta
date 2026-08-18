@@ -1,13 +1,16 @@
 import {type UIMessage} from "ai"
 
-/** A part the transcript actually renders — non-empty text/reasoning, files, sources, tools. */
+/** A tool call: typed parts encode the name as `tool-<name>`, dynamic ones carry it on `toolName`. */
+export const isToolPart = (p: UIMessage["parts"][number]): boolean =>
+    p.type.startsWith("tool-") || p.type === "dynamic-tool"
+
+/** A part the transcript renders: non-empty prose, files, sources, or tools. */
 export const isVisiblePart = (p: UIMessage["parts"][number]): boolean =>
     (p.type === "text" && Boolean((p as {text?: string}).text?.trim())) ||
     (p.type === "reasoning" && Boolean((p as {text?: string}).text?.trim())) ||
     p.type === "file" ||
     p.type === "source-url" ||
-    p.type.startsWith("tool-") ||
-    p.type === "dynamic-tool"
+    isToolPart(p)
 
 /** A settled assistant turn with no content at all — no answer, reasoning, tool, file, or
  * source part. Mirrors AgentMessage's `!hasContent`; used to collapse a run of "no response"

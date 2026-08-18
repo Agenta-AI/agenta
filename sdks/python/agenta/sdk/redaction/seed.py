@@ -1,7 +1,7 @@
 """Deny-set seeding: known-value redaction only ever registers VALUES, never key names.
 
 Sources per request/run:
-  1. resolved connection/tool/mcp secrets (``ResolvedConnection.env``, ``ResolvedMCPServer.env``,
+  1. resolved connection/tool/mcp secrets (``ResolvedConnection.credentials``, ``ResolvedMCPServer.env``,
      tool-spec secrets) — the values the platform just resolved for this run;
   2. the request/run credential (the caller's Agenta API key);
   3. the VALUE of any process env var selected by the name matchers below.

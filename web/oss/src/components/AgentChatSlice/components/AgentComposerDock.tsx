@@ -1,10 +1,13 @@
-import {type RefObject, Suspense, lazy} from "react"
+import {type RefObject, Suspense, lazy, useCallback, useEffect, useRef} from "react"
 
+import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {ArrowRight, Code, Paperclip} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Tooltip} from "antd"
+import {useSetAtom} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
@@ -16,14 +19,15 @@ import AgentIntentActions from "@/oss/components/TemplateStrip/components/AgentI
 import {CHAT_COLUMN} from "../assets/conversationLayout"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 import {type QueuedMessage} from "../hooks/useAgentChatQueue"
+import {useChatSlashCommands} from "../hooks/useChatSlashCommands"
 import {type useComposerAttachments} from "../hooks/useComposerAttachments"
 import {type useComposerDraft} from "../hooks/useComposerDraft"
 import {type useOnboardingChat} from "../hooks/useOnboardingChat"
 import {type useVoiceComposer} from "../hooks/useVoiceComposer"
+import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock, {type getPendingApprovals} from "./ApprovalDock"
-import type {ClientToolOutputHandler} from "./clientTools"
 import ComposerAttachments from "./ComposerAttachments"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
@@ -33,6 +37,7 @@ import QueuedMessages from "./QueuedMessages"
 import RecordingBar from "./RecordingBar"
 import RevealCollapse from "./RevealCollapse"
 import RunningElsewhereStrip from "./RunningElsewhereStrip"
+import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 import VoiceInputButton from "./VoiceInputButton"
 
 // The composer carries Lexical — the heaviest dependency of this chunk — out of the
@@ -65,7 +70,6 @@ const AgentComposerDock = ({
     onApprovalResponse,
     onViewTrace,
     pendingInteraction,
-    onClientToolOutput,
     onSubmit,
     onStop,
     richInputRef,
@@ -88,7 +92,8 @@ const AgentComposerDock = ({
         removeQueued: (id: string) => void
         clearQueue: () => void
     }
-    modelKey: React.ComponentProps<typeof ConnectModelBanner>
+    // The dock supplies `entityId` (it already has it) and `suppressed`; the parent passes status.
+    modelKey: Omit<React.ComponentProps<typeof ConnectModelBanner>, "entityId" | "suppressed">
     modelBlocked: boolean
     contextMaxTokens: number | null
     showContextBudget: boolean
@@ -98,7 +103,6 @@ const AgentComposerDock = ({
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
     onViewTrace?: () => void
     pendingInteraction: ReturnType<typeof getPendingConnectInteraction>
-    onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
     richInputRef: RefObject<RichChatInputHandle | null>
@@ -125,7 +129,6 @@ const AgentComposerDock = ({
         streamIdeBubble,
         ideHandoffActive,
         handleStartOver,
-        handleCodingAgentCopy,
         showBareOnboardingHero,
     } = onboardingChat
     const {
@@ -139,6 +142,7 @@ const AgentComposerDock = ({
         limits,
         atMax,
         attachmentsSettled,
+        uploadBlockReason,
         addFiles,
         removeFile,
         uploads,
@@ -154,6 +158,72 @@ const AgentComposerDock = ({
         micError,
         dismissMicError,
     } = voice
+
+    // The `/` palette and its two pickers. Both pickers anchor to the composer box below, so they
+    // sit exactly where the palette was — one place the user looks.
+    const composerBoxRef = useRef<HTMLDivElement | null>(null)
+    const openConfigSection = useSetAtom(openAgentConfigSectionAtom)
+    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+
+    // A click outside is a deliberate move elsewhere, so it is the one close that must NOT pull
+    // focus back. Everything else — apply, Escape, back to commands — returns you to typing.
+    const skipFocusRestoreRef = useRef(false)
+    const slash = useChatSlashCommands({
+        entityId,
+        suspended: onboardingActive,
+        // Blur only. The palette has already removed the `/…` run it consumed — and ONLY that run,
+        // so a `hello /model` keeps its `hello` — which clearing the composer here would destroy.
+        // Blur matters because the picker autofocuses its search, and a still-focused editor takes
+        // focus back on the next reconcile, which Radix reads as an outside interaction.
+        onPickerOpen: useCallback(() => {
+            richInputRef.current?.blur()
+        }, [richInputRef]),
+    })
+    // Restoring focus can only happen AFTER the picker unmounts: a focus() call in the handler is
+    // undone when the still-focused panel (or Radix popover) leaves the DOM.
+    const hadPickerRef = useRef(slash.picker)
+    useEffect(() => {
+        const had = hadPickerRef.current
+        hadPickerRef.current = slash.picker
+        if (!had || slash.picker) return
+        if (skipFocusRestoreRef.current) {
+            skipFocusRestoreRef.current = false
+            return
+        }
+        richInputRef.current?.focus()
+    }, [richInputRef, slash.picker])
+    // Stable: both panels register document-level listeners keyed on these, so a new identity per
+    // render would tear the listeners down and re-add them on every keystroke.
+    const closePicker = slash.closePicker
+    const dismissPicker = useCallback(
+        (reason: "escape" | "outside") => {
+            if (reason === "outside") skipFocusRestoreRef.current = true
+            closePicker()
+        },
+        [closePicker],
+    )
+    // Step back one level. The picker consumed the `/` that opened it, so returning to the palette
+    // means putting it back — typing it again is what "back to commands" exists to avoid. Insert
+    // rather than setMarkdown: the rest of the message is still there and must stay.
+    const backToCommands = useCallback(() => {
+        closePicker()
+        richInputRef.current?.insertText("/")
+    }, [closePicker, richInputRef])
+    const openConfigFor = useCallback(
+        (section: "model-harness" | "advanced") => {
+            closePicker()
+            setChatMaximized(false)
+            openConfigSection(section)
+        },
+        [closePicker, openConfigSection, setChatMaximized],
+    )
+    const openModelHarnessConfig = useCallback(
+        () => openConfigFor("model-harness"),
+        [openConfigFor],
+    )
+    // Permission rules live in the Advanced accordion's Permissions group.
+    const openPermissionsConfig = useCallback(() => openConfigFor("advanced"), [openConfigFor])
+
     return (
         <>
             {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
@@ -203,7 +273,11 @@ const AgentComposerDock = ({
                     onboarding SUPPRESSES it — the provider-key check is deferred until the agent is
                     committed (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
                 <div className={CHAT_COLUMN}>
-                    <ConnectModelBanner {...modelKey} suppressed={chromeHidden} />
+                    <ConnectModelBanner
+                        {...modelKey}
+                        entityId={entityId}
+                        suppressed={chromeHidden}
+                    />
                 </div>
                 {/* Sits with the other docked strips so a session running in another browser reads
                     as busy instead of frozen (#5530). */}
@@ -217,14 +291,8 @@ const AgentComposerDock = ({
                     onViewTrace={onViewTrace}
                     entityId={entityId}
                 />
-                {/* Parked client-tool interactions (connect): same placement contract as the
-                    approval dock — the paused gate can't scroll out of reach, and "Not now"
-                    is the escape hatch that resumes the run without connecting. */}
-                <InteractionDock
-                    className={CHAT_COLUMN}
-                    pending={pendingInteraction}
-                    onOutput={onClientToolOutput}
-                />
+                {/* The connect dock is a shortcut to the actionable transcript card. */}
+                <InteractionDock className={CHAT_COLUMN} pending={pendingInteraction} />
                 {/* Owner call: a template pick must not shift the composer, so no chip renders here
                     (unlike the home surface) — the strip card's own selected state is the
                     "which template" indicator; the composer text is the only other feedback. */}
@@ -254,7 +322,68 @@ const AgentComposerDock = ({
                 ) : null}
                 {/* `mb-3` lives here, not on the input, so the recording overlay
                 (inset-0) covers the composer box exactly. */}
-                <div className="relative mb-3">
+                <div className="relative mb-3" ref={composerBoxRef}>
+                    {/* Drilled into from the palette: same anchor, so the panel replaces the menu
+                        in place rather than opening somewhere else on screen. */}
+                    {slash.picker === "permissions" ? (
+                        <div
+                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
+                        >
+                            <PermissionsPickerPanel
+                                current={slash.currentPermission}
+                                options={slash.permissionOptions}
+                                onApply={slash.applyPermission}
+                                onDismiss={dismissPicker}
+                                onBackToCommands={backToCommands}
+                                onOpenConfig={openPermissionsConfig}
+                            />
+                        </div>
+                    ) : null}
+                    {/* The catalog picker itself — controlled open, no trigger of its own. */}
+                    <SelectLLMProviderBase
+                        open={slash.picker === "model"}
+                        onOpenChange={(next) => {
+                            if (!next) slash.closePicker()
+                        }}
+                        onDismissOutside={() => {
+                            skipFocusRestoreRef.current = true
+                        }}
+                        onStepBack={backToCommands}
+                        anchorRef={composerBoxRef}
+                        hideTrigger
+                        showGroup
+                        showSearch
+                        searchPlaceholder="Search models"
+                        sectionTooltip={<HarnessTooltip />}
+                        options={slash.modelGroups}
+                        value={slash.currentModel}
+                        // The option carries a vault pick's connection slug + kind; `applyModel`
+                        // needs it to attach the right connection instead of guessing by model id.
+                        onChange={(next, option) => slash.applyModel(next, option)}
+                        searchSuffix="/model"
+                        panelFooter={
+                            <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--ag-colorTextTertiary)]">
+                                <span>Changes this agent&apos;s draft config.</span>
+                                <button
+                                    type="button"
+                                    onClick={openModelHarnessConfig}
+                                    className="cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorPrimary)]"
+                                >
+                                    Open config →
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={backToCommands}
+                                    className="ml-auto flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
+                                >
+                                    <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
+                                        ←
+                                    </span>
+                                    back to commands
+                                </button>
+                            </div>
+                        }
+                    />
                     <Suspense fallback={<ComposerSkeleton className={CHAT_COLUMN} />}>
                         <RichChatInput
                             ref={richInputRef}
@@ -279,11 +408,14 @@ const AgentComposerDock = ({
                                         : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                             }
                             initialMarkdown={composer.initialDraft}
+                            slashCommands={slash.sections}
                             onChange={composer.handleComposerChange}
                             onPasteFile={(pasted) => {
                                 if (!attachmentsBlocked()) addFiles(Array.from(pasted))
                             }}
                             sendForceEnabled={files.length > 0 && attachmentsSettled}
+                            sendDisabled={files.length > 0 && !attachmentsSettled}
+                            sendDisabledReason={uploadBlockReason}
                             streaming={busy}
                             onStop={onStop}
                             prefix={
@@ -314,9 +446,7 @@ const AgentComposerDock = ({
                                             }
                                         />
                                     ) : null}
-                                    {/* Attach button stays dead until the agent service is ready
-                                    for inline file parts (`NEXT_PUBLIC_AGENT_FILE_UPLOADS`);
-                                    paste / drag-to-add still work either way. */}
+                                    {/* Gate the attach button until inline file parts are supported. */}
                                     <Tooltip
                                         title={
                                             !uploadsEnabled
@@ -356,12 +486,12 @@ const AgentComposerDock = ({
                                         files={files}
                                         rejections={rejections}
                                         limits={limits}
-                                        audioPerceivable={audioPerceivable}
                                         onAdd={addFiles}
                                         onRemove={removeFile}
                                         onDismissRejections={() => setRejections([])}
                                         onView={uploadsEnabled ? setViewingUid : undefined}
                                         onRetry={uploads.retry}
+                                        canRetry={uploads.canRetry}
                                     />
                                 </HeightCollapse>
                             }
@@ -376,7 +506,6 @@ const AgentComposerDock = ({
                                         // (shared component), with the one-click copy + toast handoff.
                                         <AgentIntentActions
                                             onCreate={handleCreateAgent}
-                                            onCodingAgentCopy={handleCodingAgentCopy}
                                             loading={!!onboarding?.committing}
                                         />
                                     ) : (

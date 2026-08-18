@@ -11,6 +11,7 @@ import {WaitingForInput, WorkingDots} from "./TurnActivity"
 
 interface AgentTurnProps {
     message: UIMessage
+    sessionId: string
     /** Fade in once — this turn arrived after mount. */
     enter: boolean
     isLast: boolean
@@ -47,6 +48,7 @@ interface AgentTurnProps {
  */
 const AgentTurn = ({
     message,
+    sessionId,
     enter,
     isLast,
     isStreaming,
@@ -77,6 +79,7 @@ const AgentTurn = ({
         >
             <AgentMessage
                 message={message}
+                sessionId={sessionId}
                 isStreaming={isStreaming}
                 isLastMessage={isLast}
                 onRewind={onRewind}
@@ -88,7 +91,7 @@ const AgentTurn = ({
                 gated on position so it can never smear onto past turns. Cleared on resend / ask. */}
             {showStopped && (
                 <div className="flex items-center gap-2 self-start pl-1">
-                    <Tag className="!m-0 !text-[11px]">Stopped</Tag>
+                    <Tag className="!m-0 !text-xs">Stopped</Tag>
                     <Button
                         type="link"
                         size="small"

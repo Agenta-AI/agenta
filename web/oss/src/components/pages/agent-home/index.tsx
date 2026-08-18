@@ -8,6 +8,7 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
+import UsageSummary from "@/oss/components/UsageSummary"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {urlAtom} from "@/oss/state/url"
 
@@ -19,7 +20,6 @@ import OnRamps from "./components/OnRamps"
 import TemplateSetupDrawer, {type TemplateSetupResult} from "./components/TemplateSetupDrawer"
 import TemplatesSection from "./components/TemplatesSection"
 import TutorialVideoEmbed from "./components/TutorialVideoEmbed"
-import UsageSummary from "./components/UsageSummary"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
 import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
@@ -96,7 +96,7 @@ const ClassicAgentHome: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                     <Tag
                                         color="processing"
-                                        className="!m-0 !rounded !px-1.5 !py-0 !text-[10px] !font-semibold !uppercase !leading-5"
+                                        className="!m-0 !rounded !px-1.5 !py-0 !text-[12px] !font-semibold !uppercase !leading-5"
                                     >
                                         {HERO.eyebrowNew}
                                     </Tag>
@@ -111,7 +111,7 @@ const ClassicAgentHome: React.FC = () => {
                             >
                                 {HERO.title}
                             </Typography.Title>
-                            <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                            <Typography.Text className="!text-base !text-[var(--ag-colorTextSecondary)]">
                                 {HERO.subtitle}
                             </Typography.Text>
                         </div>

@@ -28,6 +28,8 @@ interface ApprovalLike {
     approved?: boolean
 }
 
+import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
+
 import {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
 
 export type LiveAgentInteraction =
@@ -70,14 +72,6 @@ const isRespondedToolPart = (part: ToolPartLike): boolean =>
  * resume (and stops the queue gate, which composes this predicate, from holding forever). v1 client
  * tools are never approval-gated; an approval-gated client tool would need a richer signal.
  */
-/**
- * Known browser-fulfilled client tools, mirroring the app-layer registry's `BY_TOOL_NAME`
- * (v1: `request_connection`). The package cannot import that registry (layering), so it tracks
- * the same names. A part dispatches as a client tool by `render.kind` (finer axis) OR this name,
- * matching the registry's `render.kind -> toolName` precedence.
- */
-const CLIENT_TOOL_NAMES = new Set(["request_connection"])
-
 const toolPartName = (part: ToolPartLike): string =>
     typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
 
@@ -121,10 +115,11 @@ const isSettledToolPart = (part: ToolPartLike): boolean =>
     isToolPart(part) &&
     (part.state === "output-available" ||
         part.state === "output-error" ||
+        part.state === "output-denied" ||
         part.state === "approval-responded")
 
 /**
- * Resume when the last assistant turn carries a freshly-resolved parked interaction. Approval
+ * Resume when the targeted assistant turn carries a freshly-resolved parked interaction. Approval
  * responses dispatch per card; browser-fulfilled client tools retain the all-settled rule:
  *   - Approval (approve OR deny): a denied tool part is `approval-responded`, so a deny-only turn
  *     still resumes and the runner gets the denial round-trip (the deny dead-end fix).
@@ -138,10 +133,33 @@ export function agentShouldResumeAfterApproval({
     messages: MessageLike[]
     liveInteraction?: LiveAgentInteraction | null
 }): boolean {
-    const last = messages[messages.length - 1]
-    if (!last || last.role !== "assistant") return false
+    if (liveInteraction === null) return false
 
-    const parts = last.parts ?? []
+    // Live markers target their owning message; markerless orphan checks stay tail-only.
+    let message: MessageLike | undefined
+    if (liveInteraction) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const candidate = messages[i]
+            if (candidate.role !== "assistant") continue
+            const ownsInteraction = (candidate.parts ?? []).some(
+                (part) =>
+                    isToolPart(part) &&
+                    (liveInteraction.kind === "approval"
+                        ? part.approval?.id === liveInteraction.id
+                        : part.toolCallId === liveInteraction.id),
+            )
+            if (ownsInteraction) {
+                message = candidate
+                break
+            }
+        }
+    } else {
+        const last = messages[messages.length - 1]
+        if (last?.role === "assistant") message = last
+    }
+    if (!message) return false
+
+    const parts = message.parts ?? []
     const toolParts = parts.filter((part) => isToolPart(part) && part.providerExecuted !== true)
     if (toolParts.length === 0) return false
 
@@ -150,7 +168,6 @@ export function agentShouldResumeAfterApproval({
 
     let lastResolvedIdx = -1
     let lastResolvedIsApproval = false
-    if (liveInteraction === null) return false
     if (liveInteraction) {
         lastResolvedIsApproval = liveInteraction.kind === "approval"
         lastResolvedIdx = parts.findIndex((part) =>

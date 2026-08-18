@@ -34,6 +34,8 @@ import {
 
 import { callAgentaTool } from "./callback.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "./code.ts";
+import { specInputSchema } from "./spec-schema.ts";
+import { declinedByUserText } from "./denial-text.ts";
 import {
   applyContextBindings,
   assembleBody,
@@ -41,6 +43,7 @@ import {
   deepDelete,
   directCallUrl,
   pathParamNames,
+  resolveEphemeralArgs,
 } from "./direct.ts";
 import type {
   ResolvedToolSpec,
@@ -118,6 +121,22 @@ export function relayPollDelayMs(idlePolls: number): number {
 const PAUSED = Symbol("paused");
 
 /**
+ * A call the runner REFUSED, carrying the reason the model must read.
+ *
+ * Refusals used to travel as an ordinary return string, so the relay wrote `{ok: true, text}` and
+ * every transport reported a refused commit as a SUCCESS. On Codex that surfaced as a blank
+ * successful tool result: the model saw no error and no text, invented an explanation, and told
+ * the user to approve again. A refusal that reads as success is worse than one that reads as a
+ * crash, because only the second makes the model stop.
+ *
+ * The class exists so the reason cannot be confused with output at any layer between here and the
+ * harness. The model still gets the text and the loop still continues; only `isError` changes.
+ */
+export class RelayRefusal {
+  constructor(readonly reason: string) {}
+}
+
+/**
  * Runner-side authorization for one relay execute record. The relay dir is sandbox-writable,
  * so a record can be forged without ever passing the in-sandbox approval dialog; this re-check
  * is the runner-side enforcement the dialog cannot provide. The deny reason becomes the tool's
@@ -127,6 +146,26 @@ export type RelayExecutionGuard = (
   spec: ResolvedToolSpec,
   req: ExecuteRelayRequest,
 ) => { allow: true } | { allow: false; reason: string };
+
+/**
+ * Second-stage authorization for a call whose arguments reference approved content.
+ *
+ * Separate from the guard on purpose, and it must stay separate. The guard answers "does the
+ * permission policy let this tool run", and on a non-Pi harness it passes every `ask` verdict
+ * because the harness raises its own dialog and the runner records no grant for it. That pass
+ * is a COMPATIBILITY behavior, not a policy statement — a forged request file can still start
+ * an `ask` tool with no dialog on that path.
+ *
+ * This hook is what makes that harmless for a call carrying approved content: it demands a
+ * single-use record the RUNNER minted at the gate, binding the exact tool, the exact arguments,
+ * and the exact bytes a human saw. It runs for every harness, it never depends on a dialog, and
+ * a missing record fails the call closed. It returns the arguments to execute, so the approved
+ * bytes — not a fresh read of the workspace — are what run.
+ */
+export type RelayExecutionAuthorizer = (
+  spec: ResolvedToolSpec,
+  req: ExecuteRelayRequest,
+) => Promise<{ ok: true; args: unknown } | { ok: false; reason: string }>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -322,7 +361,9 @@ async function executeRelayedTool(
   runContext: RunContext | undefined,
   clientToolRelay: ClientToolRelay | undefined,
   guard: RelayExecutionGuard | undefined,
-): Promise<string | typeof PAUSED> {
+  authorizer: RelayExecutionAuthorizer | undefined,
+  log: ((msg: string) => void) | undefined,
+): Promise<string | RelayRefusal | typeof PAUSED> {
   if (spec.kind === "client") {
     assertRequiredArguments(spec, req.args);
     if (!clientToolRelay) {
@@ -344,7 +385,7 @@ async function executeRelayedTool(
       return PAUSED;
     }
     if (decision === "deny") {
-      return `Client tool '${spec.name}' was denied.`;
+      return new RelayRefusal(declinedByUserText(spec.name));
     }
     return JSON.stringify(decision.output ?? {});
   }
@@ -354,10 +395,26 @@ async function executeRelayedTool(
   // dialog gate having run.
   if (guard) {
     const verdict = guard(spec, req);
-    if (!verdict.allow) return verdict.reason;
+    if (!verdict.allow) return new RelayRefusal(verdict.reason);
   }
 
-  return executeAllowedRelayedTool(spec, req, callback, runContext);
+  // Passing the guard is NOT enough for a call that carries approved content: on a non-Pi
+  // harness the guard passes `ask` for compatibility, so the authorization record is the only
+  // thing standing between a forged request file and an unapproved execution. The substituted
+  // arguments it returns carry the frozen bytes the human saw.
+  if (authorizer) {
+    const verdict = await authorizer(spec, req);
+    if (!verdict.ok) return new RelayRefusal(verdict.reason);
+    return executeAllowedRelayedTool(
+      spec,
+      { ...req, args: verdict.args },
+      callback,
+      runContext,
+      log,
+    );
+  }
+
+  return executeAllowedRelayedTool(spec, req, callback, runContext, log);
 }
 
 async function executeAllowedRelayedTool(
@@ -365,6 +422,7 @@ async function executeAllowedRelayedTool(
   req: ExecuteRelayRequest,
   callback: ToolCallbackContext | undefined,
   runContext: RunContext | undefined,
+  log?: (msg: string) => void,
 ): Promise<string> {
   assertRequiredArguments(spec, req.args);
   if (spec.kind === "code") {
@@ -375,13 +433,38 @@ async function executeAllowedRelayedTool(
   if (!callback?.endpoint) {
     throw new Error(`missing toolCallback endpoint for '${spec.name}'`);
   }
+  // Drop the model-authored arguments that are for the human only (today: the ephemeral per-call
+  // `description`, R12). This runs BEFORE the dispatch fork so both modes strip identically, and
+  // before `assembleBody` so an `args_into` op cannot deep-set the note inside its payload. The
+  // recorded call and the approval card keep the full arguments; only the request loses them.
+  //
+  // The same pass lifts a note the model wrote one level too deep, inside the payload object,
+  // which a closed schema would otherwise reject outright. See `resolveEphemeralArgs`.
+  const ephemeral = resolveEphemeralArgs(
+    req.args,
+    spec.ephemeralArgs,
+    specInputSchema(spec) ?? undefined,
+  );
+  const dispatchArgs = ephemeral.args;
+  for (const entry of ephemeral.lifted) {
+    log?.(
+      `[tool-relay] lifted '${entry.name}' out of '${entry.from}' for ${spec.name}: ` +
+        "the model wrote it inside the payload, where the endpoint would refuse it",
+    );
+  }
+  for (const entry of ephemeral.shadowed) {
+    log?.(
+      `[tool-relay] dropped a second '${entry.name}' from '${entry.from}' for ${spec.name}: ` +
+        "the call already carries one at the top level",
+    );
+  }
   // Direct-call tools (reference / platform): the host makes the call directly so the sandbox
   // child still sends only name + args. The origin is bound to the run's own callback endpoint
   // and the run's authorization is reused (see tools/direct.ts). A spec carries `call` XOR
   // `callRef`, so this is checked before the gateway fallback. `runContext` fills the
   // `call.context` bindings server-side (direct-call tools, Phase 3a), hidden from the model.
   if (spec.call) {
-    const body = assembleBody(spec.call, req.args, runContext);
+    const body = assembleBody(spec.call, dispatchArgs, runContext, spec.name);
     const url = directCallUrl(callback.endpoint, spec.call, body);
     // Path params were just substituted into the URL from this same body; strip them so a
     // POST handler whose request model expects the identifier only in the route (e.g.
@@ -393,10 +476,11 @@ async function executeAllowedRelayedTool(
       runKind: runContext?.run?.kind,
     });
   }
-  // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.
+  // Gateway (Composio) and handler-mode platform ops: POST back through Agenta's /tools/call so
+  // the secret stays server-side.
   const args = spec.contextBindings
-    ? applyContextBindings(req.args, spec.contextBindings, runContext)
-    : req.args;
+    ? applyContextBindings(dispatchArgs, spec.contextBindings, runContext)
+    : dispatchArgs;
   return callAgentaTool(
     callback.endpoint,
     callback.authorization,
@@ -513,7 +597,12 @@ export function startToolRelay(
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
   guard?: RelayExecutionGuard,
-  opts?: { log?: (msg: string) => void; writePausedAnswer?: boolean },
+  opts?: {
+    log?: (msg: string) => void;
+    writePausedAnswer?: boolean;
+    /** Runs after the guard, for every harness. See `RelayExecutionAuthorizer`. */
+    authorizer?: RelayExecutionAuthorizer;
+  },
 ): { ready: Promise<void>; stop: () => Promise<void> } {
   let active = true;
   const log = opts?.log ?? (() => {});
@@ -563,8 +652,15 @@ export function startToolRelay(
         runContext,
         clientToolRelay,
         guard,
+        opts?.authorizer,
+        opts?.log,
       );
-      if (text === PAUSED) {
+      if (text instanceof RelayRefusal) {
+        // `ok: false` is what makes every transport call this an error. The in-sandbox client
+        // throws on it and the MCP shim turns that into `isError: true` with the reason, so the
+        // model reads a refusal as a refusal rather than as an empty success.
+        res = { ok: false, error: text.reason };
+      } else if (text === PAUSED) {
         // A client tool parked. Pi writes no answer; the non-Pi shim gets a benign paused answer so
         // it ends its blocking `tools/call` at once instead of waiting out the per-tool timeout and
         // emitting a late error frame (see ClientToolPauseDisposition).

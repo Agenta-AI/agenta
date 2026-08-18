@@ -81,16 +81,16 @@ export interface ToolCallCorrelationIndex {
 }
 
 /**
- * Strip the harness's MCP tool prefix (`mcp__<server>__`) so an ACP title indexes under the
- * bare spec name `lookup()` receives. The lazy match ends the prefix at the FIRST `__` after
- * the server name, so a TOOL name that itself contains `__` survives intact (our server name,
- * `agenta-tools`, contains no `__`; a server name that did would truncate ambiguously).
+ * Strip the harness's MCP tool prefix (`mcp__<server>__` for Claude or `mcp.<server>.` for
+ * Codex) so an ACP title indexes under the bare spec name `lookup()` receives. Each match ends
+ * at the first separator after the server name, so separators in the tool name survive intact.
+ * The `agenta-tools` server name contains neither separator.
  *
  * Exported: `acp-interactions.ts` reuses it to resolve the real `ResolvedToolSpec` for an ACP
  * gate by the same bare name this index correlates on.
  */
 export function bareToolName(title: string): string {
-  return title.replace(/^mcp__.+?__/, "");
+  return title.replace(/^(?:mcp__.+?__|mcp\.[^.]+\.)/, "");
 }
 
 export function createToolCallCorrelationIndex(): ToolCallCorrelationIndex {
@@ -223,6 +223,7 @@ export interface BuildClientToolRelayInput {
     toolName: string | undefined,
     toolArgs: unknown,
     kind: "user_approval" | "client_tool",
+    toolCallId?: string,
   ) => void;
   /** Non-Pi harness (Claude): maps the call to its real ACP tool-call id. Omit for Pi (the
    *  relay-minted id is already exact). The relay resolves the id ONCE per pending call and
@@ -300,6 +301,7 @@ export function buildClientToolRelay({
         request.toolName,
         request.input,
         "client_tool",
+        correlatedId,
       );
       return "pendingApproval";
     },

@@ -21,6 +21,7 @@ import {
     harnessSupportsUserMcp,
     isDeploymentProviderKind,
     modelIdFromConfig,
+    modelLabel,
     modelSelectionMode,
     providerForModel,
     vaultModelGroups,
@@ -256,6 +257,136 @@ describe("connectionUtils: harness-filtered model picker", () => {
         expect(harnessAllowsModel(CAPABILITIES, "future-harness", "anything")).toBe(true)
         expect(harnessAllowsModel(CAPABILITIES, "pi_core", null)).toBe(true)
     })
+
+    it("supports custom-provider vault models with non-standard ID shapes when reachable by harness", () => {
+        const secrets = [
+            {
+                name: "my-bedrock",
+                provider: "bedrock",
+                models: ["custom-bedrock-model-id-123"],
+            },
+        ]
+        // claude harness consumes bedrock -> returns true even with non-standard model ID shape
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(true)
+        // pi_core harness does not consume bedrock -> returns false
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "pi_core",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(false)
+        // bogus model id not in secrets or catalog -> returns false
+        expect(
+            harnessAllowsModel(CAPABILITIES, "claude", "bogus-model-id", secrets, "my-bedrock"),
+        ).toBe(false)
+    })
+
+    it("requires a specific vault connection to explicitly support a model when slug is provided, skipping generic catalog checks (name collision)", () => {
+        const secrets = [{name: "my-custom-conn", provider: "bedrock", models: ["other-model"]}]
+        // "opus" is in the claude catalog.
+        // A generic check (no slug) for "opus" returns true.
+        expect(harnessAllowsModel(CAPABILITIES, "claude", "opus")).toBe(true)
+
+        // But if we specifically ask whether "my-custom-conn" (which only supports "other-model")
+        // allows "opus", it must return false, not falling back to the catalog.
+        expect(harnessAllowsModel(CAPABILITIES, "claude", "opus", secrets, "my-custom-conn")).toBe(
+            false,
+        )
+
+        // And it should return true for the model it actually supports
+        expect(
+            harnessAllowsModel(CAPABILITIES, "claude", "other-model", secrets, "my-custom-conn"),
+        ).toBe(true)
+    })
+
+    it("matches a slugged record on its stored slug, and a legacy one on its name", () => {
+        // What the picker persists is the record's slug when it has one, so that is what the
+        // reachability check has to match on; a record predating slugs is still found by name.
+        const slugged = [
+            {
+                slug: "my-bedrock-a1b2c3",
+                name: "My Bedrock",
+                provider: "bedrock",
+                models: ["custom-bedrock-model-id-123"],
+            },
+        ]
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                slugged,
+                "my-bedrock-a1b2c3",
+            ),
+        ).toBe(true)
+        // The display name is not the identity once a slug is stored.
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                slugged,
+                "My Bedrock",
+            ),
+        ).toBe(false)
+
+        const legacy = [
+            {name: "my-bedrock", provider: "bedrock", models: ["custom-bedrock-model-id-123"]},
+        ]
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                legacy,
+                "my-bedrock",
+            ),
+        ).toBe(true)
+    })
+
+    it("selectedKeepsModel regression: vault model flagged unavailable without secrets, available with them", () => {
+        // Reproduces the false 'model not available' badge: the selectedKeepsModel derivation in
+        // useModelHarness called harnessAllowsModel WITHOUT customSecrets or slug. The function is
+        // correct — the call site was wrong. This test locks that in.
+        const secrets = [
+            {name: "my-bedrock", provider: "bedrock", models: ["custom-bedrock-model-id-123"]},
+        ]
+        // Old call (no secrets) — returns false → badge wrongly showed "model not available"
+        expect(harnessAllowsModel(CAPABILITIES, "claude", "custom-bedrock-model-id-123")).toBe(
+            false,
+        )
+        // Fixed call (secrets + slug threaded through) — returns true → badge shows "supports your model"
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(true)
+        // Slug mismatch → still false (the credential is for a different connection)
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "other-connection",
+            ),
+        ).toBe(false)
+    })
 })
 
 describe("connectionUtils: model_catalog is preferred when published", () => {
@@ -299,6 +430,29 @@ describe("connectionUtils: model_catalog is preferred when published", () => {
         expect(anthropic.options[0]).toMatchObject({
             label: "Fable",
             value: "anthropic/claude-fable-5",
+        })
+    })
+
+    describe("modelLabel", () => {
+        it("names a BARE stored id from a family-prefixed catalog entry", () => {
+            // The pill's bug: Pi publishes `anthropic/claude-fable-5`, the config stores the bare
+            // id, and an exact compare missed — so the pill read the raw id instead of "Fable".
+            expect(modelLabel(WITH_CATALOG, "pi_core", "claude-fable-5")).toBe("Fable")
+        })
+
+        it("still names the id spelled exactly as the catalog lists it", () => {
+            expect(modelLabel(WITH_CATALOG, "pi_core", "anthropic/claude-fable-5")).toBe("Fable")
+        })
+
+        it("falls back to `name` when the entry curates no label", () => {
+            expect(modelLabel(WITH_CATALOG, "pi_core", "gpt-5.5")).toBe("GPT-5.5")
+            expect(modelLabel(WITH_CATALOG, "pi_core", "openai/gpt-5.5")).toBe("GPT-5.5")
+        })
+
+        it("names nothing for a model the catalog does not carry", () => {
+            // The uncataloged case the picker labels with the user's own saved spelling.
+            expect(modelLabel(WITH_CATALOG, "pi_core", "deepseek/deepseek-v4:nitro")).toBeNull()
+            expect(modelLabel(WITH_CATALOG, "pi_core", null)).toBeNull()
         })
     })
 
@@ -477,6 +631,36 @@ describe("connectionUtils: vaultModelGroups (custom_provider connections)", () =
         ).toHaveLength(1)
     })
 
+    it("stamps the stored slug, not the display name, when the record carries one", () => {
+        // Records created since the vault slice carry a real slug, and the picker persists it —
+        // so the group's option metadata must name the slug the resolver matches on.
+        expect(
+            vaultModelGroups(
+                [
+                    {
+                        slug: "my-bedrock-a1b2c3",
+                        name: "My Bedrock",
+                        provider: "bedrock",
+                        models: ["eu.anthropic.claude-haiku-4-5"],
+                    },
+                ],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toEqual([
+            {
+                label: "My Bedrock",
+                options: [
+                    {
+                        label: "eu.anthropic.claude-haiku-4-5",
+                        value: "eu.anthropic.claude-haiku-4-5",
+                        metadata: {connectionSlug: "my-bedrock-a1b2c3", provider: "bedrock"},
+                    },
+                ],
+            },
+        ])
+    })
+
     it("regression: a non-custom deployment connection to Claude is unchanged by the custom gate", () => {
         // Claude consumes bedrock; the new openai-family check must NOT touch non-custom kinds.
         expect(
@@ -530,9 +714,27 @@ describe("connectionUtils: vaultPickedProviderFamily (F1 — vault pick must per
 
     it("never falls back to a deployment kind as the provider (not itself a model family)", () => {
         // No vendor-prefixed id AND the connection's own kind is a deployment surface: there is no
-        // safe family to derive, so the caller (useModelHarness.writeModel) falls back further to
-        // the prior provider rather than persisting an invalid one.
+        // safe family to derive from these two alone, so the caller must write NO provider rather
+        // than an invalid one (a deployment kind fails the server's harness/provider check).
         expect(vaultPickedProviderFamily("my-model-1", "bedrock", CAPABILITIES)).toBeNull()
+    })
+
+    it("resolves a deployment kind's family from the driving harness when it reaches only one", () => {
+        // The live bug: a Bedrock connection under Claude Code, whose model id names only the model
+        // ("claude-3-sonnet-20240229-v1:0"). Bedrock hosts many vendors, but Claude Code reaches
+        // exactly one family, so the answer is not a guess — and it is the pair the server accepts.
+        expect(
+            vaultPickedProviderFamily(
+                "claude-3-sonnet-20240229-v1:0",
+                "bedrock",
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toBe("anthropic")
+        // A harness reaching several families leaves it undecidable — still null, never a guess.
+        expect(
+            vaultPickedProviderFamily("some-opaque-id", "bedrock", CAPABILITIES, "pi_core"),
+        ).toBeNull()
     })
 
     it("returns null when neither the id nor the metadata provider resolve a family", () => {

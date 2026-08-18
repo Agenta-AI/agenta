@@ -60,6 +60,11 @@ export const sessionInteractionSchema = z.object({
         .object({
             request: z.record(z.string(), z.unknown()).nullish(),
             references: z.record(z.string(), z.unknown()).nullish(),
+            // The gated turn's stamped effective config; must be declared or zod's default
+            // strip-unknown-keys would silently drop it and the resume falls back to
+            // reference hydration (i.e. the wrong config). Rows written before the runner
+            // started stamping simply have no key.
+            parameters: z.record(z.string(), z.unknown()).nullish(),
             selector: z.record(z.string(), z.unknown()).nullish(),
             resolution: z.record(z.string(), z.unknown()).nullish(),
         })
@@ -83,6 +88,57 @@ export type SessionInteractionStatusCode = "pending" | "responded" | "resolved" 
 export type SessionInteractionKind = "user_approval" | "user_input" | "client_tool"
 
 /**
+ * The workflow-family keys the frontend acts on, same vocabulary the evaluation-run references
+ * use. Producers and tests may lean on it; the wire is deliberately NOT validated against it.
+ * The backend stores reference keys permissively, and narrowing an unrecognized key to undefined
+ * would make the element read as unkeyed — handing the row back to the legacy first-id fallback
+ * and the dead route it produces.
+ */
+export type SessionReferenceKey = "workflow" | "workflow_variant" | "workflow_revision"
+
+/** A `{id, slug, version}` workflow/agent reference — mirrors `QuerySessionsParams.references`
+ * on the request side. Every field is optional: a turn's reference may carry only a subset. */
+export const sessionReferenceSchema = z.object({
+    id: z.string().nullish(),
+    slug: z.string().nullish(),
+    version: z.string().nullish(),
+    // Which family member this id is. Absent on rows written before the runner stamped it; open
+    // string, see `SessionReferenceKey`. `.catch(undefined)` keeps a non-string from failing the
+    // whole page's parse.
+    key: z.string().nullish().catch(undefined),
+})
+
+export const sessionOriginSchema = z.enum(["manual", "trigger"])
+export const sessionTriggerKindSchema = z.enum(["schedule", "subscription"])
+export const sessionExpansionSchema = z.enum(["last_message", "trigger"])
+
+export const sessionTriggerSchema = z.object({
+    id: z.string(),
+    kind: sessionTriggerKindSchema,
+    name: z.string().nullish(),
+})
+
+export const sessionDeliverySchema = z.object({
+    id: z.string(),
+})
+
+export const sessionMessagePreviewSchema = z.object({
+    text: z.string(),
+    source: z.string().nullish(),
+    timestamp: z.string().nullish(),
+})
+
+export const sessionWindowingSchema = z.object({
+    newest: z.string().nullish(),
+    oldest: z.string().nullish(),
+    next: z.string().nullish(),
+    limit: z.number().nullish(),
+    order: z.enum(["ascending", "descending"]).nullish(),
+    interval: z.number().nullish(),
+    rate: z.number().nullish(),
+})
+
+/**
  * A live stream handle. Liveness rides `flags` (nested: alive ⊇ running ⊇ attached);
  * `resumable` (alive & !running) and `reattachable` (running & !attached) are derived
  * client-side.
@@ -96,6 +152,8 @@ export const sessionStreamSchema = z.object({
     name: z.string().nullish(),
     description: z.string().nullish(),
     turn_id: z.string().nullish(),
+    // User-visible tags; attribution has dedicated typed fields below.
+    tags: z.record(z.string(), z.unknown()).nullish(),
     status: z.object({code: z.string().nullish(), message: z.string().nullish()}).nullish(),
     flags: z
         .object({
@@ -109,6 +167,18 @@ export const sessionStreamSchema = z.object({
     deleted_at: z.string().nullish(),
     // `archived_at` set = hidden-but-recoverable (distinct from `deleted_at`=ended, still resumable).
     archived_at: z.string().nullish(),
+    // `.catch(undefined)`: an unrecognized origin/trigger/delivery value must degrade this ONE
+    // field to undefined, not fail the row — `sessionsQueryResponseSchema` validates the whole
+    // `sessions` array in one parse, so a rejected leaf here would null out the entire page.
+    origin: sessionOriginSchema.nullish().catch(undefined),
+    trigger: sessionTriggerSchema.nullish().catch(undefined),
+    delivery: sessionDeliverySchema.nullish().catch(undefined),
+    // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
+    // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
+    references: z.array(sessionReferenceSchema).nullish(),
+    // `/sessions/query` only: the session's newest `message` record, so a row can say what
+    // happened rather than only when. Absent for a session with no message yet.
+    last_message: sessionMessagePreviewSchema.nullish(),
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -120,7 +190,9 @@ export const sessionStreamsResponseSchema = z.object({
  * the turns' workflow references. */
 export const sessionsQueryResponseSchema = z.object({
     count: z.number(),
+    total: z.number().nullish(),
     sessions: z.array(sessionStreamSchema),
+    windowing: sessionWindowingSchema.nullish(),
 })
 
 export const sessionStreamResponseSchema = z.object({
@@ -137,6 +209,15 @@ export const sessionStreamCommandResponseSchema = z.object({
 })
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>
+export type SessionReference = z.infer<typeof sessionReferenceSchema>
+export type SessionOrigin = z.infer<typeof sessionOriginSchema>
+export type SessionTriggerKind = z.infer<typeof sessionTriggerKindSchema>
+export type SessionExpansion = z.infer<typeof sessionExpansionSchema>
+export type SessionTrigger = z.infer<typeof sessionTriggerSchema>
+export type SessionDelivery = z.infer<typeof sessionDeliverySchema>
+export type SessionMessagePreview = z.infer<typeof sessionMessagePreviewSchema>
+export type SessionWindowing = z.infer<typeof sessionWindowingSchema>
+export type SessionsQueryResponse = z.infer<typeof sessionsQueryResponseSchema>
 export type SessionStreamCommandResponse = z.infer<typeof sessionStreamCommandResponseSchema>
 
 /** One entry in a mount's durable file listing. `path` is relative to the mount root; folders

@@ -9,7 +9,6 @@
 import {useState} from "react"
 
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Typography} from "antd"
 
 export interface JsonObjectEditorProps {
     /** Current object value. Serialized to seed the editor on mount. */
@@ -51,7 +50,7 @@ export function JsonObjectEditor({
 
     return (
         <div className="flex flex-col gap-1.5">
-            <div className="overflow-hidden rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
+            <div className="overflow-hidden rounded border border-solid border-[var(--ag-c-EAEFF5)]">
                 <SharedEditor
                     editorType="border"
                     initialValue={text}
@@ -62,11 +61,7 @@ export function JsonObjectEditor({
                     syncWithInitialValueChanges
                 />
             </div>
-            {error ? (
-                <Typography.Text type="danger" className="text-xs">
-                    {error}
-                </Typography.Text>
-            ) : null}
+            {error ? <span className="text-xs text-error">{error}</span> : null}
         </div>
     )
 }

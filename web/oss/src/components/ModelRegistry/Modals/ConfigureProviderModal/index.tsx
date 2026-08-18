@@ -2,9 +2,8 @@ import {useEffect, useState} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import dynamic from "next/dynamic"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import {ConfigureProviderModalProps} from "./assets/types"
 
@@ -35,7 +34,8 @@ const ConfigureProviderModal = ({selectedProvider, ...props}: ConfigureProviderM
             await handleModifyVaultSecret({
                 name: selectedProvider?.name,
                 id: selectedProvider?.id,
-                title: selectedProvider?.title,
+                // Preserve saved names; name new connections from the provider title.
+                title: selectedProvider?.id ? undefined : selectedProvider?.title,
                 key,
             })
 

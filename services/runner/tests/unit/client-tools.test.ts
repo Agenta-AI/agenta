@@ -19,11 +19,19 @@ import {
 } from "../../src/responder.ts";
 import type { ClientToolRelayRequest } from "../../src/tools/client-tool-relay.ts";
 import {
+  bareToolName,
   buildClientToolRelay,
   createToolCallCorrelationIndex,
   emitClientToolInteraction,
   relayWritesPausedAnswer,
 } from "../../src/engines/sandbox_agent/client-tools.ts";
+
+describe("bareToolName", () => {
+  it("strips Claude and Codex MCP prefixes at the first server boundary", () => {
+    assert.equal(bareToolName("mcp__agenta-tools__foo"), "foo");
+    assert.equal(bareToolName("mcp.agenta-tools.foo"), "foo");
+  });
+});
 
 describe("relayWritesPausedAnswer (client-tool pause disposition)", () => {
   it("only the cold-acknowledge disposition writes the paused answer", () => {
@@ -50,7 +58,12 @@ function responderReturning(verdict: ClientToolVerdict): Responder {
 function seam(verdict: ClientToolVerdict, opts: { index?: boolean } = {}) {
   const events: AgentEvent[] = [];
   const pausedToolCalls: string[] = [];
-  const recorded: Array<{ token: string; toolName?: string; kind: string }> = [];
+  const recorded: Array<{
+    token: string;
+    toolName?: string;
+    kind: string;
+    toolCallId?: string;
+  }> = [];
   let pauses = 0;
   const index = opts.index ? createToolCallCorrelationIndex() : undefined;
   const relay = buildClientToolRelay({
@@ -62,8 +75,8 @@ function seam(verdict: ClientToolVerdict, opts: { index?: boolean } = {}) {
         pauses += 1;
       },
     },
-    recordPendingInteraction: (token, toolName, _args, kind) => {
-      recorded.push({ token, toolName, kind });
+    recordPendingInteraction: (token, toolName, _args, kind, toolCallId) => {
+      recorded.push({ token, toolName, kind, toolCallId });
     },
     toolCallIndex: index,
   });
@@ -247,7 +260,12 @@ describe("buildClientToolRelay", () => {
     assert.deepEqual(ev.payload.render, { kind: "connect" });
     assert.deepEqual(s.pausedToolCalls, ["tc-1"], "the tool call is marked paused");
     assert.deepEqual(s.recorded, [
-      { token: "i-1", toolName: "request_connection", kind: "client_tool" },
+      {
+        token: "i-1",
+        toolName: "request_connection",
+        kind: "client_tool",
+        toolCallId: "tc-1",
+      },
     ]);
     // onPause is the consumer's responsibility to call after a pendingApproval outcome
     // (relay loop / MCP handler); it delegates to the pause controller (the turn-ender).
@@ -272,6 +290,7 @@ describe("buildClientToolRelay", () => {
     );
     assert.equal((s.events[0] as any).payload.toolCallId, "acp-real");
     assert.equal((s.events[0] as any).payload.toolCall.id, "acp-real");
+    assert.equal(s.recorded[0]?.toolCallId, "acp-real");
   });
 
   it("emits a widget for EACH pending client tool (several connections in one turn)", async () => {

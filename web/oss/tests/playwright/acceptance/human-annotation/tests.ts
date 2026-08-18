@@ -2,7 +2,7 @@ import {randomUUID} from "crypto"
 
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
-import {expect} from "@agenta/web-tests/utils"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
 import type {EvaluationRunForKindDetection} from "@agenta/web-tests/utils/evaluationKind"
 import type {Locator, Page} from "@playwright/test"
 
@@ -270,7 +270,7 @@ const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | R
 
         for (let index = 0; index < buttonCount; index += 1) {
             const button = buttons.nth(index)
-            if (await button.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => button.isVisible())) {
                 return button
             }
         }
@@ -387,13 +387,13 @@ const dismissEvaluationResultsOnboarding = async (page: Page) => {
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
         const skipButton = page.getByRole("button", {name: "Skip"}).last()
-        if (await skipButton.isVisible().catch(() => false)) {
+        if (await pollLocatorState(() => skipButton.isVisible())) {
             await skipButton.click()
             await expect(skipButton).toBeHidden({timeout: 10000})
         }
 
         const widgetClosedTourButton = page.getByRole("button", {name: "Got it!"}).last()
-        if (await widgetClosedTourButton.isVisible().catch(() => false)) {
+        if (await pollLocatorState(() => widgetClosedTourButton.isVisible())) {
             await widgetClosedTourButton.click()
             await expect(widgetClosedTourButton).toBeHidden({timeout: 10000})
         }
@@ -402,19 +402,19 @@ const dismissEvaluationResultsOnboarding = async (page: Page) => {
             .locator("section")
             .filter({hasText: "Get started guide"})
             .first()
-        if (await onboardingWidget.isVisible().catch(() => false)) {
+        if (await pollLocatorState(() => onboardingWidget.isVisible())) {
             const widgetCloseButton = onboardingWidget.locator("button.ant-btn").last()
-            if (await widgetCloseButton.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => widgetCloseButton.isVisible())) {
                 await widgetCloseButton.click({force: true})
                 await page.waitForTimeout(400)
             }
         }
 
-        const hasSkipButton = await skipButton.isVisible().catch(() => false)
-        const hasWidgetClosedTourButton = await widgetClosedTourButton
-            .isVisible()
-            .catch(() => false)
-        const hasOnboardingWidget = await onboardingWidget.isVisible().catch(() => false)
+        const hasSkipButton = await pollLocatorState(() => skipButton.isVisible())
+        const hasWidgetClosedTourButton = await pollLocatorState(() =>
+            widgetClosedTourButton.isVisible(),
+        )
+        const hasOnboardingWidget = await pollLocatorState(() => onboardingWidget.isVisible())
         if (!hasSkipButton && !hasWidgetClosedTourButton && !hasOnboardingWidget) {
             break
         }
@@ -481,10 +481,11 @@ const openHumanAnnotateView = async (page: Page) => {
     if ((await annotateTab.getAttribute("aria-selected")) !== "true") {
         await annotateTab.click()
 
-        const switchedToAnnotate = await annotateTab
-            .getAttribute("aria-selected", {timeout: 5000})
-            .then((value) => value === "true")
-            .catch(() => false)
+        const switchedToAnnotate = await pollLocatorState(() =>
+            annotateTab
+                .getAttribute("aria-selected", {timeout: 5000})
+                .then((value) => value === "true"),
+        )
 
         if (!switchedToAnnotate) {
             const annotateUrl = new URL(page.url())
@@ -499,11 +500,23 @@ const openHumanAnnotateView = async (page: Page) => {
     await expect(page.locator("#focus-section-annotations")).toBeVisible()
 }
 
+/**
+ * The "New Human Evaluation" modal, scoped by its title.
+ *
+ * Callers assert this has closed. Do not use a bare `getByRole("dialog")` for that:
+ * drawers are Radix `Sheet`s and also carry `role="dialog"`, so an unscoped count
+ * fails whenever any drawer happens to be open.
+ */
+const humanEvaluationModal = (page: Page) =>
+    page.getByRole("dialog").filter({hasText: HUMAN_EVALUATION_MODAL_TITLE})
+
 const openHumanEvaluationModal = async (page: Page) => {
     await ensureHumanEvaluationsContext(page)
     await (await getHumanEvaluationCreateButton(page, 60000)).click()
 
-    const modal = page.locator(".ant-modal").first()
+    // Matched by role: this modal renders through `EnhancedModal`, a facade over the
+    // @agenta/ui (Radix) `Dialog`, so there is no `.ant-modal`.
+    const modal = page.getByRole("dialog").first()
     await expect(modal).toBeVisible()
     await expect(modal.getByText(HUMAN_EVALUATION_MODAL_TITLE).first()).toBeVisible()
     await expect(
@@ -541,7 +554,7 @@ const selectHumanEvaluationModalTableInput = async ({
         '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
     const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
 
-    if (typeof rowText === "string" && (await searchInput.isVisible().catch(() => false))) {
+    if (typeof rowText === "string" && (await pollLocatorState(() => searchInput.isVisible()))) {
         await typeIntoLocator(searchInput, rowText)
         await expect(searchInput).toHaveValue(rowText)
         await expect
@@ -578,7 +591,7 @@ const selectHumanEvaluationModalTableInput = async ({
         }
 
         if ((await stableSelectionInput.count().catch(() => 0)) > 0) {
-            return await stableSelectionInput.isChecked().catch(() => false)
+            return await pollLocatorState(() => stableSelectionInput.isChecked())
         }
 
         if (typeof rowText === "string") {
@@ -627,16 +640,12 @@ const waitForHumanEvaluatorPane = async (modal: Locator) => {
                 const rowCount = await activePane.locator("[data-row-key]").count()
                 if (rowCount > 0) return true
 
-                const hasEmptyState = await activePane
-                    .getByText("No evaluators yet")
-                    .first()
-                    .isVisible()
-                    .catch(() => false)
-                const hasNoSearchResults = await activePane
-                    .getByText("No evaluators match your search")
-                    .first()
-                    .isVisible()
-                    .catch(() => false)
+                const hasEmptyState = await pollLocatorState(() =>
+                    activePane.getByText("No evaluators yet").first().isVisible(),
+                )
+                const hasNoSearchResults = await pollLocatorState(() =>
+                    activePane.getByText("No evaluators match your search").first().isVisible(),
+                )
 
                 return hasEmptyState || hasNoSearchResults
             },
@@ -659,6 +668,8 @@ const ensureSingleHumanEvaluatorSelection = async ({
     if (!evaluatorName) {
         const firstEvaluatorRow = activePane.locator("[data-row-key]").first()
         const hasSelectedEvaluator = async () => {
+            // evaluateAll runs over every matched row regardless of count, so it can never
+            // throw a strict-mode violation — pollLocatorState would add nothing here.
             const selectedRows = await activePane
                 .locator("[data-row-key]")
                 .evaluateAll((rows) =>
@@ -743,15 +754,17 @@ const waitForHumanAnnotationForm = async ({
     await expect
         .poll(
             async () => {
-                const overlayVisible = await outputRequiredMessage.isVisible().catch(() => false)
-                if ((await metricField.isVisible().catch(() => false)) && !overlayVisible) {
+                const overlayVisible = await pollLocatorState(() =>
+                    outputRequiredMessage.isVisible(),
+                )
+                if ((await pollLocatorState(() => metricField.isVisible())) && !overlayVisible) {
                     return true
                 }
 
                 // Auto-run is actively generating — wait for it to finish so the component
                 // can invalidate the steps query and reveal the annotation form naturally.
                 // Interrupting with a reload would restart the auto-run cycle.
-                if (await isGeneratingMessage.isVisible().catch(() => false)) {
+                if (await pollLocatorState(() => isGeneratingMessage.isVisible())) {
                     return false
                 }
 
@@ -779,7 +792,7 @@ const waitForHumanAnnotationForm = async ({
                 }
 
                 await dismissEvaluationResultsOnboarding(page)
-                return await metricField.isVisible().catch(() => false)
+                return await pollLocatorState(() => metricField.isVisible())
             },
             {timeout},
         )
@@ -846,8 +859,10 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 await expect(createEvaluatorButton).toBeVisible()
                 await createEvaluatorButton.click()
 
+                // Matched by role: this drawer renders through `EnhancedDrawer`, a facade
+                // over the @agenta/ui (Radix) `Sheet`.
                 const evaluatorDrawer = page
-                    .locator(".ant-drawer-content-wrapper")
+                    .getByRole("dialog")
                     .filter({
                         has: page.locator('input[placeholder="Enter a unique slug"]'),
                     })
@@ -882,7 +897,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
 
                 await expect(evaluatorSlugInput).toHaveCount(0)
                 await expect(
-                    page.locator(".ant-message").getByText("Evaluator created successfully"),
+                    page.getByRole("status").getByText("Evaluator created successfully"),
                 ).toBeVisible()
             }
 
@@ -941,7 +956,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 await annotateButton.click()
 
                 await expect(
-                    page.locator(".ant-message").getByText("Annotations saved successfully"),
+                    page.getByRole("status").getByText("Annotations saved successfully"),
                 ).toBeVisible()
 
                 await expect(
@@ -960,6 +975,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
 export {
     testWithHumanFixtures as test,
     expect,
+    humanEvaluationModal,
     openHumanEvaluationModal,
     goToHumanEvaluationStep,
     selectHumanEvaluationModalTableInput,

@@ -6,6 +6,7 @@ import {
     modalitiesForModel,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {messageHasPendingHitl} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {UploadSimple} from "@phosphor-icons/react"
@@ -16,19 +17,14 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
-import {
-    SessionFilesDrawer,
-    filesDrawerOpenAtomFamily,
-    filesDrawerStagedAtomFamily,
-} from "@/oss/components/Drives/SessionFilesDrawer"
-import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
+import {filesDrawerStagedAtomFamily} from "@/oss/components/Drives/SessionFilesDrawer"
+import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
-import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 
 import {describeAccepted} from "./assets/attachments"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
-import {filesToParts} from "./assets/files"
+import {filesToInlineParts, filesToParts} from "./assets/files"
+import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
 import {isEmptyAssistantTurn, isVisiblePart} from "./assets/messageParts"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {ignoreStreamRejection} from "./assets/runError"
@@ -50,6 +46,7 @@ import {useComposerDraft} from "./hooks/useComposerDraft"
 import {useFirstRunSeed} from "./hooks/useFirstRunSeed"
 import {useOnboardingChat} from "./hooks/useOnboardingChat"
 import {useScrollIntent} from "./hooks/useScrollIntent"
+import {isAltChord, isOverlayOpen} from "./hooks/useSessionShortcuts"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
@@ -65,6 +62,7 @@ import {
     sessionMessagesAtom,
     setSessionStatusAtom,
 } from "./state/sessions"
+import {focusComposerRequestAtom, matchesSessionRequest} from "./state/uiRequests"
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -107,20 +105,6 @@ const AgentConversation = ({
 
     const composer = useComposerDraft({sessionId, richInputRef, revealPlayedRef})
 
-    // Pending attachments for this session + the whole-panel drop target.
-    const attachments = useComposerAttachments({sessionId})
-    const {
-        uploadsEnabled,
-        files,
-        viewingUid,
-        setViewingUid,
-        limits,
-        atMax,
-        attachmentsSettled,
-        isDragging,
-        addFiles,
-    } = attachments
-
     // What the transcript should do next (follow / arm a pin / show the pill), shared by the
     // producers below (send, queue release, history adoption) and whichever scroll engine is
     // active. Declared here so every producer can state intent without touching the DOM.
@@ -162,12 +146,13 @@ const AgentConversation = ({
         turnNumbers,
     } = useTurnInspector({sessionId, messages})
 
-    // Quick Look + Files-window hosts: cards/tiles/rail request via atoms; these resolve against
+    // Quick Look + Files openers: cards/tiles/rail request via atoms; these resolve against
     // THIS conversation's drive: the link provider makes filename mentions clickable, and the
-    // Files drawer (below) hosts both the grid and the single-file preview in one surface.
+    // docked Files pane (hosted a level up in AgentChatPanel, beside the whole chat column)
+    // shows the grid and the single-file preview — every opener (cards, links, rail, the
+    // session bar "«") lands there.
     const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} artifactId={artifactId} />
-    const filesWindowHost = <SessionFilesDrawer sessionId={sessionId} />
-    const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
+    const {openPane: openFilesPane} = useSessionFilesPane(sessionId)
     const setFilesStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
 
     // ── "Run in playground" seam (producer: a trigger drawer's Run-in-playground) ──
@@ -222,15 +207,27 @@ const AgentConversation = ({
     // component and its logic stay wired up; flip this to `true` to bring the UI back.
     const showContextBudget = false
 
-    /**
-     * Whether the selected model can actually take audio in. `null` means the catalog does not
-     * say — treated as unknown, never as "no", so a missing field can't quietly demote voice.
-     * Drives which voice mode leads; it never refuses an attachment (design decision D6).
-     */
-    const audioPerceivable = useMemo(() => {
-        const modalities = modalitiesForModel(harnessCapabilities, modelKey.harness, modelKey.model)
-        return modalities ? modalities.includes("audio") : null
-    }, [harnessCapabilities, modelKey.harness, modelKey.model])
+    const modelModalities = useMemo(
+        () => modalitiesForModel(harnessCapabilities, modelKey.harness, modelKey.model),
+        [harnessCapabilities, modelKey.harness, modelKey.model],
+    )
+    // Voice defaults follow the model's audio modality; unknown stays workspace-only, matching
+    // the runner's rule.
+    const audioPerceivable = Boolean(modelModalities?.includes("audio"))
+
+    // Pending attachments for this session + the whole-panel drop target.
+    const attachments = useComposerAttachments({sessionId})
+    const {
+        uploadsEnabled,
+        files,
+        viewingUid,
+        setViewingUid,
+        limits,
+        atMax,
+        attachmentsSettled,
+        isDragging,
+        addFiles,
+    } = attachments
 
     // Playground-native onboarding: the hero, Create-agent / Continue-in-IDE, the template strip
     // and the optimistic first turn. Every value is inert outside the onboarding playground.
@@ -265,7 +262,7 @@ const AgentConversation = ({
      * accepting files into an input you cannot send from is a dead end.
      */
     const composerDisabled = onboardingActive ? ideHandoffActive : modelBlocked
-    const attachmentsBlocked = () => voiceRecorder.active || composerDisabled
+    const attachmentsBlocked = () => !uploadsEnabled || voiceRecorder.active || composerDisabled
     const dropTarget = attachments.bindDropTarget(attachmentsBlocked)
 
     // First-run seed + its overlay-gated auto-start. `handleSubmit` is declared below, so the
@@ -273,11 +270,16 @@ const AgentConversation = ({
     const handleSubmitRef = useRef<(text: string) => void | Promise<void>>(() => {})
     const {firstRunPrompt} = useFirstRunSeed({
         entityId,
+        scopeKey,
         sessionId,
         activeSessionId,
         messagesCount: messages.length,
         modelBlocked,
         handleSubmitRef,
+        // Files picked on Home / the overview, where there was no session to upload against.
+        onSeedFiles: attachments.addFiles,
+        attachmentsSettled,
+        isHydrating,
     })
     const consumedRunNonceRef = useRef<number | null>(null)
 
@@ -343,12 +345,10 @@ const AgentConversation = ({
     // opens the paused turn's own trace drawer.
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
-    // Parked connect interaction on the paused turn → the InteractionDock owns its actions (the
-    // inline row is a passive marker). Gated off while busy (`input-streaming` isn't parked yet)
-    // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
+    // The connect dock stays visible for the newest parked card unless the run was stopped.
     const pendingInteraction = useMemo(
-        () => (busy || stopped ? null : getPendingConnectInteraction(messages)),
-        [messages, busy, stopped],
+        () => (stopped ? null : getPendingConnectInteraction(messages)),
+        [messages, stopped],
     )
     const openPausedTurnTrace = useMemo(() => {
         const last = messages[messages.length - 1]
@@ -360,6 +360,10 @@ const AgentConversation = ({
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
     // tab keeps no stale dot and stops claiming it's the live watcher.
+    // A still-pending interaction in an EARLIER message must keep the status at `awaiting`, or the
+    // status collapses to idle, the settle stamp lands, and the running-elsewhere strip flickers in
+    // the very tab that owns the parked widget (Mahmoud's session e627d80a). `hitlPending` scans
+    // the whole transcript for exactly that, approvals included.
     useEffect(() => {
         const status: SessionRunStatus = error
             ? "error"
@@ -389,6 +393,48 @@ const AgentConversation = ({
         setPendingRun(null)
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
 
+    // Run-level shortcuts. They live here, not in the panel's session hook, because only this
+    // conversation knows whether a run is in flight and what it is waiting on. Bubble phase, so an
+    // open picker or dialog that stops propagation still gets Escape first.
+    useEffect(() => {
+        if (activeSessionId !== sessionId) return
+        const onKey = (e: KeyboardEvent) => {
+            if (isOverlayOpen()) return
+            // An IME user presses Escape to cancel composition, not to stop the run.
+            if (e.key === "Escape" && !e.isComposing && busyRef.current) {
+                e.preventDefault()
+                handleStop()
+                return
+            }
+            // Approve answers ONE gate, never the dock's "Approve all": a mis-press should not
+            // grant a tool the user never read. Same path as the dock's button, so the queue's
+            // resume gate is marked live.
+            if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
+                e.preventDefault()
+                handleApprovalResponse({id: pendingApprovals[0].approvalId, approved: true})
+            }
+        }
+        document.addEventListener("keydown", onKey)
+        return () => document.removeEventListener("keydown", onKey)
+    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, handleApprovalResponse])
+
+    // A keyboard switch (Alt+1…9 / Alt+Z / Alt+X) lands the caret here. antd mounts a never-visited
+    // pane only on activation, so this effect runs on that mount and a first-visit switch focuses
+    // too. The frame claims the nonce, not the effect body: StrictMode replays the mount, and
+    // claiming it up front would leave the replay with nothing to do.
+    const focusRequest = useAtomValue(focusComposerRequestAtom)
+    const consumedFocusNonceRef = useRef<number | null>(null)
+    useEffect(() => {
+        if (!matchesSessionRequest(focusRequest, scopeKey, sessionId)) return
+        const {nonce} = focusRequest
+        if (consumedFocusNonceRef.current === nonce) return
+        requestAnimationFrame(() => {
+            if (consumedFocusNonceRef.current === nonce) return
+            consumedFocusNonceRef.current = nonce
+            richInputRef.current?.focus()
+        })
+    }, [focusRequest, scopeKey, sessionId])
+
     // Exactly one scroll engine owns the transcript: Virtuoso when it's enabled in the playground
     // settings, the SC-1..4 DOM engine otherwise (each bails on the other's flag). Both act on the
     // shared `scrollIntent`, so producers never care which is live.
@@ -401,33 +447,11 @@ const AgentConversation = ({
         useVirtuoso,
     })
 
-    const handleSubmit = async (text: string, extraFiles: File[] = []) => {
-        const trimmed = text.trim()
-        const fileObjs = [
-            ...files
-                .map((f) => f.originFileObj as File | undefined)
-                .filter((f): f is File => Boolean(f)),
-            ...extraFiles,
-        ]
-        if (!trimmed && fileObjs.length === 0) return
-        if (!attachmentsSettled) return
-        let fileParts: FileUIPart[] | undefined
-        if (fileObjs.length) {
-            const {parts, unreadable} = await filesToParts(fileObjs)
-            // Hold the send rather than quietly dropping bytes the user staged, and say which file
-            // failed through the same inline channel the other attachment refusals use.
-            if (unreadable.length) {
-                attachments.setRejections(
-                    unreadable.map((f) => ({
-                        name: f.name,
-                        reason: "couldn't be read — remove it and attach it again",
-                    })),
-                )
-                attachments.setAttachmentsOpen(true)
-                return
-            }
-            fileParts = parts
-        }
+    const finishSubmit = (
+        trimmed: string,
+        fileParts: FileUIPart[] | undefined,
+        consumedUids: string[],
+    ) => {
         // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
         // with the answer streaming below. Park during the glide, follow again on settle. Clear any
         // prior "stopped" marker — it's resolved by asking again.
@@ -438,8 +462,58 @@ const AgentConversation = ({
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
         onboardingChat.consumeTemplateProvenance()
-        attachments.clearAttachments()
+        attachments.clearAttachments(consumedUids)
     }
+
+    // A voice take awaits its upload, so the guard keeps a second send from starting meanwhile.
+    const inFlightSubmitRef = useRef(false)
+    const handleSubmit = (text: string, extraFiles: File[] = []) =>
+        runWithInFlightSubmit(inFlightSubmitRef, async () => {
+            const trimmed = text.trim()
+            if (!trimmed && files.length === 0 && extraFiles.length === 0) return
+            if (!attachmentsSettled) return
+            const stagedUids = files.map((file) => file.uid)
+
+            if (!uploadsEnabled) {
+                // Voice and upload flags are independent; this seam preserves the inline recorder path.
+                const inlineFiles = [
+                    ...files
+                        .map((file) => file.originFileObj as File | undefined)
+                        .filter((file): file is File => Boolean(file)),
+                    ...extraFiles,
+                ]
+                let fileParts: FileUIPart[] | undefined
+                if (inlineFiles.length) {
+                    const {parts, unreadable} = await filesToInlineParts(inlineFiles)
+                    // Hold the send rather than quietly dropping bytes the user staged, and say which
+                    // file failed through the same inline channel the other attachment refusals use.
+                    if (unreadable.length) {
+                        attachments.setRejections(
+                            unreadable.map((file) => ({
+                                name: file.name,
+                                reason: "couldn't be read — remove it and attach it again",
+                            })),
+                        )
+                        attachments.setAttachmentsOpen(true)
+                        return
+                    }
+                    fileParts = parts
+                }
+                finishSubmit(trimmed, fileParts, stagedUids)
+                return
+            }
+
+            // A take sent outright never entered the tray, so it uploads here before the send.
+            const uploadedExtras = extraFiles.length
+                ? await attachments.uploadExtraFiles(extraFiles)
+                : []
+            if (!uploadedExtras) return
+            const outboundFiles = [...files, ...uploadedExtras]
+            const fileParts = outboundFiles.length
+                ? filesToParts(outboundFiles, sessionId)
+                : undefined
+            finishSubmit(trimmed, fileParts, stagedUids)
+        })
 
     handleSubmitRef.current = handleSubmit
 
@@ -515,6 +589,7 @@ const AgentConversation = ({
             <AgentTurn
                 key={message.id}
                 message={message}
+                sessionId={sessionId}
                 // New since mount → fade in once. seenIdsRef is marked in an effect after commit,
                 // never during render (unsafe under StrictMode's double invoke).
                 enter={!isSeen(message.id)}
@@ -538,9 +613,9 @@ const AgentConversation = ({
                 showWorking={
                     isLast && busy && (!isAssistantTurn || message.parts.some(isVisiblePart))
                 }
-                // Paused on the user (never concurrently with showWorking — hitlPending implies not
-                // busy): keeps the turn from reading as finished while the queue holds sends.
-                showWaiting={isLast && isAssistantTurn && !busy && hitlPending}
+                // Paused on the user: painted on the turn that actually HOLDS the gate, not the
+                // newest one, so a card parked several turns up marks its own turn.
+                showWaiting={isAssistantTurn && !busy && !stopped && messageHasPendingHitl(message)}
                 showStopped={stopped && isLast && isAssistantTurn}
                 resendDisabled={busy}
                 onResend={handleResend}
@@ -561,7 +636,6 @@ const AgentConversation = ({
                 {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
                 {modalContextHolder}
                 {quickLookHost}
-                {filesWindowHost}
                 {uploadsEnabled ? (
                     <AttachmentViewerDrawer
                         uploads={files}
@@ -570,7 +644,9 @@ const AgentConversation = ({
                     />
                 ) : null}
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
-                pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
+                pushes the chat aside rather than overlaying it, and collapses to 0 when closed.
+                (The Files pane is NOT here: it docks a level up, beside the whole chat column —
+                session bar included — see AgentChatPanel.) */}
                 <RightPanelSplit
                     open={inspectorOpen}
                     // Same bar inset as the transcript column: the Inspector is a separate split pane,
@@ -631,6 +707,7 @@ const AgentConversation = ({
                                 placeholder={
                                     <TranscriptPlaceholder
                                         entityId={entityId}
+                                        sessionId={sessionId}
                                         pendingFirstTurn={onboardingChat.pendingFirstTurn}
                                         pendingFirstMessage={onboardingChat.pendingFirstMessage}
                                         onboardingActive={onboardingActive}
@@ -666,7 +743,6 @@ const AgentConversation = ({
                                 onApprovalResponse={handleApprovalResponse}
                                 onViewTrace={openPausedTurnTrace}
                                 pendingInteraction={pendingInteraction}
-                                onClientToolOutput={handleClientToolOutput}
                                 onSubmit={handleSubmit}
                                 onStop={handleStop}
                                 richInputRef={richInputRef}
@@ -687,21 +763,13 @@ const AgentConversation = ({
                             sessionId={sessionId}
                             busy={busy}
                             hidden={buildMode || inspectorOpen}
-                            onOpenFiles={() => setFilesWindowOpen(true)}
+                            onOpenFiles={openFilesPane}
                             onStageFiles={
                                 uploadsEnabled ? (files) => setFilesStaged(files) : undefined
                             }
                         />
                     </div>
                 </RightPanelSplit>
-
-                {TEMPLATE_STRIP_MODE ? (
-                    <CopiedToast
-                        open={onboardingChat.copiedToastOpen}
-                        text={STRIP_COPY.copiedToast}
-                        onDone={() => onboardingChat.setCopiedToastOpen(false)}
-                    />
-                ) : null}
             </div>
         </DriveSessionProvider>
     )

@@ -21,8 +21,16 @@ import {ChatMessageList} from "@agenta/ui/chat-message"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
+import {
+    Alert,
+    Button,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/ui/ui"
 import {Info, Plus} from "@phosphor-icons/react"
-import {Alert, Button, Select} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 import {ResponseFormatControl, type ResponseFormatValue} from "./ResponseFormatControl"
@@ -490,11 +498,13 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     )
 
     if (!hasMessagesField) {
-        return <div className={cn("min-h-[260px]", className)} />
+        return (
+            <div className={cn("min-h-[260px]", className)} data-testid="prompt-schema-control" />
+        )
     }
 
     return (
-        <div className={cn("flex flex-col gap-3", className)}>
+        <div className={cn("flex flex-col gap-3", className)} data-testid="prompt-schema-control">
             {/* Messages list */}
             <ChatMessageList
                 messages={messages}
@@ -553,13 +563,8 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
             {!disabled && (
                 <div className="flex flex-wrap gap-1">
                     {/* Add Message */}
-                    <Button
-                        variant="outlined"
-                        color="default"
-                        size="small"
-                        icon={<Plus size={14} />}
-                        onClick={handleAddMessage}
-                    >
+                    <Button variant="outline" size="sm" onClick={handleAddMessage}>
+                        <Plus size={14} />
                         Message
                     </Button>
 
@@ -587,15 +592,17 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                             value={responseFormatValue}
                             onChange={handleResponseFormatChange}
                             disabled={disabled}
-                            size="small"
+                            size="sm"
                         />
                     )}
 
                     {/* Template format */}
+                    {/* `h-control-sm` reproduces the pre-migration `style={{height: 24}}`;
+                     *  `w-auto min-w-[130px]` keeps antd's content sizing (the trigger
+                     *  primitive is w-full). */}
                     <Select
-                        size="small"
                         value={localTemplateFormat}
-                        onChange={(val) => {
+                        onValueChange={(val) => {
                             const format = val as TemplateFormat
                             setLocalTemplateFormat(format)
                             onTemplateFormatChange?.(format)
@@ -605,14 +612,27 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                                 [templateFormatKey]: format,
                             })
                         }}
-                        options={buildTemplateFormatOptions(
-                            localTemplateFormat,
-                            originalTemplateFormatRef.current,
-                        )}
-                        className="min-w-[130px]"
-                        popupMatchSelectWidth={false}
-                        style={{height: 24}}
-                    />
+                    >
+                        <SelectTrigger
+                            size="sm"
+                            aria-label="Prompt syntax"
+                            className="h-control-sm w-auto min-w-[130px]"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        {/* antd had popupMatchSelectWidth={false}: the panel sizes to its
+                         *  content, not the trigger. */}
+                        <SelectContent className="w-auto min-w-[var(--radix-select-trigger-width)]">
+                            {buildTemplateFormatOptions(
+                                localTemplateFormat,
+                                originalTemplateFormatRef.current,
+                            ).map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
             )}
 
@@ -641,15 +661,17 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                 (originalTemplateFormatRef.current === "curly" ||
                     originalTemplateFormatRef.current === "fstring") &&
                 localTemplateFormat !== originalTemplateFormatRef.current && (
+                    // `!size-3.5` beats the Alert icon slot's `[&_svg]:size-3`, which would else
+                    // shrink this custom icon to 12px and widen the message box by 2px.
                     <Alert
                         type="info"
                         showIcon
-                        icon={<Info size={14} />}
+                        icon={<Info size={14} className="!size-3.5" />}
                         className="!py-1 !px-2 !rounded-md"
                         message={
                             <span className="text-[12px]">
                                 Switching from{" "}
-                                <code className="font-mono text-[11px] bg-[#e6f4ff] px-1 rounded">
+                                <code className="font-mono text-xs bg-chip px-1 rounded">
                                     {originalTemplateFormatRef.current}
                                 </code>{" "}
                                 is permanent — once you commit, you won&apos;t be able to switch

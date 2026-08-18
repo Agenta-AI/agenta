@@ -1,0 +1,12 @@
+{
+  "description": "The seven Pi built-in tools Agenta always activates on every Pi run. Neither language owns this list: the Python PI_BUILTIN_TOOL_NAMES (agenta/sdk/agents/pi_builtins.py) and the TypeScript PI_BUILTIN_TOOL_IDENTITY (services/runner/src/permission-plan.ts) are two implementations of this one pinned contract. ruleName is the canonical name a permission rule and a gate report use; readOnly decides which built-ins auto-run under the allow_reads policy.",
+  "builtins": [
+    {"name": "read", "ruleName": "Read", "readOnly": true},
+    {"name": "bash", "ruleName": "Bash", "readOnly": false},
+    {"name": "edit", "ruleName": "Edit", "readOnly": false},
+    {"name": "write", "ruleName": "Write", "readOnly": false},
+    {"name": "grep", "ruleName": "Grep", "readOnly": true},
+    {"name": "find", "ruleName": "Find", "readOnly": true},
+    {"name": "ls", "ruleName": "Ls", "readOnly": true}
+  ]
+}

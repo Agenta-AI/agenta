@@ -14,7 +14,7 @@ this page and the referenced code as the source of truth.
 | SDK runtime DTOs | `sdks/python/agenta/sdk/agents/dtos.py` | Defines `AgentConfig` (incl. the run-selection fields), `SessionConfig`, messages, events, capabilities, and harness configs. |
 | SDK runtime ports | `sdks/python/agenta/sdk/agents/interfaces.py` | Defines `Backend`, `Environment`, `Sandbox`, `Session`, and `Harness`. |
 | Backend adapters | `sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py`, `local.py` | Implement the sandbox-agent backend. `LocalBackend` is a stub. |
-| Harness adapters | `sdks/python/agenta/sdk/agents/adapters/harnesses.py` | Maps neutral session config into Pi, Claude, and Agenta harness-specific config. |
+| Harness adapters | `sdks/python/agenta/sdk/agents/adapters/harnesses.py` | Maps neutral session config into Pi, Claude, Agenta, and Codex harness-specific config. |
 | Runner wire | `sdks/python/agenta/sdk/agents/utils/wire.py`, `services/agent/src/protocol.ts` | Keeps the Python and TypeScript `/run` payloads in sync. |
 | Runner transports | `sdks/python/agenta/sdk/agents/utils/ts_runner.py`, `services/agent/src/server.ts`, `services/agent/src/cli.ts` | Send one-shot JSON or live NDJSON records to and from the runner. |
 | Runner engine | `services/agent/src/engines/sandbox_agent.ts` | The one engine: runs a harness over ACP through sandbox-agent. |
@@ -34,11 +34,13 @@ this page and the referenced code as the source of truth.
   events into Vercel UI Message Stream parts and appends `[DONE]`.
 - The deployed service always uses `SandboxAgentBackend` (`services/oss/src/agent/app.py:49`).
   It does not select a backend per harness.
-- `SandboxAgentBackend` supports `pi_core`, `pi_agenta`, and `claude` on local or Daytona.
+- `SandboxAgentBackend` supports `pi_core`, `pi_agenta`, `claude`, and `codex` on local or
+  Daytona. Codex is managed-key on both, plus subscription (`self_managed`) on local only.
 - The runner drives one engine, the sandbox-agent ACP path (`engines/sandbox_agent.ts`). The
   `harness` field selects the agent: `pi_core` and `pi_agenta` both drive the `pi` ACP agent,
-  `claude` drives `claude`. There is no engine selector on the wire.
-- `PiHarness`, `ClaudeHarness`, and `AgentaHarness` exist and validate backend support. The
+  `claude` drives `claude`, `codex` drives `codex`. There is no engine selector on the wire.
+- `PiHarness`, `ClaudeHarness`, `AgentaHarness`, and `CodexHarness` exist and validate backend
+  support. The
   Python class names are unchanged; only the harness string values changed (`HarnessType.PI`
   is `"pi_core"`, `HarnessType.AGENTA` is `"pi_agenta"`, `HarnessType.CLAUDE` is `"claude"`).
 - Pi `systemPrompt` and `appendSystemPrompt` overrides are delivered on the sandbox-agent Pi

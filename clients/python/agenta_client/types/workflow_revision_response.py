@@ -4,9 +4,11 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .commit_warning import CommitWarning
 from .resolution_info import ResolutionInfo
 from .retrieval_info import RetrievalInfo
 from .workflow_revision_output import WorkflowRevisionOutput
+from .workflow_revision_response_status import WorkflowRevisionResponseStatus
 
 
 class WorkflowRevisionResponse(UniversalBaseModel):
@@ -18,6 +20,16 @@ class WorkflowRevisionResponse(UniversalBaseModel):
     workflow_revision: typing.Optional[WorkflowRevisionOutput] = pydantic.Field(default=None)
     """
     The workflow revision.
+    """
+    
+    status: typing.Optional[WorkflowRevisionResponseStatus] = pydantic.Field(default=None)
+    """
+    Commit outcome. `no_change` means the change produced the stored configuration, so no revision was created and `workflow_revision` is the current head. Absent on paths that do not run the checked commit; a reader must treat absent as `committed`.
+    """
+    
+    warnings: typing.Optional[typing.List[CommitWarning]] = pydantic.Field(default=None)
+    """
+    Structured advisories about the commit; never an error.
     """
     
     resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)

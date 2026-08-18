@@ -20,7 +20,8 @@ from oss.src.core.sessions.turns.dtos import (
 )
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.turns.types import SessionTurnNotFound
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.shared.dtos import Windowing
 import oss.src.models.db_models  # noqa: F401
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
@@ -148,7 +149,7 @@ async def test_append_turn_persists_and_query_returns_turn_id(dao, project_and_s
     session_id = project_and_stream["session_id"]
     user_id = project_and_stream["user_id"]
 
-    workflow_ref = Reference(id=uuid.uuid4(), slug="my-workflow", version="v1")
+    workflow_ref = SessionReference(id=uuid.uuid4(), slug="my-workflow", version="v1")
 
     # span_id is a 16-hex OTel span id (runner shape), NOT a UUID; trace_id is a 32-hex
     # OTel trace id that still fits UUID.
@@ -207,7 +208,7 @@ async def test_complete_turn_is_guarded_idempotent_and_refuses_unknown(
     stream_id = project_and_stream["stream_id"]
     session_id = project_and_stream["session_id"]
     started_at = datetime.now(timezone.utc)
-    workflow_ref = Reference(id=uuid.uuid4(), slug="workflow", version="v1")
+    workflow_ref = SessionReference(id=uuid.uuid4(), slug="workflow", version="v1")
 
     started = await dao.append(
         project_id=project_id,
@@ -325,8 +326,8 @@ async def test_query_turns_filters_by_references_gin_contains(dao, project_and_s
         )
         await session.commit()
 
-    target_ref = Reference(id=uuid.uuid4(), slug="target-workflow", version="v1")
-    other_ref = Reference(id=uuid.uuid4(), slug="other-workflow", version="v1")
+    target_ref = SessionReference(id=uuid.uuid4(), slug="target-workflow", version="v1")
+    other_ref = SessionReference(id=uuid.uuid4(), slug="other-workflow", version="v1")
 
     matching = await dao.append(
         project_id=project_id,
@@ -358,6 +359,54 @@ async def test_query_turns_filters_by_references_gin_contains(dao, project_and_s
 
     assert len(results) == 1
     assert results[0].id == matching.id
+
+
+async def test_query_session_ids_by_references_dedups_and_caps(dao, project_and_stream):
+    """P2-12: the session list's turn_references filter only ever needs the id set,
+    not every matching turn row. Two turns in the SAME session referencing the target
+    must collapse to one id (DISTINCT), and `limit` bounds the result even though more
+    session ids match."""
+    project_id = project_and_stream["project_id"]
+    stream_id = project_and_stream["stream_id"]
+    session_id = project_and_stream["session_id"]
+    other_session_id = session_id + "-other"
+
+    target_ref = SessionReference(id=uuid.uuid4(), slug="target-workflow", version="v1")
+
+    for turn_index in (0, 1):
+        await dao.append(
+            project_id=project_id,
+            user_id=None,
+            turn=SessionTurnCreate(
+                session_id=session_id,
+                stream_id=stream_id,
+                turn_index=turn_index,
+                harness_kind=HarnessKind.PI,
+                references=[target_ref],
+            ),
+        )
+    await dao.append(
+        project_id=project_id,
+        user_id=None,
+        turn=SessionTurnCreate(
+            session_id=other_session_id,
+            stream_id=stream_id,
+            turn_index=0,
+            harness_kind=HarnessKind.PI,
+            references=[target_ref],
+        ),
+    )
+
+    ids = await dao.query_session_ids_by_references(
+        project_id=project_id, references=[target_ref], limit=500
+    )
+    assert set(ids) == {session_id, other_session_id}
+
+    capped = await dao.query_session_ids_by_references(
+        project_id=project_id, references=[target_ref], limit=1
+    )
+    assert len(capped) == 1
+    assert capped[0] in {session_id, other_session_id}
 
 
 async def test_query_turns_orders_by_turn_index_with_id_tiebreaker(
@@ -412,7 +461,7 @@ async def test_query_turns_orders_by_turn_index_with_id_tiebreaker(
     )
     assert [r.turn_index for r in next_page] == [0]
 
-    tie_reference = Reference(id=uuid.uuid4(), slug="ordering-tie")
+    tie_reference = SessionReference(id=uuid.uuid4(), slug="ordering-tie")
     tied_turns = []
     for tied_session_id in (f"{session_id}-tie-a", f"{session_id}-tie-b"):
         tied_turns.append(

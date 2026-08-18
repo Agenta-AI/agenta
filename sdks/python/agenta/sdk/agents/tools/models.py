@@ -16,11 +16,6 @@ from pydantic import (
 )
 
 
-from agenta.sdk.utils.logging import get_module_logger
-
-log = get_module_logger(__name__)
-
-
 def _empty_object_schema() -> Dict[str, Any]:
     return {"type": "object", "properties": {}}
 
@@ -81,25 +76,14 @@ class ToolConfigBase(BaseModel):
 
 
 class BuiltinToolConfig(ToolConfigBase):
+    """Legacy entry, accepted so revisions written before the rework still parse.
+
+    Built-in tools are always active and are no longer configured here; the resolver drops
+    every entry with a warning. Keep this arm until the dual-read window closes.
+    """
+
     type: Literal["builtin"] = "builtin"
     name: str = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def _drop_unenforceable_permission(self) -> "BuiltinToolConfig":
-        # Harness builtins are granted by SELECTION (present = runs, absent = does not
-        # exist); no runner gate sees them on Pi, so a per-builtin permission cannot be
-        # enforced and keeping it would be a dead knob an author mistakes for a deny.
-        # Selection-time enforcement (filter builtin_names by effective permission) is
-        # the designed follow-up; until then the field is dropped loudly.
-        if self.permission is not None:
-            log.warning(
-                "builtin tool %r: per-tool permission %r is not enforceable and was "
-                "ignored; control builtins by selection (or a harness settings rule)",
-                self.name,
-                self.permission,
-            )
-            self.permission = None
-        return self
 
 
 class GatewayToolConfig(ToolConfigBase):
@@ -324,8 +308,8 @@ class ToolCall(BaseModel):
     instead of routing through the shared ``/tools/call`` gateway. A spec carries ``call`` (direct)
     XOR ``call_ref`` (gateway), never both.
 
-    - ``method`` is restricted to ``GET`` / ``POST`` / ``DELETE`` (the runner is a constrained dispatcher,
-      never an arbitrary HTTP client).
+    - ``method`` is restricted to ``GET`` / ``POST`` / ``PUT`` / ``DELETE`` (the runner is a
+      constrained dispatcher, never an arbitrary HTTP client).
     - ``path`` is an absolute path from the Agenta ORIGIN; the runner derives that origin from the
       run's ``toolCallback.endpoint``, so a tool can never reach a non-Agenta host.
     - ``body`` holds static, server-fixed fields baked at resolve time (e.g. a reference tool's
@@ -342,7 +326,7 @@ class ToolCall(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
-    method: Literal["GET", "POST", "DELETE"]
+    method: Literal["GET", "POST", "PUT", "DELETE"]
     path: str = Field(min_length=1)
     body: Optional[Dict[str, Any]] = None
     context: Optional[Dict[str, str]] = None
@@ -374,6 +358,16 @@ class CallbackToolSpec(ToolSpecBase):
         default=None,
         validation_alias=AliasChoices("timeout_ms", "timeoutMs"),
         serialization_alias="timeoutMs",
+    )
+    # Top-level argument names the model may write but the request must NOT carry. The runner
+    # deletes them from the model's arguments before it builds either request, so the field
+    # reaches the human (the recorded call keeps it) and never reaches the API. This is how the
+    # ephemeral per-call ``description`` rides a builder tool call without any endpoint schema
+    # change. Executor-private, like ``context_bindings``: the child harness never sees it.
+    ephemeral_args: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("ephemeral_args", "ephemeralArgs"),
+        serialization_alias="ephemeralArgs",
     )
 
     @model_validator(mode="after")
@@ -447,25 +441,20 @@ class ResolvedToolSet(BaseModel):
         populate_by_name=True,
     )
 
-    builtin_names: List[str] = Field(
-        default_factory=list,
-        validation_alias=AliasChoices("builtin_names", "builtin_tools"),
-    )
     tool_specs: List[ToolSpec] = Field(
         default_factory=list,
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
     )
     tool_callback: Optional[ToolCallback] = None
+    # Human-facing warnings raised during resolution that did not fail the run — e.g. a
+    # gateway tool dropped because its action 404s. Each names the affected tool. Surfaced so
+    # a degraded resolution is never silent; empty on a fully clean resolve.
+    warnings: List[str] = Field(default_factory=list)
 
     @field_validator("tool_specs", mode="before")
     @classmethod
     def _coerce_specs(cls, value: Any) -> List[ToolSpec]:
         return [coerce_tool_spec(item) for item in value or []]
-
-    @property
-    def builtin_tools(self) -> List[str]:
-        """Compatibility alias for the previous field name."""
-        return list(self.builtin_names)
 
     @property
     def custom_tools(self) -> List[Dict[str, Any]]:

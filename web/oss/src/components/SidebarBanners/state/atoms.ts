@@ -118,13 +118,17 @@ export const visibleBannersAtom = atom((get) => {
         (a, b) => PRIORITY_ORDER[a.type] - PRIORITY_ORDER[b.type],
     )
 
+    // Trial banners are time-bound and must stay visible for the whole trial, so they are
+    // exempt from the cap even though they are dismissible.
+    const countsTowardCap = (banner: BannerConfig) => banner.dismissible && banner.type !== "trial"
+
     const cappedDismissibleBanners = sortedBanners
-        .filter((banner) => banner.dismissible)
+        .filter(countsTowardCap)
         .slice(0, MAX_DISMISSIBLE_SIDEBAR_BANNERS)
 
-    const nonDismissibleBanners = sortedBanners.filter((banner) => !banner.dismissible)
+    const uncappedBanners = sortedBanners.filter((banner) => !countsTowardCap(banner))
 
-    return [...cappedDismissibleBanners, ...nonDismissibleBanners]
+    return [...cappedDismissibleBanners, ...uncappedBanners]
         .filter((banner) => !dismissedIds.includes(banner.id))
         .sort((a, b) => PRIORITY_ORDER[a.type] - PRIORITY_ORDER[b.type])
 })

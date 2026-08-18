@@ -4,6 +4,9 @@
  * Drag-and-drop PDF upload with URL input support.
  * Supports file upload (PDF up to 8MB) and pasting document URLs.
  *
+ * File-handling (validation, `FileReader`, drop-zone) lives in `usePromptFileUpload`;
+ * this component owns the PDF-specific value sync + rendering.
+ *
  * @example
  * ```tsx
  * import { PromptDocumentUpload } from '@agenta/ui/components/presentational'
@@ -15,13 +18,16 @@
  * ```
  */
 
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
-import {MinusCircleOutlined} from "@ant-design/icons"
-import {FileArchive} from "@phosphor-icons/react"
-import {Button, Input, Typography, Upload} from "antd"
+import {FileArchive, MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
+
+import {Button} from "../../ui/button"
+import {InputAffix} from "../../ui/input-composed"
+
+import {usePromptFileUpload} from "./usePromptFileUpload"
 
 // ============================================================================
 // TYPES
@@ -38,7 +44,6 @@ export interface PromptDocumentUploadProps {
 // CONSTANTS
 // ============================================================================
 
-const {Dragger} = Upload
 const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB
 
 // ============================================================================
@@ -59,73 +64,39 @@ const PromptDocumentUpload = ({
     onFileChange,
     onRemove,
 }: PromptDocumentUploadProps) => {
-    const uploadRef = useRef<HTMLInputElement>(null)
-
     const [rawValue, setRawValue] = useState("")
-    const [error, setError] = useState("")
+
+    const {
+        uploadRef,
+        error,
+        setError,
+        triggerUpload,
+        handleFileInputChange,
+        dropzoneProps,
+        isDragging,
+    } = usePromptFileUpload({
+        maxSize: MAX_FILE_SIZE,
+        sizeError: "File too large. Please upload a PDF smaller than 8 MB.",
+        isTypeAllowed: (file) =>
+            file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf"),
+        typeError: "Unsupported format. Please upload a PDF file.",
+        disabled,
+        onAccepted: (file, dataUrl) => {
+            setRawValue(dataUrl)
+            onFileChange(dataUrl, file.name, file.type)
+        },
+    })
 
     useEffect(() => {
         if (value === undefined) return
         setRawValue((prev) => (prev === value ? prev : value))
         setError("")
-    }, [value])
+    }, [value, setError])
 
     const displayValue = useMemo(() => {
         if (!rawValue) return ""
         return isBase64(rawValue) ? dataUriToObjectUrl(rawValue) : rawValue
     }, [rawValue])
-
-    const triggerUpload = useCallback((event: React.MouseEvent) => {
-        event.stopPropagation()
-        uploadRef.current?.click()
-    }, [])
-
-    const handleUpload = useCallback(
-        (file: File) => {
-            if (file.size > MAX_FILE_SIZE) {
-                setError("File too large. Please upload a PDF smaller than 8 MB.")
-                return
-            }
-            const isPdf =
-                file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf")
-            if (!isPdf) {
-                setError("Unsupported format. Please upload a PDF file.")
-                return
-            }
-
-            const reader = new FileReader()
-            reader.onload = () => {
-                const result = reader.result
-                if (typeof result !== "string") {
-                    setError("Failed to read file.")
-                    return
-                }
-                setError("")
-                setRawValue(result)
-                onFileChange(result, file.name, file.type)
-            }
-            reader.onerror = () => setError("Failed to read file.")
-            reader.readAsDataURL(file)
-        },
-        [onFileChange],
-    )
-
-    const handleFileInputChange = useCallback(
-        (event: React.ChangeEvent<HTMLInputElement>) => {
-            const file = event.target.files?.[0]
-            if (file) handleUpload(file)
-            event.target.value = ""
-        },
-        [handleUpload],
-    )
-
-    const handleBeforeUpload = useCallback(
-        (file: File) => {
-            handleUpload(file)
-            return false
-        },
-        [handleUpload],
-    )
 
     return (
         <>
@@ -137,22 +108,18 @@ const PromptDocumentUpload = ({
                 onChange={handleFileInputChange}
             />
 
-            <Dragger
-                accept=".pdf,application/pdf"
-                multiple={false}
-                showUploadList={false}
-                openFileDialogOnClick={false}
-                disabled={disabled}
-                beforeUpload={handleBeforeUpload}
+            {/* Native drop-zone (replaces antd Upload.Dragger — only drag-and-drop was
+                used; click-to-open runs through the hidden input above). */}
+            <div
+                {...dropzoneProps}
                 className={clsx(
-                    "w-full flex items-center gap-4 py-2 pr-1 pl-2 rounded-md",
-                    "[&_.ant-upload-drag]:bg-transparent [&_.ant-upload-drag]:border-none",
-                    "[&_.ant-upload-btn]:!p-0",
-                    "border border-solid border-[var(--ag-c-BDC7D1)]",
+                    // `box-border` is load-bearing: preflight is off, so without it the padding
+                    // and border add to `w-full` and the row overflows its container by 14px
+                    // (antd's own reset gave the Dragger border-box for free).
+                    "w-full box-border flex items-center gap-4 py-2 pr-1 pl-2 rounded-md border border-solid",
+                    error ? "border-colorError" : "border-colorBorder",
+                    isDragging && !disabled && "border-colorPrimary",
                     disabled ? "cursor-not-allowed" : "cursor-pointer",
-                    {
-                        "!border-[var(--ag-c-D61010)]": Boolean(error),
-                    },
                 )}
             >
                 <div className="flex items-center gap-2 w-full">
@@ -161,24 +128,24 @@ const PromptDocumentUpload = ({
                             size={48}
                             className={clsx(
                                 displayValue
-                                    ? "text-green-600"
+                                    ? "text-colorSuccess"
                                     : error
-                                      ? "text-[var(--ag-c-D61010)]"
-                                      : "text-[var(--ag-c-758391)]",
+                                      ? "text-colorError"
+                                      : "text-colorTextTertiary",
                             )}
                         />
                         <div className="flex flex-col items-start gap-1 w-full">
-                            <Typography.Text>
+                            <span className="text-xs">
                                 Drag a PDF here or{" "}
                                 <Button
-                                    type="link"
+                                    variant="link"
                                     className="p-0 underline"
                                     onClick={triggerUpload}
                                 >
                                     upload a file
                                 </Button>
-                            </Typography.Text>
-                            <Input
+                            </span>
+                            <InputAffix
                                 disabled={disabled}
                                 placeholder="(Optionally) Enter a valid URL."
                                 value={displayValue}
@@ -198,35 +165,35 @@ const PromptDocumentUpload = ({
                             />
 
                             {isUrl(displayValue) && (
-                                <Typography.Link
+                                <a
                                     href={displayValue}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-start"
-                                    type="secondary"
+                                    className="text-start text-xs text-colorTextDescription"
                                 >
                                     Preview: document
-                                </Typography.Link>
+                                </a>
                             )}
-                            {error && (
-                                <Typography.Text className="text-[var(--ag-c-D61010)]">
-                                    {error}
-                                </Typography.Text>
-                            )}
+                            {error && <span className="text-xs text-colorError">{error}</span>}
                         </div>
                     </div>
+                    {/* `size="icon"` reproduces antd's implicit `.ant-btn-icon-only` sizing —
+                        without it the default horizontal padding pushes this row past its
+                        container and squeezes the URL input. */}
                     <Button
-                        type="text"
-                        icon={<MinusCircleOutlined />}
+                        variant="ghost"
                         disabled={disabled}
+                        size="icon"
                         onClick={(e) => {
                             e.stopPropagation()
                             onRemove()
                             setError("")
                         }}
-                    />
+                    >
+                        <MinusCircle size={16} />
+                    </Button>
                 </div>
-            </Dragger>
+            </div>
         </>
     )
 }

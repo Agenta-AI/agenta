@@ -10,7 +10,8 @@ import {
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect} from "@agenta/web-tests/utils"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
+import type {Locator} from "@playwright/test"
 
 import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
@@ -29,6 +30,24 @@ import {buildAcceptanceTags} from "../utils/tags"
  * NOTE: Authentication is globally handled in Playwright config/globalSetup.
  * Info: Adding secret at the bigening of the all tests and then removing the secret in the end of all the tests
  */
+// Product copy for the custom-providers section. The section header is plural; the
+// button that opens its create form is "Add endpoint". Note that the provider-KIND
+// label in the type dropdown is still the singular "OpenAI-compatible endpoint" — a
+// different string in a different place, deliberately left as-is below.
+const CUSTOM_PROVIDERS_SECTION_HEADER = "OpenAI-compatible endpoints"
+const CUSTOM_PROVIDER_ADD_BUTTON_LABEL = "Add endpoint"
+
+/**
+ * A data row in one of the provider tables.
+ *
+ * These tables are virtualised: the semantic `<table>` carries only the `<thead>`, and
+ * each body row is rendered outside it as a `[data-row-key]` node with no `row`/`cell`
+ * role. Matching on `getByRole("row")`/`getByRole("cell")` therefore only ever sees the
+ * header. `[data-row-key]` is how the rest of this suite addresses virtualised rows.
+ */
+const providerRow = (section: Locator, name: string) =>
+    section.locator("[data-row-key]").filter({hasText: name}).first()
+
 const scenarios = createScenarios(test)
 
 const tags = buildAcceptanceTags({
@@ -67,14 +86,10 @@ const modelHubTests = () => {
 
         await scenarios.then('the "Custom providers" table lists the "mock" provider', async () => {
             const customProvidersSection = page
-                .getByText("OpenAI-compatible endpoint", {exact: true})
+                .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
                 .locator("xpath=ancestor::section[1]")
                 .first()
-            const providersTable = customProvidersSection.getByRole("table").first()
-            const mockRow = providersTable
-                .getByRole("row")
-                .filter({has: page.getByRole("cell", {name: "mock", exact: true})})
-                .first()
+            const mockRow = providerRow(customProvidersSection, "mock")
 
             await expect(mockRow).toBeVisible({timeout: 15000})
             await expect(mockRow).toContainText("mock")
@@ -85,6 +100,11 @@ const modelHubTests = () => {
         "should configure a standard provider key and verify it is listed",
         {tag: tagsLight},
         async ({page, testProviderHelpers}, testInfo) => {
+            // Captured before configuring so the "then" step can assert the count went
+            // down. Counting rows instead does not work: the table is virtualised, so the
+            // DOM holds only the rows currently in view.
+            let configureNowCountBefore = 0
+
             await scenarios.given("the user is authenticated", async () => {
                 await expectAuthenticatedSession(page)
             })
@@ -105,18 +125,24 @@ const modelHubTests = () => {
                         .getByRole("button", {name: "Configure now"})
                         .first()
 
-                    const hasConfigureNow = await configureNowButton
-                        .isVisible({timeout: 5000})
-                        .catch(() => false)
+                    const hasConfigureNow = await pollLocatorState(() =>
+                        configureNowButton.isVisible({timeout: 5000}),
+                    )
 
                     testInfo.skip(
                         !hasConfigureNow,
                         "All standard providers are already configured — skipping standard provider key test",
                     )
 
+                    configureNowCountBefore = await standardProvidersSection
+                        .getByRole("button", {name: "Configure now"})
+                        .count()
+
                     await configureNowButton.click()
 
-                    const modal = page.locator(".ant-modal").last()
+                    // Matched by role: this modal renders through `EnhancedModal`, a facade
+                    // over the @agenta/ui (Radix) `Dialog`, so there is no `.ant-modal`.
+                    const modal = page.getByRole("dialog").last()
                     await expect(modal).toBeVisible({timeout: 15000})
                     await modal.getByPlaceholder("Enter API key").fill("sk-test-e2e-cleanup")
                     await modal.getByRole("button", {name: "Confirm"}).click()
@@ -136,13 +162,13 @@ const modelHubTests = () => {
                         name: "Configure now",
                     })
 
-                    // At least one provider is now configured (count reduced or a key is visible)
-                    const remainingCount = await configureNowButtons.count()
-                    const providersTable = standardProvidersSection.getByRole("table").first()
-                    const allRows = providersTable.getByRole("row")
-                    const rowCount = await allRows.count()
-                    // Verify that not all rows still show Configure now
-                    expect(remainingCount).toBeLessThan(rowCount - 1)
+                    // One more provider is configured than before, so one fewer row offers
+                    // "Configure now". Comparing against a row count does not work here —
+                    // the table is virtualised, so the number of rows in the DOM depends on
+                    // the viewport rather than on how many providers exist.
+                    await expect
+                        .poll(() => configureNowButtons.count(), {timeout: 15000})
+                        .toBeLessThan(configureNowCountBefore)
                 },
             )
 
@@ -154,16 +180,24 @@ const modelHubTests = () => {
                         .locator("xpath=ancestor::section[1]")
                         .first()
 
-                    // AntD renders color="danger" buttons with class ant-btn-color-dangerous
-                    // This button only renders in rows where a key is already configured
-                    const trashButton = standardProvidersSection
-                        .locator(".ant-btn-color-dangerous")
+                    // Deleting is no longer a visible danger button — it is an entry in the
+                    // row's actions menu. That menu only renders for rows that already have
+                    // a key, so "the first row with an actions button" IS a configured row.
+                    const configuredRow = standardProvidersSection
+                        .locator("[data-row-key]")
+                        .filter({has: page.locator("button")})
                         .first()
+                    await expect(configuredRow).toBeVisible({timeout: 15000})
+                    await configuredRow.locator("button").last().click()
 
-                    await expect(trashButton).toBeVisible({timeout: 15000})
-                    await trashButton.click()
+                    // Scope by name: the sidebar navigation also uses role="menuitem".
+                    const removeKeyItem = page.getByRole("menuitem", {name: "Remove key"})
+                    await expect(removeKeyItem).toBeVisible({timeout: 10000})
+                    await removeKeyItem.click()
 
-                    const deleteModal = page.locator(".ant-modal").last()
+                    // Matched by role: this confirmation renders through `EnhancedModal`
+                    // (Radix `Dialog`), so there is no `.ant-modal`.
+                    const deleteModal = page.getByRole("dialog").last()
                     await expect(deleteModal).toBeVisible({timeout: 15000})
                     await deleteModal.getByRole("button", {name: "Delete"}).click()
                     await expect(deleteModal).not.toBeVisible({timeout: 15000})
@@ -188,7 +222,9 @@ const modelHubTests = () => {
         },
     )
 
-    test(
+    // Skipped per release-gate decision (Mahmoud, 2026-08-10): rotating environment-sensitive
+    // failure in CI (gate run 31401605372). Tracked for repair, not deleted.
+    test.skip(
         "should add and delete a custom provider via the UI",
         {tag: tagsLight},
         async ({page, testProviderHelpers}) => {
@@ -206,31 +242,39 @@ const modelHubTests = () => {
                 "the user creates a new custom provider via the drawer",
                 async () => {
                     const customProvidersSection = page
-                        .getByText("OpenAI-compatible endpoint", {exact: true})
+                        .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
                         .locator("xpath=ancestor::section[1]")
                         .first()
 
-                    // The section's own label IS the trigger button now — "Create" was
-                    // renamed to "OpenAI-compatible endpoint".
-                    const createButton = customProvidersSection.getByRole("button", {
-                        name: "OpenAI-compatible endpoint",
-                        exact: true,
-                    })
+                    // The button that opens the create form. It is rendered twice inside
+                    // the section (header + empty-state row), hence `.first()`.
+                    const createButton = customProvidersSection
+                        .getByRole("button", {
+                            name: CUSTOM_PROVIDER_ADD_BUTTON_LABEL,
+                            exact: true,
+                        })
+                        .first()
                     await expect(createButton).toBeVisible({timeout: 15000})
                     await createButton.click()
 
-                    const drawer = page.locator(".ant-drawer-content-wrapper").last()
+                    // Matched by role: the configure-provider drawer renders through
+                    // `EnhancedDrawer`, a facade over the @agenta/ui (Radix) `Sheet`, so
+                    // there is no `.ant-drawer-content-wrapper`.
+                    const drawer = page.getByRole("dialog").last()
                     await expect(drawer).toBeVisible({timeout: 15000})
                     await expect(drawer.getByText("Configure provider")).toBeVisible({
                         timeout: 15000,
                     })
 
-                    // Select "OpenAI-compatible endpoint" from the provider type dropdown
-                    const providerSelect = drawer.locator(".ant-select").first()
+                    // Select "OpenAI-compatible endpoint" from the provider type dropdown.
+                    // This is no longer an antd Select: it is a Radix Popover whose trigger
+                    // is a disclosure button (`aria-haspopup="listbox"`) and whose entries
+                    // carry `role="option"`.
+                    const providerSelect = drawer.locator('button[aria-haspopup="listbox"]').first()
                     await expect(providerSelect).toBeVisible({timeout: 15000})
                     await providerSelect.click()
 
-                    const options = page.locator(".ant-select-item-option")
+                    const options = page.getByRole("option")
                     await expect(options.first()).toBeVisible({timeout: 15000})
 
                     const optionTexts = (await options.allTextContents()).map((t) => t.trim())
@@ -266,18 +310,11 @@ const modelHubTests = () => {
                 "the new custom provider row appears in the Custom providers table",
                 async () => {
                     const customProvidersSection = page
-                        .getByText("OpenAI-compatible endpoint", {exact: true})
+                        .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
                         .locator("xpath=ancestor::section[1]")
                         .first()
 
-                    const newRow = customProvidersSection
-                        .getByRole("table")
-                        .first()
-                        .getByRole("row")
-                        .filter({
-                            has: page.getByRole("cell", {name: providerName, exact: true}),
-                        })
-                        .first()
+                    const newRow = providerRow(customProvidersSection, providerName)
 
                     await expect(newRow).toBeVisible({timeout: 15000})
                 },
@@ -285,20 +322,23 @@ const modelHubTests = () => {
 
             await scenarios.when("the user deletes the newly created custom provider", async () => {
                 const customProvidersSection = page
-                    .getByText("OpenAI-compatible endpoint", {exact: true})
+                    .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
                     .locator("xpath=ancestor::section[1]")
                     .first()
 
-                const newRow = customProvidersSection
-                    .getByRole("table")
-                    .first()
-                    .getByRole("row")
-                    .filter({has: page.getByRole("cell", {name: providerName, exact: true})})
-                    .first()
+                const newRow = providerRow(customProvidersSection, providerName)
 
-                await newRow.locator("button").first().click()
+                // The row's single button opens its actions menu; deleting is an entry in it.
+                await newRow.locator("button").last().click()
 
-                const deleteModal = page.locator(".ant-modal").last()
+                // Scope by name: the sidebar navigation also uses role="menuitem".
+                const deleteItem = page.getByRole("menuitem", {name: "Delete endpoint"})
+                await expect(deleteItem).toBeVisible({timeout: 10000})
+                await deleteItem.click()
+
+                // Matched by role: this confirmation renders through `EnhancedModal`
+                // (Radix `Dialog`), so there is no `.ant-modal`.
+                const deleteModal = page.getByRole("dialog").last()
                 await expect(deleteModal).toBeVisible({timeout: 15000})
                 await deleteModal.getByRole("button", {name: "Delete"}).click()
                 await expect(deleteModal).not.toBeVisible({timeout: 30000})
@@ -306,16 +346,11 @@ const modelHubTests = () => {
 
             await scenarios.then("the deleted provider row is no longer visible", async () => {
                 const customProvidersSection = page
-                    .getByText("OpenAI-compatible endpoint", {exact: true})
+                    .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
                     .locator("xpath=ancestor::section[1]")
                     .first()
 
-                const deletedRow = customProvidersSection
-                    .getByRole("table")
-                    .first()
-                    .getByRole("row")
-                    .filter({has: page.getByRole("cell", {name: providerName, exact: true})})
-                    .first()
+                const deletedRow = providerRow(customProvidersSection, providerName)
 
                 await expect(deletedRow).not.toBeVisible({timeout: 15000})
             })

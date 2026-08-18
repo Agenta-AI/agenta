@@ -2,8 +2,10 @@ import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
+import {Button} from "@agenta/ui/ui"
 import {CaretRight, X} from "@phosphor-icons/react"
-import {Button, Select, Tooltip, Typography} from "antd"
+
+import {ConfigSelect, HintTooltip} from "./configPopoverControls"
 
 interface PolicyOption {
     label: string
@@ -54,59 +56,50 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
         <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text>{policyTitle}</Typography.Text>
-                    <Typography.Text type="secondary">{policyDescription}</Typography.Text>
+                    <span className="font-medium text-xs">{policyTitle}</span>
+                    <span className="text-xs leading-snug text-colorTextDescription">
+                        {policyDescription}
+                    </span>
                 </div>
-                <Select
-                    size="small"
+                <ConfigSelect
+                    size="sm"
                     allowClear
-                    value={fallbackPolicy ?? undefined}
-                    onChange={(nextValue) => onPolicyChange(nextValue ?? null)}
+                    value={fallbackPolicy ?? null}
+                    onChange={onPolicyChange}
                     options={fallbackPolicyOptions}
                     placeholder="Select one"
                     disabled={disabled}
-                    optionRender={(option) => {
-                        const description = (option.data as {description?: string}).description
-                        return (
-                            <div className="flex items-center justify-between gap-3">
-                                <span>{option.label}</span>
-                                {description && (
-                                    <Typography.Text type="secondary">
-                                        {description}
-                                    </Typography.Text>
-                                )}
-                            </div>
-                        )
-                    }}
+                    // The visible title above; the shared "Select one" placeholder names nothing.
+                    aria-label={policyTitle}
                 />
             </div>
             <div className="flex flex-col gap-2">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text>{fallbackConfigsTitle}</Typography.Text>
-                    <Typography.Text type="secondary" className="leading-snug">
+                    <span className="font-medium text-xs">{fallbackConfigsTitle}</span>
+                    <span className="text-xs leading-snug text-colorTextDescription">
                         {fallbackConfigsDescription}{" "}
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-500"
+                            className="text-gray-500 underline decoration-dotted underline-offset-2"
                         >
                             Learn more
                         </a>
-                    </Typography.Text>
+                    </span>
                 </div>
                 {fallbackConfigs.map((config, index) => (
                     <div
                         key={fallbackConfigKeys[index] ?? `fallback-config-${index}`}
                         className="flex min-w-0 items-center gap-2"
                     >
-                        <Tooltip
-                            title={!isModelSelectionEnabled ? policyRequiredMessage : undefined}
+                        <HintTooltip
+                            hint={!isModelSelectionEnabled ? policyRequiredMessage : undefined}
                         >
                             <span className="min-w-0 flex-1">
                                 <Button
-                                    size="small"
-                                    type="default"
+                                    size="sm"
+                                    variant="outline"
                                     disabled={!isModelSelectionEnabled}
                                     className="flex w-full min-w-0 items-center justify-between overflow-hidden"
                                     onClick={() => onEditFallbackModel(index)}
@@ -118,30 +111,32 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                                     <CaretRight size={12} className="shrink-0" />
                                 </Button>
                             </span>
-                        </Tooltip>
+                        </HintTooltip>
                         <Button
-                            size="small"
-                            type="text"
-                            icon={<X size={14} />}
+                            size="icon-sm"
+                            variant="ghost"
                             onClick={() => onRemoveFallbackModel(index)}
                             disabled={!isModelSelectionEnabled}
                             className="shrink-0"
                             aria-label="Remove fallback model"
-                        />
+                        >
+                            <X size={14} />
+                        </Button>
                     </div>
                 ))}
-                <Tooltip title={!isModelSelectionEnabled ? policyRequiredMessage : undefined}>
+                <HintTooltip hint={!isModelSelectionEnabled ? policyRequiredMessage : undefined}>
                     <span>
                         <Button
-                            size="small"
+                            size="sm"
+                            variant="outline"
                             onClick={onAddFallbackModel}
                             disabled={!isModelSelectionEnabled}
-                            block
+                            className="w-full"
                         >
                             + Add model
                         </Button>
                     </span>
-                </Tooltip>
+                </HintTooltip>
             </div>
         </div>
     )

@@ -44,7 +44,7 @@ export function InspectorDrawer({
             <div className="flex h-full min-h-0 flex-col bg-[var(--ag-surface-raised)]">
                 <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorSplit px-2 py-2">
                     <span className="text-[13px] font-semibold">Inspector</span>
-                    <span className="min-w-0 truncate font-mono text-[11px] text-colorTextTertiary">
+                    <span className="min-w-0 truncate font-mono text-xs text-colorTextTertiary">
                         {sessionId}
                     </span>
                     <div className="ml-auto flex items-center">

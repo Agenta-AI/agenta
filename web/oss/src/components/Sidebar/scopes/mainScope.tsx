@@ -1,12 +1,12 @@
 import {useMemo} from "react"
 
-import {Divider} from "antd"
 import {useAtomValue} from "jotai"
 
 import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
 import {homeNavHighlightedAtom} from "@/oss/state/onboarding"
 
-import ListOfOrgs from "../components/ListOfOrgs"
+import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
+import SidebarLogo from "../components/SidebarLogo"
 import type {
     SidebarScope,
     SidebarSection,
@@ -18,19 +18,18 @@ import {useSidebarConfig} from "../hooks/useSidebarConfig"
 import {useSidebarBottomSection} from "./bottomSection"
 import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID} from "./constants"
 
-const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => (
-    <>
-        <ListOfOrgs collapsed={collapsed} />
-        <Divider className="-mt-[3.5px] mb-1" />
-    </>
-)
+const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => <SidebarLogo collapsed={collapsed} />
 
 const MainSidebarFooter = ({collapsed}: SidebarSlotContext) =>
     collapsed ? null : (
-        <div className="mx-auto">
+        <div className="w-full">
             <SidePanelSubscriptionInfo />
         </div>
     )
+
+const MainSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => (
+    <ProjectOrgSwitcher collapsed={collapsed} />
+)
 
 // During onboarding the route is the ephemeral playground, but Home IS the surface — pin it selected.
 const useMainSidebarSelection = (): SidebarSelection => {
@@ -66,4 +65,5 @@ export const mainSidebarScope: SidebarScope = {
     useSections: useMainSidebarSections,
     header: MainSidebarHeader,
     footer: MainSidebarFooter,
+    afterBottom: MainSidebarAfterBottom,
 }

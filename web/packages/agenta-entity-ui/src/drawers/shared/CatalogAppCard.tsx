@@ -4,8 +4,8 @@
  * the app grid looks identical across triggers and tools. Dark-safe (`--ag-color*` tokens).
  */
 import {EntityCard} from "@agenta/ui"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Lightning, Plugs} from "@phosphor-icons/react"
-import {Tooltip} from "antd"
 import Image from "next/image"
 
 // Composio returns lowercase category slugs ("crm", "ai agents"); these must stay all-caps.
@@ -92,20 +92,32 @@ export function AppCard({
             title={name}
             titleAdornment={
                 connected ? (
-                    <Tooltip title="Connected">
-                        <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
-                    </Tooltip>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                            </TooltipTrigger>
+                            <TooltipContent>Connected</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 ) : pending ? (
-                    <Tooltip title="Connection pending — finish or retry connecting">
-                        <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorWarning)]" />
-                    </Tooltip>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorWarning)]" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                Connection pending — finish or retry connecting
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 ) : null
             }
             description={description}
             tags={shownCategories}
             meta={
                 typeof actionsCount === "number" && actionsCount > 0 ? (
-                    <span className="flex items-center gap-1 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="flex items-center gap-1 text-[12px] text-[var(--ag-colorTextTertiary)]">
                         <Lightning size={11} weight="fill" />
                         {actionsCount}
                     </span>

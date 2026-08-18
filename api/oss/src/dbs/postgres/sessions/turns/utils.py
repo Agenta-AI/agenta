@@ -1,22 +1,14 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from oss.src.core.sessions.turns.dtos import SessionTurnQuery
+from oss.src.dbs.postgres.sessions.references import references_containment_json
 
 
 def query_turn_references(
     turn: Optional[SessionTurnQuery] = None,
 ) -> Optional[List[Any]]:
     """eval_runs pattern: flatten to bare {id, slug, version} dicts for .contains()."""
-    if not turn or not turn.references:
+    if not turn:
         return None
 
-    _references: Dict[Any, Any] = dict()
-
-    for reference in turn.references:
-        _key = reference.id or reference.slug
-        _references[_key] = reference.model_dump(
-            mode="json",
-            exclude_none=True,
-        )
-
-    return list(_references.values()) or None
+    return references_containment_json(turn.references)

@@ -8,6 +8,12 @@ from .builtin_tool_config_permission import BuiltinToolConfigPermission
 
 
 class BuiltinToolConfig(UniversalBaseModel):
+    """
+    Legacy entry, accepted so revisions written before the rework still parse.
+    
+    Built-in tools are always active and are no longer configured here; the resolver drops
+    every entry with a warning. Keep this arm until the dual-read window closes.
+    """
     render: typing.Optional[typing.Dict[str, typing.Any]] = None
     permission: typing.Optional[BuiltinToolConfigPermission] = None
     name: str

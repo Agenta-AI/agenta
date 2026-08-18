@@ -34,7 +34,6 @@ import {
     INSERT_TABLE_COMMAND,
 } from "@lexical/table"
 import {$getNearestNodeOfType} from "@lexical/utils"
-import {Button, Dropdown, Input, type MenuProps, Popover} from "antd"
 import {
     $createParagraphNode,
     $getSelection,
@@ -53,6 +52,17 @@ import {
     Table as TableIcon,
     Unlink,
 } from "lucide-react"
+
+import {Button} from "../components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu"
+import {Input} from "../components/ui/input"
+import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
 
 const BLOCK_TYPES = [
     {key: "paragraph", label: "Normal text"},
@@ -74,10 +84,13 @@ const btnClass = (disabled: boolean, isActive: boolean) =>
     [
         BTN_BASE,
         disabled
-            ? "cursor-not-allowed text-[var(--ag-c-97A4B0,#97a4b0)] opacity-50"
-            : "cursor-pointer text-[var(--ag-c-586673,#586673)] hover:bg-[var(--ag-c-EAEFF5,#eaeff5)]",
-        isActive ? "bg-[var(--ag-c-EAEFF5,#eaeff5)] !text-[var(--ag-c-1677FF,#1677ff)]" : "",
+            ? "cursor-not-allowed text-[var(--ag-zinc-5)] opacity-50"
+            : "cursor-pointer text-[var(--ag-c-586673)] hover:bg-[var(--ag-c-EAEFF5)]",
+        isActive ? "bg-[var(--ag-c-EAEFF5)] !text-[var(--ag-c-1677FF)]" : "",
     ].join(" ")
+
+/** Keep focus (and the Lexical selection) in the editor when a menu item is pressed. */
+const keepEditorSelection = (e: {preventDefault: () => void}) => e.preventDefault()
 
 /** A compact rows×cols grid the user hovers to pick a table size, like Notion / the Lexical demo. */
 function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void}) {
@@ -112,7 +125,7 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
                     )
                 })}
             </div>
-            <span className="text-center text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+            <span className="text-center text-xs text-[var(--ag-zinc-5)]">
                 {hover.rows > 0 ? `${hover.rows} × ${hover.cols}` : "Insert table"}
             </span>
         </div>
@@ -246,45 +259,17 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
 
     const runTableOp = useCallback((op: () => void) => editor.update(op), [editor])
 
-    const tableMenu: MenuProps = {
-        onClick: ({key, domEvent}) => {
-            domEvent.preventDefault()
-            switch (key) {
-                case "row-above":
-                    return runTableOp(() => $insertTableRowAtSelection(false))
-                case "row-below":
-                    return runTableOp(() => $insertTableRowAtSelection(true))
-                case "col-left":
-                    return runTableOp(() => $insertTableColumnAtSelection(false))
-                case "col-right":
-                    return runTableOp(() => $insertTableColumnAtSelection(true))
-                case "del-row":
-                    return runTableOp(() => $deleteTableRowAtSelection())
-                case "del-col":
-                    return runTableOp(() => $deleteTableColumnAtSelection())
-                case "del-table":
-                    return runTableOp(() => {
-                        const sel = $getSelection()
-                        if (!$isRangeSelection(sel)) return
-                        const cell = $getTableCellNodeFromLexicalNode(sel.anchor.getNode())
-                        if (!cell) return
-                        $getTableNodeFromLexicalNodeOrThrow(cell).remove()
-                    })
-                default:
-                    return undefined
-            }
-        },
-        items: [
-            {key: "row-above", label: "Insert row above"},
-            {key: "row-below", label: "Insert row below"},
-            {key: "col-left", label: "Insert column left"},
-            {key: "col-right", label: "Insert column right"},
-            {type: "divider"},
-            {key: "del-row", label: "Delete row"},
-            {key: "del-col", label: "Delete column"},
-            {key: "del-table", label: "Delete table", danger: true},
-        ],
-    }
+    const deleteTable = useCallback(
+        () =>
+            runTableOp(() => {
+                const sel = $getSelection()
+                if (!$isRangeSelection(sel)) return
+                const cell = $getTableCellNodeFromLexicalNode(sel.anchor.getNode())
+                if (!cell) return
+                $getTableNodeFromLexicalNodeOrThrow(cell).remove()
+            }),
+        [runTableOp],
+    )
 
     const button = (
         key: string,
@@ -311,7 +296,7 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
     )
 
     const divider = (
-        <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--ag-c-EAEFF5,#eaeff5)]" aria-hidden />
+        <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--ag-c-EAEFF5)]" aria-hidden />
     )
 
     const blockLabel = BLOCK_TYPES.find((b) => b.key === blockType)?.label ?? "Normal text"
@@ -319,32 +304,38 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
     return (
         <div className="flex items-center gap-0.5">
             {/* Block type — paragraph / headings / quote / code block. */}
-            <Dropdown
-                disabled={disabled}
-                trigger={["click"]}
-                placement="bottomLeft"
-                menu={{
-                    selectable: true,
-                    selectedKeys: [blockType],
-                    items: BLOCK_TYPES.map((b) => ({key: b.key, label: b.label})),
-                    onClick: ({key, domEvent}) => {
-                        domEvent.preventDefault()
-                        formatBlock(key)
-                    },
-                }}
-            >
-                <button
-                    type="button"
-                    title="Text style"
-                    aria-label="Text style"
-                    disabled={disabled}
-                    onMouseDown={(e) => e.preventDefault()}
-                    className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs`}
-                >
-                    <span className="truncate">{blockLabel}</span>
-                    <ChevronDown size={13} className="shrink-0" />
-                </button>
-            </Dropdown>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild disabled={disabled}>
+                    <button
+                        type="button"
+                        title="Text style"
+                        aria-label="Text style"
+                        disabled={disabled}
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs`}
+                    >
+                        <span className="truncate">{blockLabel}</span>
+                        <ChevronDown size={13} className="shrink-0" />
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    {BLOCK_TYPES.map((b) => (
+                        <DropdownMenuItem
+                            key={b.key}
+                            // antd `selectable` + `selectedKeys`: the active block is highlighted.
+                            className={
+                                b.key === blockType
+                                    ? "bg-controlItemBgActive text-colorPrimary"
+                                    : undefined
+                            }
+                            onMouseDown={keepEditorSelection}
+                            onSelect={() => formatBlock(b.key)}
+                        >
+                            {b.label}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
 
             {divider}
             {button("b", "Bold", <Bold size={15} />, () => formatText("bold"), active.bold)}
@@ -373,86 +364,138 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                     setLinkOpen(next)
                     if (next) setLinkDraft(linkUrl)
                 }}
-                trigger="click"
-                placement="bottom"
-                destroyTooltipOnHide
-                content={
+            >
+                <PopoverTrigger asChild disabled={disabled}>
+                    <button
+                        type="button"
+                        title="Link"
+                        aria-label="Link"
+                        aria-pressed={active.link}
+                        disabled={disabled}
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={btnClass(disabled, active.link)}
+                    >
+                        <LinkIcon size={15} />
+                    </button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="center" className="p-3">
                     <div className="flex w-60 flex-col gap-2">
                         <Input
                             autoFocus
                             value={linkDraft}
                             placeholder="https://example.com"
                             onChange={(e) => setLinkDraft(e.target.value)}
-                            onPressEnter={applyLink}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") applyLink()
+                            }}
                         />
                         <div className="flex items-center justify-between gap-2">
                             {active.link ? (
                                 <Button
-                                    type="text"
-                                    size="small"
-                                    danger
-                                    icon={<Unlink size={13} />}
+                                    variant="destructive-outline"
+                                    size="sm"
                                     onClick={removeLink}
                                 >
+                                    {<Unlink size={13} />}
                                     Remove
                                 </Button>
                             ) : (
                                 <span />
                             )}
-                            <Button type="primary" size="small" onClick={applyLink}>
+                            <Button variant="default" size="sm" onClick={applyLink}>
                                 {active.link ? "Update" : "Add link"}
                             </Button>
                         </div>
                     </div>
-                }
-            >
-                <button
-                    type="button"
-                    title="Link"
-                    aria-label="Link"
-                    aria-pressed={active.link}
-                    disabled={disabled}
-                    onMouseDown={(e) => e.preventDefault()}
-                    className={btnClass(disabled, active.link)}
-                >
-                    <LinkIcon size={15} />
-                </button>
+                </PopoverContent>
             </Popover>
 
             {/* Table — one control: inside a table it opens the row/column ops menu; otherwise a
                 size picker to insert one. The chevron signals the menu when the caret is in a table. */}
             {active.insideTable && !disabled ? (
-                <Dropdown menu={tableMenu} trigger={["click"]} placement="bottomLeft">
-                    <button
-                        type="button"
-                        title="Table options"
-                        aria-label="Table options"
-                        onMouseDown={(e) => e.preventDefault()}
-                        className={`${btnClass(false, false)} !w-auto gap-0.5 px-1`}
-                    >
-                        <TableIcon size={15} />
-                        <ChevronDown size={12} />
-                    </button>
-                </Dropdown>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button
+                            type="button"
+                            title="Table options"
+                            aria-label="Table options"
+                            onMouseDown={(e) => e.preventDefault()}
+                            className={`${btnClass(false, false)} !w-auto gap-0.5 px-1`}
+                        >
+                            <TableIcon size={15} />
+                            <ChevronDown size={12} />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        <DropdownMenuItem
+                            onMouseDown={keepEditorSelection}
+                            onSelect={() => runTableOp(() => $insertTableRowAtSelection(false))}
+                        >
+                            Insert row above
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onMouseDown={keepEditorSelection}
+                            onSelect={() => runTableOp(() => $insertTableRowAtSelection(true))}
+                        >
+                            Insert row below
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onMouseDown={keepEditorSelection}
+                            onSelect={() => runTableOp(() => $insertTableColumnAtSelection(false))}
+                        >
+                            Insert column left
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onMouseDown={keepEditorSelection}
+                            onSelect={() => runTableOp(() => $insertTableColumnAtSelection(true))}
+                        >
+                            Insert column right
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            onMouseDown={keepEditorSelection}
+                            onSelect={() => runTableOp(() => $deleteTableRowAtSelection())}
+                        >
+                            Delete row
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onMouseDown={keepEditorSelection}
+                            onSelect={() => runTableOp(() => $deleteTableColumnAtSelection())}
+                        >
+                            Delete column
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            variant="destructive"
+                            onMouseDown={keepEditorSelection}
+                            onSelect={deleteTable}
+                        >
+                            Delete table
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             ) : (
-                <Popover
-                    open={disabled ? false : tableOpen}
-                    onOpenChange={setTableOpen}
-                    trigger="click"
-                    placement="bottom"
-                    destroyTooltipOnHide
-                    content={<TableSizePicker onPick={insertTable} />}
-                >
-                    <button
-                        type="button"
-                        title="Insert table"
-                        aria-label="Insert table"
-                        disabled={disabled}
-                        onMouseDown={(e) => e.preventDefault()}
-                        className={btnClass(disabled, false)}
+                <Popover open={disabled ? false : tableOpen} onOpenChange={setTableOpen}>
+                    <PopoverTrigger asChild disabled={disabled}>
+                        <button
+                            type="button"
+                            title="Insert table"
+                            aria-label="Insert table"
+                            disabled={disabled}
+                            onMouseDown={(e) => e.preventDefault()}
+                            className={btnClass(disabled, false)}
+                        >
+                            <TableIcon size={15} />
+                        </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                        side="bottom"
+                        align="center"
+                        className="p-3"
+                        // antd left focus in the editor; keep the grid cells from being focused.
+                        onOpenAutoFocus={(e) => e.preventDefault()}
                     >
-                        <TableIcon size={15} />
-                    </button>
+                        <TableSizePicker onPick={insertTable} />
+                    </PopoverContent>
                 </Popover>
             )}
         </div>

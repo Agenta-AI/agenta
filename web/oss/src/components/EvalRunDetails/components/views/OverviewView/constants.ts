@@ -11,6 +11,3 @@ export const INVOCATION_METRIC_LABELS: Record<(typeof INVOCATION_METRIC_KEYS)[nu
     "attributes.ag.metrics.tokens.cumulative.total": "Tokens",
     "attributes.ag.metrics.errors.cumulative": "Errors",
 }
-
-export const DEFAULT_SPIDER_SERIES_COLOR = "#3B82F6"
-export const SPIDER_SERIES_COLORS = ["#3B82F6", "#2563EB", "#DC2626", "#7C3AED", "#16A34A"]

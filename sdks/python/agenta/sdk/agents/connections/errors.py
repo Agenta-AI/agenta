@@ -37,8 +37,36 @@ class EndpointResolutionError(ConnectionResolutionError):
     status_code = 422
 
 
+class MissingCredentialError(ConnectionResolutionError):
+    """Raised when an Agenta-managed connection has no usable credential."""
+
+    # The invoke remap reads `status_code` off the exception; without it this fell through to 500.
+    status_code = 422
+
+    def __init__(self, *, provider: str, slug: Optional[str] = None) -> None:
+        subject = (
+            f"connection '{slug}'" if slug else f"provider '{provider}' connection"
+        )
+        super().__init__(
+            f"{subject} has no usable credential; configure a credential or select "
+            "self_managed authentication"
+        )
+        self.provider = provider
+        self.slug = slug
+
+
+class InvalidConnectionConfigurationError(AgentConnectionError):
+    """Raised when resolved routing and credentials form an unsafe combination."""
+
+    # The invoke remap reads `status_code` off the exception; without it this fell through to 500.
+    status_code = 422
+
+
 class ConnectionNotFoundError(ConnectionResolutionError):
     """Raised when a named connection (``mode == agenta`` + ``slug``) does not exist."""
+
+    # A config naming a connection the project does not hold is a client error, not a server fault.
+    status_code = 422
 
     def __init__(self, *, slug: str, provider: Optional[str] = None) -> None:
         suffix = f" for provider '{provider}'" if provider else ""
@@ -58,6 +86,9 @@ class MissingProviderError(ConnectionResolutionError):
     NOT a tolerated self-managed/OAuth fallback case: the config itself is underspecified.
     """
 
+    # An underspecified model id is a client error, not a server fault.
+    status_code = 422
+
     def __init__(self, *, model: str, hint_provider: str = "openai") -> None:
         # The example provider in the hint is harness-appropriate: a Claude harness must read
         # "anthropic/<model>", never "openai/<model>" (Claude reaches Anthropic only). The
@@ -73,20 +104,34 @@ class MissingProviderError(ConnectionResolutionError):
 class AmbiguousConnectionError(ConnectionResolutionError):
     """Raised when more than one connection matches and resolution cannot pick one."""
 
-    def __init__(self, *, provider: str, slug: Optional[str] = None) -> None:
+    # A config that resolves to several connections is a client error, not a server fault. Without
+    # this the ambiguous case surfaced as a 500 while every other resolution failure read 422.
+    status_code = 422
+
+    def __init__(
+        self,
+        *,
+        provider: str,
+        slug: Optional[str] = None,
+        candidates: Optional[list[str]] = None,
+    ) -> None:
         if slug:
             message = (
                 f"ambiguous connection '{slug}' for provider '{provider}'; "
                 "connection names must be unique to resolve"
             )
         else:
+            # Name the candidates: "name one in the config" is only actionable if the user can see
+            # which names to choose from. Slugs are identifiers, never credential material.
+            choices = f" ({', '.join(sorted(candidates))})" if candidates else ""
             message = (
-                f"multiple connections for provider '{provider}'; "
+                f"multiple connections for provider '{provider}'{choices}; "
                 "name one in the config"
             )
         super().__init__(message)
         self.provider = provider
         self.slug = slug
+        self.candidates = list(candidates or [])
 
 
 class ProviderMismatchError(ConnectionResolutionError):
@@ -115,6 +160,9 @@ class UnsupportedProviderError(ConnectionResolutionError):
 
 class UnsupportedConnectionModeError(ConnectionResolutionError):
     """Raised when the requested connection mode cannot be used by the selected harness."""
+
+    # An unusable mode comes from the config, not from the server.
+    status_code = 422
 
     def __init__(self, *, mode: str, harness: Optional[str] = None) -> None:
         suffix = f" by harness '{harness}'" if harness else ""

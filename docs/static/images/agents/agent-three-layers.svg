@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 400" width="860" height="400" role="img" aria-label="An agent has three layers: the configuration you write (instructions, tools, skills, permissions and files), the harness that drives the work, and the model that produces the replies.">
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3f4550"/>
+    </marker>
+    <style>
+      .box { fill: #ffffff; stroke: #c9ced8; stroke-width: 1.5; }
+      .accent { fill: #fbf5e3; stroke: #d8c98f; stroke-width: 1.5; }
+      .group { fill: #f5f6f8; stroke: #d5dae2; stroke-width: 1.5; }
+      .pill { fill: #ffffff; stroke: #c9ced8; stroke-width: 1.2; }
+      .title { font: 600 16px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; fill: #1c1f26; }
+      .pilltext { font: 400 13px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; fill: #1c1f26; }
+      .label { font: 400 13px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; fill: #4a515e; }
+      .edge { stroke: #3f4550; stroke-width: 1.6; fill: none; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="860" height="400" rx="10" fill="#fcfcfd"/>
+
+  <!-- Configuration -->
+  <rect class="group" x="40" y="30" width="780" height="122" rx="10"/>
+  <text class="title" x="64" y="60">Your configuration</text>
+  <text class="label" x="212" y="60">what you build, and what you change over time</text>
+
+  <rect class="pill" x="64" y="80" width="140" height="46" rx="7"/>
+  <text class="pilltext" x="134" y="108" text-anchor="middle">Instructions</text>
+
+  <rect class="pill" x="220" y="80" width="120" height="46" rx="7"/>
+  <text class="pilltext" x="280" y="108" text-anchor="middle">Tools</text>
+
+  <rect class="pill" x="356" y="80" width="120" height="46" rx="7"/>
+  <text class="pilltext" x="416" y="108" text-anchor="middle">Skills</text>
+
+  <rect class="pill" x="492" y="80" width="150" height="46" rx="7"/>
+  <text class="pilltext" x="567" y="108" text-anchor="middle">Permissions</text>
+
+  <rect class="pill" x="658" y="80" width="138" height="46" rx="7"/>
+  <text class="pilltext" x="727" y="108" text-anchor="middle">Files</text>
+
+  <!-- Configuration -> Harness -->
+  <path class="edge" d="M 430 152 L 430 208" marker-end="url(#arrow2)"/>
+  <text class="label" x="444" y="184" text-anchor="start">loaded at the start of every session</text>
+
+  <!-- Harness -->
+  <rect class="accent" x="240" y="216" width="380" height="72" rx="8"/>
+  <text class="title" x="430" y="248" text-anchor="middle">Harness</text>
+  <text class="label" x="430" y="270" text-anchor="middle">runs the loop, calls the tools, manages the context</text>
+
+  <!-- Harness -> Model -->
+  <path class="edge" d="M 400 288 L 400 328" marker-end="url(#arrow2)"/>
+  <path class="edge" d="M 460 328 L 460 288" marker-end="url(#arrow2)"/>
+  <text class="label" x="386" y="312" text-anchor="end">messages</text>
+  <text class="label" x="474" y="312" text-anchor="start">reply</text>
+
+  <!-- Model -->
+  <rect class="box" x="240" y="332" width="380" height="52" rx="8"/>
+  <text class="title" x="430" y="364" text-anchor="middle">Model</text>
+</svg>

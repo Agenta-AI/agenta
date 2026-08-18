@@ -40,6 +40,16 @@ def test_service_default_is_the_bare_builder():
     assert _inspect_agent_default() == build_agent_v0_default()
 
 
+def test_config_fallback_agents_md_matches_the_platform_default():
+    # `agent/config.py` keeps a fallback copy of the default persona for runs where the
+    # editable files are missing; it must not drift from the SDK's single source (the
+    # persona now carries the self-naming guidance, so a stale copy would silently
+    # reintroduce the never-renames behavior live QA caught).
+    from oss.src.agent.config import DEFAULT_AGENTS_MD  # noqa: PLC0415
+
+    assert DEFAULT_AGENTS_MD == build_agent_v0_default()["instructions"]["agents_md"]
+
+
 def test_inspect_default_parses_into_the_runtime_selection():
     # The default the playground pre-fills on `/inspect` must parse cleanly into the same runtime
     # values `AgentTemplate.from_params` produces, so what the user sees is what the agent runs.
@@ -59,21 +69,42 @@ def test_inspect_default_parses_into_the_runtime_selection():
     assert config.permission_default == "allow_reads"
 
 
+def _authoring_extra_tools(tools: list) -> list:
+    """The build-kit authoring entries: platform ops and the reserved client-tool embeds."""
+    return [
+        tool
+        for tool in tools
+        if not isinstance(tool, dict)
+        or tool.get("type") == "platform"
+        or "@ag.embed" in tool
+    ]
+
+
 def test_authoring_extras_absent_from_every_published_default():
     # Platform tools, the authoring skill, and elevated sandbox permissions belong to the
-    # playground build-kit overlay, not to the published default template.
+    # playground build-kit overlay, not to the published default template. Pi's built-ins are
+    # not authoring extras (they are the shipped grant list), so they are asserted separately
+    # by `test_published_default_grants_pi_default_builtins`.
     inspect_default = _inspect_agent_default()
     builtin_default = _builtin_agent_default()
 
-    assert inspect_default["tools"] == []
+    assert _authoring_extra_tools(inspect_default["tools"]) == []
     assert "skills" not in inspect_default
     assert "permissions" not in inspect_default["sandbox"]
     assert "execute_code" not in inspect_default["sandbox"]
     assert "write_files" not in inspect_default["sandbox"]
 
-    assert builtin_default["tools"] == []
+    assert _authoring_extra_tools(builtin_default["tools"]) == []
     assert "permissions" not in builtin_default["sandbox"]
     assert "skills" not in builtin_default
+
+
+def test_published_default_carries_no_tool_entries():
+    """Built-in tools are activated by the runner on every Pi run, so they are not configured
+    here. A new agent can still read, run shell commands, and edit and write files wherever it
+    runs (issue #5590), without any entry in `tools`."""
+    assert _inspect_agent_default()["tools"] == []
+    assert _builtin_agent_default()["tools"] == []
 
 
 def test_harness_default_is_pi_core_in_every_source():

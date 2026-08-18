@@ -328,6 +328,16 @@ llm_v0_interface = WorkflowRevisionData(
                                 ),
                                 x_ag_type_ref="model",
                             ),
+                            # Mirrors `AgLLM.connection`: written beside the model by the picker,
+                            # hidden from the generic renderer, declared here because this schema
+                            # is closed too.
+                            "connection": ag_field(
+                                base=scalar(
+                                    jtype=["string", "null"],
+                                    description="Slug of the saved provider connection supplying the credential for this model. Absent resolves through the model's provider family.",
+                                ),
+                                x_ag_type="hidden",
+                            ),
                             "temperature": scalar(
                                 jtype="number", minimum=0.0, maximum=2.0
                             ),
@@ -756,6 +766,16 @@ auto_ai_critique_v0_interface = WorkflowRevisionData(
                         description="Model identifier to use for execution.",
                     ),
                     x_ag_type_ref="model",
+                ),
+                # Written by the model picker beside the model, never edited on its own, so it
+                # stays hidden from the generic renderer. Declared because the schema is closed
+                # (`additional_properties=False`) and the product stores it.
+                "connection": ag_field(
+                    base=scalar(
+                        jtype=["string", "null"],
+                        description="Slug of the saved provider connection supplying the credential for this model. Absent resolves through the model's provider family.",
+                    ),
+                    x_ag_type="hidden",
                 ),
                 "response_type": ag_field(
                     base=scalar(jtype="string", default="json_schema"),

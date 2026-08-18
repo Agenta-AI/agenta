@@ -1,10 +1,19 @@
 /** The schedule drawer's footer run-in-playground CTA (simulates a scheduled tick). */
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
+import {
+    Button,
+    Popover,
+    PopoverAnchor,
+    PopoverContent,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
-import {Button, Popover, Tooltip} from "antd"
 import {useSetAtom} from "jotai"
 
 // ---------------------------------------------------------------------------
@@ -58,32 +67,64 @@ export function RunInPlaygroundButton({
         onClose()
     }, [parsed.ok, preview, setPendingRun, onClose])
 
+    // Radix Popover has no hover trigger — antd's `trigger="hover"` is reproduced with
+    // manual enter/leave timers on the anchor AND the content (antd keeps the popover
+    // open while the pointer is over it; 100ms ≈ antd's mouseEnter/LeaveDelay of 0.1s).
+    const [open, setOpen] = useState(false)
+    const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const hover = useCallback((next: boolean) => {
+        if (hoverTimer.current) clearTimeout(hoverTimer.current)
+        hoverTimer.current = setTimeout(() => setOpen(next), 100)
+    }, [])
+
     if (disabled) {
         // A draft can't be tested until it exists as a saved schedule.
         return (
-            <Tooltip title="Create the schedule first to run it">
-                <span>
-                    <Button icon={<Play size={14} />} disabled>
-                        Run in playground
-                    </Button>
-                </span>
-            </Tooltip>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span>
+                            <Button variant="outline" disabled>
+                                <Play size={14} />
+                                Run in playground
+                            </Button>
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Create the schedule first to run it</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         )
     }
 
     return (
-        <Popover
-            placement="topRight"
-            title="Agent will receive"
-            content={
-                <pre className="m-0 max-h-[240px] max-w-[320px] overflow-auto whitespace-pre-wrap break-words text-[11px] leading-snug">
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverAnchor asChild>
+                <Button
+                    variant="outline"
+                    onClick={handleRun}
+                    onMouseEnter={() => hover(true)}
+                    onMouseLeave={() => hover(false)}
+                >
+                    <Play size={14} />
+                    Run in playground
+                </Button>
+            </PopoverAnchor>
+            <PopoverContent
+                side="top"
+                align="end"
+                className="p-3"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                onMouseEnter={() => hover(true)}
+                onMouseLeave={() => hover(false)}
+            >
+                {/* antd Popover `title`: label row above the content. */}
+                <div className="mb-2 text-xs font-medium text-[var(--ag-colorTextHeading)]">
+                    Agent will receive
+                </div>
+                <pre className="m-0 max-h-[240px] max-w-[320px] overflow-auto whitespace-pre-wrap break-words text-xs leading-snug">
                     {parsed.ok ? preview : "Inputs is not valid JSON."}
                 </pre>
-            }
-        >
-            <Button icon={<Play size={14} />} onClick={handleRun}>
-                Run in playground
-            </Button>
+            </PopoverContent>
         </Popover>
     )
 }

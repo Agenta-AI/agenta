@@ -225,7 +225,7 @@ const TextModeViewer = ({
             showToolbar={false}
             enableTokens={false}
             readOnly
-            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-input]:!text-[12.5px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
+            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-input]:!text-xs [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
         >
             <MarkdownModeSync isMarkdownView={mode === "text"} />
             <EditorWrapper
@@ -508,7 +508,7 @@ export const TraceSpanDrillInView = memo(
                                 icon={true}
                                 buttonText={null}
                                 stopPropagation
-                                size="small"
+                                size="icon-sm"
                             />
                         </div>
                     </div>
@@ -610,7 +610,7 @@ export const TraceSpanDrillInView = memo(
                                     >
                                         <div className="w-full flex items-start gap-1">
                                             <FileTextIcon size={16} className="shrink-0" />
-                                            <span className="text-[10px] truncate">
+                                            <span className="text-[12px] truncate">
                                                 {file.filename || `File ${index + 1}`}
                                             </span>
                                         </div>

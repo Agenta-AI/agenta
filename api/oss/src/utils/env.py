@@ -254,10 +254,31 @@ class ApiCachingConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class WorkflowsConfig(BaseModel):
+    """Workflow-revision behavior toggles."""
+
+    # The ordered-operations change set (agent-config-editing). ON is the default: the
+    # request model carries the ordered arm and the catalog advertises it. The variable
+    # is an escape hatch — set it falsy and the deployment falls back to the legacy
+    # surface, where only `set`/`remove` exist and a delta carrying `operations` is
+    # refused as an unknown field.
+    # The SDK reads this SAME variable in `agenta/sdk/agents/flags.py` to decide what to
+    # advertise to the model and what the build-an-agent skill teaches, and cannot import
+    # this parser. Its default and its accepted spellings must match this one in both
+    # directions, or the model is shown one payload shape while the server accepts
+    # another. Pinned by `oss/tests/pytest/unit/workflows/test_ordered_operations_flag.py`.
+    ordered_operations_enabled: bool = _parse_bool_env(
+        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", True
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
+    workflows: WorkflowsConfig = WorkflowsConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -496,10 +517,46 @@ class SessionsRecordsConfig(BaseModel):
 
     # When a record body exceeds the cap, preserve its structure + partial content (trim only
     # the large field values) instead of replacing the whole body with {"_truncated": True}.
-    # Off = legacy whole-body drop. On makes reconstruction from records higher-fidelity.
+    # Off = legacy whole-body drop, which loses the record's type and id and leaves the
+    # replayed tool card unable to settle. Default ON since 2026-08-11.
     smart_truncation: bool = (
-        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "false"
+        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "true"
     ).lower() in _TRUTHY
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class SessionAttachmentsConfig(BaseModel):
+    max_image_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_IMAGE_BYTES") or 10_485_760
+    )
+    max_audio_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_AUDIO_BYTES") or 15_728_640
+    )
+    max_document_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_DOCUMENT_BYTES") or 10_485_760
+    )
+    max_other_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_OTHER_BYTES") or 10_485_760
+    )
+    max_per_session_count: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_PER_SESSION_COUNT") or 1000
+    )
+    max_per_session_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_PER_SESSION_BYTES") or 268_435_456
+    )
+    max_pending_per_session: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_PENDING_PER_SESSION") or 20
+    )
+    pending_ttl_seconds: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_PENDING_TTL_SECONDS") or 900
+    )
+    unreferenced_ttl_seconds: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_UNREFERENCED_TTL_SECONDS") or 86_400
+    )
+    sweep_interval_seconds: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_SWEEP_INTERVAL_SECONDS") or 3_600
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -507,6 +564,7 @@ class SessionsRecordsConfig(BaseModel):
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
+    attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
 
     model_config = ConfigDict(extra="ignore")
@@ -633,7 +691,9 @@ class ComposioConfig(BaseModel):
     """Composio integration configuration"""
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
-    api_url: str = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+    api_url: str = os.getenv(
+        "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3.1"
+    )
     # Dev: when set, unknown-trigger drops log at WARNING instead of INFO.
     webhook_target: str | None = os.getenv("COMPOSIO_WEBHOOK_TARGET")
     # Override the registered webhook URL. Composio requires public HTTPS; in dev
@@ -1211,6 +1271,12 @@ class PostgresConfig(BaseModel):
     _user_q: str = quote_plus(user)
     _password_q: str = quote_plus(password)
 
+    # How long a checked commit waits for the variant row lock before it gives up. The
+    # wait must be bounded, or a stuck holder pins a connection for the whole pool.
+    commit_lock_timeout_ms: int = (
+        _parse_optional_positive_int_env("POSTGRES_COMMIT_LOCK_TIMEOUT_MS") or 5_000
+    )
+
     uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
         f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_core"
     )
@@ -1350,6 +1416,27 @@ class SessionsRedisConfig(BaseModel):
     concurrency_limit: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
         or 1000
+    )
+    # API-side only (SSE watch endpoint keep-alive cadence) — NOT part of the
+    # runner golden fixture; safe to tune without touching the TS side.
+    watch_heartbeat_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_HEARTBEAT_SECONDS")
+        or 15
+    )
+    # SSE `retry:` preamble — the browser's OWN auto-reconnect delay after a
+    # server-side drop (restart/deploy). Without it the interval is
+    # implementation-defined, and a restart reconnect-storms the API.
+    watch_retry_milliseconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_RETRY_MILLISECONDS")
+        or 5000
+    )
+    # API-side only (turn-supersession tombstones) — NOT part of the runner golden
+    # fixture; the runner never reads this key, it learns supersession from
+    # `is_current_turn`. Defaults to the alive TTL so a tombstone always outlives the
+    # lock whose displacement created it.
+    superseded_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_SUPERSEDED_TTL_SECONDS")
+        or 3600
     )
 
     model_config = ConfigDict(extra="ignore")

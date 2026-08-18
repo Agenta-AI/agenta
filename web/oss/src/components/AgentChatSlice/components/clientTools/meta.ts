@@ -9,7 +9,7 @@ import type {ToolUIPart} from "ai"
 import {hasClientToolHandler} from "./registry"
 import type {ClientToolMeta} from "./types"
 
-const SETTLED = new Set(["output-available", "output-error"])
+const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 const APPROVAL = new Set(["approval-requested", "approval-responded"])
 
 /** Friendly tool name: `tool-<name>` carries it in the type; `dynamic-tool` on `toolName`. */
@@ -59,12 +59,14 @@ export const isClientToolPart = (
 ): boolean => {
     const state = part.state as string
     if (APPROVAL.has(state)) return false
+    // An approval-gated part is `ToolActivity`'s: auto-settling it would erase the user's decision.
+    if ((part as {approval?: unknown}).approval != null) return false
     if ((part as {providerExecuted?: boolean}).providerExecuted === true) return false
 
     const meta = clientToolMeta(part, renderMap)
     if (hasClientToolHandler(meta)) return true
 
-    // Parked unknown client tool: the run ended with this part still unsettled.
+    // Keep this last-message-only so old parked parts are not auto-settled.
     const parkedUnsettled = !ctx.isStreaming && ctx.isLastMessage && !meta.settled
     return parkedUnsettled
 }
