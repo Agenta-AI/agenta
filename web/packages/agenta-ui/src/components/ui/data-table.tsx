@@ -340,14 +340,18 @@ export function DataTable<T>({
                                         onChange={(event) => search.onChange(event.target.value)}
                                         disabled={search.disabled}
                                     />
-                                    {/* 28px square, not a default-padded button: `Input.Search`
+                                    {/* 28px wide, not a default-padded button: `Input.Search`
                                         gives the button 27px and the field the other 233 of
-                                        the 260, and a text-sized button ate 45. */}
+                                        the 260, and a text-sized button ate 45.
+                                        `self-stretch h-auto` rather than a height: `Input`
+                                        DERIVES its height from padding + line-height (30px)
+                                        while `h-control` is 28, so a button honouring the
+                                        token sat 2px short and left a step at the seam. */}
                                     <Button
                                         variant="outline"
                                         aria-label={search.placeholder}
                                         disabled={search.disabled}
-                                        className="-ml-px w-7 shrink-0 rounded-l-none p-0"
+                                        className="-ml-px h-auto w-7 shrink-0 self-stretch rounded-l-none p-0"
                                         onClick={() => search.onChange(search.value)}
                                     >
                                         <MagnifyingGlass size={14} />
@@ -571,10 +575,13 @@ const RowActions = <T,>({items, record}: {items: ActionItem<T>[]; record: T}) =>
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
+                {/* 30x24, the desktop table's own trigger. At 28 tall it was the tallest thing
+                    in the row and set the row's height, making every table row 45px against
+                    prod's 41 — the other cells cap out at the 24px avatar. */}
                 <button
                     type="button"
                     aria-label="Row actions"
-                    className="flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                    className="flex h-6 w-[30px] cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
                 >
                     <DotsThreeVertical size={16} weight="bold" />
                 </button>

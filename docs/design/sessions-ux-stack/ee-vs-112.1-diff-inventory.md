@@ -606,6 +606,81 @@ signature is *whole rows absent* rather than *rows shifted*, and the check is on
 plus `curl localhost/api/health` — before believing any "missing element" finding, confirm the
 data behind it actually loaded.
 
+## 4d. Settings — second pass: all 14 sub-pages re-swept against the fixed build
+
+### Two more fixes
+
+- **Table rows were 4px taller than prod** (45 vs 41). Cause found by measurement, not guessing:
+  the row kebab was `size-7` (28×28) and, at 28px, was the tallest thing in the row — every
+  other cell caps out at the 24px avatar. Prod's trigger is **30×24**. **FIXED** → `h-6 w-[30px]`.
+- **The search button sat 2px short of its field**, leaving a visible step at the seam (spotted
+  by Arda, not by the harness — see the new `zoom.py` below). `Input` **derives** its height
+  from padding + line-height (30px) while the shared `h-control` token is **28px**, so a button
+  honouring the token can never match the field beside it. **FIXED** → `h-auto self-stretch`, so
+  the button takes the field's height whatever that resolves to.
+
+### The 14-page result
+
+content-top, dark, before → after the batch (light tracks dark within ~0.3pp throughout):
+
+| page | before | after | | page | before | after |
+|---|---|---|---|---|---|---|
+| account | 2.90% | **0.49%** | | triggers | 3.53% | **2.05%** |
+| organizationGeneral | 4.41% | **1.66%** | | webhooks | 3.04% | **0.58%** |
+| projects | 4.85% | **2.91%** | | organization | 2.06% | **0.29%** |
+| workspace (Members) | 3.51% | **0.63%** | | auditLog | 2.24% | **1.39%** |
+| llms | 5.20% | **2.52%** | | preferences | 5.50% | **4.37%** |
+| apiKeys | 5.07% | **3.01%** | | billing | 2.66% | **1.43%** |
+| secrets | 3.61% | **2.14%** | | tools | 3.56% | **1.64%** |
+
+Every page improved. The pages still above ~2% are the data-heavy ones (`apiKeys`, `projects`,
+`triggers`, `billing` — prod and local hold different records) plus `preferences`, which is not
+a styling problem at all:
+
+### Preferences is a COPY change, not drift — needs a product call (D-04 class)
+
+| PROD (112.1) | LOCAL (lane) |
+|---|---|
+| `Feature flags` | `Experiments` |
+| `Developer mode` | `Classic mode` |
+| "Show Prompts, Evaluation, Observability, and Registry in the navigation." | "Show all platform areas in the navigation." |
+| `System` | `System default` |
+
+112.2 touches no settings file, so these are the lane's own renames, not a release delta.
+Reverting them to prod would undo a deliberate decision, so they are flagged rather than fixed.
+The theme-picker cards are also **146px tall locally against prod's 158** — real drift, but not
+worth chasing while the section's copy is under review.
+
+### Interactive surfaces
+
+The row kebab opens the same single `Rename` item with the same icon and styling on both. One
+difference: local's menu is a fixed `w-[180px]` where prod's fits its content (~110px), so it
+extends ~154px further left. Minor, and the width is shared by every `DataTable` host, so it is
+recorded rather than changed unilaterally.
+
+### Harness: a FALSE PASS was shipping, and is now impossible
+
+`settings-tools.light` scored **0.00% whole-page** — a perfect match. It was not. `browse tab`
+silently no-ops during the daemon's transient "running but not responding" windows, so both
+captures came from the **same tab**: one environment shot twice. The tell is the rail's version
+stamp, the one region guaranteed to differ (`v0.112.1` vs `v0.112.2`) — it was pixel-identical.
+
+Three fixes, because a false PASS is worse than a false finding:
+
+1. `shot.sh` now switches, then **proves** the switch took by asserting the active URL, and
+   hard-fails rather than capturing the wrong environment.
+2. `vrt.py` refuses to score any pair whose version stamp is byte-identical, with a loud
+   message. Every existing pair was re-audited under this rule — `tools.light` was the only
+   bad one, and its real score is 1.70% / 1.33%.
+3. `resolve_tab` retries for ~30s instead of failing on the first empty `tabs` result, which
+   had been reporting "no prod tab open" on a perfectly healthy browser.
+
+Also added: `zoom.py` (magnified prod-over-local view of ONE box whether or not it differs —
+`regions.py` only renders boxes the diff already flagged, which is why a human caught the search
+seam first) and `press.sh` (Radix listens for `pointerdown`, not `click`, so a synthetic
+`.click()` left local's row menu shut next to a prod menu that opened — that would have been
+filed as "local's kebab does not work").
+
 ### Method note — prod and local are different accounts, so most body regions are DATA
 
 `apiKeys` reads 167 content-body regions and `triggers` 143, but opening the sheets shows
