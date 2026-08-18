@@ -573,9 +573,38 @@ between `Added` and the action gutter on local but not prod. Measuring both said
 `border-right: 1px` on each. Eyeballing a tile invented the difference; the measurement killed
 it.
 
+Verified in **both themes** after the batch:
+
+| strip | dark | light |
+|---|---|---|
+| sidebar | 0.09% | 0.09% |
+| content-top | 1.22% (was 3.51%) | 1.23% (was 3.61%) |
+| content-body | 0.01% | 0.00% |
+
 **Owed:** the other 13 sub-pages were captured and diffed against the OLD build. They share
 the fixed causes, so their numbers should move the same way, but that is a prediction, not a
 measurement — each still needs a re-sweep against the new build before this surface is closed.
+
+### New trap — a wedged local API invents "missing rows", and it survives the quiet gate
+
+The first light run read sidebar **1.59%**, content-top **4.56%**, content-body **2.24%** — on
+a strip that had measured 0.09% in dark minutes earlier, with no code between the two runs.
+The contact sheet showed prod's `Audit Log` against local's `Personal`, prod's
+`Access & Security` against local's `Audit Log`: the rail looked short by rows.
+
+It was not. The local API was returning **504s on `organizations` and `projects`** (console:
+`Failed to fetch organization … status code 504`), so `selectedOrg` never resolved and every
+entitlement-gated row — `Access & Security`, `Usage & Billing`, `Invite Teammate` — never
+rendered. `docker ps` said the container was up and `/api/health` answered 200; only the
+authenticated endpoints timed out. `agenta-ee-dev-api-1` had to be restarted (it first refused
+with *"PID … is zombie and can not be killed"*, exited 137, and came back on `docker start`).
+With a healthy API the same captures read 0.09% / 1.23% / 0.00%.
+
+**This is a second species of the mid-render trap and the quiet gate does NOT catch it:** the
+page was genuinely finished painting, it had simply finished painting the wrong thing. The
+signature is *whole rows absent* rather than *rows shifted*, and the check is one console read
+plus `curl localhost/api/health` — before believing any "missing element" finding, confirm the
+data behind it actually loaded.
 
 ### Method note — prod and local are different accounts, so most body regions are DATA
 
