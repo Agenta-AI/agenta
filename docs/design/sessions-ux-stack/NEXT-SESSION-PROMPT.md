@@ -1,112 +1,91 @@
-# Fresh-session prompt — post-112 visual parity, surfaces 2–6
+Read docs/design/sessions-ux-stack/NEXT-SESSION-PLAYGROUND.md and
+docs/design/sessions-ux-stack/ee-vs-112.1-diff-inventory.md §4f in full before doing anything.
+The handoff's §3 ("mistakes to not repeat") and §4 (112.2 is truth for four surfaces) are the
+parts that tell you how to work; read those twice.
 
-Copy everything below the line into a new session.
+Branch fix/post-112-reconcile, worktree sessions-ux. We are closing visual and functional gaps
+the mobile-extraction lane introduced, by comparing local EE dev against deployed prod v0.112.1.
+Settings is DONE and verified. Playground was left half-finished by the previous session and it
+made real errors — your first job is to clean that up, not to build on it.
 
----
+START HERE, in this order:
 
-Read `docs/design/sessions-ux-stack/VRT-SESSION-HANDOFF.md` and
-`docs/design/sessions-ux-stack/ee-vs-112.1-diff-inventory.md` in full before doing anything.
-The inventory's §4b (sidebar batch, closed) and its "Harness fixes" list are the parts that
-tell you how to work; read those twice.
+1. Verify or revert the last four commits. 5e312cd, 0aaf9d8, 92c9c03 landed on spot
+   measurements with NO VRT re-run. 6e84ff3 is explicitly PARTIAL and does not work. Each is
+   argued against the 112.x source in its commit message; check the argument holds AND that the
+   result is right on screen. Revert anything that does not survive. Do not stack on top first.
 
-Branch `fix/post-112-reconcile`, worktree `sessions-ux`. We are closing visual and functional
-gaps the mobile-extraction lane introduced, by comparing local EE dev against deployed prod
-v0.112.1. The sidebar is DONE (0.09% differing in light and dark, committed). Everything else
-in §9 is open.
+2. Fix the three defects Arda reported and I did not close:
+   a. Hide-config («) does nothing — 0.00% pixel change on click, measured. 6e84ff3 restored
+      112.1's configPanelCollapsedAtom reader in MainLayout and it is still dead. Trace whether
+      configCollapsed actually reaches the pane: paneSize={configCollapsed ? 0 : agentPaneSize}
+      and size={configCollapsed ? 0 : undefined} in MainLayout. Confirm the running build has
+      your change before concluding anything — the dev server was restarted mid-session.
+   b. The session rail's behaviour is not aligned with prod. Uninvestigated.
+   c. Prod embeds the file drawer as a PANEL on the right; local still has a drawer.
+      Uninvestigated.
+   b and c both live in the chat strip, which was never diffed once. That is the hole.
 
-**Source of truth, in this order:** if `origin/release/v0.112.2` addresses the gap, 112.2 wins;
-otherwise deployed v0.112.1 is truth. Check 112.2 explicitly for every gap before fixing —
-`git ls-tree origin/release/v0.112.2 <path>` and
-`git diff origin/release/v0.112.1 origin/release/v0.112.2 -- <path>`. Do not skip it. Half the
-sidebar findings changed shape once I checked.
+3. Then the rest of the surface: config-pane drill-ins (Model, Instructions, Tools, Skills,
+   Advanced, Subscriptions, Schedules, Files), agent creation, templates gallery, onboarding
+   canvas. After that: Chat (streaming, tool steps, approvals, elicitation), Sessions (tabs,
+   list, cards, rename, delete), Observability empty AND with data (D-03 and D-06 are open
+   leads there).
 
-**Do these surfaces in this order, one batch per surface:**
+Source of truth, in this order: if origin/release/v0.112.2 addresses the gap, 112.2 wins;
+otherwise deployed v0.112.1 is truth. Check 112.2 explicitly for every gap — Playground has 11
+files changed in 112.2 and four of them change what you see, so local differing from prod is
+CORRECT for the model picker width, Select text-align, the config scrollbar and the session-tag
+fill. The handoff §4 has the table. Also check the release PRs before calling anything
+deliberate: twice last session a lane change was classified from the rendered page and the
+source said the opposite (git show origin/release/v0.112.{0,1}:<path>, gh pr view <n>).
 
-1. **Settings pages** — every sub-page: Account, Organizations, Projects, Members, AI providers,
-   API Keys, Secrets, Tools, Triggers, Webhooks, Access & Security, Audit Log, Preferences,
-   Usage & Billing. The Members page already has open findings (V-01…V-07, D-11, D-14) — start
-   there and treat them as unverified leads, not facts.
-2. **Playground** — config pane drill-ins (Model, Instructions, Tools, Skills, Advanced,
-   Subscriptions, Schedules, Files), agent creation, templates gallery, onboarding canvas.
-3. **Chat** — streaming, tool steps, approvals, elicitation.
-4. **Sessions** — tabs, list, cards, rename, delete.
-5. **Observability** — empty AND with data: table, drawer, dashboard charts, filters. D-03 and
-   D-06 are open leads here.
+The workflow — no shortcuts. Per surface: put PROD in an exact named state -> screenshot -> put
+LOCAL in the same state -> screenshot -> run the VRT per strip -> open EVERY contact sheet ->
+collect ALL issues -> fix as ONE batch -> re-run that surface's VRT. Do not fix-one-verify-one.
+Capture every state axis: light AND dark, empty AND with-data, and each interactive surface
+open as its own classified shot. Slugs encode it: playground.dark.model-picker-open.
 
-## The workflow — no shortcuts
+CLICK EVERY CONTROL YOU CLAIM TO HAVE FIXED, and diff a screenshot before vs after the click.
+Last session reported the collapse control "restored" because it rendered with the right
+aria-label; it had never been clicked and was broken the whole time. Presence is not behaviour.
 
-Per surface: put PROD in an exact named state → screenshot → put LOCAL in the same state
-(seed the data if the state needs data) → screenshot → run the VRT **per strip** → open EVERY
-contact sheet → collect ALL issues → fix as ONE batch → re-run that surface's VRT.
+Environment. LOCAL http://localhost:3000 (web/ee, Next dev, this worktree). PROD
+https://eu.cloud.agenta.ai. Both projects are named 112-QA and are already LOCAL_BASE/PROD_BASE
+in env.sh. An agent exists in both, set to Anthropic / Haiku 4.5 — the default gpt-5.6-luna
+shows a "Connect key" notice on BOTH builds, which is state, not a defect. Prod drifted off that
+agent; re-open the same one on both before capturing. Viewport 1800x942 CSS — verify DPR before
+trusting any capture. Arda runs the dev server and the browser. Do not start, restart, or kill
+them. Ask.
 
-**Do not fix-one-verify-one.** Capture every state axis the page has: light AND dark, empty AND
-with-data, and each interactive surface (dropdown, tooltip, popover, drawer, modal) open as its
-own classified shot. Slugs encode it: `settings-members.dark.empty`,
-`playground.light.tools-dropdown-open`.
+Tooling — in scratchpad/qa112/, already hardened. Use it, don't rebuild it, and don't substitute
+improvised querySelectorAll filters for it: last session those gave four contradictory answers
+for one element in ten minutes. source env.sh first, then shot.sh <slug> <local|prod>
+[light|dark], vrt.py <slug> [strip], regions.py <slug> [max] [perSheet] [strip], zoom.py <slug>
+<x,y,w,h> [scale] (magnified prod-over-local of one box, whether or not it differs), press.sh
+<env> <js> (Radix listens for pointerdown, not click), go.sh <env> <label> <urlFragment>,
+keepalive.sh <min> (run backgrounded during gates; the daemon idles out at 1800s). Python is
+$SP/vrtenv/bin/python. Strips include sidebar, content*, config, config-top, chat.
 
-## Environment
+Traps — each already cost real time:
 
-- LOCAL `http://localhost:3000` (web/ee, Next dev, this worktree). PROD `https://eu.cloud.agenta.ai`.
-- Viewport 1800×942 CSS. **Verify DPR before trusting any capture** — the headed browser has
-  handed out both 1 and 2 in different sessions. The tooling derives it, but check.
-- **Arda runs the dev server and the browser. Do not start, restart, or kill them.** Ask.
+Diff per strip, never whole-page. Open every contact sheet. A mid-render capture invents
+findings; shot.sh gates on pixel-quiet. shot.sh also PROVES the tab switch took and vrt.py
+refuses to score a pair whose version stamp is byte-identical — a same-tab capture once scored a
+0.00% "perfect match"; do not defeat those guards. A wedged local API renders whole rows missing
+and survives the quiet gate — check the console and curl localhost/api/health before believing
+any "missing element" finding. Measure, don't guess tokens; sample the pixels then find the
+token holding that value. A name missing from oss/tailwind.config.ts falls through to a
+light-only hex dump and freezes at its light value in dark (colorSuccessText and colorFillAlter
+are still frozen and need palette.ts entries first). Theme colours: palette.ts -> pnpm
+generate:tailwind-tokens; never hand-edit generated files. Preflight is OFF, so a bare <button>
+renders Arial and UA button text-align centres labels. Ink bands beat getBoundingClientRect.
+LOCAL is a DEV build, PROD is PRODUCTION — dev overlays and sub-pixel glyph differences are not
+regressions. zsh does not word-split unquoted vars; write explicit commands. Browse-daemon:
+never closetab; never probe flags; $B status/tabs auto-spawn a headless daemon that blocks a
+relaunch (Mode: headed is the real browser, Mode: launched + about:blank is a stray you made);
+"running but not responding" is usually transient — check status before relaunching.
 
-## Tooling — in `scratchpad/qa112/`, already hardened. Use it, don't rebuild it
-
-`source env.sh` first. Then `shot.sh <slug> <local|prod> [light|dark]`,
-`vrt.py <slug> [strip]`, `regions.py <slug> [max] [perSheet] [strip]`. Python is
-`$SP/vrtenv/bin/python`. `strips.py` holds the named strips.
-
-It already handles: masking the Next.js dev badge, per-strip diffing, deriving DPR, resolving
-tabs by URL, and waiting for pixel-quiet before capturing. If you find yourself writing an
-ad-hoc probe script, stop — extend the harness instead.
-
-## Traps — every one of these already cost real time
-
-- **Diff per strip, never whole-page.** The same capture read 2.08% whole-page and 7.42% on the
-  sidebar strip. A big content block buries everything else.
-- **Open every contact sheet, not the top region.** 64 of 65 regions went unexamined once.
-- **A capture taken mid-render invents findings.** It produced a full page of phantom
-  "rows missing/shifted" results TWICE. The signature: local reports FEWER ink bands than prod
-  while a DOM read afterwards shows every row present. `shot.sh` now gates on pixel-quiet; if
-  you ever bypass it, re-shoot and confirm before believing a layout finding.
-- **Measure, don't guess tokens.** A `colorPrimaryBg` guess made the selected row worse. Sample
-  the pixels: a resting fill is tens of thousands of uniform px, so
-  `Counter(crop.getdata()).most_common()` gives the exact value on both builds. Then find the
-  token that already holds it — the rail's trio existed the whole time.
-- **Theme colours flow from `palette.ts` → `pnpm generate:tailwind-tokens`.** Never hand-edit
-  `theme-variables.css` or `antd-overrides.generated.ts`.
-- **Query the exact element the style question is about.** A computed-style check on `Back`
-  matched a wrapping `<div>` and nearly closed a real font bug as antialiasing.
-- **Preflight is OFF in this repo**, so a bare `<button>` does not inherit `font-family` and
-  renders Arial. This is a bug CLASS — check it on every extracted component you touch.
-- **Ink bands beat `getBoundingClientRect`.** Comparing rect `y` across builds compares an antd
-  `<li>` to our `<div>` and lies. Profile ink rows out of the PNG instead.
-- **LOCAL is a DEV build, PROD is PRODUCTION.** Dev-only overlays and React dev warnings are not
-  regressions. Sub-pixel glyph differences between the two builds are not either.
-- **`$B goto` is aborted by the SPA** on many routes. Navigate by clicking, then assert the URL.
-- **`$B screenshot --clip` is PAGE-relative.** Use `--viewport` or `--selector`.
-- **Query more than `<a>`.** Rows are often `<div>`s.
-
-### Browse-daemon rules (three browser teardowns came from breaking these)
-
-- **Never `closetab`.** Closing the active page tore down the whole headed context. Duplicate
-  tabs are harmless — `env.sh` resolves by URL.
-- **Never probe flags** (`$B viewport --help` killed the browser).
-- **`$B status`/`tabs` auto-spawn a headless daemon** when none exists, which then occupies the
-  slot a relaunch needs. `Mode: headed` = the real browser; `Mode: launched` + `about:blank` =
-  a stray one you created. Don't poll a dead browser; ask Arda.
-- **A failed `$B connect` overwrites `.gstack/browse.json`** and loses the live daemon's token,
-  after which the running browser is unreachable (`Unauthorized` on its port).
-- **Cookie import is not a route to a logged-in headless browser.** The sessions are not in
-  everyday Chrome and not in the persistent profile's cookie DB.
-- **A dying daemon looks exactly like a broken app.** Assert health in the same breath as any
-  "clicking does nothing" claim.
-
-## Before landing anything
-
-`pnpm lint-fix` in `web/`, then oss tsc
-(`pnpm --filter @agenta/oss exec tsc --noEmit -p tsconfig.json`), mobile tsc (same with
-`@agenta/mobile`), and the affected suites. Record findings in the inventory as you go — including
-the ones that turn out to be wrong, and why. Commit per surface; do not push unless asked.
-Never put Claude/Anthropic/Co-Authored-By in a commit message.
+Before landing: pnpm lint-fix in web/, oss tsc, mobile tsc, affected suites. Record findings in
+the inventory as you go — including the ones that turn out wrong, and why. Commit per surface;
+don't push unless asked. Never put Claude/Anthropic/Co-Authored-By in a commit message.
