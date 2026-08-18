@@ -94,6 +94,9 @@ const renameButton = () => document.querySelector<HTMLButtonElement>(".ant-btn-p
 const pressEnter = async (input: HTMLInputElement) => {
     await act(async () => {
         input.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
+        // rc-input locks Enter between keydown and keyup, so a keydown-only helper would
+        // silently no-op on the second press within a test.
+        input.dispatchEvent(new KeyboardEvent("keyup", {key: "Enter", bubbles: true}))
     })
 }
 
@@ -147,7 +150,7 @@ describe("useSessionActions rename", () => {
         expect(renameInput()).toBeNull()
     })
 
-    it("does not submit a blank name on Enter", async () => {
+    it("does not submit a blank name on Enter, and keeps the dialog open", async () => {
         const rename = await mountRename()
         await act(async () => {
             rename({sessionId: "session-1", appId: null, name: "Old name"})
@@ -158,6 +161,34 @@ describe("useSessionActions rename", () => {
         await pressEnter(input!)
 
         expect(setSessionHeader).not.toHaveBeenCalled()
+        // Nothing was renamed, so the dialog has to stay up for the name to be corrected.
+        expect(renameInput()).toBeTruthy()
+        expect(renameButton()?.disabled).toBe(true)
+
+        // And it recovers: typing a name re-enables Rename, and Enter then submits.
+        await type(renameInput()!, "New name")
+        expect(renameButton()?.disabled).toBe(false)
+        await pressEnter(input!)
+
+        expect(setSessionHeader).toHaveBeenCalledWith({
+            sessionId: "session-1",
+            projectId: "project-1",
+            name: "New name",
+        })
+        expect(renameInput()).toBeNull()
+    })
+
+    it("does not submit a blank name on the Rename button either", async () => {
+        const rename = await mountRename()
+        await act(async () => {
+            rename({sessionId: "session-1", appId: null, name: "Old name"})
+        })
+
+        await type(renameInput()!, "   ")
+        await act(async () => renameButton()?.click())
+
+        expect(setSessionHeader).not.toHaveBeenCalled()
+        expect(renameInput()).toBeTruthy()
     })
 
     it("runs Enter through onOk, so the button shows the rename in flight", async () => {

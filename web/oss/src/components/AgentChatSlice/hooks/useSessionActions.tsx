@@ -82,7 +82,12 @@ export const useSessionActions = () => {
             // reached through a marker class scoped to this dialog.
             const okClass = "rename-session-ok"
 
-            modal.confirm({
+            // A blank name is not a rename, so the button that performs it is disabled —
+            // which also makes Enter a no-op while the field is empty, and keeps the
+            // dialog open either way.
+            const okButtonProps = () => ({className: okClass, disabled: !next.trim()})
+
+            const dialog = modal.confirm({
                 title: "Rename session",
                 content: (
                     <Input
@@ -92,6 +97,7 @@ export const useSessionActions = () => {
                         className="mt-2"
                         onChange={(event) => {
                             next = event.target.value
+                            dialog.update({okButtonProps: okButtonProps()})
                         }}
                         // A one-field modal has to confirm on Enter; without this the only way
                         // out is the mouse.
@@ -104,7 +110,7 @@ export const useSessionActions = () => {
                     />
                 ),
                 okText: "Rename",
-                okButtonProps: {className: okClass},
+                okButtonProps: okButtonProps(),
                 onOk: async () => {
                     const title = next.trim()
                     if (!title) return
