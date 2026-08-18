@@ -695,6 +695,33 @@ seam first) and `press.sh` (Radix listens for `pointerdown`, not `click`, so a s
 `.click()` left local's row menu shut next to a prod menu that opened — that would have been
 filed as "local's kebab does not work").
 
+## 4e. Five findings the VRT reported and I did not read
+
+Arda found all five by looking at the pages. Two were **gaps the VRT had already flagged and I
+never opened**: Account's content-body read **7.01% — the largest body number in the whole
+sweep** — and `projects` 4.64%, and I wrote both off as "different records" without opening a
+contact sheet. That is the "64 of 65 regions went unexamined" trap in §6, repeated. The lesson
+is not "the harness missed it"; it is that ranking pages by percentage and reading five of
+fourteen is not coverage.
+
+| # | finding | kind | fix |
+|---|---|---|---|
+| 1 | Access & Security stacked **three** identical lock cards, one per entitlement | improvement | `AccessUpgradeNotice` already existed in the package for exactly this and was simply never wired up — the host rendered three `UpgradePrompt`s instead. Now ONE panel naming whichever of the three the plan excludes; `UpgradePrompt` shrinks to `UpgradePlanLink`, since routing must stay in the app. |
+| 2 | Projects and Organizations name columns lost their avatars | **gap** | 112.1 used `type: "entity"` for both, which renders `InitialsAvatar`. Same regression as Members (V-04), two more instances. Restored. |
+| 3 | Tools table had no per-tool artwork | improvement | The catalog already carries `logo` per integration and is already cached for the Connect drawer, so this is a lookup, not a fetch. Initials stand in when a tool has no logo, so text stays on one left edge. |
+| 4 | Secrets' actions sat at the **left** content edge | **gap** | `DataTable`: with no title there is no `flex-1` spacer, and with no search row nothing else pushed the group right, so a section with neither (Secrets) left-aligned its actions while every other table put them opposite. `sm:ml-auto` when there is no title. |
+| 5 | Account's delete panel painted a **pale pink box** in dark mode | **gap** | `bg-colorErrorBg` measured `rgb(251,231,231)` in dark while its border and title resolved correctly dark. `colorErrorBg` was missing from `oss/tailwind.config.ts`, whose own comment states the consequence: *"Any name NOT listed here falls through to antd-tailwind.json, a LIGHT-ONLY hex dump, and is frozen at its light value in dark."* Added, with `colorSuccessBg`. Now `rgb(44,22,24)` = the palette's dark `#2c1618`. |
+
+**The same hole, still open on two tokens.** Auditing every `bg-/text-/border-color*` utility used
+across `oss/src`, `packages` and `ee/src` against the var-backed list found four frozen tokens,
+not one. `colorErrorBg` and `colorSuccessBg` had generated vars and are fixed. **`colorSuccessText`
+and `colorFillAlter` have no `--ag-*` var generated at all**, so var-backing them would point at
+nothing — they need `palette.ts` entries first. Left open deliberately, recorded here.
+
+One copy nit introduced by #1: with all three features locked the combined sentence runs
+"…join this organization, verify the domains … and auto-join **and** connect an OIDC identity
+provider…". Grammatical, but long. Worth a copy pass on `AccessUpgradeNotice`.
+
 ### Method note — prod and local are different accounts, so most body regions are DATA
 
 `apiKeys` reads 167 content-body regions and `triggers` 143, but opening the sheets shows

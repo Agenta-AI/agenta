@@ -16,12 +16,14 @@ import {
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
-import {Tag} from "@agenta/ui/components/presentational"
+import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
 import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowClockwise, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
+
+import {useToolsIntegrations} from "./hooks/useToolsIntegrations"
 
 const AUTH_SCHEME_LABELS: Record<string, string> = {
     oauth: "OAuth",
@@ -201,13 +203,44 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
         )
     }, [connections, searchTerm])
 
+    // The catalog is already cached for the Connect drawer, so this is a lookup, not a fetch.
+    const {integrations} = useToolsIntegrations()
+    const logoFor = useCallback(
+        (key?: string | null) =>
+            (key && integrations.find((integration) => integration.key === key)?.logo) || undefined,
+        [integrations],
+    )
+
     const columns = useMemo<DataTableColumn<ToolRow>[]>(
         () => [
             {
                 key: "name",
                 title: "Name",
                 width: 200,
-                render: (record) => <span>{record.name || record.slug}</span>,
+                render: (record) => {
+                    const label = record.name || record.slug || "—"
+                    const logo = logoFor(record.integration_key)
+                    return (
+                        <div className="flex min-w-0 items-center gap-2">
+                            {/* The catalog's own artwork, so a connection reads as the app it
+                                is. Initials stand in when the catalog has no logo, which keeps
+                                every row's text on the same left edge. */}
+                            {logo ? (
+                                <img
+                                    src={logo}
+                                    alt=""
+                                    aria-hidden
+                                    className="size-6 shrink-0 rounded object-contain"
+                                />
+                            ) : (
+                                <InitialsAvatar size="small" name={label} />
+                            )}
+                            <span className="truncate" title={label}>
+                                {label}
+                            </span>
+                        </div>
+                    )
+                },
             },
             {
                 key: "integration_key",
@@ -245,7 +278,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                         : "-",
             },
         ],
-        [],
+        [logoFor],
     )
     return (
         <>

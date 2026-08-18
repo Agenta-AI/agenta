@@ -120,6 +120,11 @@ const themeAwareColors = {
     colorErrorText: v("colorErrorText"),
     colorError: v("colorError"),
     colorErrorBorder: v("colorErrorBorder"),
+    // Missing here, `bg-colorErrorBg` froze at light `#f9e5e5` — the Account page's
+    // delete-account panel painted a pale pink box with white body text on it in dark mode,
+    // while its border and title (both listed above) resolved correctly dark.
+    colorErrorBg: v("colorErrorBg"),
+    colorSuccessBg: v("colorSuccessBg"),
     // Any name NOT listed here falls through to antd-tailwind.json, a LIGHT-ONLY hex dump,
     // and is frozen at its light value in dark. That is how the slider's dark track broke.
     colorInfo: v("colorInfo"),

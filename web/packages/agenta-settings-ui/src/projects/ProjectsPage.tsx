@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {message} from "@agenta/ui/app-message"
-import {Tag} from "@agenta/ui/components/presentational"
+import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
 import {
     Button,
     DataTable,
@@ -188,7 +188,12 @@ export const ProjectsPage = ({
                 width: 260,
                 render: (record) => (
                     <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium">{record.project_name}</span>
+                        {/* The identity column carries an avatar on every other settings
+                            table; the extraction dropped it here and on Organizations. */}
+                        <InitialsAvatar size="small" name={record.project_name} />
+                        <span className="truncate font-medium" title={record.project_name}>
+                            {record.project_name}
+                        </span>
                         {record.is_default_project ? <Tag className="m-0" label="Default" /> : null}
                     </div>
                 ),

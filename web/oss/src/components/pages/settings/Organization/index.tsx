@@ -17,8 +17,10 @@ import {
 } from "@agenta/entities/organization"
 import {
     AccessControlsSection,
+    AccessUpgradeNotice,
     DomainsSection,
     SsoProvidersSection,
+    type AccessFeature,
     type AuthFlagKey,
 } from "@agenta/settings-ui"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
@@ -30,7 +32,7 @@ import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {useOrgData} from "@/oss/state/org"
 
-import {UpgradePrompt} from "./UpgradePrompt"
+import {UpgradePlanLink} from "./UpgradePrompt"
 
 const {Text} = Typography
 
@@ -503,6 +505,20 @@ const Organization: FC = () => {
 
     return (
         <div className="flex w-full flex-col gap-8">
+            {/* ONE notice for however many of the three the plan excludes. They are gated
+                together in practice, so three identical lock cards stacked down the page said
+                the same thing three times. */}
+            <AccessUpgradeNotice
+                locked={
+                    [
+                        hasAccessControl ? null : "access",
+                        hasDomains ? null : "domains",
+                        hasSSO ? null : "sso",
+                    ].filter(Boolean) as AccessFeature[]
+                }
+                action={<UpgradePlanLink />}
+            />
+
             {hasAccessControl ? (
                 <AccessControlsSection
                     flags={selectedOrg.flags}
@@ -512,12 +528,7 @@ const Organization: FC = () => {
                     hasActiveVerifiedProvider={hasActiveVerifiedProvider}
                     hasVerifiedDomain={hasVerifiedDomain}
                 />
-            ) : (
-                <UpgradePrompt
-                    title="Access Controls"
-                    description="Control how members sign in and who can join this organization."
-                />
-            )}
+            ) : null}
 
             {hasDomains ? (
                 <section>
@@ -574,12 +585,7 @@ const Organization: FC = () => {
                         </Form>
                     </Modal>
                 </section>
-            ) : (
-                <UpgradePrompt
-                    title="Verified Domains"
-                    description="Verify domains your organization owns, then use them for access rules and auto-join."
-                />
-            )}
+            ) : null}
 
             {hasSSO ? (
                 <section>
@@ -740,12 +746,7 @@ const Organization: FC = () => {
                         </Form>
                     </Modal>
                 </section>
-            ) : (
-                <UpgradePrompt
-                    title="SSO Providers"
-                    description="Connect an OIDC identity provider so members sign in through single sign-on (SSO)."
-                />
-            )}
+            ) : null}
         </div>
     )
 }

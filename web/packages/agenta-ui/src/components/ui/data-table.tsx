@@ -313,12 +313,21 @@ export function DataTable<T>({
                         <div className="flex min-h-control flex-wrap items-start gap-2">
                             {title ? <div className="min-w-0 flex-1">{title}</div> : null}
                             {title || !hasFilterRow ? (
-                                <>
+                                // Without a title there is no flex-1 spacer, so `ml-auto` is
+                                // what keeps the actions on the right. A section with neither
+                                // title nor search (Secrets) was left-aligning them against the
+                                // content edge while every other table put them opposite.
+                                <div
+                                    className={clsx(
+                                        "flex flex-wrap items-start gap-2 max-sm:w-full",
+                                        !title && "sm:ml-auto",
+                                    )}
+                                >
                                     {reloadButton ? (
                                         <div className="shrink-0">{reloadButton}</div>
                                     ) : null}
                                     {primaryGroup}
-                                </>
+                                </div>
                             ) : null}
                         </div>
                     ) : null}

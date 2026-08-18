@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 import {useMemo} from "react"
 
 import type {Org} from "@agenta/entities/organization"
-import {Tag} from "@agenta/ui/components/presentational"
+import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
 import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowsLeftRight, PencilSimpleLine, Plus, SignOut, Trash} from "@phosphor-icons/react"
 
@@ -68,14 +68,20 @@ export const OrganizationsPage = ({
                 key: "name",
                 title: "Organization",
                 width: 280,
-                render: (record) => (
-                    <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium">
-                            {record.name ?? record.slug ?? record.id}
-                        </span>
-                        {record.id === selectedOrgId ? <Tag>Current</Tag> : null}
-                    </div>
-                ),
+                render: (record) => {
+                    const name = record.name ?? record.slug ?? record.id
+                    return (
+                        <div className="flex min-w-0 items-center gap-2">
+                            {/* The identity column carries an avatar on every other settings
+                                table; the extraction dropped it here and on Projects. */}
+                            <InitialsAvatar size="small" name={name} />
+                            <span className="truncate font-medium" title={name}>
+                                {name}
+                            </span>
+                            {record.id === selectedOrgId ? <Tag>Current</Tag> : null}
+                        </div>
+                    )
+                },
             },
             // Its own copyable column, not a tag beside the page title.
             {key: "id", title: "Organization ID", width: 330, mono: true, render: (r) => r.id},
