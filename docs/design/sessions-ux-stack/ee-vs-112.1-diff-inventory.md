@@ -1292,6 +1292,28 @@ Worth recording as method, because I nearly filed each one:
 Both are the same lesson in different clothes: a **single observation of an async surface is
 not an observation.** Sample it over time, then decide.
 
+### O-00 — DO NOT re-enable the drawer's direct open until O-01 is fixed
+
+I tried the obvious fix — have the row click call `openTraceDrawerAtom` directly, the way every
+other opener in the app does — and it made things **worse**: on Arda's machine the drawer opened,
+the `?trace=` param stuck, closing it did not stick, and **the page froze**. Reverted
+(`ec8bb61`).
+
+The mechanism, from `syncTraceStateFromUrl`:
+
+    if (currentDrawerState.open && currentTraceId === traceParam) return
+    if (!currentDrawerState.open) drawerOpenedViaUrl = true
+    store.set(openTraceDrawerAtom, {...})     // ← re-opens
+
+While `?trace=` is in the URL and the drawer is CLOSED, **every** `syncUrlState` call re-opens
+it. Closing calls `traceDrawerClearParams()` → a navigation → `syncUrlState` → and if the param
+did not actually clear (the same broken navigation as O-01), the sync sees the param with the
+drawer closed and re-opens. Close → navigate → sync → re-open, forever. That is the freeze.
+
+Before the change the drawer never opened, so the loop never armed. **The URL write/clear is the
+root defect and has to be fixed first.** Any change that makes the drawer open while the params
+are unreliable arms a close/reopen loop that hangs the tab.
+
 ### O-01 — the open trace is not reflected in the URL — **CONFIRMED, not fixed**
 
 The one real difference, reproducible across every sample:
