@@ -11,7 +11,7 @@ import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {UploadSimple} from "@phosphor-icons/react"
 import {type FileUIPart, type UIMessage} from "ai"
-import {Modal} from "antd"
+import {App, Modal} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
@@ -51,6 +51,7 @@ import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
 import {useVoiceComposer} from "./hooks/useVoiceComposer"
+import {pendingRewindRerunAtom, rewindForkAtomFamily} from "./state/rewindFork"
 import {useChatScopeKey} from "./state/scope"
 import {clearSessionFresh} from "./state/sessionEphemera"
 import {
@@ -517,6 +518,27 @@ const AgentConversation = ({
 
     handleSubmitRef.current = handleSubmit
 
+    const rewindFork = useSetAtom(rewindForkAtomFamily(scopeKey))
+    const {message: notify} = App.useApp()
+
+    // The assistant-side rewind ("re-run this turn") lands here: the fork mounts holding the prefix,
+    // whose last message is the user turn to re-run, and fires it once. `regenerate` with no id
+    // re-requests from that trailing user message (the AI SDK keeps a user message in place).
+    // Consumed once — clearing the slot is what stops it re-firing, as with `pendingSessionOpen`.
+    const pendingRerun = useAtomValue(pendingRewindRerunAtom)
+    const setPendingRerun = useSetAtom(pendingRewindRerunAtom)
+    const rerunConsumedRef = useRef(false)
+    useEffect(() => {
+        if (pendingRerun !== sessionId || rerunConsumedRef.current) return
+        // A prefix that doesn't end in a user turn has nothing to re-run; drop the request.
+        const tail = messagesRef.current[messagesRef.current.length - 1]
+        rerunConsumedRef.current = true
+        setPendingRerun(null)
+        if (tail?.role !== "user") return
+        scrollIntent.follow()
+        regenerate().catch(ignoreStreamRejection)
+    }, [pendingRerun, sessionId, setPendingRerun, regenerate, messagesRef])
+
     const handleRewind = useCallback(
         (message: UIMessage) => {
             const msgs = messagesRef.current
@@ -526,14 +548,23 @@ const AgentConversation = ({
             const isUser = message.role === "user"
             const sideEffects = sideEffectingToolsInRange(msgs.slice(idx))
 
+            // Fork rather than truncate in place. Dropping the tail locally is undone twice over:
+            // the durable record log is append-only, so the next hydration/revalidation re-adopts
+            // the rewound turns, and the runner answers a re-send from its OWN session transcript,
+            // so the agent still remembers them. A new session id is the only lever both honour —
+            // see `state/rewindFork.ts`.
             const run = () => {
-                if (isUser) {
-                    setMessages(msgs.slice(0, idx))
-                    richInputRef.current?.setMarkdown(messageText(message))
-                    requestAnimationFrame(() => richInputRef.current?.focus())
-                } else {
-                    regenerate({messageId: message.id}).catch(ignoreStreamRejection)
-                }
+                rewindFork({
+                    fromSessionId: sessionId,
+                    messages: msgs.slice(0, idx),
+                    // A user turn re-opens for editing; an assistant turn re-runs the turn as-is
+                    // (its user message, attachments included, is the prefix's last message).
+                    draft: isUser ? messageText(message) : undefined,
+                    rerun: !isUser,
+                })
+                // The tab is now a DIFFERENT session; say where the original went, or it reads as
+                // a conversation that vanished.
+                notify.info("Rewound into a new chat — the original is in History")
             }
 
             if (sideEffects.length > 0) {
@@ -551,7 +582,7 @@ const AgentConversation = ({
                 run()
             }
         },
-        [regenerate, setMessages, modal],
+        [rewindFork, sessionId, modal, notify],
     )
 
     // Group the ACTIVE turn (the last user message + its response) into one wrapper that carries the

@@ -34,6 +34,7 @@ import {getMessageTraceId} from "../assets/trace"
 import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
+import {clearUnloggedHistory, hasUnloggedHistory} from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
     sessionMessagesAtom,
@@ -116,6 +117,9 @@ export const useAgentChatSession = ({
                 prepareSendMessagesRequest: async ({messages, id}) => {
                     const req = await buildAgentRequest(entityIdRef.current, messages, {
                         sessionId: id ?? sessionId,
+                        // A rewind fork's kept prefix was logged under the OLD session id, so this
+                        // session's record log can't rebuild it — send the transcript instead.
+                        replayHistory: hasUnloggedHistory(id ?? sessionId),
                     })
                     if (!req) {
                         throw new Error(
@@ -173,6 +177,9 @@ export const useAgentChatSession = ({
         // the runner awaits its `is_running: false` heartbeat BEFORE closing this stream
         // (services/runner/src/server.ts `aliveWatchdog.release()`), so the flag is already cleared.
         onFinish: ({message}) => {
+            // The fork's prefix has now reached the runner, whose own session continuity carries it
+            // from here — later turns go back to sending just the trailing message.
+            clearUnloggedHistory(sessionId)
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)

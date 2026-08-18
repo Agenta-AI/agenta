@@ -52,6 +52,16 @@ describe("shouldAdoptServerTranscript", () => {
         ).toBe(false)
     })
 
+    it("keeps a rewind fork's local prefix, which its own record log will never hold", () => {
+        // A fork's durable log starts at the re-sent turn; the turns kept from before the rewind
+        // live only in this browser. The floor is what stops a catch-up from erasing them.
+        expect(
+            shouldAdoptServerTranscript(
+                input({serverMessageCount: 2, localMessageCount: 6, watermark: undefined}),
+            ),
+        ).toBe(false)
+    })
+
     it("never clobbers a live local stream", () => {
         expect(shouldAdoptServerTranscript(input({busy: true}))).toBe(false)
         // Even a far-ahead server copy waits for the stream to settle.
