@@ -4,7 +4,7 @@ import {
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
-import {generateId} from "@agenta/shared/utils"
+import {generateId, isValidUUID} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
 import {atomFamily, atomWithStorage, createJSONStorage, selectAtom} from "jotai/utils"
@@ -230,6 +230,49 @@ export const archivedSessionHistoryAtomFamily = atomFamily((key: string) =>
         return [...list].sort((a, b) => sessionActivity(b) - sessionActivity(a))
     }),
 )
+
+/** Session ids that hold at least one persisted message. Derived from the message map so a turn
+ * appending to a session already known to have messages doesn't invalidate consumers below that
+ * only need message PRESENCE, not the messages themselves. */
+const sessionIdsWithMessagesAtom = selectAtom(
+    sessionMessagesAtom,
+    (messages) => {
+        const ids = new Set<string>()
+        for (const [id, list] of Object.entries(messages)) {
+            if (list.length) ids.add(id)
+        }
+        return ids
+    },
+    (a, b) => a.size === b.size && [...a].every((id) => b.has(id)),
+)
+
+/**
+ * Newest local activity per agent, keyed by app id — the sidebar's recency ordering reads it
+ * alongside the server's session window, which lags behind a stale time.
+ *
+ * Husks don't count: opening a playground seeds a blank tab, and "visited" is not "used". Nor do
+ * scopes that name no agent (`__global__`, `drawer:<id>`, `onboarding`).
+ */
+export const localAgentActivityAtom = atom<Record<string, number>>((get) => {
+    const withMessages = get(sessionIdsWithMessagesAtom)
+    const activity: Record<string, number> = {}
+    for (const [key, sessions] of Object.entries(get(sessionsByAppAtom))) {
+        if (!isValidUUID(key)) continue
+        let newest = 0
+        for (const s of sessions) {
+            // Used, not merely visited. Mirrors `!isSessionHusk`, with message presence read from
+            // the narrowed set above so an ongoing turn's appends don't invalidate this atom.
+            const used =
+                s.lastMessageAt ||
+                s.serverKnown ||
+                Boolean(s.title?.trim()) ||
+                withMessages.has(s.id)
+            if (used) newest = Math.max(newest, sessionActivity(s))
+        }
+        if (newest > 0) activity[key] = newest
+    }
+    return activity
+})
 
 /** Sessions shown as tabs for a scope, in tab order. Archived sessions are hidden even if a stale
  * open-tab id lingers (e.g. archived on another device — the reconciler flips the flag). */
