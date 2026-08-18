@@ -930,6 +930,69 @@ shows up as a region. Recorded so it is not re-measured.
 - `chatPanelMaximizedAtom` was a plain `atom(false)` in 112.1; HEAD persists it
   (`atomWithStorage("agenta:chat:panel-maximized")`). Moot while the switch is parked.
 
+### P-06 — the « collapse button is 30px wide, prod's is 24 — **FIXED**
+
+Same glyph, same 24px height, but the kit's `size="small"` keeps its `px-btn-sm` (7px) side
+padding on an icon-only button, where prod's antd icon-only button is square. `!w-6 !px-0`
+on the one call site. Measured after: local 24×24 at x=656, prod 24×24 at x=655 (the 1px is
+P-04).
+
+### Deliberate, verified against the source — the inline agent rename
+
+Local's page header carries an `opacity-0 hover:opacity-100` pencil (`aria-label="Rename
+agent"`, `AgentNameInline`) that prod has no counterpart for. It arrived on 2026-08-15,
+after the 112 line, so it is lane work rather than drift. Invisible at rest, so it costs the
+comparison nothing.
+
+## 4h. Observability — D-03 and D-06 both resolved, neither is a lane regression
+
+Both builds now have trace data in `112-QA`, so this is a real comparison rather than an
+empty-vs-full one.
+
+### D-03 — the empty state's table header — **NOT a regression; the overflow is on prod too**
+
+Reproduced deliberately by filtering to zero rows (search `zzqqnotexist9` + Enter) on both:
+prod renders **no `<th>` at all**, local renders all 8. That much is real — and it is a
+documented lane decision, not a drop. `ObservabilityTable` says so in place:
+
+> "The empty state renders INSIDE the table rather than replacing it, so the header and its
+> controls stay put instead of vanishing with the rows."
+
+112.2 branches on `isEmptyState` and swaps the whole table for `EmptyObservability`; HEAD
+passes it as the table's `locale.emptyText`. A design change with a stated reason.
+
+The other half of D-03 — "and it overflows the viewport" — is **not local's doing**.
+Measured with data on both: `clientWidth` 1415 vs `scrollWidth` 1927 on **prod**, 1416 /
+1920 on local, with every column at the same x (Name 369/368, Inputs 569/568, … Status
+2019/2018). The trace table overflows identically on both builds. What the empty state adds
+is only that you see the clipped header with no rows to justify it.
+
+### D-06 — the search field — **NOT a difference in size; the affordance change is deliberate**
+
+Both fields are **320px at x=370**. My first measurement said "prod 320 / local 699" and was
+wrong: `input.closest("div")` climbs to a different ancestor on the two builds (prod's antd
+`Input.Search` wraps the input in an affix span inside a compact space; the kit's
+`SearchInput` is one span). Comparing `className` at each level is what caught it — a
+reminder that a measurement across two different component trees has to be anchored to the
+element, not to a hop count.
+
+The genuine difference: prod's antd `Input.Search` appends a magnifier BUTTON (input 253 of
+a 293 affix wrapper, +27px button); the kit's `SearchInput` puts the icon inside the field
+(input 278 of 320). That is the same de-antd swap as the rest of the app.
+
+### Ruled out — the "Span type" column
+
+Local rendered an extra `Span type` column, pushing `Cost` off-screen. It is `defaultHidden:
+true` in BOTH 112.2 and HEAD, byte-identical. The cause was local's persisted
+`observability-table-columns` = `["key"]` (meta version 2) — a column the browser had been
+told to un-hide. Prod has no such key. Clearing it gives both builds the identical header
+set: Name · Inputs · Outputs · Duration · Cost · Usage · Timestamp · Status.
+
+**Trap worth keeping:** per-table column visibility persists to localStorage under a
+plain key with no environment in it, so a local build carries a preference prod never had.
+Check `Object.keys(localStorage)` for the table's storage key before filing any
+"column set differs" finding.
+
 ### Still untouched on this surface
 
 Config drill-ins past Model (Instructions, Tools, Skills, Advanced, Subscriptions,

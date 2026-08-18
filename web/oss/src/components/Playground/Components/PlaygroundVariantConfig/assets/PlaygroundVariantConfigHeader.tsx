@@ -218,6 +218,9 @@ const PlaygroundVariantConfigHeader = ({
                             aria-label="Hide configuration"
                             icon={<CaretDoubleLeft size={14} />}
                             onClick={handleCollapseConfigPanel}
+                            // Square 24px, like prod's icon-only antd button — the kit's `small`
+                            // keeps its 7px side padding, which made this one 30px wide.
+                            className="!w-6 !px-0"
                         />
                     </SimpleTooltip>
                 }
