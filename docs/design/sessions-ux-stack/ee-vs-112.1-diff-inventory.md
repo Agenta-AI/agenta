@@ -768,6 +768,7 @@ you SEE. **Local will differ from prod on each of these and it is correct:**
 | model picker width | fixed `providerDropdownWidth={560}`, connection column 290 | `max(calc(var(--radix-popover-trigger-width) - 0.5rem), 460px)`, column 200. **Measured live: prod 568px, local 468px.** |
 | every `Select` trigger | UA `button{text-align:center}` centres the label — preflight is off | `text-left` added, plus the value slot scoped so the chevron stops floating mid-trigger |
 | config pane scrollbar | custom `OverlayScrollbar` component | removed in favour of `ag-scroll-no-bar` |
+| Instructions section | a disabled `+` ("Multiple instruction files coming soon") | removed outright (9 lines cut from `AgentTemplateControl`) |
 | selected session tag | `bg-colorFill` | `bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)]` |
 
 ### New-agent flow, driven end to end on both
@@ -824,6 +825,121 @@ them. Writing to production to match is not an option, so for data-bearing pages
 comparison is restricted to chrome (header, toolbar, table header, empty state) — stated here
 so a later reader does not mistake the silence for coverage. The chrome findings above were
 confirmed on `members`, `account`, `preferences`, `llms` and `triggers` independently.
+
+## 4g. Playground — second pass: the four commits re-checked, and the chat strip finally read
+
+The pair is now a genuinely matched one: prod `01a01513-63df-…` and local
+`01a01513-541a-…`, both named `New agent`, both Anthropic / Haiku 4.5, both with the same
+`AGENTS.md` (139 words) and no tools/skills. Finding it mattered — the first run of this
+pass compared prod's `gpt-5.6-luna` agent against local's Haiku one and read **32.70%** on
+the config strip. With the pair matched it reads **2.72%**, and every remaining region is
+either a known 112.2 change or data.
+
+### The previous session's four commits: three verified, one wrongly disowned
+
+| commit | verdict |
+|---|---|
+| `5e312cd` header 48→41px | **holds.** The header rows are pixel-identical to prod (residual 0 after the global 1px offset below). |
+| `0aaf9d8` drop Deploy + kebab, restore « | **holds.** Both builds render `Commit` + a 24px « in the same place. |
+| `92c9c03` re-park Build/Chat | **holds.** No mode switch renders locally, matching prod. |
+| `6e84ff3` MainLayout's collapse reader — committed as "PARTIAL — does not work" | **WRONG. It works.** |
+
+`6e84ff3`'s own message is the error, not the code. Measured this session: with the pane
+open, pressing « takes the split pane's `flex-basis` **440px → 0px**, flips
+`agenta:chat:config-panel-collapsed` to `true`, and changes **10.21% of the viewport's
+pixels**. The reader restored in that commit is exactly what makes it work. The previous
+session measured 0.00% because the dev build had not yet picked the edit up — the same
+trap in the opposite direction from "presence is not behaviour": *absence of a rendered
+change is not absence of a fix*, until you have confirmed the build is the one you edited.
+
+What was really broken was the RETURN trip, which nobody had tried (see P-02).
+
+### P-02 — "Show configuration" (») has no render site: collapsing is one-way — **FIXED**
+
+`ShowConfigPanelButton` exists, compiles, and is imported by nothing. In 112.0–112.2 it is
+`leftExtra` on the session bar; the sessions-ui extraction moved the strip to
+`@agenta/sessions-ui/SessionTabStrip`, which has an `extra` slot but no leading one, and the
+prop was dropped rather than ported. So « collapsed the config pane and left no way back.
+
+Fixed by giving `SessionTabStrip` a `leadingExtra` slot and forwarding `leftExtra` into it.
+Verified by clicking » : the pane returns, **10.20%** of pixels change.
+
+### P-03 — Files opens as an overlay drawer; prod docks it as a pane — **FIXED**
+
+Prod: the bar's « docks a full-height **resizable pane** right of the chat column (header
+`» ⌂ root … ⋯`, body "This drive is empty"), pushing the tab bar and composer aside. Local:
+a drawer overlaying the conversation. `AgentChatPanel` had lost `RightPanelSplit` +
+`SessionFilesPane` + `OpenFilesPaneButton`, and `AgentConversation` had gained a
+`SessionFilesDrawer` host that 112.2 does not have.
+
+Restored as 112.2 ships it, including the narrow-window rule (`PANES_COEXIST_MIN_WINDOW`)
+that makes the config pane and the Files pane mutually exclusive, and the pane's own
+persisted width. Verified by clicking: no `[role=dialog]`, a 620px docked pane, and the
+chat strip's contact sheet now matches prod's layout region for region.
+
+**How both were lost, and why `git log` hides it.** Not a commit — a MERGE resolution.
+`fcfc7c5e94 merge: oss/chat-on-shared-engine into the mobile extraction lane` kept the
+lane's `AgentChatPanel`, which predates both features. `git log -S <symbol> -- <file>` shows
+only the two ADD commits (`3f263b80a7`, `9973454264`), both ancestors of HEAD, while the
+symbols are absent at HEAD — that contradiction IS the signature of a silent merge drop.
+Worth checking the other carve merges the same way.
+
+### P-04 — the whole config pane sits 1 CSS px left of prod's — **P3, measured, not fixed**
+
+Every label in the pane (`Configuration`, `Model`, `Instructions`, `Tools`,
+`Subscriptions`) matches prod with **residual 0** once local is shifted +1 CSS px. The cause
+is at x=256: prod paints a 1px sliver of `ag-app-ground` between the rail's border and the
+raised panel (scan values 44 → 10 → 26); local goes straight 44 → 26. It is antd
+`Splitter` geometry that the kit `SplitPane` does not reproduce. Left alone deliberately —
+1px, and chasing it means re-adding a seam the migration removed.
+
+### P-05 — the config header surface is one RGB level darker — **P3, measured, not fixed**
+
+`#262626` local against `#272727` prod, dark. Below the 24/channel diff threshold; it never
+shows up as a region. Recorded so it is not re-measured.
+
+### Ruled out — differences that are NOT regressions
+
+- **Instructions has no `+` locally.** 112.2 deleted it (`SectionAddButton "Add instruction
+  file"`, permanently disabled, 9 lines removed from `AgentTemplateControl.tsx`). This is a
+  **fifth** 112.2-truth surface the §4f table did not list. I nearly filed it from the
+  rendered page — the release diff settled it in one command.
+- **Session tab chip skin.** Prod fills the active chip (`bg-colorFill`, 90% in 112.2);
+  local draws an outlined pill with a 2px accent underline. That is `SessionTab` in
+  `@agenta/sessions-ui`, whose docstring states the new treatment deliberately. Later
+  design, not drift.
+- **`+` docked at the strip's end** instead of inline after the last tag — same component,
+  same deliberate rationale ("pinned outside the scroll area so New session sits at the end
+  of the tab strip without scrolling away").
+- **Model picker 468px vs prod's 568px** — the documented 112.2 change, confirmed live
+  (568 / 468 at the same x). The picker's *contents* (search field, `Anthropic 3 ›` row,
+  `Manage model providers` footer) are identical.
+- **Sidebar 5.11%** — entirely state: local has the Agents group expanded (3 agents listed)
+  and the "Star Agenta" banner dismissed. Every shared nav row aligns.
+- **`Sandbox: daytona` vs `Sandbox: local`**, and the agent avatar's hue — data.
+- **Files pane renders 447px on prod, 620px local** with neither storing a width. 620 IS
+  the declared default; antd's `Splitter` scales px sizes against the container and lands
+  at 447. The kit `SplitPane` honours the declared size. Local is the correct one.
+
+### Storage keys the extraction renamed (invisible, recorded so it is not re-discovered)
+
+- `agenta:playground:config-panel-collapsed` → `agenta:chat:config-panel-collapsed`. Both
+  keys are live on prod's origin, which is what made prod render collapsed with the new key
+  reading `false` — an hour lost before the old key was found. Users lose the persisted
+  collapse once.
+- `chatPanelMaximizedAtom` was a plain `atom(false)` in 112.1; HEAD persists it
+  (`atomWithStorage("agenta:chat:panel-maximized")`). Moot while the switch is parked.
+
+### Still untouched on this surface
+
+Config drill-ins past Model (Instructions, Tools, Skills, Advanced, Subscriptions,
+Schedules, Files), agent creation, the templates gallery, the onboarding canvas, chat with a
+live run (streaming, tool steps, approvals, elicitation), Sessions, and Observability.
+
+**Lead, not yet chased:** prod's agents-list card opens an **`/overview`** route (composer +
+Sessions + Automation runs + a Configuration summary with an `Edit` into the playground).
+Local's sidebar agent rows link straight to `/playground`. Whether local has the route at
+all is unverified.
 
 ## 5. Coverage — NOT yet done
 
