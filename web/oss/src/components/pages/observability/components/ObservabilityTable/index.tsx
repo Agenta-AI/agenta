@@ -16,7 +16,7 @@ import dynamic from "next/dynamic"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {useQueryParamState} from "@/oss/state/appState"
+import {useAppNavigation, useQueryParamState} from "@/oss/state/appState"
 import {useObservability} from "@/oss/state/observability"
 import {hasReceivedTracesAtom} from "@/oss/state/observability"
 
@@ -66,6 +66,8 @@ const ObservabilityTable = () => {
     const spanParam = Array.isArray(spanParamValue)
         ? (spanParamValue[0] ?? "")
         : ((spanParamValue as string | undefined) ?? "")
+
+    const {patchQuery} = useAppNavigation()
 
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     // One derivation, in the package, so /m gets the same columns.
@@ -159,21 +161,16 @@ const ObservabilityTable = () => {
 
             setSelectedTraceId(targetTraceId)
             setTraceDrawerActiveSpan(targetSpanId || null)
-            setTraceParam(targetTraceId)
-            if (targetSpanId) {
-                setSpanParam(targetSpanId)
-            } else {
-                setSpanParam(undefined)
-            }
+            // ONE navigation for both params. They used to go as two back-to-back
+            // `useQueryParamState` writes, and `requestNavigationAtom` is a single slot: the
+            // second command replaced the first before the listener ran, and both
+            // `Router.replace` calls built their query from a `Router.query` the other had not
+            // committed yet. The pair raced, the survivor lost the other's key, and the drawer —
+            // which opens off `?trace=` via `syncTraceStateFromUrl` — opened and closed again as
+            // the param appeared and vanished.
+            patchQuery({trace: targetTraceId, span: targetSpanId || undefined})
         },
-        [
-            setSelectedNode,
-            traceTabs,
-            setSelectedTraceId,
-            setTraceDrawerActiveSpan,
-            setTraceParam,
-            setSpanParam,
-        ],
+        [setSelectedNode, traceTabs, setSelectedTraceId, setTraceDrawerActiveSpan, patchQuery],
     )
 
     const rowSelection = useMemo(
