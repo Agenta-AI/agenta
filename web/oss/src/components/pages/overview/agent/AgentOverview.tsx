@@ -6,6 +6,7 @@ import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import NextTriggersSection from "@/oss/components/NextTriggers"
+import {sessionRouteModes} from "@/oss/components/pages/sessions/assets/sessionRouteScope"
 import SessionAutomationDrawers from "@/oss/components/pages/sessions/components/SessionAutomationDrawers"
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
 import {
@@ -59,6 +60,9 @@ const AgentOverview = ({appId, agentName}: Props) => {
     // filter you then have to trust.
     const {appURL} = useURL()
     const sessionsHref = appURL ? `${appURL}/sessions` : undefined
+    const automationSessionsHref = sessionsHref
+        ? `${sessionsHref}?mode=${sessionRouteModes.automation}`
+        : undefined
 
     const attachments = useSeedAttachments()
 
@@ -134,7 +138,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
                             emptyText="Runs from automations bound to this agent will show up here."
                             limit={5}
                             minHeightClassName="min-h-[100px]"
-                            viewAllHref={sessionsHref}
+                            viewAllHref={automationSessionsHref}
                         />
                     </div>
                 </div>
