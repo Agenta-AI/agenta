@@ -44,17 +44,30 @@ const HydrateAtoms = ({children}: PropsWithChildren) => {
         void router.push(href)
     })
     // Shallow query writes: the drawer syncs ?trace/?span without re-running data fetching.
+    //
+    // Read the LIVE url, never `router.query`. These callbacks are rebound every render, but each
+    // one still closes over that render's query SNAPSHOT — so a seam invoked shortly after another
+    // navigation rebuilt the whole query from a pre-navigation copy and silently dropped the keys
+    // that had just landed. That is what made a trace click flash the drawer and lose `?trace=`:
+    // the click wrote both params, then the drawer's own seam pushed a query that predated them.
+    // Mutating the current `location.search` has no snapshot to go stale.
+    const pushCurrentUrl = (mutate: (params: URLSearchParams) => void) => {
+        if (typeof window === "undefined") return
+        const url = new URL(window.location.href)
+        mutate(url.searchParams)
+        void router.push(`${url.pathname}${url.search}${url.hash}`, undefined, {shallow: true})
+    }
     bindTraceDrawerSetQueryParam((name, value) => {
-        const query = {...router.query}
-        if (value === null) delete query[name]
-        else query[name] = value
-        void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
+        pushCurrentUrl((params) => {
+            if (value === null || value === undefined) params.delete(name)
+            else params.set(name, String(value))
+        })
     })
     bindTraceDrawerClearParams(() => {
-        const query = {...router.query}
-        delete query.trace
-        delete query.span
-        void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
+        pushCurrentUrl((params) => {
+            params.delete("trace")
+            params.delete("span")
+        })
     })
     return children
 }
