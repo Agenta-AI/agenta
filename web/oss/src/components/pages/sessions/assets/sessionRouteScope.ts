@@ -16,9 +16,7 @@ const automationSessionScope: SessionScope = {origin: "trigger"}
  * The URL names a user-facing mode rather than the internal request policy, so the route stays
  * independent from how `@agenta/sessions` implements its server-side predicates.
  */
-export const sessionScopeFromRouteQuery = (
-    query: SessionRouteQuery,
-): SessionScope | undefined => {
+export const sessionScopeFromRouteQuery = (query: SessionRouteQuery): SessionScope | undefined => {
     if (query.mode !== sessionRouteModes.automation) return undefined
     return automationSessionScope
 }
