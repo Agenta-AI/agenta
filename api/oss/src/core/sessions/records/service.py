@@ -1,7 +1,8 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.records.dtos import (
+    SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
 )
@@ -47,4 +48,19 @@ class RecordsService:
         return await self.records_dao.get_event(
             project_id=project_id,
             record_id=record_id,
+        )
+
+    async def latest_message_per_session(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> Dict[str, SessionMessagePreview]:
+        """One batched lookup for a whole page — never one call per row."""
+        if not session_ids:
+            return {}
+
+        return await self.records_dao.latest_message_per_session(
+            project_id=project_id,
+            session_ids=session_ids,
         )

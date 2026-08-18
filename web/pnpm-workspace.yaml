@@ -31,5 +31,8 @@ allowBuilds:
   protobufjs: false
   sharp: true
   unrs-resolver: true
+# The mobile Docker image installs a pruned tree that excludes web/oss, the only
+# consumer of the patch below, and pnpm fails an install whose patch matches nothing.
+allowUnusedPatches: true
 patchedDependencies:
   '@agentaai/nextstepjs@2.1.3-agenta.2': patches/@agentaai__nextstepjs@2.1.3-agenta.2.patch

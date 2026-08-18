@@ -71,7 +71,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({promptKey, promptVersion}) =
     if (!workingPrompt) {
         return (
             <div className="flex h-full items-center justify-center">
-                <Typography.Text type="secondary" className="text-[11px]">
+                <Typography.Text type="secondary" className="text-xs">
                     No refined prompt yet
                 </Typography.Text>
             </div>

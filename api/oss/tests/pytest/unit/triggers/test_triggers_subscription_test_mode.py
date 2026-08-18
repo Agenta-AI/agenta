@@ -56,6 +56,7 @@ def _make_service():
     dao.create_subscription = AsyncMock(side_effect=_persist_create)
     dao.edit_subscription = AsyncMock(side_effect=lambda **kw: kw["subscription"])
     dao.delete_subscription = AsyncMock(return_value=True)
+    dao.purge_subscription = AsyncMock(return_value=True)
     dao.fetch_subscription = AsyncMock(
         return_value=TriggerSubscription(
             id=uuid4(),
@@ -218,7 +219,8 @@ async def test_test_subscription_returns_captured_delivery_and_tears_down():
     created = service.dao.create_subscription.await_args.kwargs["subscription"]
     assert created.flags.is_test is True
     # ...and always torn down.
-    service.dao.delete_subscription.assert_awaited_once()
+    service.dao.purge_subscription.assert_awaited_once()
+    service.dao.delete_subscription.assert_not_awaited()
 
 
 async def test_test_subscription_times_out_and_tears_down():
@@ -234,7 +236,8 @@ async def test_test_subscription_times_out_and_tears_down():
     )
 
     assert result is None
-    service.dao.delete_subscription.assert_awaited_once()
+    service.dao.purge_subscription.assert_awaited_once()
+    service.dao.delete_subscription.assert_not_awaited()
 
 
 async def test_test_subscription_tears_down_on_error():
@@ -248,7 +251,8 @@ async def test_test_subscription_tears_down_on_error():
             subscription=_create(is_test=True),
         )
 
-    service.dao.delete_subscription.assert_awaited_once()
+    service.dao.purge_subscription.assert_awaited_once()
+    service.dao.delete_subscription.assert_not_awaited()
 
 
 async def test_test_subscription_reuses_existing_live_subscription_on_conflict():
@@ -281,6 +285,7 @@ async def test_test_subscription_reuses_existing_live_subscription_on_conflict()
     assert result is new_delivery
     # The existing live subscription must NOT be torn down.
     service.dao.delete_subscription.assert_not_awaited()
+    service.dao.purge_subscription.assert_not_awaited()
     # Only the single failed mint attempt — no duplicate persisted.
     service.dao.create_subscription.assert_awaited_once()
     # Reuse resolved via the exact colliding trigger_id, not a connection+event query.

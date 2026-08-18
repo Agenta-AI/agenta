@@ -69,7 +69,7 @@ export function EntityCard({
             </div>
 
             {description ? (
-                <p className="m-0 line-clamp-2 text-[11px] leading-snug text-colorTextSecondary">
+                <p className="m-0 line-clamp-2 text-xs leading-snug text-colorTextSecondary">
                     {description}
                 </p>
             ) : (
@@ -81,7 +81,7 @@ export function EntityCard({
                     {shownTags.map((tag) => (
                         <span
                             key={tag}
-                            className="truncate rounded bg-colorFillTertiary px-1.5 py-0.5 text-[10px] leading-none text-colorTextSecondary"
+                            className="truncate rounded bg-colorFillTertiary px-1.5 py-0.5 text-[12px] leading-none text-colorTextSecondary"
                         >
                             {tag}
                         </span>

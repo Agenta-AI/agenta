@@ -17,6 +17,7 @@ export interface SessionChatHooks {
     prepareRequest: NonNullable<TransportInit["prepareSendMessagesRequest"]>
     sendAutomaticallyWhen: NonNullable<ChatInit<UIMessage>["sendAutomaticallyWhen"]>
     onFinish: NonNullable<ChatInit<UIMessage>["onFinish"]>
+    onError: NonNullable<ChatInit<UIMessage>["onError"]>
 }
 
 interface Handle {
@@ -68,9 +69,12 @@ export const acquireSessionChat = ({
             handle.hooks.onFinish(event)
         },
         // Swallowed here so an aborted stream doesn't reach the Next.js dev overlay (F-033); the
-        // mount renders it in-chat off `useChat`'s own `error`.
-        onError: (error) =>
-            console.warn("[AgentChatPanel] useChat error (rendered in-chat):", error),
+        // mount renders it in-chat off `useChat`'s own `error`. The mount's own handler runs after
+        // (gated like the rest) to clear the state a failed stream leaves behind.
+        onError: (error) => {
+            console.warn("[AgentChatPanel] useChat error (rendered in-chat):", error)
+            if (isLive(sessionId, handle)) handle.hooks.onError(error)
+        },
     })
     registry.set(sessionId, handle)
     return handle.chat

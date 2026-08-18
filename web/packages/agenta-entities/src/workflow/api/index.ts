@@ -66,6 +66,16 @@ export {
     type WorkflowCatalogTemplatesResponse,
 } from "./api"
 
+// Runner subscription status (agent service, direct call)
+export {
+    fetchSubscriptionStatus,
+    SUBSCRIPTION_RUNNER_STATES,
+    SUBSCRIPTION_HARNESS_STATES,
+    type SubscriptionRunnerState,
+    type SubscriptionHarnessState,
+    type SubscriptionStatusResponse,
+} from "./subscriptionStatus"
+
 // Create from template (legacy endpoint orchestration)
 export {
     createAppFromTemplate,

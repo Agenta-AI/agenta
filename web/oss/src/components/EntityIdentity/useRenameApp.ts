@@ -50,7 +50,6 @@ export const useRenameApp = () => {
                     id,
                     name,
                     description,
-                    flags: {is_application: true},
                 })
                 invalidateWorkflowsListCache()
                 invalidateWorkflowCache(id)

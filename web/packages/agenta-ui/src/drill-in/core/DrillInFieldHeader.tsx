@@ -311,7 +311,7 @@ const MappingPopoverContent = memo(
                     <Button
                         type="text"
                         size="small"
-                        className="justify-start text-blue-600 dark:text-[#58a6ff]"
+                        className="justify-start text-[var(--ag-btn-link)]"
                         onClick={() => setShowNewColumnInput(true)}
                     >
                         + Create new column
@@ -517,7 +517,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-[var(--ag-btn-link)]" : "text-gray-500"}`}
                                 onClick={onToggleRawMode}
                             >
                                 {codeIcon}
@@ -529,7 +529,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-[var(--ag-btn-link)]" : "text-gray-500"}`}
                                 onClick={onToggleMarkdownView}
                             >
                                 {isMarkdownView ? textIcon : markdownIcon}

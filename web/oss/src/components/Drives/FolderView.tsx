@@ -165,7 +165,7 @@ export const FolderView = ({
                             <span className="truncate font-mono text-[13px] font-semibold">
                                 {folderName}
                             </span>
-                            <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                            <span className="shrink-0 text-xs text-colorTextTertiary">
                                 {nodes.length} item{nodes.length === 1 ? "" : "s"}
                             </span>
                         </div>

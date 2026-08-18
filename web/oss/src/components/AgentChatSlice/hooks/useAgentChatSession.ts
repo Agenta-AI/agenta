@@ -2,7 +2,9 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     commandSessionStream,
+    invalidateSessionListQueries,
     killSession,
+    recordInteractionAnswerAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -24,6 +26,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
+import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
 import {getMessageTraceId} from "../assets/trace"
@@ -51,6 +54,7 @@ import {captureTurnRequestAtom} from "../state/turnCaptures"
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"
 import {useSessionHydration} from "./useSessionHydration"
+import {useToolCacheInvalidation} from "./useToolCacheInvalidation"
 
 /**
  * The chat stream for one session tab: transport, `useChat`, and every side effect that belongs to
@@ -104,6 +108,8 @@ export const useAgentChatSession = ({
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
+    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
+    const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
     // Whether this mount is still on screen. The chat outlives it, so its callbacks need to tell
@@ -137,14 +143,29 @@ export const useAgentChatSession = ({
         // The turn's trace may not be ingested yet when the row asks for its summary — marking it
         // fresh lets the trace queries retry through the ingestion lag. A finished turn may also
         // have written files, so mark the session's drive data stale; no live channel exists for it.
+        // Liveness too: nothing else invalidates it at turn end, so the project-wide poll's cached
+        // `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch immediately —
+        // the runner awaits its `is_running: false` heartbeat BEFORE closing this stream
+        // (services/runner/src/server.ts `aliveWatchdog.release()`), so the flag is already cleared.
         onFinish: ({message}) => {
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+            // The first turn is what creates the durable session row; every later one changes its
+            // title/preview/activity. Nothing else tells the session lists, so they discovered a
+            // brand-new session only on their next poll or window refocus.
+            invalidateSessionListQueries()
             // A preserved run settling with nobody mounted: this callback outlives the mount, so it
             // is what retires the session's run-state dot. A LIVE mount publishes its own status
             // (with error/awaiting precedence) from `busy`, so writing here would only flicker it.
             if (!mountedRef.current) setSessionStatus({id: sessionId, status: "idle"})
+        },
+        // A failed stream never dispatches the pending resume, so drop the marker: leaving it set
+        // freezes records adoption for this mount and can resume a stale gate much later. The chat
+        // itself swallows the error for the dev overlay (F-033) and `useChat`'s `error` renders it.
+        onError: () => {
+            liveGateInteractionRef.current = null
         },
     }
 
@@ -189,6 +210,9 @@ export const useAgentChatSession = ({
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
     useFileActivityDetector({sessionId, messages})
 
+    // Server-side platform ops (create_schedule, …) stale the client cache with no other signal.
+    useToolCacheInvalidation({sessionId, messages})
+
     const {isHydrating, hydratedEmpty, runningElsewhere} = useSessionHydration({
         sessionId,
         initialMessages,
@@ -201,6 +225,7 @@ export const useAgentChatSession = ({
         setMessages,
         persistMessages,
         intent,
+        pendingResumeRef: liveGateInteractionRef,
     })
 
     // A decision made in THIS mount marks the resume as live — a restored approval-requested tail
@@ -215,23 +240,42 @@ export const useAgentChatSession = ({
     // is by id — so a cast onto the untyped UIMessage tool map is safe.
     const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
         ({toolName, toolCallId, output, errorText}) => {
+            // Set synchronously: it holds off transcript adoption for the whole ordered window.
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
-            if (errorText !== undefined) {
-                addToolOutput({
-                    state: "output-error",
-                    tool: toolName as never,
-                    toolCallId,
-                    errorText,
-                }).catch(ignoreStreamRejection)
-            } else {
-                addToolOutput({
-                    tool: toolName as never,
-                    toolCallId,
-                    output: (output ?? {}) as never,
-                }).catch(ignoreStreamRejection)
-            }
+            // Ordered, not raced — the resume starts a turn whose sweep cancels every `pending`
+            // row, so the answer has to be durable first. Capped inside the helper.
+            void recordAnswerThenResume({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId,
+                        resolution: {
+                            tool_call_id: toolCallId,
+                            tool_name: toolName,
+                            ...(errorText !== undefined
+                                ? {outcome: "error", error: errorText}
+                                : {outcome: "completed", output: output ?? {}}),
+                        },
+                    }),
+                resume: () => {
+                    if (errorText !== undefined) {
+                        addToolOutput({
+                            state: "output-error",
+                            tool: toolName as never,
+                            toolCallId,
+                            errorText,
+                        }).catch(ignoreStreamRejection)
+                    } else {
+                        addToolOutput({
+                            tool: toolName as never,
+                            toolCallId,
+                            output: (output ?? {}) as never,
+                        }).catch(ignoreStreamRejection)
+                    }
+                },
+            })
         },
-        [addToolOutput],
+        [addToolOutput, recordInteractionAnswer, sessionId],
     )
 
     // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
@@ -362,10 +406,12 @@ export const useAgentChatSession = ({
     }, [messages])
 
     const projectId = useAtomValue(projectIdAtom)
-    const queryClient = useQueryClient()
 
     const handleStop = useCallback(() => {
         markStopped()
+        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
+        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
+        liveGateInteractionRef.current = null
         stop() // abort the client stream immediately
         if (!projectId || !sessionId) return
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.

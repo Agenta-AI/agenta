@@ -57,15 +57,30 @@ def _turn(session_id: str, references: Optional[List[Reference]] = None) -> Sess
 
 
 class _FakeStreamsService:
-    def __init__(self, row: Optional[SessionStream] = None):
+    def __init__(
+        self,
+        row: Optional[SessionStream] = None,
+        reference_session_ids: Optional[list] = None,
+    ):
         self.row = row
         self.hard_delete_calls: list[dict] = []
         self.archive_calls: list[dict] = []
         self.unarchive_calls: list[dict] = []
         self.query_calls: list[dict] = []
+        self.reference_session_ids = reference_session_ids or []
+
+    async def query_session_ids_by_references(self, *, project_id, references, limit):
+        return self.reference_session_ids[:limit]
 
     async def query_streams(
-        self, *, project_id, filter, windowing=None, session_ids=None
+        self,
+        *,
+        project_id,
+        filter,
+        windowing=None,
+        session_ids=None,
+        exclude_session_ids=None,
+        read_options=None,
     ):
         self.query_calls.append(
             {
@@ -121,6 +136,16 @@ class _FakeTurnsService:
                 if t.references and any(r.id in wanted for r in t.references)
             ]
         return self.turns
+
+    async def query_session_ids_by_references(self, *, project_id, references, limit):
+        self.query_calls.append({"project_id": project_id, "references": references})
+        wanted = {r.id for r in references}
+        matched = {
+            t.session_id
+            for t in self.turns
+            if t.references and any(r.id in wanted for r in t.references)
+        }
+        return list(matched)[:limit]
 
     async def latest_turn_per_session(self, *, project_id, session_ids):
         by_session: dict = {}
@@ -208,15 +233,34 @@ async def test_delete_session_fans_out_to_turns_interactions_mounts_and_stream()
     ]
 
 
+class _ExplodingRecordsService:
+    """Any records call at all fails the test."""
+
+    async def latest_message_per_session(self, **kwargs):
+        raise AssertionError("delete must not read or write records")
+
+
 @pytest.mark.asyncio
 async def test_delete_session_never_touches_records():
-    # No records service is even injected into SessionsService -- the fan-out
-    # has no path to a records call. This test pins that absence structurally:
-    # SessionsService's constructor accepts no records_service.
-    import inspect
+    # The fan-out deletes streams, turns, interactions and mounts; records live in the
+    # tracing DB and their lifecycle is tracing retention's, not this service's. The list
+    # query DOES read them for its preview, so the invariant can no longer be pinned by the
+    # constructor's shape -- it is pinned by wiring in a records service that explodes on
+    # contact and running the delete against it.
+    streams = _FakeStreamsService(row=None)
+    svc = SessionsService(
+        streams_service=streams,
+        turns_service=_FakeTurnsService(),
+        interactions_service=_FakeInteractionsService(),
+        mounts_service=_FakeMountsService(),
+        records_service=_ExplodingRecordsService(),
+    )
 
-    params = inspect.signature(SessionsService.__init__).parameters
-    assert "records_service" not in params
+    await svc.delete_session(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
+
+    assert streams.hard_delete_calls == [
+        {"project_id": _PROJECT, "session_id": _SESSION}
+    ]
 
 
 @pytest.mark.asyncio
@@ -296,12 +340,16 @@ async def test_query_sessions_no_filter_returns_all_streams():
 
     result = await svc.query_sessions(project_id=_PROJECT)
 
-    # `SessionListItem` (stream fields + `references`), not the bare `SessionStream` --
-    # equality is type-sensitive in pydantic, so compare the inherited fields as a dict
-    # (full-field pinning) and assert the added field separately.
+    # `SessionListItem` (stream fields + the read-time enrichments), not the bare
+    # `SessionStream` -- equality is type-sensitive in pydantic, so compare the inherited
+    # fields as a dict (full-field pinning) and assert the added fields separately.
     assert len(result) == 1
-    assert result[0].model_dump(exclude={"references"}) == stream.model_dump()
+    assert result[0].model_dump(exclude={"references", "last_message"}) == (
+        stream.model_dump(exclude={"references"})
+    )
     assert result[0].references is None
+    # No records service wired here, so the row lists without a preview rather than failing.
+    assert result[0].last_message is None
     assert streams.query_calls[0]["session_ids"] is None
 
 
@@ -318,7 +366,7 @@ async def test_query_sessions_filters_by_references_via_turns_join():
 
     result = await svc.query_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[target_ref]),
+        query=SessionQuery(turn_references=[target_ref]),
     )
 
     assert len(result) == 1
@@ -335,7 +383,7 @@ async def test_query_sessions_no_matching_reference_short_circuits_empty():
 
     result = await svc.query_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[unmatched_ref]),
+        query=SessionQuery(turn_references=[unmatched_ref]),
     )
 
     assert result == []

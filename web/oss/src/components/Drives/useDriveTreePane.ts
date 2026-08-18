@@ -9,11 +9,24 @@ import {animate, useMotionValue} from "motion/react"
 
 import {TREE_MAX, TREE_MIN, TREE_TRANSITION, TREE_WIDTH} from "./driveTreeView"
 
-export function useDriveTreePane({searchActive}: {searchActive: boolean}) {
+export function useDriveTreePane({
+    searchActive,
+    mirrored = false,
+    initialWidth = TREE_WIDTH,
+    initialShow = true,
+}: {
+    searchActive: boolean
+    /** Tree pane docked on the RIGHT (content left) — inverts the resize-drag direction. */
+    mirrored?: boolean
+    /** Starting rest width — hosts with less room (the docked pane) open the tree narrower. */
+    initialWidth?: number
+    /** Open with the tree collapsed (a single-file quick look); the toolbar toggle reveals it. */
+    initialShow?: boolean
+}) {
     // The one presentation is the tree navigator + content pane; the file TREE pane can be hidden to
     // give the content pane the full width. Searching always forces the tree (its filtered rows ARE
     // the results), so the effective visibility is `showTree || searchActive` (see `treeVisible`).
-    const [showTree, setShowTree] = useState(true)
+    const [showTree, setShowTree] = useState(initialShow)
     const toggleTree = useCallback(() => setShowTree((v) => !v), [])
     // Draggable tree-pane width. The REST width is React state (persists across a hide/show and feeds
     // the toggle's anticipated-shift math), committed ONCE at drag end. The LIVE width is a
@@ -22,10 +35,11 @@ export function useDriveTreePane({searchActive}: {searchActive: boolean}) {
     // which is exactly the jank a splitter drag can't afford). `paneW` is the clipping pane (0 when
     // hidden); `innerW` is the tree content, which follows a DRAG (content reflows to the new width)
     // but holds its rest width through a COLLAPSE (content clips, never reflows).
-    const [treeWidth, setTreeWidth] = useState(TREE_WIDTH)
+    const [treeWidth, setTreeWidth] = useState(initialWidth)
     const [treeDragging, setTreeDragging] = useState(false)
-    const paneW = useMotionValue(TREE_WIDTH)
-    const innerW = useMotionValue(TREE_WIDTH)
+    // Start the clip pane at 0 when the tree opens hidden, so mount doesn't flash-animate it shut.
+    const paneW = useMotionValue(initialShow ? initialWidth : 0)
+    const innerW = useMotionValue(initialWidth)
     const treeDrag = useRef<{startX: number; startW: number} | null>(null)
     const onTreeHandleDown = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
@@ -40,11 +54,13 @@ export function useDriveTreePane({searchActive}: {searchActive: boolean}) {
         (e: React.PointerEvent<HTMLDivElement>) => {
             const st = treeDrag.current
             if (!st) return
-            const w = Math.min(TREE_MAX, Math.max(TREE_MIN, st.startW + (e.clientX - st.startX)))
+            // Mirrored: the tree sits right of the handle, so dragging LEFT widens it.
+            const delta = mirrored ? st.startX - e.clientX : e.clientX - st.startX
+            const w = Math.min(TREE_MAX, Math.max(TREE_MIN, st.startW + delta))
             paneW.set(w)
             innerW.set(w)
         },
-        [paneW, innerW],
+        [paneW, innerW, mirrored],
     )
     const onTreeHandleUp = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {

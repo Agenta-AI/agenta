@@ -56,4 +56,6 @@ which returns HTTP 422, as do `UnsupportedProviderError` and `UnsupportedDeploym
 - **The capability table.** It gates runs server-side and feeds the form. Drift between the
   two offers choices the run will reject.
 - **Connection slug semantics.** The slug is a portable name, not a database id, so it
-  survives project export and import.
+  survives project export and import. It is assigned on create and stays fixed when the
+  connection is renamed. Records created before named connections carry none, and fall back
+  to their provider family (`provider_key`) or their display name (`custom_provider`).

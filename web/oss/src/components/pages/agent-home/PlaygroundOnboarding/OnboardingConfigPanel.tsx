@@ -47,7 +47,7 @@ const OnboardingConfigPanel = () => {
                 mounted && !committing ? "opacity-100" : "opacity-0"
             }`}
         >
-            <Typography.Text className="!px-1 !text-[11px] !font-semibold !uppercase !tracking-wide !text-[var(--ag-colorTextTertiary)]">
+            <Typography.Text className="!px-1 !text-xs !font-semibold !uppercase !tracking-wide !text-[var(--ag-colorTextTertiary)]">
                 Optional · Start from a template
             </Typography.Text>
 
@@ -61,14 +61,14 @@ const OnboardingConfigPanel = () => {
                         onClick={() => selectTemplate(template)}
                         className="box-border flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-0 bg-transparent px-2 py-2 text-left transition-colors hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--ag-colorFillSecondary)] text-[11px] font-semibold text-[var(--ag-colorTextSecondary)]">
+                        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--ag-colorFillSecondary)] text-xs font-semibold text-[var(--ag-colorTextSecondary)]">
                             {template.initials}
                         </span>
                         <span className="flex min-w-0 flex-col">
                             <span className="truncate text-xs font-medium text-[var(--ag-colorTextSecondary)]">
                                 {template.name}
                             </span>
-                            <span className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
+                            <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
                                 {template.description}
                             </span>
                         </span>

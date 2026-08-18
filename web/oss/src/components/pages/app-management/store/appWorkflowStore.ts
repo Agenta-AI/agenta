@@ -46,6 +46,8 @@ export interface AppWorkflowRow {
     workflowId: string
     name: string
     appType: string
+    /** Workflow artifact description — what the agent does, in one line. */
+    description?: string | null
     /** Derived workflow type when known (from the latest revision). Populated in
      * the invokable-only path; undefined otherwise. */
     workflowType?: WorkflowType

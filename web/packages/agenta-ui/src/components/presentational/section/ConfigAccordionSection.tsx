@@ -71,7 +71,7 @@ export function sectionIndicatorColor(tone: SectionIndicatorTone): string {
         : tone === "incomplete"
           ? "var(--ag-colorWarning)"
           : tone === "agent"
-            ? "var(--ag-c-13C2C2, #13c2c2)"
+            ? "light-dark(#113955, #8CCFFF)"
             : "var(--ag-colorInfo)"
 }
 
@@ -138,6 +138,8 @@ export interface ConfigAccordionSectionProps {
      * while the title itself truncates, so a long title + badge + summary never overlap.
      */
     titleBadge?: ReactNode
+    /** Keep the title intact and truncate the summary first. @default false */
+    preserveTitle?: boolean
     /** Additional CSS class for the section wrapper. */
     className?: string
     /**
@@ -198,6 +200,7 @@ export function ConfigAccordionSection({
     indicator,
     summaryCollapsedOnly = false,
     titleBadge,
+    preserveTitle = false,
     className,
     headerBand,
     revealOnMount = false,
@@ -234,7 +237,7 @@ export function ConfigAccordionSection({
           ? "var(--ag-colorSuccess)"
           : status === "warning"
             ? "var(--ag-colorWarning)"
-            : "var(--ag-c-586673,#586673)"
+            : "var(--ag-c-586673)"
     const isControlled = open !== undefined
     // With `animateInitialOpen`, a default-open section still MOUNTS closed and expands via the
     // effect below, so its first paint is the collapsed row (matching skeletons), not the content.
@@ -334,11 +337,10 @@ export function ConfigAccordionSection({
                                     "bg-transparent",
                                     noDivider
                                         ? "border-transparent"
-                                        : "border-[var(--ag-c-EAEFF5,#eaeff5)]",
+                                        : "border-[var(--ag-c-EAEFF5)]",
                                 ),
                       )
-                    : !noDivider &&
-                          "border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]",
+                    : !noDivider && "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
                 className,
             )}
         >
@@ -372,7 +374,10 @@ export function ConfigAccordionSection({
                             activate()
                         }
                     }}
-                    className="flex min-w-0 items-center gap-2"
+                    className={cn(
+                        "flex items-center gap-2",
+                        preserveTitle ? "shrink-0 max-w-full" : "min-w-0",
+                    )}
                 >
                     {iconAffordance}
                     {/* Title. Base text stays crisp; while `pulse` holds, an accent DUPLICATE laid
@@ -413,10 +418,15 @@ export function ConfigAccordionSection({
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div
+                    className={cn(
+                        "flex items-center gap-2",
+                        preserveTitle ? "min-w-0" : "shrink-0",
+                    )}
+                >
                     {summary && (!summaryCollapsedOnly || !isOpen) ? (
                         // antd `Text type="secondary"` is colorTextDescription, not colorTextSecondary.
-                        <span className="max-w-[220px] truncate text-right text-xs text-colorTextDescription">
+                        <span className="min-w-0 max-w-[220px] truncate text-right text-xs text-colorTextDescription">
                             {summary}
                         </span>
                     ) : null}
@@ -438,24 +448,21 @@ export function ConfigAccordionSection({
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Lock
-                                            size={14}
-                                            className="text-[var(--ag-c-97A4B0,#97a4b0)]"
-                                        />
+                                        <Lock size={14} className="text-[var(--ag-zinc-5)]" />
                                     </TooltipTrigger>
                                     <TooltipContent>{lockedReason}</TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
                         ) : (
-                            <Lock size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                            <Lock size={14} className="text-[var(--ag-zinc-5)]" />
                         )
                     ) : opensDrawer ? (
-                        <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                        <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
                     ) : collapsible ? (
                         isOpen ? (
-                            <CaretDown size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                            <CaretDown size={14} className="text-[var(--ag-zinc-5)]" />
                         ) : (
-                            <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                            <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
                         )
                     ) : null}
                 </div>

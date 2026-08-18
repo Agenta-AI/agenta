@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import uuid
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 import httpx
 
@@ -35,10 +36,25 @@ PI_CORE_HAIKU_MODEL = "claude-haiku-4-5"
 
 
 def api_call(method: str, path: str, timeout: float = 60.0, **kwargs) -> httpx.Response:
+    # httpx REPLACES an URL-embedded query string entirely when `params=` is also given,
+    # so a path like "/sessions/streams/?session_id=..." used to silently lose its query
+    # to the hardcoded project_id (the endpoint then 422s with "Field required"). Merge
+    # the path's query into the params dict instead — explicit `params=` kwargs win,
+    # then project_id — so both spellings are safe for every caller. A path WITHOUT a
+    # query and no extra params builds the exact same request as before.
+    explicit = {"project_id": PROJECT, **(kwargs.pop("params", None) or {})}
+    parsed = urlsplit(f"{BASE}/api{path}")
+    url = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", parsed.fragment))
+    # Keep the path's query as PAIRS (a dict would collapse repeated keys like
+    # ?workflow_refs=a&workflow_refs=b); explicit params override any same-named pair.
+    path_pairs = parse_qsl(parsed.query, keep_blank_values=True) if parsed.query else []
+    params = [(k, v) for k, v in path_pairs if k not in explicit] + list(
+        explicit.items()
+    )
     return httpx.request(
         method,
-        f"{BASE}/api{path}",
-        params={"project_id": PROJECT},
+        url,
+        params=params,
         headers={"Authorization": f"ApiKey {KEY}", "Content-Type": "application/json"},
         timeout=timeout,
         **kwargs,
@@ -261,7 +277,11 @@ class Turn:
         self.tool_calls: list[dict] = []
         self.tool_outcomes: dict[str, str] = {}
         self.tool_payloads: dict[str, dict] = {}
-        self.approval: dict | None = None
+        # EVERY gate this turn raised, in raise order (a multi-gate turn raises one
+        # `tool-approval-request` frame per call). The old single `approval` dict was
+        # overwritten per frame, so only the LAST gate ever got answered and the rest
+        # sat pending until their TTL.
+        self.approvals: list[dict] = []
         self.finish_reason: str | None = None
         self.errors: list[str] = []
         self.committed_revision = None
@@ -271,6 +291,14 @@ class Turn:
     @property
     def reply(self) -> str:
         return "".join(self.text_parts)
+
+    @property
+    def approval(self) -> dict | None:
+        """The most recent raised gate — the back-compat single-gate view of `approvals`.
+
+        Every existing caller reads truthiness plus `toolCallId`/`approvalId`; none assigns.
+        """
+        return self.approvals[-1] if self.approvals else None
 
     def assistant_message(self) -> dict:
         parts = []
@@ -300,13 +328,30 @@ class Turn:
                     part["errorText"] = self.tool_payloads.get(
                         call["toolCallId"], {}
                     ).get("errorText")
-                if self.approval and self.approval["toolCallId"] == call["toolCallId"]:
+                gate = next(
+                    (
+                        g
+                        for g in self.approvals
+                        if g["toolCallId"] == call["toolCallId"]
+                    ),
+                    None,
+                )
+                if gate:
                     part["state"] = "approval-requested"
-                    part["approval"] = {"id": self.approval["approvalId"]}
+                    part["approval"] = {"id": gate["approvalId"]}
                 parts.append(part)
         if text_buf:
             parts.append({"type": "text", "text": "".join(text_buf)})
         return {"id": str(uuid.uuid4()), "role": "assistant", "parts": parts}
+
+
+def _upsert_gate(approvals: list, gate: dict) -> None:
+    """Refresh a re-raised gate in place; append only a newly raised toolCallId."""
+    for i, g in enumerate(approvals):
+        if g["toolCallId"] == gate["toolCallId"]:
+            approvals[i] = gate
+            return
+    approvals.append(gate)
 
 
 def invoke(
@@ -381,10 +426,13 @@ def invoke(
                     if is_new:
                         t._segments.append({"kind": "tool", "id": call["toolCallId"]})
                 elif ftype == "tool-approval-request":
-                    t.approval = {
+                    gate = {
                         "approvalId": f.get("approvalId"),
                         "toolCallId": f.get("toolCallId"),
                     }
+                    # Collect every raised gate; a re-raise for the same call refreshes
+                    # its approval id in place without changing the raise order.
+                    _upsert_gate(t.approvals, gate)
                     if log:
                         print(
                             f"  !! approval-request: {json.dumps(f)[:400]}",
@@ -432,13 +480,27 @@ def invoke(
 
 
 def approval_reply(turn: Turn, approved: bool) -> dict:
+    """One assistant message answering EVERY gate the turn raised.
+
+    A multi-gate turn (a parallel batch) raises one `tool-approval-request` frame per
+    call; answering only one leaves the rest pending until their TTL. Each raised gate
+    gets the same `approved` value. A single-gate turn produces the exact message this
+    always produced."""
+    if not turn.approvals:
+        raise ValueError("turn raised no approval gate")
     message = turn.assistant_message()
+    by_tool_call = {g["toolCallId"]: g for g in turn.approvals}
+    answered = 0
     for part in message["parts"]:
-        if part.get("toolCallId") == turn.approval["toolCallId"]:
-            part["state"] = "approval-responded"
-            part["approval"] = {"id": turn.approval["approvalId"], "approved": approved}
-            return message
-    raise ValueError("gated tool call missing from assistant message")
+        gate = by_tool_call.get(part.get("toolCallId"))
+        if gate is None:
+            continue
+        part["state"] = "approval-responded"
+        part["approval"] = {"id": gate["approvalId"], "approved": approved}
+        answered += 1
+    if answered != len(by_tool_call):
+        raise ValueError("gated tool call missing from assistant message")
+    return message
 
 
 def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:

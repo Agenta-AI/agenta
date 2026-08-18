@@ -70,11 +70,12 @@ const Preferences = () => {
             </div>
 
             <div className="flex flex-col gap-4">
-                <SectionHeader title="Experiments" />
+                <SectionHeader title="Feature flags" />
                 <div className="flex flex-col">
                     <FlagRow
-                        title="Classic mode"
-                        description="Show all platform areas in the navigation."
+                        title="Developer mode"
+                        description="Show Prompts, Evaluation, Observability, and Registry in the navigation."
+                        // Stored preference is the inverse ("nav simplified"); only the UI flips it.
                         enabled={!advancedNavHidden}
                         onChange={(enabled) => setNavSimplifiedOverride(!enabled)}
                     />

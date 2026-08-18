@@ -33,21 +33,29 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
     Boolean(value && typeof value === "object" && !Array.isArray(value))
 
 /** Our in-sandbox MCP server (runner: `INTERNAL_TOOL_MCP_SERVER_NAME`). */
-const INTERNAL_MCP_PREFIX = "mcp__agenta-tools__"
+const INTERNAL_MCP_SERVER = "agenta-tools"
+
+/** How each harness wraps a tool of that server: Claude `mcp__<server>__`, Codex `mcp.<server>.`
+ * (runner `client-tools.ts` strips the same two). */
+const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_MCP_SERVER}.`]
 
 /**
  * The platform tool name behind a harness wrapper.
  *
  * Pi sends `commit_revision`; Claude exposes the same tool over MCP and sends
- * `mcp__agenta-tools__commit_revision`. Anything keyed BY tool name must key on this, or one call
- * renders two different ways depending on the harness.
+ * `mcp__agenta-tools__commit_revision`, Codex `mcp.agenta-tools.commit_revision`. Anything keyed
+ * BY tool name must key on this, or one call behaves differently depending on the harness.
  *
  * Only OUR server is unwrapped. A third-party MCP tool keeps its full name, so it can never
  * collide with a platform tool of the same bare name. NOT for permission rules: those must match
  * the wire name verbatim (see `useAlwaysAllowTool`).
  */
-export const canonicalToolName = (raw: string): string =>
-    raw.startsWith(INTERNAL_MCP_PREFIX) ? raw.slice(INTERNAL_MCP_PREFIX.length) || raw : raw
+export const canonicalToolName = (raw: string): string => {
+    for (const prefix of INTERNAL_MCP_PREFIXES) {
+        if (raw.startsWith(prefix)) return raw.slice(prefix.length) || raw
+    }
+    return raw
+}
 
 /** Special cases, keyed by wire name. */
 const BY_TOOL_NAME: Record<string, ToolDisplayOverride> = {

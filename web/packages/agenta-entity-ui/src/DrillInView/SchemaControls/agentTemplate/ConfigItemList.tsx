@@ -53,7 +53,7 @@ export function ConfigItemList({
     }
     if (disabled) return null
     return (
-        <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+        <span className="text-xs text-[var(--ag-zinc-5)]">
             {def.emptyLabel} — {emptyAdd}
         </span>
     )

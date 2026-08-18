@@ -15,7 +15,7 @@
  * keyboard nav ({@link useDriveTreeKeyboard}), selection reveal ({@link useDriveTreeReveal}) and
  * "Download all" ({@link useDriveDownloadAll}).
  */
-import {type ReactNode, useCallback, useState} from "react"
+import {type ReactNode, useCallback, useRef, useState} from "react"
 
 import {type MountFile} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
@@ -32,7 +32,7 @@ import {useRepoInfo} from "./driveRepo"
 import {DriveToolbar} from "./DriveToolbar"
 import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
-import {looksLikeFilePath} from "./driveTreeView"
+import {TREE_WIDTH_COMPACT, looksLikeFilePath} from "./driveTreeView"
 import {type DriveId, type DriveScope} from "./driveTypes"
 import {type DroppedFile} from "./dropEntries"
 import {FolderView} from "./FolderView"
@@ -47,6 +47,7 @@ import {useDriveTreeViewport} from "./useDriveTreeViewport"
 import {useDriveUploads} from "./useDriveUploads"
 import {driveHasMixedOrigins, type SessionDriveData} from "./useSessionDrive"
 import {useTreeGroupScroll} from "./useTreeGroupScroll"
+import {useUploadReveal} from "./useUploadReveal"
 
 export type {DriveId, DriveScope} from "./driveTypes"
 
@@ -66,6 +67,9 @@ export function DriveExplorer({
     onToggleExpand,
     stagedFiles,
     onStagedChange,
+    mirrored = false,
+    initialShowTree = true,
+    closeVariant = "close",
 }: {
     drive: SessionDriveData
     /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
@@ -86,6 +90,12 @@ export function DriveExplorer({
      * and clicks "Upload here" — shown as ghost tiles in the grid. The host owns the list. */
     stagedFiles?: DroppedFile[]
     onStagedChange?: (files: DroppedFile[]) => void
+    /** Mirror the two-pane body: tree docked RIGHT, content LEFT (the in-chat Files pane). */
+    mirrored?: boolean
+    /** Open with the tree collapsed — a single-file quick look; the toolbar toggle reveals it. */
+    initialShowTree?: boolean
+    /** How `onClose` reads in the header: an "×" (overlay drawer) or a "»" collapse (docked pane). */
+    closeVariant?: "close" | "collapse"
 }) {
     const rootLabel = driveRootLabel(drive.mount)
     const {
@@ -113,13 +123,23 @@ export function DriveExplorer({
     const chrome = onClose != null
     // Details toggle, lifted so the ONE header owns it (file meta OR repo facts, per selection).
     const [detailsOpen, setDetailsOpen] = useState(false)
-    const pane = useDriveTreePane({searchActive})
+    const pane = useDriveTreePane({
+        searchActive,
+        mirrored,
+        initialWidth: mirrored ? TREE_WIDTH_COMPACT : undefined,
+        initialShow: initialShowTree,
+    })
     const {showTree, toggleTree, treeVisible, treeShift} = pane
     const {archiveMounts, downloadingAll, handleDownloadAll} = useDriveDownloadAll({
         drive,
         projectId,
     })
 
+    // Uploads sit ABOVE the tree, but a finished upload is only explainable AGAINST the tree (is the
+    // file in the listing, or did a filter swallow it?) — so the completion callback forwards through
+    // a ref that useUploadReveal fills in once both halves exist.
+    const revealUpload = useRef<(path: string) => void>(() => undefined)
+    const onUploaded = useCallback((path: string) => revealUpload.current(path), [])
     // Uploads sit ABOVE the tree: their in-flight files are folded into the build below, so each one
     // renders as a real row/tile under its destination folder.
     const {
@@ -134,7 +154,7 @@ export function DriveExplorer({
         removeStaged,
         retryUpload,
         dismissUpload,
-    } = useDriveUploads({drive, explicitFiles, select, stagedFiles, onStagedChange})
+    } = useDriveUploads({drive, explicitFiles, select, stagedFiles, onStagedChange, onUploaded})
 
     const {
         lazyTree,
@@ -158,6 +178,18 @@ export function DriveExplorer({
         originFilter,
         showHidden,
         showGitignored,
+    })
+    // Closes the loop opened above: a completed upload toasts, and anything the filters would have
+    // hidden (a dotfile, a git-ignored `.env`) reveals itself instead of blinking out.
+    revealUpload.current = useUploadReveal({
+        files: lazyTree.files,
+        loadedDirs: lazyTree.loadedDirs,
+        fetchingDirs: lazyTree.fetchingDirs,
+        inGitScope,
+        showHidden,
+        setShowHidden,
+        showGitignored,
+        setShowGitignored,
     })
     const selectedNode = selectedPath != null ? nodeByPath.get(selectedPath) : undefined
     // The root and any node flagged a folder render the grid; everything else the preview. In lazy
@@ -223,8 +255,12 @@ export function DriveExplorer({
     // it falls through and renders the tree; its retry rides the existing header (see DriveHeader's
     // `partialErrored` slot), NOT a new banner row that would shove the content down.
     let body: ReactNode
+    // Search/filters/tree toggle only earn their row when there IS a tree — a terminal state has
+    // nothing to search or filter, and the row's own borders make an empty pane look broken.
+    let showToolbar = true
     if (drive.errored && drive.fileCount === 0) {
         body = <DriveErrorState drive={drive} />
+        showToolbar = false
     } else if (drive.isLoading || (drive.mount && lazyTree.rootLoading)) {
         // The right pane will be a FILE preview if we're opening onto a file, else the browse GRID.
         // Nothing is loaded yet, so the name is all we have to go on.
@@ -238,6 +274,7 @@ export function DriveExplorer({
         )
     } else if (drive.fileCount === 0) {
         body = <DriveEmptyState scope={scope} />
+        showToolbar = false
     } else {
         // What shows for the current selection: the folder's children (as a tile grid) or a file's
         // preview. The right pane of the tree navigator (and the whole body when the tree is hidden).
@@ -294,6 +331,7 @@ export function DriveExplorer({
         body = (
             <DriveTreePane
                 pane={pane}
+                mirrored={mirrored}
                 treeScrollRef={treeScrollRef}
                 onTreeKeyDown={onTreeKeyDown}
                 treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
@@ -339,8 +377,6 @@ export function DriveExplorer({
                         isFolder={selectedIsFolder}
                         rootLabel={rootLabel}
                         itemCount={selectedItemCount}
-                        totalCount={drive.fileCount}
-                        totalCapped={drive.fileCountCapped}
                         fileSize={selectedFileSize}
                         showOrigin={showOrigin}
                         isRepo={headerRepo.isRepo}
@@ -348,6 +384,7 @@ export function DriveExplorer({
                         onToggleDetails={() => setDetailsOpen((v) => !v)}
                         onNavigate={select}
                         onClose={onClose}
+                        closeVariant={closeVariant}
                         copyText={copyText}
                         ids={driveIds ?? []}
                         downloadMount={
@@ -390,22 +427,25 @@ export function DriveExplorer({
                     {/* Pending uploads render as tiles in the grid + a pinned group in the tree (both
                         drawer-global), so no separate header banner here — a banner that mounts/unmounts
                         shoved the toolbar + panes on every upload state change. */}
-                    <DriveToolbar
-                        search={search}
-                        setSearch={setSearch}
-                        searchActive={searchActive}
-                        showTree={showTree}
-                        treeVisible={treeVisible}
-                        toggleTree={toggleTree}
-                        showOrigin={showOrigin}
-                        originFilter={originFilter}
-                        setOriginFilter={setOriginFilter}
-                        showHidden={showHidden}
-                        setShowHidden={setShowHidden}
-                        inGitScope={inGitScope}
-                        showGitignored={showGitignored}
-                        setShowGitignored={setShowGitignored}
-                    />
+                    {showToolbar ? (
+                        <DriveToolbar
+                            mirrored={mirrored}
+                            search={search}
+                            setSearch={setSearch}
+                            searchActive={searchActive}
+                            showTree={showTree}
+                            treeVisible={treeVisible}
+                            toggleTree={toggleTree}
+                            showOrigin={showOrigin}
+                            originFilter={originFilter}
+                            setOriginFilter={setOriginFilter}
+                            showHidden={showHidden}
+                            setShowHidden={setShowHidden}
+                            inGitScope={inGitScope}
+                            showGitignored={showGitignored}
+                            setShowGitignored={setShowGitignored}
+                        />
+                    ) : null}
                     <div className="flex min-h-0 flex-1 flex-col">{body}</div>
                 </div>
             ) : (

@@ -1,12 +1,17 @@
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from oss.src.core.sessions.dtos import SessionListItem
+from oss.src.core.sessions.dtos import (
+    SessionExpansion,
+    SessionListItem,
+    SessionOrigin,
+)
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
+    SessionStreamQueryFlags,
 )
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
@@ -19,7 +24,9 @@ from oss.src.core.sessions.interactions.dtos import (
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
-from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.shared.dtos import OTelSpanId, Windowing
+from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
 
 # ---------------------------------------------------------------------------
@@ -27,22 +34,81 @@ from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
 # ---------------------------------------------------------------------------
 
 
+SessionId = Annotated[
+    str,
+    Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_\-]+$"),
+]
+
+
+class SessionPredicatesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    search: Optional[str] = None
+    liveness: Optional[SessionStreamQueryFlags] = None
+    origins: Optional[List[SessionOrigin]] = None
+
+
+class SessionExcludeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    origins: Optional[List[SessionOrigin]] = None
+    session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+
+
 class SessionQueryRequest(BaseModel):
-    references: Optional[List[Reference]] = None
-    windowing: Optional[Windowing] = None
+    model_config = ConfigDict(extra="forbid")
+
+    session: Optional[SessionPredicatesRequest] = None
+    # Canonical explicit set selection. It intersects with turn_references.
+    session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    exclude: Optional[SessionExcludeRequest] = None
+    turn_references: Optional[List[SessionReference]] = None
     # Include ended (killed) sessions so the list keeps resumable history, not just live ones.
     include_ended: bool = False
     # Include archived sessions — off by default (archive hides); on for the archived view.
     include_archived: bool = False
+    # Also return `total`. Off by default — a filter chip wants it, a scroll page does not.
+    include_total: bool = False
+    expand: List[SessionExpansion] = Field(default_factory=list)
+    windowing: Optional[Windowing] = None
+
+    # Compatibility inputs for the currently released flat predicates.
+    references: Optional[List[SessionReference]] = None
     # Case-insensitive substring match over the session title (`session_streams.name`).
     search: Optional[str] = None
+    # Liveness filter (alive ⊇ running ⊇ attached) against the row's mirrored flags.
+    flags: Optional[SessionStreamQueryFlags] = None
+    # Released flat exclusion alias for exclude.session_ids.
+    exclude_session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    # Who started the session. Absent means every origin.
+    origin: Optional[SessionOrigin] = None
+    # Its negation — hides one origin while still showing sessions with no stamp at all.
+    exclude_origin: Optional[SessionOrigin] = None
+
+    @field_validator("windowing")
+    @classmethod
+    def _bound_windowing_limit(cls, value: Optional[Windowing]) -> Optional[Windowing]:
+        # `Windowing` is the shared SDK model (also used by tracing/otel), so its
+        # `limit` carries no bound of its own. `limit: 0` compiled to no SQL LIMIT
+        # at all — an authenticated caller could dump the whole project in one
+        # request (P0-1). Bound it here, at the request model.
+        if value is not None and value.limit is not None:
+            if not (1 <= value.limit <= MAX_SESSION_QUERY_LIMIT):
+                raise ValueError(
+                    f"windowing.limit must be between 1 and {MAX_SESSION_QUERY_LIMIT}."
+                )
+        return value
 
 
 class SessionsResponse(BaseModel):
     count: int = 0
+    # Total matching rows ignoring windowing, when `include_total` was requested. `count` stays
+    # the number of rows in THIS page, per the shared envelope convention.
+    total: Optional[int] = None
     # `SessionListItem` = `SessionStream` + the latest turn's `references` (WP0-R3),
     # absent (excluded by response_model_exclude_none) when the session has no turns yet.
     sessions: List[SessionListItem] = Field(default_factory=list)
+    windowing: Optional[Windowing] = None
 
 
 class SessionResponse(BaseModel):
@@ -122,16 +188,19 @@ class SessionInteractionTransitionRequest(BaseModel):
     session_id: str
     token: str
     status: SessionInteractionStatus
-    resolution: Optional[SessionInteractionResolution] = None
+    # The router owns kind-specific validation because the row kind is not known here.
+    resolution: Optional[Dict[str, Any]] = None
 
     @model_validator(mode="after")
     def validate_resolution_status(self) -> "SessionInteractionTransitionRequest":
-        # Resolution is answer data, so it is valid only on the resolved lifecycle edge.
-        if (
-            self.resolution is not None
-            and self.status != SessionInteractionStatus.resolved
+        # Resolution is valid only on lifecycle edges that settle an answer.
+        if self.resolution is not None and self.status not in (
+            SessionInteractionStatus.responded,
+            SessionInteractionStatus.resolved,
         ):
-            raise ValueError("resolution is only valid when status is resolved")
+            raise ValueError(
+                "resolution is only valid when status is responded or resolved"
+            )
         return self
 
 
@@ -227,7 +296,7 @@ class SessionTurnAppendRequest(BaseModel):
     harness_kind: HarnessKind
     agent_session_id: Optional[str] = None
     sandbox_id: Optional[str] = None
-    references: Optional[List[Reference]] = None
+    references: Optional[List[SessionReference]] = None
     trace_id: Optional[UUID] = None
     span_id: Optional[OTelSpanId] = None
     start_time: Optional[datetime] = None

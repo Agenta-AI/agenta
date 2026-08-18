@@ -21,7 +21,7 @@ import {Tooltip} from "antd"
 import {driveFileIcon} from "./driveIcons"
 import {isHiddenPath} from "./driveTree"
 import {FileThumb} from "./FileThumb"
-import {AGENT_ACCENT, OriginTag} from "./OriginTag"
+import {AGENT_ACCENT_SOFT, OriginTag} from "./OriginTag"
 import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "./useSessionDrive"
 
 export type DriveFileVariant = "row" | "card" | "tile"
@@ -108,7 +108,7 @@ export const DriveWarningBadge = ({
 
 // "Just changed" border: a simple, muted accent border (no glow — it read wrong on dense file
 // rows). List rows also drop their radius (square) so the accent reads as a crisp edge.
-const RECENT_BORDER = `color-mix(in srgb, ${AGENT_ACCENT} 55%, transparent)`
+const RECENT_BORDER = AGENT_ACCENT_SOFT
 
 // How many placeholder rows a loading summary list renders — a list, not a promise of a count. The
 // summary surfaces (config Files, chat rail, Runtime Files) all show up to 5 recents but cap the
@@ -185,7 +185,7 @@ export const DriveFileRow = ({
                             style={{width: nameW}}
                         />
                     </span>
-                    <span className="shrink-0 text-[11px]">
+                    <span className="shrink-0 text-xs">
                         <span className={`inline-block h-2.5 w-9 align-middle ${BAR}`} />
                     </span>
                 </div>
@@ -205,7 +205,7 @@ export const DriveFileRow = ({
                             style={{width: nameW}}
                         />
                     </span>
-                    <span className="flex h-4 items-center justify-center text-[11px]">
+                    <span className="flex h-4 items-center justify-center text-xs">
                         <span className={`inline-block h-2 w-1/3 align-middle ${BAR}`} />
                     </span>
                 </div>
@@ -227,7 +227,7 @@ export const DriveFileRow = ({
                             style={{width: nameW}}
                         />
                     </span>
-                    <span className="text-[11px]">
+                    <span className="text-xs">
                         <span className={`inline-block h-2 w-1/3 align-middle ${BAR}`} />
                     </span>
                 </div>
@@ -266,7 +266,7 @@ export const DriveFileRow = ({
                     {showOrigin ? <OriginTag origin={origin} /> : null}
                 </span>
                 {trailing != null ? (
-                    <span className="shrink-0 text-right text-[11px] tabular-nums text-colorTextTertiary">
+                    <span className="shrink-0 text-right text-xs tabular-nums text-colorTextTertiary">
                         {trailing}
                     </span>
                 ) : null}
@@ -328,7 +328,7 @@ export const DriveFileRow = ({
                     {name}
                 </span>
                 {meta ? (
-                    <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
+                    <span className="w-full truncate text-center text-xs text-colorTextTertiary">
                         {meta}
                     </span>
                 ) : null}
@@ -350,7 +350,7 @@ export const DriveFileRow = ({
                     {name}
                 </span>
                 {meta ? (
-                    <span className="truncate text-[11px] text-colorTextTertiary">{meta}</span>
+                    <span className="truncate text-xs text-colorTextTertiary">{meta}</span>
                 ) : null}
             </div>
         </button>

@@ -1,13 +1,19 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
+from oss.src.core.sessions.types import (
+    SessionDelivery,
+    SessionOrigin,
+    SessionReference,
+    SessionTrigger,
+)
 
 
 class SessionStreamFlags(BaseModel):
@@ -35,8 +41,24 @@ class SessionStream(Identifier, Header, Lifecycle):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    # What this session runs. Filled once, from the first beat that knows — turn appends
+    # are fire-and-forget, so a session whose only reference carrier was a dropped append
+    # is unopenable forever.
+    references: Optional[List[SessionReference]] = None
     # Set = archived (hidden but restorable); distinct from `deleted_at` (killed, still listed).
     archived_at: Optional[datetime] = None
+    origin: Optional[SessionOrigin] = None
+    trigger: Optional[SessionTrigger] = None
+    delivery: Optional[SessionDelivery] = None
+
+
+class SessionStreamReadOptions(BaseModel):
+    include_trigger_details: bool = False
+
+
+class SessionStreamQueryResult(BaseModel):
+    stream: SessionStream
+    trigger_name: Optional[str] = None
 
 
 class SessionStreamCreate(Header):
@@ -45,6 +67,7 @@ class SessionStreamCreate(Header):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    references: Optional[List[SessionReference]] = None
 
 
 class SessionStreamEdit(Header):
@@ -58,8 +81,26 @@ class SessionStreamHeaderEdit(Header):
     """The rename edit: a full-PUT of the header fields only.
 
     Distinct from SessionStreamEdit (used by the flag-mirror/heartbeat paths) so the
-    liveness-only writes can never carry name/description, and vice versa.
+    liveness-only writes can never carry name/description, and vice versa. The one
+    other header writer is the heartbeat's fill-once proposal, which goes through the
+    DAO's NULL-guarded `fill_missing` and so cannot overwrite this edit.
+
+    ``name`` may be omitted/``None`` (no change) or an empty string (the explicit
+    clear-title action the chat rail's rename path uses), but a NON-empty name must
+    contain a non-whitespace character: storing ``"   "`` clears the visible title
+    while the row still holds a value, a state no caller ever means. The LLM-facing
+    ``rename_session`` schema already rejects both; this closes the direct-API hole.
     """
+
+    @field_validator("name")
+    @classmethod
+    def _non_empty_name_must_not_be_blank(cls, value: Optional[str]) -> Optional[str]:
+        if value and not value.strip():
+            raise ValueError(
+                "name must contain a non-whitespace character"
+                " (send an empty string to clear the title)"
+            )
+        return value
 
 
 class SessionStreamQuery(BaseModel):
@@ -73,6 +114,8 @@ class SessionStreamQuery(BaseModel):
     include_archived: bool = False
     # Case-insensitive substring match over `name` (the session title).
     search: Optional[str] = None
+    origins: Optional[list[SessionOrigin]] = None
+    exclude_origins: Optional[list[SessionOrigin]] = None
 
 
 class CommandMode(str, Enum):
@@ -108,10 +151,21 @@ class SessionStreamCommandResponse(BaseModel):
 
 
 class SessionHeartbeatRequest(BaseModel):
+    """A beat, plus what this run knows about the session that nothing else records.
+
+    ``name`` and ``references`` are PROPOSALS, not edits: the service writes each only
+    onto a NULL column (see `SessionStreamsService.heartbeat`). The runner is the only
+    component present on every execution path — browser, headless invoke, scheduled
+    trigger — so it is the only one that can title and attribute a session that no
+    browser will ever render.
+    """
+
     session_id: str
     replica_id: str = Field(min_length=1)  # the runner CONTAINER (affinity / owner key)
     turn_id: Optional[str] = None  # the current TURN (proves alive-lock ownership)
     is_running: bool = True
+    name: Optional[str] = None
+    references: Optional[List[SessionReference]] = None
 
 
 class SessionLiveness(BaseModel):
