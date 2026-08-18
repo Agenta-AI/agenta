@@ -1188,6 +1188,81 @@ existing "wedged API invents missing rows" note (§4c) has a sibling: **a static
 invents a whole-block finding.** Whenever a capture follows a theme switch or a route change
 on the dev build, check the shot has real content before scoring it.
 
+## 4j. Breadth-first route screen — and the better way to prioritise it
+
+Nine project routes captured on both builds and ranked by content diff. Two findings, one of
+them about the method.
+
+### The percentages, and what they were worth
+
+| content | route | reading |
+|---|---|---|
+| 8.55% | `/evaluations` | an autoplaying demo VIDEO in the empty state, caught on different frames |
+| 4.88% | `/observability` | data (prod 1 trace row, local 5) |
+| 1.84% | `/apps` (Home) | data |
+| 1.64% | `/evaluators` | data |
+| 1.56% | `/annotations` | data |
+| 0.89% | `/agents` | data |
+| 0.70% | `/sessions` | closed (§4i) |
+| 0.39% | `/testsets` | data |
+| 0.32% | `/prompts` | data |
+
+Nine routes, one real bug — and the ranking pointed at it for the wrong reason.
+
+### P-12 — `EnhancedButton` silently drops `iconPosition="end"` — **FIXED**
+
+Every trailing-icon button renders its icon LEADING: `→ Learn More` where the desktop app has
+`Learn More →`. The facade's own docstring lists `iconPosition="end"` under *"Deferred (rare /
+unused)"* and destructures it into `_iconPosition` to keep it off the DOM node. It is neither
+rare nor unused — **five call sites** pass it: the shared `EmptyState`'s Learn-More (which
+renders on all five Evaluations tabs and on Observability), the agent Home composer, the
+template strip's intent actions, and the annotation session nav. Two of those are on surfaces
+this pass had already "compared".
+
+That is the lesson worth keeping: the bug surfaced on `/evaluations`, a page the lane barely
+touched (10 changed files), because it lives in a SHARED primitive (`@agenta/ui`, 92 changed
+files). **Screening by route ranks the symptom; screening by changed files ranks the cause.**
+
+### Still open on the same component — nested interactive elements
+
+`EmptyState` renders `<a><button>…</button></a>`. Prod renders one `<a class="ant-btn">` (antd
+`Button` with `href`). A button inside an anchor is invalid HTML and a real a11y problem.
+Not fixed here — it changes the element the styles hang off, so it wants its own verification
+pass.
+
+### Prioritise by lane blast radius, not by route
+
+Files changed HEAD vs 112.2, by area, against what has actually been compared:
+
+| changed files | area | compared? |
+|---|---|---|
+| 184 | observability (`pkg` 61 + `pkg-ui` 101 + page 22) | **only the traces-table chrome** |
+| 100 | `AgentChatSlice` | yes (build mode; not a live run) |
+| 92 | `@agenta/ui` | only where other surfaces exercised it — P-12 came from here |
+| 86 | `@agenta/entity-ui` | **no** — config drill-ins, DriveExplorer, commit modal, pickers |
+| 94 | settings (`pkg-ui` 51 + page 43) | yes |
+| 45 | agent-home + home-ui (28 + 17) | **no** — Home and the onboarding canvas |
+| 38 | auth + auth-ui (+ page) | **no** — login / signup / post-signup |
+| 19 | `SharedDrawers` | **no** — trace, testset, revision drawers |
+| 10 | pages/evaluations | swept, nothing of its own |
+| 0–1 | prompts, testsets, evaluators, annotations | **not worth comparing** |
+
+The last row is the point: those four pages have essentially no lane changes, so their 0.3–1.6%
+is noise by construction. Observability and `entity-ui` are where the unexamined risk is.
+
+### Harness — the skeleton gate, added after the third repeat
+
+`shot.sh` now waits for skeleton nodes to clear (bounded at 40s, warns if they persist) before
+capturing. Skeletons are STATIC, so they sail through the pixel-quiet gate and get captured as
+if they were the page: it invented a whole-block finding on a sessions list, an agent Home, and
+an observability table before this went in. The screen's own numbers show the difference —
+`/apps` read **8.64%** with a skeleton captured and **1.84%** without.
+
+`goto.sh` was added alongside it: `browse goto` blocks for a full document load and the local
+dev build routinely blows its 15s timeout, which kills the daemon connection and costs about a
+minute of recovery per navigation. Setting `location.href` from inside the page and polling for
+the landed path keeps the wait ours.
+
 ## 5. Coverage — NOT yet done
 
 This inventory is **not complete**. Untouched so far:
