@@ -32,7 +32,7 @@ const classesBefore = (markup: string, text: string): string[] =>
 
 const titleGroupClasses = (markup: string): string[] => {
     const match = markup.match(/<div[^>]*role="button"[^>]*>/)
-    assert(match, "Expected a role=\"button\" title group")
+    assert(match, 'Expected a role="button" title group')
     return classesFromMatch(match[0], /class="([^"]*)"/)
 }
 
