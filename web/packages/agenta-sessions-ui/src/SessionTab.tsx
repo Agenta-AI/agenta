@@ -13,12 +13,21 @@
  * Rest props land on the root, so a host can wrap it in a Radix `asChild` trigger (the desktop's
  * context menu does).
  */
-import {useCallback, useState, type ComponentProps, type ReactNode} from "react"
+import {useCallback, useState, type ComponentProps, type CSSProperties, type ReactNode} from "react"
 
 import clsx from "clsx"
 
+/** The label's tail dissolves into the chip's own fill — never an ellipsis, never a painted
+ * patch, so it works on any theme. Hover widens the fade to clear the action icons; the label
+ * element's width never changes, so nothing reflows. */
+const maskStyle = (img: string): CSSProperties => ({WebkitMaskImage: img, maskImage: img})
+const LABEL_MASK_REST = maskStyle("linear-gradient(to right, #000 calc(100% - 14px), transparent)")
+const LABEL_MASK_HOVER = maskStyle(
+    "linear-gradient(to right, #000 calc(100% - 60px), transparent calc(100% - 38px))",
+)
+
 export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
-    /** The session on screen: primary text + the accent underline. */
+    /** The session on screen: primary text on the `colorFill` chip. */
     active: boolean
     /** Text, or the host's own label element (inline rename on the desktop). */
     label: ReactNode
@@ -78,33 +87,31 @@ export const SessionTab = ({
                 // Floor the width so short labels ("hi") still leave a clickable label zone to the
                 // left of the hover actions (rename/close overlay the right ~58px) — otherwise a
                 // tiny chip is fully covered on hover and the click lands on a button, not select.
-                "group relative flex h-7 min-w-[112px] max-w-[180px] cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
-                // White pill on the recessed chat canvas (raised); the active tab keeps the
-                // primary text + a 2px accent underline so it's unmistakable against neighbours.
+                "group relative flex h-7 min-w-[112px] max-w-[180px] cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors",
+                // No card, no border — plain labels on the canvas, separated by the host's
+                // hairline divider. Selected reads by FILL alone: `colorFill` is the antd
+                // "pressed/active" step, ink-tinted in light and translucent white in dark,
+                // clearly stronger than the whisper-of-fill hover an unselected tag gets, held
+                // at 90% so the chip sits a touch lighter on the canvas.
                 active
-                    ? "border-colorBorder border-b-2 border-b-[var(--ag-surface-accent)] bg-colorBgContainer text-colorText"
-                    : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
+                    ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
+                    : "text-colorTextSecondary hover:bg-colorFillTertiary",
                 className,
             )}
         >
             {statusDot}
-            {typeof label === "string" ? (
-                <span className="block min-w-0 flex-1 truncate text-left">{label}</span>
-            ) : (
-                label
-            )}
-            {/* Hover actions overlay the label's tail — absolutely positioned so no width is
-                reserved at rest (no pixel shift). The gradient fades the covered text out under
-                the buttons instead of hard-clipping it. */}
+            <span
+                className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left"
+                style={actions ? LABEL_MASK_HOVER : LABEL_MASK_REST}
+            >
+                {label}
+            </span>
+            {/* Hover actions float over the masked tail — transparent buttons directly on the
+                tag's own fill. No backing: any painted patch reads as a mismatched box against
+                a chip whose only skin is that fill. */}
             {actions ? (
-                <div className="absolute inset-y-0 right-0 flex items-center">
-                    <span
-                        aria-hidden
-                        className="h-full w-3 bg-gradient-to-l from-colorBgContainer to-transparent"
-                    />
-                    <span className="flex h-full items-center gap-0.5 rounded-r-md bg-colorBgContainer pr-1">
-                        {actions}
-                    </span>
+                <div className="absolute inset-y-0 right-1 flex items-center gap-0.5">
+                    {actions}
                 </div>
             ) : null}
         </div>

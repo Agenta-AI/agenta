@@ -904,10 +904,11 @@ shows up as a region. Recorded so it is not re-measured.
   file"`, permanently disabled, 9 lines removed from `AgentTemplateControl.tsx`). This is a
   **fifth** 112.2-truth surface the §4f table did not list. I nearly filed it from the
   rendered page — the release diff settled it in one command.
-- **Session tab chip skin.** Prod fills the active chip (`bg-colorFill`, 90% in 112.2);
-  local draws an outlined pill with a 2px accent underline. That is `SessionTab` in
-  `@agenta/sessions-ui`, whose docstring states the new treatment deliberately. Later
-  design, not drift.
+- ~~**Session tab chip skin.**~~ **RETRACTED — reverted to prod's skin on Arda's call.** I
+  classified the outlined pill as deliberate because `SessionTab`'s own docstring described
+  it ("white pill on the recessed chat canvas … a 2px accent underline"). A component
+  documenting its skin is not the same as that skin being wanted, and Arda's read is that
+  the playground's session items have to match. See P-07.
 - **`+` docked at the strip's end** instead of inline after the last tag — same component,
   same deliberate rationale ("pinned outside the scroll area so New session sits at the end
   of the tab strip without scrolling away").
@@ -943,6 +944,31 @@ Local's page header carries an `opacity-0 hover:opacity-100` pencil (`aria-label
 agent"`, `AgentNameInline`) that prod has no counterpart for. It arrived on 2026-08-15,
 after the 112 line, so it is lane work rather than drift. Invisible at rest, so it costs the
 comparison nothing.
+
+### P-07 — the session chips are outlined pills; prod fills them — **FIXED**
+
+Measured, dark: prod's active chip `rgba(255,255,255,0.18)` with `border-width: 0`; this
+build's `rgb(20,20,20)` (`colorBgContainer`) inside a 1px `rgb(66,66,66)` frame with a 2px
+`rgb(194,213,74)` accent underline. Prod's tags also carry a hairline divider between
+them (13px between chip boxes = `mx-1.5` + 1px); this build had none, which is why the
+outline was doing the separating.
+
+`SessionTab` has exactly ONE consumer — the playground's `SessionTagBar` — so its skin is a
+playground decision, not a shared-surface one, and it moves back wholesale:
+
+- fill-only active (`color-mix(colorFill 90%)` — 112.2's value, so local reads **0.162**
+  where prod still reads 0.18; that one is 112.2 winning, not drift), plain
+  `colorTextSecondary` inactive with a `colorFillTertiary` hover, no border.
+- the label's tail masked into the chip's own fill (widening on hover to clear the icons)
+  instead of `truncate`, so there is no ellipsis and no reflow.
+- hover actions transparent on the fill, with the gradient + `colorBgContainer` backing
+  dropped — that backing existed only because the pill was a white card, and on a
+  translucent chip it reads as a mismatched box.
+- the hairline divider restored, inside the collapsing motion wrapper so it leaves with a
+  removed session rather than stranding a line.
+
+Verified live in both themes at 2 tabs, and by hovering: chip 112×28 at 0 border, dividers
+13px apart, actions on a `rgba(0,0,0,0)` container, label fading under them.
 
 ## 4h. Observability — D-03 and D-06 both resolved, neither is a lane regression
 

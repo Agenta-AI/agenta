@@ -92,6 +92,9 @@ interface SessionTagProps {
     /** True when this session already existed at the bar's first mount (reload restore) — an
      * activation here jumps instantly; a session added afterwards keeps the smooth scroll. */
     presentAtMount: boolean
+    /** Renders a hairline divider after this tag — every session but the last. Borderless chips
+     * need it to read as separate items. */
+    showDivider: boolean
     // Id-taking so the bar can forward its own stable setters straight through; per-chip closures
     // would change identity every render and drag each chip's Tooltip/Button subtree with them.
     onSelect: (id: string) => void
@@ -110,6 +113,7 @@ const SessionTag = memo(function SessionTag({
     active,
     closable,
     presentAtMount,
+    showDivider,
     onSelect,
     onClose,
     onRename,
@@ -182,7 +186,7 @@ const SessionTag = memo(function SessionTag({
                     tab.scrollIntoView({block: "nearest", inline: "nearest", behavior: "instant"})
                 }
             }}
-            className="shrink-0 overflow-hidden"
+            className="flex shrink-0 items-center overflow-hidden"
         >
             <SessionRowContextMenu entries={menu.items} onSelect={(key) => menu.onClick({key})}>
                 <SessionTab
@@ -195,7 +199,8 @@ const SessionTag = memo(function SessionTag({
                             label={label}
                             onRename={handleRename}
                             onEditingChange={setRenaming}
-                            className="block min-w-0 flex-1 truncate"
+                            // No `truncate`: the chip masks the tail into its own fill.
+                            className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap"
                         />
                     }
                     renderActions={() =>
@@ -228,6 +233,11 @@ const SessionTag = memo(function SessionTag({
                     }
                 />
             </SessionRowContextMenu>
+            {/* Travels INSIDE the collapsing wrapper, so it leaves with a removed session
+                instead of stranding a line. */}
+            {showDivider && (
+                <span aria-hidden className="mx-1.5 h-4 w-px shrink-0 bg-colorBorderSecondary" />
+            )}
         </SessionTabDragItem>
     )
 })
@@ -320,6 +330,7 @@ const SessionTagBar = ({
                             active={session.id === activeId}
                             closable={closable}
                             presentAtMount={presentAtMountRef.current.has(session.id)}
+                            showDivider={index < sessions.length - 1}
                             onSelect={onSelect}
                             onClose={onClose}
                             onRename={onRename}
