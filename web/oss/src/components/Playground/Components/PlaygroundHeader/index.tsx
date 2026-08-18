@@ -102,6 +102,9 @@ type PlaygroundHeaderProps = BaseContainerProps
 const EVALUATOR_ENTITY_TYPES = ["workflow"]
 
 // Build/Chat switch parked (not removed): Build is the only reachable mode until this flips back.
+const SHOW_MODE_SWITCH = false
+
+// Build/Chat switch parked (not removed): Build is the only reachable mode until this flips back.
 
 /** Resolves a user UUID to a display name via workspace members */
 const MemberAuthor: React.FC<{userId: string}> = ({userId}) => {
@@ -799,7 +802,13 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
                         )}
                         {isAgentWorkflow && !chromeHidden && (
                             <>
-                                <PlaygroundModeSwitch />
+                                {/* Build/Chat switch parked (not removed): Build is the only
+                                    reachable mode until this flips back. 112.0 shipped it behind
+                                    this same `false` and 112.1 kept it there; the package
+                                    extraction rendered it unconditionally, which put a second
+                                    "hide the config pane" affordance next to the « collapse
+                                    control that PR #5943 designed as the only one. */}
+                                {SHOW_MODE_SWITCH && <PlaygroundModeSwitch />}
                                 {settingsMenuItems.length > 0 && (
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
