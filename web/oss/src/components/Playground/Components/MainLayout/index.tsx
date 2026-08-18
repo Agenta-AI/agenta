@@ -1,6 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {chatPanelMaximizedAtom} from "@agenta/chat/state"
+import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui"
 import {
@@ -251,7 +251,13 @@ const PlaygroundMainView = ({
     // panel's `size` puts antd's Splitter into controlled mode: 0 collapses it, undefined
     // restores uncontrolled drag/defaultSize behaviour. Only meaningful in single agent view.
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
-    const configCollapsed = !isComparisonView && isAgentConfig && chatMaximized
+    // Manual collapse (the config header's « button / the chat header's reveal button) — a
+    // second, persisted trigger for the same collapse, independent of the Build/Chat maximize
+    // toggle. Dropping this READER is what made « a no-op: the button still wrote the atom and
+    // nothing listened.
+    const configPanelCollapsed = useAtomValue(configPanelCollapsedAtom)
+    const configCollapsed =
+        !isComparisonView && isAgentConfig && (chatMaximized || configPanelCollapsed)
     // Ease the config pane between its width and 0 on a Build/Chat toggle. The transition class must
     // land in the SAME commit as the size change (else it snaps), so detect the flip during render
     // via a ref compare; hold it ~280ms so removing the class doesn't snap, then drop it (mount,
