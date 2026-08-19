@@ -43,7 +43,7 @@ const CAPTION_CLASS =
 const PANEL_CLASS = "flex flex-col px-[3px] py-1"
 
 /** Capping the list at 7 rows keeps the actions below it on screen. */
-const SCROLL_LIST_CLASS = "flex max-h-56 flex-col overflow-y-auto"
+const SCROLL_LIST_CLASS = "flex max-h-56 flex-col overflow-y-auto ag-scroll-quiet"
 
 const Row = ({
     onClick,
