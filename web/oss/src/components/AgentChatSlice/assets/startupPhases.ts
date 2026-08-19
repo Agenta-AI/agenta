@@ -1,41 +1,18 @@
 /**
- * The startup ladder for a cold agent turn (#6047).
- *
- * The labels are a TIMED GUESS, not observed state: sandbox boot and ordinary model latency share
- * the one window between the stream's `start` chunk and its first content chunk, so nothing
- * client-side can tell them apart. Real per-phase truth would need the runner to emit events.
+ * User-facing labels for observed runner startup states.
  */
 
-/** One step of the ladder: the elapsed mark it takes over at, and what it says. */
-export interface StartupPhase {
-    atMs: number
-    label: string
+const STARTUP_LABELS = {
+    environment_starting: "Starting the agent",
+    environment_ready: "Agent ready",
+} as const
+
+export const startupLabelFromDataPart = (part: unknown): string | null => {
+    if (!part || typeof part !== "object") return null
+    const candidate = part as {type?: unknown; data?: {phase?: unknown}}
+    if (candidate.type !== "data-agent-status") return null
+    const phase = candidate.data?.phase
+    return typeof phase === "string" && phase in STARTUP_LABELS
+        ? STARTUP_LABELS[phase as keyof typeof STARTUP_LABELS]
+        : null
 }
-
-/** Ascending by `atMs`. "Working" sits at 0 because it is the one line true of EVERY turn, which is
- * what makes an immediate label safe on a turn misjudged as cold (pinned by test). */
-export const STARTUP_PHASES: readonly StartupPhase[] = [
-    {atMs: 0, label: "Working"},
-    {atMs: 2_000, label: "Starting the agent"},
-    {atMs: 8_000, label: "Preparing instructions and tools"},
-    {atMs: 14_000, label: "Almost ready"},
-]
-
-/** ms to the next phase; undefined once the last one lands, which tells callers to stop scheduling. */
-export const msUntilNextStartupPhase = (elapsedMs: number): number | undefined => {
-    const next = STARTUP_PHASES.find((phase) => phase.atMs > elapsedMs)
-    return next ? next.atMs - elapsedMs : undefined
-}
-
-/** The last phase reached, so the label never goes backwards; the final one holds. */
-export const startupPhaseAt = (elapsedMs: number): string | null => {
-    let label: string | null = null
-    for (const phase of STARTUP_PHASES) {
-        if (elapsedMs < phase.atMs) break
-        label = phase.label
-    }
-    return label
-}
-
-/** A warm session has nothing to boot, so narrating a startup there would be a plain lie. */
-export const shouldShowStartupLadder = ({isAlive}: {isAlive: boolean}): boolean => !isAlive
