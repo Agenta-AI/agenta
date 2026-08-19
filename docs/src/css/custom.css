@@ -1299,6 +1299,17 @@ div[class*="docSidebarContainer"] {
   border-radius: 8px;
 }
 
+/* Stream wraps its iframe in a bare div sized exactly to the iframe, so a margin on the
+   iframe itself is contained and moves nothing. It goes on the wrapper. Same 24px images
+   already carry. */
+.theme-doc-markdown div:has(> iframe[src*="cloudflarestream"]) {
+  margin-bottom: 24px;
+}
+
+.theme-doc-markdown iframe[src*="cloudflarestream"] {
+  display: block;
+}
+
 .markdown img {
   margin-bottom: 24px;
 }
