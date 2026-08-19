@@ -51,6 +51,7 @@ import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
 import {useVoiceComposer} from "./hooks/useVoiceComposer"
+import {hasSessionChat} from "./state/chatRegistry"
 import {useChatScopeKey} from "./state/scope"
 import {clearSessionFresh} from "./state/sessionEphemera"
 import {
@@ -71,8 +72,8 @@ import {focusComposerRequestAtom, matchesSessionRequest} from "./state/uiRequest
  * Messages persist to localStorage (seeded on mount, written when the stream settles) so the
  * tab survives a reload / revision swap.
  *
- * Design decisions baked in (docs/design/agent-workflows/playground-agent-generation.md):
- *  - D9  teardown: abort the in-flight stream on unmount (tab close / revision swap).
+ * Design decisions baked in (docs/design/agent-workflows/projects/session-chat-registry/decisions.md):
+ *  - D9  teardown: release the chat on unmount; it is preserved while its session tab is open.
  *  - DT3 cancelled state: a stopped stream tags its partial bubble "Stopped" + offers Resend.
  *  - DT4 autoscroll: stick to bottom while streaming; pause when scrolled up; "jump to latest".
  *  - DT5 a11y: the message log is an aria-live region; controls are keyboard-operable.
@@ -358,8 +359,7 @@ const AgentConversation = ({
 
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
-    // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
-    // tab keeps no stale dot and stops claiming it's the live watcher.
+    // Precedence error > awaiting approval > running > idle.
     // A still-pending interaction in an EARLIER message must keep the status at `awaiting`, or the
     // status collapses to idle, the settle stamp lands, and the running-elsewhere strip flickers in
     // the very tab that owns the parked widget (Mahmoud's session e627d80a). `hitlPending` scans
@@ -374,8 +374,14 @@ const AgentConversation = ({
                 : "idle"
         setSessionStatus({id: sessionId, status})
     }, [error, hitlPending, busy, sessionId, setSessionStatus])
+    // On unmount, retire the dot ONLY if the run went with us. A chat preserved past this mount
+    // (route change with the tab still open) is still this browser's run to report, so it keeps its
+    // status until it settles — `useAgentChatSession`'s `onFinish` retires it then. The session hook
+    // releases the chat in an earlier cleanup, so the registry is already authoritative here.
     useEffect(
-        () => () => setSessionStatus({id: sessionId, status: "idle"}),
+        () => () => {
+            if (!hasSessionChat(sessionId)) setSessionStatus({id: sessionId, status: "idle"})
+        },
         [sessionId, setSessionStatus],
     )
 
