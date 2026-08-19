@@ -5,6 +5,7 @@ description: "Choose the model, harness, and provider connection that an Agenta 
 ---
 
 ```mdx-code-block
+import Image from "@theme/IdealImage";
 import { Stream } from "@cloudflare/stream-react";
 ```
 
@@ -41,6 +42,13 @@ The picker's footer row, `Manage model providers`, opens the `Model providers` d
 In the drawer, pick a provider under `Add a provider`, fill in its credential, and click `Done`. `Name` is optional; leave it blank to take the generated one. `Test` checks the credential first, but `Done` does not require it. Connections you already have sit under `Connected`, and mounted subscriptions under `Subscriptions`.
 
 To manage connections for the whole project instead of from one agent, go to `Sidebar > Settings > AI providers` and click `Add provider`. The table lists each connection's provider, name, credential, active models, and creation date.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/agenta-ai-providers-wide.png")}
+  alt="Settings then AI providers, listing each connection's provider, name, credential, active models, and creation date, with an Add provider button"
+  loading="lazy"
+/>
 
 To run an agent against a Claude or ChatGPT subscription rather than a metered API key, see [Use your own Claude or ChatGPT subscription](/guides/use-your-own-subscription).
 
