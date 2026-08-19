@@ -12,9 +12,10 @@
  * before teardown. These tests stand a Pi transcript up inside a fake remote sandbox and pin that
  * the error reaches the caller.
  *
- * Fixture note: an implementation that LISTS the transcript directory (rather than reading a
- * known path) will need `runProcess` in `tests/utils/silent-turn.ts` taught to answer that
- * listing.
+ * Fixture note: the fake supports both ways a reader might find the transcript — `readFsFile`
+ * serves it for any `.jsonl` path, and `runProcess` answers an `ls` on stdout the way
+ * `sandboxRelayHost.list` reads it (`src/tools/relay.ts`). So the expectations below stay
+ * implementation-neutral: they pin that the transcript is read, not how it is located.
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/daytona-transcript-recovery.test.ts)
  */

@@ -174,10 +174,20 @@ export async function runSilentTurn(
 
   const sandbox = {
     async mkdirFs() {},
-    // `exitCode: 0` makes the Daytona bootstrap's `test -x <pinned pi>` succeed, i.e. the image
-    // already has Pi baked in — otherwise the run dies during setup and never reaches a turn.
-    async runProcess() {
-      return { exitCode: 0 };
+    // Two jobs, both matching the real contract:
+    //  - `exitCode: 0` makes the Daytona bootstrap's `test -x <pinned pi>` succeed, i.e. the
+    //    image already has Pi baked in — otherwise the run dies during setup and never reaches
+    //    a turn.
+    //  - `ls` answers on STDOUT, the way `sandboxRelayHost.list` reads it in `src/tools/relay.ts`
+    //    (`String(ls?.stdout ?? "").split("\n")`). A reader that finds the transcript by LISTING
+    //    the directory has to see the file; returning a bare exit code would hand it an empty
+    //    listing, and the Daytona expectations would stay green through the fix that closes them.
+    async runProcess(input?: { command?: string }) {
+      const listing =
+        input?.command === "ls" && options.sandboxTranscript
+          ? `${TRANSCRIPT_FILENAME}\n`
+          : "";
+      return { exitCode: 0, stdout: listing };
     },
     async writeFsFile() {},
     async deleteFsEntry() {},
@@ -257,26 +267,71 @@ export async function runSilentTurn(
   }
 }
 
-/** A Pi session transcript whose last assistant turn failed with `message`. */
-export function piTranscriptWithError(cwd: string, message: string): string {
+/**
+ * Pi's transcript format, in ONE place.
+ *
+ * Every test that stands a Pi transcript up — here and in `sandbox-agent-pi-error.test.ts` —
+ * encodes it through this, so a Pi schema change cannot leave two hand-rolled copies agreeing
+ * with each other and both wrong about the format the reader parses.
+ *
+ * `recordCwd` overrides the cwd stamped on the `session` record, to simulate a stale or copied
+ * transcript (the reader matches on it).
+ */
+export function piTranscript(
+  cwd: string,
+  name: string,
+  messages: Array<Record<string, unknown>>,
+  recordCwd: string = cwd,
+): string {
   return (
     [
-      JSON.stringify({ type: "session", version: 3, id: "sess-failed", cwd }),
-      JSON.stringify({
-        type: "message",
-        message: { role: "user", content: [{ type: "text", text: "hi" }] },
-      }),
-      JSON.stringify({
-        type: "message",
-        message: {
-          role: "assistant",
-          content: [],
-          stopReason: "error",
-          errorMessage: message,
-        },
-      }),
+      JSON.stringify({ type: "session", version: 3, id: name, cwd: recordCwd }),
+      ...messages.map((message) => JSON.stringify(message)),
     ].join("\n") + "\n"
   );
+}
+
+/** Write a transcript into `piSessionWorkspaceDir(cwd)`, flat, the way Pi does. */
+export function writePiTranscript(
+  cwd: string,
+  name: string,
+  messages: Array<Record<string, unknown>>,
+  recordCwd: string = cwd,
+): void {
+  const dir = piSessionWorkspaceDir(cwd);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, `${name}.jsonl`),
+    piTranscript(cwd, name, messages, recordCwd),
+  );
+}
+
+/** The one transcript these suites stand up; also what the fake sandbox's `ls` reports. */
+const TRANSCRIPT_NAME = "sess-failed";
+export const TRANSCRIPT_FILENAME = `${TRANSCRIPT_NAME}.jsonl`;
+
+/** The messages of a session whose last assistant turn failed with `message`. */
+function failedTurnMessages(message: string): Array<Record<string, unknown>> {
+  return [
+    {
+      type: "message",
+      message: { role: "user", content: [{ type: "text", text: "hi" }] },
+    },
+    {
+      type: "message",
+      message: {
+        role: "assistant",
+        content: [],
+        stopReason: "error",
+        errorMessage: message,
+      },
+    },
+  ];
+}
+
+/** A Pi session transcript whose last assistant turn failed with `message`. */
+export function piTranscriptWithError(cwd: string, message: string): string {
+  return piTranscript(cwd, TRANSCRIPT_NAME, failedTurnMessages(message));
 }
 
 /**
@@ -284,10 +339,5 @@ export function piTranscriptWithError(cwd: string, message: string): string {
  * a sandbox whose harness died on a provider rejection.
  */
 export function seedFailedTranscript(cwd: string, message: string): void {
-  const dir = piSessionWorkspaceDir(cwd);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, "sess-failed.jsonl"),
-    piTranscriptWithError(cwd, message),
-  );
+  writePiTranscript(cwd, TRANSCRIPT_NAME, failedTurnMessages(message));
 }

@@ -27,7 +27,10 @@ from agenta.sdk.agents.adapters.vercel.stream import (
 from agenta.sdk.agents.errors import AgentRunFailed
 from agenta.sdk.agents.streaming import AgentStream
 
-_NO_OUTPUT_TEXT = "The agent produced no output."
+# The backstop's failure CODE, not its prose. Asserting the code is what keeps these tests
+# honest: the generic message's wording can be reworded at any time, and a `not in text` check
+# would then pass vacuously while the backstop was still burying the real error.
+_NO_OUTPUT_CODE = "no_output"
 
 # The concise message the runner puts on a failed turn, as `conciseError` renders it.
 _PROVIDER_ERROR = (
@@ -62,13 +65,12 @@ async def test_terminal_only_failure_carries_the_providers_message() -> None:
     # Substring, not equality: `result_from_wire` prefixes the raised failure. What must not
     # change is that the caller's own reason reaches the browser.
     assert _PROVIDER_ERROR in errors[0]
-    assert _NO_OUTPUT_TEXT not in errors[0], (
-        "the real reason was replaced by the generic no-output message"
-    )
-    # The failure code rides the paired data frame, so a client can branch on it.
+    # The failure code rides the paired data frame, so a client can branch on it. This is also
+    # the structural form of "the real reason was not replaced by the generic no-output message".
     data_frames = [p for p in parts if p["type"] == "data-agent-error"]
     assert len(data_frames) == 1
     assert data_frames[0]["data"]["code"] == AgentRunFailed.failure_code
+    assert data_frames[0]["data"]["code"] != _NO_OUTPUT_CODE
     assert data_frames[0]["data"]["errorText"] == errors[0]
     # And a consumer waiting on the terminator must not hang because the turn failed.
     types = [p["type"] for p in parts]
@@ -93,7 +95,9 @@ async def test_live_terminal_only_failure_carries_the_providers_message() -> Non
     errors = _error_texts(parts)
     assert len(errors) == 1, f"expected exactly one error frame, got {errors!r}"
     assert _PROVIDER_ERROR in errors[0]
-    assert _NO_OUTPUT_TEXT not in errors[0]
+    codes = [p["data"]["code"] for p in parts if p["type"] == "data-agent-error"]
+    assert codes == [AgentRunFailed.failure_code]
+    assert _NO_OUTPUT_CODE not in codes
     assert [p["type"] for p in parts][-1] == "finish"
 
 
