@@ -6,6 +6,7 @@ description: "Build one agent end to end in Agenta: describe it, write its instr
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 This tutorial builds one agent from nothing to a committed version. Along the way you meet every part of an agent: its instructions, its tools, its skills, and its permissions. Each idea is explained where you first meet it, with a link to the full version.
@@ -97,6 +98,8 @@ Open them and read what the agent wrote:
 2. Click the `AGENTS.md` row. The editor opens.
 3. Use `Edit` to write, `Preview` to see the rendered markdown, and `Source` in the toolbar to work in raw markdown.
 
+<Stream controls autoplay muted loop src="527e90e91f5b353cbfe4ebd9035c36d6" height="400px" />
+
 
 Add the context only you have. For this agent, that is who reads the release notes and how they should sound. The examples below use `acme/checkout`; use your own repository throughout.
 
@@ -184,6 +187,8 @@ Your release-notes format is exactly that shape: a procedure the agent needs som
 
 5. Click `Create`.
 
+<Stream controls autoplay muted loop src="136fbf96fa2b114c44c9adae663c2c69" height="400px" />
+
 
 The description decides whether the skill fires, because it is all the agent sees up front. Write it as a situation the agent can recognize, not as a summary of the contents.
 
@@ -197,6 +202,8 @@ Your agent can now read from GitHub and write files. Permissions decide which of
 2. Open the `Permissions` section.
 3. Set `Policy` to `Allow reads`. It is the default, so it may already be selected.
 4. Click `Save`.
+
+<Stream controls autoplay muted loop src="043728b716bd954b6084a6fb8d247b1b" height="400px" />
 
 
 The four policies are:

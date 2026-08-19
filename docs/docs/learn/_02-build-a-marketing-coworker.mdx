@@ -6,6 +6,7 @@ description: "Build an agent that writes marketing copy in your voice, correct i
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 In this tutorial you build an agent that works on your marketing, teach it your company and your voice, correct it once, and then hand the recurring part of its job to a schedule. By the end, the agent produces next week's content plan every Monday morning without you opening a chat.
@@ -50,6 +51,8 @@ The agent works, but it knows nothing about you. Giving it that context is the n
 An agent's instructions are its identity. They live in a file called `AGENTS.md` and they are sent at the start of every session, so whatever is in them is guaranteed to be there every time the agent thinks. See [Instructions](/concepts/instructions) for the full picture.
 
 In the `Configuration` column, open the `Instructions` section and click the `AGENTS.md` row. The editor opens with an `Edit` and `Preview` control at the top. Click `Source` in the toolbar to edit the raw markdown.
+
+<Stream controls autoplay muted loop src="527e90e91f5b353cbfe4ebd9035c36d6" height="400px" />
 
 
 Replace what is there with this, then press `Save`:
@@ -219,6 +222,8 @@ Every commit is kept, so you can see what the agent looked like at any point and
 ### 4d. Create the schedule
 
 In `Configuration`, scroll to the `Triggers` heading and its `Schedules` section. Press `Add schedule`. The `New schedule` dialog has four parts.
+
+<Stream controls autoplay muted loop src="8d439bac8d056105aa2f4dffab6a93cc" height="400px" />
 
 
 1. **`Name`.** Type `Weekly content plan` in `Schedule name`.
