@@ -1661,3 +1661,38 @@ not changed, for the same reason C-03 is.
 - **C-02.** The deterministic three-line block renders three lines on both, all three Shiki line
   spans computing `display: block`. What still differs on that surface is C-04's deliberate
   chrome: local's `python` header bar, and Shiki `one-dark-pro` colours against prod's Prism.
+
+### C-03 / C-04 resolved by Arda
+
+- **C-03 (the 9px gutter): KEEP.** Deliberate design of the kit `SplitPane`, shared with `/m`.
+  Recorded as intended; the chat column's ~1.5–4.5px offset from prod is expected from here on,
+  and `vrt.py align` is how you read past it.
+- **C-04 (markdown scale and rhythm): RESTORED to prod's.** Measured off v0.112.1's own rendered
+  blocks rather than copied from its margins, because Streamdown wraps every block in its own div
+  and antd-x's sibling margins collapsed where these cannot. The root gap is now zero and each
+  block owns only the space BELOW it (`mt` 0 everywhere), which reproduces the collapsed gaps
+  exactly and can never double up.
+
+| boundary | prod | local before | local after |
+|---|---|---|---|
+| h1 → h2 | 12 | 8 | **12** |
+| h2 → p | 4 | 0 | **4** |
+| p → ul | 14 | 8 | **14** |
+| ul → ol | 13 | 8 | **14** |
+| ol → blockquote | 14 | 8 | **14** |
+| blockquote → code | 8 | 8 | **8** |
+| code → table | 13 | 8 | **12** |
+| table → hr | 21 | 8 | **16** |
+| base / h1 / h2 | 14 / 16 / 14 | 13 / 14 / 13 | **14 / 16 / 14** |
+| table | auto (177) | `w-full` (467) | **auto (168)** |
+
+Two traps inside that work, both caught by measuring rather than reading the CSS back:
+
+- **A `<p>` inside an `<li>` or a `<blockquote>` inherits the paragraph rhythm** and inflates the
+  block it sits in — the blockquote read `margin-bottom: 0` yet still left a 14px gap, which was
+  its inner paragraph. Same for a **nested list**: the inner `<ul>` carried the 14px block margin
+  and made a 3-item list 84px against prod's 70. Only top-level blocks carry rhythm now
+  (`[&_li_p]`, `[&_li_ul]`, `[&_li_ol]`, `[&_blockquote_p]` → `!my-0`); the list is 72px.
+- **Zeroing the last block's margin has to reach through the wrapper.**
+  `[&>:last-child]:!mb-0` targets Streamdown's wrapper div, whose margin was already 0;
+  `[&>:last-child>*]:!mb-0` is what actually stops the last block padding the bubble twice.

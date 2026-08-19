@@ -14,49 +14,54 @@ import {chatFileLinkAtomFamily} from "../state/fileLinks"
 // block is restyled here explicitly onto antd tokens (same override-layer pattern as mobile's
 // AssistantMarkdown, at desktop's text-sm scale).
 export const MD_CLASS =
-    // Streamdown renders every markdown block inside its own wrapper div, so per-element
-    // margins never meet between siblings — the root `space-y` is the ONE inter-block spacing
-    // knob (its default space-y-4 reads inflated at this scale; 8px matches the app's rhythm).
-    // Per-element vertical margins are zeroed so wrapper gap + margin don't stack, and the base
-    // is the app's 12px standard — the antd-x bubble inherited the 12px fontSize token.
-    "min-w-0 max-w-full space-y-2 overflow-hidden break-words text-xs leading-relaxed " +
-    "[&_a]:text-colorPrimary [&_a]:underline [&_a]:break-all [&_p]:!my-0 [&_p]:!break-words " +
-    "[&_ul]:!my-0 [&_ul]:!list-outside [&_ul]:!pl-5 [&_ol]:!my-0 [&_ol]:!list-outside [&_ol]:!pl-5 " +
-    "[&_li]:!my-0.5 [&_li]:!py-0 [&_code]:rounded " +
+    // Rhythm and scale are the desktop app's, measured off v0.112.1: base 14px, and the gaps
+    // between blocks 12 / 4 / 14 / 14 / 8 / 12 / 20. Streamdown wraps every block in its own
+    // div, so sibling margins can't collapse the way antd-x's did — the root gap is therefore
+    // zero and each block owns only the space BELOW it (every `mt` stays 0). Bottom-margin-only
+    // reproduces those gaps exactly and can never double up.
+    "min-w-0 max-w-full space-y-0 overflow-hidden break-words text-sm leading-relaxed " +
+    "[&_a]:text-colorPrimary [&_a]:underline [&_a]:break-all " +
+    "[&_p]:!mt-0 [&_p]:!mb-3.5 [&_p]:!break-words " +
+    "[&_ul]:!mt-0 [&_ul]:!mb-3.5 [&_ul]:!list-outside [&_ul]:!pl-3.5 " +
+    "[&_ol]:!mt-0 [&_ol]:!mb-3.5 [&_ol]:!list-outside [&_ol]:!pl-3.5 " +
+    "[&_li]:!my-0.5 [&_li]:!py-0 [&_li_p]:!my-0 [&_li_ul]:!my-0 [&_li_ol]:!my-0 " +
+    "[&_blockquote_p]:!my-0 [&_code]:rounded " +
     "[&_code]:bg-colorFillTertiary [&_code]:px-1 [&_code]:break-words " +
     // Tables: real borders + padding, a quiet header, and `break-normal` cells so text wraps at
-    // spaces instead of snapping mid-word ("PostH og"). Full-width within the bubble.
-    "[&_table]:my-0 [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs " +
+    // spaces instead of snapping mid-word ("PostH og"). Width is auto, as the desktop app sizes
+    // it — `w-full` stretched a two-column table across the whole bubble.
+    "[&_table]:mt-0 [&_table]:mb-3 [&_table]:w-auto [&_table]:border-collapse [&_table]:text-xs " +
     "[&_th]:border [&_th]:border-solid [&_th]:border-colorBorderSecondary [&_th]:bg-colorFillTertiary " +
     "[&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:align-top [&_th]:font-medium [&_th]:break-normal " +
     "[&_td]:border [&_td]:border-solid [&_td]:border-colorBorderSecondary " +
     "[&_td]:px-2.5 [&_td]:py-1.5 [&_td]:align-top [&_td]:break-normal " +
     // Streamdown wraps tables for copy affordances; keep the wrapper quiet on antd surfaces.
     "[&_[data-streamdown=table-wrapper]]:!my-0 [&_[data-streamdown=table-wrapper]]:!overflow-x-auto " +
-    // Headings — compact for a chat bubble (browser defaults are huge), descending weight/size.
+    // Headings — the desktop app's scale (h1 16/22, h2 14, the rest at body size on weight
+    // alone), not the browser's, which is huge here.
     // Colour is `text-inherit`, NOT a fixed token: a global bare-`h1 { color:#333 }` rule
     // (editor-theme.css) leaks into every unstyled h1 and preflight is off so nothing normalises
     // it. `inherit` out-specifies that global rule (0,1,1 vs 0,0,1) and makes headings follow the
     // block's own colour — correct on any surface AND respecting a caller/ancestor recolour (e.g.
     // a muted context). Same guard on h2–h5 future-proofs against another stray global heading
     // rule; h6 stays intentionally quieter.
-    "[&_h1]:!mt-2 [&_h1]:!mb-0 [&_h1]:!text-sm [&_h1]:!font-semibold [&_h1]:!leading-snug [&_h1]:!text-inherit " +
-    "[&_h2]:!mt-2 [&_h2]:!mb-0 [&_h2]:!text-[13px] [&_h2]:!font-semibold [&_h2]:!leading-snug [&_h2]:!text-inherit " +
-    "[&_h3]:!mt-1.5 [&_h3]:!mb-0 [&_h3]:!text-xs [&_h3]:!font-semibold [&_h3]:!text-inherit " +
-    "[&_h4]:!mt-1.5 [&_h4]:!mb-0 [&_h4]:!text-xs [&_h4]:!font-semibold [&_h4]:!text-inherit " +
-    "[&_h5]:!mt-1.5 [&_h5]:!mb-0 [&_h5]:!text-xs [&_h5]:!font-semibold [&_h5]:!text-inherit " +
-    "[&_h6]:!mt-1.5 [&_h6]:!mb-0 [&_h6]:!text-xs [&_h6]:!font-medium [&_h6]:!text-colorTextSecondary " +
+    "[&_h1]:!mt-0 [&_h1]:!mb-3 [&_h1]:!text-base [&_h1]:!font-semibold [&_h1]:!leading-[22px] [&_h1]:!text-inherit " +
+    "[&_h2]:!mt-0 [&_h2]:!mb-1 [&_h2]:!text-sm [&_h2]:!font-semibold [&_h2]:!leading-snug [&_h2]:!text-inherit " +
+    "[&_h3]:!mt-0 [&_h3]:!mb-1 [&_h3]:!text-sm [&_h3]:!font-semibold [&_h3]:!text-inherit " +
+    "[&_h4]:!mt-0 [&_h4]:!mb-1 [&_h4]:!text-sm [&_h4]:!font-semibold [&_h4]:!text-inherit " +
+    "[&_h5]:!mt-0 [&_h5]:!mb-1 [&_h5]:!text-sm [&_h5]:!font-semibold [&_h5]:!text-inherit " +
+    "[&_h6]:!mt-0 [&_h6]:!mb-1 [&_h6]:!text-sm [&_h6]:!font-medium [&_h6]:!text-colorTextSecondary " +
     // Blockquote — a quiet left-ruled aside. Layout is forced (!important) so nothing (the UA's
     // logical `margin-inline: 40px`, the bubble's placement styles, etc.) can push the content into
     // a centered/over-indented look: no horizontal margin, a small left padding, left-aligned.
     // Zero the non-left borders with per-side longhands (NOT `border-0`, whose `border-width`
     // shorthand wins over `border-l-2` as an arbitrary variant and drops the left rule).
-    "[&_blockquote]:my-0 [&_blockquote]:!mx-0 [&_blockquote]:!pl-3 [&_blockquote]:!text-left " +
+    "[&_blockquote]:!mt-0 [&_blockquote]:!mb-2 [&_blockquote]:!mx-0 [&_blockquote]:!pl-3 [&_blockquote]:!text-left " +
     "[&_blockquote]:border-y-0 [&_blockquote]:border-r-0 [&_blockquote]:border-l-2 " +
     "[&_blockquote]:border-solid [&_blockquote]:border-colorTextTertiary " +
     "[&_blockquote]:text-colorTextSecondary [&_blockquote]:italic " +
     // Rule, images, emphasis, strikethrough, and task-list checkboxes.
-    "[&_hr]:!my-3 [&_hr]:!border-0 [&_hr]:!border-t [&_hr]:!border-solid [&_hr]:!border-colorBorderSecondary " +
+    "[&_hr]:!mt-4 [&_hr]:!mb-4 [&_hr]:!border-0 [&_hr]:!border-t [&_hr]:!border-solid [&_hr]:!border-colorBorderSecondary " +
     "[&_img]:my-2 [&_img]:max-w-full [&_img]:rounded " +
     "[&_strong]:font-semibold [&_em]:italic [&_del]:line-through " +
     // HTML passthrough (LLM output sometimes includes raw HTML): neutralise the elements whose UA
@@ -71,7 +76,7 @@ export const MD_CLASS =
     // app runs without it, so its <button>/<pre> leak UA borders and margins). Restyle the whole
     // block: one quiet box, a slim language header, an unboxed copy icon, and a reset for the
     // inline-chip `[&_code]` styles inside the block.
-    "[&_[data-streamdown=code-block]]:!my-0 [&_[data-streamdown=code-block]]:!max-w-full " +
+    "[&_[data-streamdown=code-block]]:!mt-0 [&_[data-streamdown=code-block]]:!mb-3 [&_[data-streamdown=code-block]]:!max-w-full " +
     "[&_[data-streamdown=code-block]]:!min-w-0 [&_[data-streamdown=code-block]]:!gap-0 " +
     "[&_[data-streamdown=code-block]]:!rounded-md [&_[data-streamdown=code-block]]:!p-0 " +
     "[&_[data-streamdown=code-block]]:!border [&_[data-streamdown=code-block]]:!border-solid " +
@@ -100,7 +105,7 @@ export const MD_CLASS =
     // ("a = 1b = 2c = 3" on one row). Make the line spans blocks ourselves.
     "[&_[data-streamdown=code-block]_pre_code>span]:!block " +
     // Trim the outer edges so the bubble padding isn't doubled by leading/trailing margins.
-    "[&>:first-child]:!mt-0 [&>:last-child]:!mb-0"
+    "[&>:first-child]:!mt-0 [&>:last-child]:!mb-0 [&>:last-child>*]:!mb-0"
 
 /** Flatten a code element's children (string / text nodes) to the raw source. */
 const childrenToText = (children: ReactNode): string => {
