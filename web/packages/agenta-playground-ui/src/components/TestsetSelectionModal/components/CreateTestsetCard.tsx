@@ -29,7 +29,7 @@ export function CreateTestsetCard({onFileUpload, onBuildInUI}: CreateTestsetCard
                 </div>
             </Upload.Dragger>
 
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-gray-400">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-400">
                 <span className="h-px flex-1 bg-gray-200" />
                 <span>or</span>
                 <span className="h-px flex-1 bg-gray-200" />

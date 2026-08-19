@@ -28,21 +28,28 @@ deployment you run for yourself. See
 - A running local OSS stack. See the [Quick start](/self-host/quick-start).
 - A harness you have logged into on your own machine:
   - **Pi** stores its login at `~/.pi/agent/auth.json`. Log in with `pi`, then `/login`.
-  - **ChatGPT / Codex** uses the same Pi login file. Log in with `pi`, then `/login`, and pick
-    the ChatGPT sign-in.
   - **Claude Code** stores its login at `~/.claude/.credentials.json`. Log in with `claude` and
     pick the subscription login.
+  - **Codex** stores its login at `~/.codex/auth.json`. Log in with `codex login` and pick the
+    ChatGPT sign-in.
+
+  To reach ChatGPT/Codex models through the **Pi** harness instead of the native Codex harness, use
+  the Pi login above and pick the ChatGPT sign-in at `pi`'s `/login`; it writes the same
+  `~/.pi/agent/auth.json` file.
 
 ## 1. Confirm the login on your machine
 
 Check that the login file exists before you mount it:
 
 ```bash
-# Pi and ChatGPT/Codex
+# Pi (and ChatGPT/Codex models through the Pi harness)
 ls ~/.pi/agent/auth.json
 
 # Claude Code
 ls ~/.claude/.credentials.json
+
+# Codex
+ls ~/.codex/auth.json
 ```
 
 ## 2. Check that the runner can read it
@@ -67,7 +74,7 @@ Edit the `runner` service in your Compose file
 (`hosting/docker-compose/oss/docker-compose.gh.yml`). Add a read-write volume for your login and
 point the harness at it.
 
-For **Pi** or **ChatGPT/Codex**:
+For **Pi** (this also serves ChatGPT/Codex models reached through the Pi harness):
 
 ```yaml
 runner:
@@ -86,6 +93,20 @@ runner:
   environment:
     CLAUDE_CONFIG_DIR: /agenta/harness/claude
 ```
+
+For the **Codex** harness:
+
+```yaml
+runner:
+  volumes:
+    - ~/.codex:/agenta/harness/codex:rw
+  environment:
+    CODEX_HOME: /agenta/harness/codex
+```
+
+Codex reads its login from `CODEX_HOME`. The runner mounts the directory read-write and links only
+its `auth.json` into each run, so a refreshed token lands back in your login while your personal
+`config.toml` and plugins stay out of the run.
 
 If your uid is not 1000 (step 2), also run the container as your own user so it can read the mounted
 login. Add `user:` with your `id -u`:`id -g`, and set `HOME` to a writable path. For Claude Code:
@@ -131,9 +152,26 @@ In the studio, run an agent and choose the self-managed credential option (use y
 for the matching harness. The run authenticates with your mounted subscription instead of a
 managed key.
 
+When you select the subscription option, the credential card checks the runner and reports what it
+finds for the selected harness:
+
+| Message | Meaning |
+| --- | --- |
+| `Subscription login found` | The mount is set and the login file looks usable. |
+| `Runner found. Subscription folder is not configured.` | The runner has no mount variable for this harness. Recheck step 3. |
+| `Runner found. Login file is missing.` | The mount variable is set, but the expected file is not there. Recheck steps 1 and 3. |
+| `Runner found. Login file cannot be used.` | The file exists but is empty or unreadable. Recheck step 2 (file ownership). |
+| `Runner is not connected.` | Agenta cannot reach the runner container. |
+| `Update the runner to check subscription status.` | The runner predates this check. |
+
+The check reads only the local login location. It does not contact the provider, so
+`Subscription login found` means the file is in place, not that the subscription is active. A
+successful run remains the proof. Use **Check again** after you change a mount or sign in again;
+the card also refreshes itself every few seconds while open.
+
 If the run fails because the harness has no login, the mount is missing, the runner cannot read it
-(step 2), or `PI_CODING_AGENT_DIR` / `CLAUDE_CONFIG_DIR` does not point at it. Recheck steps 2
-and 3.
+(step 2), or `PI_CODING_AGENT_DIR` / `CLAUDE_CONFIG_DIR` / `CODEX_HOME` does not point at it. Recheck
+steps 2 and 3.
 
 ## Next
 

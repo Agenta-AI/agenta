@@ -23,6 +23,8 @@ export interface CodeEditorProps {
     language?: CodeEditorLanguage
     placeholder?: string
     disabled?: boolean
+    /** Emit changes immediately instead of after the shared editor's 300 ms debounce. @default false */
+    disableDebounce?: boolean
 }
 
 /** Best-effort highlight language from a file path's extension, for bundled-file editing. */
@@ -54,6 +56,7 @@ export function CodeEditor({
     language = "code",
     placeholder,
     disabled,
+    disableDebounce = false,
 }: CodeEditorProps) {
     const [text, setText] = useState(value ?? "")
     const lastExternal = useRef(value ?? "")
@@ -74,7 +77,7 @@ export function CodeEditor({
     }
 
     return (
-        <div className="overflow-hidden rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
+        <div className="overflow-hidden rounded border border-solid border-[var(--ag-c-EAEFF5)]">
             <SharedEditor
                 editorType="border"
                 initialValue={text}
@@ -84,6 +87,7 @@ export function CodeEditor({
                 placeholder={placeholder}
                 editorProps={{codeOnly: true, language}}
                 syncWithInitialValueChanges
+                disableDebounce={disableDebounce}
             />
         </div>
     )

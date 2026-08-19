@@ -459,7 +459,9 @@ article a {
   text-underline-offset: 3px !important;
   text-decoration-thickness: 1px !important;
   text-decoration-color: var(--contentprimary) !important;
-  transition: text-decoration-color 200ms ease, text-underline-offset 200ms ease !important;
+  transition:
+    text-decoration-color 200ms ease,
+    text-underline-offset 200ms ease !important;
 }
 
 [data-theme="dark"] article a {
@@ -574,6 +576,22 @@ a[class*="cardContainer"]:hover {
   .two-row-navbar :global(.navbarTopRow) {
     padding: 0 !important;
   }
+
+  /* Slightly smaller logo and hamburger on mobile */
+  .navbar__logo,
+  .navbar__logo img {
+    height: 26px;
+  }
+
+  .navbar__toggle {
+    width: 24px;
+    height: 24px;
+  }
+
+  .navbar__toggle svg {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 .navbar__link {
@@ -606,6 +624,13 @@ a[class*="cardContainer"]:hover {
   color: var(--ifm-color-primary-darkest);
 }
 
+/* In dark mode the primary color scale is not remapped, so the icons would
+   inherit a near-black value equal to the navbar background. Force a light,
+   theme-aware content color so the GitHub/Slack icons stay visible. */
+[data-theme="dark"] .theme-icon {
+  color: var(--contentprimary);
+}
+
 .navbar__item:has(.nav_slack_icons) {
   margin-right: 3px;
 }
@@ -613,7 +638,7 @@ a[class*="cardContainer"]:hover {
 .nav_primary_button {
   background-color: var(--ifm-color-primary-darkest);
   color: var(--ifm-color-primary-lightest);
-  margin-right: 25px;
+  margin-right: 12px;
   padding: 8px 16px;
 }
 
@@ -624,7 +649,7 @@ a[class*="cardContainer"]:hover {
 
 .nav_secondary_button {
   background-color: transparent;
-  color: var(--ifm-color-primary);
+  color: var(--contentsecondary);
   margin-left: 10px;
   padding: 8px 12px;
 }
@@ -640,52 +665,219 @@ a[class*="cardContainer"]:hover {
   outline: none;
   border: none;
   cursor: pointer;
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    opacity var(--ifm-transition-fast) ease;
 }
 
+/* Same hover treatment as the mobile footer CTAs: primary fades slightly,
+   secondary picks up a subtle background. Applies on desktop and mobile. */
+.nav_primary_button:hover {
+  opacity: 0.88;
+}
+
+.nav_secondary_button:hover {
+  background-color: var(--bgelevated2);
+}
+
+/* ===== Back-to-top button ===== */
+/* Match the secondary product button (Book a demo): a bordered outline
+   button with the standard radius, not a fully-round grey circle. All colors
+   are theme-aware, so light and dark are handled by the same rule. */
+.theme-back-to-top-button {
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  border-radius: var(--border-radius-md) !important;
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault) !important;
+}
+
+.theme-back-to-top-button::after {
+  background-color: var(--contentsecondary) !important;
+  mask-size: 1.3rem 1.3rem !important;
+  -webkit-mask-size: 1.3rem 1.3rem !important;
+}
+
+@media (hover: hover) {
+  .theme-back-to-top-button:hover {
+    background-color: var(--bgelevated2) !important;
+  }
+}
+
+/* ===== Hamburger sidebar (custom PrimaryMenu with pinned footer) ===== */
+
+/* Hide the desktop-navbar social icons; on the hamburger breakpoint they are
+   surfaced inside the sidebar footer instead. */
 @media (max-width: 995px) {
   .navbar__item:has(.nav_github_icons),
   .navbar__item:has(.nav_slack_icons) {
     display: none;
   }
+}
 
-  .navbar-sidebar .menu__link:has(.nav_github_icons),
-  .navbar-sidebar .menu__link:has(.nav_slack_icons) {
-    position: absolute;
-    top: -48px;
-    left: 172px;
-  }
+/* --- Header: compact controls grouped on the right --- */
+.navbar-sidebar__brand > .margin-right--md {
+  margin-left: auto;
+  margin-right: 6px !important;
+}
 
-  .navbar-sidebar .menu__link:has(.nav_slack_icons) {
-    left: 215px;
-  }
+.navbar-sidebar__brand > .margin-right--md > button,
+.navbar-sidebar__close {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--border-radius-md);
+}
 
-  .navbar-sidebar .menu__link:has(.nav_secondary_button),
-  .navbar-sidebar .menu__link:has(.nav_primary_button) {
-    padding: 0px;
-    position: absolute;
-    bottom: 15px;
-    width: 95%;
-    left: 50%;
-    transform: translateX(-50%);
-  }
+/* Theme toggle: no border, small icon */
+.navbar-sidebar__brand > .margin-right--md > button {
+  border: none;
+}
 
-  .navbar-sidebar .menu__link:has(.nav_secondary_button) {
-    bottom: 65px;
-  }
+.navbar-sidebar__brand > .margin-right--md > button svg {
+  width: 17px;
+  height: 17px;
+}
 
-  .navbar-sidebar .menu__link:has(.nav_secondary_button):hover,
-  .navbar-sidebar .menu__link:has(.nav_primary_button):hover,
-  .navbar-sidebar .menu__link:has(.nav_github_icons):hover,
-  .navbar-sidebar .menu__link:has(.nav_slack_icons):hover {
-    background: transparent;
-  }
+/* Close (X): bordered box with a smaller icon. Drop the default
+   margin-left:auto so it sits right next to the theme toggle instead of
+   splitting the free space and leaving a gap between them. */
+.navbar-sidebar__close {
+  border: 1px solid var(--borderdefault);
+  margin-left: 0;
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease;
+}
 
-  .nav_primary_button,
-  .nav_secondary_button {
-    width: 100%;
-    text-align: center;
-    margin: 0px !important;
-  }
+.navbar-sidebar__close:hover {
+  background-color: var(--bgelevated2);
+}
+
+.navbar-sidebar__close svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* --- Body: pin the footer to the bottom of the primary panel only --- */
+.navbar-sidebar__item:has(.mobileSidebarFooter) {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.navbar-sidebar__item:has(.mobileSidebarFooter) > .menu__list {
+  flex: 0 0 auto;
+}
+
+.mobileSidebarFooter {
+  margin-top: auto;
+  /* The primary panel has asymmetric padding (0 left, 8px right); cancel the
+     right side and pad symmetrically so the footer aligns on both edges. */
+  margin-right: -8px;
+  padding: 16px 12px 14px;
+}
+
+/* CTA buttons: two equal buttons side by side */
+.mobileSidebarActions {
+  display: flex;
+  gap: 10px;
+}
+
+.mobileSidebarActions .nav_primary_button,
+.mobileSidebarActions .nav_secondary_button {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 16px;
+  margin: 0 !important;
+  text-align: center;
+  text-decoration: none !important;
+  border-radius: var(--border-radius-md);
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease,
+    opacity var(--ifm-transition-fast) ease;
+}
+
+.mobileSidebarActions .nav_primary_button:hover {
+  opacity: 0.88;
+}
+
+.mobileSidebarActions .nav_secondary_button {
+  border: 1px solid var(--borderdefault) !important;
+}
+
+.mobileSidebarActions .nav_secondary_button:hover {
+  background-color: var(--bgelevated2);
+}
+
+/* Community row: label on the left, social icons on the right */
+.mobileSidebarCommunity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borderlight);
+}
+
+[data-theme="dark"] .mobileSidebarCommunity {
+  border-top-color: var(--borderdefault);
+}
+
+.mobileSidebarCommunityLabel {
+  font-size: 12px;
+  font-weight: var(--ifm-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--contenttertiary);
+}
+
+.mobileSidebarCommunityIcons {
+  display: flex;
+  gap: 8px;
+}
+
+.mobileSidebarSocialIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--border-radius-md);
+  color: var(--contentprimary);
+  text-decoration: none !important;
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease;
+}
+
+.mobileSidebarSocialIcon:hover {
+  background-color: var(--bgelevated2);
+}
+
+.mobileSidebarSocialIcon .theme-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Primary nav items: full-width padded rows so the active/hover highlight
+   stretches across the row (stopping just before the menu edge) instead of
+   hugging the label. Scoped to the hamburger primary panel so the desktop
+   doc sidebar and the mobile doc-sidebar panel are unaffected. */
+.navbar-sidebar__item:has(.mobileSidebarFooter) .menu__list .menu__link {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  margin: 1px 8px 1px 0;
+  border-radius: var(--border-radius-md);
+  transition: background-color var(--ifm-transition-fast) ease;
 }
 
 /************************** Nav searchbar **************************/
@@ -697,19 +889,132 @@ a[class*="cardContainer"]:hover {
   background-color: var(--bgelevated2);
 }
 
+/* Frosted-glass modal: a mostly-opaque translucent panel with a backdrop
+   blur. The opacity is high enough that busy page content stays obscured and
+   doesn't clash with the muted text. */
+.DocSearch-Modal {
+  border-radius: 8px !important;
+  /* 92% of the theme background so busy page content stays obscured behind the
+     muted text; color-mix keeps it linked to the palette in both themes. */
+  background-color: color-mix(
+    in srgb,
+    var(--bgdefault) 92%,
+    transparent
+  ) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
 [data-theme="dark"] .DocSearch-Modal {
-  background-color: var(--bgdefault);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
-[data-theme="dark"] .DocSearch-Footer {
-  background-color: var(--bgelevated1);
-  opacity: 0.9;
+.DocSearch-SearchBar,
+.DocSearch-Form,
+.DocSearch-Footer {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 
-[data-theme="dark"] .DocSearch-Form {
-  background-color: var(--bgdefault);
-  box-shadow: none;
-  border: 2px solid --borderdefault;
+/* Neutralize DocSearch's blue/lavender accents and use the doc palette.
+   These variables drive the placeholder, the "Clear the query"/"Ask AI"
+   accents, the matched-text highlight, focus, and the selected result. All
+   values are theme-aware, so light and dark are both handled. */
+:root,
+[data-theme="dark"] {
+  /* !important because Docusaurus's Algolia CSS sets these on :root after us */
+  --docsearch-muted-color: var(--contenttertiary) !important;
+  --docsearch-primary-color: var(--contentsecondary) !important;
+  --docsearch-highlight-color: var(--contentprimary) !important;
+  --docsearch-focus-color: var(--contentsecondary) !important;
+  /* Lavender tint used for action-button (Close/Clear) hover backgrounds. */
+  --docsearch-soft-primary-color: rgba(0, 0, 0, 0.05) !important;
+  /* Neutral overlay scrim (was a lavender rgba(101,108,133,.8)). */
+  --docsearch-container-background: rgba(20, 20, 22, 0.5) !important;
+  /* Results/searchbox/footer sit directly on the frosted modal panel. */
+  --docsearch-hit-background: transparent !important;
+  --docsearch-searchbox-background: transparent !important;
+  --docsearch-footer-background: transparent !important;
+}
+
+/* Keep the modal-background transparent so surfaces that use it (e.g. the
+   sticky section headers) blend with the frosted modal instead of showing a
+   lighter band. Floating popovers that need a solid surface are handled
+   directly (see .DocSearch-Menu-content). */
+:root,
+[data-theme="dark"] {
+  --docsearch-modal-background: transparent !important;
+}
+
+[data-theme="dark"] {
+  --docsearch-soft-primary-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* Sticky section headers: transparent so they show the modal's frosted panel
+   exactly (no lighter/white band). */
+.DocSearch-Hit-source {
+  background-color: transparent !important;
+}
+
+/* Selected/hovered result: a subtle neutral-grey highlight with normal text,
+   instead of a solid blue fill with white text. A translucent grey reads as
+   neutral (the --bgelevated* greys are warm-tinted and look muddy here). */
+.DocSearch-Hit[aria-selected="true"] a {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .DocSearch-Hit[aria-selected="true"] a {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-title,
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-path,
+.DocSearch-Hit[aria-selected="true"] mark {
+  color: var(--contentprimary) !important;
+}
+
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-icon,
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-action {
+  color: var(--contenttertiary) !important;
+}
+
+/* Matched keyword: emphasize with a semibold weight (in the normal content
+   color) instead of a colored highlight. */
+.DocSearch-Hit mark,
+.DocSearch-Hit-title mark,
+.DocSearch-Hit-path mark {
+  font-weight: 600 !important;
+  color: var(--contentprimary) !important;
+  background: transparent !important;
+}
+
+/* "Ask AI" suggestion row: neutral grey tint instead of the hardcoded
+   Algolia blue (rgba(0, 61, 255, 0.1)). */
+.DocSearch-Hit--AskAI {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .DocSearch-Hit--AskAI {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* No-results / screen icons have a hardcoded lavender stroke (#5a5e9a);
+   neutralize them to a muted grey (the paths inherit the svg's stroke). */
+.DocSearch-Screen-Icon svg,
+.DocSearch-Screen-Icon svg * {
+  stroke: var(--contenttertiary) !important;
+}
+
+/* The "Ask AI" conversation menu popover floats outside the modal and was
+   fully transparent, so page content bled through its items. Give it a solid
+   opaque surface. */
+.DocSearch-Menu-content {
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault) !important;
+  border-radius: var(--border-radius-md) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18) !important;
 }
 
 .DocSearch-Button {
@@ -734,9 +1039,33 @@ a[class*="cardContainer"]:hover {
   width: 100% !important;
 }
 
-@media (max-width: 768px) {
-  .DocSearch-Button {
-    padding: 0 8px 0px 8px !important;
+/* On the single-row mobile navbar, collapse the search into a compact,
+   square icon button instead of a wide box that reads as an empty input. */
+@media (max-width: 996px) {
+  .two-row-navbar .navbar__search,
+  .two-row-navbar .DocSearch {
+    flex: 0 0 auto !important;
+    width: auto !important;
+  }
+
+  .two-row-navbar .DocSearch-Button {
+    min-width: 30px !important;
+    width: 30px !important;
+    max-width: 30px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    justify-content: center;
+  }
+
+  .two-row-navbar .DocSearch-Button .DocSearch-Button-Placeholder,
+  .two-row-navbar .DocSearch-Button .DocSearch-Button-Keys {
+    display: none !important;
+  }
+
+  .two-row-navbar .DocSearch-Search-Icon {
+    margin: 0 !important;
+    width: 15px !important;
+    height: 15px !important;
   }
 }
 
@@ -753,6 +1082,90 @@ a[class*="cardContainer"]:hover {
   background: transparent !important;
   padding: 0 !important;
   width: 18px !important;
+  /* Override DocSearch's default blue/lavender key color with a neutral one. */
+  color: var(--contenttertiary) !important;
+}
+
+/*********************** Search results page (/search) ***********************/
+/* "Search results for ..." heading → h3 size instead of the full h1. */
+.container:has([class*="searchQueryInput"]) > h1 {
+  font-size: var(--ifm-heading-h3-font-size) !important;
+  font-weight: var(--ifm-h3-font-weight) !important;
+  line-height: 1.35;
+}
+
+/* Refined, smaller result titles without the article underline. The extra
+   :not()s match the global h2 rule's specificity so this size wins. */
+h2[class*="searchResultItemHeading"]:not([class*="openapi"]):not(
+    [class*="cardTitle"]
+  ) {
+  font-size: 16px !important;
+  font-weight: var(--ifm-font-weight-semibold) !important;
+  line-height: 1.45 !important;
+  margin-bottom: 4px;
+}
+
+[class*="searchResultItemHeading"] a {
+  color: var(--contentprimary) !important;
+  text-decoration: none !important;
+}
+
+[class*="searchResultItemHeading"] a:hover {
+  text-decoration: underline !important;
+  text-decoration-color: var(--contentprimary) !important;
+  text-underline-offset: 3px !important;
+}
+
+/* Matched keyword: semibold neutral, no yellow highlight (matches the modal). */
+.search-result-match {
+  background-color: transparent !important;
+  color: var(--contentprimary) !important;
+  font-weight: 600 !important;
+}
+
+/* "N documents found" → muted, normal weight. */
+[class*="searchResultsColumn"] {
+  color: var(--contenttertiary) !important;
+  font-weight: var(--ifm-font-weight-normal) !important;
+  font-size: 14px !important;
+}
+
+/* Tighter vertical rhythm between results (was 16px top/bottom). */
+[class*="searchResultItem_"] {
+  padding: 9px 0 !important;
+}
+
+/* Source/breadcrumb path: muted (it renders white in dark by default). */
+[class*="searchResultItemPath"],
+[class*="searchResultItemPath"] .breadcrumbs__item,
+[class*="searchResultItemPath"] .search-result-match {
+  color: var(--contenttertiary) !important;
+}
+
+/* Let the query input span the container. The theme's CSS module caps the
+   column at max-width: 60% !important above 576px; the extra .container in the
+   selector outranks that hashed class so the input goes edge-to-edge. */
+.container [class*="searchQueryColumn"] {
+  max-width: 100% !important;
+}
+
+/* Recolor the native type="search" clear button. Left alone it renders in the
+   OS accent (blue); swap it for a neutral X drawn in the doc palette. */
+[class*="searchQueryInput"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  background-color: var(--contenttertiary);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z'/></svg>")
+    center / contain no-repeat;
+}
+
+[class*="searchQueryInput"]::-webkit-search-cancel-button:hover {
+  background-color: var(--contentsecondary);
 }
 
 /*************************** Sidebar ***************************/
@@ -857,6 +1270,21 @@ div[class*="docSidebarContainer"] {
   justify-content: space-between;
 }
 
+/* Doc-page video embeds: several pages hardcode <iframe height="400|450">,
+   which renders portrait/stretched on narrow screens (fixed height + fluid
+   width). Force a responsive 16:9 box so videos scale correctly on mobile.
+   (Blog/changelog pages are handled separately below.) */
+.theme-doc-markdown iframe[src*="youtube"],
+.theme-doc-markdown iframe[src*="youtu.be"],
+.theme-doc-markdown iframe[src*="youtube-nocookie"] {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  max-width: 100%;
+  border-radius: 8px;
+}
+
 .markdown img {
   margin-bottom: 24px;
 }
@@ -895,6 +1323,38 @@ h1[class*="title_"] {
 
 .breadcrumbs__item--active > span {
   padding: 3px 15px;
+}
+
+/**************************** Prev/Next pagination ****************************/
+/* Keep the default card structure, but the stock typography is oversized and
+   heavy. Shrink the title, mute the sub-label, and align the border/colors
+   with the rest of the site so it reads as mature in both themes. */
+.pagination-nav__link {
+  border-color: var(--borderlight);
+  border-radius: var(--border-radius-md);
+  padding: 12px 16px;
+  transition: border-color var(--ifm-transition-fast) ease;
+}
+
+.pagination-nav__link:hover {
+  border-color: var(--borderdark);
+}
+
+[data-theme="dark"] .pagination-nav__link {
+  border-color: var(--borderdefault);
+}
+
+.pagination-nav__sublabel {
+  font-size: 12px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contenttertiary);
+  margin-bottom: 4px;
+}
+
+.pagination-nav__label {
+  font-size: 15px;
+  font-weight: var(--ifm-font-weight-semibold);
+  letter-spacing: 0;
 }
 
 /**************************** Heading lists ****************************/
@@ -1308,4 +1768,10 @@ section.row > .col--6 {
   max-width: 100% !important;
   flex: 0 0 100% !important;
   width: 100% !important;
+}
+
+/* The version selector next to the logo already tells the reader which version
+   they are on, so the per-page version chip is redundant. */
+.theme-doc-version-badge {
+  display: none;
 }

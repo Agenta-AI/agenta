@@ -183,8 +183,8 @@ const ExecutionHeader = ({
                         <div className="flex">
                             <Tooltip title={`${runAllTooltip} (Ctrl+Enter / ⌘+Enter)`}>
                                 <RunButton
-                                    isRunAll
-                                    type="primary"
+                                    mode="runAll"
+                                    variant="default"
                                     onClick={() => runTests()}
                                     disabled={isRunning || !canRun}
                                     // style={showRunOptions ? {borderRadius: "6px 0 0 6px"} : undefined}
@@ -199,7 +199,7 @@ const ExecutionHeader = ({
                             )} */}
                         </div>
                     ) : (
-                        <RunButton isCancel onClick={() => cancelAll()} className="flex" />
+                        <RunButton mode="cancel" onClick={() => cancelAll()} className="flex" />
                     ))}
             </div>
         </div>

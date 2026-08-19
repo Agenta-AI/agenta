@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from oss.src.core.shared.dtos import Identifier, Lifecycle, Reference, Selector
 
@@ -21,11 +21,33 @@ class SessionInteractionStatus(str, Enum):
     cancelled = "cancelled"  # runner abandoned the gate; no one is waiting on the token
 
 
+class SessionInteractionRequest(BaseModel):
+    # The gated call this interaction is asking about.
+    #
+    # `tool_call_id` is the harness's id for the call, which the row's `token` is NOT (that is the
+    # permission gate's id). Both ride the live event stream, so the playground can answer without
+    # it; a caller building an answer from the stored row alone cannot, and names the wrong call.
+    # Optional because rows written before the field exists carry only the token.
+    #
+    # Extra keys are kept: producers other than the approval gate write their own request shapes
+    # here, and dropping what this model does not name would lose them on any round-trip.
+    model_config = ConfigDict(extra="allow")
+
+    tool: Optional[str] = None
+    args: Optional[Any] = None
+    tool_call_id: Optional[str] = None
+
+
 class SessionInteractionData(BaseModel):
-    request: Optional[Dict[str, Any]] = None
+    request: Optional[SessionInteractionRequest] = None
     references: Optional[Dict[str, Reference]] = None
     selector: Optional[Selector] = None
     resolution: Optional[Dict[str, Any]] = None
+    # The effective config the gated turn was running, stamped by the runner. Replaying it as
+    # the resume's `data.parameters` suppresses reference hydration and reproduces the turn
+    # (tool permissions included) instead of running the referenced variant's HEAD revision.
+    # Absent on rows written before this field existed; those resume via `references` alone.
+    parameters: Optional[Dict[str, Any]] = None
 
 
 class SessionInteractionFlags(BaseModel):

@@ -1,13 +1,17 @@
 import EvaluationsView from "@/oss/components/pages/evaluations/EvaluationsView"
+import WorkflowPageTitle from "@/oss/components/PageTitle/WorkflowPageTitle"
 import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {useAppId} from "@/oss/hooks/useAppId"
 
 const AppEvaluationsPage = () => {
     const appId = useAppId()
     return (
-        <RequireWorkflowKind allowed={["app", "evaluator"]} currentRoute="evaluations">
-            <EvaluationsView scope="app" appId={appId} />
-        </RequireWorkflowKind>
+        <>
+            <WorkflowPageTitle title="Evaluations" />
+            <RequireWorkflowKind allowed={["app", "evaluator"]} currentRoute="evaluations">
+                <EvaluationsView scope="app" appId={appId} />
+            </RequireWorkflowKind>
+        </>
     )
 }
 

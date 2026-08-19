@@ -273,6 +273,36 @@ describe("agentShouldResumeAfterApproval", () => {
         expect(agentShouldResumeAfterApproval({messages})).toBe(true)
     })
 
+    it("counts a DENIED tool part as settled (output-denied)", () => {
+        // A denied gate settles to `output-denied` carrying its `{approved: false}` envelope; if it
+        // did not count as settled, a sibling-resolved turn would never resume.
+        const messages = [
+            user("do two"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_1",
+                        state: "output-denied",
+                        input: {path: "/x"},
+                        approval: {id: "perm_1", approved: false},
+                    },
+                    {
+                        type: "tool-readFile",
+                        toolCallId: "call_2",
+                        state: "approval-responded",
+                        input: {path: "/y"},
+                        approval: {id: "perm_2", approved: true},
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
     it("does NOT resume when there are no messages", () => {
         expect(agentShouldResumeAfterApproval({messages: []})).toBe(false)
     })
@@ -296,6 +326,23 @@ describe("agentShouldResumeAfterApproval", () => {
         ]
         // output-error counts as settled even with no `output` payload (errorText path).
         expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
+    it("resumes a named client-tool result in an earlier message only with its live marker", () => {
+        const messages = [
+            user("connect github"),
+            assistantWithClientTool("output-available", {connected: true}),
+            user("continue"),
+            {id: "a2", role: "assistant", parts: [{type: "text", text: "Starting"}]},
+        ]
+
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "client_tool", id: "call_c"},
+            }),
+        ).toBe(true)
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
     })
 
     it("does NOT resume while a client tool is still parked (input-available)", () => {

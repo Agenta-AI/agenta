@@ -11,6 +11,7 @@
  * gatewayTool so the two lists stay byte-compatible.
  */
 
+import {getTriggersClient} from "@agenta/sdk/resources"
 import {lowPriorityWhenCached} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
@@ -552,12 +553,18 @@ export const queryTriggerDeliveries = async (
     )
 }
 
-export const fetchTriggerDelivery = async (
-    deliveryId: string,
-): Promise<TriggerDeliveryResponse> => {
-    const {data} = await axios.get(
-        `${triggersBaseUrl()}/deliveries/${deliveryId}`,
-        projectScopedParams(),
+export const fetchTriggerDelivery = async ({
+    projectId,
+    deliveryId,
+}: {
+    projectId: string
+    deliveryId: string
+}): Promise<TriggerDeliveryResponse> => {
+    if (!projectId || !deliveryId) return {count: 0, delivery: null}
+
+    const data = await getTriggersClient().fetchTriggerDelivery(
+        {delivery_id: deliveryId},
+        {queryParams: {project_id: projectId}},
     )
     return (
         safeParseWithLogging(triggerDeliveryResponseSchema, data, "[fetchTriggerDelivery]") ?? {

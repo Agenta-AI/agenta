@@ -66,6 +66,12 @@ export function messageContentText(content: unknown): string {
     return ""
 }
 
+// A `messages` payload is self-describing, so it edits as chat even when the schema says
+// completion — the bound agent may be unresolved, or the mapping written by the API.
+function isMessagesPayload(obj: Record<string, unknown>): boolean {
+    return Array.isArray(obj.messages)
+}
+
 /** Read the message out of `inputs_fields`. Empty string when absent or unparseable. */
 export function getScheduleMessage(
     inputsText: string,
@@ -77,7 +83,7 @@ export function getScheduleMessage(
     // would be collapsed on save). Extra top-level keys are fine — setScheduleMessage preserves
     // them. Not representable → "" so the caller falls back to the raw-JSON editor.
     const obj = parseObject(inputsText)
-    if (isChat) {
+    if (isChat || isMessagesPayload(obj)) {
         const messages = obj.messages
         if (!Array.isArray(messages) || messages.length !== 1) return ""
         const message = messages[0]
@@ -99,7 +105,8 @@ export function setScheduleMessage(
 ): string {
     const obj = parseObject(inputsText)
     const trimmed = message.trim()
-    if (isChat) {
+    // Mirrors the getter's shape check so an edit writes back where it was read from.
+    if (isChat || isMessagesPayload(obj)) {
         if (trimmed) obj.messages = [{role: "user", content: message}]
         else delete obj.messages
     } else if (trimmed) {
@@ -108,6 +115,31 @@ export function setScheduleMessage(
         delete obj[primaryKey]
     }
     return Object.keys(obj).length ? JSON.stringify(obj, null, 2) : "{}"
+}
+
+/**
+ * Rewrite the message into a new agent shape after the bound agent resolves.
+ *
+ * The drawers derive `isChat`/`primaryKey` from an async query, so a message typed before the
+ * agent is known is stored under the wrong key. Re-reading it under the new shape yields "" —
+ * the composer looks empty while `inputs_fields` still holds the old shape, which then saves
+ * against an agent that can't receive it.
+ *
+ * `setScheduleMessage` alone can't do this: it preserves sibling keys, so writing under the new
+ * shape would leave `{"message": "…", "messages": [...]}`. The old shape's key must go first.
+ * A mapping the composer can't read is returned untouched — there's nothing safe to migrate.
+ */
+export function remapMessageShape(
+    inputsText: string,
+    prev: {isChat: boolean; primaryKey: string},
+    next: {isChat: boolean; primaryKey: string},
+): string {
+    const message = getScheduleMessage(inputsText, prev.isChat, prev.primaryKey)
+    if (!message) return inputsText
+    const obj = parseObject(inputsText)
+    if (prev.isChat || isMessagesPayload(obj)) delete obj.messages
+    else delete obj[prev.primaryKey]
+    return setScheduleMessage(JSON.stringify(obj), message, next.isChat, next.primaryKey)
 }
 
 /**

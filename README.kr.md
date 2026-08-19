@@ -12,7 +12,13 @@
   <strong> <h1> 에이전트를 만들고 실행하는 오픈소스 워크스페이스 </h1></strong>
 
 
-<img width="1800" height="680" alt="agenta-github-banner" src="https://github.com/user-attachments/assets/afc83f8f-d644-4dc6-bae7-b26ed2512986" />
+<a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
+  <img
+    width="900"
+    alt="Agenta 플랫폼 데모 영상 보기"
+    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+  />
+</a>
 
   ---
 
@@ -22,7 +28,10 @@
 </div>
 
 </div>
+<div align="center">
 
+<a href="https://trendshift.io/repositories/46?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-46" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/46" alt="Agenta-AI%2Fagenta | Trendshift" width="250" height="55"/></a>
+</div>
 
 <h3 align="center">
   <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>문서</b></a> &bull;

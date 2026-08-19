@@ -1,4 +1,4 @@
-import {memo, useCallback, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {
     Archive,
@@ -9,12 +9,13 @@ import {
     Plus,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Empty, Input, Tooltip} from "antd"
+import {Button, Empty, Input, Tooltip, type InputRef} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {ROW_VARIANTS, SESSION_SPRING} from "../assets/sessionMotion"
+import {useInlineRenameRequest} from "../hooks/useInlineRenameRequest"
 import {useChatScopeKey} from "../state/scope"
 import {
     type AgentChatSession,
@@ -33,6 +34,7 @@ import {
     timeAgo,
     unarchiveSessionAtomFamily,
 } from "../state/sessions"
+import {sessionSearchRequestAtom} from "../state/uiRequests"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 import {SessionStatusDot} from "./SessionTagBar"
@@ -78,6 +80,7 @@ const SessionRailRow = memo(function SessionRailRow({
     archived = false,
 }: SessionRailRowProps) {
     const labelRef = useRef<SessionTabLabelHandle>(null)
+    useInlineRenameRequest(session.id, labelRef, "rail")
     // Hide the action cluster while the inline rename input owns the row, so it gets full width.
     const [renaming, setRenaming] = useState(false)
     // The rename/delete cluster is hover-only. Mount it on hover/focus instead of rendering it
@@ -173,14 +176,14 @@ const SessionRailRow = memo(function SessionRailRow({
                             active ? "text-colorText" : "text-colorTextSecondary",
                         )}
                     />
-                    {(session.ended || timeAgo(session.createdAt)) && (
-                        <span className="flex items-center gap-1.5 text-[11px] text-colorTextTertiary">
+                    {(session.ended || timeAgo(session.lastMessageAt ?? session.createdAt)) && (
+                        <span className="flex items-center gap-1.5 text-xs text-colorTextTertiary">
                             {session.ended && (
-                                <span className="rounded bg-colorFillTertiary px-1 text-[10px] leading-4">
+                                <span className="rounded bg-colorFillTertiary px-1 text-[12px] leading-4">
                                     Ended
                                 </span>
                             )}
-                            {timeAgo(session.createdAt)}
+                            {timeAgo(session.lastMessageAt ?? session.createdAt)}
                         </span>
                     )}
                 </div>
@@ -264,6 +267,13 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     const unarchiveSession = useSetAtom(unarchiveSessionAtomFamily(scope))
 
     const [query, setQuery] = useState("")
+    // Alt+F focuses the box. Scope-matched: the drawer's rail must not answer the playground's.
+    const searchRef = useRef<InputRef>(null)
+    const searchRequest = useAtomValue(sessionSearchRequestAtom)
+    useEffect(() => {
+        if (searchRequest?.scope !== scope) return
+        searchRef.current?.focus({cursor: "all"})
+    }, [searchRequest, scope])
     const [showArchived, setShowArchived] = useState(false)
     const q = query.trim().toLowerCase()
     // `openSession`/`deleteSession`/`archiveSession`/`unarchiveSession` are already stable id-taking
@@ -327,6 +337,7 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                 <div className="shrink-0 px-2 pt-2">
                     <Input
                         allowClear
+                        ref={searchRef}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search sessions"
@@ -374,7 +385,7 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                             <button
                                 type="button"
                                 onClick={() => setShowArchived((v) => !v)}
-                                className="flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[11px] text-colorTextTertiary transition-colors hover:bg-colorFillTertiary"
+                                className="flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-xs text-colorTextTertiary transition-colors hover:bg-colorFillTertiary"
                             >
                                 <CaretRight
                                     size={10}

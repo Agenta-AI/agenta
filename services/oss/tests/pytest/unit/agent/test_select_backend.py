@@ -9,8 +9,8 @@ import pytest
 from agenta.sdk.agents import (
     AgentTemplate,
     AgentRunnerConfigurationError,
-    LocalSandboxNotAllowedError,
     SandboxAgentBackend,
+    SandboxNotAllowedError,
 )
 
 from oss.src.agent.app import select_backend
@@ -81,8 +81,12 @@ def test_no_runner_url_requires_runner_assets(monkeypatch, tmp_path: Path):
 def test_local_sandbox_refused_when_not_enabled(monkeypatch):
     monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "daytona")
 
-    with pytest.raises(LocalSandboxNotAllowedError):
+    with pytest.raises(SandboxNotAllowedError) as excinfo:
         select_backend(_sel("pi_core", "local"))
+
+    assert "'local'" in excinfo.value.message
+    assert excinfo.value.sandbox == "local"
+    assert excinfo.value.type.endswith("#v0:agent:sandbox-provider-not-allowed")
 
 
 def test_local_sandbox_allowed_by_default_when_unset(monkeypatch):
@@ -115,5 +119,12 @@ def test_daytona_sandbox_allowed_when_enabled(monkeypatch):
 def test_daytona_sandbox_refused_when_not_enabled(monkeypatch):
     monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local")
 
-    with pytest.raises(LocalSandboxNotAllowedError):
+    with pytest.raises(SandboxNotAllowedError) as excinfo:
         select_backend(_sel("pi_core", "daytona"))
+
+    # The envelope must not claim 'local' when another provider was refused (#5575):
+    # the message names the refused provider and the type slug is provider-neutral.
+    assert "'daytona'" in excinfo.value.message
+    assert excinfo.value.sandbox == "daytona"
+    assert excinfo.value.type.endswith("#v0:agent:sandbox-provider-not-allowed")
+    assert "local" not in excinfo.value.type

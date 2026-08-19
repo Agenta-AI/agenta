@@ -2,20 +2,20 @@
  * StorageFilesHeader — the right-side content of the config panel's "Files" header bar.
  *
  * Mirrors the sibling Triggers header's count, and doubles as the "browse all" entry: clicking it
- * opens the Files drawer at the tree root (the body's rows open the same drawer preselected on a
- * file). Slotted into the entity-ui `AgentOperationsSections` header by the app layer, which owns
- * the chat session state that package can't reach.
+ * opens the overlay Files DRAWER (the body's rows open the docked pane on one file instead).
+ * Slotted into the entity-ui `AgentOperationsSections` header by the app layer, which owns the
+ * chat session state that package can't reach.
  */
 import {CircleNotch, FolderOpen} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
 import {useSetAtom} from "jotai"
 
-import {configFilesDrawerAtomFamily, useConfigDrive} from "./configDrive"
+import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "./configDrive"
 import {DriveWarningBadge, FOCUS_RING} from "./DriveFileRow"
 
 export default function StorageFilesHeader({revisionId}: {revisionId?: string | null}) {
     const {drive} = useConfigDrive(revisionId)
-    const setDrawer = useSetAtom(configFilesDrawerAtomFamily(revisionId ?? ""))
+    const setDrawerOpen = useSetAtom(configFilesDrawerOpenAtomFamily(revisionId ?? ""))
 
     if (drive.isLoading) {
         return <Skeleton.Button active size="small" style={{width: 44, height: 14}} />
@@ -40,7 +40,7 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
                     type="button"
                     onClick={(e) => {
                         e.currentTarget.blur()
-                        setDrawer({open: true, initialPath: null})
+                        setDrawerOpen(true)
                     }}
                     className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
                 >
@@ -61,7 +61,7 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
             // to this trigger. Genuine Tab focus still shows the ring via FOCUS_RING.
             onClick={(e) => {
                 e.currentTarget.blur()
-                setDrawer({open: true, initialPath: null})
+                setDrawerOpen(true)
             }}
             className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
         >

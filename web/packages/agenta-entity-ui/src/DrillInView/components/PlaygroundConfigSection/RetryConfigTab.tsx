@@ -2,10 +2,11 @@ import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
-import {Select, Tooltip, Typography} from "antd"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
 import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
+
+import {ConfigSelect, HintTooltip} from "./configPopoverControls"
 
 interface PolicyOption {
     label: string
@@ -87,47 +88,34 @@ export const RetryConfigTab = memo(function RetryConfigTab({
             )}
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text>{policyTitle}</Typography.Text>
-                    <Typography.Text type="secondary" className="leading-snug">
+                    <span className="font-medium text-xs">{policyTitle}</span>
+                    <span className="text-xs leading-snug text-colorTextDescription">
                         {policyDescription}{" "}
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-500"
+                            className="text-gray-500 underline decoration-dotted underline-offset-2"
                         >
                             Learn more
                         </a>
-                    </Typography.Text>
+                    </span>
                 </div>
-                <Tooltip title={!isPolicyEnabled ? retryRequiredMessage : undefined}>
-                    <span>
-                        <Select
-                            size="small"
+                <HintTooltip hint={!isPolicyEnabled ? retryRequiredMessage : undefined}>
+                    <span className="block w-full">
+                        <ConfigSelect
+                            size="sm"
                             allowClear
-                            value={retryPolicy ?? undefined}
-                            onChange={(nextValue) => onPolicyChange(nextValue ?? null)}
+                            value={retryPolicy ?? null}
+                            onChange={onPolicyChange}
                             options={retryPolicyOptions}
                             placeholder={isPolicyEnabled ? "Select one" : retryRequiredMessage}
                             disabled={!isPolicyEnabled}
-                            className="w-full"
-                            optionRender={(option) => {
-                                const description = (option.data as {description?: string})
-                                    .description
-                                return (
-                                    <div className="flex items-center justify-between gap-3">
-                                        <span>{option.label}</span>
-                                        {description && (
-                                            <Typography.Text type="secondary">
-                                                {description}
-                                            </Typography.Text>
-                                        )}
-                                    </div>
-                                )
-                            }}
+                            // The visible title above; the placeholder is generic/state-dependent.
+                            aria-label={policyTitle}
                         />
                     </span>
-                </Tooltip>
+                </HintTooltip>
             </div>
         </div>
     )

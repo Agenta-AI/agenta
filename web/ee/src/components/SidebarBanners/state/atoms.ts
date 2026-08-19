@@ -70,9 +70,10 @@ export const eeBannersAtom = atom((get): BannerConfig[] => {
         const trialText = getTrialTimeText(subscription.period_end)
 
         banners.push({
-            id: "trial-banner",
+            // Keyed on the trial end so a new trial period shows the banner again.
+            id: `trial-banner-${subscription.period_end}`,
             type: "trial",
-            dismissible: false,
+            dismissible: true,
             title: `${planName} Trial`,
             description: `${trialText}. Upgrade today to keep pro plan features.`,
             action: {

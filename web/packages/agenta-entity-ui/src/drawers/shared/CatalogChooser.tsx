@@ -12,8 +12,16 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {ScrollSentinel} from "@agenta/ui"
+import {
+    Button,
+    InputAffix,
+    Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {ArrowClockwise, ArrowLeft, Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
-import {Button, Input, Spin, Tooltip, Typography} from "antd"
 
 import {AppCard, AppLogo} from "./CatalogAppCard"
 
@@ -121,7 +129,7 @@ export interface CatalogChooserProps<I, T, C> {
 }
 
 function ItemTrailing({state}: {state: CatalogItemState}) {
-    if (state === "pending") return <Spin size="small" />
+    if (state === "pending") return <Spinner size="small" />
     if (state === "selected")
         return <Check size={13} className="shrink-0 text-[var(--ag-colorPrimary)]" />
     return <Plus size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
@@ -150,14 +158,14 @@ function CatalogItemList<I, T, C>({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2.5">
-            <Input
+            <InputAffix
                 allowClear
                 placeholder={props.itemsSearchPlaceholder ?? "Search…"}
                 prefix={
                     <MagnifyingGlass size={13} className="text-[var(--ag-colorTextTertiary)]" />
                 }
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onValueChange={setQuery}
             />
             <div
                 ref={setListEl}
@@ -165,7 +173,7 @@ function CatalogItemList<I, T, C>({
             >
                 {isLoading && items.length === 0 ? (
                     <div className="flex justify-center py-8">
-                        <Spin size="small" />
+                        <Spinner size="small" />
                     </div>
                 ) : items.length === 0 ? (
                     <div className="px-2 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
@@ -207,7 +215,7 @@ function CatalogItemList<I, T, C>({
                                     <span className="min-w-0 flex-1">
                                         <span className="flex items-center gap-1.5">
                                             <span
-                                                className={`min-w-0 truncate text-[12.5px] font-medium ${
+                                                className={`min-w-0 truncate text-xs font-medium ${
                                                     deprecated
                                                         ? "text-[var(--ag-colorTextTertiary)]"
                                                         : "text-[var(--ag-colorText)]"
@@ -227,7 +235,7 @@ function CatalogItemList<I, T, C>({
                                             ) : null}
                                         </span>
                                         {description ? (
-                                            <span className="mt-1 line-clamp-2 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                                            <span className="mt-1 line-clamp-2 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                                                 {description}
                                             </span>
                                         ) : null}
@@ -236,7 +244,7 @@ function CatalogItemList<I, T, C>({
                                                 {categories.slice(0, 3).map((c) => (
                                                     <span
                                                         key={c}
-                                                        className="ag-drawer-tag rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--ag-colorTextTertiary)]"
+                                                        className="ag-drawer-tag rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[12px] leading-none text-[var(--ag-colorTextTertiary)]"
                                                     >
                                                         {c}
                                                     </span>
@@ -252,7 +260,7 @@ function CatalogItemList<I, T, C>({
                         })}
                         {isFetchingNextPage && (
                             <div className="flex justify-center py-3">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         )}
                         <ScrollSentinel
@@ -293,13 +301,13 @@ function ConnectionDetail<I, T, C>({
                         ? props.integration.name(integration)
                         : props.connection.integrationKey(connection)}
                 </div>
-                <div className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
+                <div className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
                     {account || props.connection.integrationKey(connection)}
                     {connectedAt ? ` · connected ${connectedAt}` : ""}
                 </div>
             </div>
             <span
-                className={`inline-flex shrink-0 items-center gap-1 text-[11px] ${
+                className={`inline-flex shrink-0 items-center gap-1 text-xs ${
                     ready ? "text-[var(--ag-colorSuccess)]" : "text-[var(--ag-colorWarningText)]"
                 }`}
             >
@@ -347,7 +355,7 @@ function ConnectionSwitcher<I, T, C>({
                 <span className="min-w-0 flex-1 truncate text-xs font-medium">
                     {integrationName}
                 </span>
-                <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
                     {connections.length} accounts
                 </span>
             </div>
@@ -385,7 +393,7 @@ function ConnectionSwitcher<I, T, C>({
                             />
                             <span className="min-w-0 flex-1">
                                 <span
-                                    className={`block truncate text-[11px] font-medium ${
+                                    className={`block truncate text-xs font-medium ${
                                         isCurrent
                                             ? "text-[var(--ag-colorPrimary)]"
                                             : "text-[var(--ag-colorText)]"
@@ -394,7 +402,7 @@ function ConnectionSwitcher<I, T, C>({
                                     {primary}
                                 </span>
                                 {(secondary || connectedAt) && (
-                                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                    <span className="block truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
                                         {secondary}
                                         {secondary && connectedAt ? " · " : ""}
                                         {connectedAt ? `connected ${connectedAt}` : ""}
@@ -453,21 +461,26 @@ function AppRailItem({
                     {name}
                 </span>
                 {sub && (
-                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="block truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
                         {sub}
                     </span>
                 )}
             </span>
             {state && (
-                <Tooltip title={state === "active" ? "Active" : "Pending"}>
-                    <span
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                            state === "active"
-                                ? "bg-[var(--ag-colorSuccess)]"
-                                : "bg-[var(--ag-colorWarning)]"
-                        }`}
-                    />
-                </Tooltip>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span
+                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                    state === "active"
+                                        ? "bg-[var(--ag-colorSuccess)]"
+                                        : "bg-[var(--ag-colorWarning)]"
+                                }`}
+                            />
+                        </TooltipTrigger>
+                        <TooltipContent>{state === "active" ? "Active" : "Pending"}</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
         </button>
     )
@@ -492,11 +505,11 @@ function ConnectInvite<I, T, C>({
             />
             <div className="text-xs font-medium">{name ?? "This app"}</div>
             {description && (
-                <div className="max-w-[280px] text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                <div className="max-w-[280px] text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                     {description}
                 </div>
             )}
-            <Button type="primary" onClick={onConnect}>
+            <Button variant="default" onClick={onConnect}>
                 Connect {name ?? "app"}
             </Button>
         </div>
@@ -709,10 +722,10 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         // own so scrolling categories never scrolls the connections away.
                         <div className="flex shrink-0 flex-col gap-0.5">
                             <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
-                                <span className="text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                                     Your connections
                                 </span>
-                                <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="shrink-0 text-[12px] text-[var(--ag-colorTextTertiary)]">
                                     {connections.length}
                                 </span>
                             </div>
@@ -743,7 +756,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                 <button
                                     type="button"
                                     onClick={() => setShowAllConns((v) => !v)}
-                                    className="ml-2 mt-0.5 cursor-pointer self-start border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorPrimary)] hover:underline"
+                                    className="ml-2 mt-0.5 cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
                                 >
                                     {showAllConns ? "Show less" : `Show all ${connections.length}`}
                                 </button>
@@ -756,7 +769,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             {hasConnections && (
                                 <div className="mx-2 my-2 shrink-0 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)]" />
                             )}
-                            <div className="shrink-0 px-2 pb-1.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                            <div className="shrink-0 px-2 pb-1.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                                 Browse by category
                             </div>
                             <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1">
@@ -801,7 +814,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         <button
                             type="button"
                             onClick={() => setSelected(null)}
-                            className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                            className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
                         >
                             <ArrowLeft size={13} /> Back
                         </button>
@@ -837,13 +850,13 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                     }
                                                     className="mt-2 flex w-full items-center justify-between gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-left disabled:cursor-wait"
                                                 >
-                                                    <span className="text-[11px] text-[var(--ag-colorWarningText)]">
+                                                    <span className="text-xs text-[var(--ag-colorWarningText)]">
                                                         Authentication is still pending for this
                                                         connection.
                                                     </span>
-                                                    <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-[var(--ag-colorPrimary)]">
+                                                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-[var(--ag-colorPrimary)]">
                                                         {busy ? (
-                                                            <Spin size="small" />
+                                                            <Spinner size="small" />
                                                         ) : (
                                                             <ArrowClockwise size={13} />
                                                         )}
@@ -853,19 +866,16 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                             )
                                         })()}
                                     <div className="mb-2 mt-4 flex items-center justify-between gap-2">
-                                        <Typography.Text
-                                            type="secondary"
-                                            className="!text-[10px] uppercase !tracking-wide"
-                                        >
+                                        <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
                                             {props.itemsLabel}
-                                        </Typography.Text>
+                                        </span>
                                         {selectedIntegration && (
                                             <button
                                                 type="button"
                                                 onClick={() =>
                                                     setConnectIntegration(selectedIntegration)
                                                 }
-                                                className="cursor-pointer border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorPrimary)] hover:underline"
+                                                className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
                                             >
                                                 + Connect another account
                                             </button>
@@ -891,7 +901,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                     </div>
                 ) : (
                     <>
-                        <Input
+                        <InputAffix
                             allowClear
                             autoFocus
                             placeholder="Search apps…"
@@ -902,7 +912,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                 />
                             }
                             value={searchInput}
-                            onChange={(e) => setSearchInput(e.target.value)}
+                            onValueChange={setSearchInput}
                             onKeyDown={(e) => {
                                 // Esc clears a query first; only then falls through to close the drawer.
                                 if (e.key === "Escape" && searchInput) {
@@ -912,11 +922,11 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             }}
                         />
                         <div className="mb-1 mt-2 flex items-center justify-between gap-2 px-0.5">
-                            <span className="text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                            <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                                 {searching ? "Results" : category ? category.name : "All apps"}
                             </span>
                             {integrations.length > 0 && (
-                                <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="shrink-0 text-[12px] text-[var(--ag-colorTextTertiary)]">
                                     {typeof total === "number" && total > integrations.length
                                         ? `${integrations.length} of ${total}`
                                         : integrations.length}
@@ -931,15 +941,20 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                 <CatalogGridSkeleton />
                             ) : integrationsError && integrations.length === 0 ? (
                                 <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center">
-                                    <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                                         Couldn&apos;t load apps.
                                     </span>
                                     {refetchIntegrations && (
-                                        <Button onClick={() => refetchIntegrations()}>Retry</Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => refetchIntegrations()}
+                                        >
+                                            Retry
+                                        </Button>
                                     )}
                                 </div>
                             ) : integrations.length === 0 ? (
-                                <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center text-xs text-[var(--ag-colorTextTertiary)]">
                                     {searching ? (
                                         <>
                                             <span>No apps match “{searchInput.trim()}”.</span>
@@ -987,7 +1002,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                     <div className="col-span-full">
                                         {isFetchingNextPage && (
                                             <div className="flex justify-center py-3">
-                                                <Spin size="small" />
+                                                <Spinner size="small" />
                                             </div>
                                         )}
                                         <ScrollSentinel

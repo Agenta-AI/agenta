@@ -12,12 +12,12 @@
 
 import {memo, useMemo} from "react"
 
+import {withoutSlugBoundGroups} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Select} from "antd"
+import {Combobox, Field} from "@agenta/ui/ui"
 
 import {getOptionsFromSchema} from "./schemaUtils"
 
@@ -84,10 +84,15 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
     const schemaOptions = useMemo(() => getOptionsFromSchema(schema), [schema])
     const isModel = useMemo(() => isModelField(schema), [schema])
 
-    // Merge schema options with extra option groups from vault/custom secrets
+    // This control writes a single scalar at its path and has no way to persist a sibling
+    // connection slug, so standard-provider connection groups are filtered out: picking
+    // "OpenAI 2 / gpt-4o-mini" here would silently run on whichever OpenAI key the family
+    // fallback picks. Custom-provider groups survive — their model keys name the connection.
+    // The model popover (ModelConfigEditor), which writes both fields, is where standard
+    // connection groups appear.
     const mergedOptions = useMemo(() => {
         const base = schemaOptions?.options ?? []
-        const extra = llmProviderConfig?.extraOptionGroups ?? []
+        const extra = withoutSlugBoundGroups(llmProviderConfig?.extraOptionGroups ?? [])
         return [...extra, ...base]
     }, [schemaOptions, llmProviderConfig?.extraOptionGroups])
 
@@ -100,10 +105,9 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
     // Model selection - use SelectLLMProviderBase with merged options
     if (isModel) {
         return (
-            <LabeledField
+            <Field
                 label={label}
-                description={tooltipText}
-                withTooltip={withTooltip && !!label}
+                tooltip={withTooltip && !!label ? tooltipText : undefined}
                 className={className}
             >
                 <SelectLLMProviderBase
@@ -117,7 +121,7 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
                     size="small"
                     footerContent={llmProviderConfig?.footerContent}
                 />
-            </LabeledField>
+            </Field>
         )
     }
 
@@ -126,25 +130,30 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
         return null
     }
 
-    // Other grouped choices - use standard grouped Select
+    // Other grouped choices — antd `showSearch` has no Radix Select equivalent, so: Combobox.
     return (
-        <LabeledField
+        <Field
             label={label}
-            description={tooltipText}
-            withTooltip={withTooltip && !!label}
+            tooltip={withTooltip && !!label ? tooltipText : undefined}
             className={cn(className)}
         >
-            <Select
+            <Combobox
                 value={value ?? undefined}
                 onChange={(val) => onChange(val ?? null)}
-                options={selectOptions}
+                options={selectOptions.map((group) => ({
+                    label: group.label,
+                    options: group.options.map((option) => ({
+                        value: option.value,
+                        label: option.label,
+                        searchValue: option.label,
+                    })),
+                }))}
                 disabled={disabled}
                 placeholder={placeholder}
+                aria-label={label ? undefined : placeholder}
                 className="w-full"
-                size="small"
-                showSearch
-                optionFilterProp="label"
+                size="sm"
             />
-        </LabeledField>
+        </Field>
     )
 })

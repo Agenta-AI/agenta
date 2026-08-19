@@ -12,7 +12,13 @@
   <strong> <h1> 用于构建和运行智能体的开源工作空间 </h1></strong>
 
 
-<img width="1800" height="680" alt="agenta-github-banner" src="https://github.com/user-attachments/assets/afc83f8f-d644-4dc6-bae7-b26ed2512986" />
+<a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
+  <img
+    width="900"
+    alt="观看 Agenta 平台演示"
+    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+  />
+</a>
 
   ---
 
@@ -22,7 +28,10 @@
 </div>
 
 </div>
+<div align="center">
 
+<a href="https://trendshift.io/repositories/46?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-46" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/46" alt="Agenta-AI%2Fagenta | Trendshift" width="250" height="55"/></a>
+</div>
 
 <h3 align="center">
   <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>文档</b></a> &bull;

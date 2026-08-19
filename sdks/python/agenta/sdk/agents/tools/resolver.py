@@ -5,9 +5,14 @@ from __future__ import annotations
 import os
 from typing import Mapping, Optional, Sequence
 
+from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
+from agenta.sdk.utils.logging import get_module_logger
+
 from .errors import (
     DuplicateToolNameError,
+    GatewayToolResolutionError,
     MissingToolSecretError,
+    ReservedToolNameError,
     UnsupportedToolProviderError,
 )
 from .interfaces import (
@@ -31,6 +36,8 @@ from .models import (
     ToolConfig,
     ToolSpec,
 )
+
+log = get_module_logger(__name__)
 
 
 class EnvironmentToolSecretProvider:
@@ -81,16 +88,65 @@ def _build_client_tool_spec(*, tool_config: ClientToolConfig) -> ClientToolSpec:
     )
 
 
-def _validate_unique_names(
-    *,
-    builtin_names: Sequence[str],
-    tool_specs: Sequence[ToolSpec],
-) -> None:
+def _check_tool_name(name: str, seen: set[str]) -> None:
+    # The harness registers custom tools by name beside its built-ins, so a same-named custom
+    # tool would silently replace the built-in the platform activates on every run.
+    if name.strip().lower() in PI_BUILTIN_TOOL_NAMES:
+        raise ReservedToolNameError(name)
+    if name in seen:
+        raise DuplicateToolNameError(name)
+    seen.add(name)
+
+
+def _declared_config_name(tool_config: ToolConfig) -> Optional[str]:
+    """The tool name a config declares, if any, before adapters turn it into specs.
+
+    Returns ``None`` for legacy ``builtin`` entries (ignored, never produce specs), for
+    gateway configs that omit ``name`` (the adapter then derives ``integration__action``),
+    and for anything that is not a recognized tool config (left to downstream validation).
+    """
+    if isinstance(tool_config, ReferenceToolConfig):
+        return tool_config.tool_name
+    if isinstance(tool_config, PlatformToolConfig):
+        return tool_config.op
+    if isinstance(tool_config, (CodeToolConfig, ClientToolConfig, GatewayToolConfig)):
+        return tool_config.name
+    return None
+
+
+def _validate_declared_config_names(tool_configs: Sequence[ToolConfig]) -> None:
+    """Reject reserved or duplicate declared tool names up front.
+
+    Runs before any secret lookup or adapter call so a payload that will always be refused
+    never makes the resolver do work, and a reserved-named ``code`` tool with a missing
+    secret surfaces ``ReservedToolNameError`` instead of ``MissingToolSecretError``.
+    Adapter-produced spec names (e.g. a gateway ``integration__action`` fallback) are not
+    visible here and stay covered by the final :func:`_validate_unique_names` pass.
+    """
     seen: set[str] = set()
-    for name in [*builtin_names, *(tool_spec.name for tool_spec in tool_specs)]:
-        if name in seen:
-            raise DuplicateToolNameError(name)
-        seen.add(name)
+    for tool_config in tool_configs:
+        name = _declared_config_name(tool_config)
+        if name is not None:
+            _check_tool_name(name, seen)
+
+
+def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
+    seen: set[str] = set()
+    for tool_spec in tool_specs:
+        _check_tool_name(tool_spec.name, seen)
+
+
+def _dropped_gateway_tool_warning(
+    tool_config: GatewayToolConfig, error: GatewayToolResolutionError
+) -> str:
+    """Message for a gateway tool dropped because it failed to resolve.
+
+    Names the tool (its declared name, else its full reference) and carries the resolver's
+    own reason string, which already names the failing action for the stale-action (404)
+    case. Surfaced as a warning so a dropped tool is never silent.
+    """
+    label = tool_config.name or tool_config.reference
+    return f"gateway tool '{label}' failed to resolve and was dropped: {error}"
 
 
 class ToolResolver:
@@ -112,11 +168,15 @@ class ToolResolver:
         self._missing_secret_policy = missing_secret_policy
 
     async def resolve(self, tool_configs: Sequence[ToolConfig]) -> ResolvedToolSet:
-        builtin_names = [
-            tool_config.name
-            for tool_config in tool_configs
-            if isinstance(tool_config, BuiltinToolConfig)
-        ]
+        _validate_declared_config_names(tool_configs)
+        for tool_config in tool_configs:
+            if isinstance(tool_config, BuiltinToolConfig):
+                log.warning(
+                    "tool %r: built-in tools are always available and are no longer "
+                    "configured here; this entry was ignored (use harness.permissions to "
+                    "allow, ask or deny it)",
+                    tool_config.name,
+                )
         code_configs = [
             tool_config
             for tool_config in tool_configs
@@ -157,6 +217,7 @@ class ToolResolver:
         )
 
         tool_specs: list[ToolSpec] = []
+        warnings: list[str] = []
         for tool_config in code_configs:
             missing = [
                 secret_name
@@ -211,18 +272,37 @@ class ToolResolver:
         if gateway_configs:
             if self._gateway_resolver is None:
                 raise UnsupportedToolProviderError(gateway_configs[0].provider)
-            gateway_resolution = await self._gateway_resolver.resolve(gateway_configs)
-            tool_specs = [*gateway_resolution.tool_specs, *tool_specs]
-            # Gateway, workflow, and platform callbacks all point at ``{api}/tools/call`` with the
-            # same per-request auth, so the single shared callback is identical; keep one.
-            tool_callback = gateway_resolution.tool_callback or tool_callback
+            # Resolve each gateway tool independently so one dead tool (e.g. a Composio action
+            # that has left the catalog and now 404s) is dropped with a named warning instead of
+            # bricking the whole run. The tools that do resolve are kept and the run proceeds.
+            gateway_specs: list[ToolSpec] = []
+            for gateway_config in gateway_configs:
+                try:
+                    gateway_resolution = await self._gateway_resolver.resolve(
+                        [gateway_config]
+                    )
+                except GatewayToolResolutionError as error:
+                    # Only a per-tool "action not found" (HTTP 404, the F-019 stale-action case)
+                    # is dropped: the backend has told us this specific action left the catalog.
+                    # Any other failure — missing API base, transport error, HTTP 400/500, or a
+                    # malformed backend response — is systemic (it would hit every tool), so it
+                    # must fail the run loudly rather than silently drop every tool.
+                    if error.status != 404:
+                        raise
+                    warning = _dropped_gateway_tool_warning(gateway_config, error)
+                    log.warning("agent: %s", warning)
+                    warnings.append(warning)
+                    continue
+                gateway_specs.extend(gateway_resolution.tool_specs)
+                # Gateway, workflow, and platform callbacks all point at ``{api}/tools/call``
+                # with the same per-request auth, so the single shared callback is identical;
+                # keep one.
+                tool_callback = gateway_resolution.tool_callback or tool_callback
+            tool_specs = [*gateway_specs, *tool_specs]
 
-        _validate_unique_names(
-            builtin_names=builtin_names,
-            tool_specs=tool_specs,
-        )
+        _validate_unique_names(tool_specs)
         return ResolvedToolSet(
-            builtin_names=builtin_names,
             tool_specs=tool_specs,
             tool_callback=tool_callback,
+            warnings=warnings,
         )

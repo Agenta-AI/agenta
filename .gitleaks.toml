@@ -6,6 +6,12 @@ useDefault = true
 
 [allowlist]
 paths = [
+  # ------------------------------------------------------- QA RUN RECORDS
+  # Gate-run and benchmark result files carry deliberate high-entropy MARKER
+  # strings (QA-CWD-*, QA-APPROVE-*) that the release-gate cells write and read
+  # back to prove storage round trips. They are test artifacts, not credentials.
+  '''^\.agents/skills/agent-release-gate/resources/qa-gate-runs/.*''',
+  '''^benchmarks/agent-config-editing/results/.*''',
   # ---------------------------------------------------------------- PUBLIC DOCS
   '''^website/docs/reference/api/.*\.mdx''',
   '''^core/docs/docs/reference/api/.*\.mdx''',
@@ -33,6 +39,9 @@ regexes = [
   '''is_valid=true''',
   '''YOUR_API_KEY''',
   '''_SECRET_KEY''',
+  # Fake token in the runner's redaction test — the test asserts this marker never
+  # reaches the transcript. Named to be obviously synthetic; not a credential.
+  '''marker-live-secret-42bd''',
   # ------------------------------------------------------------ PUBLIC KEYS
   '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',  # POSTHOG
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG
@@ -43,6 +52,18 @@ regexes = [
   # Dummy SeaweedFS STS signing key shown (commented) as a format hint in the dev
   # env examples. Decodes to "this-is-a-signing-key-for-mounts" — not a real secret.
   '''dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=''',
+  # ------------------------------------------- INTERACTION-ROW JOIN KEYS (uuids)
+  # The replayed-transcript fixtures under AgentChatSlice carry a recorded session's
+  # interaction rows, whose `token` is the uuid joining a row to its tool call — a
+  # durable interaction id, not a credential. generic-api-key reads each one as a
+  # secret. Exempts the VALUE only, never a path: a `paths` entry makes gitleaks skip
+  # the whole file before scanning it, so a real key added to a fixture would go
+  # unseen. Anchored, so only an exact lowercase uuid is exempt.
+  # Scoping this further to a `"token": "<uuid>"` LINE needs a second `[[allowlists]]`
+  # block with regexTarget = "line"; gitleaks 8.24.3 (pinned by 17-secret-scan.yml)
+  # silently ignores the plural form and drops every allowlist above with it. Tighten
+  # this when that pin moves past 8.26.
+  '''^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$''',
   # ----------------------------------------------------------------------------
 ]
 

@@ -1,12 +1,12 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useId, useRef, useState} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
 import {providerKeyAddedSignalAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
+import {message} from "@agenta/ui/app-message"
 import {useAccordionSectionOpen} from "@agenta/ui/components/presentational"
+import {LoadingButton, PasswordInput} from "@agenta/ui/ui"
 import {CheckCircle} from "@phosphor-icons/react"
-import {App, Button, Input, Typography} from "antd"
-import type {InputRef} from "antd"
 import {useSetAtom} from "jotai"
 
 /**
@@ -31,12 +31,13 @@ const ProviderKeyField = ({
      * scoped to it. */
     revisionId?: string | null
 }) => {
-    const {message} = App.useApp()
     const {handleModifyVaultSecret} = useVaultSecret()
     const raiseKeyAddedSignal = useSetAtom(providerKeyAddedSignalAtom)
     const [key, setKey] = useState("")
     const [saving, setSaving] = useState(false)
-    const inputRef = useRef<InputRef>(null)
+    // Ours IS the HTMLInputElement — antd's InputRef.input indirection is gone.
+    const inputRef = useRef<HTMLInputElement>(null)
+    const inputId = useId()
 
     // Focus the key input when the enclosing section is open (and each time it re-opens), not just on
     // mount: the section body stays mounted while collapsed, so a mount-time `autoFocus` would fire
@@ -77,53 +78,53 @@ const ProviderKeyField = ({
         <div className="flex flex-col gap-3">
             {hideHeader ? (
                 hasKey ? (
-                    <Typography.Text className="!inline-flex !items-center !gap-1 !text-[11px] !text-[var(--ag-colorSuccess)]">
+                    <span className="inline-flex items-center gap-1 text-xs text-[var(--ag-colorSuccess)]">
                         <CheckCircle size={13} weight="fill" />
                         Key configured · enter a new value to replace it.
-                    </Typography.Text>
+                    </span>
                 ) : null
             ) : (
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text className="!text-[13px] !font-semibold">
-                        {provider.title}
-                    </Typography.Text>
-                    <Typography.Text type="secondary" className="!text-xs !leading-snug">
+                    <span className="text-[13px] font-semibold">{provider.title}</span>
+                    <span className="text-xs leading-snug text-colorTextDescription">
                         Standard provider · add your key and we auto-list its models.
-                    </Typography.Text>
+                    </span>
                     {hasKey ? (
-                        <Typography.Text className="!mt-1 !inline-flex !items-center !gap-1 !text-[11px] !text-[var(--ag-colorSuccess)]">
+                        <span className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--ag-colorSuccess)]">
                             <CheckCircle size={13} weight="fill" />
                             Key configured · enter a new value to replace it.
-                        </Typography.Text>
+                        </span>
                     ) : null}
                 </div>
             )}
             <div className="flex flex-col gap-1.5">
-                <Typography.Text className="!text-xs !font-medium">
+                <label className="text-xs font-medium" htmlFor={inputId}>
                     API key <span className="text-[var(--ag-colorError)]">*</span>
-                </Typography.Text>
+                </label>
                 <div className="flex items-center gap-2">
-                    <Input.Password
+                    <PasswordInput
+                        id={inputId}
                         ref={inputRef}
                         value={key}
                         onChange={(e) => setKey(e.target.value)}
-                        onPressEnter={save}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") save()
+                        }}
                         placeholder="sk-…"
                         className="flex-1 font-mono"
                         disabled={disabled}
                     />
-                    <Button
-                        type="primary"
+                    <LoadingButton
                         onClick={save}
                         loading={saving}
                         disabled={disabled || !key.trim()}
                     >
                         {hasKey ? "Replace" : "Save"}
-                    </Button>
+                    </LoadingButton>
                 </div>
-                <Typography.Text type="secondary" className="!text-[11px]">
+                <span className="text-xs text-colorTextDescription">
                     This secret is encrypted in transit and at rest.
-                </Typography.Text>
+                </span>
             </div>
         </div>
     )

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import ClassVar, FrozenSet, Mapping, Optional, Sequence
+from typing import Any, ClassVar, Dict, FrozenSet, Mapping, Optional, Sequence
 
 from .dtos import (
     AgentResult,
@@ -129,6 +129,7 @@ class Backend(ABC):
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
+        effective_parameters: Optional[Dict[str, Any]] = None,
     ) -> Session:
         """Open a session in ``sandbox`` for an already-harness-shaped ``config``."""
 
@@ -190,10 +191,15 @@ class Environment:
             sandbox,
             config,
             harness=harness,
-            secrets=session_config.secrets,
+            secrets=(
+                session_config.resolved_connection.plaintext_environment()
+                if session_config.resolved_connection
+                else {}
+            ),
             trace=session_config.trace,
             run_context=session_config.run_context,
             session_id=session_config.session_id,
+            effective_parameters=session_config.effective_parameters,
         )
 
 

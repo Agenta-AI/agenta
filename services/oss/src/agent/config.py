@@ -22,12 +22,23 @@ _DEFAULT_AGENT_DIR = _SERVICES_DIR / "runner"
 
 # Fallback config used when the editable files are missing or a field is absent.
 # Kept in sync with the catalog template and the `/inspect` schema defaults
-# (schemas.py: _DEFAULT_MODEL / _DEFAULT_AGENTS_MD).
+# (schemas.py: _DEFAULT_MODEL / _DEFAULT_AGENTS_MD). No tool entries: built-in tools are
+# always active and are not configured here.
 DEFAULT_MODEL = "gpt-5.6-luna"
+DEFAULT_TOOLS: List[Any] = []
 DEFAULT_AGENTS_MD = (
     "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
     "- Greet the user warmly.\n"
-    "- Answer the user's message in one or two short sentences."
+    "- Answer the user's message in one or two short sentences.\n"
+    "- Once the first exchange makes clear what the session is about, call the\n"
+    "  `rename_session` tool: `name` is the session's subject in a few words, findable\n"
+    "  in a list; `description` is a one-sentence recap of where things stand. Rename\n"
+    "  again only when the topic genuinely shifts. If this is also your first task\n"
+    "  since you were created — your agent name is still a raw request or a\n"
+    '  placeholder like "Untitled agent" — also call the `rename_agent` tool in the\n'
+    "  same turn, with a name that says what you are for.\n"
+    "- After that, call `rename_agent` again only when your identity or purpose\n"
+    "  changes — for example, the user repurposes you."
 )
 
 
@@ -51,6 +62,16 @@ def runner_dir() -> Path:
 def runner_url() -> Optional[str]:
     """HTTP URL for the deployed agent runner (internal direct hop), when configured."""
     value = os.getenv("AGENTA_RUNNER_INTERNAL_URL")
+    return value.strip() if value and value.strip() else None
+
+
+def runner_token() -> Optional[str]:
+    """Shared token for the deployed agent runner (the runner refuses to boot without it).
+
+    The same value must be set on both sides; read per call so a runtime env change takes
+    effect without a re-import.
+    """
+    value = os.getenv("AGENTA_RUNNER_TOKEN")
     return value.strip() if value and value.strip() else None
 
 
@@ -102,16 +123,19 @@ def load_config() -> AgentTemplate:
         )
 
     model: str = DEFAULT_MODEL
-    tools: List[str] = []
+    tools: List[Any] = list(DEFAULT_TOOLS)
     meta_path = base / "agent.json"
     if meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         model = meta.get("model") or DEFAULT_MODEL
-        tools = meta.get("tools", []) or []
+        # An operator adds gateway, client or platform entries here; built-in tools are always
+        # active and are never listed.
+        tools = list(meta.get("tools") or DEFAULT_TOOLS)
     else:
         log.warning(
             "agent: template not found at %s; falling back to the built-in default "
-            "model %r with no tools (set AGENTA_AGENT_TEMPLATE_DIR if this path is unexpected)",
+            "model %r with no tool entries (set AGENTA_AGENT_TEMPLATE_DIR if this "
+            "path is unexpected)",
             meta_path,
             DEFAULT_MODEL,
         )

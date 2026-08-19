@@ -4,6 +4,13 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {createWorkflowRevisionAdapter} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
+import {message} from "@agenta/ui/app-message"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/ui/ui"
 import {Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -16,7 +23,8 @@ const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {ssr: fals
  * The agent playground's revision selector — the borderless "variant ⌄" picker plus a compact
  * `v{n} ● Draft/Saved` status. Lifted out of the config-panel header (PlaygroundVariantConfigHeader)
  * so the page header can host it next to the agent's name. Variant-scoped: it derives everything
- * from `variantId`, so it stays in sync wherever it's rendered.
+ * from `variantId`, so it stays in sync wherever it's rendered. The Draft tag is also the revert
+ * entry point — click it to discard the uncommitted changes.
  */
 const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
     // Project-scoped playground (no app in URL) browses all workflows; app-scoped stays scoped.
@@ -52,6 +60,19 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
         [switchEntity, variantId],
     )
 
+    // Revert action, re-homed here from the (now-removed, agent-only) kebab menu — same discard
+    // handler, now reached via the Draft tag instead.
+    const handleRevertChanges = useCallback(() => {
+        if (!_variantId) return
+        try {
+            workflowMolecule.set.discard(_variantId)
+            message.success("Draft changes discarded")
+        } catch (e) {
+            message.error("Failed to discard draft changes")
+            console.error(e)
+        }
+    }, [_variantId])
+
     if (!variantId || isLocalDraftVariant) return null
 
     return (
@@ -71,7 +92,7 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                     title={
                         commitMessage ? (
                             <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-medium uppercase tracking-wide opacity-65">
+                                <span className="text-[12px] font-medium uppercase tracking-wide opacity-65">
                                     Commit message
                                 </span>
                                 <div className="max-h-[240px] overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-xs leading-relaxed">
@@ -88,19 +109,40 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                     </span>
                 </Tooltip>
             )}
-            <Tooltip title={hasChanges ? "Draft — unsaved changes" : "Saved"}>
-                <span className="flex items-center gap-1.5 text-xs text-[var(--ant-color-text-tertiary)]">
-                    <span
-                        className="h-[7px] w-[7px] rounded-full"
-                        style={{
-                            backgroundColor: hasChanges
-                                ? "var(--ant-color-warning)"
-                                : "var(--ant-color-success)",
-                        }}
-                    />
-                    {hasChanges ? "Draft" : "Saved"}
-                </span>
-            </Tooltip>
+            {hasChanges ? (
+                // Draft tag doubles as the revert entry point — click to discard the uncommitted
+                // changes (re-homed from the config header's kebab menu).
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button
+                            type="button"
+                            aria-label="Draft — unsaved changes"
+                            className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ant-color-text-tertiary)] hover:bg-[var(--ant-color-fill-tertiary)]"
+                        >
+                            <span
+                                className="h-[7px] w-[7px] rounded-full"
+                                style={{backgroundColor: "var(--ant-color-warning)"}}
+                            />
+                            Draft
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent side="bottom" align="start">
+                        <DropdownMenuItem variant="destructive" onSelect={handleRevertChanges}>
+                            Revert changes
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            ) : (
+                <Tooltip title="Saved">
+                    <span className="flex items-center gap-1.5 text-xs text-[var(--ant-color-text-tertiary)]">
+                        <span
+                            className="h-[7px] w-[7px] rounded-full"
+                            style={{backgroundColor: "var(--ant-color-success)"}}
+                        />
+                        Saved
+                    </span>
+                </Tooltip>
+            )}
         </div>
     )
 }

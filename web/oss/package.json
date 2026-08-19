@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.106.1",
+    "version": "0.112.2",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -16,16 +16,23 @@
         "format": "prettier --check .",
         "format-fix": "prettier --write .",
         "types:check": "tsc",
-        "types:watch": "tsc -w"
+        "types:watch": "tsc -w",
+        "test": "pnpm run test:unit",
+        "test:unit": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
         "@agenta/annotation": "workspace:../packages/agenta-annotation",
         "@agenta/annotation-ui": "workspace:../packages/agenta-annotation-ui",
+        "@agenta/chat": "workspace:../packages/agenta-chat",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
         "@agenta/playground": "workspace:../packages/agenta-playground",
         "@agenta/playground-ui": "workspace:../packages/agenta-playground-ui",
         "@agenta/sdk": "workspace:../packages/agenta-sdk",
+        "@agenta/sessions": "workspace:../packages/agenta-sessions",
+        "@agenta/sessions-ui": "workspace:../packages/agenta-sessions-ui",
         "@agenta/shared": "workspace:../packages/agenta-shared",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@agenta/web-tests": "workspace:../tests",
@@ -101,7 +108,7 @@
         "lodash": "^4.17.23",
         "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
-        "next": "15.5.18",
+        "next": "15.5.21",
         "papaparse": "^5.5.3",
         "pdfjs-dist": "^4.10.38",
         "postcss": "^8.5.10",
@@ -140,8 +147,13 @@
         "@types/node": "^20.19.20",
         "@types/prismjs": "^1.26.5",
         "@types/semver": "^7.7.1",
+        "@vitejs/plugin-react-swc": "^4.3.2",
+        "@vitest/coverage-v8": "^4.1.4",
+        "fflate": "0.4.8",
+        "jsdom": "^26.1.0",
         "node-mocks-http": "^1.17.2",
         "prettier": "^3.7.4",
-        "tailwind-scrollbar": "^3"
+        "tailwind-scrollbar": "^3",
+        "vitest": "^4.1.4"
     }
 }

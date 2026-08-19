@@ -9,11 +9,11 @@ import {
 } from "@agenta/entity-ui/selection"
 import {VersionBadge} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Plus, Trash} from "@phosphor-icons/react"
 import {Button, Input, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {saveEvaluationEditAtom} from "@/oss/components/EvalRunDetails/atoms/mutations/editEvaluation"
 import {
     evaluationEvaluatorsByRunQueryAtomFamily,

@@ -19,8 +19,8 @@ import {
     type WorkflowReferenceBridge,
     type WorkflowReferenceUI,
 } from "@agenta/ui/drill-in"
+import {AutosizeTextarea, Spinner} from "@agenta/ui/ui"
 import {GitBranch, Info, TreeStructure} from "@phosphor-icons/react"
-import {Input, Spin} from "antd"
 import {atom, useSetAtom} from "jotai"
 
 import {RailField} from "../../drawers/shared/RailField"
@@ -140,7 +140,7 @@ function ReferenceBindingEditor({
             }}
             envNotFound={
                 isLoading ? (
-                    <Spin size="small" />
+                    <Spinner size="small" />
                 ) : (
                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                         No environments deployed
@@ -200,16 +200,17 @@ export function ReferenceToolFormView({value, onChange, disabled}: ReferenceTool
                     <RailField label="Exposed as" align="center">
                         <div className="flex w-fit max-w-full items-center gap-1 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] py-0.5 pl-2.5 pr-1 font-mono text-xs text-[var(--ag-colorText)]">
                             <span className="truncate">{slug}</span>
-                            <CopyButton text={slug} buttonText={null} icon type="text" />
+                            <CopyButton text={slug} buttonText={null} icon variant="ghost" />
                         </div>
                     </RailField>
 
                     <RailField label="Description">
-                        <Input.TextArea
+                        <AutosizeTextarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             autoSize={{minRows: 2, maxRows: 6}}
                             placeholder="What this tool does and when the agent should call it"
+                            aria-label="Description"
                             disabled={disabled}
                         />
                     </RailField>

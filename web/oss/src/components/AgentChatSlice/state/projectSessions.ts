@@ -1,17 +1,16 @@
 import {useEffect} from "react"
 
-import {querySessions, type SessionStream} from "@agenta/entities/session"
+import {type SessionStream} from "@agenta/entities/session"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {isValidUUID} from "@/oss/lib/helpers/validators"
+import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {
-    GLOBAL_APP_KEY,
-    reconcileServerSessionsAtomFamily,
-    type ServerSessionSummary,
-} from "./sessions"
+import {projectSessionSummary, queryProjectSessions} from "./projectSessionsQuery"
+import {reconcileServerSessionsAtomFamily} from "./sessions"
 
 /**
  * The durable session list for ONE agent, from the server — the cross-device source the sidebar
@@ -20,24 +19,25 @@ import {
  * (`references: [{id: appId}]`). Includes ended sessions (a row with `deleted_at` set).
  *
  * Mirrors `liveness.ts`: ONE low-priority query per agent backs the whole list, revalidated on tab
- * refocus and on a slow interval, so it stays out of the live conversation's way. Disabled for the
- * non-agent scopes (`__global__`, the revision drawer) where there is no artifact id to match.
+ * refocus and on a slow interval, so it stays out of the live conversation's way. Disabled for
+ * non-agent scopes (`__global__`, the revision drawer, the onboarding pseudo-scope) that have no
+ * real app UUID to match — the API validates `references[].id` as a UUID and 422s otherwise.
  */
-const isQueryableScope = (appId: string): boolean =>
-    Boolean(appId) && appId !== GLOBAL_APP_KEY && !appId.startsWith("drawer:")
+const isQueryableScope = (appId: string): boolean => Boolean(appId) && isValidUUID(appId)
 
 export const projectSessionsQueryAtomFamily = atomFamily((appId: string) =>
     atomWithQuery<SessionStream[] | null>((get) => {
         const projectId = get(projectIdAtom)
         return {
-            queryKey: ["session-list", projectId, appId],
+            queryKey: [
+                "internal-reconciliation",
+                projectId,
+                appId,
+                sessionListPolicies.internal.origin,
+                sessionListPolicies.internal.expansions,
+            ],
             queryFn: ({signal}) =>
-                querySessions({
-                    projectId: projectId ?? "",
-                    references: [{id: appId}],
-                    abortSignal: signal,
-                    lowPriority: true,
-                }),
+                queryProjectSessions({projectId: projectId ?? "", appId, abortSignal: signal}),
             enabled: Boolean(projectId) && isQueryableScope(appId),
             staleTime: 30_000,
             refetchInterval: 60_000,
@@ -63,25 +63,14 @@ export const projectSessionsAtomFamily = atomFamily((appId: string) =>
     }),
 )
 
-/** Last-activity epoch for ordering/dedup: heartbeat `updated_at`, falling back to `created_at`. */
+/** Last-activity epoch for ordering/dedup: heartbeat `updated_at`, falling back to `created_at`.
+ * The server (`/sessions/query`) now orders by `updated_at` too (WP0-R1) — this client-side sort
+ * is belt-and-suspenders (dedup still needs it to pick the fresher of two rows for one session_id). */
 const activity = (s: SessionStream): number => {
     const ts = s.updated_at ?? s.created_at
     const ms = ts ? Date.parse(ts) : NaN
     return Number.isNaN(ms) ? 0 : ms
 }
-
-const toSummary = (s: SessionStream): ServerSessionSummary => ({
-    id: s.session_id,
-    title: s.name?.trim() ? s.name : undefined,
-    createdAt: s.created_at ? Date.parse(s.created_at) || undefined : undefined,
-    // A soft-deleted stream row is a killed/ended session (still resumable) — the list includes it
-    // via include_ended; the sidebar shows it muted.
-    ended: Boolean(s.deleted_at),
-    // `archived_at` is hidden-but-recoverable: the list includes it (include_archived) so the
-    // reconciler carries the flag instead of pruning the row; the sidebar filters it to the
-    // archived view. Distinct from `ended` (kill), which stays in the main list.
-    archived: Boolean(s.archived_at),
-})
 
 /**
  * Fold the agent's server session list into the localStorage cache whenever a fetch succeeds.
@@ -97,6 +86,6 @@ export function useReconcileServerSessions(scopeKey: string): void {
     const succeeded = query.isSuccess && query.data != null
     useEffect(() => {
         if (!succeeded) return
-        reconcile(sessions.map(toSummary))
+        reconcile(sessions.map(projectSessionSummary))
     }, [succeeded, sessions, reconcile])
 }

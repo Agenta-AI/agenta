@@ -67,6 +67,11 @@ export interface HarnessCapabilities {
     /** Selectable models per provider family (provider -> list of ids/aliases). */
     models: Record<string, string[]>
     /**
+     * The subset of `models` a connection starts with when it saved no model list of its own,
+     * per provider family, in this harness's spelling. Absent on an older backend.
+     */
+    default_models?: Record<string, string[]>
+    /**
      * The curated per-model catalog (label / description / pricing / ratings), keyed by the same
      * ids as `models`. Published additively next to `models`; the picker prefers it when present
      * and falls back to `models`. Absent on an older backend.
@@ -124,6 +129,21 @@ export const harnessCapabilitiesAtomFamily = atomFamily((_harnessRef: string) =>
 )
 
 /**
+ * Whether the harness catalog request failed.
+ *
+ * A null capability map has two very different causes: a schema that predates the catalog (no
+ * `x-ag-harness-ref`, so the legacy controls are correct), or a catalog the browser could not
+ * reach. Without this flag the second case renders as the first, which reads as a stale
+ * frontend build rather than a failed request.
+ */
+export const harnessCatalogFailedAtom = atom((get) => get(harnessCatalogQueryAtom).isError)
+
+/** Retry the harness catalog after a failure. */
+export const retryHarnessCatalogAtom = atom(null, (get) => {
+    void get(harnessCatalogQueryAtom).refetch()
+})
+
+/**
  * The model's context window (max input tokens) from the harness catalog, matched by exact id — the
  * same `id`-keyed join the model picker uses. `null` when the catalog, harness, or entry is absent,
  * or the entry carries no `context_window`. Source of truth is the SDK model catalog
@@ -137,4 +157,19 @@ export function contextWindowForModel(
     if (!capabilities || !harness || !modelId) return null
     const entry = capabilities[harness]?.model_catalog?.find((e) => e.id === modelId)
     return entry?.context_window ?? null
+}
+
+/**
+ * The input modalities a model declares (e.g. `["text", "image"]`), or null when the catalog does
+ * not say. Null means UNKNOWN, never "unsupported" — not every entry carries the field, so callers
+ * must not read a missing value as a capability the model lacks.
+ */
+export function modalitiesForModel(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+    modelId: string | null | undefined,
+): string[] | null {
+    if (!capabilities || !harness || !modelId) return null
+    const entry = capabilities[harness]?.model_catalog?.find((e) => e.id === modelId)
+    return entry?.modalities?.length ? entry.modalities : null
 }

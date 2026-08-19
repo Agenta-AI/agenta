@@ -40,7 +40,7 @@ Sync-derived findings (closed):
 
 ## Rules
 
-- Severity scheme: `P0` / `P1` / `P2` / `P3` (per [findings.schema.md](../../../agents/skills/shared/references/findings.schema.md)).
+- Severity scheme: `P0` / `P1` / `P2` / `P3` (per [findings.schema.md](../../../.agents/skills/shared/references/findings.schema.md)).
 
 ## Notes
 

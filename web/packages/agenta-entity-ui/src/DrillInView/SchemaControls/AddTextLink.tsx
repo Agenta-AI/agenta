@@ -14,7 +14,7 @@ export const AddTextLink = forwardRef<
             ref={ref}
             type={type}
             {...rest}
-            className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-c-1677FF,#1677ff)] hover:underline"
+            className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-[var(--ag-c-1677FF)] hover:underline"
         >
             {label}
         </button>

@@ -54,13 +54,32 @@ export {
 // Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
 export {
     harnessCapabilitiesAtomFamily,
+    harnessCatalogFailedAtom,
+    retryHarnessCatalogAtom,
     contextWindowForModel,
+    modalitiesForModel,
     type HarnessCapabilities,
     type HarnessCapabilitiesMap,
     type ModelCatalogEntry,
     type ModelPricing,
     type ModelRatings,
 } from "./state/inspectMeta"
+
+// Live runner subscription status for the selected harness (self-managed credentials card).
+export {
+    subscriptionStatusKey,
+    subscriptionStatusQueryAtomFamily,
+    SUBSCRIPTION_STATUS_QUERY_HARNESS,
+    resolveSubscriptionStatus,
+    type SubscriptionStatusDisplay,
+    type SubscriptionStatusTone,
+} from "./state/subscriptionStatus"
+
+export {
+    type SubscriptionStatusResponse,
+    type SubscriptionRunnerState,
+    type SubscriptionHarnessState,
+} from "./api/subscriptionStatus"
 
 export {
     workflowAgentTemplateOverlayAtomFamily,

@@ -22,11 +22,7 @@ export interface HeightCollapseProps {
      * Pair with `fade` so the collapsing frames read cleanly. Default 0 (no translate).
      */
     slideY?: number
-    /**
-     * Apply the `inert` attribute while FULLY closed, dropping the hidden subtree from tab order +
-     * a11y (e.g. an approval dock's buttons must not be reachable when collapsed). Opt-in so a
-     * `collapsedHeight > 0` peek keeps its still-visible content interactive. Default false.
-     */
+    /** @deprecated No-op — a fully-closed body is always `inert` now (it is also `aria-hidden`). */
     inert?: boolean
 }
 
@@ -81,15 +77,17 @@ export function HeightCollapse({
         [slideY, open, animate, durationMs],
     )
 
-    // `inert` only while fully collapsed — a peek (collapsedHeight > 0) stays interactive.
-    const isInert = inert && !open && collapsedHeight === 0
+    // aria-hidden and inert move together — hiding a still-tabbable subtree is aria-hidden-focus.
+    // A peek (collapsedHeight > 0) is visible, so it is neither. `inert` prop is now a no-op.
+    void inert
+    const isCollapsedShut = !open && collapsedHeight === 0
 
     return (
         <div
             className={clsx("overflow-hidden", className)}
             style={outerStyle}
-            aria-hidden={!open}
-            inert={isInert}
+            aria-hidden={isCollapsedShut}
+            inert={isCollapsedShut}
         >
             <div className={contentClassName} style={innerStyle}>
                 {children}

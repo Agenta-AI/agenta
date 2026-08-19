@@ -3,19 +3,21 @@
  *
  * One flat file view (no App/Session split — the config surface is "simply files"): the active
  * conversation's working files, newest first, with the full relative path (mono) so the raw
- * cwd/session UUIDs stay abstracted away. Rows open the DriveDrawer preselected on the clicked
- * file; the Files header count (StorageFilesHeader) opens it at the tree root. The agent's durable
- * folder is a subfolder of this working folder, so it needs no separate drive here. Lives in the
- * app layer because it reads the chat slice's session state.
+ * cwd/session UUIDs stay abstracted away. Rows open the chat's docked Files pane preselected on
+ * the clicked file; the Files header count (StorageFilesHeader) opens it at the tree root. The
+ * agent's durable folder is a subfolder of this working folder, so it needs no separate drive
+ * here. Lives in the app layer because it reads the chat slice's session state.
  */
 import {useMemo} from "react"
 
 import {CircleNotch} from "@phosphor-icons/react"
 import {Typography} from "antd"
-import {useAtom} from "jotai"
+import {useAtom, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
-import {configFilesDrawerAtomFamily, useConfigDrive} from "./configDrive"
+import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
+
+import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "./configDrive"
 import {type DriveId} from "./DriveExplorer"
 import {DriveFileRow, DriveRetryButton, SKELETON_ROW_COUNT} from "./DriveFileRow"
 import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
@@ -23,7 +25,11 @@ import {listArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {humanSize, relativeTime} from "./driveTree"
 import {FilesDrawer} from "./FilesDrawer"
+import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
+import {filesDrawerStagedAtomFamily} from "./SessionFilesDrawer"
+import {useSessionFilesPane} from "./SessionFilesPane"
+import {useStageDrop} from "./useDriveDrop"
 import {driveHasMixedOrigins, type DriveRecentFile} from "./useSessionDrive"
 
 const {Text} = Typography
@@ -75,10 +81,25 @@ const RecentFileRow = ({
 
 export default function StorageSection({revisionId}: {revisionId?: string | null}) {
     const {drive, sessionId} = useConfigDrive(revisionId)
-    // Drawer request is shared with the Files header (which opens it at the root); rows open it
-    // preselected on the clicked file.
-    const [drawer, setDrawer] = useAtom(configFilesDrawerAtomFamily(revisionId ?? ""))
-    const openDrawer = (initialPath: string | null) => setDrawer({open: true, initialPath})
+    // A row opens the chat's DOCKED pane on that file with the tree collapsed; the header's icon
+    // opens the browse-all DRAWER instead (see StorageFilesHeader).
+    const {openPane: openPaneRoot} = useSessionFilesPane(sessionId)
+    const setQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
+    const setPaneStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
+    const [drawerOpen, setDrawerOpen] = useAtom(configFilesDrawerOpenAtomFamily(revisionId ?? ""))
+    const openPane = (initialPath: string | null) => {
+        // No resolved session id → the per-session quick-look atom is not the one the docked
+        // pane reads, so open at the root instead of writing into an orphaned bucket.
+        if (initialPath && sessionId) setQuickLook({path: initialPath, hideTree: true})
+        else openPaneRoot()
+    }
+    // Drop-to-stage: a file drag over the Files peek opens the pane with the files staged, so the
+    // destination folder is chosen there (this flat peek has no folder of its own).
+    const {dropActive, dropProps: stageDropProps} = useStageDrop(
+        isAgentFileUploadsEnabled() && drive.mount && sessionId
+            ? (files) => setPaneStaged(files)
+            : undefined,
+    )
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)
     // Raw ids for the drawer header's overflow menu (the drive id + the session it belongs to).
@@ -117,7 +138,10 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
               : "empty"
 
     return (
-        <div className="flex flex-col gap-2">
+        <div
+            className={`flex flex-col gap-2 rounded-md transition-colors ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
+            {...stageDropProps}
+        >
             <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                     key={phase}
@@ -167,7 +191,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                                                           now,
                                                       )}
                                                       showOrigin={showOrigin}
-                                                      onOpen={() => openDrawer(file.path)}
+                                                      onOpen={() => openPane(file.path)}
                                                       onCopyPath={copyPath}
                                                       onDownload={download}
                                                   />
@@ -178,7 +202,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                             {/* One mount is in but another is still loading — a quiet hint, NOT a
                                 skeleton that would hide the files already shown. */}
                             {!showSkeleton && (drive.reconciling || drive.isFetching) ? (
-                                <div className="flex items-center gap-1.5 px-1.5 pt-1 text-[11px] text-colorTextTertiary">
+                                <div className="flex items-center gap-1.5 px-1.5 pt-1 text-xs text-colorTextTertiary">
                                     <CircleNotch size={11} className="animate-spin" />
                                     <span>Loading more…</span>
                                 </div>
@@ -198,7 +222,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                             {/* The diagnostic is now secondary + conditional — a retry may well fix a
                                 transient failure; the "not configured" hint only matters if it keeps
                                 failing (self-hosted deploys without an object store). */}
-                            <Text type="secondary" className="!text-[11px] !text-colorTextTertiary">
+                            <Text type="secondary" className="!text-xs !text-colorTextTertiary">
                                 If it keeps failing, the file store may not be configured on this
                                 deployment.
                             </Text>
@@ -224,15 +248,13 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                 </motion.div>
             </AnimatePresence>
 
-            {/* The ONE Files drawer (DriveExplorer: lazy per-directory loading + the single header).
-                Same component the chat uses; only the open-atom + resolved drive differ. */}
+            {/* Browse-all overlay drawer — the Files header's icon opens it (rows use the pane). */}
             <FilesDrawer
-                open={drawer.open}
-                onClose={() => setDrawer((prev) => ({...prev, open: false}))}
+                open={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
                 drive={drive}
                 driveIds={driveIds}
                 scope="session"
-                initialPath={drawer.initialPath}
             />
         </div>
     )

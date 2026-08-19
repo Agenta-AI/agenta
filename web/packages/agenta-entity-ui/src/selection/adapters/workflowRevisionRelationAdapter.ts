@@ -100,7 +100,7 @@ function renderWorkflowLabelNode(entity: unknown): React.ReactNode {
             ? React.createElement(
                   "span",
                   {
-                      className: "text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500",
+                      className: "text-[12px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500",
                   },
                   getWorkflowGroupLabel(groupKey),
               )

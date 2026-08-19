@@ -6,6 +6,7 @@ import {Button, DatePicker, Divider, Popover, Typography} from "antd"
 import dayjs, {Dayjs} from "dayjs"
 import {createUseStyles} from "react-jss"
 
+import {utcRangeStamp} from "@/oss/lib/helpers/dateTimeHelper"
 import {JSSTheme} from "@/oss/lib/Types"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -125,22 +126,16 @@ const Sort: React.FC<Props> = ({
         if (preset?.amount && preset.unit) {
             const now = dayjs().utc()
 
-            sortedTime = now.subtract(preset.amount, preset.unit).toISOString().split(".")[0]
+            sortedTime = utcRangeStamp(now.subtract(preset.amount, preset.unit))
         } else if (sortData === "custom" && (customRange?.startTime || customRange?.endTime)) {
             if (customRange.startTime) {
-                customRangeTime.startTime = dayjs(customRange.startTime)
-                    .utc()
-                    .toISOString()
-                    .split(".")[0]
+                customRangeTime.startTime = utcRangeStamp(customRange.startTime)
             }
             if (customRange.endTime) {
-                customRangeTime.endTime = dayjs(customRange.endTime)
-                    .utc()
-                    .toISOString()
-                    .split(".")[0]
+                customRangeTime.endTime = utcRangeStamp(customRange.endTime)
             }
         } else if (sortData === "all time") {
-            sortedTime = "1970-01-01T00:00:00"
+            sortedTime = "1970-01-01T00:00:00Z"
         }
 
         onSortApply({

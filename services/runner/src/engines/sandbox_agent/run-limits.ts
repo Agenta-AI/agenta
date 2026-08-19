@@ -10,6 +10,8 @@
  * legitimate, human-timescale wait, not a wedge, and must never be reaped by these deadlines.
  */
 
+import { clampTimerMs, envTimerMs } from "../../env.ts";
+
 export interface Clock {
   now(): number;
   setTimeout(fn: () => void, ms: number): NodeJS.Timeout;
@@ -22,23 +24,18 @@ const realClock: Clock = {
   clearTimeout: (handle) => clearTimeout(handle),
 };
 
-function envMs(name: string, defaultMs: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw === "") return defaultMs;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultMs;
-}
-
 export const TOTAL_DEADLINE_ENV = "AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS";
 export const IDLE_TIMEOUT_ENV = "AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS";
 export const TTFB_TIMEOUT_ENV = "AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS";
 export const TOOL_CALL_TIMEOUT_ENV = "AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS";
 
 export const DEFAULT_TOTAL_DEADLINE_MS = 45 * 60_000; // 45 min
-export const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60_000; // 5 min
+export const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60_000; // 30 min
 export const DEFAULT_TTFB_TIMEOUT_MS = 2 * 60_000; // 2 min
-export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 5 * 60_000; // 5 min
+export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000; // 30 min
 
+/** Every field is a usable timer delay (integer ms, at least 1, within Node's timer range) —
+ *  `resolveRunLimits` guarantees it, so callers can arm any of them without re-checking. */
 export interface ResolvedRunLimits {
   totalMs: number;
   idleMs: number;
@@ -54,6 +51,8 @@ export interface ResolvedRunLimits {
 export function resolveRunLimits(
   log: (message: string) => void = () => {},
 ): ResolvedRunLimits {
+  const envMs = (name: string, defaultMs: number): number =>
+    envTimerMs(name, defaultMs, { log });
   const totalMs = envMs(TOTAL_DEADLINE_ENV, DEFAULT_TOTAL_DEADLINE_MS);
   let idleMs = envMs(IDLE_TIMEOUT_ENV, DEFAULT_IDLE_TIMEOUT_MS);
   const ttfbMs = envMs(TTFB_TIMEOUT_ENV, DEFAULT_TTFB_TIMEOUT_MS);
@@ -64,7 +63,16 @@ export function resolveRunLimits(
     );
     idleMs = Math.floor(totalMs / 2);
   }
-  return { totalMs, idleMs, ttfbMs, toolCallMs };
+  // Every field is armed directly as a timer delay, so the whole record leaves this function
+  // inside the timer domain — including the values DERIVED above rather than read from env
+  // (half of a total already sitting at its own floor rounds to 0, which fires instantly).
+  // Normalizing the result, not each derivation, keeps that true of any future adjustment here.
+  return {
+    totalMs: clampTimerMs(totalMs),
+    idleMs: clampTimerMs(idleMs),
+    ttfbMs: clampTimerMs(ttfbMs),
+    toolCallMs: clampTimerMs(toolCallMs),
+  };
 }
 
 export interface RunLimitsHandle {

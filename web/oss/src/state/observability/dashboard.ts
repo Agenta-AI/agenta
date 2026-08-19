@@ -5,6 +5,7 @@ import {eagerAtom} from "jotai-eager"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {SortResult} from "@/oss/components/Filters/Sort"
+import {utcRangeStamp} from "@/oss/lib/helpers/dateTimeHelper"
 import {GenerationDashboardData} from "@/oss/lib/types_ee"
 import {fetchGenerationsDashboardData} from "@/oss/services/tracing/api"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
@@ -14,7 +15,7 @@ dayjs.extend(utc)
 
 export const observabilityDashboardTimeRangeAtom = atom<SortResult>({
     type: "standard",
-    sorted: dayjs().utc().subtract(30, "days").toISOString().split(".")[0],
+    sorted: utcRangeStamp(dayjs().subtract(30, "days")),
     customRange: {},
     label: "1 month",
 })

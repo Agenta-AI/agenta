@@ -172,6 +172,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             disableCodeFoldingPlugin = false,
             disableIndentationPlugin = false,
             useNativeCodeNodes = false,
+            ariaLabel,
             diffExtensionConfig,
             ...rest
         }: EditorProps,
@@ -758,7 +759,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             <div className="editor-container w-full overflow-hidden relative min-h-[inherit]">
                 <div
                     ref={ref}
-                    className={clsx("editor-inner border rounded-lg min-h-[inherit]", {
+                    className={clsx("editor-inner border border-solid rounded-lg min-h-[inherit]", {
                         "single-line": singleLine,
                         "code-editor": codeOnly,
                         "large-doc-optimizations": codeOnly && shouldEnableLargeDocOptimizations,
@@ -786,6 +787,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             disableLongText={disableLongText}
                             loadingFallback={loadingFallback}
                             useNativeCodeNodes={useNativeCodeNodes}
+                            ariaLabel={ariaLabel}
                             isDiffView={Boolean(diffExtensionConfig)}
                         />
                     ) : (
@@ -1028,7 +1030,7 @@ export const EditorProvider = ({
     if (!config) {
         return (
             <div
-                className="bg-[var(--ag-c-FFFFFF)] relative flex flex-col p-2 border rounded-lg"
+                className="bg-[var(--ag-c-FFFFFF)] relative flex flex-col p-2 border border-solid rounded-lg"
                 style={
                     dimensions?.width
                         ? {
@@ -1083,6 +1085,7 @@ const Editor = ({
     enableTokens = false,
     autoFocus = false,
     debug = false,
+    ariaLabel,
     enableResize = true, // New prop
     boundWidth = true, // New prop
     boundHeight, // New prop
@@ -1146,6 +1149,7 @@ const Editor = ({
                     disableIndentationPlugin={disableIndentationPlugin}
                     skipScroll={skipScroll}
                     useNativeCodeNodes={useNativeCodeNodes}
+                    ariaLabel={ariaLabel}
                 />
             ) : (
                 <EditorProvider
@@ -1224,6 +1228,7 @@ const Editor = ({
                         disableIndentationPlugin={disableIndentationPlugin}
                         skipScroll={skipScroll}
                         useNativeCodeNodes={useNativeCodeNodes}
+                        ariaLabel={ariaLabel}
                     />
                 </EditorProvider>
             )}

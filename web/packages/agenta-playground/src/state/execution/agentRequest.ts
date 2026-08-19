@@ -401,7 +401,7 @@ export async function buildAgentRequest(
     // Strip answer-less assistant turns so a "no response" turn can't poison the next request.
     const history = messages.filter(hasAnswer)
 
-    // Last-message-only (flag-gated; MUST pair with the backend's AGENTA_SESSIONS_RECONSTRUCT).
+    // Last-message-only (on by default; disable ONLY together with the backend's AGENTA_SESSIONS_RECONSTRUCT).
     // On a fresh user turn, send just the trailing user message and let the runner rebuild prior
     // turns from the durable record log — smaller request + trace payloads. A HITL resume, whose
     // trailing turn carries the settled answer (not a user turn), keeps the full history so the

@@ -3,44 +3,37 @@ import {useCallback, useMemo, useState} from "react"
 import {
     describeCron,
     isEntityActive,
+    triggerBoundAgentId,
     triggerDeliveriesDrawerAtom,
     triggerScheduleDrawerAtom,
     useTriggerSchedule,
     useTriggerSchedules,
     type TriggerSchedule,
 } from "@agenta/entities/gatewayTrigger"
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {ActiveToggle, TriggerScheduleDrawer} from "@agenta/entity-ui/gatewayTrigger"
-import {MoreOutlined} from "@ant-design/icons"
+import {TriggerScheduleDrawer} from "@agenta/entity-ui/gatewayTrigger"
+import {StatusIndicator} from "@agenta/ui/components/presentational"
+import {
+    createStandardColumns,
+    InfiniteVirtualTableFeatureShell,
+    type StandardColumnDef,
+} from "@agenta/ui/table"
+import {EmptyState} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
-    Clock,
-    GearSix,
     ListChecks,
+    Pause,
     PencilSimpleLine,
+    Play,
     Plus,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Table, Tag, Tooltip, Typography, message} from "antd"
-import type {ColumnsType} from "antd/es/table"
-import {useAtomValue, useSetAtom} from "jotai"
+import {Button, message, Tooltip, Typography} from "antd"
+import {useSetAtom} from "jotai"
 
+import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
-import {TriggerEmptyState, TriggerSectionHeader} from "./TriggerSection"
-
-// Resolve the bound workflow's display name from its artifact; fall back to the id.
-function BoundWorkflowCell({wfId}: {wfId: string | null}) {
-    const name = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.artifactName(wfId ?? ""), [wfId]),
-    )
-    if (!wfId) return <Typography.Text type="secondary">-</Typography.Text>
-    return (
-        <Typography.Text className="text-xs" ellipsis={{tooltip: wfId}}>
-            {name?.trim() || wfId}
-        </Typography.Text>
-    )
-}
+import {useAgentNameById} from "./useAgentNameById"
 
 export default function GatewaySchedulesSection() {
     const {schedules, isLoading, refetch} = useTriggerSchedules()
@@ -48,6 +41,8 @@ export default function GatewaySchedulesSection() {
     const openDrawer = useSetAtom(triggerScheduleDrawerAtom)
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
     const [reloading, setReloading] = useState(false)
+
+    const agentNameById = useAgentNameById()
 
     const reloadAll = useCallback(async () => {
         setReloading(true)
@@ -81,165 +76,205 @@ export default function GatewaySchedulesSection() {
     const handleToggle = useCallback(
         (record: TriggerSchedule) => async (next: boolean) => {
             if (!record.id) return
-            await setActive(record.id, next)
+            try {
+                await setActive(record.id, next)
+                message.success(next ? "Schedule resumed" : "Schedule paused")
+            } catch {
+                message.error(next ? "Failed to resume schedule" : "Failed to pause schedule")
+            }
         },
         [setActive],
     )
 
-    const columns: ColumnsType<TriggerSchedule> = useMemo(
-        () => [
+    interface ScheduleRow extends TriggerSchedule {
+        key: string
+        [extra: string]: unknown
+    }
+
+    const rows = useMemo<ScheduleRow[]>(
+        () =>
+            (schedules ?? []).map((schedule, index) => ({
+                ...schedule,
+                key: schedule.id ?? schedule.slug ?? schedule.data?.schedule ?? `schedule-${index}`,
+            })),
+        [schedules],
+    )
+
+    // A window is optional and rarely set — the column only earns its width once a row uses it.
+    const hasWindow = useMemo(
+        () => rows.some((record) => record.data?.start_time || record.data?.end_time),
+        [rows],
+    )
+
+    const columns = useMemo(() => {
+        // Optional column: present only when a row actually uses a window (see hasWindow).
+        const windowColumn: StandardColumnDef<ScheduleRow> = {
+            type: "text",
+            key: "window",
+            title: "Window (UTC)",
+            width: 200,
+            render: (_value, record) => {
+                const {start_time: start, end_time: end} = record.data ?? {}
+                if (!start && !end) return <Typography.Text type="secondary">-</Typography.Text>
+                const fmt = (v?: string | null) =>
+                    v ? formatDay({date: v, outputFormat: "YYYY-MM-DD HH:mm"}) : "∞"
+                return (
+                    <span className="truncate text-xs">
+                        {fmt(start)} → {fmt(end)}
+                    </span>
+                )
+            },
+        }
+        return createStandardColumns<ScheduleRow>([
             {
-                title: "Name",
+                type: "text",
                 key: "name",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (_, record) => (
-                    <Typography.Text>{record.name || record.id || "-"}</Typography.Text>
-                ),
+                title: "Name",
+                width: 180,
+                fixed: "left",
+                render: (_value, record) => {
+                    const label = record.name || record.id || "-"
+                    // Fixed-width column: truncate rather than wrap, full name on hover.
+                    return <Typography.Text ellipsis={{tooltip: label}}>{label}</Typography.Text>
+                },
             },
             {
-                title: "Schedule",
+                type: "text",
                 key: "schedule",
-                onHeaderCell: () => ({style: {minWidth: 200}}),
-                render: (_, record) => {
+                title: "Schedule",
+                width: 200,
+                render: (_value, record) => {
                     const cron = record.data?.schedule
                     if (!cron) return <Typography.Text type="secondary">-</Typography.Text>
                     return (
                         <Tooltip title={cron}>
-                            <Typography.Text>{describeCron(cron)}</Typography.Text>
+                            <span className="truncate">{describeCron(cron)}</span>
                         </Tooltip>
                     )
                 },
             },
             {
-                title: "Window (UTC)",
-                key: "window",
-                onHeaderCell: () => ({style: {minWidth: 200}}),
-                render: (_, record) => {
-                    const {start_time: start, end_time: end} = record.data ?? {}
-                    if (!start && !end) return <Typography.Text type="secondary">-</Typography.Text>
-                    const fmt = (v?: string | null) =>
-                        v ? formatDay({date: v, outputFormat: "YYYY-MM-DD HH:mm"}) : "∞"
+                type: "text",
+                key: "workflow",
+                title: "Connected agent",
+                width: 180,
+                render: (_value, record) => {
+                    const wfId = triggerBoundAgentId(record.data?.references)
+                    const name = wfId ? agentNameById.get(wfId) : undefined
+                    // A raw id says nothing to a reader, so an unresolved name shows "-".
+                    if (!name) return <Typography.Text type="secondary">-</Typography.Text>
                     return (
-                        <Typography.Text className="text-xs">
-                            {fmt(start)} → {fmt(end)}
+                        <Typography.Text className="text-xs" ellipsis={{tooltip: name}}>
+                            {name}
                         </Typography.Text>
                     )
                 },
             },
+            ...(hasWindow ? [windowColumn] : []),
             {
-                title: "Bound workflow",
-                key: "workflow",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (_, record) => {
-                    const refs = record.data?.references
-                    const wfId =
-                        refs?.application?.id ??
-                        refs?.application_variant?.id ??
-                        refs?.application_revision?.id ??
-                        null
-                    return <BoundWorkflowCell wfId={wfId} />
-                },
-            },
-            {
-                title: "Status",
+                type: "text",
                 key: "status",
-                onHeaderCell: () => ({style: {minWidth: 100}}),
-                render: (_, record) =>
-                    isEntityActive(record) ? <Tag color="green">Active</Tag> : <Tag>Paused</Tag>,
+                title: "Status",
+                width: 130,
+                // Reads as a state, like the Connections table; pausing lives in the
+                // row menu so the column stays scannable.
+                render: (_value, record) =>
+                    isEntityActive(record) ? (
+                        <StatusIndicator tone="success" label="Active" />
+                    ) : (
+                        <StatusIndicator tone="default" label="Paused" />
+                    ),
             },
             {
-                title: "Created at",
-                dataIndex: "created_at",
+                type: "text",
                 key: "created_at",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (value: string) =>
-                    value ? formatDay({date: value, outputFormat: "YYYY-MM-DD HH:mm"}) : "-",
+                title: "Created",
+                width: 160,
+                render: (_value, record) =>
+                    record.created_at
+                        ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
+                        : "-",
             },
             {
-                title: <GearSix size={16} />,
-                key: "actions",
-                width: 48,
-                fixed: "right" as const,
-                align: "center" as const,
-                render: (_, record) => (
-                    <div className="flex items-center justify-center gap-1">
-                        <ActiveToggle
-                            active={isEntityActive(record)}
-                            onToggle={handleToggle(record)}
-                            disabled={!record.id}
-                            activatedMessage="Schedule resumed"
-                            pausedMessage="Schedule paused"
-                            errorMessage="Failed to update schedule"
-                        />
-                        <Dropdown
-                            trigger={["click"]}
-                            styles={{root: {width: 180}}}
-                            menu={{
-                                items: [
-                                    {
-                                        key: "deliveries",
-                                        label: "View deliveries",
-                                        icon: <ListChecks size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            if (record.id)
-                                                openDeliveries({
-                                                    owner: {kind: "schedule", id: record.id},
-                                                    name: record.name ?? undefined,
-                                                })
-                                        },
-                                    },
-                                    {
-                                        key: "edit",
-                                        label: "Edit",
-                                        icon: <PencilSimpleLine size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            handleEdit(record)
-                                        },
-                                    },
-                                    {type: "divider" as const},
-                                    {
-                                        key: "delete",
-                                        label: "Delete",
-                                        icon: <Trash size={16} />,
-                                        danger: true,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            handleDelete(record)
-                                        },
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button
-                                type="text"
-                                icon={<MoreOutlined />}
-                                aria-label="Open schedule actions"
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                        </Dropdown>
-                    </div>
-                ),
-            },
-        ],
-        [handleDelete, handleEdit, handleToggle, openDeliveries],
-    )
+                type: "actions",
+                showCopyId: false,
+                items: [
+                    {
+                        key: "deliveries",
+                        label: "View runs",
+                        icon: <ListChecks size={16} />,
+                        onClick: (record: ScheduleRow) => {
+                            if (record.id)
+                                openDeliveries({
+                                    mode: "owner-history",
+                                    owner: {kind: "schedule", id: record.id},
+                                    name: record.name ?? undefined,
+                                })
+                        },
+                    },
+                    {
+                        key: "edit",
+                        label: "Edit",
+                        icon: <PencilSimpleLine size={16} />,
+                        onClick: (record: ScheduleRow) => handleEdit(record),
+                    },
+                    {
+                        key: "pause",
+                        label: "Pause",
+                        icon: <Pause size={16} />,
+                        hidden: (record: ScheduleRow) => !isEntityActive(record),
+                        onClick: (record: ScheduleRow) => void handleToggle(record)(false),
+                    },
+                    {
+                        key: "resume",
+                        label: "Resume",
+                        icon: <Play size={16} />,
+                        hidden: (record: ScheduleRow) => isEntityActive(record),
+                        onClick: (record: ScheduleRow) => void handleToggle(record)(true),
+                    },
+                    {type: "divider"},
+                    {
+                        key: "delete",
+                        label: "Delete",
+                        icon: <Trash size={16} />,
+                        danger: true,
+                        onClick: (record: ScheduleRow) => handleDelete(record),
+                    },
+                ],
+            } satisfies StandardColumnDef<ScheduleRow>,
+        ])
+    }, [agentNameById, handleDelete, handleEdit, handleToggle, hasWindow, openDeliveries])
 
+    const {tableScope, pagination} = useStaticTable<ScheduleRow>(
+        "settings-trigger-schedules",
+        rows,
+        {loading: isLoading || isMutating},
+    )
     return (
         <>
-            <section className="flex flex-col gap-3">
-                <TriggerSectionHeader
-                    icon={<Clock size={16} />}
-                    title="Scheduled runs"
-                    description="Run a workflow automatically on a recurring schedule — hourly, daily, or any cron cadence."
-                    actions={
+            <section className="flex flex-col">
+                <InfiniteVirtualTableFeatureShell<ScheduleRow>
+                    className="ph-no-capture"
+                    tableScope={tableScope}
+                    autoHeight={false}
+                    emptyMinHeight={250}
+                    title={
+                        <div className="flex flex-col gap-1">
+                            <p className="m-0 font-medium text-colorText">Scheduled runs</p>
+                            <p className="m-0 font-normal text-colorTextSecondary">
+                                Run a workflow automatically on a schedule you define.
+                            </p>
+                        </div>
+                    }
+                    columns={columns}
+                    rowKey={(record) => record.key}
+                    pagination={pagination}
+                    primaryActions={
                         <>
                             <Tooltip title="Reload all scheduled runs">
                                 <Button
                                     icon={<ArrowClockwise size={14} />}
-                                    type="text"
-                                    size="small"
+                                    type="default"
                                     aria-label="Reload all scheduled runs"
                                     loading={reloading}
                                     onClick={reloadAll}
@@ -247,40 +282,44 @@ export default function GatewaySchedulesSection() {
                             </Tooltip>
                             <Button
                                 type="primary"
-                                size="small"
                                 icon={<Plus size={14} />}
                                 onClick={handleCreate}
+                                disabled={isLoading || isMutating}
                             >
                                 Schedule
                             </Button>
                         </>
                     }
-                />
-
-                <Table<TriggerSchedule>
-                    className="ph-no-capture"
-                    columns={columns}
-                    dataSource={schedules}
-                    rowKey={(record) => record.id ?? record.slug ?? record.data?.schedule ?? ""}
-                    bordered
-                    pagination={false}
-                    loading={isLoading || isMutating}
-                    locale={{
-                        emptyText:
-                            isLoading || isMutating ? (
-                                <span />
-                            ) : (
-                                <TriggerEmptyState
-                                    icon={<Clock size={32} />}
-                                    title="No scheduled runs yet"
-                                    description="Schedule a workflow to run automatically on a recurring cadence — hourly, daily, or any cron expression."
-                                />
+                    tableProps={{
+                        size: "small",
+                        bordered: true,
+                        tableLayout: "fixed",
+                        locale: {
+                            emptyText: (
+                                <EmptyState
+                                    image="simple"
+                                    description={
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-xs font-medium text-colorText">
+                                                No scheduled runs yet
+                                            </span>
+                                            <span>
+                                                Run an agent automatically on a schedule you define.
+                                            </span>
+                                        </div>
+                                    }
+                                >
+                                    <Button icon={<Plus size={14} />} onClick={handleCreate}>
+                                        Schedule
+                                    </Button>
+                                </EmptyState>
                             ),
+                        },
+                        onRow: (record: ScheduleRow) => ({
+                            onClick: () => handleEdit(record),
+                            className: "cursor-pointer",
+                        }),
                     }}
-                    onRow={(record) => ({
-                        onClick: () => handleEdit(record),
-                        className: "cursor-pointer",
-                    })}
                 />
             </section>
 

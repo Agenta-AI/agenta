@@ -11,7 +11,8 @@ import {
     ScrollIcon,
     SlackLogoIcon,
 } from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {loadable} from "jotai/utils"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
@@ -30,6 +31,9 @@ interface SidebarBottomSectionOptions {
 // Hidden pending the new onboarding widget; flip back to true to restore the sidebar entry.
 const SHOW_GET_STARTED_GUIDE = false
 
+// Lazy-load package.json so its version stays out of the initial bundle.
+const versionAtom = loadable(atom(async () => (await import("../../../../package.json")).version))
+
 export const useSidebarBottomSection = ({
     includeSettingsLink = true,
 }: SidebarBottomSectionOptions = {}): SidebarSection => {
@@ -40,6 +44,8 @@ export const useSidebarBottomSection = ({
     const {projectURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
     const hasProjectURL = Boolean(projectURL)
+    const versionState = useAtomValue(versionAtom)
+    const version = versionState.state === "hasData" ? versionState.data : undefined
 
     const handleOpenWidget = useCallback(
         (e: MouseEvent) => {
@@ -69,17 +75,21 @@ export const useSidebarBottomSection = ({
         [hasProjectURL, projectURL],
     )
 
+    const inviteItem = useMemo<SidebarConfig>(
+        () => ({
+            key: "invite-teammate-link",
+            title: "Invite Teammate",
+            link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
+            icon: <PaperPlaneIcon size={14} />,
+            tooltip: "Invite Teammate",
+            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
+            disabled: !hasProjectURL,
+        }),
+        [canInviteMembers, doesSessionExist, hasProjectURL, projectURL, selectedOrg],
+    )
+
     const sharedItems = useMemo<SidebarConfig[]>(
         () => [
-            {
-                key: "invite-teammate-link",
-                title: "Invite Teammate",
-                link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
-                icon: <PaperPlaneIcon size={14} />,
-                tooltip: "Invite Teammate",
-                isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
-                disabled: !hasProjectURL,
-            },
             {
                 key: "get-started-guide-link",
                 title: "Get Started Guide",
@@ -93,16 +103,14 @@ export const useSidebarBottomSection = ({
                 onClick: handleOpenWidget,
             },
             {
-                key: "support-chat-link",
-                title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
-                icon: <ChatCircleIcon size={14} />,
-                isHidden: !isDemo() || !isCrispEnabled,
-                onClick: handleToggleSupport,
-            },
-            {
                 key: "help-docs-link",
                 title: "Help & Docs",
                 icon: <QuestionIcon size={14} />,
+                suffix: version ? (
+                    <span className="text-[12px] leading-none text-colorTextTertiary">
+                        v{version}
+                    </span>
+                ) : undefined,
                 submenu: [
                     {
                         key: "docs",
@@ -122,37 +130,45 @@ export const useSidebarBottomSection = ({
                         title: "Slack Support",
                         link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
                         icon: <SlackLogoIcon size={14} />,
-                        divider: true,
                     },
                     {
                         key: "book-call",
                         title: "Book a call",
                         link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
                         icon: <PhoneIcon size={14} />,
+                        // Live Chat relocates here from a standalone row; keep the divider only
+                        // when it will actually render (demo + Crisp), else it dangles.
+                        divider: isDemo() && isCrispEnabled,
+                    },
+                    {
+                        key: "support-chat-link",
+                        title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
+                        icon: <ChatCircleIcon size={14} />,
+                        isHidden: !isDemo() || !isCrispEnabled,
+                        onClick: handleToggleSupport,
                     },
                 ],
             },
         ],
         [
-            canInviteMembers,
             doesSessionExist,
             handleOpenWidget,
             handleToggleSupport,
-            hasProjectURL,
             isCrispEnabled,
             isVisible,
-            projectURL,
-            selectedOrg,
+            version,
         ],
     )
 
     return useMemo(
         () => ({
             key: "bottom",
-            items: includeSettingsLink ? [settingsLink, ...sharedItems] : sharedItems,
+            items: includeSettingsLink
+                ? [settingsLink, inviteItem, ...sharedItems]
+                : [inviteItem, ...sharedItems],
             placement: "bottom",
             mode: "vertical",
         }),
-        [includeSettingsLink, settingsLink, sharedItems],
+        [includeSettingsLink, settingsLink, inviteItem, sharedItems],
     )
 }

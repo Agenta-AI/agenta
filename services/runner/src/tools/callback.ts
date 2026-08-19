@@ -24,19 +24,56 @@ export const EMPTY_OBJECT_SCHEMA = {
 };
 
 /** Bound a tool result body so a malformed/oversized upstream response cannot exhaust runner
- *  memory or blow out the model's context. Same cap and mechanism as tool-mcp-http.ts. */
+ *  memory. Same cap and mechanism as tool-mcp-http.ts. This is a memory-safety ceiling, not the
+ *  model-facing content budget — see `MAX_GATEWAY_RESULT_BYTES` below for that. */
 export const MAX_BODY_BYTES = 1_000_000;
 
 /**
  * Hard ceiling on the RAW wire body read off the socket, before any JSON parsing. Larger than
- * `MAX_BODY_BYTES` (the model-facing cap on the parsed `content` field) because the raw body is
- * a JSON envelope wrapping `content` plus its own quoting/escaping overhead — capping the raw
- * read at exactly `MAX_BODY_BYTES` would truncate the envelope itself and corrupt otherwise
- * well-formed JSON before it ever reaches `capToolResultText`. This is purely a memory-safety
- * backstop against a malformed/oversized upstream; `content` still gets capped to
- * `MAX_BODY_BYTES` after parsing, same as before.
+ * `MAX_BODY_BYTES` because the raw body is a JSON envelope wrapping `content` plus its own
+ * quoting/escaping overhead — capping the raw read at exactly `MAX_BODY_BYTES` would truncate
+ * the envelope itself and corrupt otherwise well-formed JSON before it ever reaches
+ * `capToolResultText`. This is purely a memory-safety backstop against a malformed/oversized
+ * upstream; the parsed `content` field is capped far tighter, to `MAX_GATEWAY_RESULT_BYTES`,
+ * before it ever reaches the model.
  */
 export const MAX_RAW_RESPONSE_BYTES = MAX_BODY_BYTES * 4;
+
+/**
+ * Model-facing cap on ONE gateway/Composio tool result, well below `MAX_BODY_BYTES`. A single
+ * `get_pull_request` call was observed returning ~1 MB (~241,000 tokens) of `content`, which blew
+ * out the whole conversation's context in one turn (issue #5341). `MAX_BODY_BYTES` stays as the
+ * outer memory-safety ceiling on the raw transport; this is the much tighter budget the model
+ * itself should ever see from a gateway call, so an oversized result reads as "narrow your query"
+ * rather than "here is a wall of text, good luck." ~100,000 bytes approximates 25,000 tokens at
+ * the usual ~4 bytes/token for English/JSON text. Env-overridable like the other budgets in this
+ * file (e.g. TOOL_CALL_TIMEOUT_MS above).
+ */
+export const DEFAULT_GATEWAY_RESULT_BYTES = 100_000;
+
+/** Parse a gateway-result byte budget from an env value, falling back to `fallback` for anything
+ *  that is not a positive safe integer. A bare `Number()` would accept `"Infinity"` (which would
+ *  disable the cap), negative values (which make the byte slice keep almost the whole result),
+ *  fractions, and `NaN`, so all of those fall back to the default instead. */
+export function resolveGatewayResultBytes(
+  raw: string | undefined,
+  fallback: number = DEFAULT_GATEWAY_RESULT_BYTES,
+): number {
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export const MAX_GATEWAY_RESULT_BYTES = resolveGatewayResultBytes(
+  process.env.AGENTA_AGENT_TOOLS_GATEWAY_RESULT_MAX_BYTES,
+);
+
+/** Appended in place of the omitted tail when a gateway result is cut at
+ *  `MAX_GATEWAY_RESULT_BYTES`, steering the model to narrow the call instead of retrying blind. */
+export const GATEWAY_RESULT_STEERING_MESSAGE =
+  "This result was too large to return in full. Narrow your query (add filters, a smaller " +
+  "date range, or specific fields), request a summary, or paginate and fetch fewer items " +
+  "per call, then try again.";
 
 /** How many trailing bytes of `buf[0..end)` are a truncated (incomplete) UTF-8 sequence that
  *  should be walked back past before decoding — otherwise `Buffer.toString` replaces the
@@ -63,17 +100,36 @@ function trailingIncompleteUtf8Length(buf: Buffer, end: number): number {
   return 0;
 }
 
-/** Truncate `text` to `maxBytes` (UTF-8) at a character boundary, signaling the cut the same
- *  way the replay transcript does (`transcript.ts` TOOL_RESULT_RENDER_MAX_CHARS) so the model
- *  can tell it was truncated. Guarantees the returned prefix is `<= maxBytes` and the omitted
- *  count is exact and non-negative — a byte-only cut can split a multibyte sequence, which
- *  decodes to U+FFFD and can push the result back over `maxBytes`. */
-export function capToolResultText(text: string, maxBytes: number = MAX_BODY_BYTES): string {
+/** Truncate `text` so the WHOLE returned string (the retained prefix plus the omitted-count
+ *  marker and any `steeringMessage`) stays within `maxBytes` (UTF-8), cutting at a character
+ *  boundary so a multibyte sequence is never split. Room for the suffix is reserved before the
+ *  prefix is chosen, so the budget bounds the entire result, not just the prefix; when `maxBytes`
+ *  is smaller than the suffix itself, the suffix alone is returned. The cut is signaled the same
+ *  way the replay transcript does (`transcript.ts` TOOL_RESULT_RENDER_MAX_CHARS) so the model can
+ *  tell it was truncated, and the optional `steeringMessage` tells it what to do about the cut
+ *  (narrow, filter, paginate) instead of leaving it to guess from a bare truncation notice. */
+export function capToolResultText(
+  text: string,
+  maxBytes: number = MAX_BODY_BYTES,
+  steeringMessage?: string,
+): string {
   const buf = Buffer.from(text, "utf-8");
   if (buf.length <= maxBytes) return text;
-  const safeEnd = maxBytes - trailingIncompleteUtf8Length(buf, maxBytes);
+  // The omitted-byte count is at most the whole buffer length, so `buf.length` bounds the
+  // marker's digit width. Reserving against that upper bound keeps the final string within
+  // `maxBytes` whenever `maxBytes` can hold the suffix at all.
+  const suffixFor = (omitted: number): string => {
+    const marker = ` [... ${omitted} bytes omitted]`;
+    return steeringMessage ? `${marker}\n\n${steeringMessage}` : marker;
+  };
+  const reservedForSuffix = Buffer.byteLength(suffixFor(buf.length), "utf-8");
+  const prefixBudget = Math.max(0, maxBytes - reservedForSuffix);
+  const safeEnd = Math.max(
+    0,
+    prefixBudget - trailingIncompleteUtf8Length(buf, prefixBudget),
+  );
   const truncated = buf.subarray(0, safeEnd).toString("utf-8");
-  return `${truncated} [... ${buf.length - safeEnd} bytes omitted]`;
+  return `${truncated}${suffixFor(buf.length - safeEnd)}`;
 }
 
 /**
@@ -205,30 +261,80 @@ export async function callAgentaTool(
   // ToolCallResponse -> { call: { data: { content }, status } }. `content` is the
   // execution result serialized as a JSON string; hand it to the model, capped (an
   // uncapped result — e.g. a discover_tools dump — is otherwise handed back verbatim).
+  //
+  // THE TRY WRAPS THE PARSE AND NOTHING ELSE, ON PURPOSE. It used to wrap the whole block, so a
+  // `throw` below would have been caught by its own fallback and turned back into a success. The
+  // narrow scope is what lets a failure leave this function as a failure.
+  let parsed: any;
   try {
-    const parsed = JSON.parse(bodyText);
-    const content = parsed?.call?.data?.content;
-    // A business-level tool failure rides a 200 as STATUS_CODE_ERROR with the upstream
-    // message in `status.message` (api .../tools/router.py `call_tool`). It is gateway-shaped,
-    // not an opaque upstream body, and it is what lets the model fix a bad argument — so
-    // surface it BY DESIGN rather than relying on it happening to ride `content`.
-    const status = parsed?.call?.status;
-    const statusMessage =
-      status?.code === "STATUS_CODE_ERROR" && typeof status?.message === "string"
-        ? status.message
-        : undefined;
-    if (statusMessage) {
-      const detail = typeof content === "string" ? content : "";
-      return capToolResultText(
-        detail
-          ? `tool call ${callRef} failed: ${statusMessage}\n${detail}`
-          : `tool call ${callRef} failed: ${statusMessage}`,
-      );
-    }
-    if (typeof content === "string") return capToolResultText(content);
-    if (content != null) return capToolResultText(JSON.stringify(content));
-    return capToolResultText(bodyText);
+    parsed = JSON.parse(bodyText);
   } catch {
-    return capToolResultText(bodyText);
+    return capToolResultText(bodyText, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
   }
+
+  const content = parsed?.call?.data?.content;
+  const status = parsed?.call?.status;
+  const detail =
+    typeof content === "string"
+      ? content
+      : content != null
+        ? JSON.stringify(content)
+        : "";
+
+  // A business-level tool failure rides a 200 as STATUS_CODE_ERROR (api .../tools/router.py
+  // `call_tool`). It is gateway-shaped, not an opaque upstream body, and it is what lets the
+  // model fix a bad argument.
+  //
+  // CONTRACT: THIS THROWS, AND IT USED TO RETURN. Every caller turns a throw into a tool ERROR,
+  // so the model reads a failed call as failed. Returning made `startToolRelay` write
+  // `{ok: true, text}`, which the MCP shim renders as `isError: false`: the model was told its
+  // call SUCCEEDED and handed the failure text as the result. On Codex that is the blank-success
+  // shape that makes a model invent an explanation and tell the user to try again. Measured in
+  // all three arms before this change; every one of them returned.
+  //
+  // `status.code` ALONE decides. The old test also required `status.message` to be a string, so a
+  // failure whose message was absent or null fell through to the success return below. That arm is
+  // not hypothetical: it is the shape a handler-mode op produces when its error envelope lives in
+  // `content`.
+  //
+  // `detail` is passed through rather than redacted, and the reason is a SYMMETRY INVARIANT rather
+  // than an argument about what can reach this line.
+  //
+  // Every producer of a `ToolResult` in the tools router serializes ONE content expression and
+  // branches only on `status.code`. The Composio arm sends `json.dumps(execution_result...)`, the
+  // workflow arm `json.dumps(outputs)`, the handler seam whatever the handler returned. So the
+  // failure branch hands the model exactly what the success branch hands it, from the same
+  // expression. Redacting on failure would strip a value we give away freely one branch earlier:
+  // if that content can leak a secret, it leaks on SUCCESS, where nothing redacts it. The failure
+  // branch is not where that question lives, and scrubbing third-party output, if it is ever
+  // wanted, is both-branches work needing its own justification.
+  //
+  // WHAT A REVIEWER SHOULD NOTICE: a new producer that serializes DIFFERENT content on its two
+  // branches. None does today. The handler seam varies its content (an envelope on failure, the
+  // op's payload on success), but it does so INSIDE the handler, above the router's single
+  // expression, and that is the sanctioned case rather than the surprising one.
+  //
+  // The narrower guards are untouched and still carry their own weight: a proxy's HTML error page
+  // fails the JSON parse above, and a non-2xx is redacted to its status code further up.
+  if (status?.code === "STATUS_CODE_ERROR") {
+    const reason =
+      typeof status?.message === "string" && status.message
+        ? `tool call ${callRef} failed: ${status.message}`
+        : `tool call ${callRef} failed`;
+    throw new Error(
+      capToolResultText(
+        detail ? `${reason}\n${detail}` : reason,
+        MAX_GATEWAY_RESULT_BYTES,
+        GATEWAY_RESULT_STEERING_MESSAGE,
+      ),
+    );
+  }
+
+  if (typeof content === "string") {
+    return capToolResultText(content, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
+  }
+  if (content != null) {
+    return capToolResultText(detail, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
+  }
+  return capToolResultText(bodyText, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
 }

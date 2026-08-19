@@ -82,3 +82,42 @@ def test_smart_truncation_flag_is_reachable_from_the_env_object():
     from oss.src.utils.env import env
 
     assert isinstance(env.agenta.sessions.records.smart_truncation, bool)
+
+
+def test_attachment_reference_and_delivery_payloads_fit_without_truncation():
+    attachments = [
+        {
+            "attachment_id": f"019a0000-0000-7000-8000-{index:012d}",
+            "filename": f"file-{index}.png",
+            "media_type": "image/png",
+            "size": 1024,
+        }
+        for index in range(5)
+    ]
+    payloads = [
+        {
+            "type": "message",
+            "text": "Review these files.",
+            "attachments": attachments,
+        },
+        *[
+            {
+                "type": "attachment_delivery",
+                "attachmentId": attachment["attachment_id"],
+                "outcome": "workspace_only",
+                "reasonCode": "model_modality_unknown",
+                "workingPath": (
+                    f"attachments/{attachment['attachment_id']}/"
+                    f"{attachment['filename']}"
+                ),
+            }
+            for attachment in attachments
+        ],
+    ]
+
+    assert sum(_size(payload) for payload in payloads) < MAX_ATTRIBUTES_BYTES
+    for payload in payloads:
+        assert (
+            _truncate_attributes(payload, MAX_ATTRIBUTES_BYTES, _size(payload))
+            is payload
+        )

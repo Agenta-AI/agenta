@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 
+import jsonschema
 import pytest
 from pydantic import ValidationError
 
@@ -27,7 +29,26 @@ from agenta.sdk.agents.platform import (
     PlatformOp,
     get_platform_op,
 )
-from agenta.sdk.agents.tools import GatewayToolResolutionError, UnknownPlatformOpError
+from agenta.sdk.agents.tools import (
+    CallbackToolSpec,
+    GatewayToolResolutionError,
+    ToolCall,
+    UnknownPlatformOpError,
+)
+
+
+def _ordered_operations_enabled() -> bool:
+    """Read the flag independently of the code under test.
+
+    Calling the catalog's own helper would derive the expectation from the thing being
+    asserted: a helper that always returned True would move both sides together and the
+    test would still pass. The default and the spellings are spelled out here for the same
+    reason.
+    """
+    value = (os.getenv("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED") or "").strip()
+    if not value:
+        return True
+    return value.lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 
 
 def _resolver(connection):
@@ -38,10 +59,14 @@ def _resolver(connection):
 
 
 def test_catalog_ships_platform_builder_ops():
-    assert set(PLATFORM_OPS) == {
+    # `read_config` ships only with ordered operations, so it is not in the always-on set.
+    # Its own gating is pinned in test_read_config_op.py.
+    assert set(PLATFORM_OPS) - {"read_config"} == {
         "discover_tools",
         "query_workflows",
         "query_spans",
+        "rename_session",
+        "rename_agent",
         "test_run",
         "commit_revision",
         "annotate_trace",
@@ -81,6 +106,17 @@ def test_op_requires_exactly_one_schema_source():
             input_schema={"type": "object"},
             input_schema_ref="messages",
         )
+
+
+def test_catalog_op_may_declare_put():
+    op = PlatformOp(
+        op="x",
+        description="d",
+        method="PUT",
+        path="/api/x",
+        input_schema={"type": "object"},
+    )
+    assert op.method == "PUT"
 
 
 def test_op_input_schema_ref_must_be_a_known_catalog_key():
@@ -231,6 +267,77 @@ async def test_discover_tools_wire_carries_call_not_call_ref(connection):
     assert wire["call"]["path"] == "/api/tools/discover"
 
 
+async def test_rename_session_emits_a_bound_direct_call(connection):
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="rename_session")]
+    )
+    spec = resolution.tool_specs[0]
+
+    assert isinstance(spec, CallbackToolSpec)
+    assert spec.kind == "callback"
+    assert spec.name == "rename_session"
+    assert spec.call_ref is None
+    assert isinstance(spec.call, ToolCall)
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/sessions/streams/header?session_id={session_id}"
+    assert spec.call.context == {"session_id": "$ctx.session.id"}
+    assert spec.read_only is False
+
+    schema = get_platform_op("rename_session").resolved_input_schema()
+    assert set(schema["properties"]) == {"name", "description"}
+    assert schema["required"] == ["name"]
+    assert spec.input_schema == schema
+
+    wire = spec.to_wire()
+    assert wire["call"]["path"] == spec.call.path
+    assert wire["call"]["context"] == {"session_id": "$ctx.session.id"}
+
+
+def test_rename_session_rejects_whitespace_only_name():
+    schema = get_platform_op("rename_session").resolved_input_schema()
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"name": "   "}, schema)
+
+
+async def test_rename_agent_emits_a_bound_direct_call(connection):
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="rename_agent")]
+    )
+    spec = resolution.tool_specs[0]
+
+    assert isinstance(spec, CallbackToolSpec)
+    assert spec.kind == "callback"
+    assert spec.name == "rename_agent"
+    assert spec.call_ref is None
+    assert isinstance(spec.call, ToolCall)
+    assert spec.call.method == "PUT"
+    assert spec.call.path == "/api/workflows/{workflow_id}"
+    assert spec.call.context == {
+        "workflow_id": "$ctx.workflow.artifact.id",
+        "workflow.id": "$ctx.workflow.artifact.id",
+    }
+    assert spec.call.args_into == "workflow"
+    assert spec.read_only is False
+
+    schema = get_platform_op("rename_agent").resolved_input_schema()
+    assert set(schema["properties"]) == {"name", "description"}
+    assert "workflow_id" not in schema["properties"]
+    assert "workflow" not in schema["properties"]
+    assert schema["required"] == ["name"]
+    assert spec.input_schema == schema
+
+    wire = spec.to_wire()
+    assert wire["call"]["path"] == spec.call.path
+    assert wire["call"]["context"] == spec.call.context
+    assert wire["call"]["args_into"] == "workflow"
+
+
+def test_rename_agent_rejects_whitespace_only_name():
+    schema = get_platform_op("rename_agent").resolved_input_schema()
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"name": "   "}, schema)
+
+
 async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_default(
     connection,
 ):
@@ -250,10 +357,13 @@ async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_defa
     assert spec.read_only is False
     assert spec.effective_permission() is None
     assert "target" not in spec.input_schema["properties"]
+    # `description` is the ephemeral per-call note every builder op offers (R12); the runner
+    # strips it before it builds the request. See test_op_catalog_description.py.
     assert set(spec.input_schema["properties"]) == {
         "inputs",
         "delta",
         "expectations",
+        "description",
     }
     assert spec.input_schema["required"] == ["inputs"]
     assert spec.input_schema["properties"]["inputs"]["required"] == ["messages"]
@@ -375,24 +485,63 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
         [PlatformToolConfig(op="commit_revision")]
     )
     spec = resolution.tool_specs[0]
-    assert spec.call.path == "/api/workflows/revisions/commit"
-    # The context binding rides as call.context — the runner fills it from runContext at dispatch.
-    assert spec.call.context == {
+    # Handler mode: there is no scoped route any more. The confinement to `parameters.agent`
+    # is a property of the handler this call_ref names, and it is unforgeable for the same
+    # reason the route was: the ref comes from this catalog, the runner calls from outside
+    # the sandbox, and the sandbox holds no credential.
+    assert spec.call_ref == "tools.agenta.commit_revision"
+    assert spec.call is None
+    # The binding rides as a spec-level context binding the relay injects at dispatch.
+    assert spec.context_bindings == {
         "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
     }
     # The bound field is gone from the model-visible schema (and its `required`); the payload fields
     # the model SHOULD supply remain.
     workflow_revision = spec.input_schema["properties"]["workflow_revision"]
     assert "workflow_variant_id" not in workflow_revision["properties"]
-    assert set(workflow_revision["properties"]) == {"message", "delta"}
-    assert workflow_revision["required"] == ["delta"]
+    # The ordered arm REQUIRES the base revision id: the server refuses a delta that omits
+    # it, so a schema that marks it optional buys a refused call and a wasted turn. Its
+    # absence from the flag-off list is equally deliberate: a legacy delta may omit it, and
+    # sending it is how a caller opts in to the staleness check.
+    assert workflow_revision["required"] == (
+        ["base_revision_id", "delta"] if _ordered_operations_enabled() else ["delta"]
+    )
     delta = workflow_revision["properties"]["delta"]
-    assert set(delta["properties"]) == {"set", "remove"}
-    assert "parameters.agent" in delta["properties"]["set"]["description"]
-    # Lists (tools, skills, mcps) replace wholesale on deep-merge; the description must warn
-    # the model to resend the complete list or it wipes its own build-kit tools (B2).
-    assert "wholesale" in spec.description
-    assert "revision id" in spec.description
+
+    # The rest of the surface depends on the ordered-operations flag: with it on, the
+    # server derives the message and the ordered arm appears. Both states are pinned, so
+    # this test is honest whichever way the suite runs.
+    # `description` is the ephemeral per-call note in its tolerated second position, not a
+    # payload field: the runner lifts it out and it is never stored (read-config.md 12).
+    if _ordered_operations_enabled():
+        assert set(workflow_revision["properties"]) == {
+            "base_revision_id",
+            "delta",
+            "description",
+        }
+        # ONE arm is visible per deployment. A model that sees both picks a different one
+        # from call to call, and the approval card then varies for the same kind of edit.
+        # The endpoint still accepts the legacy form; only this surface narrows.
+        assert set(delta["properties"]) == {"operations"}
+    else:
+        assert set(workflow_revision["properties"]) == {
+            "message",
+            "delta",
+            "description",
+        }
+        assert set(delta["properties"]) == {"set", "remove"}
+        assert "parameters.agent" in delta["properties"]["set"]["description"]
+
+    if _ordered_operations_enabled():
+        # Ordered operations change one entry at a time, so the wholesale-list warning is
+        # obsolete; the description teaches the read-then-commit loop instead.
+        assert "base_revision_id" in spec.description
+        assert "playground's own tools" in spec.description
+    else:
+        # Lists (tools, skills, mcps) replace wholesale on deep-merge; the description must
+        # warn the model to resend the complete list or it wipes its own build-kit tools (B2).
+        assert "wholesale" in spec.description
+        assert "revision id" in spec.description
 
 
 async def test_commit_revision_is_not_read_only(connection):
@@ -433,6 +582,15 @@ def _has_embed_branch(items):
     )
 
 
+# With ordered operations on, `delta.set` leaves the commit schema, so the three cases below
+# have no surface to inspect there. They are not lost: `test_run` keeps `delta.set` in both
+# states, and case (d) pins the same three properties on it.
+legacy_delta_only = pytest.mark.skipif(
+    _ordered_operations_enabled(),
+    reason="delta.set is not model-visible on commit_revision when ordered operations are on",
+)
+
+
 def _commit_agent_subtree():
     schema = get_platform_op("commit_revision").resolved_input_schema()
     delta = schema["properties"]["workflow_revision"]["properties"]["delta"]
@@ -445,6 +603,7 @@ def _test_run_agent_subtree():
     return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
 
 
+@legacy_delta_only
 def test_commit_revision_delta_set_carries_agent_template_shape():
     # (a) The agent-template shape is reachable under delta.set.parameters.agent, so the tool schema
     # itself (not just prose) tells the model what a `parameters.agent` payload looks like. The
@@ -470,6 +629,7 @@ def test_commit_revision_delta_set_carries_agent_template_shape():
     assert _has_embed_branch(skills_items)
 
 
+@legacy_delta_only
 def test_commit_revision_delta_set_agent_subtree_has_no_required():
     # (b) A delta is a deep partial: EVERY field is optional, so no `required` array may survive
     # anywhere under the agent subtree, or a schema-following harness would think it must resend
@@ -478,6 +638,7 @@ def test_commit_revision_delta_set_agent_subtree_has_no_required():
     assert list(_iter_required_lists(agent)) == []
 
 
+@legacy_delta_only
 def test_commit_revision_delta_set_list_items_accept_embeds():
     # (c) tools/skills/mcps may hold `@ag.embed` build-kit entries; since the model re-sends the
     # whole list, each item schema must accept the embed shape or the embeds get mangled.
@@ -490,6 +651,8 @@ def test_commit_revision_delta_set_list_items_accept_embeds():
 
 def test_test_run_delta_set_matches_commit_revision():
     # (d) test_run's uncommitted delta gets the same typed, deep-partial, embed-tolerant shape.
+    # With ordered operations on this is the only place that shape is pinned, because
+    # `delta.set` is no longer model-visible on commit_revision.
     agent = _test_run_agent_subtree()
     assert set(agent["properties"]) >= {"instructions", "llm", "harness", "sandbox"}
     assert "pi_core" in agent["properties"]["harness"]["properties"]["kind"]["enum"]
@@ -647,3 +810,58 @@ async def test_duplicate_platform_tool_rejected(connection):
                 PlatformToolConfig(op="discover_tools"),
             ]
         )
+
+
+# --- the kill switch, and what it may and may not take away ------------------
+
+
+async def test_disabling_handlers_still_skips_the_optional_op(connection, monkeypatch):
+    # `test_run` is genuinely optional: an agent without it loses a convenience and can
+    # still do its job, so the switch keeps degrading it quietly.
+    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "false")
+
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="test_run")]
+    )
+
+    assert resolution.tool_specs == []
+
+
+@pytest.mark.parametrize("op", ["commit_revision", "read_config"])
+async def test_disabling_handlers_cannot_silently_remove_config_editing(
+    connection, monkeypatch, op
+):
+    # The asymmetry that matters: skipping an optional op is a degradation; skipping the
+    # only transport for a core capability is an outage wearing a warning's clothes.
+    #
+    # Dropped silently, the model has no commit tool AND no error to report, so it
+    # improvises: it writes workspace files and says it succeeded. That is the exact
+    # failure this whole feature exists to prevent, so it fails at resolution instead.
+    if op == "read_config" and not _ordered_operations_enabled():
+        # `read_config` enters the catalog only with ordered operations on, which is the
+        # flag gating this whole surface. `commit_revision` does NOT (it is in the build
+        # kit unconditionally), which is why that half of this cell runs in both states and
+        # is the one that decides the upgrade blast radius.
+        pytest.skip("read_config is not in the catalog with ordered operations off")
+
+    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "false")
+
+    with pytest.raises(GatewayToolResolutionError) as caught:
+        await _resolver(connection).resolve([PlatformToolConfig(op=op)])
+
+    message = str(caught.value)
+    # What happened, what it cost, and the one-step fix.
+    assert "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS" in message
+    assert op in message
+    assert "Unset" in message
+
+
+async def test_the_switch_left_alone_changes_nothing(connection, monkeypatch):
+    # Unset means enabled, so the overwhelmingly common deployment is untouched.
+    monkeypatch.delenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", raising=False)
+
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="commit_revision")]
+    )
+
+    assert resolution.tool_specs[0].call_ref == "tools.agenta.commit_revision"

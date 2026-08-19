@@ -34,7 +34,8 @@ const INELIGIBLE: ToolGrantInfo = {eligible: false, alreadyAllowed: false}
  *   - any other harness tool (`bash`, `Terminal`, `Write`, …) has no enforceable per-tool permission
  *     → an allow-rule in `harness.permissions.allow`, keyed by the gate name VERBATIM: the runner
  *     matches `pattern === gate.toolName`, and that string is exactly what the card shows (the
- *     runner stamps it as `resolvedName`, which the egress prefers). Never canonicalize it.
+ *     runner stamps it as `resolvedName`, which the egress prefers). Never canonicalize it, except
+ *     the seven Pi built-ins, which the runner matches case-insensitively (see `gateRulePattern`).
  * Platform ops (`commit_revision`, schedules), client tools, and MCP tools return `eligible: false`
  * and always stay gated (see `gateRulePattern`).
  *
@@ -115,7 +116,7 @@ export function useAlwaysAllowTool(entityId?: string) {
                 origin: "approval-dock",
                 summary: `Always allow ${toolName}`,
                 // Friendly display (matches the approval card) — a gateway tool's raw name is a slug.
-                label: resolveToolDisplay(toolName).label,
+                label: resolveToolDisplay(toolName).activity.running,
                 toolName,
                 at: Date.now(),
             })

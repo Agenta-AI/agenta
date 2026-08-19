@@ -92,6 +92,7 @@ export default function HostingToggle({
     <div
       role="radiogroup"
       aria-label="Hosting"
+      className="hosting-toggle"
       onKeyDown={onKeyDown}
       style={{
         display: "flex",
@@ -116,11 +117,13 @@ export default function HostingToggle({
             aria-checked={selected}
             tabIndex={selected ? 0 : -1}
             onClick={() => selectIndex(index)}
+            className="hosting-tab"
             style={selected ? on : off}
           >
-            {option.label}
+            <span className="hosting-tab-label">{option.label}</span>
             {option.sublabel && (
               <span
+                className="hosting-tab-sub"
                 style={{
                   font: "var(--text-caption)",
                   color: "rgba(255,255,255,0.5)",

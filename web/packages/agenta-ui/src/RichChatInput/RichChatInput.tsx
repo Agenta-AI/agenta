@@ -1,5 +1,6 @@
 import {forwardRef, type ReactNode, useEffect, useImperativeHandle, useRef, useState} from "react"
 
+import {modifierKeyLabel} from "@agenta/shared/utils"
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
 import {HistoryExtension} from "@lexical/history"
 import {LinkNode} from "@lexical/link"
@@ -15,26 +16,49 @@ import {MarkdownShortcutPlugin} from "@lexical/react/LexicalMarkdownShortcutPlug
 import {TabIndentationPlugin} from "@lexical/react/LexicalTabIndentationPlugin"
 import {RichTextExtension} from "@lexical/rich-text"
 import clsx from "clsx"
-import {$createParagraphNode, $getRoot, defineExtension, type LexicalEditor} from "lexical"
+import {
+    $createParagraphNode,
+    $getRoot,
+    $getSelection,
+    $isRangeSelection,
+    defineExtension,
+    type LexicalEditor,
+} from "lexical"
 
+import type {SlashCommandSection} from "./assets/slashCommands"
 import {chatInputTheme} from "./assets/theme"
 import {CHAT_TRANSFORMERS} from "./assets/transformers"
 import {CharacterCountPlugin} from "./plugins/CharacterCountPlugin"
 import {CodeFencePlugin} from "./plugins/CodeFencePlugin"
+import {beginDictation, type DictationSession} from "./plugins/dictation"
 import {EditableSyncPlugin} from "./plugins/EditableSyncPlugin"
 import {EditorRefBridge} from "./plugins/EditorRefBridge"
 import {FocusStatePlugin} from "./plugins/FocusStatePlugin"
 import {LinkPastePlugin} from "./plugins/LinkPastePlugin"
 import {SendButton} from "./plugins/SendButton"
+import {SlashCommandPlugin} from "./plugins/SlashCommandPlugin"
 import {SubmitPlugin} from "./plugins/SubmitPlugin"
 
 /** Imperative handle for prefill / clear / focus (e.g. rewind-to-edit). */
 export interface RichChatInputHandle {
     focus: () => void
+    /** Drop focus before handing the keyboard to an overlay — see `blur` in the implementation. */
+    blur: () => void
     clear: () => void
+    /**
+     * Type text at the caret, leaving the rest of the message alone. `setMarkdown` REPLACES the
+     * document, which would discard whatever the user had already written.
+     */
+    insertText: (text: string) => void
     setMarkdown: (markdown: string) => void
     /** Read the current content as markdown without submitting (e.g. non-Enter actions). */
     getMarkdown: () => string
+    /** Open a dictation session at the end of the document (see `plugins/dictation`). */
+    beginDictation: () => void
+    /** Push the recogniser's committed text and its provisional tail into that session. */
+    updateDictation: (finalText: string, interimText: string) => void
+    /** Settle the session — provisional words are kept, styled as normal text. */
+    endDictation: () => void
 }
 
 export interface RichChatInputProps {
@@ -43,6 +67,9 @@ export interface RichChatInputProps {
     placeholder?: string
     /** Disables editing entirely. For streaming chats prefer leaving editable + routing to a queue. */
     disabled?: boolean
+    /** Speech is being dictated in. Locks editing for the duration so typing cannot interleave with
+     * the incoming transcript and corrupt it. */
+    dictating?: boolean
     autoFocus?: boolean
     className?: string
     /** Leading slot in the footer (e.g. an attach-files button). */
@@ -57,6 +84,10 @@ export interface RichChatInputProps {
     onPasteFile?: (files: FileList) => void
     /** Keep the send button enabled with empty text (e.g. attachments pending) — sends "". */
     sendForceEnabled?: boolean
+    /** Disable submit without locking the editor (e.g. an attachment upload failed). */
+    sendDisabled?: boolean
+    /** Explain why submit is disabled without locking the editor. */
+    sendDisabledReason?: ReactNode
     /** Hide the built-in send button (keyboard-only). */
     hideSendButton?: boolean
     /** A stream is in flight — the send button becomes a Stop button. */
@@ -70,7 +101,7 @@ export interface RichChatInputProps {
     size?: "compact" | "comfortable"
     /** Font-size class for the editor text + placeholder (default `text-xs`). */
     textSizeClassName?: string
-    /** Hide just the Bold/Italic/Send/Newline shortcut hints (keep prefix + trailing). */
+    /** Hide just the Send/Newline shortcut hints (keep prefix + trailing). */
     hideShortcutHints?: boolean
     /** Whether plain Enter submits. Default true (chat); set false for description-style inputs. */
     submitOnEnter?: boolean
@@ -78,6 +109,11 @@ export interface RichChatInputProps {
     onChange?: (text: string) => void
     /** Seed the editor once on mount (e.g. a restored per-session draft). Later changes ignored. */
     initialMarkdown?: string
+    /**
+     * Sections for the `/` command palette. Omitted → no palette, so the hosts that don't want one
+     * are untouched. See `assets/slashCommands`.
+     */
+    slashCommands?: SlashCommandSection[]
 }
 
 // Static: RichText gives Cmd+B/I + block behavior, History gives undo/redo, list
@@ -92,8 +128,8 @@ const chatInputExtension = defineExtension({
 
 export function ShortcutHint({keys, label}: {keys: string; label: string}) {
     return (
-        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-[var(--ag-colorTextSecondary)]">
-            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[10px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
+        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]">
+            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[12px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
                 {keys}
             </kbd>
             {label}
@@ -107,6 +143,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             onSubmit,
             placeholder = "Type a message…",
             disabled = false,
+            dictating = false,
             autoFocus = false,
             className,
             prefix,
@@ -115,6 +152,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             trailing,
             onPasteFile,
             sendForceEnabled,
+            sendDisabled,
             hideSendButton,
             streaming,
             onStop,
@@ -122,21 +160,24 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             size = "compact",
             textSizeClassName = "text-xs",
             hideShortcutHints = false,
+            sendDisabledReason,
             submitOnEnter = true,
             onChange,
             initialMarkdown,
+            slashCommands,
         },
         ref,
     ) {
         const editorRef = useRef<LexicalEditor | null>(null)
+        const dictationRef = useRef<DictationSession | null>(null)
+        // The `/` palette spans this box and floats above it.
+        const boxRef = useRef<HTMLDivElement | null>(null)
         const [focused, setFocused] = useState(false)
+        // Resolved after mount: SSR has no platform, and answering during render would mismatch on
+        // hydration. `SubmitPlugin` accepts meta OR ctrl, so the binding matches the label on both.
         const [modKey, setModKey] = useState("⌘")
 
-        useEffect(() => {
-            if (typeof navigator !== "undefined" && !/Mac|iPhone|iPad/.test(navigator.userAgent)) {
-                setModKey("Ctrl")
-            }
-        }, [])
+        useEffect(() => setModKey(modifierKeyLabel()), [])
 
         // Seed once at mount. EditorRefBridge (a child) binds the editor in its own effect,
         // which runs before this one, so the ref is live here. Mount-only by design — the
@@ -154,6 +195,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         useImperativeHandle(
             ref,
             () => ({
+                // A focused editor re-asserts its selection on the next reconcile, which reads as
+                // focus theft to an overlay that just autofocused itself (it dismisses).
+                blur: () => editorRef.current?.blur(),
                 focus: () => editorRef.current?.focus(),
                 clear: () =>
                     editorRef.current?.update(() => {
@@ -161,6 +205,23 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         root.clear()
                         root.append($createParagraphNode())
                     }),
+                insertText: (text: string) => {
+                    const editor = editorRef.current
+                    if (!editor) return
+                    // Focus first: the caller may have blurred us to hand an overlay the keyboard,
+                    // and an insert with no range selection would land nowhere.
+                    editor.focus()
+                    editor.update(() => {
+                        const selection = $getSelection()
+                        if ($isRangeSelection(selection)) {
+                            selection.insertText(text)
+                            return
+                        }
+                        $getRoot().selectEnd()
+                        const restored = $getSelection()
+                        if ($isRangeSelection(restored)) restored.insertText(text)
+                    })
+                },
                 setMarkdown: (markdown: string) =>
                     editorRef.current?.update(() => {
                         $convertFromMarkdownString(markdown, CHAT_TRANSFORMERS)
@@ -170,20 +231,35 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     editorRef.current
                         ?.getEditorState()
                         .read(() => $convertToMarkdownString(CHAT_TRANSFORMERS)) ?? "",
+                beginDictation: () => {
+                    const editor = editorRef.current
+                    if (editor) dictationRef.current = beginDictation(editor)
+                },
+                updateDictation: (finalText: string, interimText: string) =>
+                    dictationRef.current?.update(finalText, interimText),
+                endDictation: () => {
+                    dictationRef.current?.end()
+                    dictationRef.current = null
+                },
             }),
             [],
         )
 
         const comfortable = size === "comfortable"
+        const hintsVisible = focused && !dictating
 
         return (
             <LexicalExtensionComposer extension={chatInputExtension} contentEditable={null}>
                 <div
+                    ref={boxRef}
                     className={clsx(
                         // Single rounded border around the whole composer; overflow-hidden clips the
                         // editor + toolbar to the rounded corners. The toolbar has no divider of its
                         // own, so the bottom edge reads as one border, not two.
-                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
+                        // Filled, not transparent: an outlined box reads as an outline, where a fill reads as
+                        // somewhere to type. A FILL token rather than an opaque surface — it lifts off the
+                        // page in dark and settles into it in light, where "elevated" is the page colour.
+                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorFillTertiary)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
                         // The primary input reads as a defined, slightly-lifted field: a visible edge
                         // + soft shadow, then the accent border on focus (1px, no glow).
                         "border-[var(--ag-composer-border)] focus-within:border-[var(--ag-composer-focus)]",
@@ -236,17 +312,20 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         {hideShortcutHints ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
                             // never reflows the row) and faded in when the editor takes focus.
+                            // Dictation hides them the same way — editing is locked while speech
+                            // comes in, so every shortcut they advertise is inert.
                             <div
                                 className={clsx(
                                     "flex flex-wrap items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out",
-                                    focused
+                                    hintsVisible
                                         ? "translate-y-0 opacity-100"
                                         : "pointer-events-none translate-y-0.5 opacity-0",
                                 )}
-                                aria-hidden={!focused}
+                                aria-hidden={!hintsVisible}
                             >
-                                <ShortcutHint keys={`${modKey} B`} label="Bold" />
-                                <ShortcutHint keys={`${modKey} I`} label="Italic" />
+                                {/* Bold/Italic still work (Cmd/Ctrl+B/I) — they just no longer
+                                    advertise themselves; the send/newline pair is the only pair
+                                    you need told to you. */}
                                 <ShortcutHint keys="↵" label="Send" />
                                 <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
                             </div>
@@ -256,7 +335,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 <SendButton
                                     onSubmit={onSubmit}
                                     forceEnabled={sendForceEnabled}
-                                    disabled={disabled}
+                                    disabled={disabled || sendDisabled}
+                                    disabledReason={sendDisabledReason}
                                     streaming={streaming}
                                     onStop={onStop}
                                 />
@@ -269,7 +349,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
 
                     {autoFocus ? <AutoFocusPlugin /> : null}
                     <EditorRefBridge editorRef={editorRef} />
-                    <EditableSyncPlugin editable={!disabled} />
+                    <EditableSyncPlugin editable={!disabled && !dictating} />
                     <ListPlugin />
                     {/* Tab / Shift+Tab indents + outdents list items (nesting). */}
                     <TabIndentationPlugin />
@@ -282,9 +362,19 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     <MarkdownShortcutPlugin transformers={CHAT_TRANSFORMERS} />
                     {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
                     <CodeFencePlugin />
-                    {submitOnEnter ? <SubmitPlugin onSubmit={onSubmit} /> : null}
+                    {submitOnEnter ? (
+                        <SubmitPlugin onSubmit={onSubmit} disabled={sendDisabled} />
+                    ) : null}
                     <FocusStatePlugin onFocusChange={setFocused} />
                     {onChange ? <CharacterCountPlugin onTextChange={onChange} /> : null}
+                    {/* Registers Enter above SubmitPlugin, so it must mount after it. */}
+                    {slashCommands?.length ? (
+                        <SlashCommandPlugin
+                            sections={slashCommands}
+                            anchorRef={boxRef}
+                            disabled={disabled || dictating}
+                        />
+                    ) : null}
                 </div>
             </LexicalExtensionComposer>
         )

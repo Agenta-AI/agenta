@@ -1,17 +1,22 @@
 import {memo, useState} from "react"
 
 import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+import AgentOverview from "@/oss/components/pages/overview/agent/AgentOverview"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
+import WorkflowPageTitle from "@/oss/components/PageTitle/WorkflowPageTitle"
 import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -142,31 +147,61 @@ const OverviewContent = () => {
     // apps), so the Deployment section is hidden for them.
     const currentWorkflow = useAtomValue(currentWorkflowAtom)
     const isEvaluator = Boolean(currentWorkflow?.flags?.is_evaluator)
+    // Membership of the classified agents list, not the artifact's `is_agent` flag — agent
+    // identity is revision-derived, so the artifact flag reads false for real agents.
+    const agents = useAtomValue(agentsWorkflowsAtom)
+    const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
+    const isAgent = Boolean(appId) && agents.some((agent) => agent.workflowId === appId)
+    // An agent's overview is about its work, not its prompt revisions or evaluation runs.
+    // Held while the list resolves so those sections never flash in and then vanish.
+    const showWorkflowSections = !isAgent && !agentsLoading
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
 
     return (
         <>
-            <PageLayout className="gap-8">
+            <WorkflowPageTitle title="Overview" />
+            {/* The agent branch runs inside the layout's bounded frame (it asks for it), so the
+                page column must be allowed to shrink or its children can't take a definite
+                height and the per-column scrolls collapse back into one page scroll. It also
+                takes the shared centred column, like Home — the prompt-app/evaluator branch
+                below stays full width for its charts and evaluation tables. */}
+            <PageLayout className={clsx("gap-8", isAgent && [pageContentWidthClass, "min-h-0"])}>
                 <AppDetailsSection />
-                <ObservabilityOverview />
-                {!isEvaluator ? <DeploymentOverview /> : null}
-                <VariantsOverview />
 
-                <LatestEvaluationRunsTable
-                    title="Auto Evaluations"
-                    evaluationKind="auto"
-                    appId={appId}
-                    appScoped
-                    withContainerStyles={false}
-                />
-                <LatestEvaluationRunsTable
-                    title="Human Evaluations"
-                    evaluationKind="human"
-                    appId={appId}
-                    appScoped
-                    withContainerStyles={false}
-                />
+                {/* An agent's overview is its own surface. Charts move into that layout's usage
+                    strip (expandable to the same dashboard) rather than opening with four
+                    full-page graphs, and Deployment goes with the prompt-app sections: an agent
+                    is not promoted through environments. Both branches wait for the agents list
+                    so neither flashes in and vanishes. */}
+                {isAgent && appId ? (
+                    <AgentOverview appId={appId} agentName={currentWorkflow?.name ?? undefined} />
+                ) : agentsLoading ? null : (
+                    <>
+                        <ObservabilityOverview />
+                        {!isEvaluator ? <DeploymentOverview /> : null}
+                    </>
+                )}
+
+                {showWorkflowSections ? (
+                    <>
+                        <VariantsOverview />
+                        <LatestEvaluationRunsTable
+                            title="Auto Evaluations"
+                            evaluationKind="auto"
+                            appId={appId}
+                            appScoped
+                            withContainerStyles={false}
+                        />
+                        <LatestEvaluationRunsTable
+                            title="Human Evaluations"
+                            evaluationKind="human"
+                            appId={appId}
+                            appScoped
+                            withContainerStyles={false}
+                        />
+                    </>
+                ) : null}
             </PageLayout>
 
             <CustomWorkflowHistory

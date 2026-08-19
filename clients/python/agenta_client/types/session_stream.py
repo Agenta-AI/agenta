@@ -5,7 +5,10 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .session_delivery import SessionDelivery
+from .session_origin import SessionOrigin
 from .session_stream_flags import SessionStreamFlags
+from .session_trigger import SessionTrigger
 
 
 class SessionStream(UniversalBaseModel):
@@ -24,10 +27,17 @@ class SessionStream(UniversalBaseModel):
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     turn_id: typing.Optional[str] = None
-    
+    archived_at: typing.Optional[dt.datetime] = None
+    origin: typing.Optional[SessionOrigin] = None
+    trigger: typing.Optional[SessionTrigger] = None
+    delivery: typing.Optional[SessionDelivery] = None
+
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
+
         class Config:
             frozen = True
             smart_union = True

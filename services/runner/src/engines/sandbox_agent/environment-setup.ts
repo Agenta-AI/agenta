@@ -1,24 +1,25 @@
 import { rmSync } from "node:fs";
 
 import { apiBase } from "../../apiBase.ts";
+import { appliedStateForRequest } from "./applied-state.ts";
 
-import {
-  resolveRunSessionId,
-  type AgentRunRequest,
-} from "../../protocol.ts";
+import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
 import { type ClientToolOutcome } from "../../responder.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import {
-  agentMountPath,
-  signAgentMountCredentials,
-} from "./agent-mount.ts";
+import type {
+  ExecutableToolGate,
+  ExecutableToolVerdict,
+} from "../../tools/executable-tool-gate.ts";
+import { agentMountPath, signAgentMountCredentials } from "./agent-mount.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
+import {
+  configureCodexHome,
+  configureDaytonaCodexEnv,
+} from "./codex-assets.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { conciseError } from "./errors.ts";
-import {
-  signSessionMountCredentials,
-  type MountCredentials,
-} from "./mount.ts";
+import { signSessionMountCredentials, type MountCredentials } from "./mount.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
@@ -29,9 +30,13 @@ import {
 } from "./pi-assets.ts";
 import {
   buildPiModelConfigPlan,
-  type PiModelConfigPlan,
+  buildPiModelRegistrationPlan,
+  describePiModelsJsonPlan,
+  type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
+import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
 import { buildRunPlan } from "./run-plan.ts";
+import { configFingerprint } from "./session-identity.ts";
 import type {
   SandboxAgentDeps,
   SessionEnvironment,
@@ -48,6 +53,8 @@ import {
   resolvesToLocalProvider,
 } from "./session-identity.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
+import { buildRuntimeEnvironment } from "../../environment/runtime-lifecycle.ts";
+import { createTimingLog } from "../../environment/timing.ts";
 
 function defaultLog(message: string): void {
   process.stderr.write(`[sandbox-agent] ${message}\n`);
@@ -60,14 +67,13 @@ export async function prepareEnvironmentSetup(
 ) {
   const logger = deps.log ?? defaultLog;
   const acquireStartedAt = Date.now();
-  const timingLog = (stage: string, startedAt: number, fields = ""): void => {
-    const sandboxId = environment?.sandbox?.sandboxId ?? "-";
-    const sessionId =
-      environment?.sessionId ?? request.sessionId?.trim() ?? "-";
-    logger(
-      `[timing] stage=${stage} ms=${Math.round(Date.now() - startedAt)} sandbox=${sandboxId} session=${sessionId}${fields}`,
-    );
-  };
+  // The stage names are matched by dashboards; see `environment/timing.ts`. The accessors are
+  // read at call time on purpose: the sandbox does not exist yet, and the session id changes
+  // during acquire, so capturing either by value would log a stale `-`.
+  const timingLog = createTimingLog(logger, {
+    sandboxId: () => environment?.sandbox?.sandboxId,
+    sessionId: () => environment?.sessionId ?? request.sessionId?.trim(),
+  });
 
   // Local multi-runner fails loudly. Session-owned + local-sandbox only (a non-session run
   // has no cross-replica identity to protect, and a remote sandbox has no runner-local pooled
@@ -161,60 +167,39 @@ export async function prepareEnvironmentSetup(
   if (!planResult.ok) return { ok: false as const, error: planResult.error };
   const plan = planResult.plan;
   const piSkillSnapshot = resolvePiSkillSnapshot(plan);
-  const agentMountDir = agentMountCreds ? agentMountPath(plan.cwd) : undefined;
+  const agentMountDir = agentMountCreds
+    ? agentMountPath(plan.workspace.cwd)
+    : undefined;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
-  // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.secrets` are
-  // present and an inherited key for another provider cannot leak. For runtime_provided/none/
-  // un-migrated runs the harness uses its own login, so the inherited keys stay.
-  const clearProviderEnv = plan.credentialMode === "env";
-  const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
-    clearProviderEnv,
-    provider: request.provider,
-    deployment: request.deployment,
+  // inherits NONE of the sidecar's own provider keys, so only the resolved
+  // `plan.credentials.modelEnvironment` is present and an inherited key for another
+  // provider cannot leak.
+  // "none" asserts NO credential (connections/models.py), so it clears too — otherwise the
+  // daemon would inherit the declared provider's keys (e.g. OPENAI_API_KEY) from the sidecar.
+  // RuntimeLifecycle BUILDS the daemon world: both env maps plus the 0600 OTLP bearer file.
+  // That was never planning, which is why it moved out of this file (lifecycle migration,
+  // step 5). See `environment/runtime-lifecycle.ts` for the ordering rule inside it.
+  const runtimeEnvironment = buildRuntimeEnvironment({
+    plan,
+    request,
+    piSkillSnapshot,
+    log: logger,
+    deps: {
+      ...(deps.buildDaemonEnv ? { buildDaemonEnv: deps.buildDaemonEnv } : {}),
+    },
   });
-  Object.assign(env, plan.secrets); // apply only the resolved provider keys
-  applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
-  const piSessionDir = configurePiSessionWorkspace(plan, env);
-  configurePiSkillSnapshot(piSkillSnapshot, env);
+  const env = runtimeEnvironment.env;
+  const piExtEnv = runtimeEnvironment.piExtEnv;
+  const piSessionDir = runtimeEnvironment.piSessionDir;
+  const otlpAuthFilePath = runtimeEnvironment.otlpAuthFilePath;
   const strictModel = modelResolutionStrict();
-  // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
-  // via the Agenta extension. Tool execution always relays back to this runner, which keeps
-  // private specs, scoped env, callback endpoints, and callback auth in memory.
-  // local Pi's OTLP bearer rides a runner-written 0600 file, never a plain env var —
-  // Daytona never receives telemetry env here at all (`!plan.isDaytona` gates it off above).
-  const otlpAuthFilePath =
-    plan.isPi && !plan.isDaytona ? `${plan.relayDir}.otlp-auth` : undefined;
-  const otlpAuthorization =
-    request.telemetry?.exporters?.otlp?.headers?.authorization;
-  if (otlpAuthFilePath && otlpAuthorization) {
-    writeOtlpAuthFile(otlpAuthFilePath, otlpAuthorization, logger);
-  }
-  const piExtEnv = plan.isPi
-    ? buildPiExtensionEnv(request, !plan.isDaytona, {
-        relayDir: plan.relayDir,
-        usageOutPath: plan.usageOutPath,
-        otlpAuthFilePath,
-        builtinGatingActive: plan.builtinGatingActive,
-        builtinGrants: plan.builtinGrants,
-        // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
-        // records which skills loaded; local Pi self-instruments, so the runner's sandbox-agent
-        // otel has no span to stamp here.
-        skills: plan.skillDirs.map((s) => s.name),
-      })
-    : {};
-  // Daytona's provider is built from `piExtEnv` rather than the local daemon env. Keep the
-  // transcript location in both environment slices so Pi and pi-acp see the same durable path
-  // regardless of provider.
-  if (piSessionDir) piExtEnv.PI_CODING_AGENT_SESSION_DIR = piSessionDir;
-  configurePiSkillSnapshot(piSkillSnapshot, piExtEnv);
-  Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
-    `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
+    `tools=${plan.tools.toolSpecs.length} executableTools=${plan.tools.executableToolSpecs.length} ` +
       `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
   );
   if (!plan.isPi && plan.isDaytona) {
-    const clientTools = plan.toolSpecs
+    const clientTools = plan.tools.toolSpecs
       .filter((spec) => spec.kind === "client")
       .map((spec) => spec.name);
     if (clientTools.length > 0) {
@@ -230,20 +215,50 @@ export async function prepareEnvironmentSetup(
   // but incomplete request throws — captured here and re-thrown inside the try below so the
   // engine's own catch turns it into `{ ok: false, error }` and a visible error frame (fail loud,
   // never a silent fall-back to a default provider). Only the env var NAME enters the plan.
-  let piModelConfig: PiModelConfigPlan | undefined;
+  let piModelConfig: PiModelsJsonPlan | undefined;
   let piModelConfigError: Error | undefined;
   if (plan.isPi) {
     try {
-      piModelConfig = buildPiModelConfigPlan(request, plan.secrets);
+      // The presence check consults the FULL materialized model environment: on a Daytona
+      // Secrets run the opaque key left `plan.credentials.modelEnvironment` for the
+      // secret plan, but the sandbox still receives its binding (as a Daytona Secret
+      // attachment).
+      const fullModelEnvironment: Record<string, string> = {
+        ...plan.credentials.modelEnvironment,
+      };
+      const secretCandidates = plan.credentials.daytonaSecretPlan?.candidates;
+      for (const candidate of secretCandidates ?? []) {
+        if (candidate.consumer.kind === "model") {
+          fullModelEnvironment[candidate.binding.name] = candidate.value;
+        }
+      }
+      piModelConfig = buildPiModelConfigPlan(request, fullModelEnvironment);
     } catch (err) {
       piModelConfigError = err as Error;
     }
   }
+  // No custom provider to register, but the requested model may still be one Pi's static registry
+  // does not carry — a hand-entered id such as an OpenRouter routing variant. Pi refuses to select
+  // an unregistered model, so merge it into its built-in provider for this run only.
+  //
+  // Skipped for a local subscription run: its Pi agent dir is the operator's own mounted login,
+  // which `prepareLocalPiAssets` uses in place and must not be rewritten per run. A Daytona run
+  // has no such mount (its agent dir lives in the sandbox), so registration applies there.
+  const canWritePiModelsJson =
+    plan.isDaytona || plan.credentials.credentialMode !== "runtime_provided";
+  if (
+    plan.isPi &&
+    !piModelConfig &&
+    !piModelConfigError &&
+    canWritePiModelsJson
+  ) {
+    const registry = await loadPiBuiltinRegistry(logger);
+    if (registry) {
+      piModelConfig = buildPiModelRegistrationPlan(request, registry);
+    }
+  }
   if (piModelConfig) {
-    logger(
-      `pi model-config plan provider=${piModelConfig.providerId} api=${piModelConfig.api} ` +
-        `model=${piModelConfig.models.map((m) => m.id).join(",")}`,
-    );
+    logger(`pi models.json plan ${describePiModelsJsonPlan(piModelConfig)}`);
   }
 
   // undefined is fine: the local provider runs its own resolution and errors clearly.
@@ -255,6 +270,11 @@ export async function prepareEnvironmentSetup(
     log: logger,
   });
   let runAgentDir = localPiAssets.dir;
+  // Local managed Codex authenticates from `<cwd>/.codex/auth.json`; point CODEX_HOME at that
+  // directory now (a path only, safe before the durable cwd mount), and point CODEX_SQLITE_HOME
+  // at a local off-mount directory. The auth.json file itself is written after the mount, right
+  // after prepareWorkspace (see environment.ts). Non-Codex runs and Daytona are no-ops.
+  const codexSqliteHome = configureCodexHome(plan, env);
   // Fail closed (Decision 6): a local managed custom run whose models.json could not be written
   // must stop rather than run on a default provider. Recorded here (the write ran above) and
   // thrown inside the try below, like the permission-extension gate.
@@ -271,7 +291,16 @@ export async function prepareEnvironmentSetup(
   const localBuiltinGatingUnenforceable =
     plan.isPi &&
     !plan.isDaytona &&
-    plan.builtinGatingActive &&
+    plan.tools.builtinGatingActive &&
+    !localPiAssets.extensionInstalled;
+  // Fail closed: a Pi run whose provider routing rides the extension's model endpoint override
+  // (`model-provider-override.ts`, set in `buildPiExtensionEnv`) cannot run without the
+  // extension — the harness would silently call the provider's default endpoint. Recorded here
+  // and thrown inside the engine try, like the two gates above.
+  const localModelOverrideUnenforceable =
+    plan.isPi &&
+    !plan.isDaytona &&
+    piExtEnv[PI_MODEL_PROVIDER_OVERRIDE_ENV] !== undefined &&
     !localPiAssets.extensionInstalled;
 
   // A local Claude subscription run reads and writes the operator's read-write mounted login
@@ -282,15 +311,20 @@ export async function prepareEnvironmentSetup(
   // lifecycle, exactly like a normal local install (interface.md section 6). buildRunPlan already
   // rejected a runtime_provided Claude run with no configured CLAUDE_CONFIG_DIR.
 
-  logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
+  logger(
+    `harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.workspace.cwd}`,
+  );
 
   // The resolved model ref as it reaches the runner (key NAMES only, never values) — the one
   // line that answers "what model/provider/deployment/credential did this run actually use".
   logger(
-    `resolved model=${request.model ?? "<none>"} provider=${request.provider ?? "<none>"} ` +
-      `deployment=${request.deployment ?? "<none>"} ` +
+    `resolved model=${request.model ?? "<none>"} provider=${request.modelConnection?.provider ?? "<none>"} ` +
+      `deployment=${request.modelConnection?.deployment ?? "<none>"} ` +
       `connection=${request.connection ? `${request.connection.mode}:${request.connection.slug ?? "-"}` : "<none>"} ` +
-      `secretKeys=[${Object.keys(request.secrets ?? {}).join(",")}]`,
+      `credentialMode=${request.modelConnection?.credentialMode ?? "<none>"} ` +
+      `credentialBindings=[${(request.modelConnection?.credentials ?? [])
+        .map((credential) => credential.binding.name)
+        .join(",")}]`,
   );
 
   // The shared client-tool relay reference (the deferred ref baked into the MCP server reads it;
@@ -305,12 +339,32 @@ export async function prepareEnvironmentSetup(
         : Promise.resolve("deny" as ClientToolOutcome),
     onPause: (req) => clientToolRelayRef.current?.onPause?.(req),
   };
+  const executableToolGateRef: { current?: ExecutableToolGate } = {};
+  const deferredExecutableToolGate: ExecutableToolGate = {
+    onExecutableTool: (req) =>
+      executableToolGateRef.current
+        ? executableToolGateRef.current.onExecutableTool(req)
+        : Promise.resolve({
+            kind: "deny",
+            reason: `Tool '${req.toolName}' was denied by policy.`,
+          } satisfies ExecutableToolVerdict),
+    onPause: () => executableToolGateRef.current?.onPause?.(),
+  };
 
-  // Aborts any in-flight loopback `tools/call` (a paused Claude client tool) on pause/teardown,
+  // Aborts any in-flight loopback `tools/call` on pause/teardown,
   // so its handler is torn down deterministically and cannot write a result after the turn ends.
   const mcpAbort = new AbortController();
 
+  // LIFECYCLE MIGRATION, STEP 2. The environment owns what it applied. It is seeded from the
+  // request that is building it, because that request IS what this environment installs. Every
+  // later change must go through `commitApplied`, and only after the change succeeds.
+  const applied = appliedStateForRequest(request);
+
   const environment: SessionEnvironment = {
+    get appliedState() {
+      return applied.appliedState;
+    },
+    commitApplied: (result) => applied.commitApplied(result),
     plan,
     logger,
     deps,
@@ -322,9 +376,11 @@ export async function prepareEnvironmentSetup(
     strictModel,
     toolCallIndex: createToolCallCorrelationIndex(),
     clientToolRelayRef,
+    executableToolGateRef,
     mcpAbort,
     runAgentDir,
     otlpAuthFilePath,
+    codexSqliteHome,
     mountCreds,
     agentMountCreds,
     mountProjectId: mountCreds?.projectId,
@@ -335,13 +391,14 @@ export async function prepareEnvironmentSetup(
     sessionDestroyRequested: false,
     mountedCwd: undefined,
     agentMountedPath: undefined,
+    installedMountExpiries: {},
     durableCwdSafeToDelete: true,
     // Local runs get a plain rmSync cleanup for the throwaway cwd; Daytona has none on this host.
     workspace: plan.isDaytona
       ? undefined
       : {
           cleanup: async () =>
-            rmSync(plan.cwd, { recursive: true, force: true }),
+            rmSync(plan.workspace.cwd, { recursive: true, force: true }),
         },
     runtimeRemount: undefined,
     closeToolMcp: undefined,
@@ -367,11 +424,13 @@ export async function prepareEnvironmentSetup(
     artifactId,
     binaryPath,
     deferredClientToolRelay,
+    deferredExecutableToolGate,
     env,
     environment,
     localBuiltinGatingUnenforceable,
     logger,
     localModelConfigUnwritable,
+    localModelOverrideUnenforceable,
     mcpAbort,
     piExtEnv,
     piModelConfig,

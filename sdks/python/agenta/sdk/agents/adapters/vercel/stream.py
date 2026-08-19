@@ -9,6 +9,7 @@ from uuid import uuid4
 from agenta.sdk.utils.logging import get_module_logger
 
 from ...dtos import AgentResult
+from ...errors import AgentRunFailed
 from ...streaming import AgentStream
 from ...utils.wire import sanitize_runner_error
 from .messages import TOOL_APPROVAL_REQUEST
@@ -66,6 +67,54 @@ _REQUIRES_TOOL_CALL_ID = {
     TOOL_APPROVAL_REQUEST,
 }
 _REQUIRES_TOOL_NAME = {"tool-input-start", "tool-input-available"}
+
+
+# Envelope keys an MCP-style tool call wraps its real arguments in.
+_TOOL_ARGUMENT_ENVELOPE_KEYS = frozenset(
+    {"tool", "server", "name", "toolName", "serverName", "tool_name", "server_name"}
+)
+
+
+def _unwrap_tool_arguments(value: Any) -> Any:
+    """Unwrap a ``{tool, server, arguments}`` MCP transport envelope to the bare arguments.
+
+    A card body reads its fields at the top level (``input.workflow_revision``), so a call that
+    streams as the envelope drops to the raw-JSON fallback the same call renders a card for. Unwrap
+    only when every sibling of ``arguments`` is a string-valued envelope key, so a tool whose real
+    input carries its own ``arguments`` field passes through untouched. Deliberately the same
+    conservative rule as ``unwrapToolArguments`` in the replay builder (transcriptToMessages.ts) —
+    live and replay must agree on the shape.
+    """
+    if not isinstance(value, dict):
+        return value
+    args = value.get("arguments")
+    if not isinstance(args, dict):
+        return value
+    siblings = [key for key in value if key != "arguments"]
+    if not siblings:
+        return value
+    if all(
+        key in _TOOL_ARGUMENT_ENVELOPE_KEYS and isinstance(value[key], str)
+        for key in siblings
+    ):
+        return args
+    return value
+
+
+def _tool_call_input(source: Dict[str, Any]) -> Any:
+    """The real args to show for a tool call.
+
+    Prefer ``rawInput`` (the tool's real args, per ACP); the runner leaves the plain ``input`` empty
+    on some tool-call paths. ``is not None`` (not truthiness): a legit empty ``{}`` is real args, not
+    absent. Then strip the MCP envelope so every path — gated, ungated, and the ungated re-emit that
+    lands after a gate — shows the same bare arguments.
+    """
+    raw = (
+        source["rawInput"]
+        if source.get("rawInput") is not None
+        else source.get("input")
+    )
+    return _unwrap_tool_arguments(raw)
 
 
 def _conform(part: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -214,15 +263,7 @@ async def _agent_run_to_vercel_parts_impl(
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
-                    # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
-                    # plain `input` empty on some tool-call paths — mirrors the approval /
-                    # client-tool reads in `_interaction_parts` so every path shows real args.
-                    # `is not None` (not truthiness): a legit empty `{}` is real args, not absent.
-                    "input": (
-                        data["rawInput"]
-                        if data.get("rawInput") is not None
-                        else data.get("input")
-                    ),
+                    "input": _tool_call_input(data),
                 }
                 if _conform(input_part) is not None:
                     content_parts_emitted += 1
@@ -304,11 +345,17 @@ async def _agent_run_to_vercel_parts_impl(
                 if _conform(file_part) is not None:
                     content_parts_emitted += 1
                 yield file_part
+            elif etype == "attachment_delivery":
+                content_parts_emitted += 1
+                yield _attachment_delivery_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
                 error_emitted = True
-                yield {"type": "error", "errorText": data.get("message", "")}
+                for part in _error_parts(
+                    data.get("message", ""), failure_code="runner_error"
+                ):
+                    yield part
             elif etype == "done":
                 # Last non-null stop reason wins; see the routing-layer twin's `done` note.
                 reason = data.get("stopReason")
@@ -324,7 +371,8 @@ async def _agent_run_to_vercel_parts_impl(
             # exception is very often just that same failure resurfacing as a raised
             # `RuntimeError` (`result_from_wire`) -- yielding it too would duplicate the message
             # the user already saw under a second, "Agent run failed: ..."-prefixed frame.
-            yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+            for part in _error_parts(sanitize_runner_error(exc), error=exc):
+                yield part
         error_emitted = True
     finally:
         # Every exit path — including the raw exception above — must still drain to a
@@ -349,7 +397,10 @@ async def _agent_run_to_vercel_parts_impl(
             # "no output" frame on top of it would bury the actionable message (the swallowed-
             # provider-error path both streams a live error event AND fails the terminal result,
             # so this backstop must not double up on it).
-            yield {"type": "error", "errorText": "The agent produced no output."}
+            for part in _error_parts(
+                "The agent produced no output.", failure_code="no_output"
+            ):
+                yield part
         finish: Dict[str, Any] = {"type": "finish"}
         finish_reason = _map_finish_reason(stop_reason)
         if finish_reason is not None:
@@ -494,15 +545,7 @@ async def _agent_stream_to_vercel_stream_impl(
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
-                    # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
-                    # plain `input` empty on some tool-call paths — mirrors the approval /
-                    # client-tool reads in `_interaction_parts` so every path shows real args.
-                    # `is not None` (not truthiness): a legit empty `{}` is real args, not absent.
-                    "input": (
-                        data["rawInput"]
-                        if data.get("rawInput") is not None
-                        else data.get("input")
-                    ),
+                    "input": _tool_call_input(data),
                 }
                 if _conform(input_part) is not None:
                     content_parts_emitted += 1
@@ -584,11 +627,17 @@ async def _agent_stream_to_vercel_stream_impl(
                 if _conform(file_part) is not None:
                     content_parts_emitted += 1
                 yield file_part
+            elif etype == "attachment_delivery":
+                content_parts_emitted += 1
+                yield _attachment_delivery_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
                 error_emitted = True
-                yield {"type": "error", "errorText": data.get("message", "")}
+                for part in _error_parts(
+                    data.get("message", ""), failure_code="runner_error"
+                ):
+                    yield part
             elif etype == "done":
                 # Prefer the LAST non-null stop reason. The handler appends a corrective
                 # terminal `done` after the runner's `done` when the authoritative result
@@ -605,7 +654,8 @@ async def _agent_stream_to_vercel_stream_impl(
             # out live this turn, so a swallowed-provider-error recovery (live error event, then
             # a failed terminal result raised as this same exception) doesn't duplicate the
             # user-facing message under a second, differently-worded frame.
-            yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+            for part in _error_parts(sanitize_runner_error(exc), error=exc):
+                yield part
         error_emitted = True
     finally:
         # Every exit path — including the raw exception above — must still drain to a
@@ -617,7 +667,10 @@ async def _agent_stream_to_vercel_stream_impl(
             # note) -- a swallowed-provider-error turn both streams a live error event and fails
             # the terminal result, so this backstop must not double up on it and bury the real
             # message under "The agent produced no output."
-            yield {"type": "error", "errorText": "The agent produced no output."}
+            for part in _error_parts(
+                "The agent produced no output.", failure_code="no_output"
+            ):
+                yield part
         finish: Dict[str, Any] = {"type": "finish"}
         finish_reason = _map_finish_reason(stop_reason)
         if finish_reason is not None:
@@ -662,11 +715,7 @@ def _interaction_parts(
             # (which carries only the drift-prone ACP title) cannot downgrade it back and re-break
             # the resume key. See the tool_call handler's `tool_names_by_id.get(...)` preference.
             names[tool_call_id] = tool_name
-            real_input = (
-                tool_call["rawInput"]
-                if tool_call.get("rawInput") is not None
-                else tool_call.get("input")
-            )
+            real_input = _tool_call_input(tool_call)
             # EGRESS side of the HITL key: what name+args the FE persists on the approval part
             # (and folds back on resume). Compare to the runner's live `[HITL] gate` identity.
             log.info(
@@ -705,6 +754,22 @@ def _interaction_parts(
                     "toolName": tool_name,
                     "input": real_input,
                 }
+        # Workspace content the runner resolved and froze for this gate (imported files, and the
+        # diff for a field replaced from one). It rides its OWN data part because
+        # `tool-approval-request` is a strict object with an exact key set, and because it is
+        # runner-derived metadata, not the model's arguments — putting it in `input` would show
+        # the human a payload the model never wrote.
+        manifest = payload.get("manifest")
+        if manifest is not None:
+            yield {
+                "type": "data-approval-manifest",
+                "id": tool_call_id,
+                "data": {
+                    "toolCallId": tool_call_id,
+                    "approvalId": data.get("id"),
+                    "manifest": manifest,
+                },
+            }
         yield {
             "type": TOOL_APPROVAL_REQUEST,
             "approvalId": data.get("id"),
@@ -731,6 +796,7 @@ def _interaction_parts(
                 if tool_call.get("rawInput") is not None
                 else tool_call.get("input")
             )
+        real_input = _unwrap_tool_arguments(real_input)
         if tool_call_id is not None and tool_call_id not in seen_tool_calls:
             seen_tool_calls.add(tool_call_id)
             yield {
@@ -825,7 +891,15 @@ def _committed_revision_data(tool_name: Any, output: Any) -> Optional[Dict[str, 
             payload = json.loads(payload)
         except json.JSONDecodeError:
             return None
-    if not isinstance(payload, dict) or not payload.get("count"):
+    if not isinstance(payload, dict):
+        return None
+    # Two success shapes exist. The handler-mode commit (the migration) answers
+    # {"status": "committed", "workflow_revision": {...}} and carries no "count";
+    # the legacy route shape carried {"count": N, ...}. Gate on either, because a
+    # projector that recognizes only one silently drops the playground's refresh
+    # signal for the other (live incident, session b024a6b0: commits stored fine
+    # and the playground never switched to the new version).
+    if payload.get("status") != "committed" and not payload.get("count"):
         return None
 
     revision = payload.get("workflow_revision")
@@ -848,6 +922,32 @@ def _as_text(value: Any) -> str:
     if value is None:
         return ""
     return value if isinstance(value, str) else str(value)
+
+
+def _attachment_delivery_part(data: Dict[str, Any]) -> Dict[str, Any]:
+    delivery = {
+        key: data[key]
+        for key in ("attachmentId", "outcome", "reasonCode", "workingPath")
+        if data.get(key) is not None
+    }
+    return {"type": "data-attachment-delivery", "data": delivery}
+
+
+def _error_parts(
+    error_text: Any,
+    *,
+    failure_code: Optional[str] = None,
+    error: Optional[BaseException] = None,
+) -> Iterator[Dict[str, Any]]:
+    resolved_code = failure_code or getattr(error, "failure_code", None)
+    if not isinstance(resolved_code, str) or not resolved_code:
+        resolved_code = AgentRunFailed.failure_code
+    resolved_text = _as_text(error_text)
+    yield {
+        "type": "data-agent-error",
+        "data": {"code": resolved_code, "errorText": resolved_text},
+    }
+    yield {"type": "error", "errorText": resolved_text}
 
 
 def _safe_result(run: AgentStream) -> Optional[AgentResult]:

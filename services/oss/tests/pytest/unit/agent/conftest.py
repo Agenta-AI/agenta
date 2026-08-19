@@ -122,6 +122,9 @@ class FakeBackend(Backend):
         trace=None,
         run_context=None,
         session_id=None,
+        # Interface parity: the SDK passes this through on every session run. These tests
+        # assert on the config and run context, not on the stamped parameters.
+        effective_parameters=None,
     ) -> _FakeSession:
         self.created_configs.append(config)
         self.created_session_ids.append(session_id)

@@ -8,13 +8,11 @@
 import {mountPathMatchesToolPath, type FileActivityOp} from "@agenta/entities/session"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
-
-import {projectIdAtom} from "@/oss/state/project"
+import {useSetAtom} from "jotai"
 
 import {driveFileIcon} from "./driveIcons"
 import {fileTypeLabel} from "./driveKinds"
-import {downloadMountFile} from "./driveMedia"
+import {useDriveFileDownload} from "./driveMedia"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
@@ -54,7 +52,7 @@ export function DriveFileInlineRef({path}: {path: string}) {
 }
 
 export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
-    const projectId = useAtomValue(projectIdAtom)
+    const downloadFile = useDriveFileDownload()
     const sessionId = useDriveSessionId()
     const artifactId = useDriveArtifactId()
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
@@ -71,7 +69,7 @@ export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
         // The file may live in the cwd mount or the nested agent-files mount — route to whichever.
         const target = drive.resolveMount(resolved.path)
         if (!target) return
-        void downloadMountFile({mount: target.mount, path: target.path, projectId})
+        void downloadFile(target.mount, target.path)
     }
 
     // A <span> root (inline-flex) so the card is valid inline — it's rendered both standalone in a
@@ -105,13 +103,13 @@ export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
                         {meta ? (
                             <Tag
                                 color={meta.color}
-                                className="m-0 shrink-0 !text-[10px] leading-[16px]"
+                                className="m-0 shrink-0 !text-[12px] leading-[16px]"
                             >
                                 {meta.label}
                             </Tag>
                         ) : null}
                     </span>
-                    <Text type="secondary" className="!text-[11px]">
+                    <Text type="secondary" className="!text-xs">
                         {fileTypeLabel(path)}
                         {resolved?.size != null ? <> · {humanSize(resolved.size)}</> : null}
                     </Text>

@@ -23,6 +23,7 @@ class SessionMount(UniversalBaseModel):
     project_id: str
     session_id: str
     agent_id: typing.Optional[str] = None
+    purpose: typing.Optional[str] = None
     data: typing.Optional[MountData] = None
     flags: typing.Optional[MountFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None

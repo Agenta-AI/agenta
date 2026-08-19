@@ -3,8 +3,9 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SessionInteractionData {
-    request?: (Record<string, unknown> | null) | undefined;
+    request?: (AgentaApi.SessionInteractionRequest | null) | undefined;
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     selector?: (AgentaApi.Selector | null) | undefined;
     resolution?: (Record<string, unknown> | null) | undefined;
+    parameters?: (Record<string, unknown> | null) | undefined;
 }

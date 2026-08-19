@@ -130,6 +130,80 @@ class InitialRevisionConflict(GitError):
     """
 
 
+class RevisionConflict(GitError):
+    """Raised when a checked commit's expected head is no longer the head.
+
+    The caller passes the revision it built on; the DAO re-reads the head while holding
+    the variant lock and raises this when they differ. Carries both ids so the router can
+    answer 409 with the current head, letting the caller re-read and retry in one step.
+    """
+
+    def __init__(
+        self,
+        *,
+        expected_head_revision_id,
+        current_head_revision_id,
+    ) -> None:
+        super().__init__("The variant head changed. No revision was committed.")
+        self.expected_head_revision_id = expected_head_revision_id
+        self.current_head_revision_id = current_head_revision_id
+
+
+class CommitLockTimeout(GitError):
+    """Raised when a checked commit waited longer than the variant lock timeout.
+
+    Postgres answers SQLSTATE 55P03 when `lock_timeout` expires. Generic suppression turns
+    any other exception into `None`, which the commit wrapper reports as a successful empty
+    commit, so the DAO translates the timeout into this instead and the router answers 503.
+    """
+
+    def __init__(
+        self,
+        *,
+        variant_id=None,
+    ) -> None:
+        super().__init__(
+            "The variant is busy: another commit holds its lock. No revision was committed."
+        )
+        self.variant_id = variant_id
+
+
+class VariantNotFound(GitError):
+    """Raised when a commit locks a variant row that this project does not have.
+
+    `SELECT ... FOR UPDATE` on a missing or cross-project row locks nothing and reports
+    nothing, so without this the commit would proceed unlocked and insert a revision
+    against a variant it never held.
+    """
+
+    def __init__(
+        self,
+        *,
+        variant_id=None,
+    ) -> None:
+        super().__init__("The variant does not exist in this project.")
+        self.variant_id = variant_id
+
+
+class RevisionUnchanged(GitError):
+    """Raised when a checked commit would store what the locked head already holds.
+
+    The comparison has to run inside the locked region, beside the expected-head check.
+    Deciding it before the call reads a head that another writer can move afterwards, and
+    the caller is then told `no_change` about a revision that is no longer the head. It
+    carries the head that was current UNDER the lock, so the answer describes the state the
+    decision was actually made against.
+    """
+
+    def __init__(
+        self,
+        *,
+        head_revision_id,
+    ) -> None:
+        super().__init__("The commit would store the configuration already stored.")
+        self.head_revision_id = head_revision_id
+
+
 class InlineResolveInvalid(GitError):
     """Raised when an inline resolve payload carries no `data` to resolve.
 

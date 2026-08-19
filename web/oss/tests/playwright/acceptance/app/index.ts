@@ -70,7 +70,8 @@ const tests = () => {
         },
     )
 
-    baseTest(
+    // Disabled: times out intermittently against preview environments (#5695).
+    baseTest.skip(
         `creates new chat prompt app`,
         {tag: tags},
         async ({page, navigateToApps, createNewApp, verifyAppCreation}) => {

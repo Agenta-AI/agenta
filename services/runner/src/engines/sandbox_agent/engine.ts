@@ -5,7 +5,10 @@ import {
 } from "../../protocol.ts";
 import { acquireEnvironment } from "./environment.ts";
 import { runTurn } from "./run-turn.ts";
-import { type SandboxAgentDeps } from "./runtime-contracts.ts";
+import {
+  type RunTurnOptions,
+  type SandboxAgentDeps,
+} from "./runtime-contracts.ts";
 
 /**
  * Whether a completed turn's environment may be parked: never on abort, client disconnect,
@@ -35,14 +38,16 @@ export async function runSandboxAgent(
   emit?: EmitEvent,
   signal?: AbortSignal,
   deps: SandboxAgentDeps = {},
+  turnOptions: Pick<RunTurnOptions, "credential"> = {},
 ): Promise<AgentRunResult> {
-  const acquired = await acquireEnvironment(request, deps, signal);
+  const acquired = await acquireEnvironment(request, deps, signal, undefined, emit);
   if (!acquired.ok) return { ok: false, error: acquired.error };
   const env = acquired.env;
   let result: AgentRunResult | undefined;
   try {
     result = await runTurn(env, request, emit, signal, {
       loaded: env.loadedFromContinuity,
+      ...turnOptions,
     });
     return result;
   } finally {

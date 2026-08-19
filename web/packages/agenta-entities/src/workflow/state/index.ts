@@ -16,13 +16,29 @@ export {workflowMolecule, type WorkflowMolecule} from "./molecule"
 
 export {
     harnessCapabilitiesAtomFamily,
+    harnessCatalogFailedAtom,
+    retryHarnessCatalogAtom,
     contextWindowForModel,
+    modalitiesForModel,
     type HarnessCapabilities,
     type HarnessCapabilitiesMap,
     type ModelCatalogEntry,
     type ModelPricing,
     type ModelRatings,
 } from "./inspectMeta"
+
+// ============================================================================
+// RUNNER SUBSCRIPTION STATUS (live per-harness login state)
+// ============================================================================
+
+export {
+    subscriptionStatusKey,
+    subscriptionStatusQueryAtomFamily,
+    SUBSCRIPTION_STATUS_QUERY_HARNESS,
+    resolveSubscriptionStatus,
+    type SubscriptionStatusDisplay,
+    type SubscriptionStatusTone,
+} from "./subscriptionStatus"
 
 // ============================================================================
 // HELPERS

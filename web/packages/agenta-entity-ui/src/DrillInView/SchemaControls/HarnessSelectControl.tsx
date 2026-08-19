@@ -17,29 +17,10 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {formatEnumLabel} from "@agenta/shared/utils"
-import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Select, Typography} from "antd"
+import {Combobox, Field} from "@agenta/ui/ui"
 
-interface HarnessMeta {
-    label: string
-    /** 1–2 char monogram shown in the avatar. */
-    short: string
-    /** Avatar background colour. */
-    color: string
-}
-
-/**
- * Avatar identity (brand colour + monogram) per harness id. Labels come from the schema
- * `oneOf` title when present (see `titlesFromSchema`); these defaults only supply the avatar
- * and a label fallback. Keyed by the real enum values `pi_core` / `pi_agenta` / `claude`.
- */
-const HARNESS_META: Record<string, HarnessMeta> = {
-    pi_core: {label: "Pi", short: "Pi", color: "#6b5bd6"},
-    pi_agenta: {label: "Pi (Agenta)", short: "Ag", color: "#1c2c3d"},
-    claude: {label: "Claude Code", short: "CC", color: "#d97757"},
-}
+import {harnessMetaFor as metaFor, type HarnessMeta} from "./harnessMeta"
 
 /**
  * Read the canonical display name per harness value from the schema's `oneOf` of
@@ -57,19 +38,6 @@ function titlesFromSchema(schema?: SchemaProperty | null): Record<string, string
         }
     }
     return titles
-}
-
-/** Resolve display identity, deriving a sensible fallback for unknown harness ids. */
-function metaFor(value: string): HarnessMeta {
-    const known = HARNESS_META[value]
-    if (known) return known
-    const label = formatEnumLabel(value)
-    const short =
-        label
-            .replace(/[^A-Za-z0-9]/g, "")
-            .slice(0, 2)
-            .toUpperCase() || "?"
-    return {label, short, color: "#586673"}
 }
 
 function HarnessAvatar({meta, size = 22}: {meta: HarnessMeta; size?: number}) {
@@ -127,58 +95,46 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
     // Canonical labels from the schema `oneOf` titles (`Pi` / `Pi (Agenta)` / `Claude Code`);
     // the avatar (and any label the schema omits) still comes from `metaFor`.
     const titles = useMemo(() => titlesFromSchema(schema), [schema])
-    const labelFor = (id: string) => titles[id] ?? metaFor(id).label
-    const metaWithLabel = (id: string): HarnessMeta => ({...metaFor(id), label: labelFor(id)})
 
+    // One label node serves both the trigger and the dropdown row — the Combobox has a single
+    // `label` slot (antd used `labelRender`/`optionRender` to size the avatar 18 vs 22).
     const options = useMemo(() => {
         const values =
             visibleValues ?? (Array.isArray(schema?.enum) ? (schema.enum as string[]) : [])
         return values.map((v) => {
             const id = String(v)
-            return {value: id, label: titles[id] ?? metaFor(id).label}
+            const meta: HarnessMeta = {...metaFor(id), label: titles[id] ?? metaFor(id).label}
+            return {
+                value: id,
+                searchValue: meta.label,
+                label: (
+                    <span className="flex items-center gap-2">
+                        <HarnessAvatar meta={meta} size={18} />
+                        <span>{meta.label}</span>
+                    </span>
+                ),
+            }
         })
     }, [schema, titles, visibleValues])
 
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     return (
-        <LabeledField
+        <Field
             label={label}
-            description={tooltipText}
-            withTooltip={withTooltip && !!label}
+            tooltip={withTooltip && !!label ? tooltipText : undefined}
             className={cn(className)}
         >
-            <Select
+            {/* Combobox = antd `showSearch` Select (type in the trigger, filtered list below). */}
+            <Combobox
                 value={value ?? undefined}
                 onChange={(val) => onChange(val ?? null)}
                 disabled={disabled}
                 placeholder="Select harness"
                 className="w-full"
                 options={options}
-                optionLabelProp="label"
-                showSearch
-                filterOption={(input, option) =>
-                    (option?.label?.toString() ?? "").toLowerCase().includes(input.toLowerCase())
-                }
-                labelRender={(cur) => {
-                    const meta = metaWithLabel(String(cur.value))
-                    return (
-                        <span className="flex items-center gap-2">
-                            <HarnessAvatar meta={meta} size={18} />
-                            <span>{meta.label}</span>
-                        </span>
-                    )
-                }}
-                optionRender={(opt) => {
-                    const meta = metaWithLabel(String(opt.value))
-                    return (
-                        <span className="flex items-center gap-2 py-0.5">
-                            <HarnessAvatar meta={meta} size={22} />
-                            <Typography.Text>{meta.label}</Typography.Text>
-                        </span>
-                    )
-                }}
+                aria-label={label ? undefined : "Harness"}
             />
-        </LabeledField>
+        </Field>
     )
 })

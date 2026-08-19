@@ -9,8 +9,17 @@
  */
 import {memo, useCallback, useState, type ReactNode} from "react"
 
+import {
+    Button,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretRight, Plus} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, Typography} from "antd"
 
 export interface AddItemMenuItem {
     key: string
@@ -33,9 +42,9 @@ export interface AddItemGroup {
 
 function GroupLabel({children}: {children: ReactNode}) {
     return (
-        <Typography.Text className="block px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+        <span className="block px-2 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
             {children}
-        </Typography.Text>
+        </span>
     )
 }
 
@@ -57,7 +66,7 @@ function Row({item, onPick}: {item: AddItemMenuItem; onPick: (item: AddItemMenuI
             <span className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className="truncate text-xs text-[var(--ag-colorText)]">{item.title}</span>
                 {item.subtitle ? (
-                    <span className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
                         {item.subtitle}
                     </span>
                 ) : null}
@@ -69,9 +78,14 @@ function Row({item, onPick}: {item: AddItemMenuItem; onPick: (item: AddItemMenuI
     )
     // A disabled <button> swallows mouse events, so wrap it in a span for the tooltip to trigger.
     return item.disabled && item.disabledHint ? (
-        <Tooltip title={item.disabledHint}>
-            <span className="block cursor-not-allowed">{body}</span>
-        </Tooltip>
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="block cursor-not-allowed">{body}</span>
+                </TooltipTrigger>
+                <TooltipContent>{item.disabledHint}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     ) : (
         body
     )
@@ -98,48 +112,46 @@ export const AddItemMenu = memo(function AddItemMenu({
         item.onSelect?.()
     }, [])
 
-    const content = (
-        <div
-            className="rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] p-1.5 shadow-sm"
-            style={{minWidth}}
-        >
-            {groups.map((group, gi) => (
-                <div key={group.label ?? `group-${gi}`}>
-                    {gi > 0 && (
-                        <div className="mx-2 my-1.5 h-px bg-[var(--ag-colorBorderSecondary)]" />
-                    )}
-                    {group.label ? <GroupLabel>{group.label}</GroupLabel> : null}
-                    {group.items.map((item) => (
-                        <Row key={item.key} item={item} onPick={handlePick} />
-                    ))}
-                </div>
-            ))}
-        </div>
-    )
-
     return (
-        <Dropdown
+        <Popover
             open={!disabled && open}
             onOpenChange={(next) => {
                 if (disabled) return
                 setOpen(next)
             }}
-            trigger={["click"]}
-            placement="bottomLeft"
-            arrow={false}
-            menu={{items: []}}
-            popupRender={() => content}
-            classNames={{root: "[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"}}
         >
-            {trigger ?? (
-                <Button
-                    type="text"
-                    icon={<Plus size={16} />}
-                    aria-label={ariaLabel}
-                    disabled={disabled}
-                    onClick={(e) => e.stopPropagation()}
-                />
-            )}
-        </Dropdown>
+            <PopoverTrigger asChild>
+                {trigger ?? (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={ariaLabel}
+                        disabled={disabled}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Plus size={16} />
+                    </Button>
+                )}
+            </PopoverTrigger>
+            {/* The panel chrome lives on the content (the antd Dropdown wrapper was chrome-less). */}
+            <PopoverContent
+                side="bottom"
+                align="start"
+                className="rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] p-1.5 shadow-sm"
+                style={{minWidth}}
+            >
+                {groups.map((group, gi) => (
+                    <div key={group.label ?? `group-${gi}`}>
+                        {gi > 0 && (
+                            <div className="mx-2 my-1.5 h-px bg-[var(--ag-colorBorderSecondary)]" />
+                        )}
+                        {group.label ? <GroupLabel>{group.label}</GroupLabel> : null}
+                        {group.items.map((item) => (
+                            <Row key={item.key} item={item} onPick={handlePick} />
+                        ))}
+                    </div>
+                ))}
+            </PopoverContent>
+        </Popover>
     )
 })

@@ -70,7 +70,7 @@ const LivenessChips = ({sessionId}: {sessionId: string}) => {
             {chips.map((c) => (
                 <span
                     key={c.label}
-                    className="rounded px-1.5 py-px text-[10px] font-medium"
+                    className="rounded px-1.5 py-px text-[12px] font-medium"
                     style={{background: "var(--ag-colorFillTertiary)", color: c.color}}
                 >
                     {c.label}
@@ -197,7 +197,7 @@ export function Inspector({sessionId}: {sessionId: string}) {
                     </div>
                 </div>
                 {/* Identity line: the session is always the scope; a focused turn is the chip above. */}
-                <div className="flex items-center gap-2 pl-1 text-[11px] text-colorTextTertiary">
+                <div className="flex items-center gap-2 pl-1 text-xs text-colorTextTertiary">
                     <span className="min-w-0 truncate font-mono">{sessionId}</span>
                     <LivenessChips sessionId={sessionId} />
                 </div>

@@ -12,6 +12,7 @@ import {
     getScheduleMessage,
     getScheduleMessagePreview,
     parseInputsFields,
+    remapMessageShape,
     setScheduleMessage,
 } from "../../src/gatewayTrigger/core/messageInputs"
 
@@ -25,6 +26,13 @@ describe("getScheduleMessage", () => {
         expect(getScheduleMessage(JSON.stringify({query: "summarize"}), false, "query")).toBe(
             "summarize",
         )
+    })
+
+    // The bound agent may be unresolved (schema selectors report "completion" until it
+    // loads) or the mapping written by the API — the payload's own shape decides.
+    it("reads a messages payload even when the schema says completion", () => {
+        const json = JSON.stringify({messages: [{role: "user", content: "publish an article"}]})
+        expect(getScheduleMessage(json, false, "message")).toBe("publish an article")
     })
 
     it("returns empty string when absent or unparseable", () => {
@@ -99,6 +107,15 @@ describe("setScheduleMessage", () => {
         })
     })
 
+    // Must mirror the getter, or editing a messages payload under a completion schema
+    // would strand the original and add a stray `message` key.
+    it("writes back into messages when that is where the getter read from", () => {
+        const json = JSON.stringify({messages: [{role: "user", content: "old"}]})
+        expect(JSON.parse(setScheduleMessage(json, "new", false, "message"))).toEqual({
+            messages: [{role: "user", content: "new"}],
+        })
+    })
+
     it("removes the key and collapses to {} when cleared", () => {
         expect(setScheduleMessage(JSON.stringify({query: "x"}), "  ", false, "query")).toBe("{}")
         expect(setScheduleMessage(JSON.stringify({messages: [{}]}), "", true, "messages")).toBe(
@@ -128,5 +145,64 @@ describe("getScheduleMessagePreview", () => {
     it("returns empty string when nothing is present", () => {
         expect(getScheduleMessagePreview({})).toBe("")
         expect(getScheduleMessagePreview(null)).toBe("")
+    })
+})
+
+// The drawers resolve the bound agent asynchronously, so a message can be typed under a
+// placeholder shape ("completion" / "message") and only then learn the agent is chat.
+describe("remapMessageShape", () => {
+    const completion = {isChat: false, primaryKey: "message"}
+    const chat = {isChat: true, primaryKey: "messages"}
+
+    it("moves a completion message into the chat shape", () => {
+        const before = JSON.stringify({message: "summarize this"})
+        const after = JSON.parse(remapMessageShape(before, completion, chat))
+        expect(after).toEqual({messages: [{role: "user", content: "summarize this"}]})
+    })
+
+    it("moves a chat message into the completion shape", () => {
+        const before = JSON.stringify({messages: [{role: "user", content: "summarize this"}]})
+        const after = JSON.parse(
+            remapMessageShape(before, chat, {isChat: false, primaryKey: "query"}),
+        )
+        expect(after).toEqual({query: "summarize this"})
+    })
+
+    it("renames between two completion inputs", () => {
+        const before = JSON.stringify({message: "hello"})
+        const after = JSON.parse(
+            remapMessageShape(before, completion, {isChat: false, primaryKey: "query"}),
+        )
+        expect(after).toEqual({query: "hello"})
+    })
+
+    // The whole point of the helper: never leave the message under both keys.
+    it("drops the old shape's key rather than writing both", () => {
+        const after = JSON.parse(
+            remapMessageShape(JSON.stringify({message: "x"}), completion, chat),
+        )
+        expect(after).not.toHaveProperty("message")
+    })
+
+    it("preserves sibling keys", () => {
+        const before = JSON.stringify({message: "x", event: "$.event.attributes"})
+        const after = JSON.parse(remapMessageShape(before, completion, chat))
+        expect(after.event).toBe("$.event.attributes")
+        expect(after.messages).toEqual([{role: "user", content: "x"}])
+    })
+
+    // A mapping the composer can't read has nothing safe to move — leave it exactly as it was.
+    it("returns unreadable mappings untouched", () => {
+        const richer = JSON.stringify({context: "$"})
+        expect(remapMessageShape(richer, completion, chat)).toBe(richer)
+        expect(remapMessageShape("", completion, chat)).toBe("")
+        expect(remapMessageShape("not json", completion, chat)).toBe("not json")
+    })
+
+    it("is a no-op in value when the shape did not actually change", () => {
+        const before = JSON.stringify({message: "x"})
+        expect(JSON.parse(remapMessageShape(before, completion, completion))).toEqual({
+            message: "x",
+        })
     })
 })

@@ -39,6 +39,7 @@ def map_mount_dto_to_dbe_upsert(
         "slug": mount_create.slug,
         "session_id": mount_create.session_id,
         "agent_id": mount_create.agent_id,
+        "purpose": mount_create.purpose,
         "name": mount_create.name,
         "description": mount_create.description,
         "flags": mount_create.flags.model_dump(),
@@ -63,6 +64,7 @@ def map_mount_dto_to_dbe_create(
         slug=mount_create.slug,
         session_id=mount_create.session_id,
         agent_id=mount_create.agent_id,
+        purpose=mount_create.purpose,
         #
         name=mount_create.name,
         description=mount_create.description,
@@ -93,6 +95,7 @@ def map_mount_dbe_to_dto(
         slug=mount_dbe.slug,
         session_id=mount_dbe.session_id,
         agent_id=mount_dbe.agent_id,
+        purpose=mount_dbe.purpose,
         #
         name=mount_dbe.name,
         description=mount_dbe.description,

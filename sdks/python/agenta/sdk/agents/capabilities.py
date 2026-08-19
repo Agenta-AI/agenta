@@ -14,8 +14,8 @@ The provider lists are the REAL harness facts, derived from
 
 - **Pi** reaches eight Agenta-vault-mapped providers directly (the ones whose ``provider_key``
   secret drives a Pi provider via its env-key map), plus ``openai-codex`` (OpenAI's ChatGPT/Codex
-  subscription), which Pi reaches through its own OAuth login rather than a vault key — usable
-  under ``self_managed`` (and the ``agenta`` default's ``runtime_provided`` fallback). Pi also
+  subscription), which Pi reaches through its own OAuth login rather than a vault key, usable
+  under ``self_managed``. Pi also
   reaches ~24 more providers that have no Agenta vault kind; those are out of scope unless a
   ``custom_provider`` secret is made for them, so they are not enumerated here. Pi consumes the
   ``direct`` deployment for all of them, plus the ``custom`` (OpenAI-compatible) deployment for
@@ -28,6 +28,7 @@ The provider lists are the REAL harness facts, derived from
 - **Claude** reaches anthropic only, direct, via a custom gateway, or through Anthropic on
   Bedrock/Vertex. The runner passes the selected model id through to Claude Code and lets the
   configured backend fail loudly if it rejects it.
+- **Codex** reaches openai only, direct, through managed keys or subscription OAuth.
 - **pi_agenta** is Pi under the hood (Pi with Agenta's forced opinion), so it shares
   ``pi_core``'s reach.
 
@@ -38,9 +39,9 @@ general capability-table mechanism; this module is the provider/model/auth contr
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from agenta.sdk.utils.assets import supported_llm_models
 
@@ -63,9 +64,8 @@ PI_VAULT_PROVIDERS: List[str] = [
 # ``/login``), NOT an Agenta vault ``provider_key`` (no vault secret kind maps to it). ``self_managed``
 # is broader than this one provider: it covers any way a harness signs itself in without an
 # Agenta-stored key, including machine credentials such as environment variables. This provider's
-# on-ramp under ``self_managed`` happens to be the subscription OAuth. It is also reachable under
-# the ``agenta`` default's ``runtime_provided`` fallback, so it belongs in Pi's reachable providers
-# even though it carries no vault key. Its model ids are carried explicitly below because they are
+# on-ramp under ``self_managed`` happens to be the subscription OAuth. Its model ids are carried
+# explicitly below because they are
 # not in the litellm-derived ``supported_llm_models`` catalog. See
 # ``docs/design/agent-workflows/projects/provider-model-auth/harness-provider-matrix.md`` and the
 # subscription-sidecar recipe.
@@ -104,6 +104,18 @@ CLAUDE_MODEL_ALIASES: List[str] = [
     "claude-fable-5",
 ]
 
+# The curated Codex model set the harness advertises under the ``openai`` family. The
+# ``gpt-5.1-codex`` family is API-listed but backend-deprecated, so it is excluded. Keep this in
+# sync with ``data/codex_models.curated.json`` and the ``sync-model-catalog`` skill. See decision
+# D-006.
+CODEX_MODELS: List[str] = [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5",
+    "gpt-5.2",
+]
+
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
 # ``agenta`` with no slug.)
 _ALL_MODES = ["agenta", "self_managed"]
@@ -125,6 +137,66 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
     # must use Pi's name or the key never reaches the harness.
     "together_ai": "TOGETHER_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
+}
+
+
+# The curated models a connection starts with when it saves no model list of its own: product
+# policy, not a provider fact, so it lives in the versioned catalog rather than on every stored
+# connection (design: provider-connections-models/provider-discovery.md, "Default models"). The
+# ids are the shared catalog spelling (``provider/id``); each harness republishes them below in
+# the spelling it accepts. A saved list on a connection — including an empty one — always wins.
+PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
+    "openai": [
+        "openai/gpt-5.6-luna",
+        "openai/gpt-5.6-terra",
+        "openai/gpt-5.6-sol",
+    ],
+    # ``anthropic/claude-opus-5`` belongs here too, but the pinned pi-ai catalog predates it;
+    # add it when the ``sync-model-catalog`` skill regenerates ``data/pi_models.generated.json``.
+    "anthropic": [
+        "anthropic/claude-fable-5",
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-4-5",
+    ],
+    "gemini": [
+        "gemini/gemini-3.5-flash",
+        "gemini/gemini-3.1-pro-preview",
+    ],
+    "mistral": [
+        "mistral/mistral-medium-latest",
+        "mistral/mistral-small-latest",
+    ],
+    "groq": [
+        "groq/openai/gpt-oss-120b",
+        "groq/llama-3.1-8b-instant",
+    ],
+    "minimax": [
+        "minimax/MiniMax-M3",
+        "minimax/MiniMax-M2.7-highspeed",
+    ],
+    "together_ai": [
+        "together_ai/moonshotai/Kimi-K2.7-Code",
+        "together_ai/zai-org/GLM-5.2",
+    ],
+    "openrouter": [
+        "openrouter/z-ai/glm-5.2",
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/deepseek/deepseek-v4-pro",
+        "openrouter/openai/gpt-5.6-luna",
+        "openrouter/xiaomi/mimo-v2.5",
+        "openrouter/tencent/hy3",
+    ],
+}
+
+
+# A harness that selects by alias (Claude) names a TIER, not a model id, so a curated id has to
+# be translated before it can be matched. Keyed by prefix because the alias tracks the tier
+# across versions (``claude-sonnet-5`` and its successor both answer to ``sonnet``). Only ids a
+# harness could otherwise not name belong here: ``claude-fable-5`` is its own alias, and opus has
+# no curated default until the catalog refresh adds ``claude-opus-5``.
+MODEL_ID_ALIASES: Dict[str, str] = {
+    "anthropic/claude-sonnet-": "sonnet",
+    "anthropic/claude-haiku-": "haiku",
 }
 
 
@@ -167,6 +239,81 @@ def _pi_models() -> Dict[str, List[str]]:
     return models
 
 
+def _spelling_index(model_ids: Iterable[str]) -> Dict[str, str]:
+    """Index model ids by every spelling they answer to (full id and provider-less tail)."""
+    index: Dict[str, str] = {}
+    for model_id in model_ids:
+        bare = model_id.split("/", 1)[1] if "/" in model_id else model_id
+        index.setdefault(model_id, model_id)
+        index.setdefault(bare, model_id)
+    return index
+
+
+def _tier_aliases(model_id: str) -> List[str]:
+    """The alias spellings a curated model id also answers to (see :data:`MODEL_ID_ALIASES`)."""
+    return [
+        alias
+        for prefix, alias in MODEL_ID_ALIASES.items()
+        if model_id.startswith(prefix)
+    ]
+
+
+def _harness_default_models(
+    *,
+    providers: List[str],
+    models: Dict[str, List[str]],
+    model_catalog: List[Dict[str, object]],
+) -> Dict[str, List[str]]:
+    """:data:`PROVIDER_DEFAULT_MODELS`, narrowed and respelled for one harness.
+
+    Each harness names a model its own way (Pi mostly ``provider/id``, Claude by alias, Codex by
+    bare id), so a curated id is matched against the ids this harness advertises — its accepted
+    ``models`` map first, then its catalog — and republished in the spelling that harness accepts.
+    A harness that names tiers rather than ids reaches its spelling through
+    :data:`MODEL_ID_ALIASES`. A curated id the harness cannot select is dropped rather than
+    guessed at, which is also how a provider outside the harness's reach ends up with no defaults
+    at all.
+    """
+    defaults: Dict[str, List[str]] = {}
+
+    for provider in providers:
+        curated = PROVIDER_DEFAULT_MODELS.get(provider)
+        if not curated:
+            continue
+
+        # Scoped by provider: a gateway's ids repeat another provider's spelling
+        # (``openrouter/openai/gpt-5.6-luna``), so a flat index would cross-match them.
+        catalog_ids = [
+            str(entry.get("id"))
+            for entry in model_catalog
+            if entry.get("id") is not None and entry.get("provider") == provider
+        ]
+        indexes = (
+            _spelling_index(models.get(provider) or []),
+            _spelling_index(catalog_ids),
+        )
+        selected: List[str] = []
+        for curated_id in curated:
+            bare_id = curated_id.split("/", 1)[1] if "/" in curated_id else curated_id
+            # Full id, then the provider-less tail, then the tier alias: a harness that names
+            # models outright must never be handed an alias it does not publish.
+            spellings = (curated_id, bare_id, *_tier_aliases(curated_id))
+            for index in indexes:
+                match = next(
+                    (index[spelling] for spelling in spellings if spelling in index),
+                    None,
+                )
+                if match:
+                    if match not in selected:
+                        selected.append(match)
+                    break
+
+        if selected:
+            defaults[provider] = selected
+
+    return defaults
+
+
 class UserMCPServerCapabilities(BaseModel):
     connection_types: List[str] = Field(default_factory=lambda: ["http"])
     credentials: List[str] = Field(
@@ -202,6 +349,11 @@ class HarnessConnectionCapabilities(BaseModel):
     connection_modes: List[str] = Field(default_factory=lambda: list(_ALL_MODES))
     model_selection: str = "provider/id"
     models: Dict[str, List[str]] = Field(default_factory=dict)
+    # The subset of ``models`` pre-selected for a connection that saved no model list of its own,
+    # per provider family, in the harness's own model spelling. Derived from
+    # :data:`PROVIDER_DEFAULT_MODELS` below, so a harness only ever advertises defaults it can
+    # actually select, and a provider it cannot reach has none.
+    default_models: Dict[str, List[str]] = Field(default_factory=dict)
     # The curated per-model catalog (label / description / pricing / ratings), one flat list keyed
     # by the same ids as ``models``. Published ADDITIVELY next to ``models`` during the migration
     # (design: model-catalog-schema); the frontend prefers it when present and falls back to
@@ -209,6 +361,16 @@ class HarnessConnectionCapabilities(BaseModel):
     # in ``model_catalog.py`` and the ``/inspect`` payload stays plain JSON.
     model_catalog: List[Dict[str, object]] = Field(default_factory=list)
     mcp: Optional[HarnessMCPCapabilities] = None
+
+    @model_validator(mode="after")
+    def _derive_default_models(self) -> "HarnessConnectionCapabilities":
+        if not self.default_models:
+            self.default_models = _harness_default_models(
+                providers=self.providers,
+                models=self.models,
+                model_catalog=self.model_catalog,
+            )
+        return self
 
 
 HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
@@ -239,6 +401,19 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         model_selection="alias",
         models={"anthropic": list(CLAUDE_MODEL_ALIASES)},
         model_catalog=_model_catalog("claude"),
+        mcp=HarnessMCPCapabilities(
+            user_servers=UserMCPServerCapabilities(),
+        ),
+    ),
+    # Codex reaches OpenAI through managed direct connections and self_managed subscription OAuth
+    # via the mounted CODEX_HOME login. It accepts user HTTP MCP servers like Claude.
+    "codex": HarnessConnectionCapabilities(
+        providers=["openai"],
+        deployments=["direct"],
+        connection_modes=list(_ALL_MODES),
+        model_selection="provider/id",
+        models={"openai": list(CODEX_MODELS)},
+        model_catalog=_model_catalog("codex"),
         mcp=HarnessMCPCapabilities(
             user_servers=UserMCPServerCapabilities(),
         ),

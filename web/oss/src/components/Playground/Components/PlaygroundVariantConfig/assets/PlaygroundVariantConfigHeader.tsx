@@ -10,13 +10,14 @@ import {
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
-import {DraftTag} from "@agenta/ui/components"
+import {Tag} from "@agenta/ui/components"
 import {MoreOutlined} from "@ant-design/icons"
-import {Trash} from "@phosphor-icons/react"
+import {CaretDoubleLeft, Trash} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {configPanelCollapsedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {currentWorkflowContextAtom, playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
@@ -31,7 +32,8 @@ const PlaygroundVariantHeaderMenu = dynamic(
     {
         ssr: false,
         // Reserve the kebab's 32px footprint while the chunk loads so it doesn't pop in and
-        // shift Commit/Deploy leftward on the (skeletonized) agent config header.
+        // shift Commit leftward. Classic (non-agent) header only — agents show the collapse
+        // control instead, which isn't lazy-loaded.
         loading: () => <Button type="text" icon={<MoreOutlined size={14} />} disabled />,
     },
 )
@@ -115,6 +117,13 @@ const PlaygroundVariantConfigHeader = ({
     ).isPending
     const showAgentHeader = isAgentEffective || variantQueryPending
 
+    // Agent playgrounds swap the kebab menu for a collapse control (the kebab's only other item,
+    // Revert Changes, moved to the Draft tag in the page header).
+    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const handleCollapseConfigPanel = useCallback(() => {
+        setConfigPanelCollapsed(true)
+    }, [setConfigPanelCollapsed])
+
     // Deployment info: look up which environments this revision is deployed to
     // Local drafts have no deployments
     const deploymentEntityId = (runnableData?.id as string) || ""
@@ -187,12 +196,11 @@ const PlaygroundVariantConfigHeader = ({
     return (
         <section
             className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 ${
-                // Agent config below is a borderless summary, so the bar needs to read as a header.
-                // Give it a subtly tinted surface (vs the plain content): an opaque container base
-                // (background-color) with the translucent fill layered on top (background-image), so
-                // this sticky header stays opaque and scrolled content can't bleed through it.
+                // Agent config below is a borderless summary, so the bar needs to read as a header:
+                // one step darker than the panel body it heads. Opaque, so this sticky header can't
+                // let scrolled content bleed through it.
                 showAgentHeader && !embedded
-                    ? "bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))]"
+                    ? "bg-[var(--ag-surface-section-header)]"
                     : "bg-[var(--ag-c-FFFFFF)]"
             } ${className ?? ""}`}
             {...divProps}
@@ -220,7 +228,7 @@ const PlaygroundVariantConfigHeader = ({
                         {/* Local draft: show Draft tag then source revision info */}
                         {isLocalDraftVariant && (
                             <div className="flex items-center gap-2 min-w-0">
-                                <DraftTag />
+                                <Tag draft />
                                 {variantRevision !== null && variantRevision !== undefined && (
                                     <span className="text-gray-500 whitespace-nowrap truncate min-w-0">
                                         from {rawVariantName} v{variantRevision}
@@ -296,7 +304,10 @@ const PlaygroundVariantConfigHeader = ({
                     </>
                 ) : (
                     <>
-                        {!embedded && !isEvaluatorEntity && !isAgentEffective && (
+                        {/* Agent playgrounds don't deploy — Commit is the only publish action
+                            there. showAgentHeader also covers the loading window, so Deploy
+                            can't flash before agent-ness resolves. */}
+                        {!embedded && !isEvaluatorEntity && !showAgentHeader && (
                             <DeployVariantButton revisionId={variantId} />
                         )}
 
@@ -308,7 +319,20 @@ const PlaygroundVariantConfigHeader = ({
                             data-tour="commit-button"
                         />
 
-                        {!embedded && <PlaygroundVariantHeaderMenu variantId={variantId} />}
+                        {!embedded &&
+                            (showAgentHeader ? (
+                                <Tooltip title="Hide configuration">
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        aria-label="Hide configuration"
+                                        icon={<CaretDoubleLeft size={14} />}
+                                        onClick={handleCollapseConfigPanel}
+                                    />
+                                </Tooltip>
+                            ) : (
+                                <PlaygroundVariantHeaderMenu variantId={variantId} />
+                            ))}
                     </>
                 )}
             </div>
