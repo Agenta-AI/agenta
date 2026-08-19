@@ -902,6 +902,19 @@ export const fullResultByRowEntityAtomFamily = ((param: RowEntityKey) => {
 // ============================================================================
 
 /**
+ * Parse a package result key of the form "stepId:sess:entityId" into its parts.
+ * Returns null when the key does not contain ":sess:".
+ */
+export function parseSessionResultKey(key: string): {stepId: string; entityId: string} | null {
+    const sepIdx = key.indexOf(":sess:")
+    if (sepIdx === -1) return null
+    return {
+        stepId: key.slice(0, sepIdx),
+        entityId: key.slice(sepIdx + 6),
+    }
+}
+
+/**
  * Derived run status map keyed by `${rowId}:${entityId}`.
  *
  * Reads all results for the current loadable and reformats the package key
@@ -918,12 +931,9 @@ export const runStatusByRowEntityAtom = selectAtom(
         const all = get(resultsByKeyAtomFamily(loadableId))
         const mapped: Record<string, {isRunning?: string | false; resultHash?: string | null}> = {}
         for (const [key, result] of Object.entries(all)) {
-            // Package key format: "stepId:sess:entityId"
-            const sepIdx = key.indexOf(":sess:")
-            if (sepIdx === -1) continue
-            const stepId = key.slice(0, sepIdx)
-            // ":sess:" is 6 characters; +5 was off-by-one (left a leading ":").
-            const entityId = key.slice(sepIdx + 6)
+            const parsed = parseSessionResultKey(key)
+            if (!parsed) continue
+            const {stepId, entityId} = parsed
             const status = result?.status
             const isRunning = status === "running" || status === "pending"
             mapped[`${stepId}:${entityId}`] = {

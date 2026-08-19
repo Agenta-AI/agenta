@@ -25,6 +25,7 @@
 import {describe, expect, it} from "vitest"
 
 import {extractLogicalRowId} from "../../src/state/execution/webWorkerIntegration"
+import {parseSessionResultKey} from "../../src/state/execution/selectors"
 
 // ── extractLogicalRowId (Bug 1 fix) ─────────────────────────────────────────
 
@@ -69,40 +70,31 @@ describe("extractLogicalRowId", () => {
 // `runStatusByRowEntityAtom` parses keys of the form "stepId:sess:entityId".
 // The separator ":sess:" is 6 characters; the old code used `sepIdx + 5`,
 // leaving a leading ":" on the entityId and producing a malformed map key.
-// We test the parsing logic directly here as a pure string operation.
-
-function parseResultKey(key: string): {stepId: string; entityId: string} | null {
-    const sepIdx = key.indexOf(":sess:")
-    if (sepIdx === -1) return null
-    return {
-        stepId: key.slice(0, sepIdx),
-        // fixed: was sepIdx + 5 (off-by-one)
-        entityId: key.slice(sepIdx + 6),
-    }
-}
+// We exercise the exported `parseSessionResultKey` utility from selectors so
+// regressions in the production atom are actually caught.
 
 describe("resultsByKey entity extraction (sepIdx + 6)", () => {
     it("extracts stepId and entityId from a well-formed result key", () => {
-        expect(parseResultKey("msg-abc:sess:entity123")).toEqual({
+        expect(parseSessionResultKey("msg-abc:sess:entity123")).toEqual({
             stepId: "msg-abc",
             entityId: "entity123",
         })
     })
 
     it("handles a UUID entityId with hyphens", () => {
-        expect(parseResultKey("msg-abc:sess:a1b2-c3d4-e5f6")).toEqual({
+        expect(parseSessionResultKey("msg-abc:sess:a1b2-c3d4-e5f6")).toEqual({
             stepId: "msg-abc",
             entityId: "a1b2-c3d4-e5f6",
         })
     })
 
     it("returns null when the key has no :sess: segment", () => {
-        expect(parseResultKey("msg-abc:entity123")).toBeNull()
+        expect(parseSessionResultKey("msg-abc:entity123")).toBeNull()
     })
 
     it("produces a map key that matches the UI-side lookup", () => {
         const key = "msg-abc:sess:entity123"
-        const parsed = parseResultKey(key)!
+        const parsed = parseSessionResultKey(key)!
         const mapKey = `${parsed.stepId}:${parsed.entityId}`
         // The UI (TurnMessageAdapter) looks up by `"${rowId}:${entityId}"`.
         expect(mapKey).toBe("msg-abc:entity123")
@@ -117,31 +109,24 @@ describe("resultsByKey entity extraction (sepIdx + 6)", () => {
 // flatById[compoundId] is always undefined, so the fallback fired and returned
 // the LAST shared user message -- causing every turn to collide on that key.
 
-function extractLogicalFromRowId(rowId: string): string {
-    const msgIndex = rowId.indexOf("-msg-")
-    const ltIndex = rowId.indexOf("-lt-")
-    const sepIndex = msgIndex >= 0 ? msgIndex : ltIndex
-    return sepIndex >= 0 ? rowId.slice(sepIndex + 1) : rowId
-}
-
 describe("handleExecutionResultAtom logical rowId extraction", () => {
     it("returns a plain msg-<uuid> rowId unchanged", () => {
-        expect(extractLogicalFromRowId("msg-abc123")).toBe("msg-abc123")
+        expect(extractLogicalRowId("msg-abc123")).toBe("msg-abc123")
     })
 
     it("extracts the msg-<uuid> logical ID from a comparison-mode compound rowId", () => {
-        expect(extractLogicalFromRowId("turn-rev1-msg-abc123")).toBe("msg-abc123")
+        expect(extractLogicalRowId("turn-rev1-msg-abc123")).toBe("msg-abc123")
     })
 
     it("extracts the lt-<id> logical ID from a legacy comparison-mode compound rowId", () => {
-        expect(extractLogicalFromRowId("turn-rev1-lt-old-id")).toBe("lt-old-id")
+        expect(extractLogicalRowId("turn-rev1-lt-old-id")).toBe("lt-old-id")
     })
 
     it("handles a UUID entity ID with hyphens", () => {
-        expect(extractLogicalFromRowId("turn-a1b2-c3d4-msg-000-beef")).toBe("msg-000-beef")
+        expect(extractLogicalRowId("turn-a1b2-c3d4-msg-000-beef")).toBe("msg-000-beef")
     })
 
     it("returns the rowId unchanged when no sentinel is present", () => {
-        expect(extractLogicalFromRowId("step-abc")).toBe("step-abc")
+        expect(extractLogicalRowId("step-abc")).toBe("step-abc")
     })
 })
