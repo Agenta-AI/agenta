@@ -42,8 +42,8 @@ const CAPTION_CLASS =
 /** px-[3px] + the card's 1px border + ROW_CLASS's px-2 = 12px, the nav rows' icon column. */
 const PANEL_CLASS = "flex flex-col px-[3px] py-1"
 
-/** Capping the list keeps the actions below it on screen; 224px is 7 rows, 40vh wins on short viewports. */
-const SCROLL_LIST_CLASS = "flex max-h-[min(40vh,224px)] flex-col overflow-y-auto"
+/** Capping the list at 7 rows keeps the actions below it on screen. */
+const SCROLL_LIST_CLASS = "flex max-h-56 flex-col overflow-y-auto"
 
 const Row = ({
     onClick,
