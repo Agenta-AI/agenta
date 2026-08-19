@@ -1310,6 +1310,36 @@ div[class*="docSidebarContainer"] {
   display: block;
 }
 
+/* Skeleton behind a Stream while its player boots. streamSkeleton.ts flips the wrapper to
+   "loaded" on the iframe's load event, which drops the shimmer and stops the animation. */
+[data-stream-state="loading"] {
+  border-radius: 8px;
+  background-color: var(--ifm-color-emphasis-200);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--ifm-color-emphasis-100) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: ag-stream-skeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes ag-stream-skeleton {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-stream-state="loading"] {
+    animation: none;
+  }
+}
+
 .markdown img {
   margin-bottom: 24px;
 }
