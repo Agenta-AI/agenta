@@ -13,6 +13,7 @@ from agenta.sdk.agents.tools import (
     coerce_tool_configs,
     GatewayToolConfig,
     GatewayToolResolution,
+    GatewayToolResolutionError,
     MissingSecretPolicy,
     MissingToolSecretError,
     PlatformToolConfig,
@@ -164,6 +165,71 @@ async def test_gateway_metadata_survives_resolution():
     )
     spec = resolved.tool_specs[0]
     assert spec.render == {"kind": "component", "component": "User"}
+
+
+class PartialGatewayResolver(FakeGatewayResolver):
+    """Resolves like the fake, but raises for any tool whose action is in ``dead_actions``.
+
+    Models the platform ``/tools/resolve`` 404 for a Composio action that has left the
+    catalog. Because the resolver is now called once per tool, one dead action fails only
+    its own resolution.
+    """
+
+    def __init__(self, dead_actions: Sequence[str]):
+        self.dead_actions = set(dead_actions)
+
+    async def resolve(
+        self,
+        tools: Sequence[GatewayToolConfig],
+    ) -> GatewayToolResolution:
+        for tool in tools:
+            if tool.action in self.dead_actions:
+                raise GatewayToolResolutionError(
+                    f"Gateway tool resolution failed: Action not found: "
+                    f"composio/{tool.integration}/{tool.action} (HTTP 404)",
+                    status=404,
+                )
+        return await super().resolve(tools)
+
+
+async def test_one_dead_gateway_tool_is_dropped_and_the_rest_resolve(caplog):
+    # A gateway agent with two Composio tools where one action 404s must not brick the run:
+    # the good tool resolves, the dead one is dropped with a warning that names it.
+    resolver = ToolResolver(
+        gateway_resolver=PartialGatewayResolver(dead_actions=["COMMIT_MULTIPLE_FILES"])
+    )
+    with caplog.at_level("WARNING"):
+        resolved = await resolver.resolve(
+            [
+                GatewayToolConfig(
+                    integration="github", action="GET_USER", connection="c1"
+                ),
+                GatewayToolConfig(
+                    integration="github",
+                    action="COMMIT_MULTIPLE_FILES",
+                    connection="c1",
+                ),
+            ]
+        )
+
+    names = [spec.name for spec in resolved.tool_specs]
+    assert names == ["github__GET_USER"]  # the good tool survived; the dead one is gone
+
+    assert len(resolved.warnings) == 1
+    warning = resolved.warnings[0]
+    # The warning names the dropped tool (by its reference) and carries the backend's 404 reason.
+    assert "tools.composio.github.COMMIT_MULTIPLE_FILES.c1" in warning
+    assert "Action not found: composio/github/COMMIT_MULTIPLE_FILES" in warning
+    # And it is also emitted to the logs, so a degraded resolution is never silent.
+    assert any("COMMIT_MULTIPLE_FILES" in r.message for r in caplog.records)
+
+
+async def test_a_clean_gateway_resolution_carries_no_warnings():
+    resolved = await ToolResolver(gateway_resolver=FakeGatewayResolver()).resolve(
+        [GatewayToolConfig(integration="github", action="GET_USER", connection="c1")]
+    )
+    assert resolved.warnings == []
+    assert [spec.name for spec in resolved.tool_specs] == ["github__GET_USER"]
 
 
 async def test_authored_permission_lands_on_resolved_code_spec_wire():

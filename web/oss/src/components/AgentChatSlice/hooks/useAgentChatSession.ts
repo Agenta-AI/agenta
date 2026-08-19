@@ -2,7 +2,9 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     commandSessionStream,
+    invalidateSessionListQueries,
     killSession,
+    recordInteractionAnswerAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -25,8 +27,11 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {AgentChatTransport} from "../assets/AgentChatTransport"
+import {buildRequestWithinDeadline} from "../assets/boundedRequest"
+import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
+import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
@@ -38,10 +43,12 @@ import {
     stampMessagesCreatedAtAtom,
 } from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
+import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"
 import {useSessionHydration} from "./useSessionHydration"
+import {useToolCacheInvalidation} from "./useToolCacheInvalidation"
 
 /**
  * The chat stream for one session tab: transport, `useChat`, and every side effect that belongs to
@@ -110,14 +117,14 @@ export const useAgentChatSession = ({
             new AgentChatTransport({
                 api: "",
                 prepareSendMessagesRequest: async ({messages, id}) => {
-                    const req = await buildAgentRequest(entityIdRef.current, messages, {
-                        sessionId: id ?? sessionId,
-                    })
-                    if (!req) {
-                        throw new Error(
-                            "This agent workflow has no invocation URL — it can’t be run yet.",
-                        )
-                    }
+                    // Bounded: retries while the invocation URL is still loading and rejects if
+                    // the build hangs, so a failed send surfaces as an error bubble instead of an
+                    // eternal spinner (#6042).
+                    const req = await buildRequestWithinDeadline(() =>
+                        buildAgentRequest(entityIdRef.current, messages, {
+                            sessionId: id ?? sessionId,
+                        }),
+                    )
                     captureRef.current(buildTurnCapture(req, generateId(), Date.now()))
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
@@ -127,8 +134,11 @@ export const useAgentChatSession = ({
 
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
+    const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
+    const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
 
     const {
         messages,
@@ -147,6 +157,10 @@ export const useAgentChatSession = ({
         // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
         // render per token; caps commit frequency independently of the per-commit memo win.
         experimental_throttle: 50,
+        onData: (part) => {
+            const label = startupLabelFromDataPart(part)
+            if (label) setTurnStartupLabel(sessionId, label)
+        },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
         sendAutomaticallyWhen: ({messages}) => {
@@ -162,12 +176,24 @@ export const useAgentChatSession = ({
         // (historical traces get no such grace; a 404 there means the trace is gone).
         // A finished turn may also have written files: mark the session's drive data stale so
         // every mount surface (open or opened later) refetches — no live channel exists for this.
+        // Liveness too: nothing else invalidates it at turn end, so the project-wide poll's cached
+        // `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch immediately —
+        // the runner awaits its `is_running: false` heartbeat BEFORE closing this stream
+        // (services/runner/src/server.ts `aliveWatchdog.release()`), so the flag is already cleared.
         onFinish: ({message}) => {
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+            // The first turn is what creates the durable session row; every later one changes its
+            // title/preview/activity. Nothing else tells the session lists, so they discovered a
+            // brand-new session only on their next poll or window refocus.
+            invalidateSessionListQueries()
         },
         onError: (err) => {
+            // A failed stream never dispatches the pending resume, so drop the marker: leaving it
+            // set freezes records adoption for this mount and can resume a stale gate much later.
+            liveGateInteractionRef.current = null
             // Render the error in-chat (the `error` alert below); swallow it here so an
             // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).
             console.warn("[AgentChatPanel] useChat error (rendered in-chat):", err)
@@ -187,6 +213,9 @@ export const useAgentChatSession = ({
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
     useFileActivityDetector({sessionId, messages})
 
+    // Server-side platform ops (create_schedule, …) stale the client cache with no other signal.
+    useToolCacheInvalidation({sessionId, messages})
+
     const {isHydrating, hydratedEmpty, runningElsewhere} = useSessionHydration({
         sessionId,
         initialMessages,
@@ -199,6 +228,7 @@ export const useAgentChatSession = ({
         setMessages,
         persistMessages,
         intent,
+        pendingResumeRef: liveGateInteractionRef,
     })
 
     // A decision made in THIS mount marks the resume as live — a restored approval-requested tail
@@ -213,23 +243,42 @@ export const useAgentChatSession = ({
     // is by id — so a cast onto the untyped UIMessage tool map is safe.
     const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
         ({toolName, toolCallId, output, errorText}) => {
+            // Set synchronously: it holds off transcript adoption for the whole ordered window.
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
-            if (errorText !== undefined) {
-                addToolOutput({
-                    state: "output-error",
-                    tool: toolName as never,
-                    toolCallId,
-                    errorText,
-                }).catch(ignoreStreamRejection)
-            } else {
-                addToolOutput({
-                    tool: toolName as never,
-                    toolCallId,
-                    output: (output ?? {}) as never,
-                }).catch(ignoreStreamRejection)
-            }
+            // Ordered, not raced — the resume starts a turn whose sweep cancels every `pending`
+            // row, so the answer has to be durable first. Capped inside the helper.
+            void recordAnswerThenResume({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId,
+                        resolution: {
+                            tool_call_id: toolCallId,
+                            tool_name: toolName,
+                            ...(errorText !== undefined
+                                ? {outcome: "error", error: errorText}
+                                : {outcome: "completed", output: output ?? {}}),
+                        },
+                    }),
+                resume: () => {
+                    if (errorText !== undefined) {
+                        addToolOutput({
+                            state: "output-error",
+                            tool: toolName as never,
+                            toolCallId,
+                            errorText,
+                        }).catch(ignoreStreamRejection)
+                    } else {
+                        addToolOutput({
+                            tool: toolName as never,
+                            toolCallId,
+                            output: (output ?? {}) as never,
+                        }).catch(ignoreStreamRejection)
+                    }
+                },
+            })
         },
-        [addToolOutput],
+        [addToolOutput, recordInteractionAnswer, sessionId],
     )
 
     // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
@@ -292,6 +341,21 @@ export const useAgentChatSession = ({
         if (status === "streaming") return
         persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
     }, [messages, status, sessionId, persistMessages])
+
+    // ── #6047 startup states: one label per in-flight turn ──
+    const clearTurnClock = useSetAtom(clearTurnClockAtom)
+    useEffect(() => {
+        // Until the runner reports an observed startup boundary, both cold and warm turns use dots.
+        if (status === "submitted") {
+            clearTurnClock(sessionId)
+            return
+        }
+        // `streaming` is the same turn continuing — leave its clock alone.
+        if (status === "streaming") return
+        // Every terminal path lands here — answered, errored, and stopped all leave these two
+        // states — so a failed or cancelled run can't strand a stale startup label.
+        clearTurnClock(sessionId)
+    }, [status, sessionId, setTurnStartupLabel, clearTurnClock])
 
     // Bound the in-message expand-state store: on settle, drop entries whose owning message is gone
     // (rewound / evicted / closed). Live = every open session's persisted messages ∪ this active one.
@@ -360,10 +424,12 @@ export const useAgentChatSession = ({
     }, [messages])
 
     const projectId = useAtomValue(projectIdAtom)
-    const queryClient = useQueryClient()
 
     const handleStop = useCallback(() => {
         markStopped()
+        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
+        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
+        liveGateInteractionRef.current = null
         stop() // abort the client stream immediately
         if (!projectId || !sessionId) return
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
@@ -390,11 +456,14 @@ export const useAgentChatSession = ({
     // ── D9 teardown: abort the in-flight stream on unmount (tab close / revision swap) ──
     // Keyed on sessionId: closing a tab or swapping the revision unmounts this conversation
     // and should tear down its stream.
+    // The clock goes with it: a turn torn down mid-flight leaves an entry no one clears, and a
+    // later remount would then read a start time from a turn that is long gone.
     useEffect(() => {
         return () => {
             stop()
+            clearTurnClock(sessionId)
         }
-    }, [sessionId, stop])
+    }, [sessionId, stop, clearTurnClock])
 
     // After each commit, mark on-screen messages as seen so they don't re-animate on later renders
     // (e.g. streaming tokens). Done in an effect, not during render, so StrictMode's double invoke

@@ -21,7 +21,7 @@ export const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => v
             <span className="w-full truncate text-center font-mono text-xs" title={node.path}>
                 {node.name}
             </span>
-            <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
+            <span className="w-full truncate text-center text-xs text-colorTextTertiary">
                 {count} item{count === 1 ? "" : "s"}
             </span>
         </button>

@@ -111,11 +111,11 @@ export function Alert({
                 {message != null ? (
                     <div
                         data-slot="alert-title"
-                        // antd: with a description the title grows to fontSizeLG (14px), not bold.
-                        // leading ratio 1.6667 = antd's 23.33px line-height (field-lg ships 1.5714).
+                        // antd: with a description the title grows to fontSizeLG (16px), not bold.
+                        // leading ratio 1.4286 = antd's 22.86px line-height (field-lg ships 1.5).
                         className={cn(
                             hasDescription &&
-                                "mb-2 block text-field-lg leading-[1.6666666666666667]",
+                                "mb-2 block text-field-lg leading-[1.4285714285714286]",
                         )}
                     >
                         {message}

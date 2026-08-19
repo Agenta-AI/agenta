@@ -32,6 +32,7 @@ import {
     getMessageUsage,
     type MessageUsageMetrics,
 } from "../assets/trace"
+import {useStartupPhase} from "../hooks/useStartupPhase"
 import {
     errorKey,
     expandedValueAtomFamily,
@@ -44,6 +45,7 @@ import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/session
 import AudioPlayer from "./AudioPlayer"
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
+import {StartupActivity} from "./TurnActivity"
 
 const {Text} = Typography
 
@@ -60,7 +62,7 @@ const MessageTimestamp = ({createdAt}: {createdAt: number}) => {
     useAtomValue(nowTickAtom)
     return (
         <Tooltip title={new Date(createdAt).toLocaleString()}>
-            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-[11px] text-colorTextTertiary">
+            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-xs text-colorTextTertiary">
                 <Clock size={12} />
                 {timeAgo(createdAt)}
             </span>
@@ -198,7 +200,7 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <Text className="!text-xs !font-medium !text-colorError">The agent run failed</Text>
                 {big && expanded ? (
-                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-[11px] !text-colorErrorText">
+                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
                         {text}
                     </pre>
                 ) : (
@@ -216,7 +218,7 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
                         type="button"
                         onClick={() => setExpanded({key: stateKey, value: !expanded})}
                         aria-expanded={expanded}
-                        className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-[11px] font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
+                        className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-xs font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
                     >
                         {expanded ? "Show less" : "Show more"}
                     </button>
@@ -229,6 +231,28 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
 const avatarFor = (isUser: boolean) => (
     <Avatar size="small" icon={isUser ? <User size={16} /> : <Robot size={16} />} />
 )
+
+/** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
+ * turn, not once per message in the transcript. */
+const PendingTurn = ({sessionId}: {sessionId: string}) => {
+    const startupPhase = useStartupPhase(sessionId)
+    return startupPhase ? (
+        <Bubble
+            placement="start"
+            variant="borderless"
+            avatar={avatarFor(false)}
+            content={<StartupActivity label={startupPhase} />}
+        />
+    ) : (
+        <Bubble
+            placement="start"
+            variant="borderless"
+            avatar={avatarFor(false)}
+            loading
+            content=""
+        />
+    )
+}
 
 const triggerDownload = (href: string, name: string) => {
     const link = document.createElement("a")
@@ -458,15 +482,7 @@ const AgentMessage = ({
 
     // Only the message being generated shows the loading state, and only until it has content.
     if (!isUser && isStreaming && !hasContent) {
-        return (
-            <Bubble
-                placement="start"
-                variant="borderless"
-                avatar={avatarFor(false)}
-                loading
-                content=""
-            />
-        )
+        return <PendingTurn sessionId={sessionId} />
     }
 
     // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts
@@ -571,7 +587,7 @@ const AgentMessage = ({
 
             {sources.length > 0 && (
                 <div className="flex flex-col gap-0.5 pt-1">
-                    <Text type="secondary" className="!text-[11px] uppercase tracking-wide">
+                    <Text type="secondary" className="!text-xs uppercase tracking-wide">
                         Sources
                     </Text>
                     {sources.map((s, i) => (
@@ -693,9 +709,11 @@ const AgentMessage = ({
     // to the reserved lane (`pb-7`) at the row's bottom. The row is a flex that justifies the
     // (width-capped) bubble to its side, so the opposite side keeps whitespace — agent bubbles hug
     // the left, user bubbles the right, neither spans the full column.
+    // `ag-turn` is the hook the transcript's bottom fade watches (see BOTTOM_FADE_OVERLAY_STYLE):
+    // it drops the fade while this row is hovered/focused, so the revealed toolbar can't be washed.
     return (
         <div
-            className={`group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
+            className={`ag-turn group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
         >
             <Bubble<React.ReactNode>
                 placement={isUser ? "end" : "start"}

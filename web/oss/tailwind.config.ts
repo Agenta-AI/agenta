@@ -2,9 +2,9 @@ import {theme} from "antd"
 import type {Config} from "tailwindcss"
 import colors from "tailwindcss/colors"
 
-import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
 import {controlScale} from "./src/styles/theme/controlScale"
 import {shadcnTokens} from "./src/styles/theme/shadcnTokens"
+import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
 const token = theme.getDesignToken()
 
 // Theme-aware colors backed by CSS variables defined in styles/theme-variables.css.
@@ -114,6 +114,7 @@ const themeAwareColors = {
     colorPrimaryText: v("colorPrimaryText"),
     colorSuccess: v("colorSuccess"),
     colorWarning: v("colorWarning"),
+    colorWarningBg: v("colorWarningBg"),
     colorWarningBorder: v("colorWarningBorder"),
     colorWarningText: v("colorWarningText"),
     colorErrorText: v("colorErrorText"),
@@ -143,6 +144,7 @@ export const createConfig = (content: string[] = []): Config => {
             "../packages/agenta-entities/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-sessions-ui/src/**/*.{js,ts,jsx,tsx}",
             ...content,
         ],
         theme: {
@@ -270,6 +272,8 @@ export const createConfig = (content: string[] = []): Config => {
                     ...controlScale.borderRadius,
                 },
                 fontSize: {
+                    // `secondary` step of the type scale. `sm` stays stock 14/20 (`body`).
+                    xs: ["13px", {lineHeight: "18px"}],
                     "tremor-label": ["0.75rem", {lineHeight: "1rem"}],
                     "tremor-default": ["0.875rem", {lineHeight: "1.25rem"}],
                     "tremor-title": ["1.125rem", {lineHeight: "1.75rem"}],
@@ -349,11 +353,30 @@ export const createConfig = (content: string[] = []): Config => {
                         "0%": {maskPosition: "180% 0", WebkitMaskPosition: "180% 0"},
                         "100%": {maskPosition: "-80% 0", WebkitMaskPosition: "-80% 0"},
                     },
+                    // Agent startup label (#6047).
+                    "text-shimmer": {
+                        "0%": {backgroundPosition: "120% 0"},
+                        "100%": {backgroundPosition: "-120% 0"},
+                    },
+                    // The `/` palette's pickers, docked above the composer they grow out of.
+                    // Shallower than `dialog-in` (0.9): these span the composer, where a 10% scale
+                    // reads as a lurch rather than a zoom.
+                    "command-panel-in": {
+                        from: {opacity: "0", transform: "scale(0.98) translateY(4px)"},
+                        to: {opacity: "1", transform: "scale(1) translateY(0)"},
+                    },
+                    // Reduced-motion partner for the entrance above.
+                    "command-panel-fade": {from: {opacity: "0"}, to: {opacity: "1"}},
+                    // Crossfade for content swapped inside an open panel. Starts partway, not at
+                    // 0: it is re-keyed per swap, so a restart from 0 would blank the pane when
+                    // clicked faster than the fade.
+                    "command-panel-swap": {from: {opacity: "0.4"}, to: {opacity: "1"}},
                 },
                 animation: {
                     skeleton: "skeleton 1.4s ease infinite",
                     // 2 sweeps then hold off-screen (forwards) so it ends invisibly.
                     "config-shimmer": "config-shimmer 1.8s ease-in-out 2 forwards",
+                    "text-shimmer": "text-shimmer 2.4s linear infinite",
                     // antd motionDurationMid (0.2s) + motionEaseInOut bezier.
                     "accordion-down": "accordion-down 0.2s cubic-bezier(0.645,0.045,0.355,1)",
                     "accordion-up": "accordion-up 0.2s cubic-bezier(0.645,0.045,0.355,1)",
@@ -373,6 +396,11 @@ export const createConfig = (content: string[] = []): Config => {
                     "sheet-out-bottom": "sheet-out-bottom 0.3s cubic-bezier(0.755,0.05,0.855,0.06)",
                     // antd Spin: 1s linear infinite alternate, dots staggered by animation-delay.
                     "spin-move": "spin-move 1s linear infinite alternate",
+                    // Picker panels: 0.2s sits in the dropdown budget; easeOutQuint is the same
+                    // curve the drawer slides on, so docked surfaces share one deceleration.
+                    "command-panel-in": "command-panel-in 0.2s cubic-bezier(0.23,1,0.32,1)",
+                    "command-panel-fade": "command-panel-fade 0.2s cubic-bezier(0.23,1,0.32,1)",
+                    "command-panel-swap": "command-panel-swap 0.12s cubic-bezier(0.23,1,0.32,1)",
                 },
             },
         },

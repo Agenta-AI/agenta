@@ -203,10 +203,15 @@ export {
     NumberedStep,
     PanelFooter,
     ModalContentLayout,
+    PanelSurface,
+    PanelScroll,
+    PanelSection,
+    PANEL_ACTION_CLASS,
     type SplitPanelLayoutProps,
     type NumberedStepProps,
     type PanelFooterProps,
     type ModalContentLayoutProps,
+    type PanelSectionProps,
 } from "./layout"
 
 // ============================================================================

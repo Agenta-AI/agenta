@@ -54,3 +54,14 @@ export const formatDay = ({
     const direct = dayjs.utc(date)
     return direct.isValid() ? direct.format(outputFormat) : ""
 }
+
+/**
+ * A UTC range bound for the analytics/trace queries, truncated to seconds.
+ *
+ * The trailing `Z` is not cosmetic: these strings are re-parsed client-side with `dayjs(value)`,
+ * and a designator-less stamp is read as LOCAL time. West of UTC that pushes the window start
+ * into the future and the query throws `endTime must be greater than or equal to startTime`
+ * instead of rendering.
+ */
+export const utcRangeStamp = (date: dayjs.ConfigType): string =>
+    `${dayjs(date).utc().toISOString().split(".")[0]}Z`

@@ -1,13 +1,10 @@
 import {memo, useMemo} from "react"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import EvaluatorMetricsSpiderChart from "../../../EvaluatorMetricsSpiderChart"
-import {
-    DEFAULT_SPIDER_SERIES_COLOR,
-    INVOCATION_METRIC_KEYS,
-    SPIDER_SERIES_COLORS,
-} from "../constants"
+import {INVOCATION_METRIC_KEYS} from "../constants"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {toBooleanPercentage} from "../utils/metrics"
 
@@ -23,6 +20,7 @@ const INVOCATION_DURATION_KEY = INVOCATION_METRIC_KEYS[1]
 const OverviewSpiderChart = ({runIds}: OverviewSpiderChartProps) => {
     const orderedRunIds = useMemo(() => runIds.filter((id): id is string => Boolean(id)), [runIds])
     const {runDescriptors, runColorMap, metricSelections} = useRunMetricData(orderedRunIds)
+    const seriesColors = useChartSeries()
 
     const chartState = useMemo(() => {
         if (!metricSelections.length || !runDescriptors.length) {
@@ -187,8 +185,8 @@ const OverviewSpiderChart = ({runIds}: OverviewSpiderChartProps) => {
             name: descriptor.displayName,
             color:
                 runColorMap.get(descriptor.runId) ??
-                SPIDER_SERIES_COLORS[index % SPIDER_SERIES_COLORS.length] ??
-                DEFAULT_SPIDER_SERIES_COLOR,
+                seriesColors[index % seriesColors.length] ??
+                seriesColors[0],
         }))
 
         const maxScore =
@@ -201,7 +199,7 @@ const OverviewSpiderChart = ({runIds}: OverviewSpiderChartProps) => {
             }, 0) || 100
 
         return {metrics, series, maxScore, loading: hasLoading}
-    }, [metricSelections, runDescriptors, runColorMap])
+    }, [metricSelections, runDescriptors, runColorMap, seriesColors])
 
     const showLoadingPlaceholder = chartState.loading
 

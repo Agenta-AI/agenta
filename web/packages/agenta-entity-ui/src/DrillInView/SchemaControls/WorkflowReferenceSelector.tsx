@@ -105,7 +105,7 @@ function ConfigPartContent({part}: {part: WorkflowConfigPart}) {
             <div className="flex max-h-[360px] max-w-prose flex-col gap-3 overflow-y-auto overscroll-contain">
                 {part.messages.map((message, i) => (
                     <div key={i} className="flex flex-col gap-1">
-                        <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-[12px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                             {capitalize(message.role)}
                         </span>
                         <div className="whitespace-pre-wrap break-words rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] px-2.5 py-2 text-xs leading-relaxed text-[var(--ag-colorText)]">
@@ -138,7 +138,7 @@ function TypeBadge({type, label}: {type: WorkflowReferenceType | undefined; labe
     return (
         <Badge
             variant={cfg.color}
-            className={`max-w-[140px] truncate px-1.5 py-0 text-[10px] leading-[18px] ${
+            className={`max-w-[140px] truncate px-1.5 py-0 text-[12px] leading-[18px] ${
                 type === "completion"
                     ? "ag-type-completion"
                     : type === "chat"
@@ -386,7 +386,7 @@ export function WorkflowReferenceSelector({
                             onValueChange={setSearch}
                             allowClear
                         />
-                        <p className="m-0 mt-2 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                        <p className="m-0 mt-2 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                             The agent calls the chosen workflow as a tool; it runs server-side and
                             returns its output.
                         </p>
@@ -438,7 +438,7 @@ export function WorkflowReferenceSelector({
                                             <span className="truncate text-xs text-[var(--ag-colorText)]">
                                                 {wf.name || wf.slug}
                                             </span>
-                                            <span className="truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                            <span className="truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
                                                 {wf.slug}
                                             </span>
                                         </span>
@@ -485,7 +485,7 @@ export function WorkflowReferenceSelector({
 
                                 {/* Exposed-as + Description: root-level fields (no section chrome),
                                     2-panel to align with the sections' [rail | content] rhythm below. */}
-                                <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] py-3">
+                                <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] py-3">
                                     <div className="box-border w-[116px] shrink-0 px-2.5 pt-1 text-xs text-[var(--ag-colorTextSecondary)]">
                                         Exposed as
                                     </div>
@@ -502,7 +502,7 @@ export function WorkflowReferenceSelector({
                                     </div>
                                 </div>
 
-                                <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] py-3">
+                                <div className="flex gap-3 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] py-3">
                                     <div className="box-border w-[116px] shrink-0 px-2.5 pt-1 text-xs text-[var(--ag-colorTextSecondary)]">
                                         Description
                                     </div>

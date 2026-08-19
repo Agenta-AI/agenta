@@ -54,6 +54,7 @@ export {
     AgentConfigSkeleton,
     AgentOperationsSections,
     AgentOperationsSkeleton,
+    InstructionsFileRow,
     preloadAgentTemplateControl,
     useDrillIn,
     type PlaygroundConfigSectionProps,

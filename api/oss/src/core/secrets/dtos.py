@@ -1,6 +1,6 @@
 from typing import Optional, Union, List, Dict, Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from oss.src.core.secrets.enums import (
     SecretKind,
@@ -21,9 +21,18 @@ class StandardProviderSettingsDTO(BaseModel):
     key: str
 
 
+class CustomModelSettingsDTO(BaseModel):
+    slug: str
+    extras: Optional[dict] = None
+
+
 class StandardProviderDTO(BaseModel):
     kind: StandardProviderKind
     provider: StandardProviderSettingsDTO
+    # A missing list means "use Agenta's default models"; an empty list is an explicit "none".
+    models: Optional[List[CustomModelSettingsDTO]] = None
+    # A missing list means "any harness Agenta supports"; a saved list narrows that set.
+    harnesses: Optional[List[str]] = None
 
 
 class CustomProviderSettingsDTO(BaseModel):
@@ -33,15 +42,11 @@ class CustomProviderSettingsDTO(BaseModel):
     extras: Optional[dict] = None
 
 
-class CustomModelSettingsDTO(BaseModel):
-    slug: str
-    extras: Optional[dict] = None
-
-
 class CustomProviderDTO(BaseModel):
     kind: CustomProviderKind
     provider: CustomProviderSettingsDTO
     models: List[CustomModelSettingsDTO]
+    harnesses: Optional[List[str]] = None
 
     # fields will be filled at runtime
     provider_slug: Optional[str] = None
@@ -118,6 +123,9 @@ class SecretDTO(BaseModel):
                 raise ValueError(
                     "The provided kind in data is not a valid StandardProviderKind enum"
                 )
+            # Both provider shapes now accept {kind, provider, models}, so the union can no
+            # longer tell them apart from the payload alone; the secret kind decides.
+            values["data"] = StandardProviderDTO.model_validate(data)
 
         elif kind == SecretKind.CUSTOM_PROVIDER.value:
             if not isinstance(data, dict):
@@ -140,6 +148,8 @@ class SecretDTO(BaseModel):
                     validate_url_format_and_literal_ip(provider_url)
                 except ValueError as exc:
                     raise ValueError(f"custom_provider.url is invalid: {exc}") from exc
+
+            values["data"] = CustomProviderDTO.model_validate(data)
         elif kind == SecretKind.SSO_PROVIDER.value:
             if not isinstance(data, dict):
                 raise ValueError(
@@ -205,6 +215,29 @@ class CreateSecretDTO(Slug, BaseModel):
     secret: SecretDTO
 
     @model_validator(mode="before")
+    def ensure_header_exists(cls, values):
+        # Only a provider_key may arrive header-less: it is named after its provider on create
+        # (see `VaultService.create_secret`). Every other kind is addressed by its name.
+        secret = values.get("secret")
+        kind = (
+            secret.get("kind")
+            if isinstance(secret, dict)
+            else getattr(secret, "kind", None)
+        )
+        if isinstance(kind, SecretKind):
+            kind = kind.value
+        if kind == SecretKind.PROVIDER_KEY.value:
+            return values
+
+        header = values.get("header")
+        if isinstance(header, BaseModel):
+            header = header.model_dump()
+        if not isinstance(header, dict) or not any(header.values()):
+            raise ValueError("Header cannot be empty.")
+
+        return values
+
+    @model_validator(mode="before")
     def ensure_payload_is_not_empty(cls, values):
         if not values.get("header") and not values.get("secret"):
             raise ValueError(
@@ -223,17 +256,6 @@ class CreateSecretDTO(Slug, BaseModel):
             ):
                 secret["data"].update({"provider_slug": header["name"]})
         return values
-
-    @field_validator("header", mode="before")
-    def ensure_header_exists(cls, value):
-        if value is not None:
-            if isinstance(value, dict) and not any(value.values()):
-                raise ValueError("Header cannot be empty.")
-            if isinstance(value, BaseModel) and all(
-                v is None for v in value.model_dump().values()
-            ):
-                raise ValueError("Header cannot contain only None values.")
-        return value
 
 
 class UpdateSecretDTO(BaseModel):

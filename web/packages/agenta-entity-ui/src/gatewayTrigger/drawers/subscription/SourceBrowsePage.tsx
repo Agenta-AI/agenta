@@ -16,22 +16,16 @@ import TriggerConnectDrawer from "../TriggerConnectDrawer"
 // section): the app rail + detail/connect chooser. The "back" affordance lives in the smart
 // drawer header (see browseHeaderAtom). Picking an event returns to the form with the source.
 export function SourceBrowsePage({
-    hidden,
     connections,
     defaultIntegrationKey,
     onPick,
 }: {
-    hidden?: boolean
     connections: TriggerConnection[]
     defaultIntegrationKey?: string
     onPick: (connectionId: string, eventKey: string) => void
 }) {
     return (
-        <div
-            className={`flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden${
-                hidden ? " hidden" : ""
-            }`}
-        >
+        <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-hidden px-6 py-4">
                 <SourceChooser
                     connections={connections}

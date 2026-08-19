@@ -322,7 +322,7 @@ function TestcaseDrawer<TData = unknown>({
                             {isNewRow ? "New Testcase" : `Testcase ${testcaseNumber ?? ""}`}
                         </span>
                         {!skipDeferredFlow && isDirty && (
-                            <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                            <span className="text-[12px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
                                 edited
                             </span>
                         )}

@@ -115,6 +115,7 @@ export interface KeepaliveEngine {
     request: AgentRunRequest,
     signal: AbortSignal | undefined,
     presignedMount: MountCredentials | null | undefined,
+    emit?: EmitEvent,
   ): Promise<
     { ok: true; env: SessionEnvironment } | { ok: false; error: string }
   >;
@@ -826,7 +827,7 @@ export async function runWithKeepalive(
     // where `reserve` would) means unmounting and deleting that cwd out from under the environment
     // just built on it. That is the original bug in a narrower window, so the claim happens here.
     await pool.evict(key, "pre-acquire", "failed-turn");
-    const acq = await engine.acquireEnvironment(request, signal, signed);
+    const acq = await engine.acquireEnvironment(request, signal, signed, trackedEmit);
     if (!acq.ok) return { ok: false, error: acq.error };
     const env = acq.env;
     const leaseMs = installedMountLease(env.installedMountExpiries);

@@ -25,4 +25,9 @@ export {
 export {triggerSubscriptionQueryAtomFamily, useTriggerSubscription} from "./useTriggerSubscription"
 export {triggerSchedulesQueryAtom, useTriggerSchedules} from "./useTriggerSchedules"
 export {triggerScheduleQueryAtomFamily, useTriggerSchedule} from "./useTriggerSchedule"
-export {triggerDeliveriesAtomFamily, useTriggerDeliveries} from "./useTriggerDeliveries"
+export {
+    triggerDeliveriesAtomFamily,
+    triggerDeliveryQueryAtomFamily,
+    useTriggerDeliveries,
+    useTriggerDelivery,
+} from "./useTriggerDeliveries"

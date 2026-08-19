@@ -357,6 +357,9 @@ dependencies = [
     "pydantic>=2,<3",
 ]
 
+[dependency-groups]
+dev = ["pytest>=8,<9"]
+
 [tool.uv.build-backend]
 module-name = "agenta_client"
 module-root = ""

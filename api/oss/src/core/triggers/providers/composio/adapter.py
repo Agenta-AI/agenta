@@ -238,6 +238,14 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
     ) -> None:
         try:
             await self._delete(f"/trigger_instances/manage/{trigger_id}")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return
+            raise AdapterError(
+                provider_key="composio",
+                operation="delete_subscription",
+                detail=composio_error_detail(e),
+            ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",

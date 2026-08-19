@@ -619,7 +619,7 @@ const AccordionTreePanel = ({
                             >
                                 <div className="w-full flex items-start gap-1">
                                     <FileTextIcon size={16} className="shrink-0" />
-                                    <span className="text-[10px] truncate">
+                                    <span className="text-[12px] truncate">
                                         {file.filename || `File ${index + 1}`}
                                     </span>
                                 </div>
