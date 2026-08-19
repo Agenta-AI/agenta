@@ -6,6 +6,7 @@ description: "Prepare an agent for unattended runs, commit a version, and add a 
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 An automation runs an agent without anyone in the chat. Before you add a trigger, give the agent the instructions, tools, and permissions it needs to finish on its own. For the underlying concept, see [Automations](/concepts/automations).
@@ -39,12 +40,7 @@ Open `Advanced`, then the `Permissions` section, and set `Policy`:
 | `Ask` | A human approves every tool call |
 | `Deny all` | Every tool call is refused |
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/advanced-permissions-policy-options.png")}
-  alt="The Policy dropdown in the Permissions section, open on Allow reads, Allow all, Ask, and Deny all"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="043728b716bd954b6084a6fb8d247b1b" height="400px" />
 
 :::warning
 Under `Ask`, the run waits at the first tool call. Under `Allow reads`, it waits when the agent needs to write. Set permissions that let the automation finish before you attach a trigger.
