@@ -28,3 +28,23 @@ export const WaitingForInput = () => (
         Waiting for you
     </span>
 )
+
+/**
+ * The empty-turn slot during a COLD start (#6047): what the agent is doing, in words, instead of
+ * the wordless three dots that made a 15s boot read as a stalled session.
+ *
+ * Presentational only — `label` comes from `useStartupPhase`. The dots sit at the END of the line
+ * so they trail the words like an ellipsis; the shimmer is `motion-safe` and degrades to plain text.
+ */
+export const StartupActivity = ({label}: {label: string}) => (
+    <span role="status" aria-live="polite" className="flex items-end gap-2 py-0.5">
+        <span className="bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_45%,var(--ag-colorTextQuaternary)_90%)] bg-clip-text text-sm text-colorTextSecondary motion-safe:animate-text-shimmer motion-safe:bg-[length:240%_100%] motion-safe:text-transparent">
+            {label}
+        </span>
+        <span aria-hidden className="flex items-end gap-1 pb-1">
+            <span className="inline-block h-1 w-1 rounded-full bg-colorTextTertiary motion-safe:animate-pulse [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 rounded-full bg-colorTextTertiary motion-safe:animate-pulse [animation-delay:0.2s] [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 rounded-full bg-colorTextTertiary motion-safe:animate-pulse [animation-delay:0.4s] [animation-duration:1.2s]" />
+        </span>
+    </span>
+)
