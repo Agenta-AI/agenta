@@ -1370,6 +1370,54 @@ which is enough on its own to change antd's behaviour. **Unverified either way**
 comparable row count on both before it means anything. Filed as a lead because a lost
 virtualization would not show at five rows and would hurt badly at a thousand.
 
+## 4l. D-08 triaged and closed — the local stack was a migration behind
+
+`D-08` was filed as "`querySessionStreams` 500s on the local stack, needs triage" and never
+triaged. It is environmental, not a lane regression, and it invalidated more than it looked like.
+
+Arda's report: the sidebar's Sessions group shows nothing on `/apps`, but shows an agent's
+session on that agent's `/overview`. Measured rather than reasoned about:
+
+    DB   alembic_version_oss = oss000000020
+    code head                = oss000000021_add_session_streams_references
+    session_streams columns  = … no `references` …
+    -> asyncpg UndefinedColumnError: column session_streams.references does not exist
+
+Six hours of API log, by endpoint:
+
+| calls | endpoint | status |
+|---|---|---|
+| 235 | `POST /sessions/query` | 500 |
+| 84 | `POST /sessions/query` (other project) | 500 |
+| 69 | `POST /sessions/streams/heartbeat` | 500 |
+| 21 | `POST /sessions/streams/query` | 500 |
+
+So the missing column broke the **write** path too, not only the reads. The heartbeat is what
+persists a `session_streams` row, which is why the `112-QA` project holds **zero** session rows
+while 4,029 exist across older projects, and why the agent could run and produce traces without
+ever appearing in a session list. The one row the sidebar DID show on `/overview` is a
+host-local ref (`localSessionRefsAtom`), which exists precisely for sessions the server cannot
+carry yet.
+
+Applied `oss000000021` through the stack's own runner
+(`docker exec agenta-ee-dev-api-1 python -m ee.databases.postgres.migrations.runner`, the
+sanctioned path, not a hand-stamped alembic call). Additive and reversible: one nullable JSONB
+column plus a GIN `jsonb_path_ops` index. After: `alembic_version_oss = oss000000021`, the column
+and index exist, and `POST /sessions/query` returns **200**.
+
+**Still unconfirmed:** that `streams/heartbeat` now persists a row. It only fires during a live
+run, so it needs a real send. That is WP-1's first action.
+
+**What this invalidates.** Any comparison of a session-backed surface against prod made before
+this migration was comparing a broken local API to a working prod one. Prod is on 112.1 and has
+the column. The sessions list read empty for a reason that had nothing to do with the lane. Redo
+those comparisons after a run seeds real rows.
+
+**Lesson.** A 500 in the network tab was visible in this environment for hours across two
+sessions and got filed as a frontend-shaped finding ("the sidebar doesn't show project sessions").
+Check the API before attributing an empty list to the code that renders it. The existing
+"a wedged local API invents missing rows" note in §4c is the same trap wearing a different hat.
+
 ## 5. Coverage — NOT yet done
 
 This inventory is **not complete**. Untouched so far:
