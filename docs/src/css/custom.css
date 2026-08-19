@@ -1285,6 +1285,20 @@ div[class*="docSidebarContainer"] {
   border-radius: 8px;
 }
 
+/* Screenshots and Stream embeds take the same 8px corner the YouTube embeds above have.
+   IdealImage swaps an <svg> placeholder for the <img>, so both are covered, and the
+   wrapper is clipped so its blurred backdrop rounds with them. */
+.theme-doc-markdown div[style*="background-size"] {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.theme-doc-markdown img[src*="/assets/ideal-img/"],
+.theme-doc-markdown div[style*="background-size"] > svg,
+.theme-doc-markdown iframe[src*="cloudflarestream"] {
+  border-radius: 8px;
+}
+
 .markdown img {
   margin-bottom: 24px;
 }
@@ -1493,6 +1507,11 @@ h1[class*="title_"] {
 }
 
 /* Cap changelog screenshots to the same width as videos and center them. */
+.blog-wrapper .markdown iframe[src*="cloudflarestream"],
+.blog-post-page .markdown iframe[src*="cloudflarestream"] {
+  border-radius: 8px;
+}
+
 .blog-wrapper .markdown img,
 .blog-post-page .markdown img {
   display: block;
