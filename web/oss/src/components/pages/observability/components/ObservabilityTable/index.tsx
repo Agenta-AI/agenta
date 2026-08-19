@@ -154,10 +154,6 @@ const ObservabilityTable = () => {
 
     const handleTraceRowClick = useCallback(
         (record: TraceSpanNode) => {
-            console.log("[trace-drawer] 1 row click", {
-                span: record?.span_id,
-                trace: (record as any)?.trace_id,
-            })
             setSelectedNode(record.span_id)
 
             const targetTraceId = String(
@@ -189,7 +185,6 @@ const ObservabilityTable = () => {
             // which opens off `?trace=` via `syncTraceStateFromUrl` — opened and closed again as
             // the param appeared and vanished.
             requestedTraceRef.current = targetTraceId
-            console.log("[trace-drawer] 2 patchQuery", {trace: targetTraceId, span: targetSpanId})
             patchQuery({trace: targetTraceId, span: targetSpanId || undefined})
         },
         [setSelectedNode, traceTabs, setSelectedTraceId, setTraceDrawerActiveSpan, patchQuery],

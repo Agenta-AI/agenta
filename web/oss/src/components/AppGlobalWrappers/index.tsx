@@ -117,12 +117,7 @@ const executeNavigationCommand = async (command: NavigationCommand) => {
     const shallow = command.shallow ?? true
 
     if (command.type === "patch-query") {
-        console.log(
-            "[trace-drawer] 3 nav exec",
-            JSON.stringify(command.patch),
-            "from",
-            window.location.search,
-        )
+        console.log(JSON.stringify(command.patch), "from", window.location.search)
     }
 
     if (command.type === "href") {
@@ -159,9 +154,7 @@ const executeNavigationCommand = async (command: NavigationCommand) => {
         undefined,
         {shallow},
     ).then((ok) => {
-        if (command.type === "patch-query")
-            console.log("[trace-drawer] 4 nav done ok=", ok, "search=", window.location.search)
-        return ok
+        if (command.type === "patch-query") return ok
     })
 }
 

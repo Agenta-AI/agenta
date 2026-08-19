@@ -62,7 +62,6 @@ const HydrateAtoms = ({children}: PropsWithChildren) => {
         // an infinite loop that pegs the tab. (Reading `router.query` instead used to hide this
         // by being stale enough that the pushes differed; that was the previous bug.)
         if (after === before) return
-        console.log("[trace-drawer] 6 seam push", before, "->", after)
         void router.push(after, undefined, {shallow: true})
     }
     bindTraceDrawerSetQueryParam((name, value) => {
