@@ -24,6 +24,10 @@ import {useLocalStorage} from "usehooks-ts"
 
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {readLastAuthMethod} from "@/oss/components/pages/auth/assets/lastAuthMethod"
+import {
+    AgentaPasswordlessAttempt,
+    syncInitialPasswordlessAttempt,
+} from "@/oss/components/pages/auth/assets/passwordlessAttempt"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
@@ -54,8 +58,13 @@ const Auth = () => {
     const isDark = appTheme === ThemeMode.Dark
     const [isAuthLoading, setIsAuthLoading] = useState(false)
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
+    const router = useRouter()
+    const {authnEmail, authEmailEnabled, authOidcEnabled, oidcProviders} = getEffectiveAuthConfig()
+    const isPasswordlessDemo = isDemo() && authnEmail === "otp"
+    const showEmailEntry = authEmailEnabled || authOidcEnabled
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
+    const [isInitialOtpCheckLoading, setIsInitialOtpCheckLoading] = useState(isPasswordlessDemo)
     // Read once on mount (localStorage is client-only) to flip into the returning state.
     const [lastMethod, setLastMethod] = useState<string | null>(null)
     const discoveryInProgress = useRef(false)
@@ -82,10 +91,6 @@ const Auth = () => {
     }>({})
     const [discoveryComplete, setDiscoveryComplete] = useState(false)
     const [invite, setInvite] = useLocalStorage("invite", {})
-    const router = useRouter()
-    const {authnEmail, authEmailEnabled, authOidcEnabled, oidcProviders} = getEffectiveAuthConfig()
-    const isPasswordlessDemo = isDemo() && authnEmail === "otp"
-    const showEmailEntry = authEmailEnabled || authOidcEnabled
 
     const firstString = (value: string | string[] | undefined): string | undefined => {
         if (Array.isArray(value)) return value[0]
@@ -188,17 +193,35 @@ const Auth = () => {
         }
     }
 
-    // A stale attempt survives a remount, but the base info this app's custom UI persists
-    // (deviceId/preAuthSessionId/flowType) never includes the email — there's nothing to resume
-    // the OTP screen with. Clear it instead of gating isLoginCodeVisible open against a screen
-    // that can never render (#5168).
-    const hasInitialOTPBeenSent = async () => {
-        if (!isPasswordlessDemo) return
-        const attemptInfo = await getLoginAttemptInfo()
-        if (attemptInfo) {
-            await clearLoginAttemptInfo()
+    const syncAuthPasswordlessAttempt = async () => {
+        if (!isPasswordlessDemo) {
+            setIsInitialOtpCheckLoading(false)
+            return
         }
-        setIsLoginCodeVisible(false)
+
+        try {
+            const attemptState = await syncInitialPasswordlessAttempt({
+                currentApiUrl: getAgentaApiUrl(),
+                getLoginAttemptInfo: () => getLoginAttemptInfo<AgentaPasswordlessAttempt>(),
+                clearLoginAttemptInfo,
+                onError: (err) => {
+                    console.error("Failed to sync passwordless login attempt:", err)
+                },
+            })
+
+            if (attemptState.status === "resume") {
+                setEmail(attemptState.email)
+                setAvailableMethods({"email:otp": true})
+                setDiscoveryComplete(true)
+                setEmailSubmitted(true)
+                setIsLoginCodeVisible(true)
+                return
+            }
+
+            setIsLoginCodeVisible(false)
+        } finally {
+            setIsInitialOtpCheckLoading(false)
+        }
     }
 
     const parseSsoOrgSlug = (thirdPartyId?: string): string | null => {
@@ -259,7 +282,7 @@ const Auth = () => {
         // Guard against StrictMode's dev-mode double-invoke calling clearLoginAttemptInfo twice.
         if (isPasswordlessDemo && !hasCheckedInitialOTP.current) {
             hasCheckedInitialOTP.current = true
-            hasInitialOTPBeenSent()
+            syncAuthPasswordlessAttempt()
         }
     }, [])
 
@@ -271,6 +294,10 @@ const Auth = () => {
 
     // Discover available auth methods after email is submitted
     const handleEmailDiscovery = async (emailToDiscover: string) => {
+        if (isInitialOtpCheckLoading) {
+            return
+        }
+
         // Prevent duplicate calls
         if (discoveryInProgress.current) {
             console.warn("⚠️ Discovery already in progress, aborting previous request...")
@@ -369,10 +396,10 @@ const Auth = () => {
 
     // Auto-discover if email comes from query params
     useEffect(() => {
-        if (emailFromQuery && !discoveryComplete) {
+        if (emailFromQuery && !discoveryComplete && !isInitialOtpCheckLoading) {
             handleEmailDiscovery(emailFromQuery)
         }
-    }, [emailFromQuery])
+    }, [emailFromQuery, isInitialOtpCheckLoading])
 
     const oidcProviderMeta = [
         {id: "google", label: "Google", icon: <GoogleOutlined />},
@@ -517,7 +544,7 @@ const Auth = () => {
                                         <>
                                             <SocialAuth
                                                 authErrorMsg={authErrorMsg}
-                                                disabled={isAuthLoading}
+                                                disabled={isAuthLoading || isInitialOtpCheckLoading}
                                                 isLoading={isSocialAuthLoading}
                                                 setIsLoading={setIsSocialAuthLoading}
                                                 providers={[promotedProvider]}
@@ -540,7 +567,9 @@ const Auth = () => {
                                                 setEmail={setEmail}
                                                 onContinue={handleEmailContinue}
                                                 message={message}
-                                                disabled={isSocialAuthLoading}
+                                                disabled={
+                                                    isSocialAuthLoading || isInitialOtpCheckLoading
+                                                }
                                                 promoted
                                                 primary
                                             />
@@ -554,7 +583,7 @@ const Auth = () => {
                                     {socialAvailable && otherProviders.length > 0 && (
                                         <SocialAuth
                                             authErrorMsg={authErrorMsg}
-                                            disabled={isAuthLoading}
+                                            disabled={isAuthLoading || isInitialOtpCheckLoading}
                                             isLoading={isSocialAuthLoading}
                                             setIsLoading={setIsSocialAuthLoading}
                                             providers={otherProviders}
@@ -573,7 +602,9 @@ const Auth = () => {
                                                 setEmail={setEmail}
                                                 onContinue={handleEmailContinue}
                                                 message={message}
-                                                disabled={isSocialAuthLoading}
+                                                disabled={
+                                                    isSocialAuthLoading || isInitialOtpCheckLoading
+                                                }
                                                 primary={!promotedProvider}
                                             />
                                         </>
@@ -595,7 +626,9 @@ const Auth = () => {
                                             setMessage={setMessage}
                                             authErrorMsg={authErrorMsg}
                                             setIsLoginCodeVisible={setIsLoginCodeVisible}
-                                            disabled={isSocialAuthLoading}
+                                            disabled={
+                                                isSocialAuthLoading || isInitialOtpCheckLoading
+                                            }
                                             lockEmail
                                         />
                                     )}
@@ -635,7 +668,9 @@ const Auth = () => {
                                                     className="w-full"
                                                     onClick={() => redirectToSsoProvider(provider)}
                                                     loading={isSocialAuthLoading}
-                                                    disabled={isAuthLoading}
+                                                    disabled={
+                                                        isAuthLoading || isInitialOtpCheckLoading
+                                                    }
                                                 >
                                                     Continue with SSO (
                                                     {formatSsoProviderLabel(provider)})
