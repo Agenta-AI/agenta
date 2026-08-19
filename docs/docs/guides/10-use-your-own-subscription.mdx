@@ -4,6 +4,10 @@ sidebar_label: "Use your own subscription"
 description: "Use a Claude or ChatGPT subscription to run agents on a self-hosted Agenta deployment."
 ---
 
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
 On a self-hosted deployment, an agent can use your existing harness login instead of a model API key. Mount the login in the runner, then select it on the agent.
 
 :::warning This needs a self-hosted deployment
@@ -27,6 +31,13 @@ Which login you need depends on the harness the agent uses:
 A subscription is picked the same way as any other model, so there is no separate credential step.
 
 Open the `Model` section in the agent's `Configuration` column and click the model combobox. Mounted subscriptions appear in the picker's left column alongside your API-key connections, each tagged `Subscription`. Click the one whose login you mounted, then click a model row under the harness that login belongs to. That sets the model, the harness, and the subscription in one go.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/subscription-in-model-picker.png")}
+  alt="The model picker with a Claude subscription connection selected and tagged Subscription, and its Sonnet, Haiku and Fable models listed under the Claude Code harness heading"
+  loading="lazy"
+/>
 
 If the subscription is not listed, open `Manage model providers` at the foot of the picker and look under `Subscriptions`. See [Choose a harness and model](/guides/choose-a-harness-and-model).
 
