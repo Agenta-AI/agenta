@@ -384,6 +384,16 @@ export const VirtualTable = <RecordType extends object>({
         [onScroll, loadMore, handleInfiniteScroll],
     )
 
+    // Header cells must be OPAQUE. `colorFillQuaternary` is a 4%-white WASH, so a sticky header
+    // cell (the pinned Name column, the settings column pinned right) let the columns scrolling
+    // underneath show straight through it — "Name" and "Inputs" rendered on top of each other.
+    // Same tone, painted as a gradient layer over an opaque base instead of as a translucent fill.
+    const headerCellPaint: CSSProperties = {
+        backgroundColor: "var(--ag-colorBgContainer)",
+        backgroundImage:
+            "linear-gradient(var(--ag-colorFillQuaternary), var(--ag-colorFillQuaternary))",
+    }
+
     const colGroup = (
         <colgroup>
             {leadingColumnWidth ? (
@@ -432,9 +442,14 @@ export const VirtualTable = <RecordType extends object>({
                                         rowSpan={headerGroups.length}
                                         className={cn(
                                             AVT.headerCell,
-                                            "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 py-2 text-left",
+                                            "box-border border-0 border-b border-solid border-colorBorderSecondary px-2 py-2 text-left",
                                         )}
-                                        style={{position: "sticky", left: 0, zIndex: 3}}
+                                        style={{
+                                            ...headerCellPaint,
+                                            position: "sticky",
+                                            left: 0,
+                                            zIndex: 3,
+                                        }}
                                     >
                                         {renderLeadingHeader?.()}
                                     </th>
@@ -445,9 +460,10 @@ export const VirtualTable = <RecordType extends object>({
                                         rowSpan={headerGroups.length}
                                         className={cn(
                                             AVT.headerCell,
-                                            "box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 py-2",
+                                            "box-border border-0 border-b border-solid border-colorBorderSecondary px-2 py-2",
                                         )}
                                         style={{
+                                            ...headerCellPaint,
                                             position: "sticky",
                                             left: leadingColumnWidth,
                                             zIndex: 3,
@@ -470,7 +486,7 @@ export const VirtualTable = <RecordType extends object>({
                                             data-column-key={header.column.id}
                                             className={cn(
                                                 AVT.headerCell,
-                                                "relative box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorFillQuaternary text-left text-field-md font-medium text-colorText",
+                                                "relative box-border border-0 border-b border-solid border-colorBorderSecondary text-left text-field-md font-medium text-colorText",
                                                 CELL_PADDING[size],
                                                 bordered && "border-r",
                                                 source?.ellipsis && "truncate",
@@ -478,6 +494,7 @@ export const VirtualTable = <RecordType extends object>({
                                                 props.className,
                                             )}
                                             style={{
+                                                ...headerCellPaint,
                                                 ...stickyStyle(header.column.id),
                                                 textAlign: source?.align,
                                                 ...props.style,
