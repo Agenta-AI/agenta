@@ -1,5 +1,5 @@
 import {timeAgo} from "@agenta/shared/utils"
-import {SimpleTooltip, Skeleton} from "@agenta/ui/ui"
+import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 
 import {useAgentLastSession} from "./useAgentActivity"
 
@@ -13,7 +13,7 @@ import {useAgentLastSession} from "./useAgentActivity"
 export const AgentActivity = ({agentId}: {agentId: string}) => {
     const {session, isPending} = useAgentLastSession(agentId)
 
-    if (isPending) return <Skeleton className="h-4 w-16" />
+    if (isPending) return <SkeletonBlock className="h-4 w-16" />
 
     // Nothing at all: an agent that has never run has no activity to report, and a placeholder
     // dash reads as a value that failed to load rather than as an absence.

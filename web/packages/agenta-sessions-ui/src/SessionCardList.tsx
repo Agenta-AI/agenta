@@ -14,7 +14,7 @@ import {
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {SimpleTooltip, Skeleton} from "@agenta/ui/ui"
+import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowRightIcon, ChatCircleIcon, ClockIcon} from "@phosphor-icons/react"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
@@ -212,7 +212,11 @@ export const SessionCardList = ({
         return (
             <div className="flex flex-col gap-2 px-2 py-2">
                 {[0, 1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-6 w-full" />
+                    // SkeletonBlock (one bar), NOT the Skeleton COMPOSITE: that renders antd's
+                    // title + 3 paragraph rows at 38/100/100/61% with UA margins, and the `h-6`
+                    // lands on its flex root, so ~100px of bars were crammed into 24px and
+                    // overlapped. Four of them read as a staircase of half-drawn bars.
+                    <SkeletonBlock active key={i} className="h-6 w-full" />
                 ))}
             </div>
         )

@@ -7,7 +7,7 @@
  * chat session state that package can't reach.
  */
 import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "@agenta/entities/drive"
-import {Skeleton} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 import {CircleNotch, FolderOpen} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -25,7 +25,7 @@ export default function StorageFilesHeader({
     const setDrawerOpen = useSetAtom(configFilesDrawerOpenAtomFamily(revisionId ?? ""))
 
     if (drive.isLoading) {
-        return <Skeleton className="h-[14px] w-[44px]" />
+        return <SkeletonBlock className="h-[14px] w-[44px]" />
     }
 
     if (drive.errored) {

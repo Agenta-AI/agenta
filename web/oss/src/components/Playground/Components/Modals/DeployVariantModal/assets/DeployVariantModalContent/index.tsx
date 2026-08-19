@@ -1,6 +1,6 @@
 import {VariantNameCell} from "@agenta/entity-ui/variant"
 import {CommitMessageInput, Tag, VersionBadge} from "@agenta/ui"
-import {Skeleton} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 
 import {deployNoteAtom, deploySelectedEnvAtom} from "../../store/deployVariantModalStore"
@@ -43,7 +43,7 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                         {showSkeleton ? (
                             <tr>
                                 <td colSpan={3} className="px-3 py-3">
-                                    <Skeleton className="h-16 w-full" />
+                                    <SkeletonBlock className="h-16 w-full" />
                                 </td>
                             </tr>
                         ) : (
