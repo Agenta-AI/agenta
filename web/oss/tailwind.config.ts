@@ -2,9 +2,9 @@ import {theme} from "antd"
 import type {Config} from "tailwindcss"
 import colors from "tailwindcss/colors"
 
-import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
 import {controlScale} from "./src/styles/theme/controlScale"
 import {shadcnTokens} from "./src/styles/theme/shadcnTokens"
+import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
 const token = theme.getDesignToken()
 
 // Theme-aware colors backed by CSS variables defined in styles/theme-variables.css.
@@ -353,6 +353,11 @@ export const createConfig = (content: string[] = []): Config => {
                         "0%": {maskPosition: "180% 0", WebkitMaskPosition: "180% 0"},
                         "100%": {maskPosition: "-80% 0", WebkitMaskPosition: "-80% 0"},
                     },
+                    // Agent startup label (#6047).
+                    "text-shimmer": {
+                        "0%": {backgroundPosition: "120% 0"},
+                        "100%": {backgroundPosition: "-120% 0"},
+                    },
                     // The `/` palette's pickers, docked above the composer they grow out of.
                     // Shallower than `dialog-in` (0.9): these span the composer, where a 10% scale
                     // reads as a lurch rather than a zoom.
@@ -371,6 +376,7 @@ export const createConfig = (content: string[] = []): Config => {
                     skeleton: "skeleton 1.4s ease infinite",
                     // 2 sweeps then hold off-screen (forwards) so it ends invisibly.
                     "config-shimmer": "config-shimmer 1.8s ease-in-out 2 forwards",
+                    "text-shimmer": "text-shimmer 2.4s linear infinite",
                     // antd motionDurationMid (0.2s) + motionEaseInOut bezier.
                     "accordion-down": "accordion-down 0.2s cubic-bezier(0.645,0.045,0.355,1)",
                     "accordion-up": "accordion-up 0.2s cubic-bezier(0.645,0.045,0.355,1)",

@@ -454,13 +454,36 @@ export const useSessionHydration = ({
                 }
             }
         }
-        timer = setTimeout(poll, delay)
+        // First tick fires NOW, not after REMOTE_RUN_POLL_MS: most turns finish inside 15s, and a
+        // pending first tick is discarded by the cleanup below when the run ends — so a delayed
+        // first tick meant short runs were often never fetched at all (#5624).
+        void poll()
         return () => {
             cancelled = true
             if (timer) clearTimeout(timer)
         }
         // Deliberately NOT keyed on `adoptServerTranscript` — the poll reads it through the ref
         // above, so a re-render can't cancel a pending tick or reset the backoff.
+    }, [runningElsewhere, sessionId])
+
+    // One final catch-up on the falling edge (#5624). The poll above dies with `runningElsewhere`,
+    // discarding any pending tick, so a run that ends between ticks would leave the last records
+    // unfetched until a remount. Guarded adoption makes a spurious extra read harmless.
+    const prevRemoteRunRef = useRef({sessionId, running: false})
+    useEffect(() => {
+        const prev = prevRemoteRunRef.current
+        prevRemoteRunRef.current = {sessionId, running: runningElsewhere}
+        if (prev.sessionId !== sessionId || !prev.running || runningElsewhere) return
+        let cancelled = false
+        const adopt = adoptServerTranscriptRef.current
+        loadSessionMessages(sessionId, (fresh) => {
+            if (!cancelled) adopt(fresh, {armJump: false})
+        }).then((transcript) => {
+            if (!cancelled) adopt(transcript, {armJump: false})
+        })
+        return () => {
+            cancelled = true
+        }
     }, [runningElsewhere, sessionId])
 
     // ── Stranded first send (#6042) ─────────────────────────────────────────────

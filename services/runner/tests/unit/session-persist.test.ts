@@ -55,6 +55,27 @@ describe("buildPersistingEmitter", () => {
     assert.equal(body["record_source"], "agent");
   });
 
+  it("forwards transient status data without persisting it", async () => {
+    const live: unknown[] = [];
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-status",
+      () => "Secret t",
+      (event) => live.push(event),
+    );
+    const status = {
+      type: "data" as const,
+      name: "agent-status",
+      data: { phase: "environment_starting" },
+      transient: true,
+    };
+
+    emit(status);
+    await flush();
+
+    assert.deepEqual(live, [status]);
+    assert.equal(postedBodies.length, 0);
+  });
+
   it("persist() records an out-of-band user turn through the same index counter", async () => {
     const live: unknown[] = [];
     const { emit, persist, flush } = buildPersistingEmitter(

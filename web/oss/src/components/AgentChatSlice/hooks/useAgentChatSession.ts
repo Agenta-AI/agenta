@@ -30,6 +30,7 @@ import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
+import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
@@ -51,6 +52,7 @@ import {
     stampMessagesCreatedAtAtom,
 } from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
+import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"
@@ -116,6 +118,7 @@ export const useAgentChatSession = ({
     // Whether this mount is still on screen. The chat outlives it, so its callbacks need to tell
     // "still mine to report" from "running on in the background".
     const mountedRef = useRef(false)
+    const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
     // values — `entityId` included, which is why a run follows a revision switch or a self-commit
@@ -132,6 +135,11 @@ export const useAgentChatSession = ({
             )
             captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
             return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
+        },
+        // ── #6047 startup states: capture the runner's observed startup boundary as it streams ──
+        onData: (part) => {
+            const label = startupLabelFromDataPart(part)
+            if (label) setTurnStartupLabel(sessionId, label)
         },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner gets the
         // denial round-trip and the model continues (no `approval-responded` limbo).
@@ -342,6 +350,21 @@ export const useAgentChatSession = ({
         persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
     }, [messages, status, sessionId, persistMessages])
 
+    // ── #6047 startup states: one label per in-flight turn ──
+    const clearTurnClock = useSetAtom(clearTurnClockAtom)
+    useEffect(() => {
+        // Until the runner reports an observed startup boundary, both cold and warm turns use dots.
+        if (status === "submitted") {
+            clearTurnClock(sessionId)
+            return
+        }
+        // `streaming` is the same turn continuing — leave its clock alone.
+        if (status === "streaming") return
+        // Every terminal path lands here — answered, errored, and stopped all leave these two
+        // states — so a failed or cancelled run can't strand a stale startup label.
+        clearTurnClock(sessionId)
+    }, [status, sessionId, setTurnStartupLabel, clearTurnClock])
+
     // Bound the in-message expand-state store: on settle, drop entries whose owning message is gone
     // (rewound / evicted / closed). Live = every open session's persisted messages ∪ this active one.
     // `store.get` reads without subscribing, so this never adds re-renders on the streaming hot path.
@@ -441,7 +464,9 @@ export const useAgentChatSession = ({
     // ── D9 teardown: release this mount's claim on the session's chat ──
     // A route change unmounts this conversation too, so "did the user close this session?" is read
     // from the open-tab set — the close/delete/archive/reset writers all commit before React runs
-    // this cleanup, and a route change leaves the tab open.
+    // this cleanup, and a route change leaves the tab open. The startup clock only goes with it when
+    // the session itself is gone — clearing it unconditionally would blank a still-open tab's label
+    // when its stream is merely following the user to another route (#5724, #6047).
     const scopeKey = useChatScopeKey()
     useEffect(() => {
         // Set on SETUP, not at declaration: StrictMode's dev cycle tears this effect down and runs
@@ -451,8 +476,9 @@ export const useAgentChatSession = ({
             mountedRef.current = false
             const stillOpen = store.get(openSessionIdsAtomFamily(scopeKey)).has(sessionId)
             releaseSessionChat(sessionId, {stillOpen})
+            if (!stillOpen) clearTurnClock(sessionId)
         }
-    }, [sessionId, scopeKey, store])
+    }, [sessionId, scopeKey, store, clearTurnClock])
 
     // After each commit, mark on-screen messages as seen so they don't re-animate on later renders
     // (e.g. streaming tokens). Done in an effect, not during render, so StrictMode's double invoke

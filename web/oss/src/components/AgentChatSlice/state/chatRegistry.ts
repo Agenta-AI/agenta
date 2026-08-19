@@ -18,6 +18,7 @@ export interface SessionChatHooks {
     sendAutomaticallyWhen: NonNullable<ChatInit<UIMessage>["sendAutomaticallyWhen"]>
     onFinish: NonNullable<ChatInit<UIMessage>["onFinish"]>
     onError: NonNullable<ChatInit<UIMessage>["onError"]>
+    onData: NonNullable<ChatInit<UIMessage>["onData"]>
 }
 
 interface Handle {
@@ -64,6 +65,11 @@ export const acquireSessionChat = ({
         // Neither may reach the mount's callbacks once the session is gone.
         sendAutomaticallyWhen: (args) =>
             isLive(sessionId, handle) && handle.hooks.sendAutomaticallyWhen(args),
+        // #6047 startup states: forwarded per data part; a torn-down session must not narrate a
+        // startup label for a turn no mount is displaying anymore.
+        onData: (dataPart) => {
+            if (isLive(sessionId, handle)) handle.hooks.onData(dataPart)
+        },
         onFinish: (event) => {
             if (!isLive(sessionId, handle)) return
             handle.hooks.onFinish(event)
