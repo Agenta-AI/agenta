@@ -54,7 +54,9 @@ const HydrateAtoms = ({children}: PropsWithChildren) => {
     const pushCurrentUrl = (mutate: (params: URLSearchParams) => void) => {
         if (typeof window === "undefined") return
         const url = new URL(window.location.href)
+        const before = url.search
         mutate(url.searchParams)
+        console.log("[trace-drawer] 6 seam push", before, "->", url.search)
         void router.push(`${url.pathname}${url.search}${url.hash}`, undefined, {shallow: true})
     }
     bindTraceDrawerSetQueryParam((name, value) => {

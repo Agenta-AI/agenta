@@ -81,12 +81,22 @@ export const syncTraceStateFromUrl = (nextUrl?: string) => {
             return
         }
 
+        console.log("[trace-drawer] 5 sync", {
+            traceParam,
+            spanParam,
+            open: currentDrawerState.open,
+            currentTraceId,
+            lastSynced: lastSyncedTraceParam,
+            openedViaUrl: drawerOpenedViaUrl,
+            routeSupportsTrace,
+        })
         if (!traceParam) {
             lastSyncedTraceParam = undefined
             if (currentDrawerState.open && !drawerOpenedViaUrl) {
                 return
             }
             if (currentTraceId !== undefined) {
+                console.log("[trace-drawer] 5a no param -> CLEAR state")
                 clearTraceDrawerState()
             }
             return
@@ -100,9 +110,11 @@ export const syncTraceStateFromUrl = (nextUrl?: string) => {
         // Closed, on a trace this sync has already handled: the user closed it. Opening on a URL
         // CHANGE is the contract; re-asserting on every sync is what made closing impossible.
         if (!currentDrawerState.open && lastSyncedTraceParam === traceParam) {
+            console.log("[trace-drawer] 5b closed by user, same trace -> SKIP reopen")
             return
         }
         lastSyncedTraceParam = traceParam
+        console.log("[trace-drawer] 5c -> OPEN drawer", traceParam)
 
         // The drawer is being opened by URL sync (rather than programmatically
         // by a button handler that already set `drawerState.open = true`).
