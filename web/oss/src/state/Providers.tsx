@@ -54,10 +54,16 @@ const HydrateAtoms = ({children}: PropsWithChildren) => {
     const pushCurrentUrl = (mutate: (params: URLSearchParams) => void) => {
         if (typeof window === "undefined") return
         const url = new URL(window.location.href)
-        const before = url.search
+        const before = `${url.pathname}${url.search}${url.hash}`
         mutate(url.searchParams)
-        console.log("[trace-drawer] 6 seam push", before, "->", url.search)
-        void router.push(`${url.pathname}${url.search}${url.hash}`, undefined, {shallow: true})
+        const after = `${url.pathname}${url.search}${url.hash}`
+        // A no-op write must not navigate. These seams are called on render, so pushing an
+        // IDENTICAL url fires a route change, which re-renders, which calls the seam again —
+        // an infinite loop that pegs the tab. (Reading `router.query` instead used to hide this
+        // by being stale enough that the pushes differed; that was the previous bug.)
+        if (after === before) return
+        console.log("[trace-drawer] 6 seam push", before, "->", after)
+        void router.push(after, undefined, {shallow: true})
     }
     bindTraceDrawerSetQueryParam((name, value) => {
         pushCurrentUrl((params) => {
