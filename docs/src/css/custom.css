@@ -1310,8 +1310,8 @@ div[class*="docSidebarContainer"] {
   display: block;
 }
 
-/* Skeleton behind a Stream while its player boots. streamSkeleton.ts flips the wrapper to
-   "loaded" on the iframe's load event, which drops the shimmer and stops the animation. */
+/* Skeleton while a Stream's player boots. streamSkeleton.ts flips the wrapper to "loaded"
+   on the iframe's load event, which drops the shimmer and stops the animation. */
 [data-stream-state="loading"] {
   border-radius: 8px;
   background-color: var(--ifm-color-emphasis-200);
@@ -1323,6 +1323,17 @@ div[class*="docSidebarContainer"] {
   );
   background-size: 200% 100%;
   animation: ag-stream-skeleton 1.4s ease-in-out infinite;
+}
+
+/* The iframe paints its own background the moment it has a document, which would sit over
+   the shimmer and hide it. Hold it back until it reports in, then fade it over the top.
+   Keyed off the attribute, so with no JS the iframe is never hidden. */
+[data-stream-state] > iframe {
+  transition: opacity 200ms ease-out;
+}
+
+[data-stream-state="loading"] > iframe {
+  opacity: 0;
 }
 
 @keyframes ag-stream-skeleton {
@@ -1337,6 +1348,10 @@ div[class*="docSidebarContainer"] {
 @media (prefers-reduced-motion: reduce) {
   [data-stream-state="loading"] {
     animation: none;
+  }
+
+  [data-stream-state] > iframe {
+    transition: none;
   }
 }
 
