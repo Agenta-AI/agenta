@@ -1677,7 +1677,20 @@ describe("runSandboxAgent orchestration", () => {
     if (!result.ok) return;
     assert.deepEqual(result.events, []);
     assert.equal(result.capabilities?.streamingDeltas, true);
-    assert.deepEqual(streamed, []);
+    assert.deepEqual(streamed, [
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "environment_starting" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "environment_ready" },
+        transient: true,
+      },
+    ]);
   });
 
   it("surfaces permission requests and answers them through the responder", async () => {
