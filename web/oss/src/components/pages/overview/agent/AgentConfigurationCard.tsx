@@ -151,6 +151,7 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
                         title={row.title}
                         summary={row.summary}
                         status={row.status}
+                        preserveTitle={row.key === "advanced"}
                         // `onOpen` is the primitive's "leaves for somewhere else" mode; only the
                         // expanding row omits it.
                         onOpen={row.expands ? undefined : open}

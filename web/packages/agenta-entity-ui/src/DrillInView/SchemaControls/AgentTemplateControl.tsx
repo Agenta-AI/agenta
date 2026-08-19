@@ -797,15 +797,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             title: fieldTitle("instructions", "Instructions"),
             summary: countSummary(1, "file"),
             indicator: sectionIndicator("instructions"),
-            // The + is inert until the backend stores multiple instruction files; the section is
-            // already a list so it lights up with no rework when that lands.
-            extra: !disabled ? (
-                <SectionAddButton
-                    label="Add instruction file"
-                    tooltip="Multiple instruction files coming soon"
-                    disabled
-                />
-            ) : undefined,
             defaultOpen: true,
             content: (
                 <div className="flex flex-col gap-2">
