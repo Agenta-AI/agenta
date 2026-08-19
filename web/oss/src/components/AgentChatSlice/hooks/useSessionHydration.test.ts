@@ -21,7 +21,11 @@ import {describe, expect, it} from "vitest"
 import {goldenSession} from "../assets/__fixtures__/goldenSessions"
 import {transcriptToMessages} from "../assets/transcriptToMessages"
 
-import {shouldAdoptTranscript, shouldSkipRecordsRefresh} from "./useSessionHydration"
+import {
+    hasStrandedTail,
+    shouldAdoptTranscript,
+    shouldSkipRecordsRefresh,
+} from "./useSessionHydration"
 
 type ToolState = "input-available" | "output-available"
 
@@ -438,5 +442,23 @@ describe("shouldAdoptTranscript: harness-wrapped waiting card", () => {
                 watermark: CUT,
             }),
         ).toBe(false)
+    })
+})
+
+describe("hasStrandedTail", () => {
+    const user = {id: "u1", role: "user", parts: []} as unknown as UIMessage
+    const assistant = {id: "a1", role: "assistant", parts: []} as unknown as UIMessage
+
+    it("flags a transcript ending in an unanswered user turn", () => {
+        expect(hasStrandedTail([user])).toBe(true)
+        expect(hasStrandedTail([assistant, user])).toBe(true)
+    })
+
+    it("passes a transcript whose tail was answered (or error-stamped)", () => {
+        expect(hasStrandedTail([user, assistant])).toBe(false)
+    })
+
+    it("passes an empty transcript", () => {
+        expect(hasStrandedTail([])).toBe(false)
     })
 })

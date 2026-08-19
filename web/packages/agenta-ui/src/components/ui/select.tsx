@@ -29,7 +29,14 @@ const selectTriggerVariants = cva(
     [
         // CONTROL_RESET — see button.tsx (preflight is off app-wide for antd's sake).
         "box-border border-solid font-[inherit]",
-        "flex w-full items-center justify-between gap-1 border text-foreground outline-none transition-colors",
+        // text-left: preflight is off, so the UA's `button { text-align: center }` would centre
+        // the selected label on the button-based triggers (Select, and every consumer of this variant).
+        "flex w-full items-center justify-between gap-1 border text-left text-foreground outline-none transition-colors",
+        // Radix's Value span doesn't take a className, so shrink it from here — without this a
+        // long selected label overflows the trigger and pushes the chevron out. Scoped to the value
+        // slot: a bare `[&>span]` also stretched the trailing adornment span (Combobox/Cascader wrap
+        // their chevron + clear in one), floating the chevron mid-trigger instead of at its edge.
+        "[&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:flex-1",
         "cursor-pointer disabled:cursor-not-allowed disabled:bg-disabled-bg disabled:text-disabled disabled:border-disabled-border",
         // antd greys only the placeholder TEXT; the root keeps the foreground colour.
         "[&[data-placeholder]_[data-slot=select-value]]:text-placeholder",
@@ -160,6 +167,9 @@ function SelectItem({
             data-slot="select-item"
             className={cn(
                 "relative flex w-full cursor-pointer select-none items-center justify-between gap-2 outline-none",
+                // Radix's ItemText span doesn't take a className, so shrink it from here —
+                // without this a long option overflows the panel instead of truncating.
+                "[&>span]:min-w-0 [&>span]:flex-1",
                 // antd option geometry: min-h 28px, 4px×12px padding, 6px radius, selected weight 600.
                 "box-border min-h-control rounded-control-sm px-3 py-1 text-field-md",
                 // antd colours: highlighted-but-not-selected = controlItemBgHover; selected =

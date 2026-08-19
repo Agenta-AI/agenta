@@ -6,8 +6,8 @@ import {useRouter} from "next/router"
 
 import {urlAtom} from "@/oss/state/url"
 
-import {agentFirstRunSeedAtom} from "../state/firstRunSeed"
-import {pendingSessionOpenAtom} from "../state/pendingSessionOpen"
+import {addFirstRunSeedAtom, removeFirstRunSeedAtom} from "../state/firstRunSeed"
+import {addPendingSessionOpenAtom, removePendingSessionOpensAtom} from "../state/pendingSessionOpen"
 
 /**
  * Start a NEW conversation with an existing agent, seeded with what the user typed — the daily
@@ -24,8 +24,10 @@ export function useStartAgentSession(): (input: {
 }) => void {
     const router = useRouter()
     const {baseAppURL} = useAtomValue(urlAtom)
-    const setPendingOpen = useSetAtom(pendingSessionOpenAtom)
-    const setSeed = useSetAtom(agentFirstRunSeedAtom)
+    const addPendingOpen = useSetAtom(addPendingSessionOpenAtom)
+    const removePendingOpens = useSetAtom(removePendingSessionOpensAtom)
+    const addSeed = useSetAtom(addFirstRunSeedAtom)
+    const removeSeed = useSetAtom(removeFirstRunSeedAtom)
 
     return useCallback(
         ({appId, message, files}) => {
@@ -33,18 +35,23 @@ export function useStartAgentSession(): (input: {
             // Minted here so both carriers name the same session: the playground creates THIS id,
             // and the message is claimed by it alone — never by whichever session was open last.
             const sessionId = generateId()
-            setPendingOpen({appId, newSessionId: sessionId})
+            const pendingOpen = {appId, newSessionId: sessionId}
+            addPendingOpen(pendingOpen)
             // `autoSend`: the user already pressed Start, so asking them to press it again on the
             // other side would be the same decision twice.
             // Files alone are a valid send: the chat holds the turn until they finish uploading.
-            if (seedMessage || files?.length)
-                setSeed({appId, sessionId, seedMessage, autoSend: true, seedFiles: files})
+            const seed =
+                seedMessage || files?.length
+                    ? {appId, sessionId, seedMessage, autoSend: true, seedFiles: files}
+                    : null
+            if (seed) addSeed(seed)
 
+            // Remove only OUR entries on a failed navigation — another create may be in flight.
             router.push(`${baseAppURL}/${appId}/playground`).catch(() => {
-                setPendingOpen(null)
-                setSeed(null)
+                removePendingOpens([pendingOpen])
+                if (seed) removeSeed(seed)
             })
         },
-        [router, baseAppURL, setPendingOpen, setSeed],
+        [router, baseAppURL, addPendingOpen, removePendingOpens, addSeed, removeSeed],
     )
 }

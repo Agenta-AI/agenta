@@ -91,15 +91,16 @@ class SessionsService:
     ) -> List[SessionListItem]:
         """List/filter sessions, newest -> oldest, windowed.
 
-        Reads the merged stream rows; when `turn_references` is set, first joins the
-        turns' references (WP1's GIN `.contains()`) to resolve the matching
-        `session_id`s, then filters the stream query to that set. No
-        denormalization onto the stream row (B3) — revisit only if the join
-        proves hot.
+        Reads the merged stream rows; when `turn_references` is set, resolves the
+        matching `session_id`s from BOTH reference columns (the turns' references
+        and the stream row's own fill-once `references`, each GIN `.contains()`),
+        unions them, then filters the stream query to that set. See
+        `_resolve_session_ids` for the per-side caps and ordering.
 
-        Each row is enriched (READ-time only, see `SessionListItem`) with its latest
-        turn's `references` and its last message, each via a single batch lookup keyed on
-        every listed `session_id` — never one call per row (WP0-R3).
+        Each row is enriched (READ-time only, see `SessionListItem`) with its last
+        message via a single batch lookup keyed on every listed `session_id` — never one
+        call per row (WP0-R3). `references` come from the stream row when it has them and
+        fall back to the same batch lookup's latest turn otherwise.
         """
         page = await self.query_sessions_page(
             project_id=project_id,
@@ -202,8 +203,11 @@ class SessionsService:
             turn = latest_turns.get(stream.session_id)
             items.append(
                 SessionListItem(
-                    **stream.model_dump(),
-                    references=turn.references if turn else None,
+                    **stream.model_dump(exclude={"references"}),
+                    # The row's own references first: they are written by the beat, which
+                    # every run makes, whereas the turn append is fire-and-forget. The turn
+                    # is the fallback that keeps pre-column rows openable.
+                    references=stream.references or (turn.references if turn else None),
                     last_message=previews.get(stream.session_id),
                 )
             )
@@ -288,13 +292,35 @@ class SessionsService:
         if query.turn_references is not None:
             if not query.turn_references:
                 return []
-            from_references = set(
-                await self.turns_service.query_session_ids_by_references(
+            # Both reference columns, unioned: a session whose turn append was dropped is
+            # findable only through the stream row, and one that predates that column only
+            # through its turns. Matching either is what makes an agent-scoped list agree
+            # with what the list can actually open.
+            by_turns, by_streams = await asyncio.gather(
+                self.turns_service.query_session_ids_by_references(
                     project_id=project_id,
                     references=query.turn_references,
                     limit=TURN_REFERENCES_SESSION_ID_CAP,
-                )
+                ),
+                self.streams_service.query_session_ids_by_references(
+                    project_id=project_id,
+                    references=query.turn_references,
+                    limit=TURN_REFERENCES_SESSION_ID_CAP,
+                ),
             )
+            from_references = set(by_turns) | set(by_streams)
+            # Re-cap the union: each side is capped on its own, so their union could carry
+            # twice the bound P2-12 put on this derived set. Each side already returns its
+            # most recently active matches, so the ids reaching here are the ones worth
+            # keeping; WHICH of them survives this final trim is arbitrary though, because
+            # the two lists carry no timestamp to merge on. It only bites a project with
+            # more than the cap of sessions matching one reference, where the list is
+            # windowed regardless. Carrying activity timestamps up through both DAOs to
+            # merge exactly is the fix if that ever stops being true.
+            if len(from_references) > TURN_REFERENCES_SESSION_ID_CAP:
+                from_references = set(
+                    sorted(from_references)[:TURN_REFERENCES_SESSION_ID_CAP]
+                )
 
         explicit: Optional[Set[str]] = (
             set(query.session_ids) if query.session_ids is not None else None

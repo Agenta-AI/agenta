@@ -119,6 +119,24 @@ export {
     vaultPickedProviderFamily,
 } from "./connectionUtils"
 export type {ModelOptionGroup, VaultModelSource} from "./connectionUtils"
+// Connection-first model menu (the playground picker's rows + the payload a pick persists).
+export {
+    buildConnectionPickerRows,
+    connectionModelIds,
+    effectiveHarnesses,
+    modelRowKey,
+    pickerSelectionFrom,
+    selectedModelRowKey,
+    selectionFromModelRow,
+    SUBSCRIPTION_HARNESSES,
+} from "./connectionPicker"
+export type {
+    BuildPickerRowsArgs,
+    PickerConnectionRow,
+    PickerModelRow,
+    PickerOptionMetadata,
+    PickerSelection,
+} from "./connectionPicker"
 // Row presentation for config items (name/description/tags), shared with the `/` palette.
 export {
     describeMcp,

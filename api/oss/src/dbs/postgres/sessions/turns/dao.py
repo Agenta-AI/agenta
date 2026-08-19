@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, delete as sa_delete, or_, select
+from sqlalchemy import and_, delete as sa_delete, func, or_, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 
@@ -140,13 +140,16 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         if turn_references is None:
             return []
         async with self.engine.session() as session:
+            # GROUP BY, not DISTINCT, so the cap can keep the most recently active
+            # sessions instead of an arbitrary `limit` of the matches.
             stmt = (
                 select(SessionTurnDBE.session_id)
                 .where(
                     SessionTurnDBE.project_id == project_id,
                     SessionTurnDBE.references.contains(turn_references),
                 )
-                .distinct()
+                .group_by(SessionTurnDBE.session_id)
+                .order_by(func.max(SessionTurnDBE.start_time).desc().nullslast())
                 .limit(limit)
             )
             result = await session.execute(stmt)
