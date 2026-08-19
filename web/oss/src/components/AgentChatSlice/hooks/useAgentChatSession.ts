@@ -27,6 +27,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {AgentChatTransport} from "../assets/AgentChatTransport"
+import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
@@ -116,14 +117,14 @@ export const useAgentChatSession = ({
             new AgentChatTransport({
                 api: "",
                 prepareSendMessagesRequest: async ({messages, id}) => {
-                    const req = await buildAgentRequest(entityIdRef.current, messages, {
-                        sessionId: id ?? sessionId,
-                    })
-                    if (!req) {
-                        throw new Error(
-                            "This agent workflow has no invocation URL — it can’t be run yet.",
-                        )
-                    }
+                    // Bounded: retries while the invocation URL is still loading and rejects if
+                    // the build hangs, so a failed send surfaces as an error bubble instead of an
+                    // eternal spinner (#6042).
+                    const req = await buildRequestWithinDeadline(() =>
+                        buildAgentRequest(entityIdRef.current, messages, {
+                            sessionId: id ?? sessionId,
+                        }),
+                    )
                     captureRef.current(buildTurnCapture(req, generateId(), Date.now()))
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
