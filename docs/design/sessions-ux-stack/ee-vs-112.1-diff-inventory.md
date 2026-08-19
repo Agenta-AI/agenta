@@ -1503,3 +1503,161 @@ Found by looking at the diff, **all missed by the computed-style pass**:
 | V-07 | **Vertical rhythm looser locally** — the whole content block sits ~40px lower; more space between the description rule and the search row, and taller table rows. |
 
 Not a finding: the `Added` date differs (`02 Dec 2024` vs `09 Apr 2026`) — different accounts.
+
+## 4m. WP-1 — chat with a live run
+
+First pass that actually executes chat code: matched agents (prod `01a01513-63df-…`, local
+`01a01513-541a-…`), same `AGENTS.md`, Anthropic / Haiku 4.5, fresh session per state, dark.
+Arda approved live sends on both builds and chose the existing `PR reviewer` pair for the
+tools/approvals surface.
+
+### Harness — two traps that would have invalidated everything
+
+- **DPR is per TAB, and "first match wins" picked the wrong one.** Local tabs `[2]`/`[3]` sat at
+  **DPR 1** and `[12]` at DPR 2, all three on the same URL. A DPR-1 tab captures 1800×942 where
+  prod captures 3600×1884, so every strip would have been garbage or silently rescaled. `env.sh`
+  now has `pin_tab <env>`, which scans the host-matching tabs once and records the first whose
+  `devicePixelRatio` equals prod's in `$QA/.tabpin.<env>`; `resolve_tab` honours the pin only
+  while that id still appears in `browse tabs` for the right host, so a pin cannot outlive a
+  relaunch and ids stay URL-checked. **Run `pin_tab local; pin_tab prod` after `source env.sh`.**
+  Second bug found on the way: `for x in $VAR` does NOT word-split in zsh, so the pin silently
+  fell through to the old path and looked like the pin file was never written — iterate through
+  a command substitution.
+- **`browse type` presses Enter for a `\n`, and Enter SENDS.** Typing a multi-line prompt into
+  the composer fired one send per line: 17 runs on each build instead of one. Never type
+  multi-line text into a chat composer — keep the prompt on one line and let the model produce
+  the newlines. (Silver lining: it exercised the send queue hard, and both builds queued and
+  drained ~17 messages in order without dropping one.)
+
+### The chat column geometry — three separate offsets, one of them a bug
+
+Measured live, config pane open on both:
+
+| | prod (112.1) | local (HEAD) |
+|---|---|---|
+| config pane | 256..696 (440) | 256..696 (440) |
+| split seam | `.ant-splitter-bar` at 696, **width 0** (dragger absolutely positioned) | `div[role=separator]` at 696, **width 9** (a real flex item) |
+| chat panel | starts **696/697**, 1102 wide | starts **705**, 1095 wide |
+| assistant body | x=852 (avatar column **32** + 12 gap) | x=846 (avatar column **24** + 12 gap) |
+| user avatar box | 1656, w=32 (24px avatar left-aligned in it) | 1663, w=24 |
+
+### C-01 — every message body sits 8px inboard of prod's — **FIXED**
+
+`ChatBubble` (`@agenta/ui/presentational/chat`) shrink-wraps the avatar slot
+(`<div className="shrink-0">`), so the column is the avatar's own 24px. antd-x's `Bubble` —
+which 112.1 renders and **112.2 still uses** (`import {Bubble} from "@ant-design/x"`) — reserves
+a **32px** column around the same 24px avatar. Net: −8px on the assistant side, +8px on the user
+side (prod's user avatar is inset 8px from the row's right edge; local's is flush).
+
+This is the P-12 fingerprint again: the facade's own docstring claims *"Metrics mirror antd-x so
+the swap is invisible: … a 12px avatar gap"*. The gap was right; the column was not. **A facade
+asserting parity is not evidence of parity — measure the claim.**
+
+Fixed by giving the slot `w-8`; the avatar stays left-aligned inside it, which is what antd-x
+does on both placements.
+
+### C-02 — fenced code blocks lose every newline — **FIXED**
+
+Reproduced deterministically on both with one prompt ("output a fenced python block containing
+exactly `a = 1`, `b = 2`, `c = 3`, each on its own line"):
+
+| | DOM text | block height |
+|---|---|---|
+| prod | `"a = 1\nb = 2\nc = 3"` | **78px** (3 lines) |
+| local | `"a = 1b = 2c = 3"` | **15px** (1 line) |
+
+Not streaming, not the transport: it survives a full reload (`mode="static"`), and
+`smoothTextStream` splits on `/\S+\s*|\s+/g` precisely so reassembly is exact.
+
+Root cause is upstream, in `streamdown@2.5.0`. `HighlightedBody` renders one `<span>` per Shiki
+line and classes it **only when `lineNumbers` is true**:
+
+    lineNumbers: s = true, …
+    children: t.tokens.map((c,p) => jsx("span", {className: s ? i : void 0, …}, p))
+    // i = tr = "block before:content-[counter(line)] before:inline-block …"
+
+`block` — the thing that makes a line a line — is bundled into the line-number decoration class.
+`markdown.tsx` passes `lineNumbers={false}` (prod has no line numbers either), so the line spans
+stay inline and the whole listing runs together. Streamdown's own `styles.css` is imported and
+contains nothing but three keyframes, so nothing else supplies the rule.
+
+Fixed in `MD_CLASS` with `[&_[data-streamdown=code-block]_pre_code>span]:!block`. Verified by
+injecting the same rule live before editing: the block went 15px → **54px** (3 × 18px).
+
+**Residual, not fixed:** Streamdown emits no newline text nodes at all, so selecting the code by
+hand and copying still yields `a = 1b = 2c = 3`. The block's own copy button copies the source
+and is unaffected. Prod's DOM has real `\n`.
+
+### C-03 — the config↔chat seam is a 9px gutter locally, a flush 1px border on prod — **OPEN, Arda's call**
+
+Measured above and confirmed at 8× zoom: prod paints the config pane, a 1px border line, then
+the chat canvas; local paints the pane, a **9px dark channel** with a 1px rule down its middle,
+then the canvas. `BAR_WIDTH = 9` in `@agenta/ui/components/ui/split-pane.tsx`, whose docstring
+calls it "the agent playground's gutter: a 9px channel (`--ag-surface-gutter`)".
+
+`split-pane.tsx` **exists in neither 112.1 nor 112.2** — it is the lane's replacement for antd
+`Splitter`, so the gutter is new. Whether it is wanted is a design call, not a parity one: it is
+authored deliberately, but so was the session chip skin that Arda reverted. Not touched.
+
+Consequence for the harness: the whole chat column sits ~1.5–4.5 CSS px right of prod's (the
+content is centred in a 9px-narrower column), which reported **129 regions on an EMPTY chat**.
+`vrt.py` now takes an optional `align` argument that registers local onto prod inside the strip
+and prints the shift it applied. `chat.dark.empty` reads 2.74% raw and **0.96% aligned at
+(+1.5, 0) CSS** — and the 0.96% residual is antialias fringe from the fractional shift, not
+content. Always read the unaligned run first; alignment can hide a real offset as easily as it
+can reveal what one was masking.
+
+### C-04 — markdown block scale and rhythm — **OPEN, Arda's call**
+
+The lane swapped the renderer: 112.2 is `@ant-design/x-markdown` (`XMarkdown`), HEAD is
+`streamdown`. Measured on the same markdown-sampler prompt:
+
+| | prod | local |
+|---|---|---|
+| h1 | 16px, mb 4 | **14px, mb 0** |
+| h2 | 14px, mt 12 / mb 4 | **13px, mt 8 / mb 0** |
+| p | 13px, mb 13 | 13px, **mb 0** |
+| ul | 14px, mb 14 | 13px, **mb 0** |
+| blockquote | mb 8 | **mb 0** |
+| table | auto width (177px here), my 13 | **`w-full` (467px), my 0** |
+| fenced block | no language bar | **a `python` header bar** |
+
+h2 and body end up the same size locally, so a heading reads as bold body text. Every one of
+these is authored explicitly in `MD_CLASS` with a stated rationale (the wrapper-gap argument for
+zeroing margins, "browser defaults are huge" for the headings), so it is deliberate — recorded,
+not changed, for the same reason C-03 is.
+
+### Confirmed at parity — driven, not inferred
+
+- **Streaming.** Both stream to completion; `Stop` is a 28×28 button at the same place
+  (prod x=1651, local x=1653, y=895) and clicking it ends the run on both.
+- **Tool steps.** `> ⊕ Thought` / `> ✓ Used Read` rows are pixel-equivalent once the 8px offset
+  is allowed for; expanding `Used Read` and then the nested `Read` gives the same
+  `input` / `output` payload panels with the same chrome on both.
+- **Composer.** Same 878×72 editor, same placeholder, same `↵ Send` / `⌘↵ Newline` footer, same
+  attach button. The empty state (agent intro card + Templates strip) matches region for region.
+- **Send queue.** ~17 messages queued and drained in order on both (see the `browse type` trap).
+- **Agent `/overview`.** The §4h lead is closed: local HAS the route, and it matches prod card
+  for card (composer, Sessions, Automation runs, Configuration summary, Files, Next triggers,
+  Usage). Prod's `1 waiting` / `WAITING ON YOU` approval row is data — local's PR reviewer has no
+  sessions.
+
+### Ruled out — three things I nearly filed
+
+- **"Secondary text is brighter locally."** The contact-sheet tiles read that way; computed style
+  is `rgba(255,255,255,0.45)` / `0.65` on both, same 13px Inter, and at 6× zoom the glyphs are
+  identical. The tiles' own crop boundaries invented it.
+- **"Local doesn't render markdown lists."** Local's bullets were `<p>• …</p>` where prod's were
+  `<ul><li>`. The model literally emitted `• ` on local; the paired markdown-sampler run renders
+  `<ul><li>` on both. Model output is not a build difference.
+- **"The Usage range label lost its `Last`."** Prod says `Last 1 month`, local says `1 month` —
+  and **112.2 already says `1 month`** (`fallbackLabel="1 month"` in `UsageSummary`). 112.2 wins.
+
+### Both fixes driven in the browser after the edit
+
+- **C-01.** Local now measures assistant `[807, 32]` avatar box + body `x=851 w=704` and user
+  avatar box `[1655, 32]` — against prod's `[808, 32]` / `x=852 w=704` / `[1656, 32]`. The body
+  was `x=846 w=712` before. Residual 1px is the known global seam (P-04).
+- **C-02.** The deterministic three-line block renders three lines on both, all three Shiki line
+  spans computing `display: block`. What still differs on that surface is C-04's deliberate
+  chrome: local's `python` header bar, and Shiki `one-dark-pro` colours against prod's Prism.

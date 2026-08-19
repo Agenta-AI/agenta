@@ -95,6 +95,10 @@ export const MD_CLASS =
     "[&_[data-streamdown=code-block]_pre]:!m-0 [&_[data-streamdown=code-block]_pre]:!bg-transparent " +
     "[&_[data-streamdown=code-block]_pre]:!p-0 " +
     "[&_[data-streamdown=code-block]_code]:!bg-transparent [&_[data-streamdown=code-block]_code]:!p-0 " +
+    // Streamdown renders one <span> per Shiki line but only classes it when `lineNumbers` is on,
+    // and that class is what carries `block` — with numbers off every line ran together
+    // ("a = 1b = 2c = 3" on one row). Make the line spans blocks ourselves.
+    "[&_[data-streamdown=code-block]_pre_code>span]:!block " +
     // Trim the outer edges so the bubble padding isn't doubled by leading/trailing margins.
     "[&>:first-child]:!mt-0 [&>:last-child]:!mb-0"
 

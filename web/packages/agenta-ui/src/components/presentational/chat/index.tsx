@@ -2,7 +2,8 @@
  * Chat message chrome, antd-free — the drop-in replacements for the @ant-design/x pieces the
  * desktop chat used (`Bubble`, `Actions` items, `FileCard`). Metrics mirror antd-x so the swap
  * is invisible: content 16/12 padding with a 12px radius, `filled` on the fill-content token,
- * `borderless` flush on the canvas, a 12px avatar gap, and the 4px three-dot typing loader.
+ * `borderless` flush on the canvas, a 32px avatar column + 12px gap, and the 4px three-dot
+ * typing loader.
  * Bodies stay caller-owned ReactNodes; nothing here knows about messages or parts.
  */
 import {type ReactNode} from "react"
@@ -60,7 +61,9 @@ export const ChatBubble = ({
             className,
         )}
     >
-        {avatar ? <div className="shrink-0">{avatar}</div> : null}
+        {/* 32px slot, not shrink-to-fit: antd-x reserves a 32px avatar column around its 24px
+            avatar, so shrink-wrapping moved every message body 8px inboard of the desktop app. */}
+        {avatar ? <div className="w-8 shrink-0">{avatar}</div> : null}
         <div className={cn("flex min-w-0 max-w-full flex-col", classNames?.body)}>
             {loading ? (
                 <ChatTypingDots />
