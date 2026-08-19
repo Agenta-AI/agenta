@@ -76,7 +76,32 @@ export const useSessionActions = () => {
     const rename = useCallback(
         (target: SessionActionTarget) => {
             let next = target.name ?? ""
-            modal.confirm({
+            const isBlank = () => !next.trim()
+            const okButtonProps = () => ({className: "rename-session-ok", disabled: isBlank()})
+
+            const submit = async () => {
+                const title = next.trim()
+                if (!title) return Promise.reject()
+                if (isCached(target) && target.appId) {
+                    await store.set(renameSessionAtomFamily(target.appId), {
+                        id: target.sessionId,
+                        title,
+                    })
+                } else {
+                    const ok = await setSessionHeader({
+                        sessionId: target.sessionId,
+                        projectId,
+                        name: title,
+                    })
+                    if (!ok) {
+                        message.error("Couldn't rename this session")
+                        return Promise.reject()
+                    }
+                }
+                revalidate()
+            }
+
+            const dialog = modal.confirm({
                 title: "Rename session",
                 content: (
                     <Input
@@ -84,33 +109,21 @@ export const useSessionActions = () => {
                         defaultValue={next}
                         aria-label="Session name"
                         className="mt-2"
-                        onChange={(event) => {
+                        onChange={(event: {target: {value: string}}) => {
                             next = event.target.value
+                            dialog.update({okButtonProps: okButtonProps()})
+                        }}
+                        onPressEnter={(event: {currentTarget: HTMLInputElement}) => {
+                            const ok = event.currentTarget
+                                .closest("[role=dialog]")
+                                ?.querySelector(".rename-session-ok")
+                            if (ok instanceof HTMLButtonElement) ok.click()
                         }}
                     />
                 ),
                 okText: "Rename",
-                onOk: async () => {
-                    const title = next.trim()
-                    if (!title) return
-                    if (isCached(target) && target.appId) {
-                        await store.set(renameSessionAtomFamily(target.appId), {
-                            id: target.sessionId,
-                            title,
-                        })
-                    } else {
-                        const ok = await setSessionHeader({
-                            sessionId: target.sessionId,
-                            projectId,
-                            name: title,
-                        })
-                        if (!ok) {
-                            message.error("Couldn't rename this session")
-                            return
-                        }
-                    }
-                    revalidate()
-                },
+                okButtonProps: okButtonProps(),
+                onOk: submit,
             })
         },
         [isCached, message, modal, projectId, revalidate, store],
