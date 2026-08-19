@@ -1766,6 +1766,9 @@ importers:
       '@floating-ui/react':
         specifier: ^0.27.13
         version: 0.27.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@phosphor-icons/core':
+        specifier: 2.1.1
+        version: 2.1.1
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9
@@ -1796,6 +1799,9 @@ importers:
       lodash:
         specifier: ^4.17.23
         version: 4.18.1
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -3921,6 +3927,9 @@ packages:
 
   '@oxc-project/types@0.139.0':
     resolution: {integrity: sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw==}
+
+  '@phosphor-icons/core@2.1.1':
+    resolution: {integrity: sha512-v4ARvrip4qBCImOE5rmPUylOEK4iiED9ZyKjcvzuezqMaiRASCHKcRIuvvxL/twvLpkfnEODCOJp5dM4eZilxQ==}
 
   '@phosphor-icons/react@2.1.10':
     resolution: {integrity: sha512-vt8Tvq8GLjheAZZYa+YG/pW7HDbov8El/MANW8pOAz4eGxrwhnbfrQZq0Cp4q8zBEu8NIhHdnr+r8thnfRSNYA==}
@@ -13079,6 +13088,8 @@ snapshots:
   '@opentelemetry/semantic-conventions@1.40.0': {}
 
   '@oxc-project/types@0.139.0': {}
+
+  '@phosphor-icons/core@2.1.1': {}
 
   '@phosphor-icons/react@2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:

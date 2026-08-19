@@ -7,6 +7,7 @@
     "types": "./src/index.ts",
     "scripts": {
         "build": "pnpm run types:check",
+        "generate:icons": "tsx scripts/generate-catalog.ts && prettier --write src/agent-icon/catalog.generated.ts",
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
         "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
@@ -41,6 +42,7 @@
         "./drill-in": "./src/drill-in/index.ts",
         "./drawer": "./src/drawer/index.ts",
         "./type-chip": "./src/type-chip/index.ts",
+        "./agent-icon": "./src/agent-icon/index.ts",
         "./ui": "./src/components/ui/index.ts"
     },
     "peerDependencies": {
@@ -136,9 +138,11 @@
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.4",
         "@types/react-resizable": "^3.0.7",
+        "@phosphor-icons/core": "2.1.1",
         "@vitest/coverage-v8": "^4.1.4",
         "ajv": "^8.18.0",
         "lodash": "^4.17.23",
+        "tsx": "^4.22.4",
         "typescript": "^5.9.3",
         "vitest": "^4.1.4"
     }

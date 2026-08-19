@@ -1,6 +1,7 @@
-import {memo, type ComponentType} from "react"
+import {memo, type ComponentType, type CSSProperties, type ReactNode} from "react"
 
 import {workflowAppTypeAtomFamily} from "@agenta/entities/workflow"
+import {useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {Check, Gavel, RobotIcon, SquaresFour, type IconProps} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -30,11 +31,18 @@ const WORKFLOW_DISPLAY_META: Record<
     },
 }
 
+/** The one place the rail's two glyph sizes are decided — the view sizes its fallback icon with it
+ * and the parent sizes a custom glyph with it, so the two can never drift apart. */
+const glyphSizeFor = (showDetails?: boolean): number => (showDetails === false ? 14 : 17)
+
 interface WorkflowIdentityViewProps {
     displayType: WorkflowDisplayType
     name: string
     selected?: boolean
     showDetails?: boolean
+    /** The agent's own glyph and colours, when they picked one. Display only — editing lives in
+     * the playground. */
+    chrome?: {glyph: ReactNode; className: string; style?: CSSProperties}
 }
 
 const WorkflowIdentityView = ({
@@ -42,6 +50,7 @@ const WorkflowIdentityView = ({
     name,
     selected,
     showDetails = true,
+    chrome,
 }: WorkflowIdentityViewProps) => {
     const {Icon, className, label} = WORKFLOW_DISPLAY_META[displayType]
 
@@ -56,10 +65,11 @@ const WorkflowIdentityView = ({
                 className={clsx(
                     "flex shrink-0 items-center justify-center transition-[width,height,border-radius] duration-300 ease-in-out",
                     showDetails ? "h-8 w-8 rounded-lg" : "h-6 w-6 rounded-md",
-                    className,
+                    chrome?.className ?? className,
                 )}
+                style={chrome?.style}
             >
-                <Icon size={showDetails ? 17 : 14} />
+                {chrome?.glyph ?? <Icon size={glyphSizeFor(showDetails)} />}
             </span>
             <div
                 className={clsx(
@@ -81,11 +91,22 @@ const WorkflowIdentityView = ({
 const AppWorkflowIdentity = ({
     workflowId,
     ...props
-}: Omit<WorkflowIdentityViewProps, "displayType"> & {workflowId: string}) => {
+}: Omit<WorkflowIdentityViewProps, "displayType" | "chrome"> & {workflowId: string}) => {
     const appType = useAtomValue(workflowAppTypeAtomFamily(workflowId))
+    const isAgent = appType === "agent"
+    // Only agents can carry an icon, and a null id collapses every other row onto one shared atom
+    // instead of giving each its own subscription.
+    const chrome = useAgentIconChrome(isAgent ? workflowId : null, {
+        size: glyphSizeFor(props.showDetails),
+        fallbackGlyph: null,
+    })
 
     return (
-        <WorkflowIdentityView {...props} displayType={appType === "agent" ? "agent" : "prompt"} />
+        <WorkflowIdentityView
+            {...props}
+            displayType={isAgent ? "agent" : "prompt"}
+            chrome={chrome.customised ? chrome : undefined}
+        />
     )
 }
 

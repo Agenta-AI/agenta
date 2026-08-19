@@ -404,6 +404,9 @@ export {
     applyAgentCreationPrefs,
     ensureEnabledSandbox,
     type AgentCreationPrefs,
+    // Agent icon (per-agent glyph + colour, persisted client-side)
+    agentIconAtomFamily,
+    type AgentIconRecord,
 } from "./state"
 
 // ============================================================================

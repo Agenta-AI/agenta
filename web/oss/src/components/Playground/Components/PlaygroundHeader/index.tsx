@@ -21,7 +21,7 @@ import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
-import {Check, Gavel, GearSix, PencilSimple, Plus, Robot} from "@phosphor-icons/react"
+import {Check, Gavel, GearSix, PencilSimple, Plus} from "@phosphor-icons/react"
 import {
     Button,
     Divider,
@@ -47,6 +47,7 @@ import {
     agentChatVirtualizeAtom,
     isAgentChatVirtualizationAvailable,
 } from "@/oss/components/AgentChatSlice/state/virtualization"
+import {AgentIconTrigger} from "@/oss/components/AgentIconChip"
 import {AgentNameInline} from "@/oss/components/EntityIdentity"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
@@ -669,11 +670,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     ) : null}
                     {isAgentWorkflow ? (
                         <div className="flex min-w-0 items-center gap-2">
-                            <Tooltip title="Agent">
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ag-type-agent-bg)] text-[var(--ag-type-agent-text)]">
-                                    <Robot size={15} weight="fill" />
-                                </span>
-                            </Tooltip>
+                            <AgentIconTrigger workflowId={renameWorkflowId} />
                             {renameWorkflowId ? (
                                 <AgentNameInline
                                     workflowId={renameWorkflowId}

@@ -288,3 +288,9 @@ export {
     ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./agentCreationPrefs"
+
+// ============================================================================
+// AGENT ICON (per-agent glyph + colour, persisted client-side)
+// ============================================================================
+
+export {agentIconAtomFamily, type AgentIconRecord} from "./agentIcon"

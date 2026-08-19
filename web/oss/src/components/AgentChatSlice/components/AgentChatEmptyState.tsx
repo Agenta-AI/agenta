@@ -1,6 +1,8 @@
 import {useMemo} from "react"
 
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {isHarnessBuiltinTool} from "@agenta/entity-ui/tool-utils"
 import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
@@ -72,14 +74,23 @@ export const capabilityLabel = (config: unknown): string | null => {
     return parts.length ? parts.join(" · ") : null
 }
 
-const Bot = ({size = 44}: {size?: number}) => (
-    <div
-        className="flex shrink-0 items-center justify-center rounded-full bg-colorFillTertiary"
-        style={{width: size, height: size}}
-    >
-        <Robot size={Math.round(size * 0.5)} className="text-colorTextSecondary" />
-    </div>
-)
+const Bot = ({size = 44, workflowId}: {size?: number; workflowId?: string | null}) => {
+    const glyph = Math.round(size * 0.5)
+    const chrome = useAgentIconChrome(workflowId, {
+        size: glyph,
+        fallbackGlyph: <Robot size={glyph} className="text-colorTextSecondary" />,
+        fallbackClassName: "bg-colorFillTertiary",
+    })
+
+    return (
+        <div
+            className={`flex shrink-0 items-center justify-center rounded-full ${chrome.className}`}
+            style={{width: size, height: size, ...chrome.style}}
+        >
+            {chrome.glyph}
+        </div>
+    )
+}
 
 /**
  * The agent chat empty state, adapting to the playground mode:
@@ -118,6 +129,11 @@ const AgentChatEmptyState = ({
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
+    const rawWorkflowId = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.workflowId(entityId), [entityId]),
+    )
+    // A draft agent has no persisted id to key an icon by — same guard the playground header uses.
+    const workflowId = rawWorkflowId && !isLocalDraftId(rawWorkflowId) ? rawWorkflowId : null
 
     if (onboarding && TEMPLATE_STRIP_MODE) {
         // Strip era: no tour video, no "Agent builder" eyebrow, no left-panel hint/starters — the
@@ -217,7 +233,7 @@ const AgentChatEmptyState = ({
     if (!buildMode) {
         return (
             <div className="m-auto flex max-w-sm flex-col items-center gap-2.5 text-center">
-                <Bot />
+                <Bot workflowId={workflowId} />
                 <Text className="!text-base !font-medium">What can I help you with?</Text>
                 <Text type="secondary" className="!text-xs !leading-relaxed">
                     Ask a question, or describe a task you want this agent to run.
@@ -234,7 +250,7 @@ const AgentChatEmptyState = ({
         <div className="m-auto w-full max-w-[420px]">
             <div className="flex flex-col gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-4">
                 <div className="flex items-center gap-2.5">
-                    <Bot size={34} />
+                    <Bot size={34} workflowId={workflowId} />
                     <div className="min-w-0">
                         <Text
                             className="!text-sm !font-medium block truncate"

@@ -4,4 +4,11 @@
  * arrive as slots/props; the components own only what an agent card or trigger row IS.
  */
 export {AgentCard, agentAvatar, type AgentCardData, type AgentCardProps} from "./AgentCard"
+export {
+    AgentGlyph,
+    useAgentIconChrome,
+    useAgentIconRecord,
+    type AgentGlyphProps,
+    type AgentIconChrome,
+} from "./agentIcon"
 export {NextTriggersSection, type NextTriggersSectionProps} from "./NextTriggersSection"
