@@ -418,6 +418,9 @@ export const VirtualTable = <RecordType extends object>({
             className={cn(
                 AVT.container,
                 "relative flex min-h-0 flex-col overflow-hidden",
+                // antd's `bordered` boxes the WHOLE table, not just the cells. Only the inner
+                // rules were ported, so the table had no outer edge at all.
+                bordered && "border border-solid border-colorBorderSecondary",
                 className,
             )}
             style={style}
@@ -443,6 +446,10 @@ export const VirtualTable = <RecordType extends object>({
                                         className={cn(
                                             AVT.headerCell,
                                             "box-border border-0 border-b border-solid border-colorBorderSecondary px-2 py-2 text-left",
+                                            // The selection and expand columns are columns too:
+                                            // without this the row-select column ran straight
+                                            // into Name with no rule between them.
+                                            bordered && "border-r",
                                         )}
                                         style={{
                                             ...headerCellPaint,
@@ -461,6 +468,7 @@ export const VirtualTable = <RecordType extends object>({
                                         className={cn(
                                             AVT.headerCell,
                                             "box-border border-0 border-b border-solid border-colorBorderSecondary px-2 py-2",
+                                            bordered && "border-r",
                                         )}
                                         style={{
                                             ...headerCellPaint,
@@ -602,13 +610,20 @@ export const VirtualTable = <RecordType extends object>({
                                                     className={cn(
                                                         AVT.cell,
                                                         "box-border bg-colorBgContainer px-2 align-middle",
+                                                        bordered &&
+                                                            "border-0 border-r border-solid border-colorBorderSecondary",
                                                         leadingCellProps?.(record, virtualRow.index)
                                                             ?.className,
                                                     )}
                                                     style={{
                                                         position: "sticky",
                                                         left: 0,
-                                                        zIndex: 1,
+                                                        // ABOVE the pinned data columns (z 2), the
+                                                        // same order the header uses. Inverted, the
+                                                        // leading cell sat UNDER the column pinned
+                                                        // beside it, so their shared edge showed
+                                                        // the scrolling content through it.
+                                                        zIndex: 3,
                                                         ...leadingCellProps?.(
                                                             record,
                                                             virtualRow.index,
@@ -625,11 +640,13 @@ export const VirtualTable = <RecordType extends object>({
                                                         AVT.cell,
                                                         AVT.expandCell,
                                                         "box-border bg-colorBgContainer px-2 align-middle",
+                                                        bordered &&
+                                                            "border-0 border-r border-solid border-colorBorderSecondary",
                                                     )}
                                                     style={{
                                                         position: "sticky",
                                                         left: leadingColumnWidth,
-                                                        zIndex: 1,
+                                                        zIndex: 3,
                                                     }}
                                                 >
                                                     {row.getCanExpand() ? (
