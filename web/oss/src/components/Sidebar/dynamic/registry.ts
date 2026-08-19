@@ -12,7 +12,7 @@ import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
 import {SessionRunSpinner} from "@/oss/components/AgentChatSlice/components/SessionRunSpinner"
-import {pendingSessionOpenAtom} from "@/oss/components/AgentChatSlice/state/pendingSessionOpen"
+import {addPendingSessionOpenAtom} from "@/oss/components/AgentChatSlice/state/pendingSessionOpen"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../scopes/constants"
 
@@ -93,7 +93,7 @@ const ENTITIES: SidebarEntity[] = [
         childMatchPaths: () => [],
         getOnClick: (session) => () => {
             if (!session.appId) return
-            getDefaultStore().set(pendingSessionOpenAtom, {
+            getDefaultStore().set(addPendingSessionOpenAtom, {
                 appId: session.appId,
                 sessionId: session.sessionId,
                 title: session.name ?? undefined,

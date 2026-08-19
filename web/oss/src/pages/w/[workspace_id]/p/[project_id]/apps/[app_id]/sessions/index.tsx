@@ -1,6 +1,30 @@
+import {useEffect, useState, type ReactNode} from "react"
+
+import {applySessionScopeAtom, type SessionScope} from "@agenta/sessions/state"
+import {useSetAtom} from "jotai"
+
+import {sessionScopeFromRouteQuery} from "@/oss/components/pages/sessions/assets/sessionRouteScope"
 import SessionsPage from "@/oss/components/pages/sessions/SessionsPage"
 import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {useAppId} from "@/oss/hooks/useAppId"
+import {useAppQuery} from "@/oss/state/appState"
+
+interface SessionScopeInitializerProps {
+    scope: SessionScope | undefined
+    children: ReactNode
+}
+
+const SessionScopeInitializer = ({scope, children}: SessionScopeInitializerProps) => {
+    const applyScope = useSetAtom(applySessionScopeAtom)
+    const [ready, setReady] = useState(!scope)
+
+    useEffect(() => {
+        if (scope) applyScope(scope)
+        setReady(true)
+    }, [applyScope, scope])
+
+    return ready ? children : null
+}
 
 /**
  * One agent's sessions, on the agent's own rail — the same page as `/sessions`, scoped by the
@@ -11,10 +35,16 @@ import {useAppId} from "@/oss/hooks/useAppId"
  */
 const AgentSessionsRoute = () => {
     const appId = useAppId()
+    const query = useAppQuery()
+    const scope = sessionScopeFromRouteQuery(query)
 
     return (
         <RequireWorkflowKind allowed={["app"]} currentRoute="sessions">
-            {appId ? <SessionsPage scopedAgentId={appId} /> : null}
+            {appId ? (
+                <SessionScopeInitializer scope={scope}>
+                    <SessionsPage scopedAgentId={appId} />
+                </SessionScopeInitializer>
+            ) : null}
         </RequireWorkflowKind>
     )
 }

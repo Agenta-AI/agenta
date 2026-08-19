@@ -42,7 +42,11 @@ import {
   type SessionPermissionRequest,
 } from "sandbox-agent";
 
-import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
+import {
+  resolveRunSessionId,
+  type AgentRunRequest,
+  type EmitEvent,
+} from "../../protocol.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import {
@@ -293,7 +297,14 @@ export async function acquireEnvironment(
   deps: SandboxAgentDeps = {},
   signal?: AbortSignal,
   presignedMount?: MountCredentials | null,
+  emit?: EmitEvent,
 ): Promise<AcquireEnvironmentResult> {
+  emit?.({
+    type: "data",
+    name: "agent-status",
+    data: { phase: "environment_starting" },
+    transient: true,
+  });
   const setup = await prepareEnvironmentSetup(request, deps, presignedMount);
   if (!setup.ok) return setup;
   const {
@@ -1079,6 +1090,12 @@ export async function acquireEnvironment(
     );
 
     timingLog("acquire_total", acquireStartedAt);
+    emit?.({
+      type: "data",
+      name: "agent-status",
+      data: { phase: "environment_ready" },
+      transient: true,
+    });
     return { ok: true, env: environment };
   } catch (err) {
     const error = conciseError(
