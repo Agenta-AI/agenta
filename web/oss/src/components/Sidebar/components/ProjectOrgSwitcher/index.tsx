@@ -24,8 +24,6 @@ import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvid
 
 import {useProjectOrgSwitcher} from "../../hooks/useProjectOrgSwitcher"
 
-import SwitcherScrollList from "./SwitcherScrollList"
-
 interface ProjectOrgSwitcherProps {
     collapsed: boolean
 }
@@ -44,6 +42,9 @@ const CAPTION_CLASS =
 /** px-[3px] + the card's 1px border + ROW_CLASS's px-2 = 12px, the nav rows' icon column. */
 const PANEL_CLASS = "flex flex-col px-[3px] py-1"
 
+/** Capping the list keeps the actions below it on screen; 224px is 7 rows, 40vh wins on short viewports. */
+const SCROLL_LIST_CLASS = "flex max-h-[min(40vh,224px)] flex-col overflow-y-auto"
+
 const Row = ({
     onClick,
     className,
@@ -55,14 +56,18 @@ const Row = ({
     className?: string
     children: React.ReactNode
     title?: string
-    /** The row in effect: carries the selected fill and the marker the list scrolls into view. */
+    /** The row in effect: takes the selected fill, and is where a capped list opens. */
     active?: boolean
 }) => (
     <button
         type="button"
         onClick={onClick}
-        data-active={active}
-        className={clsx(ROW_CLASS, active && "bg-[var(--ag-colorFillSecondary)]", className)}
+        className={clsx(
+            ROW_CLASS,
+            // scroll-initial-target is Chromium-only; elsewhere the list just opens at the top.
+            active && "bg-[var(--ag-colorFillSecondary)] [scroll-initial-target:nearest]",
+            className,
+        )}
         title={title}
     >
         {children}
@@ -160,9 +165,6 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
 
     const projectLabel = currentProject?.project_name || "Select project"
     const orgLabel = currentOrg?.name || "Organization"
-    const activeProjectKey = currentProject
-        ? `${currentProject.workspace_id}:${currentProject.project_id}`
-        : null
 
     const handleOpenChange = useCallback((next: boolean) => {
         setOpen(next)
@@ -183,7 +185,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
         () => (
             <div className={PANEL_CLASS}>
                 <div className={CAPTION_CLASS}>Projects in {orgLabel}</div>
-                <SwitcherScrollList activeKey={activeProjectKey}>
+                <div className={SCROLL_LIST_CLASS}>
                     {projectsForOrg.map((proj) => {
                         const isActive =
                             proj.project_id === currentProject?.project_id &&
@@ -209,7 +211,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                             </Row>
                         )
                     })}
-                </SwitcherScrollList>
+                </div>
                 <MenuDivider />
                 <Row onClick={() => setPanel("orgs")}>
                     <ArrowsLeftRight size={14} className="shrink-0" />
@@ -229,7 +231,6 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
             </div>
         ),
         [
-            activeProjectKey,
             close,
             createProject,
             currentProject?.project_id,
@@ -263,7 +264,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     </button>
                 </div>
                 <div className={CAPTION_CLASS}>Organizations</div>
-                <SwitcherScrollList activeKey={currentOrg?.id}>
+                <div className={SCROLL_LIST_CLASS}>
                     {orgOptions.map((org) => {
                         const isActive = org.id === currentOrg?.id
                         return (
@@ -287,7 +288,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                             </Row>
                         )
                     })}
-                </SwitcherScrollList>
+                </div>
                 <MenuDivider />
                 <Row
                     className="font-medium text-[var(--ag-colorPrimary)]"
