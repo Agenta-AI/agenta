@@ -51,12 +51,6 @@ An agent's instructions are its identity. They live in a file called `AGENTS.md`
 
 In the `Configuration` column, open the `Instructions` section and click the `AGENTS.md` row. The editor opens with an `Edit` and `Preview` control at the top. Click `Source` in the toolbar to edit the raw markdown.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/instructions-agents-md-editor.png")}
-  alt="The AGENTS.md editor dialog with its toolbar and the writing tips rail"
-  loading="lazy"
-/>
 
 Replace what is there with this, then press `Save`:
 
@@ -226,12 +220,6 @@ Every commit is kept, so you can see what the agent looked like at any point and
 
 In `Configuration`, scroll to the `Triggers` heading and its `Schedules` section. Press `Add schedule`. The `New schedule` dialog has four parts.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/schedules-new-schedule.png")}
-  alt="The New schedule dialog with its cadence list, day and time pickers, version selector, and message box"
-  loading="lazy"
-/>
 
 1. **`Name`.** Type `Weekly content plan` in `Schedule name`.
 2. **`When should it run?`** Choose `Weekly`. Under `On these days` pick `Mon`. Under `At these times (UTC)` set `09:00`. A green line confirms the schedule it parsed and the next time it fires.
