@@ -24,6 +24,8 @@ import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvid
 
 import {useProjectOrgSwitcher} from "../../hooks/useProjectOrgSwitcher"
 
+import SwitcherScrollList from "./SwitcherScrollList"
+
 interface ProjectOrgSwitcherProps {
     collapsed: boolean
 }
@@ -42,22 +44,27 @@ const CAPTION_CLASS =
 /** px-[3px] + the card's 1px border + ROW_CLASS's px-2 = 12px, the nav rows' icon column. */
 const PANEL_CLASS = "flex flex-col px-[3px] py-1"
 
-/** Capped scroll list (3 h-8 rows) with the scrollbar hidden. */
-const SCROLL_LIST_CLASS =
-    "flex max-h-24 flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
-
 const Row = ({
     onClick,
     className,
     children,
     title,
+    active,
 }: {
     onClick?: () => void
     className?: string
     children: React.ReactNode
     title?: string
+    /** The row in effect: carries the selected fill and the marker the list scrolls into view. */
+    active?: boolean
 }) => (
-    <button type="button" onClick={onClick} className={clsx(ROW_CLASS, className)} title={title}>
+    <button
+        type="button"
+        onClick={onClick}
+        data-active={active}
+        className={clsx(ROW_CLASS, active && "bg-[var(--ag-colorFillSecondary)]", className)}
+        title={title}
+    >
         {children}
     </button>
 )
@@ -153,6 +160,9 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
 
     const projectLabel = currentProject?.project_name || "Select project"
     const orgLabel = currentOrg?.name || "Organization"
+    const activeProjectKey = currentProject
+        ? `${currentProject.workspace_id}:${currentProject.project_id}`
+        : null
 
     const handleOpenChange = useCallback((next: boolean) => {
         setOpen(next)
@@ -173,7 +183,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
         () => (
             <div className={PANEL_CLASS}>
                 <div className={CAPTION_CLASS}>Projects in {orgLabel}</div>
-                <div className={SCROLL_LIST_CLASS}>
+                <SwitcherScrollList activeKey={activeProjectKey}>
                     {projectsForOrg.map((proj) => {
                         const isActive =
                             proj.project_id === currentProject?.project_id &&
@@ -181,10 +191,8 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                         return (
                             <Row
                                 key={`${proj.workspace_id}:${proj.project_id}`}
-                                className={clsx(
-                                    ITEM_ROW_CLASS,
-                                    isActive && "bg-[var(--ag-colorFillSecondary)]",
-                                )}
+                                className={ITEM_ROW_CLASS}
+                                active={isActive}
                                 onClick={() => {
                                     close()
                                     if (!isActive) switchProject(proj)
@@ -201,7 +209,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                             </Row>
                         )
                     })}
-                </div>
+                </SwitcherScrollList>
                 <MenuDivider />
                 <Row onClick={() => setPanel("orgs")}>
                     <ArrowsLeftRight size={14} className="shrink-0" />
@@ -221,6 +229,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
             </div>
         ),
         [
+            activeProjectKey,
             close,
             createProject,
             currentProject?.project_id,
@@ -254,16 +263,14 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     </button>
                 </div>
                 <div className={CAPTION_CLASS}>Organizations</div>
-                <div className={SCROLL_LIST_CLASS}>
+                <SwitcherScrollList activeKey={currentOrg?.id}>
                     {orgOptions.map((org) => {
                         const isActive = org.id === currentOrg?.id
                         return (
                             <Row
                                 key={org.id}
-                                className={clsx(
-                                    ITEM_ROW_CLASS,
-                                    isActive && "bg-[var(--ag-colorFillSecondary)]",
-                                )}
+                                className={ITEM_ROW_CLASS}
+                                active={isActive}
                                 onClick={() => {
                                     close()
                                     if (!isActive) void switchOrg(org.id)
@@ -280,7 +287,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                             </Row>
                         )
                     })}
-                </div>
+                </SwitcherScrollList>
                 <MenuDivider />
                 <Row
                     className="font-medium text-[var(--ag-colorPrimary)]"
