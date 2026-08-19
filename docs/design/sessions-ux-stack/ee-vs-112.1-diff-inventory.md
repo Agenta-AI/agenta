@@ -1314,7 +1314,29 @@ Before the change the drawer never opened, so the loop never armed. **The URL wr
 root defect and has to be fixed first.** Any change that makes the drawer open while the params
 are unreliable arms a close/reopen loop that hangs the tab.
 
-### O-01 — the open trace is not reflected in the URL — **CONFIRMED, not fixed**
+### O-01 — the trace drawer never opened — **FIXED AND CONFIRMED BY ARDA**
+
+Three read-modify-write races on the URL, each hidden behind the previous one. The full
+account is in the commits; the short version, in the order they had to be fixed:
+
+1. The click wrote `trace` and `span` as two navigations. `requestNavigationAtom` is a single
+   slot, so the second command replaced the first, and each `Router.replace` built its query
+   from one the other had not committed. `Router.replace` returned `false`.
+2. A `selectedTraceId` effect fired ~50ms later with a stale `traceParam` and cancelled the
+   surviving navigation.
+3. The drawer's own seams rebuilt the whole query from `router.query`, a render-time snapshot,
+   and pushed a query that predated the click. Fixing THAT by reading the live url then caused
+   an infinite loop, because a no-op write still pushed an identical url, which re-rendered,
+   which called the seam again. The seam now returns early when the url would not change.
+
+Closing had its own: params were cleared 320ms after the slide started, and the url sync
+reopens a closed drawer while `?trace=` is present, so that window reopened it. Clearing now
+happens in the same action that closes, and the sync opens on a param CHANGE rather than
+re-asserting every time.
+
+Open and close both confirmed working by Arda.
+
+### O-01a — the original diagnosis, kept because it was wrong twice
 
 The one real difference, reproducible across every sample:
 
