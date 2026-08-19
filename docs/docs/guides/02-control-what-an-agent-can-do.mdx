@@ -63,7 +63,7 @@ Built-in tools have no per-tool permission. The agent's `Policy` governs them. C
 When the agent calls a tool, the first of these that applies decides:
 
 1. The tool's own `Permission`, when it is anything other than `Inherit`.
-2. An entry in `Auto-approve`.
+2. The harness allow list, which is where `Always allow` puts a built-in.
 3. The agent's `Policy`.
 
 ## Approve or deny a call while the agent runs

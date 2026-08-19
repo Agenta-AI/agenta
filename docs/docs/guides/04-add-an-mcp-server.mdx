@@ -49,7 +49,7 @@ The MCP form does not store the key directly. It references a project secret tha
 The server's actions appear as tools labelled with the server name. When the agent calls one, it appears in the conversation and on any approval card.
 
 :::note
-The agent's `Policy` in the **Advanced** dialog governs MCP tools. They do not support per-tool `Permission` or `Auto-approve`. Under the default `Allow reads` policy, every MCP call asks for approval. To run MCP tools without approval, including on a schedule, set `Policy` to `Allow all`. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
+The agent's `Policy` in the **Advanced** dialog governs MCP tools. They have no per-tool `Permission`, and `Always allow` is not offered on their approval cards. Under the default `Allow reads` policy, every MCP call asks for approval. To run MCP tools without approval, including on a schedule, set `Policy` to `Allow all`. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
 :::
 
 ## Next

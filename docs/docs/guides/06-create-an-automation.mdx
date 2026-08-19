@@ -16,7 +16,7 @@ An unattended run cannot ask you anything. Three parts of the agent have to carr
 
 ### 1. Put the answers in the instructions
 
-Open `Sidebar > Agents > <agent name>`, set `Playground mode` to `Build`, and open `Instructions` in the `Configuration` column. Click the `AGENTS.md` row and write down the choices the agent would otherwise ask you about: which source to read, which format to produce, what to do when the data is missing, and where the result goes. Click `Save`.
+Open `Sidebar > Agents > <agent name>` and find `Instructions` in the `Configuration` column. Click the `AGENTS.md` row and write down the choices the agent would otherwise ask you about: which source to read, which format to produce, what to do when the data is missing, and where the result goes. Click `Save`.
 
 [Write your agent's instructions](/guides/write-your-agents-instructions) covers the writing itself.
 
@@ -50,7 +50,7 @@ Open `Advanced`, then the `Permissions` section, and set `Policy`:
 Under `Ask`, the run waits at the first tool call. Under `Allow reads`, it waits when the agent needs to write. Set permissions that let the automation finish before you attach a trigger.
 :::
 
-The `Auto-approve` field lists tools that run without asking. A tool appears there when you select `Always allow` on its approval card during a chat. The permission applies to a trigger after you commit it.
+There is no separate auto-approve list. When you select `Always allow` on a tool's approval card during a chat, Agenta writes that tool's own `Permission`, or adds a harness built-in to the harness allow list. Either way the grant reaches a trigger only after you commit it.
 
 For the wider set of controls, see [Control what an agent can do](/guides/control-what-an-agent-can-do).
 
@@ -69,16 +69,16 @@ Click `Commit` in the `Configuration` header, keep `New version`, write a commit
 
 ## Attach the trigger
 
-In `Configuration`, below `Advanced`, the `Triggers` heading holds two sections.
+Triggers live in `Sidebar > Settings > Triggers`, not in the agent's configuration.
 
-- **`Schedules`** runs the agent on a clock. Click `Add schedule`. See [Schedule an automation](/guides/schedule-an-automation).
-- **`Subscriptions`** runs the agent when an event fires in a connected app. Click `Add subscription`. See [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app).
+- **`Scheduled runs`** runs the agent on a clock. Click `Schedule`. See [Schedule an automation](/guides/schedule-an-automation).
+- **`Event triggers`** runs the agent when an event fires in a connected app. Click `Subscribe`. See [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app).
 
-Both dialogs ask `Which version runs?` and pin the variant and revision you choose. Both carry a `Run in playground` button in the footer, which runs the agent with the message you configured, and an `Active` toggle that decides whether the trigger is live when you click `Create`.
+Both forms carry a `Version` field that pins the variant and revision you choose, and a `Run in playground` button that runs the agent with the message you configured. The schedule form saves with `Create schedule`, the trigger form with `Create`.
 
 ## Where automations are listed
 
-`Sidebar > Settings > Triggers` lists every event trigger and scheduled run in the project. You can also create a trigger from this page with `+ Subscribe` or `+ Schedule`.
+`Sidebar > Settings > Triggers` lists every event trigger and scheduled run in the project, alongside the app connections they depend on.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}

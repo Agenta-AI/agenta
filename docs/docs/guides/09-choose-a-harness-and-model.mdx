@@ -1,94 +1,51 @@
 ---
 title: "Choose a harness and model"
 sidebar_label: "Choose harness and model"
-description: "Choose the harness, model, and provider credential that an Agenta agent uses."
+description: "Choose the model, harness, and provider connection that an Agenta agent uses."
 ---
 
 ```mdx-code-block
-import Image from "@theme/IdealImage";
 import { Stream } from "@cloudflare/stream-react";
 ```
 
-Choose the harness, model, and provider credential that your agent uses. For what each choice changes, see [Harnesses and models](/concepts/harnesses-and-models).
+Choose the model, harness, and provider connection that your agent uses. For what each choice changes, see [Harnesses and models](/concepts/harnesses-and-models).
 
-## Open the settings
+## Open the picker
 
-Go to `Sidebar > Agents > <agent name>`, set `Playground mode` to `Build`, and open the `Model & harness` section at the top of the `Configuration` column. Its header summary shows the current harness and model, for example `Pi · gpt-5.6-luna`. A `Connect key` pill means no provider credential is set yet.
+Go to `Sidebar > Agents > <agent name>` and open the `Model` section at the top of the `Configuration` column. Its summary shows the current harness and model, for example `Pi · DeepSeek: DeepSeek V4 Pro`.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/model-and-harness-panel.png")}
-  alt="The inline Model & harness panel with the model combobox, the API key and Subscription control, and the provider tiles"
-  loading="lazy"
-/>
+The header carries a badge when something needs your attention:
 
-Use the inline panel to change the model or add a provider key. To change the harness or compare its available models and hosting options, click `Detailed configuration`.
+| Badge | What it means |
+|---|---|
+| `No model` | No model is set yet |
+| `Connect key` | The model's provider has no credential yet |
+| `Unavailable` | The harness cannot run the model you picked |
 
-## Choose the harness
+## Choose the model and the harness
 
-In the `Model & harness` dialog, open the `Harness` section. It offers `Pi`, `Claude Code`, and `Codex`. The one in use carries a `Current` pill.
+These are one choice, not two. Click the combobox, which reads `Select a model…` until a model is set.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/model-and-harness-dialog.png")}
-  alt="The Model & harness dialog with the Harness section open and Pi selected"
-  loading="lazy"
-/>
+The picker has two columns. The left lists your connections, one row each, with a `Subscription` tag on any subscription mounted into your deployment. Click a connection and its models fill the right column, grouped under a heading per harness.
 
-Each harness lists its supported providers under `PROVIDERS` and its hosting options under `HOSTING`. These lists reflect what is available in your deployment.
-
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/harness-claude-code.png")}
-  alt="The same dialog with Claude Code selected, showing its providers and hosting options"
-  loading="lazy"
-/>
-
-Each option also says whether it works with the model you have selected: `✓ supports your model`, or `⚠ model not available`.
-
-:::warning
-If the harness you pick shows `⚠ model not available`, the agent has no working model until you choose one in the `Model` section below.
-:::
-
-## Choose the model
-
-Open the `Model` section and use the combobox. The list is filtered to the models the selected harness can reach, and choosing a model also sets its provider.
-
-Search for a model or select a provider to see its models. If the provider is not listed, click `+ Add custom provider`.
+Click a model row. That one click sets the model, its provider, the connection it runs through, and the harness. There is no separate harness control.
 
 <Stream controls autoplay muted loop src="54c29683a9e379ebc33877ae9e03632e" height="400px" />
 
-## Choose the credential
+A model reachable through two harnesses appears under both headings, so pick the row under the harness you want. Hover a harness heading for a one-line explanation and a link to the concept page. `Search models` filters across every connection at once.
 
-The credential decides where the model runs. Open `Provider credentials`, which has two modes.
+## Connect a provider
 
-### API key
+The picker's footer row, `Manage model providers`, opens the `Model providers` drawer. When no provider is connected yet the `Model` section shows a `Set up model providers` button instead of the combobox, which opens the same drawer.
 
-Pick the provider tile, or one of the tiles under `USE CUSTOM PROVIDER`:
+In the drawer, pick a provider under `Add a provider`, fill in its credential, and click `Done`. `Name` is optional; leave it blank to take the generated one. `Test` checks the credential first, but `Done` does not require it. Connections you already have sit under `Connected`, and mounted subscriptions under `Subscriptions`.
 
-| Tile | Use it for |
-|---|---|
-| The provider tile, for example `OpenAI` | The model vendor directly. Add the key and Agenta lists its models |
-| `Azure OpenAI` | Models served through Azure |
-| `OpenAI-compatible endpoint` | A proxy or gateway of your own that speaks the OpenAI API |
+To manage connections for the whole project instead of from one agent, go to `Sidebar > Settings > AI providers` and click `Add provider`. The table lists each connection's provider, name, credential, active models, and creation date.
 
-Paste the key into `API key *` and click `Save`. The key is encrypted in transit and at rest.
+To run an agent against a Claude or ChatGPT subscription rather than a metered API key, see [Use your own Claude or ChatGPT subscription](/guides/use-your-own-subscription).
 
-To manage keys for the whole project instead of one agent, go to `Sidebar > Settings > LLMs`. Each unconfigured provider has a `Configure now` button, and `+ OpenAI-compatible endpoint` adds an endpoint of your own.
+## Commit
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/settings-llms.png")}
-  alt="Settings then LLMs, the project-wide store of model provider keys"
-  loading="lazy"
-/>
+Picking a model leaves a draft on the agent configuration. To publish it, click `Commit` in the `Configuration` header, keep `New version`, write a message, and click `Commit`.
 
-### Subscription
-
-The `Subscription` mode runs the agent against a Claude or ChatGPT subscription instead of a metered API key. It requires a self-hosted Agenta deployment, and the card is marked `Unavailable in the cloud`. See [Use your own Claude or ChatGPT subscription](/guides/use-your-own-subscription).
-
-## Save and commit
-
-Click `Save` in the dialog footer. The change is a draft on the agent configuration.
-
-To publish it, click `Commit` in the `Configuration` header. Deployments and triggers run a pinned revision, so commit before an automation should use the new harness or model.
+Deployments and triggers run a pinned revision, so commit before an automation should use the new model or harness.
