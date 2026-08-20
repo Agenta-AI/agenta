@@ -502,14 +502,26 @@ class TestTeamCeilingGate:
         return client
 
     async def test_sound_ceiling_verifies_and_caches(self):
+        # The measured v1.97.0 shape: max_budget/budget_duration NESTED in team_info.
         client = self._client(
-            payload={"team_info": {"max_budget": 500.0, "budget_duration": None}}
+            payload={
+                "team_id": "team-starter",
+                "team_info": {"max_budget": 500.0, "budget_duration": None},
+            }
         )
         config = env.starter_credits_bridge
 
         assert await service._team_ceiling_verified(client, config) is True
         assert await service._team_ceiling_verified(client, config) is True
         assert client.calls == ["team-starter"]
+
+    async def test_top_level_budget_fields_also_accepted(self):
+        client = self._client(payload={"team_id": "team-starter", "max_budget": 500.0})
+
+        assert (
+            await service._team_ceiling_verified(client, env.starter_credits_bridge)
+            is True
+        )
 
     async def test_unreachable_team_refuses(self):
         client = self._client(
