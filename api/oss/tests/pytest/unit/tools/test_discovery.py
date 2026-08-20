@@ -397,6 +397,55 @@ async def test_connection_state_ready_needs_auth_needs_input(monkeypatch):
     assert needs_input.connect is not None
 
 
+async def test_connection_state_proposes_the_stranded_slug_so_it_resumes(monkeypatch):
+    """Issue #5911: a row stuck mid-handshake used to be skipped, so the agent was handed
+    ``telegram-main-2`` and the stranded row could never be repaired. ``initiate_connection``
+    now re-drives an active-but-invalid row, so its slug is proposed again."""
+    service = _service_with(
+        monkeypatch,
+        connections_by_integration={
+            "telegram": [
+                _fake_connection(slug="telegram-main", is_valid=False),
+            ],
+        },
+        auth_schemes={"telegram": [ToolAuthScheme.API_KEY]},
+    )
+
+    requirement = await service._discovery_connection_state(
+        project_id=uuid4(), provider_key="composio", integration_key="telegram"
+    )
+
+    assert requirement.state == ToolConnectionState.NEEDS_INPUT
+    assert requirement.connect.body["connection"]["slug"] == "telegram-main"
+
+
+async def test_connection_state_still_ladders_past_rows_that_cannot_resume(monkeypatch):
+    """A valid row is a real connection and an inactive one was switched off deliberately;
+    both keep the unique-slug conflict, so a second account still needs a fresh slug."""
+    service = _service_with(
+        monkeypatch,
+        connections_by_integration={
+            # Valid, but no provider account -> not ready, and not resumable either.
+            "slack": [_fake_connection(slug="slack-main", provider_id=None)],
+            "notion": [_fake_connection(slug="notion-main", is_active=False)],
+        },
+        auth_schemes={
+            "slack": [ToolAuthScheme.OAUTH],
+            "notion": [ToolAuthScheme.OAUTH],
+        },
+    )
+
+    slack = await service._discovery_connection_state(
+        project_id=uuid4(), provider_key="composio", integration_key="slack"
+    )
+    assert slack.connect.body["connection"]["slug"] == "slack-main-2"
+
+    notion = await service._discovery_connection_state(
+        project_id=uuid4(), provider_key="composio", integration_key="notion"
+    )
+    assert notion.connect.body["connection"]["slug"] == "notion-main-2"
+
+
 async def test_discover_capabilities_end_to_end(monkeypatch):
     service = _service_with(
         monkeypatch,

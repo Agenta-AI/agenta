@@ -603,10 +603,14 @@ class ToolsService:
             provider_key=provider_key,
             integration_key=integration_key,
         )
-        # Suggest a free slug: an inactive/invalid row may already hold
-        # ``<integration>-main``, and resolve_connection_by_slug can't disambiguate
-        # duplicate slugs, so don't propose one that already exists.
-        existing_slugs = {c.slug for c in connections if c.slug}
+        # Suggest a free slug, skipping any the DAO's unique constraint would reject. A row
+        # that is active but not valid is the exception: initiate_connection re-drives that
+        # one, so proposing its slug resumes it instead of stranding it behind a ``-2``.
+        existing_slugs = {
+            c.slug
+            for c in connections
+            if c.slug and not (c.is_active and not c.is_valid)
+        }
         connect_slug = f"{integration_key}-main"
         suffix = 2
         while connect_slug in existing_slugs:

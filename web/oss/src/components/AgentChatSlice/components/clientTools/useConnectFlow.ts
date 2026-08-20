@@ -16,6 +16,11 @@
  * message with the connection's `slug`/`integration`, so when several connect flows are live at
  * once each settles only on its OWN completion (never on a sibling's).
  *
+ * Reuse comes first (#5911): when the project already holds a usable connection for the
+ * integration, the parked call settles against THAT row and no create is attempted — the agent
+ * can ask to connect something it already has, and discovery is not always right about it. Only
+ * the ACTIVE instance does this, so the two mounted flows can't both settle the same call.
+ *
  * Settle on every terminal path (design §"Settle on every path"), so the run never hangs:
  *   success → {connected:true, integration, slug} · decline → {connected:false, reason:"declined"}
  *   · cancel/abandon → {connected:false, reason:"cancelled"} · timeout → {connected:false,
@@ -28,7 +33,13 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import type {ClientToolMeta, SettleClientTool} from "@agenta/chat/skin"
-import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {
+    isConnectionActive,
+    isConnectionValid,
+    useToolIntegrationConnections,
+    useToolIntegrationDetail,
+    type ToolConnection,
+} from "@agenta/entities/gatewayTool"
 import {useToolsConnections} from "@agenta/settings-ui"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
@@ -112,6 +123,16 @@ export const extractConnectErrorMessage = (err: unknown): string => {
     return "Connection failed. Please try again."
 }
 
+/**
+ * The project's usable connection for this integration, if it already has one. Active AND valid
+ * mirrors what the server accepts at invoke time (`resolve_connection_by_slug`), so reusing one
+ * here can't hand the agent a reference that fails to resolve on the next turn.
+ */
+export const findReusableConnection = (
+    connections: ToolConnection[] | undefined,
+): ToolConnection | null =>
+    connections?.find((c) => isConnectionActive(c) && isConnectionValid(c)) ?? null
+
 /** Read the API origin the OAuth callback page posts from; null if it can't be resolved. */
 const agentaApiOrigin = (): string | null => {
     try {
@@ -160,6 +181,11 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // mode: `modeResolving`/`modeResolvingRef` gate it shut until the lookup settles.
     const {integration: integrationDetail, isLoading: integrationDetailLoading} =
         useToolIntegrationDetail(integration)
+    // What the project already holds for this integration. The agent can ask to connect one it
+    // has, and the OAuth callback can land without this flow hearing about it, so both the parked
+    // call and the settled chip are answered from here rather than from a create attempt.
+    const {connections, isLoading: connectionsLoading} = useToolIntegrationConnections(integration)
+    const reusable = findReusableConnection(connections)
     // Bounded: a stuck/never-resolving lookup (dead network, an endpoint outage) must NOT
     // permanently disable Connect — past this bound, fall back to the agent's hinted mode same
     // as `resolveConnectMode` already does for "no schemes reported" (a wrong-but-triable guess
@@ -167,16 +193,18 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // `isConnectModeResolving`'s own bail-outs), so it never fires needlessly.
     const [modeResolveTimedOut, setModeResolveTimedOut] = useState(false)
     useEffect(() => {
-        if (!integration || !integrationDetailLoading) {
+        if (!integration || !(integrationDetailLoading || connectionsLoading)) {
             setModeResolveTimedOut(false)
             return
         }
         const timer = window.setTimeout(() => setModeResolveTimedOut(true), MODE_RESOLVE_TIMEOUT_MS)
         return () => window.clearTimeout(timer)
-    }, [integration, integrationDetailLoading])
+    }, [integration, integrationDetailLoading, connectionsLoading])
+    // The connections lookup shares this gate: a click landing before it resolves would create a
+    // duplicate of a connection the project already has.
     const modeResolving = isConnectModeResolving({
         hasIntegrationKey: !!integration,
-        queryIsLoading: integrationDetailLoading,
+        queryIsLoading: integrationDetailLoading || connectionsLoading,
         timedOut: modeResolveTimedOut,
     })
     const modeResolvingRef = useRef(modeResolving)
@@ -206,6 +234,10 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // One-shot guard so THIS instance settles the parked call at most once, plus shared cleanup for
     // the running popup's listener/poll/timeout. `meta.settled` covers the OTHER instance's settle.
     const settledRef = useRef(false)
+    // Whether the part arrived already settled. A card rehydrated from the transcript belongs to a
+    // past attempt, so the recovery below must not repaint it — only a settle that happened while
+    // this instance was mounted is this session's.
+    const settledAtMountRef = useRef(meta.settled)
     const activeRef = useRef(active)
     activeRef.current = active
     const popupRef = useRef<Window | null>(null)
@@ -243,6 +275,35 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
         }
         return () => teardown()
     }, [active, teardown])
+
+    // Reuse before create. Settling with the EXISTING slug is the point: that reference is what
+    // the runner re-resolves, so the agent binds the connection the project already has instead
+    // of asking for one it does not need. Gated on `active` because two instances mount for the
+    // same call (dock + inline marker) and only the live one may settle it.
+    useEffect(() => {
+        if (!active || !reusable || phase === "connecting") return
+        if (settledRef.current || meta.settled) return
+        // `input-streaming` can still carry a partial input whose `integration` is empty, and a
+        // settled sibling arrives as `output-error`; only a genuinely parked call may settle here.
+        if (meta.state !== "input-available") return
+        finish({connected: true, integration, slug: reusable.slug ?? slug})
+    }, [active, reusable, phase, meta.settled, meta.state, integration, slug, finish])
+
+    // The OAuth callback activates the row server-side keyed on the connected account, independent
+    // of the `tools:oauth:complete` message this flow waits on. So an auth that actually succeeded
+    // can settle as "cancelled"/"timeout" and paint a failure. Once the requery sees the
+    // connection, correct the chip — the settled call can't be re-resolved, but the agent's re-ask
+    // now resolves against this row. Runs on the INLINE instance too, since that is what renders
+    // the settled chip; `settledAtMountRef` is what keeps it off old transcripts.
+    useEffect(() => {
+        if (!reusable || manuallyConnected || settledAtMountRef.current) return
+        if (!meta.settled && !settledRef.current) return
+        const output = (meta.output ?? {}) as ConnectOutput
+        if (output.connected === true || outcome?.connected) return
+        // "Not now" is a decision, not a mishap: leave the user's refusal standing.
+        if ((outcome?.reason ?? output.reason) === "declined") return
+        setManuallyConnected(true)
+    }, [reusable, manuallyConnected, meta.settled, meta.output, outcome])
 
     /**
      * Run the Agenta OAuth flow: create the connection, open the popup, and watch its three terminal
@@ -334,8 +395,10 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
 
                 const poll = window.setInterval(() => {
                     if (!popupRef.current?.closed || succeeded) return
-                    // Abandon: closed without a success message.
+                    // Abandon: closed without a success message. The callback may still have
+                    // landed server-side, so requery before giving up (see the recovery effect).
                     teardown()
+                    invalidate()
                     if (settleParkedCall && !activeRef.current) return
                     if (settleParkedCall)
                         finish({connected: false, integration, slug, reason: "cancelled"})
@@ -345,6 +408,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
                 const timeout = window.setTimeout(() => {
                     if (succeeded) return
                     teardown()
+                    invalidate()
                     if (settleParkedCall && !activeRef.current) return
                     if (settleParkedCall)
                         finish({connected: false, integration, slug, reason: "timeout"})
@@ -389,10 +453,12 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // call is already settled — a manual retry — just stop).
     const cancel = useCallback(() => {
         teardown()
+        // Same as the abandon poll: the auth may have completed before the click.
+        invalidate()
         if (!settledRef.current && !meta.settled)
             finish({connected: false, integration, slug, reason: "cancelled"})
         else setPhase("idle")
-    }, [finish, teardown, integration, slug, meta.settled])
+    }, [finish, teardown, invalidate, integration, slug, meta.settled])
 
     // The user's "Not now": a structured refusal (NOT an error), so the run resumes and the agent
     // can respond gracefully / offer an alternative. Distinct from "cancelled" (abandoned popup) so
