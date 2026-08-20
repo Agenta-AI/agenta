@@ -2412,3 +2412,23 @@ and `RECENT` are conditional groups, not missing features.
 **The method point:** the first read would have supported either "local dropped the waiting group"
 or "it is just data". Producing the state on the quiet build is what turned a 221-region diff into
 a confirmed parity result — cheaper than arguing about it, and it exercises the code besides.
+
+## 5k. `SharedDrawers` — the trace drawer CONTENTS
+
+§4k confirmed the drawer opens and closes; its contents had never been compared. Opened on both
+from the first traces row.
+
+**Chrome is identical.** Same 1200px width, and the same control set in the same order:
+`Add annotation queue · Playground · Add to testset · Annotate · Overview · Raw Data ·
+Linked Spans · Annotations · Copy ×4`. The right panel matches section for section —
+`Annotations` collapsible with "There are no annotations for this trace", then `Trace info` with
+`Type: workflow` and `Status`. The 4.55% score is the trace payloads themselves, which are
+different traces on the two builds.
+
+**One thing left INCONCLUSIVE rather than filed.** Local's right panel scrolls with a **6px classic
+scrollbar** (`x920 w880`, `overflow-y: auto`, `offsetWidth - clientWidth = 6`). Prod shows none —
+but prod has seven `overflow-y: auto` containers and **not one of them is currently overflowing**,
+because its trace carries less content. So this could be "prod hides its scrollbar" or simply
+"prod had nothing to scroll", and the two are indistinguishable without a prod trace of comparable
+size. Worth resolving because 112.2 moved the config pane onto `ag-scroll-no-bar`; if that is the
+app's convention, a 6px classic bar here is inconsistent with it. Needs a matched-size trace.
