@@ -27,10 +27,11 @@ record-schema, and findability work below is first-release work, not a later add
 The front-end surface of this design shipped ahead of the backend, in PRs
 [#5458](https://github.com/Agenta-AI/agenta/pull/5458) (voice input) and
 [#5459](https://github.com/Agenta-AI/agenta/pull/5459) (attachments and drive uploads), both merged
-2026-07-29. It is dark behind two flags, `NEXT_PUBLIC_AGENT_FILE_UPLOADS` (the composer attach
+2026-07-29. It was dark behind two flags, `NEXT_PUBLIC_AGENT_FILE_UPLOADS` (the composer attach
 button, the attachment preview, and every drive-upload entry point) and
-`NEXT_PUBLIC_AGENT_VOICE_INPUT` (dictation and voice messages), both off by default. All paths
-verified against the code on 2026-07-31:
+`NEXT_PUBLIC_AGENT_VOICE_INPUT` (dictation and voice messages), both off by default. The voice flag
+is gone as of Stage 2 (see below); the uploads flag remains. All paths verified against the code on
+2026-07-31:
 
 - The composer attach UI and attachment chips (`AgentConversation.tsx`, `ComposerAttachments.tsx`).
 - The limits object: `DEFAULT_ATTACHMENT_LIMITS` in
@@ -251,8 +252,13 @@ and is merged dark (PR #5458). The Stage 2 audio work is:
   recording travels through the Stage 1 attachment pipeline unchanged (uploaded once, stored as an
   immutable original, materialized as a working copy, referenced in the records), and the composer
   shows the visible notice that the model will not hear it. No transcript is produced or sent.
-- Turn on `NEXT_PUBLIC_AGENT_VOICE_INPUT`: the voice capture UI (dictation and voice messages) is
-  already merged dark (PR #5458) and lands its recording in the attachment tray like any file.
+- Turn on the voice UI by deleting `NEXT_PUBLIC_AGENT_VOICE_INPUT` and the per-user Settings
+  toggle that shadowed it, so the composer mic is unconditional on both desktop and mobile.
+  **Done**: dictation ships, and a push-to-talk chord (hold Ctrl+Option / Ctrl+Alt) opens the mic
+  without reaching for the button. The voice-message mode is hidden behind the
+  `VOICE_MESSAGE_MODE_ENABLED` constant in `@agenta/chat`'s `VoiceInputButton` until the recording
+  actually reaches the workspace-only path above — the recorder, the takeover bar and the
+  send-vs-attach logic stay wired, so flipping that constant brings the mode back.
 
 **Server-side transcription is deferred, not Stage 2 work.** The first release adds no
 transcription endpoint, no key resolver, no platform key, and no metering (decision D14). The
