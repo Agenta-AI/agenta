@@ -19,6 +19,7 @@ import {TestsetsClient} from "@agentaai/api-client/resources/testsets"
 import {ToolsClient} from "@agentaai/api-client/resources/tools"
 import {TracesClient} from "@agentaai/api-client/resources/traces"
 import {TriggersClient} from "@agentaai/api-client/resources/triggers"
+import {UsersClient} from "@agentaai/api-client/resources/users"
 import {WorkflowsClient} from "@agentaai/api-client/resources/workflows"
 
 import {buildClientOptions, withLowPriorityFetch} from "./config"
@@ -119,4 +120,9 @@ let _mountsLowPriority: MountsClient | undefined
  * background mount file listing that must yield to render-critical traffic. */
 export function getLowPriorityMountsClient(): MountsClient {
     return (_mountsLowPriority ??= new MountsClient(withLowPriorityFetch(buildClientOptions())))
+}
+
+let _users: UsersClient | undefined
+export function getUsersClient(): UsersClient {
+    return (_users ??= new UsersClient(buildClientOptions()))
 }

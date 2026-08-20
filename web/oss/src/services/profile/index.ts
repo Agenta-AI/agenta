@@ -6,7 +6,10 @@
  * Uses standard fetchJson for consistency and reliability.
  */
 
+import {safeParseWithLogging} from "@agenta/entities/shared"
+import {getUsersClient} from "@agenta/sdk/resources"
 import type {User} from "@agenta/shared/types"
+import {z} from "zod"
 
 import {fetchJson, getBaseUrl} from "../../lib/api/assets/fetchClient"
 
@@ -55,6 +58,21 @@ export const changePassword = async (payload: {
         method: "POST",
         body: JSON.stringify(payload),
     })
+}
+
+const resetPasswordLinkSchema = z.string()
+
+/**
+ * Generate a password reset link for a workspace member (admin action).
+ * Calls POST /api/profile/reset-password?user_id=... via the generated Fern users client.
+ */
+export const resetPassword = async (userId: string): Promise<string> => {
+    const data = await getUsersClient().resetUserPassword({user_id: userId})
+    const validated = safeParseWithLogging(resetPasswordLinkSchema, data, "[resetPassword]")
+    if (validated === null) {
+        throw new Error("Received an unexpected response while generating the reset link.")
+    }
+    return validated
 }
 
 /**
