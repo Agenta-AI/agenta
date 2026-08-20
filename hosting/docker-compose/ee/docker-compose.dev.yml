@@ -64,6 +64,7 @@ services:
             - ../../../web/ee/public:/app/ee/public
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
+            - ../../../web/oss/scripts:/app/oss/scripts
             - ../../../web/packages:/app/packages
             - nextjs-ee-cache:/app/ee/.next/cache
             - nextjs-oss-cache:/app/oss/.next/cache

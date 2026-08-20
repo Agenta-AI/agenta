@@ -35,3 +35,6 @@ yarn-error.log*
 next-env.d.ts
 
 
+
+# pdfjs worker copied into public/ at dev+build time (see ../oss/scripts/copy-pdf-worker.mjs)
+public/pdf.worker.min.mjs
