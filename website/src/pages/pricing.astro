@@ -28,7 +28,7 @@ const comparisonModes = [
 ];
 
 const linkStyle =
-  "color:var(--yellow-400);text-decoration:underline;text-underline-offset:2px;";
+  "color:var(--th-link);text-decoration:underline;text-underline-offset:2px;";
 ---
 
 <Site
@@ -56,17 +56,17 @@ const linkStyle =
           style="display:flex;flex-direction:column;align-items:center;gap:22px;"
         >
           <span
-            style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.7);"
+            style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:var(--th-badge-bg);box-shadow:0 0 0 1px var(--th-badge-ring);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:var(--pp-eyebrow-text);"
             >{hero.eyebrow}</span
           >
           <h1
             class="ag-h1"
-            style="margin:0;font:var(--text-display-lg);color:#F7F6F4;max-width:760px;text-wrap:pretty;"
+            style="margin:0;font:var(--text-display-lg);color:var(--th-text-hi);max-width:760px;text-wrap:pretty;"
           >
             {hero.headline}
           </h1>
           <p
-            style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:560px;text-wrap:pretty;"
+            style="margin:0;font:var(--text-body-md);color:var(--th-text-body);max-width:560px;text-wrap:pretty;"
           >
             {hero.description}
           </p>
@@ -115,7 +115,7 @@ const linkStyle =
             `--cmp-cols-m:${colsM};--cmp-minw-m:${minwM}px;`;
           return (
             <div class={`cmp-wrap ${cls}`}>
-              <SectionTitle dark badge="Compare" title={data.title} />
+              <SectionTitle badge="Compare" title={data.title} />
 
               {/* Mobile-only affordance: the table scrolls sideways to reveal the
                   other plan columns, which isn't obvious on a phone. */}
@@ -128,17 +128,17 @@ const linkStyle =
                   {/* header row */}
                   <div
                     class="cmp-row"
-                    style={`display:grid;${COLS}align-items:end;padding:0 24px 18px;border-bottom:1px solid rgba(255,255,255,0.12);`}
+                    style={`display:grid;${COLS}align-items:end;padding:0 24px 18px;border-bottom:1px solid var(--pp-cmp-headrule);`}
                   >
-                    <span class="cmp-c0" style="font:var(--text-label);color:rgba(255,255,255,0.5);">
+                    <span class="cmp-c0" style="font:var(--text-label);color:var(--pp-cmp-mut);">
                       Features
                     </span>
                     {data.columns.map((c) => (
                       <div style="display:flex;flex-direction:column;gap:3px;">
-                        <span style="font:300 19px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
+                        <span style="font:300 19px/1.1 var(--font-display,'GT Alpina',serif);color:var(--th-text-hi);">
                           {c.name}
                         </span>
-                        <span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">
+                        <span style="font:var(--text-caption);color:var(--pp-cmp-mut);">
                           {c.price}
                         </span>
                       </div>
@@ -148,35 +148,35 @@ const linkStyle =
                   {data.groups.map((g) => (
                     <Fragment>
                       <div style="padding:22px 24px 10px;">
-                        <span style="font:var(--text-caption);letter-spacing:0.08em;text-transform:uppercase;color:var(--yellow-400);">
+                        <span style="font:var(--text-caption);letter-spacing:0.08em;text-transform:uppercase;color:var(--pp-cmp-group);">
                           {g.title}
                         </span>
                       </div>
                       {g.rows.map((r) => (
                         <div
                           class="cmp-row"
-                          style={`display:grid;${COLS}align-items:center;padding:14px 24px;border-top:1px solid rgba(255,255,255,0.07);`}
+                          style={`display:grid;${COLS}align-items:center;padding:14px 24px;border-top:1px solid var(--th-border-subtle);`}
                         >
-                          <span class="cmp-c0" style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
+                          <span class="cmp-c0" style="font:var(--text-body-sm);color:var(--pp-cmp-cell);">
                             {linkify(r.label, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
                           </span>
                           {r.cells.map((cell) => (
                             <span style="display:flex;align-items:center;">
                               {cell === true ? (
                                 <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
-                                  <circle cx="9" cy="9" r="9" fill="var(--yellow-400)" />
+                                  <circle cx="9" cy="9" r="9" fill="var(--pp-check-fill)" />
                                   <path
                                     d="M5 9.2 7.6 11.8 13 6.4"
-                                    stroke="var(--ink-900)"
+                                    stroke="var(--pp-check-stroke)"
                                     stroke-width="1.7"
                                     stroke-linecap="round"
                                     stroke-linejoin="round"
                                   />
                                 </svg>
                               ) : cell === false ? (
-                                <span style="width:14px;height:1.5px;background:rgba(255,255,255,0.2);border-radius:2px;" />
+                                <span style="width:14px;height:1.5px;background:var(--pp-cmp-dash);border-radius:2px;" />
                               ) : (
-                                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
+                                <span style="font:var(--text-body-sm);color:var(--pp-cmp-cell);">
                                   {cell}
                                 </span>
                               )}
@@ -198,7 +198,6 @@ const linkStyle =
     <section class="faq-section" data-screen-label="FAQ">
       <div class="faq-wrap">
         <SectionTitle
-          dark
           badge="FAQ"
           title="Frequently asked questions"
           subtitle="Everything about plans, limits, and self-hosting. Still curious? Talk to the team."
@@ -218,7 +217,7 @@ const linkStyle =
                   >
                     <path
                       d="M12 5v14M5 12h14"
-                      stroke="rgba(255,255,255,0.55)"
+                      stroke="var(--pp-faq-icon)"
                       stroke-width="1.5"
                       stroke-linecap="round"
                     />
@@ -239,27 +238,27 @@ const linkStyle =
 <style>
   /* ── section shells (backgrounds + responsive padding) ── */
   .pricing-hero {
-    background: #0e0d0f;
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: var(--pp-sec-a);
+    border: 1px solid var(--th-section-border);
     margin-top: -1px;
     text-align: center;
     padding: 80px 24px 56px;
   }
   .cards-section {
-    background: #0a090a;
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: var(--pp-sec-cards);
+    border: 1px solid var(--th-section-border);
     margin-top: -1px;
     padding: 56px 0 96px;
   }
   .cmp-section {
-    background: #0e0d0f;
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: var(--pp-sec-a);
+    border: 1px solid var(--th-section-border);
     margin-top: -1px;
     padding: 112px 0;
   }
   .faq-section {
-    background: #161518;
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: var(--pp-sec-faq);
+    border: 1px solid var(--th-section-border);
     margin-top: -1px;
     padding: 112px 0;
   }
@@ -314,18 +313,16 @@ const linkStyle =
        reveal the other plan columns, and fades out once scrolled to that end.
        Pure CSS via background-attachment (local covers vs scroll shadows). */
     background:
-      linear-gradient(to right, #0e0d0f 42%, rgba(14, 13, 15, 0)) left center,
-      linear-gradient(to left, #0e0d0f 42%, rgba(14, 13, 15, 0)) right center,
-      radial-gradient(
-          farthest-side at 0 50%,
-          rgba(0, 0, 0, 0.55),
-          rgba(0, 0, 0, 0)
-        )
+      linear-gradient(to right, var(--pp-cover) 42%, var(--pp-cover-t)) left
+        center,
+      linear-gradient(to left, var(--pp-cover) 42%, var(--pp-cover-t)) right
+        center,
+      radial-gradient(farthest-side at 0 50%, var(--pp-edge), var(--pp-edge-t))
         left center,
       radial-gradient(
           farthest-side at 100% 50%,
-          rgba(0, 0, 0, 0.55),
-          rgba(0, 0, 0, 0)
+          var(--pp-edge),
+          var(--pp-edge-t)
         )
         right center;
     background-repeat: no-repeat;
@@ -341,7 +338,7 @@ const linkStyle =
     display: none;
     font: var(--text-caption);
     letter-spacing: 0.02em;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--th-text-mut);
     text-align: center;
   }
   /* The table never collapses: it keeps full-size columns and scrolls sideways
@@ -368,7 +365,7 @@ const linkStyle =
     box-sizing: border-box;
   }
   .faq-item {
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--th-border);
     padding: 24px 0;
   }
   .faq-item summary {
@@ -384,7 +381,7 @@ const linkStyle =
   }
   .faq-q {
     font: 300 20px/1.3 var(--font-display, "GT Alpina", serif);
-    color: #f7f6f4;
+    color: var(--th-text-hi);
   }
   .faq-icon {
     flex: 0 0 auto;
@@ -398,7 +395,7 @@ const linkStyle =
     margin: 12px 0 0;
     max-width: 680px;
     font: var(--text-body-md);
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--th-text-body);
   }
   .faq-item[open] .faq-a {
     animation: accordion-in 0.2s ease both;
@@ -461,8 +458,8 @@ const linkStyle =
       align-self: stretch;
       display: flex;
       align-items: center;
-      background: #0e0d0f;
-      box-shadow: 10px 0 12px -8px rgba(0, 0, 0, 0.55);
+      background: var(--pp-sticky);
+      box-shadow: var(--pp-sticky-shadow);
     }
   }
   @media (max-width: 680px) {
@@ -471,5 +468,83 @@ const linkStyle =
       grid-template-columns: 1fr;
       max-width: 420px;
     }
+  }
+</style>
+
+<style is:global>
+  /* Theme-conditional values for spots where the dark literal has no matching
+     --th-* token. Light values per the light-theme spec; dark values are this
+     page's previous hard-coded literals, verbatim. */
+  #pricing-root {
+    --pp-sec-a: var(--th-bg-1);
+    --pp-sec-cards: var(--th-bg-1);
+    --pp-sec-faq: var(--th-bg-1);
+    --pp-eyebrow-text: var(--ink-600);
+    --pp-cmp-headrule: var(--th-border);
+    --pp-cmp-mut: var(--ink-500);
+    --pp-cmp-group: var(--ink-900);
+    --pp-cmp-cell: var(--ink-600);
+    --pp-cmp-dash: rgba(36, 36, 36, 0.2);
+    --pp-check-fill: var(--ink-900);
+    --pp-check-stroke: #ffffff;
+    --pp-faq-icon: #676770;
+    --pp-cover: #ffffff;
+    --pp-cover-t: rgba(255, 255, 255, 0);
+    --pp-edge: rgba(36, 36, 36, 0.18);
+    --pp-edge-t: rgba(36, 36, 36, 0);
+    --pp-sticky: #ffffff;
+    --pp-sticky-shadow: 10px 0 12px -8px rgba(36, 36, 36, 0.18);
+  }
+  [data-theme="dark"] #pricing-root {
+    --pp-sec-a: #0e0d0f;
+    --pp-sec-cards: #0a090a;
+    --pp-sec-faq: #161518;
+    --pp-eyebrow-text: rgba(255, 255, 255, 0.7);
+    --pp-cmp-headrule: rgba(255, 255, 255, 0.12);
+    --pp-cmp-mut: rgba(255, 255, 255, 0.5);
+    --pp-cmp-group: var(--yellow-400);
+    --pp-cmp-cell: rgba(255, 255, 255, 0.78);
+    --pp-cmp-dash: rgba(255, 255, 255, 0.2);
+    --pp-check-fill: var(--yellow-400);
+    --pp-check-stroke: var(--ink-900);
+    --pp-faq-icon: rgba(255, 255, 255, 0.55);
+    --pp-cover: #0e0d0f;
+    --pp-cover-t: rgba(14, 13, 15, 0);
+    --pp-edge: rgba(0, 0, 0, 0.55);
+    --pp-edge-t: rgba(0, 0, 0, 0);
+    --pp-sticky: #0e0d0f;
+    --pp-sticky-shadow: 10px 0 12px -8px rgba(0, 0, 0, 0.55);
+  }
+
+  /* Light-only zebra striping on comparison rows (spec: #fff / paper-50).
+     The first .cmp-row is the header; dark keeps its unstriped rows. */
+  :root:not([data-theme="dark"])
+    #pricing-root
+    .cmp-table
+    > .cmp-row:nth-child(2n + 3 of .cmp-row) {
+    background: var(--paper-50);
+    --pp-sticky: var(--paper-50);
+  }
+
+
+  /* HostingToggle island — its inline React styles reference these vars.
+     Light per spec; dark = the island's previous hard-coded literals. */
+  .hosting-toggle {
+    --ht-bg: var(--paper-50);
+    --ht-ring: inset 0 0 0 1px var(--paper-150);
+    --ht-on-bg: var(--paper-150);
+    --ht-on-ring: inset 0 0 0 1px var(--paper-200);
+    --ht-on-text: var(--ink-900);
+    --ht-off-text: var(--ink-600);
+    --ht-sub-text: var(--ink-500);
+  }
+  [data-theme="dark"] .hosting-toggle {
+    --ht-bg: rgba(255, 255, 255, 0.04);
+    --ht-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    --ht-on-bg: rgba(255, 255, 255, 0.08);
+    --ht-on-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    --ht-on-text: #f7f6f4;
+    --ht-off-text: rgba(255, 255, 255, 0.55);
+    --ht-sub-text: rgba(255, 255, 255, 0.5);
   }
 </style>

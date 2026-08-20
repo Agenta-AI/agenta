@@ -60,8 +60,14 @@ const dropdowns: { label: string; items: Item[] }[] = [
 ];
 
 const chevron = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
+
+// Theme switcher icons (lucide-style, currentColor): monitor = system,
+// sun = light, moon = dark. The button cycles system → light → dark.
+const icoMonitor = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`;
+const icoSun = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>`;
+const icoMoon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>`;
 const linkStyle =
-  "display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;";
+  "display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:var(--th-nav-text);cursor:pointer;text-decoration:none;";
 const triggerStyle = linkStyle + "border:none;background:transparent;";
 ---
 
@@ -75,17 +81,34 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
   <div class="ag-nav-inner">
     <a class="ag-brand" href="/" aria-label="Agenta home">
       <img
+        class="th-dark-only"
         src="/logos/Agenta-logo-full-dark.svg"
+        alt="Agenta"
+        style="height:23px;max-width:none;display:block;"
+      />
+      <img
+        class="th-light-only"
+        src="/logos/Agenta-logo-full-light.svg"
         alt="Agenta"
         style="height:23px;max-width:none;display:block;"
       />
     </a>
 
     <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
+      <button
+        class="ag-theme-btn"
+        data-theme-toggle
+        aria-label="Switch theme"
+        title="Theme"
+      >
+        <span data-ico="system" set:html={icoMonitor} />
+        <span data-ico="light" set:html={icoSun} />
+        <span data-ico="dark" set:html={icoMoon} />
+      </button>
       <a
         class="ag-ghost"
         href={BOOK_DEMO}
-        style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
+        style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--th-btn-ghost-bg);box-shadow:var(--th-btn-ghost-shadow);color:var(--th-btn-ghost-text);font:var(--text-label);cursor:pointer;text-decoration:none;"
         >Book a demo</a
       >
       <a
@@ -101,12 +124,12 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       id="ag-menu-toggle"
       aria-label="Open menu"
       aria-expanded="false"
-      style="align-items:center;justify-content:center;width:38px;height:34px;border:none;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);cursor:pointer;padding:0;"
+      style="align-items:center;justify-content:center;width:38px;height:34px;border:none;border-radius:8px;background:var(--th-ctl-bg);box-shadow:inset 0 0 0 1px var(--th-ctl-ring);cursor:pointer;padding:0;color:var(--th-ctl-text);"
     >
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
         ><path
           d="M2 5h14M2 9h14M2 13h14"
-          stroke="#F7F6F4"
+          stroke="currentColor"
           stroke-width="1.6"
           stroke-linecap="round"></path></svg
       >
@@ -166,7 +189,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
 <div
   class="ag-mobile-menu"
   id="ag-mobile-menu"
-  style="flex-direction:column;gap:2px;padding:12px 16px 16px;background:var(--ag-d-chrome);border:1px solid rgba(255,255,255,0.07);border-top:none;margin-top:-1px;"
+  style="flex-direction:column;gap:2px;padding:12px 16px 16px;background:var(--th-chrome);border:1px solid var(--th-border-subtle);border-top:none;margin-top:-1px;"
 >
   {
     links.map((l) => (
@@ -174,7 +197,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
         href={l.href}
         target={l.external ? "_blank" : undefined}
         rel={l.external ? "noopener" : undefined}
-        style="display:flex;align-items:center;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:rgba(255,255,255,0.78);cursor:pointer;text-decoration:none;"
+        style="display:flex;align-items:center;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:var(--th-text-prose);cursor:pointer;text-decoration:none;"
       >
         {l.label}
       </a>
@@ -183,7 +206,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
   {
     dropdowns.map((dd) => (
       <Fragment>
-        <span style="padding:12px 12px 4px;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.38);">
+        <span style="padding:12px 12px 4px;font:var(--text-caption);letter-spacing:0.03em;color:var(--th-text-dim);">
           {dd.label}
         </span>
         {dd.items.map((it) => (
@@ -191,7 +214,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
             href={it.href}
             target={it.external ? "_blank" : undefined}
             rel={it.external ? "noopener" : undefined}
-            style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:rgba(255,255,255,0.78);cursor:pointer;text-decoration:none;"
+            style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:var(--th-text-prose);cursor:pointer;text-decoration:none;"
           >
             <span class="ag-navdd-ico" style="width:30px;height:30px;" set:html={it.icon} />
             {it.label}
@@ -201,10 +224,21 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     ))
   }
   <div style="display:flex;gap:10px;margin-top:10px;">
+    <button
+      class="ag-theme-btn"
+      data-theme-toggle
+      aria-label="Switch theme"
+      title="Theme"
+      style="width:42px;height:42px;flex:0 0 auto;"
+    >
+      <span data-ico="system" set:html={icoMonitor} />
+      <span data-ico="light" set:html={icoSun} />
+      <span data-ico="dark" set:html={icoMoon} />
+    </button>
     <a
       class="ag-ghost"
       href={BOOK_DEMO}
-      style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
+      style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--th-btn-ghost-bg);box-shadow:var(--th-btn-ghost-shadow);color:var(--th-btn-ghost-text);font:var(--text-label);cursor:pointer;text-decoration:none;"
       >Book a demo</a
     >
     <a
@@ -217,6 +251,36 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
 </div>
 
 <script>
+  // Theme switcher: cycles system → light → dark. The pre-paint resolver in
+  // Base.astro owns resolution/persistence (window.__agTheme); here we only
+  // cycle the preference and mirror it onto the buttons (data-pref drives
+  // which icon shows, via CSS in global.css).
+  {
+    const NEXT: Record<string, string> = { system: "light", light: "dark", dark: "system" };
+    const LABEL: Record<string, string> = {
+      system: "Theme: system — switch to light",
+      light: "Theme: light — switch to dark",
+      dark: "Theme: dark — switch to system",
+    };
+    const api = (window as any).__agTheme;
+    const buttons = document.querySelectorAll<HTMLButtonElement>("[data-theme-toggle]");
+    const sync = () => {
+      const pref = api?.get() ?? "system";
+      buttons.forEach((b) => {
+        b.dataset.pref = pref;
+        b.setAttribute("aria-label", LABEL[pref]);
+        b.title = LABEL[pref];
+      });
+    };
+    buttons.forEach((b) =>
+      b.addEventListener("click", () => {
+        api?.set(NEXT[api?.get() ?? "system"]);
+      }),
+    );
+    document.addEventListener("ag-theme-change", sync);
+    sync();
+  }
+
   // Lightweight hamburger toggle (no framework). Replaces the DC menuOpen state.
   const toggle = document.getElementById("ag-menu-toggle");
   const menu = document.getElementById("ag-mobile-menu");

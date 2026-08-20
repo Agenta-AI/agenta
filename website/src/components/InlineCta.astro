@@ -28,16 +28,16 @@ const { title, body, primary, secondary } = site.inlineCta;
 
 {SHOW_INLINE_CTA && (
 <div
-  style="border-radius:14px;background:linear-gradient(150deg,#15151A,#100F12);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);padding:26px 28px;display:flex;flex-direction:column;gap:14px;margin:6px 0;"
+  style="border-radius:14px;background:var(--icta-bg);box-shadow:var(--icta-ring);padding:26px 28px;display:flex;flex-direction:column;gap:14px;margin:6px 0;"
 >
-  <span style="font:400 21px/1.3 var(--font-display);color:#F7F6F4;">{title}</span>
-  <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.6);">{body}</span>
+  <span style="font:400 21px/1.3 var(--font-display);color:var(--th-text-hi);">{title}</span>
+  <span style="font:var(--text-body-sm);color:var(--th-text-body);">{body}</span>
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
     <a
       href={primary.href}
       target="_blank"
       rel="noopener"
-      style="display:inline-flex;align-items:center;height:38px;padding:0 16px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);text-decoration:none;cursor:pointer;"
+      style="display:inline-flex;align-items:center;height:38px;padding:0 16px;border-radius:8px;background:var(--icta-ghost-bg);box-shadow:var(--icta-ghost-shadow);color:var(--th-btn-ghost-text);font:var(--text-label);text-decoration:none;cursor:pointer;"
       >{primary.label}</a
     >
     <a
@@ -50,3 +50,23 @@ const { title, body, primary, secondary } = site.inlineCta;
   </div>
 </div>
 )}
+
+<style is:global>
+  /* InlineCTA theme vars (card sits in blog-post prose, an all-white page in
+     light). Light = the paper-50 card recipe + the keycap ghost button;
+     [data-theme="dark"] restores the exact literals the card previously
+     hard-coded (its dark ghost bg is 0.05, not the token's 0.04), so dark
+     stays pixel-identical. */
+  :root {
+    --icta-bg: var(--paper-50);
+    --icta-ring: inset 0 0 0 1px var(--paper-150);
+    --icta-ghost-bg: var(--th-btn-ghost-bg);
+    --icta-ghost-shadow: var(--th-btn-ghost-shadow);
+  }
+  [data-theme="dark"] {
+    --icta-bg: linear-gradient(150deg, #15151a, #100f12);
+    --icta-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    --icta-ghost-bg: rgba(255, 255, 255, 0.05);
+    --icta-ghost-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  }
+</style>

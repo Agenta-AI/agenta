@@ -5,14 +5,13 @@ import TemplateExplorer from "./TemplateExplorer.tsx";
 
 <section
   data-screen-label="Templates"
-  class="ag-secpad"
-  style="background:var(--ag-d-bg-2);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:var(--section-pad-y) 0;"
+  class="ag-secpad ag-tplsec"
+  style="background:var(--tplsec-bg);border:1px solid var(--th-section-border);margin-top:-1px;padding:var(--section-pad-y) 0;"
 >
   <div
     style="display:flex;flex-direction:column;align-items:center;gap:48px;"
   >
     <SectionTitle
-      dark
       badge="Templates"
       title="An agent for every job"
       subtitle="Start from a working template for engineering, support, sales, knowledge, and operations, then make it yours."
@@ -21,3 +20,120 @@ import TemplateExplorer from "./TemplateExplorer.tsx";
     <TemplateExplorer client:visible />
   </div>
 </section>
+
+<style is:global>
+  /* Section surface: light = white section panel; dark = the original
+     --ag-d-bg-2 (the --th-bg-* ladder maps this slot to bg-1 in dark, so the
+     surface is pinned locally to keep dark bit-identical). */
+  .ag-tplsec {
+    --tplsec-bg: var(--th-bg-1);
+  }
+  [data-theme="dark"] .ag-tplsec {
+    --tplsec-bg: var(--ag-d-bg-2);
+  }
+
+  /* TemplateExplorer island theme vars (the island renders into this section).
+     Light values follow the light-theme spec's Templates recipes; dark values
+     are the island's original literals, verbatim. */
+  .ag-tplx {
+    /* area tabs */
+    --tplx-tabs-bg: var(--paper-100);
+    --tplx-tabs-ring: var(--paper-150);
+    --tplx-tab-on-bg: rgba(242, 242, 92, 0.35);
+    --tplx-tab-on-ring: rgba(36, 36, 36, 0.12);
+    --tplx-tab-on-text: var(--ink-900);
+    --tplx-tab-text: var(--ink-600);
+    /* featured panel frame */
+    --tplx-panel-bg: var(--surface-app);
+    --tplx-panel-shadow: var(--shadow-frame);
+    /* text */
+    --tplx-eyebrow: var(--ink-300);
+    --tplx-title: var(--ink-900);
+    --tplx-tagline: var(--ink-600);
+    /* spec-grid hairlines */
+    --tplx-rule: var(--paper-150);
+    --tplx-rule-soft: var(--paper-150);
+    /* trigger chip */
+    --tplx-trig-bg: rgba(242, 242, 92, 0.35);
+    --tplx-trig-ring: rgba(36, 36, 36, 0.12);
+    --tplx-trig-text: var(--ink-900);
+    --tplx-trig-dot: var(--yellow-500);
+    --tplx-trig-dot-glow: none;
+    /* harness segmented switch */
+    --tplx-seg-bg: var(--paper-100);
+    --tplx-seg-ring: var(--paper-150);
+    --tplx-seg-on-bg: #ffffff;
+    --tplx-seg-on-shadow: var(--shadow-ring);
+    --tplx-seg-on-text: var(--ink-900);
+    --tplx-seg-text: var(--ink-600);
+    /* "Soon" tag */
+    --tplx-soon-bg: var(--paper-150);
+    --tplx-soon-text: var(--ink-500);
+    /* white chips (models / tools) */
+    --tplx-chip-bg: #ffffff;
+    --tplx-chip-shadow: var(--shadow-ring);
+    --tplx-chip-text: var(--ink-900);
+    /* terracotta skill chips */
+    --tplx-skill-bg: rgba(217, 119, 87, 0.12);
+    --tplx-skill-ring: rgba(217, 119, 87, 0.3);
+    --tplx-skill-text: var(--ink-900);
+    /* AGENTS.md viewer */
+    --tplx-md-bg: var(--paper-50);
+    --tplx-md-border: var(--divider-app);
+    --tplx-md-hdr-border: var(--divider-app);
+    --tplx-md-dot: var(--paper-200);
+    --tplx-md-name: var(--ink-500);
+    --tplx-md-text: var(--ink-450);
+    --tplx-md-fade: linear-gradient(
+      to bottom,
+      rgba(252, 251, 250, 0),
+      rgba(252, 251, 250, 0.95)
+    );
+  }
+  [data-theme="dark"] .ag-tplx {
+    --tplx-tabs-bg: rgba(255, 255, 255, 0.04);
+    --tplx-tabs-ring: rgba(255, 255, 255, 0.08);
+    --tplx-tab-on-bg: rgba(242, 242, 92, 0.12);
+    --tplx-tab-on-ring: rgba(242, 242, 92, 0.3);
+    --tplx-tab-on-text: #f7f6f4;
+    --tplx-tab-text: rgba(255, 255, 255, 0.55);
+    --tplx-panel-bg: var(--ag-d-bg-2);
+    --tplx-panel-shadow:
+      0 24px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.07);
+    --tplx-eyebrow: rgba(255, 255, 255, 0.36);
+    --tplx-title: #f7f6f4;
+    --tplx-tagline: rgba(255, 255, 255, 0.55);
+    --tplx-rule: rgba(255, 255, 255, 0.07);
+    --tplx-rule-soft: rgba(255, 255, 255, 0.05);
+    --tplx-trig-bg: rgba(242, 242, 92, 0.1);
+    --tplx-trig-ring: rgba(242, 242, 92, 0.25);
+    --tplx-trig-text: #f7f6f4;
+    --tplx-trig-dot: var(--yellow-400);
+    --tplx-trig-dot-glow: 0 0 8px rgba(242, 242, 92, 0.7);
+    --tplx-seg-bg: rgba(255, 255, 255, 0.04);
+    --tplx-seg-ring: rgba(255, 255, 255, 0.08);
+    --tplx-seg-on-bg: rgba(255, 255, 255, 0.09);
+    --tplx-seg-on-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    --tplx-seg-on-text: #f7f6f4;
+    --tplx-seg-text: rgba(255, 255, 255, 0.5);
+    --tplx-soon-bg: rgba(255, 255, 255, 0.08);
+    --tplx-soon-text: rgba(255, 255, 255, 0.55);
+    --tplx-chip-bg: rgba(255, 255, 255, 0.05);
+    --tplx-chip-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    --tplx-chip-text: rgba(255, 255, 255, 0.82);
+    --tplx-skill-bg: rgba(217, 119, 87, 0.1);
+    --tplx-skill-ring: rgba(217, 119, 87, 0.28);
+    --tplx-skill-text: rgba(255, 255, 255, 0.85);
+    --tplx-md-bg: rgba(0, 0, 0, 0.34);
+    --tplx-md-border: rgba(255, 255, 255, 0.07);
+    --tplx-md-hdr-border: rgba(255, 255, 255, 0.06);
+    --tplx-md-dot: rgba(255, 255, 255, 0.14);
+    --tplx-md-name: rgba(255, 255, 255, 0.5);
+    --tplx-md-text: rgba(255, 255, 255, 0.7);
+    --tplx-md-fade: linear-gradient(
+      to bottom,
+      rgba(18, 17, 19, 0),
+      rgba(15, 14, 16, 0.9)
+    );
+  }
+</style>

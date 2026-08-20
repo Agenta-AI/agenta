@@ -11,26 +11,28 @@ const posts = await getCollection("posts");
 // Count includes posts where the author is primary OR a co-author.
 const postCount = (id: string) => authorPosts(id, posts).length;
 
-const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;";
+const sectionBorder =
+  "border:1px solid var(--th-section-border);margin-top:-1px;";
 ---
 
 <Site
   title="Authors — Agenta Blog"
   description="The people writing on the Agenta blog about prompt management, evaluation, and LLM observability."
+  whiteChrome
 >
   <!-- Header -->
   <section
     class="ag-headpad ag-pad"
-    style={`background:#0E0D0F;${sectionBorder}padding:72px 24px 56px;text-align:center;`}
+    style={`background:var(--au-sec-1);${sectionBorder}padding:72px 24px 56px;text-align:center;`}
   >
     <div style="display:flex;flex-direction:column;align-items:center;gap:18px;">
       <span
-        style="font:var(--text-caption);letter-spacing:0.14em;text-transform:uppercase;color:var(--yellow-400);"
+        style="font:var(--text-caption);letter-spacing:0.14em;text-transform:uppercase;color:var(--au-eyebrow);"
         >Our authors</span
       >
       <h1
         class="ag-h1"
-        style="margin:0;font:var(--text-display-xl);color:#F7F6F4;max-width:760px;text-wrap:pretty;"
+        style="margin:0;font:var(--text-display-xl);color:var(--th-text-hi);max-width:760px;text-wrap:pretty;"
       >
         The people behind the blog
       </h1>
@@ -40,7 +42,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
   <!-- Authors grid -->
   <section
     class="ag-pad"
-    style={`background:#0A0A0B;${sectionBorder}padding:48px 64px 88px;`}
+    style={`background:var(--au-sec-0);${sectionBorder}padding:48px 64px 88px;`}
   >
     <div
       class="ag-grid ag-authors-grid"
@@ -51,7 +53,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
           <a
             href={`/authors/${author.id}`}
             class="ag-card"
-            style="text-decoration:none;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:32px 24px;border-radius:14px;background:rgba(255,255,255,0.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);"
+            style="text-decoration:none;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:32px 24px;border-radius:14px;background:var(--au-card-bg);box-shadow:var(--au-card-ring);"
           >
             <img
               src={author.data.avatar}
@@ -60,25 +62,25 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
               height="88"
               loading="lazy"
               decoding="async"
-              style="width:88px;height:88px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);"
+              style="width:88px;height:88px;border-radius:50%;object-fit:cover;box-shadow:var(--au-avatar-ring);"
             />
-            <span style="font:400 22px/1.2 var(--font-display);color:#F7F6F4;">
+            <span style="font:400 22px/1.2 var(--font-display);color:var(--th-text-hi);">
               {author.data.name}
             </span>
-            <span style="font:var(--text-caption);color:var(--yellow-400);">
+            <span style="font:var(--text-caption);color:var(--au-role);">
               {author.data.role}
             </span>
-            <span style="font:var(--text-caption);color:rgba(255,255,255,0.45);">
+            <span style="font:var(--text-caption);color:var(--th-text-mut);">
               {postCount(author.id)} {postCount(author.id) === 1 ? "post" : "posts"}
             </span>
             {author.data.socials && author.data.socials.length > 0 && (
               <div style="display:flex;gap:8px;margin-top:4px;">
                 {author.data.socials.map((s) => (
-                  <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);display:inline-flex;align-items:center;justify-content:center;">
+                  <span style="width:30px;height:30px;border-radius:8px;background:var(--au-tile-bg);box-shadow:var(--au-tile-ring);display:inline-flex;align-items:center;justify-content:center;">
                     <img
                       src={socialIcon(s.platform)}
                       alt=""
-                      style="width:15px;height:15px;filter:invert(1) brightness(0.85);"
+                      style="width:15px;height:15px;filter:var(--au-icon-filter);"
                     />
                   </span>
                 ))}
@@ -89,4 +91,37 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
       }
     </div>
   </section>
+
+  <style is:global>
+    /* Authors-index theme vars. The mockups don't cover authors pages; light
+       mirrors the blog-post author-bio treatment (all-white page, paper-50
+       cards with paper-150 rings, ink text scale, white social tiles).
+       [data-theme="dark"] restores the exact literals the page previously
+       hard-coded, so dark stays pixel-identical. */
+    :root {
+      --au-sec-1: var(--paper-0); /* header band */
+      --au-sec-0: var(--paper-0); /* grid band   */
+      --au-eyebrow: var(--ink-900); /* "Our authors" */
+      --au-card-bg: var(--paper-50);
+      --au-card-ring: inset 0 0 0 1px var(--paper-150);
+      --au-avatar-ring: inset 0 0 0 1px var(--paper-150);
+      --au-role: var(--ink-600);
+      --au-tile-bg: #ffffff;
+      --au-tile-ring: 0 0 0 1px var(--paper-200);
+      /* Icons are black source SVGs; ~ink-600 grey in light. */
+      --au-icon-filter: invert(0.4);
+    }
+    [data-theme="dark"] {
+      --au-sec-1: #0e0d0f;
+      --au-sec-0: #0a0a0b;
+      --au-eyebrow: var(--yellow-400);
+      --au-card-bg: rgba(255, 255, 255, 0.02);
+      --au-card-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+      --au-avatar-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      --au-role: var(--yellow-400);
+      --au-tile-bg: rgba(255, 255, 255, 0.05);
+      --au-tile-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      --au-icon-filter: invert(1) brightness(0.85);
+    }
+  </style>
 </Site>
