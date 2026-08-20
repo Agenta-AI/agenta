@@ -7,7 +7,10 @@
 # strips.py's measured boxes with them. Shots and the venv stay disposable (see .gitignore).
 
 QA="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-WORKTREE="$(cd "$QA/../../../.." && pwd)"
+# The harness lives on its own branch now, so it is often checked out somewhere OTHER than the
+# code worktree it is testing — and then "four levels up" is the wrong repo. Set QA_WORKTREE to
+# the worktree running the dev server whenever the two differ.
+WORKTREE="${QA_WORKTREE:-$(cd "$QA/../../../.." && pwd)}"
 PY="$QA/venv/bin/python"
 B="$HOME/.claude/skills/gstack/browse/dist/browse"
 mkdir -p "$QA/shots"
@@ -16,7 +19,8 @@ mkdir -p "$QA/shots"
 # <git-toplevel-or-cwd>/.gstack/browse.json — so a $B command run from another directory misses
 # the live headed daemon, silently SPAWNS a second headless one, and every later call talks to
 # that stray instead of the browser you are looking at. It cost a full relaunch once.
-export BROWSE_STATE_FILE="$WORKTREE/.gstack/browse.json"
+# An already-exported value wins, so a caller can pin the daemon without setting QA_WORKTREE.
+export BROWSE_STATE_FILE="${BROWSE_STATE_FILE:-$WORKTREE/.gstack/browse.json}"
 
 # --- The pair under comparison -------------------------------------------------------------
 # Both projects are named `112-QA`. These are per-account ids: if the local stack is rebuilt or

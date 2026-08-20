@@ -13,12 +13,25 @@ itself be untracked and a fresh clone would happily commit ~370 PNGs.
 
 ## Setup
 
+This harness lives on `docs/sessions-ux-stack-worklog`, NOT on the code branch. Get it with:
+
+```bash
+git checkout docs/sessions-ux-stack-worklog -- docs/design/sessions-ux-stack
+```
+
 ```bash
 python3 -m venv venv && ./venv/bin/pip install numpy Pillow   # once
+export QA_WORKTREE=/path/to/the/worktree/running/the/dev/server   # see below
 source docs/design/sessions-ux-stack/qa112/env.sh
 ./doctor.sh                    # check daemon, dev server, stack, DPR, base URLs
 pin_tab local; pin_tab prod    # REQUIRED — see "DPR is per tab" below
 ```
+
+**`QA_WORKTREE` matters whenever the harness is checked out somewhere other than the code
+worktree it is testing.** `env.sh` otherwise derives the worktree as "four levels up from
+`qa112/`", which then names the WRONG repo — and `BROWSE_STATE_FILE` with it, so every `browse`
+call misses the live headed daemon and silently spawns a stray headless one. Same failure the
+"Never `closetab`" trap below describes, reached a different way.
 
 ## Commands
 
