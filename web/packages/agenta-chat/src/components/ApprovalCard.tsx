@@ -2,8 +2,8 @@
  * The shared approval card — the ONE design for a human-in-the-loop gate, extracted from the
  * desktop ApprovalDock so mobile renders the identical surface instead of a wireframe copy.
  *
- * The card owns what a gate IS: the shield header with the batch count, the tool identity
- * (raw name + source chip, or the friendly one-sentence ask), and the exact-payload expander.
+ * The card owns what a gate IS: the shield header with the batch count, the one-sentence ask
+ * naming what the agent is about to do, and the exact-payload expander.
  * Everything surface-specific — action buttons, steer panels, always-allow rows, trace links,
  * registry-rendered bodies — arrives as slots, so each app keeps its own affordances on the
  * same chrome.
@@ -101,8 +101,9 @@ export interface ApprovalCardFrameProps {
     input: unknown
     /** Total pending gates in the paused turn (renders "1 of N" beyond 1). */
     count: number
-    /** Friendly mode: fold the humanized tool name into one sentence (Chat). Off = the raw
-     * name + source chip line (Build / debugging surfaces). */
+    /** Chat mode: the payload well reads "Details" rather than "Payload". The ask itself is the
+     * same humanized sentence either way — a debugger reads the raw name off the title attribute
+     * and the expander. */
     friendly?: boolean
     /** Replace the default ask sentence; null = a specialized body owns it (renders nothing). */
     headline?: ReactNode | null
@@ -516,43 +517,21 @@ export const ApprovalCardFrame = ({
                 ) : null}
             </div>
 
-            {/* Identity + ask. Build keeps the raw tool name (debuggers steer by it); Chat folds
-                a humanized name into one sentence — the raw name stays reachable via the title
-                attribute and the payload expander. */}
-            {!friendly ? (
-                <div className="flex min-w-0 items-center gap-2">
-                    <span
-                        className="min-w-0 truncate text-xs font-medium text-colorText"
-                        title={toolName}
-                    >
-                        {toolName}
-                    </span>
-                    {display.source ? (
-                        <span className="shrink-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-1.5 py-px text-xs text-colorTextSecondary">
-                            {display.source}
-                        </span>
-                    ) : null}
-                </div>
-            ) : null}
-
+            {/* ONE humanized sentence in both modes — the raw name lives in the title attribute
+                and the payload expander. A registry body that brings its own headline replaces it;
+                one that passes null owns the ask entirely and this renders nothing. */}
             {headline !== null ? (
-                friendly ? (
-                    <span className="text-xs text-colorTextSecondary" title={toolName}>
-                        {headline ?? (
-                            <>
-                                The agent needs your approval before{" "}
-                                <span className="font-medium text-colorText">
-                                    {inSentence(display.activity.running)}
-                                </span>
-                                {display.source ? ` from ${display.source}` : ""}.
-                            </>
-                        )}
-                    </span>
-                ) : (
-                    <span className="text-xs text-colorTextSecondary">
-                        {headline ?? "The agent wants to run this tool before it can keep going."}
-                    </span>
-                )
+                <span className="text-xs text-colorTextSecondary" title={toolName}>
+                    {headline ?? (
+                        <>
+                            The agent needs your approval before{" "}
+                            <span className="font-medium text-colorText">
+                                {inSentence(display.activity.running)}
+                            </span>
+                            {display.source ? ` from ${display.source}` : ""}.
+                        </>
+                    )}
+                </span>
             ) : null}
 
             {body ?? (

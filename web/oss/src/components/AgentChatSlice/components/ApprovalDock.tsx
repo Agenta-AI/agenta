@@ -124,11 +124,18 @@ const ApprovalDock = ({
                         respondingSource={resolveSource}
                         entityId={entityId}
                         steerEnabled={steerEnabled}
-                        // Chat folds the humanized name into one sentence; Build keeps the raw
-                        // name + source chip. A friendly body (headline: null) already says
-                        // what's happening — nothing extra.
+                        // Chat labels the payload well "Details"; Build says "Payload". The ask
+                        // itself reads the same in both modes.
                         friendly={chatMode}
-                        headline={renderer ? renderer.headline : undefined}
+                        // A registered body without its own headline gets the generic ask: the
+                        // humanized sentence would name the tool a second time, next to a preview
+                        // that already shows what the call does.
+                        headline={
+                            renderer
+                                ? (renderer.headline ??
+                                  "The agent wants to run this tool before it can keep going.")
+                                : undefined
+                        }
                         // The friendly two-pane body needs more air than the one-line payload card.
                         className={`ag-surface-chat mb-2 ${renderer ? "gap-4 p-4" : "gap-2.5 p-3"}`}
                         payloadSurfaceClassName="ag-surface-inset"

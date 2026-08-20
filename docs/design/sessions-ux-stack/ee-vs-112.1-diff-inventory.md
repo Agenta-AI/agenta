@@ -2733,3 +2733,96 @@ One red found along the way was **not** a merge regression: `sessions.delete.tes
 pre-merge branch too — its `@agenta/entities/session` mock omits `sessionRowsFromPages`, which the
 `@agenta/sessions` barrel reads at module load, so the suite never imported. Verified by re-running
 it with the pre-merge barrel restored; fixed with the one missing mock key.
+
+## 8. The post-merge comparison — one real regression, and three things ruled out
+
+Driven live against prod v0.112.2 on the matched `112-QA` agents, after the merge in §7.
+
+### The tool rows — CLOSED, and §5e's lead with them
+
+The whole reason for the session. Both builds, same session, same failing call:
+
+| | prod | local (merged) |
+|---|---|---|
+| failed read row | `Reading a file failed` | **identical** |
+| detail slot | `definitely-not-here-12345.txt` | **identical** |
+| running / done tenses | `Writing a file` / `Wrote a file` | **identical** |
+
+Before the merge this build rendered a bare `Read` / `failed`. §5e's open lead is closed, and it
+was never drift — the branch was missing the feature work, exactly as §6 predicted.
+
+`chat.light.tool-failed` reads **5.23%** on the `chat` strip, and every region in it is one of
+three known-and-closed things: **L-01** (the fenced code block follows the app theme locally and is
+always dark on prod — closed, local is correct), the model's own prose, and the session-tab titles.
+The tool row itself is pixel-identical.
+
+### A-01 — the approval ask lost its sentence in Build mode — **FIXED**
+
+Found by driving both to the same write-file gate:
+
+| | prod | local (merged, before this fix) |
+|---|---|---|
+| headline | `The agent needs your approval before writing a file.` | `write` + `The agent wants to run this tool before it can keep going.` |
+
+**Not a 112.2 change — a lane regression, and the merge is what made it visible.** The merge-base
+dock already carried the comment *"One humanized sentence in both modes; the raw name lives in the
+tooltip"* and branched on whether a registry body is present. The lane's extracted
+`@agenta/chat` `ApprovalCard` reintroduced a `friendly`-gated split with a raw-name + source-chip
+row, `friendly` being `chatPanelMaximizedAtom` — so with the config pane open you got the raw wire
+name and a generic sentence. It went unnoticed because the lane's friendly copy still matched the
+base's; 112.2 changed that copy, and the two halves visibly diverged.
+
+Fixed in the shared card: one humanized sentence in both modes, no raw-name row. The dock now
+passes the generic ask explicitly for a registered body that brings no headline of its own, so the
+three-way base behaviour (no renderer → humanized · renderer with headline → its headline ·
+`headline: null` → nothing) survives the extraction. `friendly` now only picks
+"Details" vs "Payload". Verified after a reload: local reads `The agent needs your approval before
+writing a file.`, byte-for-byte prod's. `Always allow writing a file for this agent` already
+matched — that half of 112.2's copy landed in the merge.
+
+### Session start and open — the riskiest rewiring, verified end to end
+
+The #6042 handoff rewrite (single slot → per-session LIST) crosses a package boundary here: the
+carrier lives in `@agenta/sessions/state`, the consumer in oss's `AgentChatPanel`. Both directions
+driven:
+
+- **Open** — a row on `/sessions` navigates to the playground and that session becomes the ACTIVE
+  tab. `useOpenAgentSession` → `addPendingSessionOpenAtom` → panel consumes → `removePendingOpens`.
+- **Start** — Home's composer with a seed message mints a new session under its own id and lands
+  on it, titled from the seed. `useStartAgentSession` → both carriers → `addSession({id})`.
+
+Nothing hangs and no stray blank tab appears beside either, which is the failure mode the list
+rewrite exists to prevent.
+
+### Auth — parity, and the new loading gate does not lock the page
+
+112.2 adds `isInitialOtpCheckLoading`, which disables the social buttons and the email field while
+the stored attempt is checked. If that check never resolved, `/auth` would render permanently
+inert. It does not: both builds show `Continue with Google` / `Continue with GitHub` / `Continue`
+and the email input, **all enabled**, with identical copy. Prod additionally shows the
+`DATA RESIDENCY · EU / US` selector — `shouldShowRegionSelector`, env-gated, not a build difference.
+
+### Three things ruled out before filing
+
+- **"Local shows `1 required` on the elicitation card and prod doesn't."** It is the model's
+  schema, not the build. Produced the state rather than guessing: prompting prod for a call whose
+  `requestedSchema.required` lists the property gives prod `What is your city? / 1 required / City`
+  — identical to local's card. The rest of 112.2's elicitation copy is right on both: our own client
+  tool goes unnamed (no "Asked by"), and "Waiting on your input" is gone, because the turn's status
+  line already says `Waiting for you` directly below.
+- **"The fenced code block is light locally, dark on prod."** L-01, already closed as local being
+  correct. Re-filing it would have reversed a decision Arda already made.
+- **"Prod's fresh session can't run."** `Add your model provider key to run this agent` on some prod
+  sessions is account state, not a build difference.
+
+### The seven fixes still hold (§5l re-run on the merged build)
+
+| fix | expected | measured on the merged build |
+|---|---|---|
+| C-01 avatar column | 32px slot | **32** (prod 32) |
+| C-02 fenced code lines | one block per line | `a = 1\nb = 2\nc = 3`, **3 block spans**, 54px |
+| C-04 markdown scale | matches prod | body **13px** on both |
+| U-01 range picker | active row painted | `24 hours` `rgba(36,36,36,.06)`, every other row transparent |
+| D-21 / D-22 / D-23 + modal `classNames` | slots reach elements | `@agenta/ui` **85/85** green |
+
+None of their files were in the conflict list, and none of them moved.
