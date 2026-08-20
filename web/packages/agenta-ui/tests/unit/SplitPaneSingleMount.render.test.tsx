@@ -86,6 +86,12 @@ describe("SplitPane mount stability", () => {
         expect(pane.className).toContain("grow")
         expect(pane.className).not.toContain("grow-0")
         expect(fill.className).toContain("hidden")
-        expect(container.querySelector('[data-slot="split-pane-bar"]')).toBeNull()
+        // The bar is ZERO-WIDTH, not unmounted (P-09): removing the 9px column outright moved
+        // the fill in the frame the collapse started, so the slide read as a snap-then-glide.
+        // It also leaves the a11y tree, which is what makes it inert while closed.
+        const bar = container.querySelector<HTMLElement>('[data-slot="split-pane-bar"]')!
+        expect(bar).not.toBeNull()
+        expect(bar.style.flexBasis).toBe("0px")
+        expect(bar.getAttribute("aria-hidden")).toBe("true")
     })
 })

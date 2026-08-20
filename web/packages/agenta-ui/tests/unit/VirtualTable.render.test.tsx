@@ -121,7 +121,10 @@ describe("VirtualTable render warnings", () => {
         const head = container.querySelector(".avt-head-cell")?.className ?? ""
         const cell = container.querySelector(".avt-row td")?.className ?? ""
         // The header must not paint the same background as the body, or there is no chrome.
-        expect(head).toContain("bg-colorFillQuaternary")
+        // The header no longer paints a fill: the sticky header was made opaque against the
+        // page surface instead (parity pass, §4c), so its chrome is the bottom rule + weight.
+        expect(head).toContain("border-b")
+        expect(head).toContain("font-medium")
         expect(cell).not.toContain("bg-colorFillQuaternary")
     })
 

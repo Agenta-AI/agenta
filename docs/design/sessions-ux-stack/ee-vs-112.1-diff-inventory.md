@@ -2197,3 +2197,42 @@ Local's agent renamed to `Hello-world helper` to match prod's self-rename (prod 
 rename — that is local-only lane design, so renaming local was the cheaper direction). The config
 strip drops from **3.29% → 2.70%** with the name band gone; what remains is the instructions
 preview and `Sandbox: daytona` vs `local`, both data.
+
+### D-22 / D-23 fixed — and the sweep uncovered a dead test suite
+
+`EnhancedDrawer` now destructures `closeIcon` and `classNames`: `closeIcon={null}` hides the close
+button (antd's meaning, distinct from `closable={false}`), and the semantic class slots
+(`header` / `body` / `footer` / `content`) merge onto their elements alongside the existing
+`styles` slots. The docstring's "deferred (rare / unused)" list — which was wrong about
+`closeOnLayoutClick`, `closeIcon` AND `classNames` — now says so.
+
+Reaching `TestcaseDrawer` needs a testset that this project does not have, so these are pinned by
+a render test rather than a live click. Which is how the real find happened:
+
+### T-01 — six render tests in `@agenta/ui` had never run — **FIXED**
+
+`vitest.config.ts` had `include: ["tests/unit/**/*.test.ts"]`, and **`*.test.ts` does not match
+`*.test.tsx`**. The directory holds 7 `.tsx` suites against 4 `.ts` ones, so the "53 passed" gate
+this whole parity effort has been quoting covered **four files out of eleven**. Dormant:
+`SplitPaneSingleMount`, `VirtualTable`, `FeatureShell`, `ColumnVisibilityTrigger`,
+`TooltipTriggerUnmount`, `dateRangePickerKeyboard`.
+
+Enabling `.tsx` alone fails — rolldown cannot parse JSX without a plugin, which is presumably why
+it was narrowed in the first place. `agenta-observability-ui` already had the answer
+(`plugins: [react()]` with `@vitejs/plugin-react-swc`, and both extensions included), and
+**`@vitejs/plugin-react-swc` was already a devDependency of `agenta-ui`** — it was simply never
+wired in. Copying that config runs the lot: **53 tests → 81, 11 files, all passing.**
+
+**Two of the dormant tests were failing, and both had rotted against fixes made in THIS parity
+effort** — which is the whole argument against a dead suite:
+
+- `SplitPane` asserted the divider is `null` when the fill half is hidden. **P-09 deliberately
+  changed it from unmounted to zero-width**, because removing the 9px column moved the fill in the
+  frame the collapse started and made the slide read as a snap-then-glide. Updated to assert
+  `flex-basis: 0px` + `aria-hidden`, with the reason.
+- `VirtualTable` asserted the header cell paints `bg-colorFillQuaternary`. The §4c table-chrome
+  work made the sticky header opaque against the page surface instead. Updated to assert the
+  bottom rule and weight that now carry its chrome.
+
+Had the suite been running, both changes would have had to update their tests at the time. A test
+that cannot run is worse than no test: it reads as coverage.
