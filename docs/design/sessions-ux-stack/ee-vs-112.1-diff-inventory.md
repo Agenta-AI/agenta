@@ -1912,11 +1912,20 @@ three lines on both, avatar column matched.
 | prod (112.1) | `rgb(40,44,52)` — dark card | `rgb(171,178,191)` |
 | local (HEAD) | `rgb(255,255,255)` — white card | `rgb(36,36,36)` |
 
-Local also adds Streamdown's `python` header bar. This is the lane's stated design —
-`SHIKI_THEMES = ["one-light", "one-dark-pro"]`, commented *"Shiki dual themes track the app theme
-instead of the old always-dark Prism"* — so it is deliberate, and recorded like C-03/C-04 rather
-than changed. In dark the two are much closer (both dark cards); light is where the two designs
-diverge visibly, which is exactly why the light pass was worth doing.
+Local also adds Streamdown's `python` header bar. `SHIKI_THEMES = ["one-light", "one-dark-pro"]`,
+commented *"Shiki dual themes track the app theme instead of the old always-dark Prism"*.
+
+**CLOSED — local is correct, no change.** Arda's call, and it corrects a mistake in how I was
+reading the parity rule: *"it should behave correctly according to the user selected app theme."*
+A code block that stays dark on a light page is the legacy behaviour the lane deliberately fixed,
+not a design to preserve.
+
+**The rule is "112.2 wins, else deployed 112.1 is truth" — it is NOT "prod is right."** Prod is
+the reference for spotting DRIFT, not an authority on correctness. Where the lane changed
+something into the obviously-correct behaviour, matching prod would be a regression. I asked Arda
+to choose between "follows the theme" and "always dark" as if they were equal options; they were
+not, and the question wasted a round. Ask what the right behaviour is before asking which build to
+match.
 
 ### Stop mid-stream — PARITY, and a false alarm retracted
 
@@ -2126,10 +2135,10 @@ below was driven on BOTH builds.
 | **commit message cleared to empty** | counter `0 / 500`, `Commit` stays **ENABLED**, no validation message | identical |
 | **commit WITH an empty message** | succeeds — modal closes, badge → `Saved` | identical |
 
-**Product question, not drift:** an empty commit message is accepted by both builds. The field
-auto-fills a description, but clearing it neither disables the button nor raises a validation
-error, and the revision commits with no message. Since 112.1 and HEAD agree, it is out of scope
-here — but it is the kind of thing that makes a revision list unreadable later.
+**Empty commit message is accepted by both builds** — the field auto-fills a description, but
+clearing it neither disables the button nor raises validation, and the revision commits with no
+message. Raised with Arda and **dropped on his call**: not worth tracking. Recorded only so the
+next pass does not re-file it as a finding.
 
 **A false alarm caught, again.** A first pass reported `toast: "error"` on both after the empty
 commit. It was my regex scanning the whole `document.body` and matching *my own earlier prompt*

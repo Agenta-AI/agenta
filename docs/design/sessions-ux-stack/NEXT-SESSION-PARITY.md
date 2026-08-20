@@ -45,11 +45,13 @@ Sessions since this was written (full detail in §4m–§5f of the inventory):
 - **The harness is committed** at `qa112/` and survives a machine wipe. Run `doctor.sh` first,
   then `pin_tab local; pin_tab prod`. It now also carries `prop-drop-sweep.py`.
 
-**Open decisions for Arda** (none shippable without him): **L-01** code-block theming
-(prod always-dark, local theme-following); **D-21** `closeOnLayoutClick` is inert so 13 drawers
-dismiss on outside clicks — pre-existing, so it wants its own PR; and whether to rename prod's
-agent back to `New agent` (it renamed ITSELF during an elicitation run, so the pair is no longer
-name-matched).
+**Decisions taken:** **D-21** fixed here and verified with a two-build control. **L-01** closed —
+code blocks following the app theme is correct, so local needs no change (and the lesson: prod is
+the reference for spotting drift, NOT an authority on correctness). The empty-commit-message gap
+was raised and dropped.
+
+**Still loose:** prod's agent renamed ITSELF to `Hello-world helper` during an elicitation run, so
+the pair is no longer name-matched and that band shows up in every config/header comparison.
 
 **Next, in order:** the commit modal and Tools/Skills expansions (both need a dirty draft or an
 agent with real tools — the `PR reviewer` pair is the candidate), `DriveExplorer`, the entity
