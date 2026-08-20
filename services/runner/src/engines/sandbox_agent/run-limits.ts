@@ -29,7 +29,14 @@ export const IDLE_TIMEOUT_ENV = "AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS";
 export const TTFB_TIMEOUT_ENV = "AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS";
 export const TOOL_CALL_TIMEOUT_ENV = "AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS";
 
-export const DEFAULT_TOTAL_DEADLINE_MS = 45 * 60_000; // 45 min
+// 11 hours. This default must stay BELOW the mount-lease TTL (43200s, see
+// AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS in the API's env.py) minus the 60s
+// MOUNT_LEASE_SKEW_MS: the session coordinator only reuses a warm sandbox when its
+// mount lease covers `now + this deadline + skew` (session-coordinator.ts's
+// `requiredValidThroughMs` horizon), so a default at or above the lease TTL makes
+// every mount-backed warm session rebuild cold. The ~1h gap under the 12h lease is
+// the warm parking window.
+export const DEFAULT_TOTAL_DEADLINE_MS = 11 * 60 * 60_000; // 11 hours
 export const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60_000; // 30 min
 export const DEFAULT_TTFB_TIMEOUT_MS = 2 * 60_000; // 2 min
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000; // 30 min

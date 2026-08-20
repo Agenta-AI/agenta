@@ -57,6 +57,7 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
+import { logExportProblem } from "./export-diagnostics.ts";
 
 /** Machine-readable prefix on a sibling force-settle result (see TOOL_NOT_EXECUTED_PAUSED). The
  *  responder keys off this to keep the deferral out of the client-output store, and the web widget
@@ -182,12 +183,16 @@ function redactSpan(span: ReadableSpan, redactors: Iterable<Redactor>): void {
     }
     const status = span.status as { message?: string };
     if (typeof status.message === "string") {
-      status.message = redactor.redactString(status.message, "spans") ?? status.message;
+      status.message =
+        redactor.redactString(status.message, "spans") ?? status.message;
     }
   }
 }
 
-function redactAttributes(attrs: Record<string, unknown>, redactor: Redactor): void {
+function redactAttributes(
+  attrs: Record<string, unknown>,
+  redactor: Redactor,
+): void {
   for (const [key, value] of Object.entries(attrs)) {
     if (typeof value === "string") {
       attrs[key] = redactor.redactString(value, "spans");
@@ -223,23 +228,61 @@ function getExporter(target: ExportTarget): OTLPTraceExporter {
   return exporter;
 }
 
+const CLOUD_API_BASE = "https://cloud.agenta.ai/api";
+
 /** Fallback target from env, used when a trace was started without an explicit one. */
 function defaultTarget(): ExportTarget {
   // Internal direct hop first, then the public `.../api` base, then cloud.
   const base =
     (
       process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL
-    )?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
+    )?.replace(/\/+$/, "") || CLOUD_API_BASE;
   // The per-run caller credential rides the request (each explicit trace target carries its own
   // authorization; local Pi's OTLP bearer is written to a 0600 file). The runner holds no static
   // platform key: it must not carry an `AGENTA_API_KEY` a local harness could read from /proc and
   // reuse (interface.md section 2). The scheme-tagged ephemeral `AGENTA_CREDENTIALS` (a
-  // `Secret ...` from `/check`, used verbatim) is the only fallback; absent it, export unauthed.
+  // `Secret ...` from `/check`, used verbatim) is the only fallback; absent it, `flush` skips
+  // the export rather than sending Agenta an unauthenticated one (see `isAgentaIngest`).
   const credentials = process.env.AGENTA_CREDENTIALS || "";
   return {
     endpoint: `${base}/otlp/v1/traces`,
     authorization: credentials || undefined,
   };
+}
+
+/**
+ * Does this endpoint speak Agenta's own ingest, which always requires a credential? Only there
+ * is a credential-less export pointless — a caller may instead aim a run at a third-party
+ * collector (a local OTel collector, Jaeger, a host behind network auth), and those accept
+ * unauthenticated spans, so those must still be sent.
+ *
+ * Both configured bases count, not only the one `defaultTarget` picked: a run can be handed the
+ * public URL while the runner's own hop is internal. The full normalized ingest URL must match,
+ * because a third-party collector may share the Agenta host behind a different proxy path.
+ */
+function isAgentaIngest(endpoint: string): boolean {
+  const normalize = (value: string): string | undefined => {
+    try {
+      const url = new URL(value);
+      const path = url.pathname.replace(/\/+$/, "") || "/";
+      return `${url.origin}${path}`;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const normalizedEndpoint = normalize(endpoint);
+  if (!normalizedEndpoint) return false;
+  return [
+    process.env.AGENTA_API_INTERNAL_URL,
+    process.env.AGENTA_API_URL,
+    CLOUD_API_BASE,
+  ].some(
+    (base) =>
+      base &&
+      normalize(`${base.replace(/\/+$/, "")}/otlp/v1/traces`) ===
+        normalizedEndpoint,
+  );
 }
 
 /**
@@ -306,22 +349,37 @@ class TraceBatchProcessor implements SpanProcessor {
         // Fall back to the env default only for a span whose OWN run's target is unknown
         // (untagged span, or the run already released) — never to another run's target, or a
         // batch could still land on an unintended endpoint/auth.
-        const target = (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+        const target =
+          (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+        const problem = {
+          traceId,
+          endpoint: target.endpoint,
+          authorization: target.authorization,
+          spans: group.length,
+          redactors,
+        };
+        if (!target.authorization?.trim() && isAgentaIngest(target.endpoint)) {
+          // Agenta's ingest rejects an unauthenticated export, so sending one buys nothing and
+          // reports as a 401 that reads like a BAD credential. Say the credential is missing
+          // instead, and drop the batch here.
+          logExportProblem({ ...problem, outcome: "skipped" });
+          return Promise.resolve();
+        }
         return new Promise<void>((resolve) => {
           try {
             getExporter(target).export(orderParentFirst(group), (result) => {
               if (result.code === ExportResultCode.FAILED)
-                console.error(
-                  "otel: trace export failed",
-                  traceId,
-                  result.error,
-                );
+                logExportProblem({
+                  ...problem,
+                  outcome: "failed",
+                  error: result.error,
+                });
               resolve();
             });
           } catch (err) {
             // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
             // flush() is awaited without a catch, so a reject here would break the run.
-            console.error("otel: trace export threw", traceId, err);
+            logExportProblem({ ...problem, outcome: "threw", error: err });
             resolve();
           }
         });
@@ -955,7 +1013,8 @@ function acpRawOutputText(raw: any): string {
       continue;
     }
     if (value && typeof value === "object") {
-      const text = acpToolContentText(value.content) || acpToolContentText(value);
+      const text =
+        acpToolContentText(value.content) || acpToolContentText(value);
       if (text) return text;
       const json = jsonText(value);
       if (json) return json;
@@ -1495,8 +1554,8 @@ export function createSandboxAgentOtel(
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : usage?.total ?? 0,
-        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
+        total: typeof total === "number" ? total : (usage?.total ?? 0),
+        cost: typeof cost === "number" ? cost : (usage?.cost ?? 0),
       };
       record({ type: "usage", ...usage });
     }
