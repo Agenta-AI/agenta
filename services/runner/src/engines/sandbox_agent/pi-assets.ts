@@ -20,7 +20,11 @@ import {
   encodePiModelProviderOverride,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "../../extensions/model-provider-override.ts";
-import { advertisedToolSpecs } from "../../tools/public-spec.ts";
+import {
+  advertisedToolSpecs,
+  type AdvertisedToolSpec,
+} from "../../tools/public-spec.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
 import {
@@ -354,6 +358,111 @@ export function writePiModelsConfigLocal(
 }
 
 /**
+ * Thrown (via the engine's named-message pattern) when the run's tool specs could not be
+ * delivered to the harness. Fail loud rather than start a run whose tools the model never sees —
+ * the silent-tool-drop failure (F-042) is indistinguishable from a model that chose not to call
+ * them. Mirrors `TOOL_MCP_UNAVAILABLE_MESSAGE` for the non-Pi shim. Single line so
+ * `conciseError` surfaces it verbatim.
+ */
+export const PI_TOOL_SPECS_UNAVAILABLE_MESSAGE =
+  "The agent could not deliver its tool definitions to the harness, so none of its tools would " +
+  "have been available to the model. The run was stopped rather than run without them. Ask your " +
+  "deployment operator to check that the runner can write its relay directory.";
+
+/**
+ * The file the run's advertised tool specs ride to the Pi extension.
+ *
+ * A FILE, NEVER AN ENV VALUE. Linux caps a single argv/env string at `MAX_ARG_STRLEN`
+ * (131,072 bytes) and fails the whole `execve` with `E2BIG` when one exceeds it. Tool JSON
+ * Schemas are unbounded, so no size threshold is safe: a session with 44 hydrated Composio
+ * tools serialized to ~250 KB and every run died with "spawn E2BIG" before the harness
+ * started. The non-Pi stdio shim already rides a file for the same reason — see
+ * `PUBLIC_SPECS_FILE_ENV` in `tools/tool-mcp-env.ts`, whose name this reuses.
+ *
+ * A SIBLING of the relay dir, like the OTLP auth file, because `prepareWorkspace` clears and
+ * recreates the relay dir itself on every turn. It is keyed on the conversation (the relay dir
+ * is), non-secret, and rewritten in place per run, so it is left behind at teardown exactly as
+ * the relay dir is.
+ */
+export function piToolSpecsFilePath(relayDir: string): string {
+  return `${relayDir}.tool-specs.json`;
+}
+
+/** The run's advertised specs plus the path the extension reads them from. */
+export interface PiToolSpecsDelivery {
+  /** A runner host path on local; the deterministic in-sandbox path on Daytona. */
+  path: string;
+  /** The serialized `AdvertisedToolSpec` array — the exact bytes written to `path`. */
+  contents: string;
+  specs: AdvertisedToolSpec[];
+}
+
+/**
+ * The tool specs this Pi run advertises, or `undefined` when there is nothing to advertise (no
+ * tools, or no relay dir to relay their execution back through). Takes the resolved specs so
+ * both sides derive from one source: the env builder from `request.customTools`, the Daytona
+ * upload from `plan.tools.toolSpecs` (the same array).
+ */
+export function resolvePiToolSpecsDelivery(
+  toolSpecs: ResolvedToolSpec[],
+  relayDir: string | undefined,
+): PiToolSpecsDelivery | undefined {
+  const specs = advertisedToolSpecs(toolSpecs);
+  if (specs.length === 0 || !relayDir) return undefined;
+  return {
+    path: piToolSpecsFilePath(relayDir),
+    contents: JSON.stringify(specs),
+    specs,
+  };
+}
+
+/**
+ * Write the specs file for a LOCAL Pi run. THROWS the named message on failure: without the file
+ * the extension registers no tools, and a run whose tools silently vanished is worse than one
+ * that stops with a reason.
+ */
+export function writePiToolSpecsFileLocal(
+  delivery: PiToolSpecsDelivery,
+  log: Log = () => {},
+): void {
+  try {
+    mkdirSync(dirname(delivery.path), { recursive: true });
+    writeFileSync(delivery.path, delivery.contents, "utf-8");
+  } catch (err) {
+    log(`pi tool specs write failed: ${(err as Error).message}`);
+    throw new Error(PI_TOOL_SPECS_UNAVAILABLE_MESSAGE);
+  }
+  log(
+    `pi tool specs written path=${delivery.path} tools=${delivery.specs.length} ` +
+      `bytes=${Buffer.byteLength(delivery.contents, "utf-8")}`,
+  );
+}
+
+/**
+ * Upload the specs file into a Daytona sandbox: the runner's filesystem is not the sandbox's, and
+ * the sandbox env map is fixed at creation, so the env var names a deterministic in-sandbox path
+ * that this fills in before the session starts. THROWS the named message on failure, for the same
+ * reason the local write does.
+ */
+export async function uploadPiToolSpecsToSandbox(
+  sandbox: any,
+  delivery: PiToolSpecsDelivery,
+  log: Log = () => {},
+): Promise<void> {
+  try {
+    await sandbox.mkdirFs({ path: dirname(delivery.path) });
+    await sandbox.writeFsFile({ path: delivery.path }, delivery.contents);
+  } catch (err) {
+    log(`pi tool specs upload failed: ${(err as Error).message}`);
+    throw new Error(PI_TOOL_SPECS_UNAVAILABLE_MESSAGE);
+  }
+  log(
+    `pi tool specs uploaded path=${delivery.path} tools=${delivery.specs.length} ` +
+      `bytes=${Buffer.byteLength(delivery.contents, "utf-8")}`,
+  );
+}
+
+/**
  * Env the Agenta Pi extension reads. Tool env contains only public metadata plus the
  * relay directory; private specs/auth stay in the runner.
  *
@@ -402,11 +511,15 @@ export function buildPiExtensionEnv(
     });
   }
 
-  const specs = advertisedToolSpecs(
+  // The specs themselves ride a file whose PATH is all env carries: one env string holding every
+  // hydrated tool spec overflows Linux's per-string execve limit and kills the spawn with E2BIG.
+  // See `piToolSpecsFilePath`. The runner writes that file locally, or uploads it on Daytona.
+  const toolSpecs = resolvePiToolSpecsDelivery(
     (request.customTools as ResolvedToolSpec[]) ?? [],
+    opts.relayDir,
   );
-  if (specs.length && opts.relayDir) {
-    env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify(specs);
+  if (toolSpecs && opts.relayDir) {
+    env[PUBLIC_SPECS_FILE_ENV] = toolSpecs.path;
     env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
     // Hop-1 response-watch kill switch (event-driven-tool-relay plan, decision 7): the
     // in-sandbox writer defaults it to true, so it is only forwarded — verbatim — when
