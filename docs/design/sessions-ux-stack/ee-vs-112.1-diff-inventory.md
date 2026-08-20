@@ -1869,3 +1869,68 @@ being driven in a browser. Arda's call, and its own verification pass.
 - `EnhancedModal`'s `mask` / `centered` / `classNames`, `EnhancedDrawer`'s `closeIcon` and
   `classNames`, `InputNumber`'s `aria-labelledby`, `Select`'s `onValueChange` — all one to three
   call sites, all cosmetic or `...rest`-covered. Not chased; listed so the next pass can skip them.
+
+## 5d. WP-1 continued — light theme and a clean stop, on a rebuilt environment
+
+The stack came back from the repair intact (`oss000000021`, `session_streams.references` present)
+and both base URLs still resolve, so `env.sh` needed no changes. Every session from the previous
+pass survived on both builds. `doctor.sh` went green on its first real run, and the rebuilt harness
+is now validated end to end against a live browser rather than only against synthetic captures.
+
+**New harness trap:** `browse newtab <url>` blocks on the same 15s document load as `browse goto`
+and wedges the daemon on the dev build — it recovered on its own within ~10s, but open a tab bare
+and navigate with `goto.sh` instead.
+
+### Chat in light theme — clean except the code block
+
+The gap was real: every earlier chat capture was dark. Captured light on the matched
+`Output ONLY a fenced python…` session, where BOTH builds produced the identical three lines, so
+this is a chrome comparison rather than a data one.
+
+`chat-body` reads 6.98%, and every region on both contact sheets is either the code block below or
+the known ~2px horizontal offset from the 9px gutter. **The C-01 and C-02 fixes hold in light**:
+three lines on both, avatar column matched.
+
+**L-01 — fenced code blocks are always dark on prod, theme-following locally.** Measured in light:
+
+| | background | code colour |
+|---|---|---|
+| prod (112.1) | `rgb(40,44,52)` — dark card | `rgb(171,178,191)` |
+| local (HEAD) | `rgb(255,255,255)` — white card | `rgb(36,36,36)` |
+
+Local also adds Streamdown's `python` header bar. This is the lane's stated design —
+`SHIKI_THEMES = ["one-light", "one-dark-pro"]`, commented *"Shiki dual themes track the app theme
+instead of the old always-dark Prism"* — so it is deliberate, and recorded like C-03/C-04 rather
+than changed. In dark the two are much closer (both dark cards); light is where the two designs
+diverge visibly, which is exactly why the light pass was worth doing.
+
+### Stop mid-stream — PARITY, and a false alarm retracted
+
+Driven properly this time: send, click `Stop` at a known elapsed time, then sample.
+
+| | prod | local |
+|---|---|---|
+| length at the click (t=3s) | 125 | 125 |
+| t≈10–20s | "No response — the agent ended its turn without answering." | identical |
+| t≈30s onward | partial essay, truncated mid-word, footer **2.96s** | partial essay, truncated mid-word, footer **3s** |
+
+Both truncate mid-word at the moment of the click and keep the partial text. **Stop works
+identically on both.**
+
+**Retracted before filing:** an earlier run had local completing a full essay after the stop while
+prod kept a partial one, which read as "Stop does nothing on local". Both runs had finished at
+~7s and I clicked at 7s — the stop had nothing left to cancel. Clicking at 3s makes them match
+exactly. That is the third time on this surface that a single badly-timed observation nearly
+became a P1; the fix is always to control the timing rather than to sample harder.
+
+Also shared, so NOT lane drift: both builds show **"No response — the agent ended its turn without
+answering."** for roughly the first 20 seconds after a stop, before the partial text resolves in
+its place. Worth a product look — it says the opposite of what happened — but it is prod behaviour
+too.
+
+**Also nearly filed:** "the stopped turn keeps Copy / View trace on local but not on prod". The
+check was unsound — `toolbarReveal` sets opacity on the WRAPPER, and I tested the button's own
+computed opacity, so local's hidden buttons looked visible. With an ancestor-aware visibility walk
+both builds show only `Resend`. Synthetic pointer events cannot trigger a CSS `:hover` either, so
+a hover-revealed toolbar needs `browse hover` (with a selector that matches exactly one element)
+or a screenshot, never a dispatched event.

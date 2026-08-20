@@ -74,6 +74,7 @@ state keeping its table header.
 - **Skeletons are STATIC**, so they sail through the pixel-quiet gate and get captured as the page.
   `/apps` read 8.64% with one captured and 1.84% without. `shot.sh` waits them out (bounded 40s).
 - **`browse goto` kills the daemon** on the dev build (15s timeout) — use `goto.sh`.
+  `browse newtab <url>` blocks the same way: open the tab bare, then `goto.sh` into it.
 - **`press.sh` double-fires plain buttons.** Its pointer sequence (needed for Radix) is seen twice
   by an ordinary `onClick`. Use `.click()` for normal buttons.
 - **`browse type` presses Enter for a `\n`, and Enter SENDS.** A multi-line prompt fired one send
