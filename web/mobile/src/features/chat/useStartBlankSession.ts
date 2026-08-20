@@ -1,5 +1,6 @@
 import {useCallback} from "react"
 
+import {markSessionFresh} from "@agenta/chat/state"
 import {useRouter} from "next/router"
 
 /**
@@ -18,6 +19,11 @@ export const useStartBlankSession = (base: string) => {
     return useCallback(
         (agentId: string) => {
             const sessionId = crypto.randomUUID()
+            // Brand-new, never-run: the backend has no records for it yet. Without this the
+            // conversation treats the empty hydration as a KNOWN session whose history was pruned
+            // and shows "this session has no replayable history", which is alarming and false —
+            // nothing was lost, it simply has not happened yet.
+            markSessionFresh(sessionId)
             void router.push(`${base}/sessions/${sessionId}?agent=${agentId}`)
         },
         [base, router],

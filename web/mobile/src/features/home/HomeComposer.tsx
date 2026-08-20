@@ -1,6 +1,7 @@
 import {useState} from "react"
 
 import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
+import {markSessionFresh} from "@agenta/chat/state"
 import type {Workflow} from "@agenta/entities/workflow"
 import {HomeTaskComposer, type HomeTaskComposerAgent} from "@agenta/home-ui"
 import {useSetAtom} from "jotai"
@@ -27,7 +28,12 @@ export const HomeComposer = ({
     const router = useRouter()
     const stash = useSetAtom(stashPendingTaskAtom)
     const dropPendingTask = useSetAtom(takePendingTaskAtom)
-    const [sessionId] = useState(() => crypto.randomUUID())
+    const [sessionId] = useState(() => {
+        const id = crypto.randomUUID()
+        // Same reason as the rail's "+": a session minted here has no durable records yet.
+        markSessionFresh(id)
+        return id
+    })
     const attachments = useComposerAttachments({sessionId})
 
     const options: HomeTaskComposerAgent[] = agents.map((agent) => ({
