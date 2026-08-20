@@ -37,6 +37,17 @@ import {
 const RATE_LIMIT_ERROR =
   "Rate limit reached for gpt-5 in organization org-abc on tokens per min.";
 
+/**
+ * The workspace directory the run uses inside the remote sandbox.
+ *
+ * One constant for both halves on purpose. Pi stamps the cwd on every transcript's `session`
+ * record and `findSwallowedPiError` only accepts a transcript whose stamp matches the run's
+ * workspace, so a test that seeds `/home/sandbox` while the run works somewhere else would be
+ * satisfied by a recovery that ignores transcript ownership -- i.e. one that would happily
+ * report a stale or foreign session's error as this turn's.
+ */
+const REMOTE_CWD = "/home/sandbox";
+
 const dirs: string[] = [];
 
 beforeEach(enableDaytonaProvider);
@@ -64,11 +75,9 @@ describe("a Pi transcript inside a remote sandbox", () => {
     const { result } = await runSilentTurn(
       { harness: "pi_core", sandbox: "daytona" },
       {
+        cwd: REMOTE_CWD,
         promptEvents: [textChunk("The answer is 4.\n")],
-        sandboxTranscript: piTranscriptWithError(
-          "/home/sandbox",
-          RATE_LIMIT_ERROR,
-        ),
+        sandboxTranscript: piTranscriptWithError(REMOTE_CWD, RATE_LIMIT_ERROR),
       },
     );
 
@@ -82,10 +91,8 @@ describe("a Pi transcript inside a remote sandbox", () => {
       const { result } = await runSilentTurn(
         { harness: "pi_core", sandbox: "daytona" },
         {
-          sandboxTranscript: piTranscriptWithError(
-            "/home/sandbox",
-            RATE_LIMIT_ERROR,
-          ),
+          cwd: REMOTE_CWD,
+          sandboxTranscript: piTranscriptWithError(REMOTE_CWD, RATE_LIMIT_ERROR),
         },
       );
 
@@ -106,10 +113,8 @@ describe("a Pi transcript inside a remote sandbox", () => {
       const { readFsFilePaths } = await runSilentTurn(
         { harness: "pi_core", sandbox: "daytona" },
         {
-          sandboxTranscript: piTranscriptWithError(
-            "/home/sandbox",
-            RATE_LIMIT_ERROR,
-          ),
+          cwd: REMOTE_CWD,
+          sandboxTranscript: piTranscriptWithError(REMOTE_CWD, RATE_LIMIT_ERROR),
         },
       );
 

@@ -141,9 +141,18 @@ def w3():
 
         a_present, b_present, final = _edits_present(wf, token_a, skill_name)
         if a_present and b_present:
+            # Both edits landing says nothing about HOW the sessions got there: a session can
+            # land its edit and still hand the user a bare turn (ASD-EST100). Stage 2 folds the
+            # same invariant in, and this cell is the only one with a second PASS path -- an
+            # unguarded early return here would be a hole the gate cannot see.
+            silent = check_no_silent_turn(turns_a + turns_b)
+            stage1_ok = not silent["violations"]
             return {
-                "status": "PASS",
-                "why": "STAGE 1: session B recovered autonomously (no coaching) and both edits landed",
+                "status": "PASS" if stage1_ok else "FAIL",
+                "why": (
+                    "STAGE 1: session B recovered autonomously (no coaching) and both edits "
+                    f"landed; silent_turns={silent['violations']}"
+                ),
                 "stage": 1,
                 "workflow_id": wf,
                 "session_a": session_a,

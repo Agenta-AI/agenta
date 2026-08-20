@@ -113,6 +113,11 @@ async def test_a_turn_with_no_events_at_all_never_finishes_silently() -> None:
     parts = [part async for part in agent_run_to_vercel_parts(run)]
 
     assert _error_texts(parts), "an empty turn produced no error frame at all"
+    # Order, not just presence: a browser treats `finish` as terminal, so an error frame that
+    # arrives after it is an error the user never sees.
+    types = [part["type"] for part in parts]
+    assert types[-1] == "finish"
+    assert types.index("error") < types.index("finish")
 
 
 @pytest.mark.asyncio

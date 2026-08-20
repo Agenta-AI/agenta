@@ -97,7 +97,12 @@ export interface SilentTurnOptions {
   promptError?: Error;
   /** Raise a permission gate mid-prompt, then hang — the shape a parked turn has. */
   park?: boolean;
-  /** The run's working directory; a local Pi transcript is read from under it. */
+  /**
+   * The run's working directory. On a local run a Pi transcript is read from under it; on a
+   * Daytona run it is the workspace path INSIDE the sandbox, which is the cwd Pi stamps on the
+   * transcript it writes there, so a remote test must pass the same path it seeds the transcript
+   * with or the reader will (correctly) disown it.
+   */
   cwd?: string;
   /**
    * A Pi transcript the sandbox serves for ANY `.jsonl` path. The in-sandbox transcript
