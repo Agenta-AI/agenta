@@ -110,8 +110,12 @@ state keeping its table header.
   snapshot fixed one race and armed an infinite loop, because a no-op write still navigated.
   Always ask what re-enters.
 - **A facade asserting parity is not evidence of parity.** `EnhancedButton` documented
-  `iconPosition="end"` as "deferred (rare / unused)" — five call sites passed it. `ChatBubble`
-  documented "metrics mirror antd-x"; the gap did, the 32px avatar column did not. Measure the claim.
+  `iconPosition="end"` as "deferred (rare / unused)"; `EmptyState` passed it, and that one call
+  site renders on all five Evaluations tabs and on Observability. `ChatBubble` documented "metrics
+  mirror antd-x"; the 12px gap did, the 32px avatar column did not. Measure the claim.
+- **Count the call sites that reach the FACADE, not the ones that use the prop.** P-12 was filed as
+  "five call sites"; the sweep shows only `EmptyState` imports `EnhancedButton` — the others pass
+  `iconPosition` to a raw antd `Button` and were never affected. The bug was real; the number was not.
 - **Prioritise by files the lane CHANGED, not by route.** Screening by route ranks the symptom: the
   `iconPosition` bug surfaced on `/evaluations`, which the lane barely touched, because it lives in
   `@agenta/ui`, which it rewrote.
