@@ -1,7 +1,7 @@
 from collections import OrderedDict
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional
 
-from litellm import cost_calculator
+from litellm import cost_calculator, provider_list
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.dtos import Trace, Traces
@@ -258,103 +258,77 @@ def _connect_tree_dfs(
             parent_span.spans = None
 
 
-def _has_reported_cumulative(span: OTelFlatSpan) -> bool:
+def _costs_bucket(span: OTelFlatSpan, bucket: str) -> Optional[dict]:
     if not isinstance(span.attributes, dict):
-        return False
+        return None
 
-    node = span.attributes
-    for key in ("ag", "metrics", "costs", "cumulative"):
+    node: Any = span.attributes
+    for key in ("ag", "metrics", "costs", bucket):
         if not isinstance(node, dict):
-            return False
+            return None
         node = node.get(key)
 
-    return isinstance(node, dict) and "total" in node
+    return node if isinstance(node, dict) else None
+
+
+def _has_reported_cumulative(span: OTelFlatSpan) -> bool:
+    bucket = _costs_bucket(span, "cumulative")
+
+    return bucket is not None and "total" in bucket
+
+
+class _Costs(NamedTuple):
+    """Cost triple plus whether anything in this subtree actually measured a cost.
+
+    INVARIANT: `measured` is what decides whether the roll-up writes, never the
+    amounts. A measured 0.0 (a fully cached turn, a free model) is a fact and must
+    reach the ancestors; an absent measurement must leave them without the attribute
+    rather than claiming a zero nobody observed.
+    """
+
+    prompt: float = 0.0
+    completion: float = 0.0
+    total: float = 0.0
+    measured: bool = False
+
+
+def _read_costs(span: OTelFlatSpan, bucket: str) -> _Costs:
+    values = _costs_bucket(span, bucket)
+
+    if values is None:
+        return _Costs()
+
+    def _amount(key: str) -> float:
+        value = values.get(key, 0.0)
+        return float(value) if isinstance(value, (int, float)) else 0.0
+
+    return _Costs(
+        prompt=_amount("prompt"),
+        completion=_amount("completion"),
+        total=_amount("total"),
+        measured=True,
+    )
 
 
 def cumulate_costs(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
 ) -> None:
-    def _get_incremental(span: OTelFlatSpan):
-        _costs = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
+    def _get_incremental(span: OTelFlatSpan) -> _Costs:
+        return _read_costs(span, "incremental")
 
-        if span.attributes is None:
-            return _costs
+    def _get_cumulative(span: OTelFlatSpan) -> _Costs:
+        return _read_costs(span, "cumulative")
 
-        attr: dict = span.attributes
+    def _accumulate(a: _Costs, b: _Costs) -> _Costs:
+        return _Costs(
+            prompt=a.prompt + b.prompt,
+            completion=a.completion + b.completion,
+            total=a.total + b.total,
+            measured=a.measured or b.measured,
+        )
 
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _get_cumulative(span: OTelFlatSpan):
-        _costs = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _costs
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("cumulative", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("cumulative", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("cumulative", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _accumulate(a: dict, b: dict):
-        return {
-            "prompt": a.get("prompt", 0.0) + b.get("prompt", 0.0),
-            "completion": a.get("completion", 0.0) + b.get("completion", 0.0),
-            "total": a.get("total", 0.0) + b.get("total", 0.0),
-        }
-
-    def _set_cumulative(span: OTelFlatSpan, costs: dict):
+    def _set_cumulative(span: OTelFlatSpan, costs: _Costs):
         if span.attributes is None:
             span.attributes = {}
 
@@ -368,30 +342,32 @@ def cumulate_costs(
         if _has_reported_cumulative(span):
             return
 
-        if (
-            costs.get("prompt", 0.0) != 0.0
-            or costs.get("completion", 0.0) != 0.0
-            or costs.get("total", 0.0) != 0.0
+        if not costs.measured:
+            return
+
+        if "ag" not in span.attributes or not isinstance(
+            span.attributes["ag"],
+            dict,
         ):
-            if "ag" not in span.attributes or not isinstance(
-                span.attributes["ag"],
-                dict,
-            ):
-                span.attributes["ag"] = {}
+            span.attributes["ag"] = {}
 
-            if "metrics" not in span.attributes["ag"] or not isinstance(
-                span.attributes["ag"]["metrics"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"] = {}
+        if "metrics" not in span.attributes["ag"] or not isinstance(
+            span.attributes["ag"]["metrics"],
+            dict,
+        ):
+            span.attributes["ag"]["metrics"] = {}
 
-            if "costs" not in span.attributes["ag"]["metrics"] or not isinstance(
-                span.attributes["ag"]["metrics"]["costs"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"]["costs"] = {}
+        if "costs" not in span.attributes["ag"]["metrics"] or not isinstance(
+            span.attributes["ag"]["metrics"]["costs"],
+            dict,
+        ):
+            span.attributes["ag"]["metrics"]["costs"] = {}
 
-            span.attributes["ag"]["metrics"]["costs"]["cumulative"] = costs
+        span.attributes["ag"]["metrics"]["costs"]["cumulative"] = {
+            "prompt": costs.prompt,
+            "completion": costs.completion,
+            "total": costs.total,
+        }
 
     _cumulate_tree_dfs(
         spans_id_tree,
@@ -697,6 +673,132 @@ def _token_count(value) -> int:
         return 0
 
 
+# The incremental token buckets that carry a price. `total` is deliberately excluded: it
+# prices nothing on its own, so a bucket holding only a total is not a measurement this
+# path can turn into a cost.
+PRICEABLE_TOKEN_BUCKETS = ("prompt", "completion", "cache_read", "cache_creation")
+
+
+def _has_token_measurement(token_metrics: dict) -> bool:
+    """Whether the span reported a token count at all, as opposed to counting zero.
+
+    Missing and zero are different facts. A fully cached turn that reports `prompt = 0`
+    measured zero and is priceable; a span carrying no token bucket measured nothing.
+    """
+    return any(token_metrics.get(key) is not None for key in PRICEABLE_TOKEN_BUCKETS)
+
+
+# The providers litellm can price by name. A provider identity outside this set is a
+# customer's own connection slug, not a public catalog we can charge against.
+KNOWN_PRICING_PROVIDERS = frozenset(
+    str(getattr(provider, "value", provider)).lower() for provider in provider_list
+)
+
+# Agenta provider identities litellm has no name for, each mapped to the litellm provider
+# whose published prices genuinely apply. An entry is a deliberate statement that this
+# identity always denotes a public catalog, never a customer's own deployment; every
+# identity absent from the map is treated as a custom connection and left unpriced.
+TRUSTED_PRICING_PROVIDERS: Dict[str, str] = {
+    # Pi's and codex's id for OpenAI's ChatGPT/Codex subscription. The models are OpenAI's
+    # own (gpt-5.x, served from chatgpt.com/backend-api), so OpenAI's list prices apply.
+    "openai-codex": "openai",
+}
+
+
+def _dict(node: dict, key: str) -> dict:
+    value = node.get(key)
+
+    return value if isinstance(value, dict) else {}
+
+
+def _text(value) -> Optional[str]:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _input_tokens_include_cache(ag_meta: dict) -> bool:
+    """Whether the span's prompt bucket already counts its cached tokens.
+
+    Default: True, the OpenTelemetry GenAI meaning of `gen_ai.usage.input_tokens`.
+    Producers whose input count *excludes* cache (the Agenta agent runner, which emits
+    the cache buckets separately) say so with `agenta.usage.input_tokens_includes_cache
+    = false`. The default is deliberately the inclusive one: runner and API ship as
+    independently versioned artifacts, so an old runner will post to a new API, and on
+    that skew the inclusive reading undercounts (the pre-existing bug) instead of
+    charging the cache twice.
+    """
+    marker = _dict(ag_meta, "usage").get("input_tokens_includes_cache")
+
+    if isinstance(marker, bool):
+        return marker
+
+    if isinstance(marker, str):
+        normalized = marker.strip().lower()
+        if normalized in ("true", "1"):
+            return True
+        if normalized in ("false", "0"):
+            return False
+
+    return True
+
+
+def _pricing_prompt_tokens(
+    *,
+    input_tokens_include_cache: bool,
+    uncached_input_tokens: int,
+    cache_read_input_tokens: int,
+    cache_creation_input_tokens: int,
+) -> int:
+    """The prompt count litellm expects: always inclusive of the cache buckets.
+
+    litellm's generic calculator derives ordinary input by *subtracting* the cache
+    details from the prompt count it is given, so a producer whose input count already
+    includes them is passed through untouched and an exclusive one is summed up first.
+    """
+    if input_tokens_include_cache:
+        return uncached_input_tokens
+
+    return uncached_input_tokens + cache_read_input_tokens + cache_creation_input_tokens
+
+
+def _is_priceable_provider(provider: str) -> bool:
+    """Whether a reported provider identity names a catalog litellm can price.
+
+    Resolving through the trusted map before the membership test is what makes each
+    trusted entry load-bearing: a value that is not itself a litellm provider fails the
+    test, so a typo withholds the estimate instead of silently granting public prices.
+    """
+    identity = provider.lower()
+
+    return TRUSTED_PRICING_PROVIDERS.get(identity, identity) in KNOWN_PRICING_PROVIDERS
+
+
+def _is_served_by_a_custom_connection(ag_meta: dict) -> bool:
+    """Whether the span was served by something whose prices we cannot know.
+
+    A managed custom model is selected as `<connection-slug>/<model-id>` but the tracer
+    stamps only the bare model id, so a customer deployment named after a public model
+    would otherwise be charged that public model's price. The connection identity
+    survives as the provider attribute (the runner puts the slug in `gen_ai.system`),
+    and third-party instrumentation additionally reports a base URL or endpoint for a
+    self-hosted gateway. Either signal means no priceable identity exists.
+
+    A custom endpoint outranks a trusted provider identity: a gateway in front of a
+    public catalog charges its own prices, so the identity no longer implies the
+    catalog's.
+    """
+    request = _dict(ag_meta, "request")
+    if _text(request.get("base_url")) or _text(request.get("endpoint")):
+        return True
+
+    provider = (
+        _text(_dict(ag_meta, "provider").get("name"))
+        or _text(ag_meta.get("provider"))
+        or _text(ag_meta.get("system"))
+    )
+
+    return provider is not None and not _is_priceable_provider(provider)
+
+
 def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
     for span in span_idx.values():
         if (
@@ -709,18 +811,32 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
             ag_meta: dict = ag_attr.get("meta", {})
             ag_data: dict = ag_attr.get("data", {})
 
-            # The agent runner sets the response model only for codex; every other
-            # harness sets only the request model, so without that fallback those
-            # spans are never priced at all.
+            # Every model name on the span is a bare id, so a custom connection
+            # disqualifies all of them equally: the Pi tracer stamps a response model on
+            # every assistant message, including one a customer's own connection served,
+            # so guarding only the request model would price that connection at public
+            # rates through the response model. A name we cannot attribute to a catalog
+            # is priced confidently and wrongly, which is worse than no estimate.
             model = (
-                ag_meta.get("response", {}).get("model")
-                or ag_meta.get("request", {}).get("model")
-                or ag_data.get("parameters", {}).get("model")
+                None
+                if _is_served_by_a_custom_connection(ag_meta)
+                else (
+                    ag_meta.get("response", {}).get("model")
+                    or ag_meta.get("request", {}).get("model")
+                    or ag_data.get("parameters", {}).get("model")
+                )
             )
 
             token_metrics: dict = (
                 ag_attr.get("metrics", {}).get("tokens", {}).get("incremental", {})
             )
+
+            # A span that reported no token count measured nothing. Estimating it anyway
+            # writes a zero-cost dictionary, and the presence of that dictionary is the
+            # `measured` signal the roll-up propagates, so every ancestor would claim the
+            # run was measured and free.
+            if not _has_token_measurement(token_metrics):
+                continue
 
             uncached_input_tokens = _token_count(token_metrics.get("prompt"))
             cache_read_input_tokens = _token_count(token_metrics.get("cache_read"))
@@ -729,16 +845,11 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
             )
             completion_tokens = _token_count(token_metrics.get("completion"))
 
-            # INVARIANT: the `prompt` bucket carries *exclusive* input (gen_ai.usage.
-            # input_tokens is raw uncached input), while litellm's generic calculator
-            # derives ordinary input by subtracting the cache details from the prompt
-            # count it is given, so it expects an *inclusive* count. If the canonical
-            # `prompt` bucket ever becomes inclusive at ingest, this sum double counts
-            # and must be dropped; it is kept in one place so that is a one-line change.
-            inclusive_prompt_tokens = (
-                uncached_input_tokens
-                + cache_read_input_tokens
-                + cache_creation_input_tokens
+            inclusive_prompt_tokens = _pricing_prompt_tokens(
+                input_tokens_include_cache=_input_tokens_include_cache(ag_meta),
+                uncached_input_tokens=uncached_input_tokens,
+                cache_read_input_tokens=cache_read_input_tokens,
+                cache_creation_input_tokens=cache_creation_input_tokens,
             )
 
             try:

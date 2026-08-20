@@ -708,6 +708,18 @@ class TestAttributeMapUpdates:
 
         assert features.metrics["unit.tokens.cache_read"] == 2304
 
+    @pytest.mark.parametrize("includes_cache", [True, False])
+    def test_input_tokens_cache_marker_mapped(self, adapter, includes_cache):
+        # Tells cost estimation whether `gen_ai.usage.input_tokens` already counts the
+        # cache buckets; absent, OpenTelemetry's meaning (it does) is assumed.
+        bag = _make_bag(
+            {"agenta.usage.input_tokens_includes_cache": includes_cache},
+        )
+        features = SpanFeatures()
+        adapter.process(bag, features)
+
+        assert features.meta["usage.input_tokens_includes_cache"] is includes_cache
+
     def test_reported_cost_mapped_to_cumulative_not_incremental(self, adapter):
         # gen_ai.usage.cost is the aggregate for the whole run, so it lands on
         # `cumulative`; as an `incremental` value the tree roll-up would add it on top
