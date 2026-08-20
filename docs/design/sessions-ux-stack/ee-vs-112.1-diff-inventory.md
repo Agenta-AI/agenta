@@ -2481,3 +2481,41 @@ attempted SPA navigation.
 **Left unresolved on purpose:** the trace-drawer scrollbar question needs a prod trace big enough
 to overflow, and prod's observability currently lists no rows under any range I could set — so the
 comparison still cannot be made. It stays inconclusive rather than guessed at.
+
+## 5m. Auth — PARITY (and no sign-out needed)
+
+`auth` + `auth-ui` is 15 changed files and was the last unexamined area. **It did not need a
+sign-out:** `/auth` renders while authenticated, so both pages were captured with the sessions
+intact — worth knowing, since signing out of this browser would have cost both logged-in sessions
+for no benefit.
+
+`full` reads 2.93%, and it is one thing plus its knock-on shift. Prod shows a **`DATA RESIDENCY`**
+block (`Learn more` + an `EU | US` toggle) above the sign-in methods; local shows none, so every
+control below it sits higher, which is the other 36 regions.
+
+**Host-gated, not drift** — confirmed in source, not inferred:
+
+    export const shouldShowRegionSelector = (): boolean => {
+        if (typeof window === "undefined") return false
+        return classifyHost(window.location.hostname) !== null
+    }
+
+`classifyHost` only matches recognised cloud hosts, and `localhost` is not one. A self-hosted build
+correctly offers no region choice. Everything else matches: `Welcome back`, the promoted
+`Continue with Google`, the `or` rule, `Continue with GitHub`, the email field and `Continue`, the
+terms line, and the right panel's `Build agents that automate your work` with its three bullets.
+
+### The same-environment guard had a blind spot — FIXED
+
+The guard refused this pair outright, claiming both captures came from one tab. They did not:
+`shot.sh` logged `eu.cloud.agenta.ai/auth` and `localhost:3000/auth`. The guard compares the rail's
+version stamp, and **the auth screens have no rail** — so both crops were flat background, compared
+equal, and it blocked a perfectly good comparison.
+
+A blank patch is not evidence of sameness. `same_environment` now returns False when the stamp crop
+is uniform (`np.ptp < 8`), so it stays silent on stamp-less pages and keeps firing everywhere else —
+verified both ways: it still catches a genuine duplicate pair on a stamped page, and no longer
+fires on `/auth`. (Also fixed `arr.ptp()`, removed in NumPy 2, to `np.ptp(arr)`.)
+
+**This is the second false-PASS-adjacent bug in the harness's own safety net**, after the tab pin.
+Guards need their own controls, in both directions.

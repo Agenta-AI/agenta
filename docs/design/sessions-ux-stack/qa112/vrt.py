@@ -44,7 +44,13 @@ def load(p):
 
 
 def same_environment(A, B):
-    """True when the version stamp is pixel-identical — i.e. both shots came from one tab."""
+    """True when the version stamp is pixel-identical — i.e. both shots came from one tab.
+
+    The stamp only carries signal on pages that RENDER the rail. On a page without it — the
+    `/auth` screens have no sidebar — both crops are flat background, compare equal, and the guard
+    fired on a perfectly good prod-vs-local pair. A blank crop proves nothing, so treat a uniform
+    patch as "no evidence" rather than as evidence of sameness.
+    """
     if A.size != B.size:
         return False
     dpr = S.dpr_of(A)
@@ -52,7 +58,10 @@ def same_environment(A, B):
     b, _ = S.crop(B, VERSION_STAMP_CSS, dpr)
     if a.size[0] == 0 or a.size[1] == 0:
         return False
-    return np.array_equal(np.asarray(a), np.asarray(b))
+    arr = np.asarray(a)
+    if int(np.ptp(arr)) < 8:  # flat patch: the stamp is not on this page
+        return False
+    return np.array_equal(arr, np.asarray(b))
 
 
 def best_shift(a_full, b_full, box, dpr, span=20):
