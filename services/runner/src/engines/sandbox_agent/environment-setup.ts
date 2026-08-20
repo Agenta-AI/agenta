@@ -303,6 +303,12 @@ export async function prepareEnvironmentSetup(
     !plan.isDaytona &&
     piExtEnv[PI_MODEL_PROVIDER_OVERRIDE_ENV] !== undefined &&
     !localPiAssets.extensionInstalled;
+  // Fail closed: a subscription run whose operator-mounted Pi agent dir failed the write probe
+  // cannot start — Pi dies at startup on the unwritable dir with zero output, which the user sees
+  // as a session that silently hangs. Recorded here (the probe ran above) and thrown inside the
+  // engine try, like the three gates above, so it becomes a visible error frame.
+  const localPiAgentDirUnwritable =
+    plan.isPi && !plan.isDaytona && !localPiAssets.agentDirWritable;
 
   // A local Claude subscription run reads and writes the operator's read-write mounted login
   // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
@@ -432,6 +438,7 @@ export async function prepareEnvironmentSetup(
     logger,
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
+    localPiAgentDirUnwritable,
     mcpAbort,
     piExtEnv,
     piModelConfig,

@@ -164,9 +164,11 @@ const ModelPickerControl = ({
         <>
             <SelectLLMProviderBase
                 showGroup
-                // The one model-picker geometry, shared with the completion playground.
-                providerDropdownWidth={560}
-                connectionColumnWidth={290}
+                // Spans the trigger (minus PopoverContent's own `p-1`), with a floor: the two
+                // columns need 460px, and the config pane is often narrower than that.
+                providerDropdownWidth="max(calc(var(--radix-popover-trigger-width) - 0.5rem), 460px)"
+                // Provider names are short; the saved width goes to the model column.
+                connectionColumnWidth={200}
                 searchPlaceholder="Search models"
                 sectionTooltip={<HarnessTooltip />}
                 options={groups}

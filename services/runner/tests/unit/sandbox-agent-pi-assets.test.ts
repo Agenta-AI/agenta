@@ -6,6 +6,7 @@
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -1022,6 +1023,69 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     assert.notEqual(runDir, source);
     assert.equal(env.PI_CODING_AGENT_DIR, runDir);
     dirs.push(runDir as string);
+  });
+
+  it("reports agentDirWritable=true and prepares sessions/ on a writable mount", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    writeFileSync(join(mount, "auth.json"), '{"token":"live"}', "utf-8");
+
+    const { agentDirWritable } = prepareLocalPiAssets({
+      plan: subscriptionPlan(mount) as never,
+      env: {},
+    });
+
+    assert.equal(agentDirWritable, true);
+    // The probe's side effect is exactly what Pi needs at startup; no probe file survives.
+    assert.ok(existsSync(join(mount, "sessions")));
+    assert.equal(readdirSync(join(mount, "sessions")).length, 0);
+  });
+
+  /**
+   * Pi persists session rollouts and its OAuth refresh into the mounted agent dir; on an
+   * unwritable mount it dies at startup with zero output, which the user sees as a silently
+   * stuck session. The probe must report it so the engine can fail closed with a visible error.
+   */
+  it("reports agentDirWritable=false when only sessions/ is writable", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    const authFile = join(mount, "auth.json");
+    const sessionsDir = join(mount, "sessions");
+    writeFileSync(authFile, '{"token":"live"}', "utf-8");
+    mkdirSync(sessionsDir);
+    // Preserve the incomplete-mount shape from the regression: Pi can write a rollout under
+    // sessions/, but it cannot write at the agent-dir root to refresh auth.json.
+    chmodSync(sessionsDir, 0o755);
+    chmodSync(authFile, 0o444);
+    chmodSync(mount, 0o555);
+    try {
+      const { agentDirWritable } = prepareLocalPiAssets({
+        plan: subscriptionPlan(mount) as never,
+        env: {},
+      });
+      if (typeof process.getuid === "function" && process.getuid() === 0) {
+        // root bypasses mode bits, so the probe cannot fail in a root test run
+        assert.equal(agentDirWritable, true);
+      } else {
+        assert.equal(agentDirWritable, false);
+      }
+    } finally {
+      chmodSync(mount, 0o755);
+      chmodSync(authFile, 0o644);
+    }
+  });
+
+  it("managed runs always report agentDirWritable=true (per-run dir is runtime-owned)", () => {
+    const source = tempDir("agenta-pi-managed-source-");
+    writeFileSync(join(source, "auth.json"), '{"token":"managed"}', "utf-8");
+
+    const result = prepareLocalPiAssets({
+      plan: subscriptionPlan(source, {
+        credentials: { credentialMode: "env" },
+      }) as never,
+      env: {},
+    });
+
+    assert.equal(result.agentDirWritable, true);
+    if (result.dir) dirs.push(result.dir);
   });
 });
 

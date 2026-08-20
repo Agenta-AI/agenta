@@ -30,3 +30,8 @@ export function cloneItem(item: unknown): Record<string, unknown> {
     if (!item || typeof item !== "object") return {}
     return JSON.parse(JSON.stringify(item)) as Record<string, unknown>
 }
+
+/** Resolve the effective harness kind, matching the execution layer's default. */
+export function effectiveHarnessValue(harness: Record<string, unknown>): string {
+    return typeof harness.kind === "string" ? harness.kind : "pi_core"
+}

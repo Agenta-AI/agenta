@@ -18,6 +18,12 @@ body {
         }
     }
 
+    .evaluation-runs-table__container {
+        isolation: isolate;
+        position: relative;
+        z-index: 0;
+    }
+
     .not-available-table-cell {
         width: 100%;
         height: 100%;

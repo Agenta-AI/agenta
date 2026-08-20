@@ -1,15 +1,15 @@
 {
     "name": "@agenta/ee",
-    "version": "0.112.1",
+    "version": "0.112.3",
     "private": true,
     "engines": {
         "node": "24.x"
     },
     "scripts": {
-        "dev": "next dev --turbopack",
-        "dev:local": "ENV_FILE=.local.env next dev",
-        "dev:turbo": "ENV_FILE=.local.env next dev --turbo",
-        "build": "next build && cp -r public/. ./.next/standalone/ee/public && cp -r .next/static/. ./.next/standalone/ee/.next/static",
+        "dev": "node ../oss/scripts/copy-pdf-worker.mjs public && next dev --turbopack",
+        "dev:local": "node ../oss/scripts/copy-pdf-worker.mjs public && ENV_FILE=.local.env next dev",
+        "dev:turbo": "node ../oss/scripts/copy-pdf-worker.mjs public && ENV_FILE=.local.env next dev --turbo",
+        "build": "node ../oss/scripts/copy-pdf-worker.mjs public && next build && cp -r public/. ./.next/standalone/ee/public && cp -r .next/static/. ./.next/standalone/ee/.next/static",
         "start": "next start",
         "lint": "next lint",
         "lint-fix": "next lint --fix",

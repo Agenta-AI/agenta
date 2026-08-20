@@ -6,6 +6,7 @@ description: "Set an agent's permission policy, override it for individual tools
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 Permissions decide which tool calls an agent can make on its own and which need your approval. Set a default on the agent, override it for individual tools, and approve calls while the agent runs. For the underlying model, see [Permissions](/concepts/permissions).
@@ -18,17 +19,11 @@ Permissions decide which tool calls an agent can make on its own and which need 
 
 ## Set the agent's default policy
 
-1. In the playground, set **Playground mode** to `Build`.
-2. In the **Configuration** column, click **Advanced**.
-3. Open the **Permissions** section.
-4. Pick a `Policy`, then click `Save`.
+1. In the **Configuration** column, click **Advanced**.
+2. Open the **Permissions** section.
+3. Pick a `Policy`, then click `Save`.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/advanced-permissions-policy-options.png")}
-  alt="The Policy dropdown open, showing Allow reads, Allow all, Ask, and Deny all with their descriptions"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="043728b716bd954b6084a6fb8d247b1b" height="400px" />
 
 | `Policy` | What it does |
 |---|---|
@@ -47,7 +42,7 @@ Under `Allow reads`, a connected-app action counts as a read when it has the `RE
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/tool-detail-permission.png")}
+  img={require("/images/agents/agenta-tool-permission-wide.png")}
   alt="A tool's detail dialog with the Permission dropdown open on Allow, Ask, Deny, and Inherit"
   loading="lazy"
 />
@@ -68,7 +63,7 @@ Built-in tools have no per-tool permission. The agent's `Policy` governs them. C
 When the agent calls a tool, the first of these that applies decides:
 
 1. The tool's own `Permission`, when it is anything other than `Inherit`.
-2. An entry in `Auto-approve`.
+2. The harness allow list, which is where `Always allow` puts a built-in.
 3. The agent's `Policy`.
 
 ## Approve or deny a call while the agent runs
@@ -77,8 +72,8 @@ When a tool needs approval, the run pauses. The conversation shows a card titled
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/chat-approval-card.png")}
-  alt="An approval card in the conversation, with the Details expander, the Deny and Approve buttons, and the always-allow toggle"
+  img={require("/images/agents/agenta-approval-wide.png")}
+  alt="An approval card in the conversation, with the Payload expander, the Deny and Approve buttons, and the always-allow toggle"
   loading="lazy"
 />
 

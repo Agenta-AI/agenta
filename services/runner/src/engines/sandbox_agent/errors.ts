@@ -23,7 +23,9 @@ const PROVIDER_KEY_LABELS: Record<string, string> = {
  * behavior for that path only.
  */
 function keyHintFor(provider: string | undefined, harness: string): string {
-  const label = provider ? PROVIDER_KEY_LABELS[provider.toLowerCase()] : undefined;
+  const label = provider
+    ? PROVIDER_KEY_LABELS[provider.toLowerCase()]
+    : undefined;
   if (label) return `the project's ${label} key`;
   if (harness === "claude") return "the project's Anthropic key";
   return "the project's OpenAI key";
@@ -56,7 +58,11 @@ export function conciseError(
   const raw = err instanceof Error ? err.message : String(err);
   const msg = raw.split("\n")[0].trim();
   const keyHint = keyHintFor(provider, harness);
-  if (/credit balance is too low|exceeded your current quota|insufficient_quota/i.test(raw)) {
+  if (
+    /credit balance is too low|exceeded your current quota|insufficient_quota/i.test(
+      raw,
+    )
+  ) {
     return `${harness}: the model provider account has insufficient credit (check ${keyHint}).`;
   }
   // `401` must stand alone (not digit-adjacent) so it doesn't false-match a bare HTTP status
@@ -70,6 +76,14 @@ export function conciseError(
       options.authFault?.() ??
       `${harness}: model authentication failed — add ${keyHint} to the project vault, or log in (OAuth).`
     );
+  }
+  if (
+    /invalid_request_error/i.test(raw) &&
+    /(could not process image|unable to process image|invalid image|image.*(corrupt|invalid|could not))/i.test(
+      raw,
+    )
+  ) {
+    return `${harness}: the attached image appears to be corrupted or incomplete — try re-attaching it.`;
   }
   return msg || "agent run failed";
 }

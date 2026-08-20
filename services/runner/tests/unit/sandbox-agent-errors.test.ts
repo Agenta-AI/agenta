@@ -38,14 +38,22 @@ describe("conciseError", () => {
   it("names the resolved provider, not the harness, for a Pi+Anthropic run", () => {
     // The bug: a Pi run against an Anthropic model that fails auth must NOT say "OpenAI key".
     assert.equal(
-      conciseError(new Error("Authentication required"), "pi_core", "anthropic"),
+      conciseError(
+        new Error("Authentication required"),
+        "pi_core",
+        "anthropic",
+      ),
       "pi_core: model authentication failed — add the project's Anthropic key to the project vault, or log in (OAuth).",
     );
   });
 
   it("names the resolved provider for a Pi+Anthropic credit failure", () => {
     assert.equal(
-      conciseError(new Error("credit balance is too low"), "pi_core", "anthropic"),
+      conciseError(
+        new Error("credit balance is too low"),
+        "pi_core",
+        "anthropic",
+      ),
       "pi_core: the model provider account has insufficient credit (check the project's Anthropic key).",
     );
   });
@@ -72,13 +80,42 @@ describe("conciseError", () => {
   it("falls back to the harness default for an unknown custom provider", () => {
     // A custom router slug we have no key label for: do not invent one, use the harness default.
     assert.equal(
-      conciseError(new Error("Authentication required"), "pi_core", "openai-codex"),
+      conciseError(
+        new Error("Authentication required"),
+        "pi_core",
+        "openai-codex",
+      ),
       "pi_core: model authentication failed — add the project's OpenAI key to the project vault, or log in (OAuth).",
     );
   });
 
+  it("formats a corrupt image provider error as a friendly message", () => {
+    assert.equal(
+      conciseError(
+        new Error('400 invalid_request_error "Could not process image"'),
+        "claude",
+        "anthropic",
+      ),
+      "claude: the attached image appears to be corrupted or incomplete — try re-attaching it.",
+    );
+  });
+
+  it("does not misclassify an unrelated invalid_request_error as an image error", () => {
+    assert.equal(
+      conciseError(
+        new Error("invalid_request_error: missing required field 'model'"),
+        "claude",
+        "anthropic",
+      ),
+      "invalid_request_error: missing required field 'model'",
+    );
+  });
+
   it("falls back to the first line", () => {
-    assert.equal(conciseError(new Error("first line\nsecond line"), "pi"), "first line");
+    assert.equal(
+      conciseError(new Error("first line\nsecond line"), "pi"),
+      "first line",
+    );
   });
 
   it("lets an auth-fault diagnosis replace the add-a-key line", () => {
