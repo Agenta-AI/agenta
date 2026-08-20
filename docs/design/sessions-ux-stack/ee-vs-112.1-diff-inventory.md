@@ -2110,3 +2110,39 @@ Committing then works identically on both: badge returns to `Saved` and the mode
 **Also at parity:** an unsaved draft installs a `beforeunload` guard on BOTH builds (2 dialog
 events each). Worth knowing for the harness — it silently cancels a `goto.sh` navigation, because
 the daemon auto-dismisses the dialog. Clear the draft (commit or revert) before navigating away.
+
+## 5g. Deliberately breaking config changes — all at parity
+
+Arda's ask: stop being precious about writes on test projects and go break things. Every case
+below was driven on BOTH builds.
+
+| case | prod | local |
+|---|---|---|
+| dirty draft (model Haiku→Sonnet 5) | `Draft`, `Commit` enabled | identical |
+| no changes | `Commit` **disabled**, no tooltip | identical |
+| unsaved draft + navigate away | `beforeunload` fires (2 events) | identical |
+| commit modal | box (450,246,900×450), auto-message *"Changed the model to anthropic/claude-ha…"*, counter `48 / 500` | identical |
+| commit executed | badge → `Saved`, model committed | identical |
+| **commit message cleared to empty** | counter `0 / 500`, `Commit` stays **ENABLED**, no validation message | identical |
+| **commit WITH an empty message** | succeeds — modal closes, badge → `Saved` | identical |
+
+**Product question, not drift:** an empty commit message is accepted by both builds. The field
+auto-fills a description, but clearing it neither disables the button nor raises a validation
+error, and the revision commits with no message. Since 112.1 and HEAD agree, it is out of scope
+here — but it is the kind of thing that makes a revision list unreadable later.
+
+**A false alarm caught, again.** A first pass reported `toast: "error"` on both after the empty
+commit. It was my regex scanning the whole `document.body` and matching *my own earlier prompt*
+("…tell me exactly what error you get") sitting in a session tab title. There is no error toast:
+querying real toast roles (`[role=status]`, `[role=alert]`, `.ant-message`, `[data-sonner-toast]`)
+returns the page title on one build and the tab label on the other. **Scan the element, never
+`document.body.innerText`** — the transcript contains whatever words you last typed at it.
+
+### Harness notes from this pass
+
+- **A prod page can land without hydrating.** After one navigation prod's `document.body.innerText`
+  was 963 chars with no config pane — not collapsed, just never mounted. A reload fixed it. Check
+  the body length before concluding a control is missing.
+- **The model picker's group collapses on reload**, so the `[role=option]` for a model does not
+  exist until the provider group is expanded. Selecting a model is three presses, not one: open
+  the picker → expand the group → press the option. All three need `press.sh`.
