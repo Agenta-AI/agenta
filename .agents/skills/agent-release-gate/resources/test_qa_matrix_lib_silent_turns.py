@@ -186,40 +186,68 @@ def test_the_invariant_is_wired_into_the_cell(cell):
     )
 
 
-# The invariant's own read, in either quote style: the cells write it as `silent["violations"]`,
-# and `ast.unparse` renders it back with single quotes.
-_READS_THE_INVARIANT = re.compile(r"""silent\[['"]violations['"]\]""")
-
-
-def _names_that_carry_the_invariant(tree):
-    """Every local name whose value depends on `silent["violations"]`, directly or through
-    another such name (the cells build their verdict in steps: `post_interrupt_works` folds the
-    invariant in, `core_ok` folds `post_interrupt_works` in)."""
-    assignments = {
-        target.id: ast.unparse(node.value)
+def _assigned_expressions(tree):
+    """Every `name = <expression>` in the cell, so a verdict built in named steps
+    (`post_interrupt_works` -> `core_ok` -> the return) can be followed back to what it reads."""
+    return {
+        target.id: node.value
         for node in ast.walk(tree)
         if isinstance(node, ast.Assign)
         for target in node.targets
         if isinstance(target, ast.Name)
     }
-    carriers = set()
-    while True:
-        grown = {
-            name
-            for name, value in assignments.items()
-            if _READS_THE_INVARIANT.search(value)
-            or any(re.search(rf"\b{carrier}\b", value) for carrier in carriers)
-        }
-        if grown == carriers:
-            return carriers
-        carriers = grown
+
+
+def _reads_the_invariant(node):
+    """`silent["violations"]` — the invariant's own read, and the only atom this evaluation knows
+    the value of."""
+    return (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "silent"
+        and isinstance(node.slice, ast.Constant)
+        and node.slice.value == "violations"
+    )
+
+
+def _value_when_a_turn_was_silent(node, assigned, seen=()):
+    """What an expression evaluates to on the ONE assumption that a silent turn happened.
+
+    Three-valued: True, False, or None for "depends on the cell's own checks, which this cannot
+    know". `silent["violations"]` is a non-empty list under that assumption, so it is True, and
+    everything the cell asserts for itself is unknown. Answering the polarity question needs this
+    rather than a search for the invariant's NAME: `not silent["violations"]` and
+    `not (not silent["violations"])` both mention it, and only the first one is a guard.
+    """
+    if _reads_the_invariant(node):
+        return True
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        inner = _value_when_a_turn_was_silent(node.operand, assigned, seen)
+        return None if inner is None else not inner
+    if isinstance(node, ast.BoolOp):
+        values = [
+            _value_when_a_turn_was_silent(value, assigned, seen)
+            for value in node.values
+        ]
+        # `and` keeps going on True and settles on False; `or` is the mirror image.
+        keeps_going = isinstance(node.op, ast.And)
+        if any(value is not keeps_going for value in values if value is not None):
+            return not keeps_going
+        return keeps_going if all(value is not None for value in values) else None
+    if isinstance(node, ast.Name):
+        if node.id in seen or node.id not in assigned:
+            return None  # a loop, or a name from outside the cell: nothing can be concluded.
+        return _value_when_a_turn_was_silent(
+            assigned[node.id], assigned, (*seen, node.id)
+        )
+    return None  # a call, a comparison, a subscript of something else: the cell's own business.
 
 
 def _unguarded_pass_paths(source):
-    """The `why` of every `return {...}` in the cell that can report PASS without the invariant
-    having a say. An empty list is what a fully wired cell looks like."""
+    """Every `return {...}` in the cell that can report PASS even though a turn was silent. An
+    empty list is what a fully wired cell looks like."""
     tree = ast.parse(source)
-    carriers = _names_that_carry_the_invariant(tree)
+    assigned = _assigned_expressions(tree)
     unguarded = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Return) or not isinstance(node.value, ast.Dict):
@@ -237,10 +265,20 @@ def _unguarded_pass_paths(source):
         verdict_source = ast.unparse(verdict)
         if "PASS" not in verdict_source:
             continue  # a FAIL-only early return; the invariant has nothing to add.
-        decider = ast.unparse(verdict.test) if isinstance(verdict, ast.IfExp) else ""
-        if _READS_THE_INVARIANT.search(decider) or any(
-            re.search(rf"\b{carrier}\b", decider) for carrier in carriers
-        ):
+        # PASS has to be the branch a silent turn CANNOT reach, whichever side of the conditional
+        # it is written on.
+        reaches_pass = None
+        if isinstance(verdict, ast.IfExp):
+            says_pass = (
+                "PASS" in ast.unparse(verdict.body),
+                "PASS" in ast.unparse(verdict.orelse),
+            )
+            if says_pass == (True, False):
+                reaches_pass = _value_when_a_turn_was_silent(verdict.test, assigned)
+            elif says_pass == (False, True):
+                inverted = _value_when_a_turn_was_silent(verdict.test, assigned)
+                reaches_pass = None if inverted is None else not inverted
+        if reaches_pass is False:
             continue
         unguarded.append(f"line {node.lineno}: {verdict_source}")
     return unguarded
@@ -284,6 +322,32 @@ def cell():
     assert len(unguarded) == 1
     assert "stage 1" not in unguarded[0]  # it reports the verdict, not the prose
     assert "PASS" in unguarded[0]
+
+
+def test_a_pass_that_uses_the_invariant_backwards_is_reported():
+    """Mentioning the invariant is not the same as being guarded by it. This cell reads it and
+    then inverts it, so it reports PASS in exactly the case the invariant exists to catch."""
+    cell = """
+def cell():
+    turns = run()
+    silent = check_no_silent_turn(turns)
+    core_ok = not silent["violations"]
+    return {"status": "PASS" if not core_ok else "FAIL", "why": "inverted"}
+"""
+
+    assert len(_unguarded_pass_paths(cell)) == 1
+
+
+def test_a_pass_written_on_the_other_side_of_the_conditional_is_accepted():
+    """The guard is about which branch a silent turn can reach, not about where PASS is typed."""
+    cell = """
+def cell():
+    turns = run()
+    silent = check_no_silent_turn(turns)
+    return {"status": "FAIL" if silent["violations"] else "PASS", "why": "mirrored"}
+"""
+
+    assert _unguarded_pass_paths(cell) == []
 
 
 def test_a_cell_whose_every_pass_path_consults_the_invariant_is_clean():
