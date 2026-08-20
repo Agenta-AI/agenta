@@ -14,6 +14,10 @@
  *                            installed credentials are all sound, so park it.
  *  - `continuity-invalid`    The CONVERSATION is wrong. An example is an edited transcript. This
  *                            says nothing about the environment, so park it.
+ *  - `tool-timeout`          A per-tool-call deadline tripped mid-turn. The sandbox daemon is
+ *                            healthy -- only the one tool call overran its clock. Installed
+ *                            dependencies, credentials, and the filesystem are all intact.
+ *                            Park it so the next turn inherits that disk state.
  *  - `runtime-incompatible`  Something baked into the DAEMON is stale. Examples are model or MCP
  *                            credentials, the process environment, and Pi's runtime assets. A
  *                            parked sandbox would resume with that stale material installed.
@@ -37,6 +41,7 @@ export type TeardownReason =
   | "runtime-incompatible"
   | "sandbox-incompatible"
   | "continuity-invalid"
+  | "tool-timeout"
   | "clean-resumable"
   | "idle-expiry"
   | "capacity-eviction"
@@ -64,6 +69,9 @@ const PARKABLE_REASONS: ReadonlySet<TeardownReason> = new Set<TeardownReason>([
   // The two incompatibilities whose daemon is still sound. See the module comment.
   "session-incompatible",
   "continuity-invalid",
+  // A per-tool-call timeout: only one tool overran its clock; the daemon and the filesystem are
+  // intact. Park so the next turn can reuse all installed dependencies. See module comment.
+  "tool-timeout",
 ]);
 
 export function teardownDisposition(

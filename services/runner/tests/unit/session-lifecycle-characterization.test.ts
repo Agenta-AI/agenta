@@ -376,6 +376,13 @@ describe("(b) teardown reasons name the failing layer", () => {
     }
   });
 
+  it("a tool-timeout PARKS the sandbox because only the tool overran its clock", () => {
+    // The daemon, credentials, and filesystem are all intact after a per-tool-call deadline. The
+    // next turn should inherit the disk state (installed deps, /tmp contents, etc.) rather than
+    // rebuilding from a bare sandbox. See teardown.ts "tool-timeout".
+    assert.equal(teardownDisposition("tool-timeout"), "stop");
+  });
+
   it("the parkable set is an ALLOWLIST, so a new reason deletes by default", () => {
     // The invariant that keeps this safe as the union grows. A denylist would make a newly added
     // reason park by accident, which is how stale credentials survive into a resumed daemon.
@@ -386,6 +393,7 @@ describe("(b) teardown reasons name the failing layer", () => {
       "shutdown-idle",
       "session-incompatible",
       "continuity-invalid",
+      "tool-timeout",
     ];
     const everyReason: TeardownReason[] = [
       "kill",
@@ -396,13 +404,14 @@ describe("(b) teardown reasons name the failing layer", () => {
       "runtime-incompatible",
       "sandbox-incompatible",
       "continuity-invalid",
+      "tool-timeout",
       "clean-resumable",
       "idle-expiry",
       "capacity-eviction",
       "shutdown-in-flight",
       "shutdown-idle",
     ];
-    assert.equal(everyReason.length, 13, "the TeardownReason union has 13 members");
+    assert.equal(everyReason.length, 14, "the TeardownReason union has 14 members");
     for (const reason of everyReason) {
       assert.equal(
         teardownDisposition(reason),

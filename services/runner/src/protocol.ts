@@ -717,6 +717,12 @@ export interface AgentRunResult {
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
   traceId?: string;
   error?: string;
+  /**
+   * Machine-readable classification of a failed turn (present only when `ok` is false and the
+   * runner knows why it failed). `"tool-timeout"` means a per-tool-call deadline tripped; the
+   * sandbox daemon and filesystem are intact. Callers may use this to park instead of delete.
+   */
+  failureKind?: string;
 }
 
 /**

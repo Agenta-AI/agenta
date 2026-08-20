@@ -556,7 +556,9 @@ export async function runWithKeepalive(
       ? "clean-resumable"
       : signal?.aborted || clientGone?.()
         ? "aborted"
-        : "failed-turn";
+        : result.failureKind === "tool-timeout"
+          ? "tool-timeout"
+          : "failed-turn";
 
   /**
    * Turn a dispatch mismatch label into the teardown reason that names the FAILING LAYER.

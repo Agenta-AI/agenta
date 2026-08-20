@@ -61,7 +61,9 @@ export async function runSandboxAgent(
         ? "clean-resumable"
         : signal?.aborted
           ? "aborted"
-          : "failed-turn",
+          : result?.failureKind === "tool-timeout"
+            ? "tool-timeout"
+            : "failed-turn",
     });
   }
 }

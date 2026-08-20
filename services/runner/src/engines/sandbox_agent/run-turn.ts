@@ -153,11 +153,15 @@ export async function runTurn(
   );
   let runLimitTrip: (() => void) | undefined;
   let runLimitReason: string | undefined;
+  // Set when a per-tool-call timer fires: the daemon and filesystem are intact (only one tool
+  // overran its clock), so the teardown path should park rather than delete the sandbox.
+  let runLimitWasToolTimeout = false;
   const runLimitTripped = new Promise<void>((resolve) => {
     runLimitTrip = resolve;
   });
   runLimits.onTrip((reason) => {
     runLimitReason = reason;
+    runLimitWasToolTimeout = reason.startsWith("tool call ");
     runLimitTrip?.();
   });
 
@@ -1180,7 +1184,10 @@ export async function runTurn(
       otel?.finish();
     } catch {}
     await otel?.flush().catch(() => {});
-    return { ok: false, error };
+    // A per-tool-call timeout leaves the sandbox daemon and filesystem intact; tag the result
+    // so the teardown path can park instead of delete. See teardown.ts "tool-timeout".
+    const failureKind = runLimitWasToolTimeout ? "tool-timeout" : undefined;
+    return { ok: false, error, ...(failureKind ? { failureKind } : {}) };
   } finally {
     // Release every run-limits timer (idempotent, never re-arms on a late event) on EVERY path.
     runLimits.dispose();
