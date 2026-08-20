@@ -735,6 +735,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Abdelkaderbzz",
+      "name": "Abdelkaderbzz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/108610803?v=4",
+      "profile": "https://www.abdelkader.work/",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
