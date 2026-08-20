@@ -1983,3 +1983,47 @@ backend tool catalog the runner supplies.
 Next step is to find where that string is produced before assuming the lane dropped anything;
 `toolDisplay.ts` losing 100 lines against 112.2 makes it worth the look, but the deleted block was
 type declarations and MCP-prefix handling, not a phrase table.
+
+## 5f. WP-2 started — the config pane at rest is at parity
+
+`@agenta/entity-ui` is 86 changed files and had never been looked at. First result, on the matched
+agents with the config pane open:
+
+**Every control is byte-identical.** Enumerating each clickable in the pane (x 250–700) on both
+builds returns the same 26 entries at the same y, x, width and label — `Model`, `Instructions`,
+`Tools`/`Add tool`, `Skills`/`Add skill`, `Advanced`, `Subscriptions`, `Schedules`, `Files`, the
+file rows, `Commit`, `Hide configuration`. That also re-confirms P-01's header fix still holds.
+
+`config` scores 3.29% and **all ten regions are data**, not chrome: the agent NAME (see below),
+`Sandbox: daytona` vs `Sandbox: local`, and the instructions preview shifted by the name width.
+Everything else — `Configuration`, `Instructions`, `Subscriptions`, `Schedules` — is the same
+label at a sub-pixel offset.
+
+### Not yet exercised: the drill-ins themselves
+
+Opening a drill-in is NOT what I assumed. Clicking a section header toggles its collapse, and
+clicking a file row does nothing visible; no `[role=dialog]` or `.ant-drawer` appears on either
+build. Both behave identically, so there is no finding here — but the drill-in contents
+(Instructions, Tools, Skills, Advanced, Subscriptions, Schedules, Files), `DriveExplorer`, the
+commit modal and the entity pickers remain **uncompared**. Find the real affordance first
+(the chevron `svg` at x≈666 in each header row is the candidate) rather than guessing at clicks.
+
+### State drift I caused — the pair is no longer name-matched
+
+During the elicitation run, **prod's agent renamed itself to `Hello-world helper`** (it called
+`rename_agent`, which its own AGENTS.md instructs it to do on a first task). Local's is still
+`New agent`. That is now the largest region in every config/header comparison.
+
+The matched pair matters — §4g measured 32.70% against 2.72% purely from comparing mismatched
+agents — so either rename prod's back to `New agent` before the next capture, or treat the header
+band as data. Recorded rather than silently reverted: it is a write to Arda's cloud account.
+
+### The tab guard earned its keep
+
+Mid-pass, `shot.sh` refused a prod capture with *"could not switch to the prod tab (active is
+https://www.haberturk.com/)"*. Arda was browsing in the same window and the pinned prod tab had
+become his. **Nothing was captured**, which is the correct outcome — the alternative is shooting
+one environment twice and scoring a false 0.00%. Recovery is to leave his tab alone, open a
+separate one, and re-pin; `pin_tab` then found it and re-verified DPR 2 on both.
+
+This is the concrete payoff for `use_tab` proving the switch instead of trusting `browse tab`.
