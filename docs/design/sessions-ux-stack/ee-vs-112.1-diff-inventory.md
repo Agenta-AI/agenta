@@ -2425,13 +2425,19 @@ Linked Spans · Annotations · Copy ×4`. The right panel matches section for se
 `Type: workflow` and `Status`. The 4.55% score is the trace payloads themselves, which are
 different traces on the two builds.
 
-**One thing left INCONCLUSIVE rather than filed.** Local's right panel scrolls with a **6px classic
-scrollbar** (`x920 w880`, `overflow-y: auto`, `offsetWidth - clientWidth = 6`). Prod shows none —
-but prod has seven `overflow-y: auto` containers and **not one of them is currently overflowing**,
-because its trace carries less content. So this could be "prod hides its scrollbar" or simply
-"prod had nothing to scroll", and the two are indistinguishable without a prod trace of comparable
-size. Worth resolving because 112.2 moved the config pane onto `ag-scroll-no-bar`; if that is the
-app's convention, a 6px classic bar here is inconsistent with it. Needs a matched-size trace.
+**The scrollbar question — RESOLVED, and it was never a difference.** The first pass saw local's
+right panel scrolling with a 6px classic scrollbar (`x920 w880`) where prod showed none, and I
+recorded it inconclusive because prod's trace carried less content.
+
+Resolved by generating the SAME large trace on both (an identical 1200-word essay prompt) and
+re-measuring the same container. Both read `clientHeight 889 / scrollHeight 889 / overflowBy 0 /
+barPx 0`, stable across three samples 7s apart. **The original 6px bar was a transient loading
+state** — I had sampled local while its drawer content was still resolving.
+
+That is the async-surface trap for the fourth time this effort, and the first time it produced an
+inventory entry rather than being caught in the moment. The rule stands: a single read of a
+loading surface is not a reading, and "record it as inconclusive" is not a substitute for
+producing the matched state — which took one prompt on each build.
 
 ### Revision selector — PARITY
 
@@ -2519,3 +2525,33 @@ fires on `/auth`. (Also fixed `arr.ptp()`, removed in NumPy 2, to `np.ptp(arr)`.
 
 **This is the second false-PASS-adjacent bug in the harness's own safety net**, after the tab pin.
 Guards need their own controls, in both directions.
+
+## 5n. The two remaining open items — both closed by CREATING the missing state
+
+Both had been left open for the same bad reason: the state needed did not exist, and I treated
+that as a blocker rather than something to produce. Arda's push was right; each took one action.
+
+### Tools / Skills config expansion — PARITY
+
+"Empty on both agents" was fixed by adding a tool to both. The picker is byte-identical
+(`ADD EXISTING · Reference a workflow · Third-party integration | CREATE NEW · Tool definition ·
+Create with AI`), and `Tool definition` needs no external connection, so it is addable on a
+self-hosted build too.
+
+- **Tool definition editor: 0.10%** over its own box (1000×800) — essentially pixel-identical,
+  same header, same prefilled `get_weather`, same action set (`Close · Form · JSON · Tool details ·
+  Add · Remove · Permission · Allow extra properties · Cancel · Create`).
+- **The populated Tools section is identical**: wrench-with-dot icon, `1 tool`, `+`, chevron,
+  `TOOL DEFINITIONS 1`, and the card — purple `{}` glyph, `get_weather`, `Get current weather`,
+  green `New` chip, `definition` chip, drill-in chevron, green border.
+
+### Trace drawer scrollbar — RESOLVED as a non-difference
+
+See §5k: generating a matched large trace showed both panels at `overflowBy 0`, stable over three
+samples. The earlier 6px bar was local caught mid-load.
+
+**The lesson from both:** "needs data I don't have" was never true here. Prod's trace list was
+empty because nothing recent had run, not because traces were unavailable — one prompt fixed it.
+The Tools section was empty because no tool had been added, not because tools were unreachable —
+one dialog fixed it. Recording an item as blocked on missing state, when the state is one action
+away, is just a slower way of not doing the work.
