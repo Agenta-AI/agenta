@@ -1,15 +1,15 @@
 import {type ReactNode} from "react"
 
+import {
+    BOTTOM_FADE_HOVER_HIDE,
+    BOTTOM_FADE_OVERLAY_STYLE,
+    EDGE_FADE_MASK,
+} from "@agenta/chat/assets"
 import {Button} from "@agenta/ui/ui"
 import {ArrowDown} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Virtuoso} from "react-virtuoso"
 
-import {
-    BOTTOM_FADE_HOVER_HIDE,
-    BOTTOM_FADE_OVERLAY_STYLE,
-    EDGE_FADE_MASK,
-} from "../assets/conversationLayout"
 import {type ScrollIntent} from "../hooks/useScrollIntent"
 import {type useTranscriptScroll} from "../hooks/useTranscriptScroll"
 import {type VirtCtx, type useVirtuosoTranscript} from "../hooks/useVirtuosoTranscript"

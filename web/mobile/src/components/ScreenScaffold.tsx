@@ -1,4 +1,4 @@
-import type {ReactNode, RefObject, UIEventHandler} from "react"
+import type {CSSProperties, ReactNode, RefObject, UIEventHandler} from "react"
 
 interface ScreenScaffoldProps {
     /** Pinned above the scroller. Never scrolls away. */
@@ -6,6 +6,12 @@ interface ScreenScaffoldProps {
     /** Pinned below the scroller (approval dock, composer). */
     footer?: ReactNode
     scrollRef?: RefObject<HTMLDivElement | null>
+    /** Extra classes on the SCROLLER itself — the chat's bottom-fade hover hook needs to sit on
+     * the scrolling box, not on the page frame. */
+    scrollClassName?: string
+    /** Inline style on the scroller. The chat's top-edge fade is a CSS mask, which has no
+     * Tailwind class. */
+    scrollStyle?: CSSProperties
     onScroll?: UIEventHandler<HTMLDivElement>
     /** Inside a pane that already owns the viewport height and the top inset — fill it instead. */
     embedded?: boolean
@@ -37,6 +43,8 @@ export const ScreenScaffold = ({
     header,
     footer,
     scrollRef,
+    scrollClassName,
+    scrollStyle,
     onScroll,
     embedded = false,
     fill = false,
@@ -51,9 +59,12 @@ export const ScreenScaffold = ({
         <div
             ref={scrollRef}
             onScroll={onScroll}
+            style={scrollStyle}
             className={`flex min-h-0 flex-1 flex-col ${
                 fill ? "" : "overflow-y-auto overscroll-contain"
-            }${footer ? "" : " pb-[env(safe-area-inset-bottom)]"}`}
+            }${footer ? "" : " pb-[env(safe-area-inset-bottom)]"}${
+                scrollClassName ? ` ${scrollClassName}` : ""
+            }`}
         >
             {children}
         </div>

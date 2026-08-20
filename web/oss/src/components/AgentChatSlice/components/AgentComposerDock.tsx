@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, type RefObject} from "react"
 
+import {CHAT_COLUMN} from "@agenta/chat/assets"
 import {
     ChatComposer,
     MicPermissionNotice,
@@ -29,7 +30,6 @@ import TemplateStrip from "@/oss/components/TemplateStrip"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import AgentIntentActions from "@/oss/components/TemplateStrip/components/AgentIntentActions"
 
-import {CHAT_COLUMN} from "../assets/conversationLayout"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 import {useChatSlashCommands} from "../hooks/useChatSlashCommands"
 import {type useComposerDraft} from "../hooks/useComposerDraft"

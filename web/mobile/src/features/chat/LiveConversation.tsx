@@ -1,5 +1,10 @@
 import {useEffect, useMemo, useRef} from "react"
 
+import {
+    BOTTOM_FADE_HOVER_HIDE,
+    BOTTOM_FADE_OVERLAY_STYLE,
+    EDGE_FADE_MASK,
+} from "@agenta/chat/assets"
 import {useAgentConversation} from "@agenta/chat/hooks"
 import {getPendingApprovals} from "@agenta/chat/model"
 import {Button} from "@agenta/ui/ui"
@@ -153,6 +158,9 @@ export const LiveConversation = ({
             scrollRef={autoScroll.ref}
             onScroll={autoScroll.onScroll}
             embedded={embedded}
+            // The top edge fades as a MASK, exactly as the desktop transcript does — content
+            // dissolves under the tab bar instead of being cut by a hard line.
+            scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
             header={
                 <>
                     {running || streamingHere ? (
@@ -178,7 +186,16 @@ export const LiveConversation = ({
                 </>
             }
             footer={
-                <div>
+                <div className="relative">
+                    {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
+                        would fade any hover toolbar that scrolls into the band, and no z-index
+                        escapes an ancestor's mask — the desktop learned this the same way. It sits
+                        above the footer and is dropped while a turn is hovered. */}
+                    <div
+                        aria-hidden
+                        className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
+                        style={BOTTOM_FADE_OVERLAY_STYLE}
+                    />
                     {pendingApprovals.length > 0 ? (
                         <ApprovalDock
                             approvals={pendingApprovals}
