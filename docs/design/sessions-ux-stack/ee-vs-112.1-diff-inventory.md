@@ -2447,8 +2447,12 @@ same box (483, 35, 280×191), same `Search` field, same `default` group with `v3
 
 ### D-22 upgraded from unit-tested to VERIFIED AGAINST THE UNFIXED BUILD
 
-`TestcaseDrawer` needed a testset, and neither project had one — so I created `qa112-parity` on
-both (Arda's call: these are test projects) and opened the drawer from the first row.
+`TestcaseDrawer` needed a testset, and neither project had one — so I opened the create flow on
+both (Arda's call: these are test projects) and used the unsaved `qa112-parity` editor, whose
+first row opens the drawer. **Note for anyone re-running this: nothing persisted.** The row lives
+in an unsaved editor ("this testcase hasn't been saved to the server yet"), so leaving the page
+discards it — both projects still report `Testsets 0`. The drawer is reachable without committing
+any data.
 
 | | header buttons |
 |---|---|
@@ -2555,3 +2559,16 @@ empty because nothing recent had run, not because traces were unavailable — on
 The Tools section was empty because no tool had been added, not because tools were unreachable —
 one dialog fixed it. Recording an item as blocked on missing state, when the state is one action
 away, is just a slower way of not doing the work.
+
+## 5o. Test data cleaned up — and one of the two leftovers never existed
+
+- **`get_weather` draft tool — REMOVED from both.** It was an uncommitted draft, so no revision was
+  ever created on either agent; removing it returns both to `Saved` / `Tools: None`. Verified on
+  both.
+- **`qa112-parity` testsets — never existed.** I had reported leaving one on each project. Both
+  report `Testsets 0`: the create flow lands in an UNSAVED editor, and navigating away discards it.
+  The D-22 verification worked because the drawer opens from the unsaved editor's first row, which
+  needs no persisted data at all.
+
+Both projects are back to the state they were in before this pass, apart from the sessions and
+traces the live runs produced (which are the evidence, and worth keeping).
