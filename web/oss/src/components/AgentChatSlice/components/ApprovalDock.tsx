@@ -127,13 +127,16 @@ const ApprovalDock = ({
                         // Chat labels the payload well "Details"; Build says "Payload". The ask
                         // itself reads the same in both modes.
                         friendly={chatMode}
-                        // A registered body without its own headline gets the generic ask: the
-                        // humanized sentence would name the tool a second time, next to a preview
-                        // that already shows what the call does.
+                        // Three cases, and `??` cannot express them because it swallows null:
+                        // no body at all -> undefined, and the card says the humanized sentence;
+                        // a body that sets `headline: null` -> null, and the body owns the ask
+                        // outright; a body with no headline of its own -> the generic line, since
+                        // the humanized sentence would name the tool next to a preview of it.
                         headline={
                             renderer
-                                ? (renderer.headline ??
-                                  "The agent wants to run this tool before it can keep going.")
+                                ? renderer.headline === undefined
+                                    ? "The agent wants to run this tool before it can keep going."
+                                    : renderer.headline
                                 : undefined
                         }
                         // The friendly two-pane body needs more air than the one-line payload card.

@@ -242,11 +242,11 @@ describe("Build mode, commit with a committed base to diff against", () => {
         expect(rendered).not.toContain("The agent wants to run this tool before it can keep going.")
     })
 
-    it("keeps the raw tool name that Build-mode debuggers steer by", () => {
-        const rendered = render(TEXT_ONLY_APPROVAL)
-
-        expect(rendered).toContain("commit_revision")
-    })
+    // No "keeps the raw tool name" case here on purpose. This lane briefly rendered a raw-name row
+    // above the ask in Build mode and pinned it with a test; neither exists on the release line,
+    // whose dock carries one humanized sentence in both modes and says so in its own comment. A
+    // registered body that claims the ask (`headline: null`) owns the whole header, so the wire
+    // name is not in the DOM there on either build. Verified against deployed prod, not inferred.
 
     it("still shows the imported content when the commit imports files", () => {
         const rendered = render()
