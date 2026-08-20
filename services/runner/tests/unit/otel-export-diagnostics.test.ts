@@ -138,9 +138,10 @@ describe("otel export diagnostics", () => {
     expect(failure).not.toContain(token);
   });
 
-  it("skips a credential-less export to Agenta's own ingest", async () => {
+  it("skips a blank credential on Agenta's own ingest", async () => {
     const { logs, exportCalled } = await runExportCapture({
       endpoint: AGENTA_INGEST_ENDPOINT,
+      authorization: "   ",
       result: { code: ExportResultCode.SUCCESS },
     });
 
