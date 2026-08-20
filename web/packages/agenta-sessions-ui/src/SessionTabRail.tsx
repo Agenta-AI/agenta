@@ -8,6 +8,7 @@
  * precedence), so a session reads the same here as in every list. Only the host's verbs arrive as
  * props: how a chip opens, and what "new" means.
  */
+import type {ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {type SessionRowVm} from "@agenta/sessions/row"
@@ -52,6 +53,11 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      * users expect to arrange. Off leaves the rail in list order.
      */
     reorderable?: boolean
+    /** Right-aligned extras, pinned outside the scroller (files opener, history menu). */
+    extra?: ReactNode
+    /** Leading extra, pinned before the scroller — the config-panel reveal control, rendered at
+     * the spot the config panel disappeared from. */
+    leadingExtra?: ReactNode
     className?: string
 }
 
@@ -149,6 +155,8 @@ export const SessionTabRail = ({
     activeSessionId,
     onSelect,
     onNew,
+    extra,
+    leadingExtra,
     activeFallbackTitle,
     menuFor,
     onMenuSelect,
@@ -178,6 +186,8 @@ export const SessionTabRail = ({
     return (
         <SessionTabStrip
             onAdd={onNew}
+            extra={extra}
+            leadingExtra={leadingExtra}
             remeasureKey={rows.length}
             reorder={reorderable ? {ids: orderedIds, onReorder: handleReorder} : undefined}
             className={className}
