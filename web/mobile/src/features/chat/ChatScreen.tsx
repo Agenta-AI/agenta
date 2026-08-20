@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useMemo, useRef, useState} from "react"
 
 import {
     buildTurnViewModels,
@@ -65,6 +65,16 @@ export const ChatScreen = ({
     // invocation target, as on the desktop. Unpinned, the agent's latest is what runs.
     const pinnedRevisionId = useAtomValue(selectedRevisionAtomFamily(sessionId))
     const entityId = pinnedRevisionId ?? latestEntityId
+    // Switching sessions re-runs the agent query, and for the moment it is pending `entityId` is
+    // null and `resolving` is true. Blanking on that turned every switch into a teardown: the
+    // config pane unmounted, the chat became a spinner, and the workspace visibly rebuilt to
+    // change which transcript is on screen. Hold the last resolved revision across the gap so the
+    // frame stays put; the transcript itself is keyed by sessionId and swaps immediately.
+    const lastEntityIdRef = useRef<string | null>(null)
+    if (entityId) lastEntityIdRef.current = entityId
+    const heldEntityId = entityId ?? lastEntityIdRef.current
+    // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
+    const showLoading = resolving && !heldEntityId
     const liveness = useLivenessPoll(projectId)
     const running = Boolean(
         liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
@@ -75,13 +85,17 @@ export const ChatScreen = ({
     // Until the agent query settles, `entityId` is null for an agent-backed session too — so
     // committing to the replay branch here would tell the user the session is read-only when it
     // is not. `resolving` is query-PENDING, not fetching: a cached answer renders immediately.
-    const chat = resolving ? (
+    const chat = showLoading ? (
         <ChatLoading />
-    ) : entityId ? (
+    ) : heldEntityId ? (
         <LiveConversation
-            key={entityId}
+            // The CONVERSATION re-keys per session (and per pinned revision) — it owns the chat
+            // engine, and reusing one across sessions left the previous transcript on screen under
+            // the new session's tab. Keying it here and not the page is the whole point: the shell,
+            // the split and the config pane stay mounted while only the transcript is rebuilt.
+            key={`${sessionId}:${heldEntityId}`}
             embedded
-            entityId={entityId}
+            entityId={heldEntityId}
             sessionId={sessionId}
             projectId={projectId}
             workspaceId={workspaceId}
@@ -101,7 +115,9 @@ export const ChatScreen = ({
 
     return (
         <SessionWorkspace
-            entityId={entityId}
+            // Held, not raw: the config pane keys off this, and letting it blink to null mid-switch
+            // is what unmounted the pane.
+            entityId={heldEntityId}
             agentId={resolvedAgentId}
             sessionId={sessionId}
             workspaceId={workspaceId}
@@ -148,7 +164,8 @@ const ReplayScreen = ({
         approvals.phase === "resuming" ? 4_000 : pendingCount > 0 || running ? 7_500 : 0
     const nextPollMs = watchAwarePollMs(basePollMs, watch.connected)
     if (nextPollMs !== pollMs) setPollMs(nextPollMs)
-    // One identity cache per session mount (the screen is keyed by sessionId).
+    // One identity cache per session — the dep does that, and must, since the screen is no longer
+    // remounted per session.
 
     const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
     const turns = useMemo(
