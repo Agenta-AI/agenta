@@ -77,6 +77,11 @@ state keeping its table header.
   `browse newtab <url>` blocks the same way: open the tab bare, then `goto.sh` into it.
 - **`press.sh` double-fires plain buttons.** Its pointer sequence (needed for Radix) is seen twice
   by an ordinary `onClick`. Use `.click()` for normal buttons.
+- **An unsaved config draft blocks navigation.** It installs a `beforeunload` handler, the daemon
+  auto-dismisses the dialog, and `goto.sh` silently reports MISS. Commit or revert the draft first.
+- **Radix `[role=option]` needs `press.sh` too**, not just Radix triggers — a plain `.click()` on a
+  model option does nothing. And match the `[role=option]` element itself; a text match with
+  `.pop()` grabs the innermost span, which is not clickable.
 - **`browse type` presses Enter for a `\n`, and Enter SENDS.** A multi-line prompt fired one send
   per line — 17 runs on each build instead of one. Keep chat prompts on ONE line.
 - **Resolve tabs by URL every time.** A tab id can stop meaning what it meant with nobody touching

@@ -1835,7 +1835,7 @@ nothing. That check earned its keep — three successive versions passed neither
 71 raw hits became 13 real ones. **It cannot catch C-01's class** — a prop that is read but rendered
 with the wrong metrics — and says so; that needs a measurement against the other build.
 
-### D-21 — `closeOnLayoutClick` does nothing, and 13 drawers depend on it — **P1, NOT lane drift**
+### D-21 — `closeOnLayoutClick` does nothing, and 13 drawers depend on it — **P1, FIXED AND VERIFIED**
 
 `EnhancedDrawer` declares `closeOnLayoutClick?: boolean` (line 110) and its docstring lists it
 under **Covered**: "closeOnLayoutClick (Radix outside-click)". Those are its only two mentions.
@@ -1855,11 +1855,25 @@ despite explicitly asking not to: `EditEvaluationDrawer`, `CreateEvaluatorDrawer
 `InspectorDrawer`, `TraceDrawer`, `FilesDrawer`, `FocusDrawer`. On the form drawers that means
 losing typed input to a stray click.
 
-**`origin/release/v0.112.2` is byte-identical here** (same two lines, same absence of a read), so
-this is PRE-EXISTING, not something the lane introduced — out of scope for a parity PR under the
-"112.2 wins" rule. Recorded, not fixed: the fix is small (`closeOnLayoutClick ?? maskClosable`)
-but it changes dismissal behaviour on thirteen surfaces, and no fix ships from this pass without
-being driven in a browser. Arda's call, and its own verification pass.
+**`origin/release/v0.112.2` is byte-identical here**, so this is PRE-EXISTING rather than lane
+drift. Arda's call was to fix it in this PR anyway.
+
+The prop's own docstring is where the mistake lives, again: *"antd `Drawer` had this; Radix
+already closes on outside-click, so it's effectively a no-op."* The author read the name as
+"closes on layout click" and concluded it added nothing — missing that every call site passes
+**`false`**, i.e. the prop exists to SUPPRESS dismissal. `EnhancedDrawer` now destructures it and
+derives `dismissOnOutside = closeOnLayoutClick ?? maskClosable`, so an explicit
+`closeOnLayoutClick` wins and `maskClosable` remains the fallback.
+
+**Verified with a two-build control**, which is what makes it more than a code reading. Same trace
+drawer (`closeOnLayoutClick={false}`), same synthetic outside click on the rail at (120, 500):
+
+| | drawer after the outside click |
+|---|---|
+| prod (unfixed) | `stillOpen: false` — it closes, losing the drawer |
+| local (fixed) | `stillOpen: true` — it stays |
+
+Prod demonstrates the bug and local demonstrates the fix, in the same run.
 
 ### Cleared by the same sweep
 
@@ -2073,3 +2087,26 @@ button is disabled — a disabled button with `pointer-events: none` cannot be h
 neither build attaches one (`title`, `aria-describedby` and any tooltip ancestor are all absent on
 both), so the difference is inert. Worth re-checking if a "nothing to commit" tooltip is ever
 added, because only prod's markup could show it.
+
+### The commit modal and the commit flow — PARITY (both driven)
+
+Reaching it needs a dirty draft, so I made one on both: model Haiku 4.5 → Sonnet 5. Two mechanics
+worth keeping:
+
+- **The model option is a Radix `[role=option]`, so `.click()` does nothing.** It took `press.sh`
+  (the full pointer sequence) to select. The trap file already says "Radix needs pointerdown" for
+  triggers; it applies to listbox OPTIONS too.
+- My earlier `.pop()` on a text match kept grabbing the innermost `<span>` inside the option row.
+  Select the `[role=option]` itself.
+
+With the draft dirty (`Pi · Sonnet 5`, badge `Draft`, `Commit` enabled), the modal opens on both at
+the **identical box (450, 246, 900×450)** with the same structure — `Commit changes`, the agent
+name, `New version` / `New variant`, "Saves as version 2. Everyone using … gets your changes.",
+`Commit message` with a `47 / 500` counter, `Cancel` / `Commit`. It scores **0.64%**, and all six
+regions on the contact sheet are the agent NAME and text shifted by it.
+
+Committing then works identically on both: badge returns to `Saved` and the model is committed.
+
+**Also at parity:** an unsaved draft installs a `beforeunload` guard on BOTH builds (2 dialog
+events each). Worth knowing for the harness — it silently cancels a `goto.sh` navigation, because
+the daemon auto-dismisses the dialog. Clear the draft (commit or revert) before navigating away.

@@ -106,7 +106,8 @@ interface DrawerProps {
 
 export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
-    /** antd `Drawer` had this; Radix already closes on outside-click, so it's effectively a no-op. */
+    /** `false` SUPPRESSES outside-click dismissal (antd `Drawer`'s meaning). Overrides
+     * `maskClosable` when both are given. */
     closeOnLayoutClick?: boolean
 }
 
@@ -132,6 +133,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         size,
         closable = true,
         maskClosable = true,
+        closeOnLayoutClick,
         keyboard = true,
         zIndex,
         getContainer,
@@ -187,6 +189,10 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     if (!shouldRender) return null
 
     const side = placement as "top" | "right" | "bottom" | "left"
+    // 13 drawers pass `closeOnLayoutClick={false}` and no `maskClosable`, so reading only the
+    // latter dismissed every one of them on a stray outside click — losing typed input on the form
+    // ones. Explicit `closeOnLayoutClick` wins; otherwise fall back to antd's `maskClosable`.
+    const dismissOnOutside = closeOnLayoutClick ?? maskClosable
     const isHorizontal = side === "left" || side === "right"
     // antd `width` sizes left/right drawers, `height` sizes top/bottom; otherwise Sheet's 378 default.
     // antd `size`: "default"=378, "large"=736; a number is treated as px (antd v6 behaviour).
@@ -214,10 +220,10 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                     if (!keyboard) e.preventDefault()
                 }}
                 onPointerDownOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!dismissOnOutside) e.preventDefault()
                 }}
                 onInteractOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!dismissOnOutside) e.preventDefault()
                 }}
             >
                 {title != null || extra != null || closable !== false ? (
