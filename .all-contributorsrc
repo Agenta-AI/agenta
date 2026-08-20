@@ -762,6 +762,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "aman-goel-04",
+      "name": "Aman",
+      "avatar_url": "https://avatars.githubusercontent.com/u/216227649?v=4",
+      "profile": "https://github.com/Aman-goel-04",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
