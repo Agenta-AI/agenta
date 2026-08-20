@@ -24,7 +24,12 @@ export const useAgentEntity = (
             // `/sessions/query` rows carry the latest turn's workflow references (WP0-R3);
             // the raw stream row does NOT — references are stamped per turn.
             const rows = await querySessions({projectId, sessionIds: [sessionId]})
-            const row = rows?.find((candidate) => candidate.session_id === sessionId) ?? rows?.[0]
+            // THIS session's row or nothing. The fallback here used to be `?? rows[0]`, which
+            // adopts a DIFFERENT session's agent whenever the response does not carry the one we
+            // asked for — a silent cross-session answer, cached for the full staleTime below.
+            const row = rows?.find((candidate) => candidate.session_id === sessionId)
+            // No row is a real answer for a session with no turns yet, so null rather than a
+            // throw. What is NOT an answer is another session's row.
             return row?.references?.find((ref) => ref.id && isValidUUID(ref.id))?.id ?? null
         },
         enabled: Boolean(sessionId && projectId),
