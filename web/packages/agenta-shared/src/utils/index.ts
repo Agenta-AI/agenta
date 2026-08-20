@@ -174,8 +174,10 @@ export {
     getSlugSuffix,
     isValidSlug,
     regenerateSlugSuffix,
+    slugifyBase,
     slugifyName,
     stripSlugSuffix,
+    toEnvVarName,
 } from "./slug"
 
 // Status inference utilities
