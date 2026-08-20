@@ -256,7 +256,7 @@ If Agenta is useful to you, star the repository and tell us what you build.
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-78-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-79-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -364,7 +364,10 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://cormid.xyz/"><img src="https://avatars.githubusercontent.com/u/107045341?v=4?s=100" width="100px;" alt="cormid"/><br /><sub><b>cormid</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Kirtofu" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/mdsiddiqjuber"><img src="https://avatars.githubusercontent.com/u/234624433?v=4?s=100" width="100px;" alt="mdsiddiqjuber"/><br /><sub><b>mdsiddiqjuber</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=mdsiddiqjuber" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/SJY051"><img src="https://avatars.githubusercontent.com/u/68188784?v=4?s=100" width="100px;" alt="Seojin Yoon"/><br /><sub><b>Seojin Yoon</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=SJY051" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=SJY051" title="Tests">⚠️</a></td>
+    </tr>
+    <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/shafeeq27edu-ai"><img src="https://avatars.githubusercontent.com/u/234775624?v=4?s=100" width="100px;" alt="Shafeeq"/><br /><sub><b>Shafeeq</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=shafeeq27edu-ai" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Aman-goel-04"><img src="https://avatars.githubusercontent.com/u/216227649?v=4?s=100" width="100px;" alt="Aman"/><br /><sub><b>Aman</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=aman-goel-04" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
