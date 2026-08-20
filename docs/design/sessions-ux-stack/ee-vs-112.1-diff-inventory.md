@@ -1696,3 +1696,89 @@ Two traps inside that work, both caught by measuring rather than reading the CSS
 - **Zeroing the last block's margin has to reach through the wrapper.**
   `[&>:last-child]:!mb-0` targets Streamdown's wrapper div, whose margin was already 0;
   `[&>:last-child>*]:!mb-0` is what actually stops the last block padding the bubble twice.
+
+## 4n. WP-1 continued — the approvals pair
+
+Arda's route: compare the existing `PR reviewer` agents rather than adding tools to the paired
+`New agent`. Prod `01a01513-ad8e-…` had a real pending approval waiting (21h old, reached from
+`/overview` → `WAITING ON YOU`); local `01a01514-7575-…` had none, so one was driven with
+"Add one line to your instructions saying you flag missing tests, then commit the change as a new
+revision" — which produces the same `commit_revision` approval prod's session was sitting on.
+
+### The card is at parity — measured, not eyeballed
+
+| | prod | local |
+|---|---|---|
+| card box | 880 wide, `bg #17181b`, border `#26282d`, radius 8 | identical |
+| `Deny` | 66×28, transparent bg, border `#424242`, 14px, radius 8 | identical |
+| `Approve & commit` | 154×28, bg `#d1d151`, text `#141414`, radius 8 | identical |
+| `Payload` collapsible row + `View full trace` link | present | present |
+
+Only the known +2px chat-column offset separates them.
+
+### A-01 — local shows the raw `commit_revision` tool id, prod does not — **deliberate, not filed**
+
+Local's card reads `Approval needed to continue` → **`commit_revision`** → `What's changing`;
+prod's goes straight to `What's changing`. The line comes from `ApprovalCard`
+(`@agenta/chat`, a lane-only file — **absent from both 112.1 and 112.2**), which renders the raw
+name when `friendly` is false and is passed `friendly={chatMode}`, i.e. false in the playground.
+Its own comment states the intent: *"Build keeps the raw tool name (debuggers steer by it); Chat
+folds a humanized name into one sentence."* Recorded rather than changed, same as C-03/C-04 —
+flag it to Arda if the playground should read as Chat here.
+
+Related: 112.2's `ApprovalDock` (554 lines → ~106 at HEAD) was the only consumer of
+`resolveToolDisplay` that HEAD dropped. The helper still exists and is still used by
+`ToolActivity`, `ElicitationWidget` and the Inspector, so tool STEP rows are still humanized
+("Used Commit revision"); only the approval card's identity line went raw.
+
+### Ruled out — the "Always allow" switch
+
+112.2's `ApprovalDock` renders an `Always allow <tool> for this agent` Switch, and HEAD's rewrite
+looked like it had dropped it. **Neither build shows it for this approval** (0 switches in the
+card on both), so the control is gated on the tool being grantable and `commit_revision` is not.
+Checked live on both before filing rather than inferred from the diff.
+
+### A-02 — "Approve does nothing" — **MY ERROR, retracted**
+
+I clicked `Approve & commit` on local, sampled every 6s for 90s, and saw the buttons stay put and
+`disabled`, no `Stop` button, and **no run/resume POST in the network log** — only polling. I was
+about to file a P1.
+
+It had worked the whole time. A reload showed the run resumed and finished in **3.22s**, the
+revision committed as **v3** with the message `edited agents_md (1 edit)`, the URL carrying a new
+`?revisions=01a019c1-…`, and the instruction line present in the config. The approval buttons were
+gone.
+
+Three mistakes stacked, all of them ones this document already warns about:
+
+- **A single sampling window is not an observation** (§3), even a 90-second one — I never
+  reloaded, which was the one cheap check that would have settled it.
+- **`document.querySelectorAll` is global, and this page keeps every session pane mounted**
+  (antd `Tabs`). The two "still there" approval buttons could not be attributed to the card I had
+  clicked, because the query never scoped to it. "Check what a selector actually matched" (§3)
+  again, and my own earlier note about mounted panes did not stop me.
+- **A missing request in the network log is not proof nothing happened** — the resume goes out on
+  the agent runtime's streaming channel, which does not appear alongside the `/api/*` polls I was
+  grepping.
+
+**Still open**: whether the card clears in the LIVE tab or only after a reload. The run demonstrably
+resumed; what I cannot say is whether the disabled card resolves on its own. That needs a scoped
+observation of one card element over time — `card.isConnected` and the button set read from the
+card node, not from `document` — and it needs the browser.
+
+## 5b. Environment lost — the harness is gone and has to be relocated
+
+The `qa112` harness lived in the session scratchpad under `/private/tmp`, and **`/private/tmp` was
+cleared between sessions.** Gone with it: `env.sh` (including the DPR tab pin), `shot.sh`,
+`vrt.py` (including the `align` mode), `regions.py`, `zoom.py`, `strips.py` (including
+`chat-body`), `press.sh`, `goto.sh`, `go.sh`, `keepalive.sh`, and ~370 captured shots. Searched
+the repo, `~/.claude` and `/tmp`; there is no surviving copy, and none of it was ever committed.
+
+The local stack is down too (no `next dev`, no `agenta-ee-dev-*` containers), so nothing can be
+driven right now.
+
+**Do not let this happen a third time.** Whatever the next session rebuilds belongs somewhere
+durable — a gitignored `scratchpad/qa112/` inside the worktree, or committed under
+`docs/design/sessions-ux-stack/tools/` — not in a session-scoped temp directory. The shots can
+stay disposable; the scripts and `strips.py`'s measured boxes are the expensive part, and every
+trap they encode is written down in §5 and §4m above, so a rebuild is guided rather than blind.
