@@ -25,7 +25,7 @@ import {
 } from "../helpers/entityInputContract"
 
 import {executionConcurrencyAtom, repetitionCountAtom} from "./atoms"
-import {handleExecutionResultAtom} from "./executionItems"
+import {extractLogicalRowId, handleExecutionResultAtom} from "./executionItems"
 import {executeStepForSessionWithExecutionItems} from "./executionRunner"
 import {
     startRunAtom,
@@ -803,22 +803,4 @@ export const handleExecutionResultFromWorkerAtom = atom(
     },
 )
 
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-/**
- * Extract the logical row ID from a turn-style row ID.
- * Turn IDs have format: `turn-<entityId>-<logicalId>`.
- * logicalId is "msg-<uuid>" (current) or "lt-<id>" (legacy).
- * Neither prefix can appear inside a hex UUID, so "-msg-" / "-lt-"
- * unambiguously marks the boundary between the entity segment and the
- * logical row ID regardless of whether the entity UUID itself contains hyphens.
- */
-export function extractLogicalRowId(rowId: string): string {
-    const msgIdx = rowId.indexOf("-msg-")
-    if (msgIdx >= 0) return rowId.slice(msgIdx + 1)
-    const ltIdx = rowId.indexOf("-lt-")
-    if (ltIdx >= 0) return rowId.slice(ltIdx + 1)
-    return rowId
-}
+// extractLogicalRowId is imported above from executionItems (single source of truth).

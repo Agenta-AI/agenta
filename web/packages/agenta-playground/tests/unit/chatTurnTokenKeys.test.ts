@@ -24,7 +24,7 @@
 
 import {describe, expect, it} from "vitest"
 
-import {extractLogicalRowId} from "../../src/state/execution/webWorkerIntegration"
+import {extractLogicalRowId} from "../../src/state/execution/executionItems"
 import {parseSessionResultKey} from "../../src/state/execution/selectors"
 
 // ── extractLogicalRowId (Bug 1 fix) ─────────────────────────────────────────
