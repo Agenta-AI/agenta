@@ -1999,14 +1999,37 @@ file rows, `Commit`, `Hide configuration`. That also re-confirms P-01's header f
 Everything else — `Configuration`, `Instructions`, `Subscriptions`, `Schedules` — is the same
 label at a sub-pixel offset.
 
-### Not yet exercised: the drill-ins themselves
+### Most sections have no drill-in — that is the design, not a missed affordance
 
-Opening a drill-in is NOT what I assumed. Clicking a section header toggles its collapse, and
-clicking a file row does nothing visible; no `[role=dialog]` or `.ant-drawer` appears on either
-build. Both behave identically, so there is no finding here — but the drill-in contents
-(Instructions, Tools, Skills, Advanced, Subscriptions, Schedules, Files), `DriveExplorer`, the
-commit modal and the entity pickers remain **uncompared**. Find the real affordance first
-(the chevron `svg` at x≈666 in each header row is the candidate) rather than guessing at clicks.
+I spent four rounds clicking header rows, file rows and the chevron at x≈666 trying to open an
+Instructions drill-in, and nothing opened on EITHER build. Reading the code settled in one grep
+what the clicking could not — `AgentTemplateControl.tsx:776`:
+
+> The section EXPANDS (it carries no `onOpen`, which is what routes a header to a drawer)
+
+Only **`model-harness`** and **`advanced`** pass `onOpenDetails` (line 505); Instructions, Tools,
+Skills, Subscriptions, Schedules and Files expand in place. So the observed behaviour was correct
+on both builds, and there was never a drill-in to find. **Read the handler before hunting for the
+affordance** — the DOM cannot tell you a section has no drawer, only that your click did nothing.
+
+Note also that each header row carries TWO chevrons: a collapse caret at x≈272 and, on the
+drawer-routed sections, a drill-in chevron at x≈666. An `elementFromPoint` + `.closest(...)` walks
+UP from the second to the row and toggles the first, which is why those clicks collapsed the
+section instead of opening anything.
+
+### The `Advanced` drill-in drawer — PARITY
+
+Opened on both (x=920, w=880, header `Advanced | Playground build kit` — identical geometry).
+The drawer scores **0.11%** over its own box, across 5 regions, and the largest is
+`Sandbox: daytona` vs `Sandbox: local` — the known environment data, right-aligned so the shorter
+value shifts left. The rest are sub-pixel. Nothing to fix.
+
+`model-harness` was already compared in §4f/4g (its 112.2 differences are documented there), so
+both drawer-routed sections are now closed.
+
+**Still uncompared in `@agenta/entity-ui`:** `DriveExplorer`, the commit modal, the entity pickers,
+and the in-place expansions of Tools / Skills / Subscriptions / Schedules / Files (all of which are
+empty on both agents, so they need an agent with real tools to be worth comparing).
 
 ### State drift I caused — the pair is no longer name-matched
 
@@ -2021,9 +2044,18 @@ band as data. Recorded rather than silently reverted: it is a write to Arda's cl
 ### The tab guard earned its keep
 
 Mid-pass, `shot.sh` refused a prod capture with *"could not switch to the prod tab (active is
-https://www.haberturk.com/)"*. Arda was browsing in the same window and the pinned prod tab had
-become his. **Nothing was captured**, which is the correct outcome — the alternative is shooting
-one environment twice and scoring a false 0.00%. Recovery is to leave his tab alone, open a
-separate one, and re-pin; `pin_tab` then found it and re-verified DPR 2 on both.
+https://www.haberturk.com/)"*. **Nothing was captured**, which is the correct outcome — the
+alternative is shooting one environment twice and scoring a false 0.00%.
+
+**I first recorded this as "Arda was browsing in the same window", and that was wrong.** He was
+not touching the browser. The tabs in question disappeared on their own minutes later (the count
+went 7 → 4) and the persistent Chromium profile carries a `Default/Sessions` store dated weeks
+earlier, so the likely cause is SESSION RESTORE re-opening old tabs from a previous browsing
+session on that profile — which re-shuffles tab ids underneath a pin.
+
+The real lesson is stronger than the one I wrote: **a tab id can stop meaning what it meant
+without anyone touching the browser.** That is precisely why `resolve_tab` re-validates the pin
+against the host on every call and `use_tab` proves the switch, rather than trusting a stored id
+or `browse tab`'s exit code. Recovery: open a separate tab and re-pin; DPR 2 re-verified on both.
 
 This is the concrete payoff for `use_tab` proving the switch instead of trusting `browse tab`.

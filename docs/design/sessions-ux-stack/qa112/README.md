@@ -79,8 +79,11 @@ state keeping its table header.
   by an ordinary `onClick`. Use `.click()` for normal buttons.
 - **`browse type` presses Enter for a `\n`, and Enter SENDS.** A multi-line prompt fired one send
   per line — 17 runs on each build instead of one. Keep chat prompts on ONE line.
-- **Resolve tabs by URL every time.** Arda browses in this same window; a hardcoded id drove one of
-  his tabs to a news site for several minutes.
+- **Resolve tabs by URL every time.** A tab id can stop meaning what it meant with nobody touching
+  the browser: the persistent Chromium profile restores tabs from earlier sessions, which
+  re-shuffles ids under a pin (observed live — a pinned prod tab resolved to a news site, and the
+  stray tabs vanished on their own minutes later). Arda also browses in this window. `use_tab`
+  refusing to capture is the guard working, not a failure.
 - **Never `closetab`** — it tore the whole browser context down once. `status`/`tabs` auto-spawn a
   headless daemon; `Mode: launched` on `about:blank` is a stray you made. "Running but not
   responding" is usually transient (observed recovering after ~7 min) — check before relaunching.
