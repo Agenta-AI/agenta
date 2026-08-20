@@ -1204,7 +1204,9 @@ export function createSandboxAgentOtel(
   }
 
   function stampUsage(span: Span, u: AgentUsage | undefined): void {
-    if (!u) return;
+    // No tokens and no cost is not a measured zero, it is the absence of a measurement:
+    // stamping zeros would assert a run cost nothing and spent nothing.
+    if (!u || (u.total <= 0 && u.cost <= 0)) return;
     span.setAttribute("gen_ai.usage.input_tokens", u.input);
     span.setAttribute("gen_ai.usage.output_tokens", u.output);
     span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
@@ -1487,16 +1489,19 @@ export function createSandboxAgentOtel(
     }
 
     if (kind === "usage_update") {
-      // ACP usage_update carries only `used` (context tokens) and `cost.amount`. The
-      // per-call input/output split is NOT on the stream; it rides on the PromptResponse,
-      // which the sandbox-agent engine reads. Keep total + cost here and leave the split to the caller.
+      // ACP usage_update carries `used` and `cost.amount`. `used` is the agent's CONTEXT-WINDOW
+      // occupancy at this point in the turn, NOT the tokens this run spent, so it is dropped:
+      // reporting it as a total produced runs shaped `input 0 / output 0 / total <context size>`.
+      // The token split is not on the stream at all; it rides on the PromptResponse, which the
+      // sandbox-agent engine reads and hands back through `setUsage`. Cost is the only run total
+      // here, so an update without one carries nothing worth recording.
       const cost = update.cost?.amount;
-      const total = update.used;
+      if (typeof cost !== "number") return;
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : usage?.total ?? 0,
-        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
+        total: usage?.total ?? 0,
+        cost,
       };
       record({ type: "usage", ...usage });
     }
