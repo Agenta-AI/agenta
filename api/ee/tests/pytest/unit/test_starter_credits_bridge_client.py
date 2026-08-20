@@ -55,6 +55,32 @@ class TestGenerateKey:
         assert body["models"] == ["some-model"]
         assert body["metadata"]["origin"] == "starter-credits-bridge"
         assert body["team_id"] == "team-1"
+        assert "max_parallel_requests" not in body
+        assert "rpm_limit" not in body
+        assert "tpm_limit" not in body
+
+    async def test_per_key_limits_are_sent(self):
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["body"] = _read_body(request)
+            return httpx.Response(200, json={"key": "sk-virtual-abc"})
+
+        client = _client_with_handler(handler)
+        await client.generate_key(
+            key_alias="org-123",
+            max_budget=10.0,
+            models=["some-model"],
+            metadata={},
+            team_id="team-1",
+            max_parallel_requests=2,
+            rpm_limit=30,
+            tpm_limit=200_000,
+        )
+
+        assert seen["body"]["max_parallel_requests"] == 2
+        assert seen["body"]["rpm_limit"] == 30
+        assert seen["body"]["tpm_limit"] == 200_000
 
     async def test_server_error_raises_proxy_request_error(self):
         def handler(request: httpx.Request) -> httpx.Response:

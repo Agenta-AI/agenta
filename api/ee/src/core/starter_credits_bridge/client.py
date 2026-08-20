@@ -43,6 +43,9 @@ class StarterCreditsProxyClient:
         models: list[str],
         metadata: dict[str, Any],
         team_id: str,
+        max_parallel_requests: Optional[int] = None,
+        rpm_limit: Optional[int] = None,
+        tpm_limit: Optional[int] = None,
     ) -> MintedKey:
         body: dict[str, Any] = {
             "key_alias": key_alias,
@@ -53,6 +56,12 @@ class StarterCreditsProxyClient:
             # Always under the program team so its ceiling bounds total exposure.
             "team_id": team_id,
         }
+        if max_parallel_requests is not None:
+            body["max_parallel_requests"] = max_parallel_requests
+        if rpm_limit is not None:
+            body["rpm_limit"] = rpm_limit
+        if tpm_limit is not None:
+            body["tpm_limit"] = tpm_limit
 
         payload = await self._request("POST", "/key/generate", json=body)
 

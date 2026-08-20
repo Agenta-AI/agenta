@@ -1564,6 +1564,25 @@ class StarterCreditsBridgeConfig(BaseModel):
         or "vertex_ai/gemini-3.6-flash"
     )
 
+    # Per-key limits set at mint. The proxy reserves each request's projected cost
+    # at admission, so the residual overshoot hole is concurrent admission; keeping
+    # parallelism and throughput low bounds it. Parallelism 2 leaves room for a
+    # title/summary call overlapping an agent turn.
+    key_max_parallel_requests: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_STARTER_CREDITS_BRIDGE_KEY_MAX_PARALLEL_REQUESTS"
+        )
+        or 2
+    )
+    key_rpm_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_STARTER_CREDITS_BRIDGE_KEY_RPM_LIMIT")
+        or 30
+    )
+    key_tpm_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_STARTER_CREDITS_BRIDGE_KEY_TPM_LIMIT")
+        or 200_000
+    )
+
     feature_flag: str = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_FEATURE_FLAG")
         or "starter-credits-bridge-seeding"

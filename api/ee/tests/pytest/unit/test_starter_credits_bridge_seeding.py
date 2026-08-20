@@ -91,7 +91,18 @@ class FakeProxyClient:
         self.update_calls = []
         FakeProxyClient.instances.append(self)
 
-    async def generate_key(self, *, key_alias, max_budget, models, metadata, team_id):
+    async def generate_key(
+        self,
+        *,
+        key_alias,
+        max_budget,
+        models,
+        metadata,
+        team_id,
+        max_parallel_requests=None,
+        rpm_limit=None,
+        tpm_limit=None,
+    ):
         self.generate_calls.append(
             dict(
                 key_alias=key_alias,
@@ -99,6 +110,9 @@ class FakeProxyClient:
                 models=models,
                 metadata=metadata,
                 team_id=team_id,
+                max_parallel_requests=max_parallel_requests,
+                rpm_limit=rpm_limit,
+                tpm_limit=tpm_limit,
             )
         )
         if key_alias in FakeProxyClient.aliases:
@@ -220,6 +234,9 @@ class TestSeeding:
         assert call["max_budget"] == 10.0
         assert call["models"] == ["vertex_ai/some-model"]
         assert call["team_id"] == "team-starter"
+        assert call["max_parallel_requests"] == 2
+        assert call["rpm_limit"] == 30
+        assert call["tpm_limit"] == 200_000
         assert call["metadata"] == {
             "organization_id": ORGANIZATION_ID,
             "origin": service.ORIGIN_MARKER,

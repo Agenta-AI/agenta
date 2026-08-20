@@ -216,6 +216,9 @@ async def _mint_and_seed(
             models=[config.model_id],
             metadata=metadata,
             team_id=config.team_id,
+            max_parallel_requests=config.key_max_parallel_requests,
+            rpm_limit=config.key_rpm_limit,
+            tpm_limit=config.key_tpm_limit,
         )
 
     try:
