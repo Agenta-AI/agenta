@@ -2155,3 +2155,18 @@ returns the page title on one build and the tab label on the other. **Scan the e
 - **The model picker's group collapses on reload**, so the `[role=option]` for a model does not
   exist until the provider group is expanded. Selecting a model is three presses, not one: open
   the picker → expand the group → press the option. All three need `press.sh`.
+
+### `DriveExplorer` / the Files pane — PARITY
+
+Opened via `Show files pane` on both. Same content (`root · All · Agent · Session · agent-files`,
+then `AGENTS.md`) and the same control set: `Collapse files pane`, `cwd`, `Upload files`,
+`More actions`, `Show file tree`, `Search files`, `Show hidden files`, `Expand folder`.
+
+The one apparent difference — local exposing `All / Agent / Session` as controls where prod did not
+— is a **markup swap, not a missing feature**. Both render all three at y=100 with identical
+widths (38 / 61 / 74); prod builds them from antd `<label>` + `<div>`, local from
+`<button role="radio">`. Local's is the more accessible of the two.
+
+Pane width differs (prod 447, local 620) and that is the already-adjudicated §4g case where
+**local is correct**: 620 is the declared default and antd's `Splitter` rescales px sizes against
+the container. A pixel VRT of this pane is meaningless for that reason — compare its controls.
