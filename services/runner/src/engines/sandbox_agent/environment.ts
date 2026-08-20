@@ -458,6 +458,11 @@ export async function acquireEnvironment(
     if (piModelConfigError) {
       throw piModelConfigError;
     }
+    // Surface the root cause before extension-derived gates: an unwritable subscription mount can
+    // also prevent extension installation, but rebuilding the image cannot repair mount ownership.
+    if (localPiAgentDirUnwritable) {
+      throw new Error(PI_AGENT_DIR_UNWRITABLE_MESSAGE);
+    }
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).
     if (localBuiltinGatingUnenforceable) {
@@ -473,12 +478,6 @@ export async function acquireEnvironment(
     // endpoint with the wrong credentials.
     if (localModelOverrideUnenforceable) {
       throw new Error(PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE);
-    }
-    // Fail closed: a subscription run cannot start when the operator-mounted Pi agent dir failed
-    // the write probe — Pi dies at startup on the unwritable dir with zero output, so without this
-    // gate the turn ends instantly and the UI shows a silently stuck session.
-    if (localPiAgentDirUnwritable) {
-      throw new Error(PI_AGENT_DIR_UNWRITABLE_MESSAGE);
     }
     // Structural + SSRF validation of user MCP servers BEFORE any sandbox (or Daytona Secret) is
     // created, so an invalid credentialed server never triggers remote side effects.

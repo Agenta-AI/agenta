@@ -647,25 +647,33 @@ export interface PrepareLocalPiAssetsResult {
 }
 
 /**
- * Probe whether the runner user can actually write into a Pi agent dir: create `sessions/` when
- * missing and round-trip a probe file inside it. Pi needs exactly these writes at startup
- * (session rollout persistence), and its failure mode on EACCES is an instant silent exit.
+ * Probe whether the runner user can write to both Pi state targets: the agent-dir root for login
+ * refreshes and extension assets, plus `sessions/` for transcript rollouts. A partially writable
+ * mount is still unusable, and Pi fails on EACCES with an instant silent exit.
  */
 export function probePiAgentDirWritable(
   agentDir: string,
   log: Log = () => {},
 ): boolean {
-  const probe = join(agentDir, "sessions", `.agenta-write-probe-${randomUUID()}`);
+  const sessionsDir = join(agentDir, "sessions");
+  const probes = [
+    join(agentDir, `.agenta-write-probe-${randomUUID()}`),
+    join(sessionsDir, `.agenta-write-probe-${randomUUID()}`),
+  ];
   try {
-    mkdirSync(join(agentDir, "sessions"), { recursive: true });
-    writeFileSync(probe, "", "utf-8");
-    rmSync(probe, { force: true });
+    mkdirSync(sessionsDir, { recursive: true });
+    for (const probe of probes) {
+      writeFileSync(probe, "", "utf-8");
+      rmSync(probe, { force: true });
+    }
     return true;
   } catch (err) {
-    try {
-      rmSync(probe, { force: true });
-    } catch {
-      // the probe file was never created; nothing to clean up
+    for (const probe of probes) {
+      try {
+        rmSync(probe, { force: true });
+      } catch {
+        // the probe file was never created; nothing to clean up
+      }
     }
     log(`pi agent dir write probe failed: ${(err as Error).message}`);
     return false;

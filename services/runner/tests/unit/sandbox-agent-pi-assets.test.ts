@@ -875,9 +875,16 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
    * unwritable mount it dies at startup with zero output, which the user sees as a silently
    * stuck session. The probe must report it so the engine can fail closed with a visible error.
    */
-  it("reports agentDirWritable=false when the mount is not writable by the runner user", () => {
+  it("reports agentDirWritable=false when only sessions/ is writable", () => {
     const mount = tempDir("agenta-pi-subscription-mount-");
-    writeFileSync(join(mount, "auth.json"), '{"token":"live"}', "utf-8");
+    const authFile = join(mount, "auth.json");
+    const sessionsDir = join(mount, "sessions");
+    writeFileSync(authFile, '{"token":"live"}', "utf-8");
+    mkdirSync(sessionsDir);
+    // Preserve the incomplete-mount shape from the regression: Pi can write a rollout under
+    // sessions/, but it cannot write at the agent-dir root to refresh auth.json.
+    chmodSync(sessionsDir, 0o755);
+    chmodSync(authFile, 0o444);
     chmodSync(mount, 0o555);
     try {
       const { agentDirWritable } = prepareLocalPiAssets({
@@ -892,6 +899,7 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
       }
     } finally {
       chmodSync(mount, 0o755);
+      chmodSync(authFile, 0o644);
     }
   });
 
