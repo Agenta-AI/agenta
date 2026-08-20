@@ -14,6 +14,7 @@ import {
     harnessCapabilitiesAtomFamily,
     harnessCatalogFailedAtom,
     retryHarnessCatalogAtom,
+    type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
@@ -74,7 +75,7 @@ export function useModelHarness({
     disabled,
     withTooltip,
     revisionId,
-    buildKitEnabledOverride,
+    buildKitOverride,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -83,7 +84,7 @@ export function useModelHarness({
     withTooltip?: boolean
     revisionId?: string | null
     /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
-    buildKitEnabledOverride?: {value: boolean; onChange: (value: boolean) => void}
+    buildKitOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
@@ -373,7 +374,7 @@ export function useModelHarness({
         revisionId: revisionId ?? null,
         sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
         disabled,
-        enabledOverride: buildKitEnabledOverride,
+        stateOverride: buildKitOverride,
     })
 
     // Which Advanced sub-sections own an uncommitted change (see `ChangedPathsProvider`). Drives
