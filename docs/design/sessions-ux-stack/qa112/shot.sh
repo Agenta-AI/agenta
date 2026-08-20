@@ -76,5 +76,10 @@ done
 $B js "document.querySelectorAll('nextjs-portal').forEach(e=>{e.style.display='none'});window.scrollTo(0,0);'ok'" >/dev/null 2>&1
 
 URL=$($B url 2>/dev/null)
+# Record the source URL beside the capture. vrt.py compares these to prove the pair really came
+# from two environments — the old tell (prod stamps v0.112.1, local v0.112.2) died the day prod
+# was redeployed to 112.2, and after that the guard was only discriminating on incidental sidebar
+# pixels. A host is not a thing that quietly converges.
+printf '%s' "$URL" > "$QA/shots/$SLUG.$ENV.url"
 $B screenshot --viewport "$QA/shots/$SLUG.$ENV.png" >/dev/null 2>&1
 echo "  $ENV  $SLUG  <- ${URL##*/p/*/}"

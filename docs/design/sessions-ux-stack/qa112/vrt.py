@@ -43,6 +43,19 @@ def load(p):
     return Image.open(p).convert("RGB")
 
 
+def hosts_of(slug):
+    """(prod_host, local_host) from the sidecar URLs shot.sh writes, or (None, None) if absent."""
+    out = []
+    for env in ("prod", "local"):
+        try:
+            with open(f"{QA}/shots/{slug}.{env}.url") as f:
+                u = f.read().strip()
+            out.append(u.split("//", 1)[-1].split("/", 1)[0] or None)
+        except OSError:
+            out.append(None)
+    return tuple(out)
+
+
 def same_environment(A, B):
     """True when the version stamp is pixel-identical — i.e. both shots came from one tab.
 
@@ -88,7 +101,13 @@ def main(slug, strip=None, align=False):
             print(f"MISSING {p}")
             return
     A, B = load(pa), load(pb)
-    if same_environment(A, B):
+    # Prefer the recorded hosts: an unambiguous, non-rotting tell. Fall back to the version stamp
+    # for captures taken before shot.sh started writing the sidecar.
+    ph, lh = hosts_of(slug)
+    if ph and lh and ph == lh:
+        print(f"!! {slug}: both captures came from {ph} — ONE environment shot twice. RE-CAPTURE.")
+        return
+    if (not ph or not lh) and same_environment(A, B):
         print(
             f"!! {slug}: prod and local captures are the SAME ENVIRONMENT — the version stamp\n"
             f"!! is pixel-identical, which cannot happen across v0.112.1 and v0.112.2.\n"

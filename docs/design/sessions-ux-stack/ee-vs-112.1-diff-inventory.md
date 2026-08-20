@@ -2572,3 +2572,62 @@ away, is just a slower way of not doing the work.
 
 Both projects are back to the state they were in before this pass, apart from the sessions and
 traces the live runs produced (which are the evidence, and worth keeping).
+
+## 6. THE REFERENCE MOVED — prod is 112.2, and this branch is 113 commits behind it
+
+Two premises this whole inventory rests on turned out to be wrong. Both were checked, not assumed.
+
+### Prod is NOT v0.112.1
+
+The rail stamps **v0.112.2** on prod, and has for every capture taken from 14:02 today onward
+(compared pixel-wise across six prod shots spanning 14:02→18:02; the one "different" reading is
+antialiasing, not a version change). The inventory's title and its "deployed v0.112.1 is truth"
+framing are stale.
+
+This does NOT invalidate the comparisons — it makes most of them stronger, because comparing
+against prod WAS comparing against 112.2. It also resolves the apparent contradictions where I
+wrote "112.2 has X, prod lacks it, so prod is older": prod runs *a* 112.2 build, not necessarily
+the tip, so an older 112.2 deploy lacking a newer 112.2 string is consistent.
+
+### The same-environment guard's premise died with it — REPLACED
+
+The guard's tell was "prod stamps 112.1, local stamps 112.2, so identical crops mean one tab was
+shot twice". With both on 112.2 the stamp no longer discriminates; measured on three real pairs, it
+was only still working on incidental sidebar pixels. That is luck, not a guard.
+
+`shot.sh` now writes `shots/<slug>.<env>.url` beside each capture and `vrt.py` compares the HOSTS.
+Verified both ways: a real pair diffs normally, and a pair whose sidecars name the same host is
+refused outright. The version-stamp check remains only as a fallback for older captures.
+**A host does not quietly converge; a version string does.**
+
+### The functional gap: 113 commits, and one of them explains an open lead
+
+| | behind `origin/release/v0.112.2` |
+|---|---|
+| `fix/post-112-reconcile` (this branch) | **113 commits** |
+| `lane/mobile-extracted-packages` | **445 commits** |
+
+**None of the seven files I fixed were touched by those 113 commits** — no conflicts, nothing
+superseded. But among them is a ~10-commit workstream on tool-activity naming and summaries
+(`show readable summaries for tool activity`, `name the app inside the tool sentence`, `skip the
+app name when the object already says it`, `name a tool by what it found, not by the words it
+searched with`, …), landing in `toolDisplay.ts`, `ToolActivity.tsx`, and new
+`@agenta/chat` `model/toolSummary.ts` + `skin/registry.ts`.
+
+    git diff --stat origin/release/v0.112.2 HEAD -- .../AgentChatSlice/assets/toolDisplay.ts
+    1 file changed, 26 insertions(+), 639 deletions(-)
+
+112.2's `toolDisplay.ts` is **665 lines**; this branch's is **26**.
+
+**That is the answer to §5e's open lead.** Prod showed `Reading a file failed` plus the failing
+filename where local showed a bare `Read` / `failed`, and I could not find the phrase in any source
+I checked — because I was grepping this branch and the 112.2 ref at my merge base, and the
+humanised summaries live in 112.2 commits landed AFTER it. **It was never drift: the branch is
+missing feature work.**
+
+### What follows
+
+Visual parity is genuinely closed. Functional parity is not, and cannot be judged from this branch:
+**merge `origin/release/v0.112.2` into the lane (and thence here) before landing**, then re-run the
+chat comparisons — the tool rows above all, since that is where the missing work is concentrated.
+Everything else in this inventory was compared against a prod already running 112.2, so it stands.
