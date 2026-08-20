@@ -2381,3 +2381,34 @@ failed here.
 option (`is`) with the olive primary fill. That is the app's convention for "this one is
 selected" — the same treatment U-01 restored to the range picker, which supports the fix being
 right rather than merely different.
+
+### `TreeSelect` — PARITY (opened properly this time)
+
+The earlier failure was method, not the component: coordinate-guessing kept hitting the wrong
+control or dismissing the panel. Scoping the press to the panel element and doing
+open-panel → open-field → read in ONE sequence works first time.
+
+Both trees render the same thirteen entries (`Text search`, `Input Key`, `Output Key`, `Trace`,
+`Span`, `Session`, `Duration (ms)`, `Cost ($)`, `Tokens`, `Annotation`, `Status`, `Exception`,
+`Reference`, `Custom`), the same icons, the same submenu chevrons on the eight expandable ones,
+and the same hover treatment. Same y, same height (428). Prod's panel is **180** wide against
+local's **148** — and nothing truncates on either (`scrollWidth === clientWidth` on every row), so
+that 32px is cosmetic.
+
+## 5j. Agent Home — PARITY, once the pending-approval state was matched
+
+`agent-home` + `home-ui` is 45 changed files and had never been looked at. First diff read 5.20%
+with 221 regions, and nearly all of it was one thing: **prod had two pending approvals and local
+had none** (I had approved local's earlier), so prod alone rendered the `2 waiting` badge, the
+`WAITING ON YOU` group and the `Approval` chips.
+
+Rather than write that off as data, I made local match by driving a config-change approval on it.
+Local then renders `1 waiting`, `WAITING ON YOU`, `RECENT` and the `Approval` chip — and at that
+point the section is identical: same amber badge, same `View all →`, same dot-marked chat icon,
+title, chip, agent name and timestamp, same `RECENT` divider. Both builds carry the same five
+sections (`Sessions`, `Automation runs`, `Next triggers`, `Usage`, `Your agents`); `WAITING ON YOU`
+and `RECENT` are conditional groups, not missing features.
+
+**The method point:** the first read would have supported either "local dropped the waiting group"
+or "it is just data". Producing the state on the quiet build is what turned a 221-region diff into
+a confirmed parity result — cheaper than arguing about it, and it exercises the code besides.
