@@ -56,7 +56,11 @@ export const SessionWorkspace = ({
     // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
     // Build with the panel out of the way, and the top bar's "»" brings it back.
     const configCollapsed = useAtomValue(configPanelCollapsedAtom)
-    const showBuild = !chatMaximized && !configCollapsed && Boolean(entityId)
+    const showConfig = !chatMaximized && !configCollapsed && Boolean(entityId)
+    // The sessions rail stands in for the config panel ONLY in maximized mode, as on the desktop.
+    // Collapsing config collapses the PANE and gives the width to the conversation; swapping the
+    // rail in instead means the collapse never actually frees any space.
+    const showPane = showConfig || chatMaximized
     // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
     // must not snap the pane shut.
@@ -72,7 +76,7 @@ export const SessionWorkspace = ({
     // the config panel is raised above it, the conversation is the recessed canvas. Without these
     // the shared panels render flat — identical components, missing surface ladder.
     const pane =
-        showBuild && entityId ? (
+        showConfig && entityId ? (
             <ConfigPane entityId={entityId} agentId={agentId} sessionId={sessionId} />
         ) : (
             <SessionsPane agentId={agentId} base={base} activeSessionId={sessionId} />
@@ -96,16 +100,16 @@ export const SessionWorkspace = ({
                 <div className="min-h-0 min-w-0 flex-1">
                     <SplitPane
                         paneSide="start"
-                        paneSize={twoPane ? paneSize : 0}
+                        paneSize={twoPane && showPane ? paneSize : 0}
                         paneMin={300}
                         paneMax={440}
                         fillMin={420}
                         // Phone: no divider, no drag, and the visible half takes the full width.
-                        barHidden={!twoPane}
-                        resizable={twoPane}
-                        paneGrow={!twoPane && showBuild}
-                        paneClassName={!twoPane && !showBuild ? "hidden" : undefined}
-                        fillClassName={!twoPane && showBuild ? "hidden" : undefined}
+                        barHidden={!twoPane || !showPane}
+                        resizable={twoPane && showPane}
+                        paneGrow={!twoPane && showPane}
+                        paneClassName={!twoPane && !showPane ? "hidden" : undefined}
+                        fillClassName={!twoPane && showPane ? "hidden" : undefined}
                         // Controlled width: the drag must write through per tick, or the pane only
                         // snaps at pointer-up.
                         onResize={(size) => setPaneSize(size)}

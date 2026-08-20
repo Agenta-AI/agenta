@@ -1,6 +1,5 @@
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
-import {PlaygroundModeSwitch} from "@agenta/playground-ui/mode-switch"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {NavDrawer} from "../nav/NavDrawer"
@@ -9,7 +8,11 @@ import {selectedRevisionAtomFamily} from "./selectedRevision"
 
 /**
  * The session workspace's top bar — the desktop playground's header on this surface: which agent
- * you are working on, which revision, whether it is saved, and the Build/Chat switch.
+ * you are working on, which revision, and whether it is saved.
+ *
+ * No Build/Chat switch: the desktop hides it too (`SHOW_MODE_SWITCH = false` in its playground
+ * header). The config panel is shown or collapsed, and that is the whole model — a mode switch on
+ * top of a collapse gives two controls for one piece of state.
  *
  * It spans both panes (config and conversation), exactly as the desktop bar spans its panels, so
  * the identity belongs to the workspace and not to either pane.
@@ -51,7 +54,6 @@ export const SessionTopBar = ({
                     />
                 ) : undefined
             }
-            actions={<PlaygroundModeSwitch />}
         />
     )
 }

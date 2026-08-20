@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
+import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
+import {resolveToolDisplay} from "@agenta/chat/skin"
 import {ChatBubble, ChatBubbleAvatar} from "@agenta/ui/components/presentational"
 import {
     Ban,
@@ -47,7 +48,11 @@ const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) =>
     )
 }
 
-/** One tool group, desktop ToolActivity's header language: status glyph + name + summary. */
+/** One tool group, desktop ToolActivity's header language: status glyph + name + summary.
+ *
+ * The name is the HUMANISED sentence the shared resolver builds ("Reading a file"), not the wire
+ * name — the desktop has read that way since the tool-activity work landed, and rendering
+ * `partToolName` here left /m showing "read" beside prod's "Reading a file failed". */
 const ToolLines = ({item}: {item: ToolsItem}) => (
     <div className="flex flex-col gap-1 py-0.5">
         {item.parts.map((tool, i) => {
@@ -60,7 +65,18 @@ const ToolLines = ({item}: {item: ToolsItem}) => (
             const denied = state === "output-denied"
             const failed = state === "output-error"
             const settled = state === "output-available" || state === "approval-responded"
-            const midText = awaiting ? "Awaiting approval" : denied ? "denied" : rowSummary(tool)
+            const summary = awaiting ? "Awaiting approval" : denied ? "denied" : rowSummary(tool)
+            const display = resolveToolDisplay(
+                partToolName(tool),
+                (tool as {input?: unknown}).input,
+                undefined,
+                (tool as {output?: unknown}).output,
+            )
+            const shownName = partSentence(tool, display.activity)
+            // Drop a summary the sentence already made: "Reading a file failed · failed" is the
+            // same word twice. The desktop row reads sentence + technical detail, not both.
+            const midText =
+                summary && shownName.toLowerCase().endsWith(summary.toLowerCase()) ? null : summary
             return (
                 <p key={key} className="m-0 flex min-w-0 items-center gap-2 text-xs">
                     {awaiting ? (
@@ -74,9 +90,12 @@ const ToolLines = ({item}: {item: ToolsItem}) => (
                     ) : (
                         <CircleDashed className="text-colorTextTertiary size-3.5 shrink-0 motion-safe:animate-spin" />
                     )}
-                    <span className="text-colorText min-w-0 truncate font-medium">
-                        {partToolName(tool)}
-                    </span>
+                    <span className="text-colorText min-w-0 truncate font-medium">{shownName}</span>
+                    {display.detail ? (
+                        <span className="text-colorTextSecondary min-w-0 truncate font-mono">
+                            {display.detail}
+                        </span>
+                    ) : null}
                     {midText ? (
                         <span
                             className={`min-w-0 truncate ${

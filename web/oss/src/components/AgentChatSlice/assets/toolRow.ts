@@ -5,6 +5,7 @@ import {
     DEFERRED_NOT_EXECUTED_PREFIX,
     stripFence,
 } from "@agenta/chat/assets"
+import {partSentence as sharedPartSentence} from "@agenta/chat/model"
 import type {ToolUIPart} from "ai"
 
 import type {ToolDisplay} from "./toolDisplay"
@@ -37,10 +38,8 @@ export const hasLanded = (part: ToolUIPart): boolean =>
 
 /** The row's sentence. A failure reads as one thought ("Testing the agent failed") rather than
  * claiming the action completed and contradicting it a few words later. */
-export const partSentence = (part: ToolUIPart, display: ToolDisplay): string => {
-    if (hasFailed(part)) return `${display.activity.running} failed`
-    return hasLanded(part) ? display.activity.done : display.activity.running
-}
+export const partSentence = (part: ToolUIPart, display: ToolDisplay): string =>
+    sharedPartSentence(part, display.activity)
 
 /** A cold replay can reach this with the call unsettled, so tense follows the part. */
 export const groupLabelText = (part: ToolUIPart, display: ToolDisplay): string =>
