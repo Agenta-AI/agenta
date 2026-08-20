@@ -44,6 +44,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
 
 import {
     workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
     workflowBuildKitEnabledAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
@@ -79,6 +80,7 @@ function seed(
         isDirty?: boolean
         overlay?: Record<string, unknown> | null
         buildKitEnabled?: boolean
+        buildKitDisabledOps?: string[]
     },
 ) {
     set(
@@ -97,6 +99,10 @@ function seed(
     store.set(
         workflowBuildKitEnabledAtomFamily(id) as PrimitiveAtom<unknown>,
         over.buildKitEnabled ?? true,
+    )
+    store.set(
+        workflowBuildKitDisabledOpsAtomFamily(id) as PrimitiveAtom<unknown>,
+        over.buildKitDisabledOps ?? [],
     )
 }
 
@@ -426,6 +432,79 @@ describe("buildAgentRequest", () => {
         const template = (req!.requestBody.data as any).parameters.agent
 
         expect(template.sandbox.permissions).toEqual({execute_code: "deny"})
+        expect(template.tools).toEqual([{type: "client", name: "weather"}])
+        expect(template.skills).toBeUndefined()
+    })
+
+    it("omits the platform tools the user switched off, keeping the rest of the kit", async () => {
+        // Per-tool switches (#6026): a disabled op is ABSENT from the run copy — the wire tool
+        // config forbids extra fields, so there is no "off" flag to send.
+        const config = {agent: {tools: [{type: "client", name: "weather"}]}}
+        seed(store, "e", {
+            config,
+            overlay: {
+                sandbox: {permissions: {execute_code: "allow"}},
+                tools: [
+                    {type: "platform", op: "discover_tools"},
+                    {type: "platform", op: "commit_revision"},
+                    requestConnectionTool,
+                ],
+                skills: [authoringSkill],
+            },
+            buildKitEnabled: true,
+            buildKitDisabledOps: ["commit_revision"],
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+
+        expect(template.tools).toEqual([
+            {type: "client", name: "weather"},
+            {type: "platform", op: "discover_tools"},
+            requestConnectionTool,
+        ])
+        // The master switch still governs permissions and the embedded items.
+        expect(template.sandbox.permissions).toMatchObject({execute_code: "allow"})
+        expect(template.skills).toEqual([authoringSkill])
+    })
+
+    it("keeps embeds and permissions when every platform tool is switched off", async () => {
+        const config = {agent: {tools: [{type: "client", name: "weather"}]}}
+        seed(store, "e", {
+            config,
+            overlay: {
+                sandbox: {permissions: {write_files: "allow"}},
+                tools: [
+                    {type: "platform", op: "discover_tools"},
+                    {type: "platform", op: "commit_revision"},
+                    requestConnectionTool,
+                ],
+                skills: [authoringSkill],
+            },
+            buildKitEnabled: true,
+            buildKitDisabledOps: ["discover_tools", "commit_revision"],
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+
+        expect(template.tools).toEqual([{type: "client", name: "weather"}, requestConnectionTool])
+        expect(template.sandbox.permissions).toMatchObject({write_files: "allow"})
+        expect(template.skills).toEqual([authoringSkill])
+    })
+
+    it("ignores the per-tool set entirely when the master switch is off", async () => {
+        const config = {agent: {tools: [{type: "client", name: "weather"}]}}
+        seed(store, "e", {
+            config,
+            overlay: {tools: [{type: "platform", op: "discover_tools"}], skills: [authoringSkill]},
+            buildKitEnabled: false,
+            buildKitDisabledOps: ["commit_revision"],
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+
         expect(template.tools).toEqual([{type: "client", name: "weather"}])
         expect(template.skills).toBeUndefined()
     })

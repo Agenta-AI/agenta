@@ -25,7 +25,12 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {agentCreationPrefsAtom, workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
+import {
+    agentCreationPrefsAtom,
+    workflowBuildKitDisabledOpsAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    type BuildKitUiState,
+} from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
@@ -184,14 +189,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     // Section drawers (Model & harness, Advanced) use a SCOPED draft: edits are buffered locally and
     // relayed to the entity only on Save (Cancel discards; Save is gated on a real diff vs. the value
-    // we opened with). The build-kit enable toggle lives OUTSIDE the config (a persisted atom), so it
-    // is buffered alongside the config draft and committed to the atom on Save.
+    // we opened with). The build-kit state lives OUTSIDE the config (playground-only atoms), so it is
+    // buffered alongside the config draft and committed to the atoms on Save.
     const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
     const [draftConfig, setDraftConfig] = useState<Record<string, unknown> | null>(null)
-    const [draftBuildKit, setDraftBuildKit] = useState<boolean | null>(null)
-    const sectionBaseline = useRef<{config: Record<string, unknown>; buildKit: boolean} | null>(
-        null,
-    )
+    const [draftBuildKit, setDraftBuildKit] = useState<BuildKitUiState | null>(null)
+    const sectionBaseline = useRef<{
+        config: Record<string, unknown>
+        buildKit: BuildKitUiState
+    } | null>(null)
     const store = useStore()
     const revisionIdRef = useRef<string | null>(null)
     const applyDraftConfig = useCallback(
@@ -205,7 +211,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             openSection !== null &&
             sectionBaseline.current !== null &&
             (!deepEqual(draftConfig, sectionBaseline.current.config) ||
-                draftBuildKit !== sectionBaseline.current.buildKit),
+                !deepEqual(draftBuildKit, sectionBaseline.current.buildKit)),
         [openSection, draftConfig, draftBuildKit],
     )
     const openSectionDrawer = useCallback(
@@ -215,9 +221,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             // Another section is open with unsaved edits: drop the request rather than clobber it.
             if (isCurrentSectionDirty()) return
             const snapshotConfig = (value ?? {}) as Record<string, unknown>
-            const snapshotBuildKit = store.get(
-                workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
-            )
+            const snapshotRevision = revisionIdRef.current ?? ""
+            const snapshotBuildKit: BuildKitUiState = {
+                enabled: store.get(workflowBuildKitEnabledAtomFamily(snapshotRevision)),
+                disabledOps: store.get(workflowBuildKitDisabledOpsAtomFamily(snapshotRevision)),
+            }
             setDraftConfig(snapshotConfig)
             setDraftBuildKit(snapshotBuildKit)
             sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
@@ -266,7 +274,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
         }
         if (draftBuildKit !== null) {
-            store.set(workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""), draftBuildKit)
+            const revision = revisionIdRef.current ?? ""
+            store.set(workflowBuildKitEnabledAtomFamily(revision), draftBuildKit.enabled)
+            store.set(workflowBuildKitDisabledOpsAtomFamily(revision), draftBuildKit.disabledOps)
         }
         closeSectionDraft()
     }, [draftConfig, draftBuildKit, openSection, onChange, store, closeSectionDraft])
@@ -1013,7 +1023,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         disabled={disabled}
                         withTooltip={withTooltip}
                         revisionId={revisionId}
-                        buildKitEnabledOverride={draftBuildKitOverride}
+                        buildKitOverride={draftBuildKitOverride}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
@@ -1037,7 +1047,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         disabled={disabled}
                         withTooltip={withTooltip}
                         revisionId={revisionId}
-                        buildKitEnabledOverride={draftBuildKitOverride}
+                        buildKitOverride={draftBuildKitOverride}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
