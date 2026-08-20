@@ -1934,3 +1934,52 @@ computed opacity, so local's hidden buttons looked visible. With an ancestor-awa
 both builds show only `Resend`. Synthetic pointer events cannot trigger a CSS `:hover` either, so
 a hover-revealed toolbar needs `browse hover` (with a selector that matches exactly one element)
 or a screenshot, never a dispatched event.
+
+## 5e. WP-1 finished — elicitation at parity, and one lead on the failed tool row
+
+### Elicitation — FULL PARITY, driven end to end
+
+Triggered on both by asking the agent to use its elicitation tool (`ag_elicit`, `render.kind:
+"elicitation"`). Both rendered the card, and Accept resumed the run to completion on both
+(prod 23.16s, local 11.06s).
+
+Two things looked like findings and were not:
+
+- **"Local's card is missing the choices."** Prod's DOM carries a native `<select>` listing
+  `bullets / prose / Other…`; local's carried only a `[role=combobox]` reading `prose`. That is
+  the antd→Radix swap — Radix renders its options into a portal only while OPEN. Pressing the
+  trigger (`press.sh`, which exists for exactly this) gives
+  `listbox: bullets/prose/Other…` — **identical options**.
+- **"Local adds `Asked by … · Waiting on your input` and a `⌘↵ accept` hint."** Both are in
+  **112.2**'s `ElicitationWidget` verbatim, so local matches truth and prod is simply the older
+  build. Same shape as the Usage-label case: the newer string is not drift.
+
+Side by side the cards match — the `?` badge, the field label, the combobox and chevron, and
+`Accept` (primary) / `Decline` / `Dismiss` right-aligned, all at the same metrics.
+
+### Lead, NOT a finding — the FAILED tool row is thinner locally
+
+Driven with a read of a path that does not exist. The error body is byte-identical
+(`ENOENT: no such file or directory, access '/nonexistent/…'`); the ROW around it is not:
+
+| | prod | local |
+|---|---|---|
+| group header | `Reading a file failed` | `Used Read · 1 failed` |
+| row label | `Reading a file failed` | `Read` / `failed` |
+| row summary | **`definitely-not-here-12345.txt`** | *(nothing)* |
+
+So prod names the failing file on the collapsed row and local does not — you have to expand to
+learn WHICH read failed. The successful case is not affected: yesterday both builds showed
+`Used Read` with the same content preview.
+
+**Why this is filed as a lead and not a finding:** `Reading a file` does not exist as a UI string
+in `origin/release/v0.112.1`, `origin/release/v0.112.2`, or HEAD — the only match anywhere in
+`web/` is an unrelated comment in `dropEntries.ts`. Both 112.2 and HEAD declare exactly one
+per-tool entry (`commit_revision`), and HEAD's `toolDisplay.ts` now delegates to a shared chat
+skin (`registerChatSkin` / `resolveFromSkin`) rather than holding the table itself. So the label
+prod renders is composed somewhere this comparison has not reached — the skin package, or the
+backend tool catalog the runner supplies.
+
+Next step is to find where that string is produced before assuming the lane dropped anything;
+`toolDisplay.ts` losing 100 lines against 112.2 makes it worth the look, but the deleted block was
+type declarations and MCP-prefix handling, not a phrase table.
