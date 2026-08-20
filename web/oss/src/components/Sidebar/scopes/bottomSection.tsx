@@ -1,6 +1,6 @@
 import {useCallback, useMemo, type MouseEvent} from "react"
 
-import {buildHelpDocsNavItem} from "@agenta/navigation"
+import {buildHelpDocsNavItem, buildInviteTeammateNavItem} from "@agenta/navigation"
 import type {SidebarConfig, SidebarSection} from "@agenta/navigation"
 import {GithubFilled} from "@ant-design/icons"
 import {
@@ -76,15 +76,12 @@ export const useSidebarBottomSection = ({
     )
 
     const inviteItem = useMemo<SidebarConfig>(
-        () => ({
-            key: "invite-teammate-link",
-            title: "Invite Teammate",
-            link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
-            icon: <PaperPlaneIcon size={14} />,
-            tooltip: "Invite Teammate",
-            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
-            disabled: !hasProjectURL,
-        }),
+        () =>
+            buildInviteTeammateNavItem({
+                projectURL: hasProjectURL ? projectURL : "",
+                icon: <PaperPlaneIcon size={14} />,
+                isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
+            }),
         [canInviteMembers, doesSessionExist, hasProjectURL, projectURL, selectedOrg],
     )
 

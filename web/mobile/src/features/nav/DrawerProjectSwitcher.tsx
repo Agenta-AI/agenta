@@ -1,12 +1,13 @@
 import {useMemo, useState} from "react"
 
 import {
+    NamePromptModal,
     ProjectOrgSwitcherView,
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
 import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
-import {useQuery} from "@tanstack/react-query"
+import {useMutation, useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {fetchProjects, writeLastContext} from "@/lib/context"
@@ -16,8 +17,12 @@ import {groupByWorkspace} from "../context/workspaceGroups"
 
 /**
  * The drawer's header switcher — the same designed component as the desktop rail, bound to
- * mobile's workspace/project data. Workspaces stand in for organizations (mobile has no org
- * management), so the second panel switches workspaces and creation stays desktop-only.
+ * mobile's workspace/project data.
+ *
+ * The trigger names the ORGANIZATION, as the desktop does. Labelling it by workspace read
+ * "Default" on every account whose projects sit in the one default workspace, which is all of
+ * them; the org is the name a person recognises. The second panel still moves between
+ * workspaces, which is the routable unit here (`/w/:id/p/:id`).
  */
 export const DrawerProjectSwitcher = ({
     workspaceId,
@@ -77,6 +82,20 @@ export const DrawerProjectSwitcher = ({
         [groups, workspaceId],
     )
 
+    const [createOpen, setCreateOpen] = useState(false)
+    // Same shared mutation the desktop rail calls; the row it feeds is already in the shared
+    // view, gated on `onCreateProject`, and was invisible here only because nothing passed it.
+    const createProject = useMutation({
+        mutationFn: async (name: string) => {
+            const {createProject: create} = await import("@agenta/entities/project")
+            return create({name: name.trim()}, workspaceId)
+        },
+        onSuccess: async () => {
+            setCreateOpen(false)
+            await query.refetch()
+        },
+    })
+
     const [panelContainer, setPanelContainer] = useState<HTMLElement | null>(null)
 
     // The same fly-out the desktop rail carries, over the same three choices — Preferences offers
@@ -102,12 +121,22 @@ export const DrawerProjectSwitcher = ({
                 panelContainer={panelContainer}
                 collapsed={false}
                 projectLabel={currentProject?.project_name ?? "Select project"}
-                orgLabel={currentGroup?.workspaceName ?? "Workspace"}
+                orgLabel={currentGroup?.organizationName ?? "Organization"}
                 projects={projects}
                 orgs={workspaces}
                 orgNoun="workspace"
                 theme={theme}
+                onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
+            />
+            <NamePromptModal
+                title="Create project"
+                label="Project name"
+                placeholder="Project name"
+                open={createOpen}
+                onCancel={() => setCreateOpen(false)}
+                onSubmit={(name) => createProject.mutate(name)}
+                isPending={createProject.isPending}
             />
         </div>
     )

@@ -2,6 +2,7 @@ import {createElement, useMemo} from "react"
 
 import {
     buildHelpDocsNavItem,
+    buildInviteTeammateNavItem,
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
@@ -22,6 +23,7 @@ import {
     MessagesSquare,
     Pin,
     ScrollText,
+    Send,
     Settings,
     Slack,
 } from "lucide-react"
@@ -98,9 +100,9 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
 
 /**
  * The pinned bottom entries — the desktop rail's, minus what has no mobile destination.
- * Settings is a placeholder screen until its surfaces land; Help & Docs is the SHARED entry,
- * so both apps point at the same four places. "Invite Teammate" is omitted deliberately: it
- * deep-links into the settings workspace tab, which this app does not have yet.
+ * Settings is a placeholder screen until its surfaces land; Help & Docs and Invite Teammate are
+ * the SHARED entries, so both apps point at the same destinations. Invite was omitted here while
+ * this app had no workspace settings tab to deep-link into; it has one now.
  */
 // Lazy-load package.json so its version stays out of the initial bundle — same as the desktop.
 // `unwrap` yields undefined until the import settles, which is all the suffix below needs.
@@ -125,6 +127,10 @@ export const useMobileBottomNavItems = (
                       },
                   ]
                 : []),
+            buildInviteTeammateNavItem({
+                projectURL,
+                icon: createElement(Send, {size: 16}),
+            }),
             buildHelpDocsNavItem({
                 icons: {
                     help: createElement(HelpCircle, {size: 16}),

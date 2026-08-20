@@ -70,3 +70,32 @@ export const buildHelpDocsNavItem = ({
         ...extraItems,
     ],
 })
+
+export interface InviteTeammateItemOptions {
+    /** Project URL base; the item deep-links into the workspace tab with the modal open. */
+    projectURL: string
+    icon?: ReactNode
+    /** Hidden when the viewer cannot invite (no session, no org, or no permission). */
+    isHidden?: boolean
+}
+
+/**
+ * The "Invite Teammate" entry, shared by the desktop rail and the mobile drawer.
+ *
+ * It lives here rather than in either app because the destination is the same on both: the
+ * workspace settings tab with the invite modal open. The mobile drawer omitted it while that
+ * tab did not exist there yet; it does now.
+ */
+export const buildInviteTeammateNavItem = ({
+    projectURL,
+    icon,
+    isHidden,
+}: InviteTeammateItemOptions): SidebarConfig => ({
+    key: "invite-teammate-link",
+    title: "Invite Teammate",
+    link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
+    icon,
+    tooltip: "Invite Teammate",
+    isHidden,
+    disabled: !projectURL,
+})

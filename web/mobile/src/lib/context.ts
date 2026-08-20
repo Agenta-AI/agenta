@@ -75,6 +75,11 @@ const projectRowSchema = z.object({
     project_name: z.string(),
     workspace_id: z.string().nullish(),
     workspace_name: z.string().nullish(),
+    // The switcher names the ORGANIZATION, as the desktop rail does. Every project in this
+    // account sits in one workspace called "Default", so labelling by workspace showed
+    // "Default" where the desktop showed the org.
+    organization_id: z.string().nullish(),
+    organization_name: z.string().nullish(),
     is_demo: z.boolean().nullish(),
     // Only the settings list reads these two; every other consumer ignores them. They stay
     // optional because the schema is a drift check, not a contract we want to fail on.
