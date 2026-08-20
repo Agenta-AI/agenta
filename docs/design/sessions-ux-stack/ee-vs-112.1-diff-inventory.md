@@ -2236,3 +2236,27 @@ effort** — which is the whole argument against a dead suite:
 
 Had the suite been running, both changes would have had to update their tests at the time. A test
 that cannot run is worse than no test: it reads as coverage.
+
+### T-01 swept across every package — `@agenta/ui` was the only real casualty
+
+Checked all 16 vitest configs under `web/` against every `*.test.tsx` in the repo (13 files, in
+exactly two places):
+
+| area | `.tsx` suites | ran before? |
+|---|---|---|
+| `packages/agenta-ui` | 7 | **NO** — the six pre-existing ones were dormant (T-01) |
+| `oss` | 6 | yes — `src/**/*.test.{ts,tsx}` + `plugins: [react()]`, 44 files / 355 tests |
+| the other 11 packages | 0 | n/a — nothing dormant today |
+
+So the damage was contained to `@agenta/ui`. But the other 11 carried the same
+`include: ["tests/unit/**/*.test.ts"]`, which would silently skip the first `.tsx` suite anyone
+adds — the identical trap, just not yet sprung.
+
+Wiring the React plugin into all 11 would mean adding `@vitejs/plugin-react-swc` as a
+devDependency to 11 packages (none has it), which is more than a parity PR should carry. Instead
+each include is now `{ts,tsx}`, so a future `.tsx` test is **collected**: nothing changes today (no
+such files exist there), and the day one appears it fails loudly with a parse error next to a
+comment naming the fix, rather than doing nothing. **A loud failure at the moment of authoring
+beats a silent skip discovered a year later.**
+
+All 13 package suites re-run green afterwards.

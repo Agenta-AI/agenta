@@ -6,6 +6,7 @@ import {
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
+import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter} from "jotai"
@@ -205,13 +206,18 @@ export const archivedSessionHistoryAtomFamily = atomFamily((key: string) =>
 )
 
 /** Sessions shown as tabs for a scope, in tab order. Archived sessions are hidden even if a stale
- * open-tab id lingers (e.g. archived on another device — the reconciler flips the flag). */
+ * open-tab id lingers (e.g. archived on another device — the reconciler flips the flag).
+ *
+ * Pinned sessions lead (same project-wide pin the rail and sessions page use); a drag that lands
+ * an unpinned tab among the pins is re-sorted back. */
 export const sessionsListAtomFamily = atomFamily((key: string) =>
     atom((get) => {
         const byId = new Map((get(sessionsByAppAtom)[key] ?? []).map((s) => [s.id, s] as const))
-        return currentOpenIds(get, key)
+        const pinned = new Set(get(pinnedSessionIdsAtom))
+        const open = currentOpenIds(get, key)
             .map((id) => byId.get(id))
             .filter((s): s is AgentChatSession => Boolean(s) && !s!.archived)
+        return open.sort((a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)))
     }),
 )
 

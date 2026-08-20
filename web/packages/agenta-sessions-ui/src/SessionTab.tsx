@@ -15,6 +15,7 @@
  */
 import {useCallback, useState, type ComponentProps, type CSSProperties, type ReactNode} from "react"
 
+import {PushPin} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 /** The label's tail dissolves into the chip's own fill — never an ellipsis, never a painted
@@ -33,6 +34,8 @@ export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" 
     label: ReactNode
     /** The run-state dot, from whichever liveness source the host has. */
     statusDot?: ReactNode
+    /** Pinned: a leading pin glyph, and why this chip leads the strip. */
+    pinned?: boolean
     /**
      * Called only while the chip is hovered or holds focus. Return null to suppress (the desktop
      * does while its rename input owns the row).
@@ -45,6 +48,7 @@ export const SessionTab = ({
     active,
     label,
     statusDot,
+    pinned = false,
     renderActions,
     onSelect,
     className,
@@ -100,6 +104,14 @@ export const SessionTab = ({
             )}
         >
             {statusDot}
+            {pinned && (
+                <PushPin
+                    size={10}
+                    weight="fill"
+                    aria-hidden
+                    className="shrink-0 text-colorTextTertiary"
+                />
+            )}
             <span
                 className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left"
                 style={actions ? LABEL_MASK_HOVER : LABEL_MASK_REST}

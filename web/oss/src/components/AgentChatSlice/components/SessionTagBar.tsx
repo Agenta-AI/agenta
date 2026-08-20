@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {useSessionPins} from "@agenta/sessions/state"
 import {
     SessionRowContextMenu,
     SessionTab,
@@ -95,6 +96,8 @@ interface SessionTagProps {
     /** Renders a hairline divider after this tag — every session but the last. Borderless chips
      * need it to read as separate items. */
     showDivider: boolean
+    /** Shared project-wide pin — shows a pin glyph, and why pinned chips lead the strip. */
+    pinned: boolean
     // Id-taking so the bar can forward its own stable setters straight through; per-chip closures
     // would change identity every render and drag each chip's Tooltip/Button subtree with them.
     onSelect: (id: string) => void
@@ -114,6 +117,7 @@ const SessionTag = memo(function SessionTag({
     closable,
     presentAtMount,
     showDivider,
+    pinned,
     onSelect,
     onClose,
     onRename,
@@ -191,6 +195,7 @@ const SessionTag = memo(function SessionTag({
             <SessionRowContextMenu entries={menu.items} onSelect={(key) => menu.onClick({key})}>
                 <SessionTab
                     active={active}
+                    pinned={pinned}
                     onSelect={handleSelect}
                     statusDot={<SessionStatusDot sessionId={session.id} active={active} />}
                     label={
@@ -286,6 +291,7 @@ const SessionTagBar = ({
     const scope = useChatScopeKey()
     const reorderSessions = useSetAtom(reorderSessionsAtomFamily(scope))
     const tabIds = useMemo(() => sessions.map((session) => session.id), [sessions])
+    const {isPinned} = useSessionPins()
     const {menuItems, onMenuClick} = useSessionActions()
     const menuFor = useCallback(
         (session: AgentChatSession) => {
@@ -331,6 +337,7 @@ const SessionTagBar = ({
                             closable={closable}
                             presentAtMount={presentAtMountRef.current.has(session.id)}
                             showDivider={index < sessions.length - 1}
+                            pinned={isPinned(session.id)}
                             onSelect={onSelect}
                             onClose={onClose}
                             onRename={onRename}
