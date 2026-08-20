@@ -1,0 +1,189 @@
+/* Agenta marketing site — theme layer (light / dark).
+   Semantic --th-* tokens are the ONLY colors components may use for anything
+   that changes between themes. Light values (default, :root) come from the
+   light-mode design mockups (light-mode/*.html — same paper/ink palette as
+   tokens.css; full extraction in the light-theme spec); dark values reproduce
+   the previously hard-coded dark site EXACTLY, so dark mode stays
+   pixel-identical.
+
+   Theme resolution: an inline pre-paint script in Base.astro sets
+   <html data-theme="light|dark"> from localStorage("ag-theme")
+   ("system" | "light" | "dark", default "system" via prefers-color-scheme)
+   and keeps it live on OS changes. No-JS falls back to these :root (light)
+   values.
+
+   Sections that are dark in BOTH themes (Reliability, Open source, the
+   terminal, the pricing Enterprise card) keep their fixed inner colors and
+   must NOT use --th-* text/border tokens; only their SURFACE is theme-tuned
+   via the --th-darksec-* tokens (the light design uses warmer carbons than
+   the dark theme's near-blacks). One-off values may use component-local
+   custom props: `.x { --x-bg: <light>; } [data-theme="dark"] .x { --x-bg:
+   <dark>; }`. */
+
+:root {
+  color-scheme: light;
+
+  /* ── page + elevation ladder ─────────────────────────────── */
+  --th-page: var(--paper-100); /* body + 12px frame gutter        */
+  --th-bg-0: var(--paper-100); /* deepest band                    */
+  --th-bg-1: var(--paper-0); /* raised section / hero band      */
+  --th-bg-2: var(--paper-50); /* card, panel                     */
+  --th-bg-3: var(--paper-0); /* elevated card, popover          */
+  --th-bg-4: var(--paper-150); /* highest — tooltip, active row   */
+  --th-tint: #f0eeeb; /* tinted panel (How it works)     */
+  --th-chrome: var(--paper-100); /* nav / footer chrome             */
+  --th-glass: rgba(235, 233, 230, 0.94); /* scrolled nav pill fill  */
+  --th-menu-bg: var(--paper-0); /* dropdown / mobile menu panel    */
+
+  /* ── borders ─────────────────────────────────────────────── */
+  --th-border-subtle: var(--paper-150);
+  --th-border: var(--paper-200);
+  --th-border-strong: #d8d6d3;
+  --th-section-border: var(--paper-200); /* the -1px section hairline */
+
+  /* ── text ────────────────────────────────────────────────── */
+  --th-text-hi: var(--ink-900); /* headings / high emphasis       */
+  --th-text-body: var(--ink-600); /* marketing body copy            */
+  --th-text-prose: var(--ink-600); /* long-form reading body         */
+  --th-text-mut: var(--ink-500); /* secondary / captions           */
+  --th-text-dim: var(--ink-300); /* faint labels / disabled        */
+  --th-nav-text: var(--ink-600); /* nav links                      */
+
+  /* ── interaction overlays ────────────────────────────────── */
+  --th-hover: rgba(36, 36, 36, 0.04);
+  --th-active: rgba(36, 36, 36, 0.08);
+
+  /* ── controls (icon buttons, hamburger, small chip tiles) ── */
+  --th-ctl-bg: var(--paper-50);
+  --th-ctl-ring: var(--paper-200);
+  --th-ctl-text: var(--ink-900);
+
+  /* ── ghost / outline button (nav "Book a demo", hero secondary,
+        "Load more", …). Light = the white keycap the mockups draw
+        everywhere (stronger ring than the token outline recipe). */
+  --th-btn-ghost-bg: linear-gradient(180deg, #ffffff 0%, #f1eeec 100%);
+  --th-btn-ghost-shadow:
+    0 0 0 1px rgba(36, 36, 36, 0.18), inset 0 2px 4px rgba(255, 255, 255, 0.9);
+  --th-btn-ghost-text: var(--ink-900);
+
+  /* ── badges / eyebrow pills ──────────────────────────────── */
+  --th-badge-bg: var(--paper-0);
+  --th-badge-ring: var(--paper-200);
+  --th-badge-text: var(--ink-600);
+
+  /* ── accent ──────────────────────────────────────────────── */
+  --th-accent: var(--yellow-400);
+  /* Prose links: light = ink text with a faint underline (mockup);
+     dark = brand yellow. */
+  --th-link: var(--ink-900);
+  --th-accent-underline: var(--ink-300);
+
+  /* ── prose code ──────────────────────────────────────────── */
+  --th-code-bg: var(--paper-150);
+  --th-code-border: var(--paper-150);
+  --th-code-text: var(--ink-900);
+  --th-pre-bg: var(--paper-50);
+  --th-pre-border: var(--paper-200);
+  --th-pre-text: var(--ink-450);
+
+  /* ── always-dark sections, theme-tuned surfaces ──────────── */
+  --th-darksec-reliability: #3c3a38; /* carbon-700 — warm mid-dark  */
+  --th-darksec-oss: var(--carbon-900); /* #1E1C1D                    */
+
+  /* ── chrome extras ───────────────────────────────────────── */
+  --th-pill-shadow:
+    0 0 0 7px #ffffff, 0 0 0 8px rgba(36, 36, 36, 0.08),
+    0 18px 44px rgba(36, 36, 36, 0.16);
+  --th-menu-shadow:
+    0 0 0 1px rgba(36, 34, 32, 0.08), 0 20px 48px rgba(36, 34, 32, 0.18);
+  --th-scrollbar: rgba(36, 36, 36, 0.18);
+  --th-scrollbar-hover: rgba(36, 36, 36, 0.3);
+  --th-scrim: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --th-page: var(--ag-d-bg-0);
+  --th-bg-0: var(--ag-d-bg-0);
+  --th-bg-1: var(--ag-d-bg-1);
+  --th-bg-2: var(--ag-d-bg-2);
+  --th-bg-3: var(--ag-d-bg-3);
+  --th-bg-4: var(--ag-d-bg-4);
+  --th-tint: var(--ag-d-bg-1);
+  --th-chrome: var(--ag-d-chrome);
+  --th-glass: var(--ag-d-glass);
+  --th-menu-bg: var(--ag-d-chrome);
+
+  --th-border-subtle: rgba(255, 255, 255, 0.07);
+  --th-border: rgba(255, 255, 255, 0.1);
+  --th-border-strong: rgba(255, 255, 255, 0.14);
+  --th-section-border: rgba(255, 255, 255, 0.07);
+
+  --th-text-hi: #f7f6f4;
+  --th-text-body: rgba(255, 255, 255, 0.6);
+  --th-text-prose: rgba(255, 255, 255, 0.72);
+  --th-text-mut: rgba(255, 255, 255, 0.45);
+  --th-text-dim: rgba(255, 255, 255, 0.38);
+  --th-nav-text: rgba(255, 255, 255, 0.7);
+
+  --th-hover: rgba(255, 255, 255, 0.05);
+  --th-active: rgba(255, 255, 255, 0.08);
+
+  --th-ctl-bg: rgba(255, 255, 255, 0.05);
+  --th-ctl-ring: rgba(255, 255, 255, 0.14);
+  --th-ctl-text: #f7f6f4;
+
+  --th-btn-ghost-bg: rgba(255, 255, 255, 0.04);
+  --th-btn-ghost-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  --th-btn-ghost-text: #ffffff;
+
+  --th-badge-bg: rgba(255, 255, 255, 0.06);
+  --th-badge-ring: rgba(255, 255, 255, 0.14);
+  --th-badge-text: rgba(255, 255, 255, 0.8);
+
+  --th-accent: var(--yellow-400);
+  --th-link: var(--yellow-400);
+  --th-accent-underline: rgba(242, 242, 92, 0.55);
+
+  --th-code-bg: rgba(255, 255, 255, 0.07);
+  --th-code-border: rgba(255, 255, 255, 0.08);
+  --th-code-text: #f7f6f4;
+  --th-pre-bg: #0b0a0c;
+  --th-pre-border: rgba(255, 255, 255, 0.09);
+  --th-pre-text: rgba(255, 255, 255, 0.82);
+
+  --th-darksec-reliability: var(--ag-d-bg-2);
+  --th-darksec-oss: var(--ag-d-bg-1);
+
+  --th-pill-shadow:
+    0 0 0 1px rgba(250, 247, 242, 0.09), 0 12px 36px rgba(0, 0, 0, 0.55);
+  --th-menu-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 48px rgba(0, 0, 0, 0.55);
+  --th-scrollbar: rgba(255, 255, 255, 0.2);
+  --th-scrollbar-hover: rgba(255, 255, 255, 0.26);
+  --th-scrim: rgba(0, 0, 0, 0.6);
+}
+
+/* Blog + blog-post + authors pages are ALL-WHITE in the light design (nav,
+   footer, and gutter included), unlike the paper-100 chrome elsewhere. Pages
+   opt in by putting this class on their .ag-wrap. No-op in dark. */
+.th-page-white {
+  --th-page: var(--paper-0);
+  --th-chrome: var(--paper-0);
+  --th-bg-0: var(--paper-0);
+}
+[data-theme="dark"] .th-page-white {
+  --th-page: var(--ag-d-bg-0);
+  --th-chrome: var(--ag-d-chrome);
+  --th-bg-0: var(--ag-d-bg-0);
+}
+
+/* Theme-conditional visibility (e.g. the light/dark logo variants).
+   Keeps the element's natural display; only the wrong variant is hidden. */
+[data-theme="dark"] .th-light-only {
+  display: none !important;
+}
+:root:not([data-theme="dark"]) .th-dark-only {
+  display: none !important;
+}

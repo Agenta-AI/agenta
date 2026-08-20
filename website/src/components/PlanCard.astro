@@ -13,6 +13,7 @@
 import { linkify, type PricingLink } from "../lib/pricingLinks";
 
 interface Plan {
+  id: string;
   name: string;
   tagline: string;
   price: string;
@@ -28,10 +29,13 @@ const { plan, links = [] } = Astro.props as {
 };
 
 const linkStyle =
-  "color:var(--yellow-400);text-decoration:underline;text-underline-offset:2px;";
+  "color:var(--pc-link);text-decoration:underline;text-underline-offset:2px;";
 
+// Colors resolve through the --pc-* vars in the style block below: light theme
+// per the light-theme spec, dark theme = the previous hard-coded literals.
+// Enterprise cards keep the dark surface + interior in the light theme too.
 const card =
-  "position:relative;display:grid;grid-row:span 4;grid-template-rows:subgrid;row-gap:16px;padding:28px 26px;border-radius:14px;box-sizing:border-box;background:rgba(255,255,255,0.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);";
+  "position:relative;display:grid;grid-row:span 4;grid-template-rows:subgrid;row-gap:16px;padding:28px 26px;border-radius:14px;box-sizing:border-box;background:var(--pc-bg);box-shadow:var(--pc-ring);";
 
 const ctaBase =
   "display:inline-flex;align-items:center;justify-content:center;width:100%;height:40px;border-radius:8px;font:var(--text-label);cursor:pointer;text-decoration:none;box-sizing:border-box;";
@@ -40,34 +44,37 @@ const ctaYellow =
   "background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);";
 const ctaOutline =
   ctaBase +
-  "background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.16);color:#fff;";
+  "background:var(--pc-ghost-bg);box-shadow:var(--pc-ghost-shadow);color:var(--pc-ghost-text);";
 ---
 
-<div style={card}>
+<div
+  class={plan.id.startsWith("enterprise") ? "plan-card plan-ent" : "plan-card"}
+  style={card}
+>
   {
     plan.chip && (
-      <span style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);z-index:1;display:inline-flex;align-items:center;height:22px;padding:0 12px;border-radius:999px;white-space:nowrap;background:#161417;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.16);font:var(--text-caption);letter-spacing:0.02em;color:rgba(255,255,255,0.78);">
+      <span style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);z-index:1;display:inline-flex;align-items:center;height:22px;padding:0 12px;border-radius:999px;white-space:nowrap;background:var(--pc-chip-bg);box-shadow:var(--pc-chip-shadow);font:var(--text-caption);letter-spacing:0.02em;color:var(--pc-chip-text);">
         {plan.chip}
       </span>
     )
   }
 
   <div style="display:flex;flex-direction:column;gap:6px;">
-    <span style="font:300 22px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
+    <span style="font:300 22px/1.1 var(--font-display,'GT Alpina',serif);color:var(--pc-hi);">
       {plan.name}
     </span>
-    <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.55);text-wrap:pretty;">
+    <span style="font:var(--text-body-sm);color:var(--pc-tagline);text-wrap:pretty;">
       {plan.tagline}
     </span>
   </div>
 
   <div style="display:flex;align-items:baseline;gap:7px;">
-    <span style="font:300 44px/1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
+    <span style="font:300 44px/1 var(--font-display,'GT Alpina',serif);color:var(--pc-hi);">
       {plan.price}
     </span>
     {
       plan.unit && (
-        <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);">
+        <span style="font:var(--text-body-sm);color:var(--pc-unit);">
           {plan.unit}
         </span>
       )
@@ -84,8 +91,8 @@ const ctaOutline =
   </a>
 
   <div style="display:flex;flex-direction:column;gap:16px;">
-    <div style="height:1px;background:rgba(255,255,255,0.08);"></div>
-    <span style="font:var(--text-caption);letter-spacing:0.04em;color:rgba(255,255,255,0.45);">
+    <div style="height:1px;background:var(--pc-div);"></div>
+    <span style="font:var(--text-caption);letter-spacing:0.04em;color:var(--pc-inc);">
       {plan.includesLabel}
     </span>
     <div style="display:flex;flex-direction:column;gap:11px;">
@@ -108,7 +115,7 @@ const ctaOutline =
                 stroke-linejoin="round"
               />
             </svg>
-            <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.72);">
+            <span style="font:var(--text-body-sm);color:var(--pc-feat);">
               {linkify(f, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
             </span>
           </div>
@@ -117,3 +124,59 @@ const ctaOutline =
     </div>
   </div>
 </div>
+
+<style is:global>
+  /* Light values per the light-theme spec (plain card = white + shadow-ring). */
+  .plan-card {
+    --pc-bg: var(--paper-0);
+    --pc-ring: var(--shadow-ring);
+    --pc-hi: var(--ink-900);
+    --pc-tagline: var(--ink-600);
+    --pc-unit: var(--ink-500);
+    --pc-inc: var(--ink-500);
+    --pc-div: var(--paper-150);
+    --pc-feat: var(--ink-600);
+    --pc-link: var(--th-link);
+    --pc-ghost-bg: var(--th-btn-ghost-bg);
+    --pc-ghost-shadow: var(--th-btn-ghost-shadow);
+    --pc-ghost-text: var(--th-btn-ghost-text);
+    --pc-chip-bg: var(--ink-900);
+    --pc-chip-shadow: none;
+    --pc-chip-text: #ffffff;
+  }
+  /* Enterprise stays a dark card in the light theme: carbon surface, and the
+     interior keeps the exact dark-site literals (white text, yellow links). */
+  .plan-ent {
+    --pc-bg: var(--carbon-900);
+    --pc-ring: 0 0 0 1px rgba(36, 36, 36, 0.2);
+    --pc-hi: #f7f6f4;
+    --pc-tagline: rgba(255, 255, 255, 0.55);
+    --pc-unit: rgba(255, 255, 255, 0.5);
+    --pc-inc: rgba(255, 255, 255, 0.45);
+    --pc-div: rgba(255, 255, 255, 0.08);
+    --pc-feat: rgba(255, 255, 255, 0.72);
+    --pc-link: var(--yellow-400);
+    --pc-ghost-bg: rgba(255, 255, 255, 0.04);
+    --pc-ghost-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+    --pc-ghost-text: #ffffff;
+  }
+  /* Dark theme: every card keeps the previous hard-coded dark chrome verbatim
+     (uniform across plans, Enterprise included). */
+  [data-theme="dark"] .plan-card {
+    --pc-bg: rgba(255, 255, 255, 0.025);
+    --pc-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    --pc-hi: #f7f6f4;
+    --pc-tagline: rgba(255, 255, 255, 0.55);
+    --pc-unit: rgba(255, 255, 255, 0.5);
+    --pc-inc: rgba(255, 255, 255, 0.45);
+    --pc-div: rgba(255, 255, 255, 0.08);
+    --pc-feat: rgba(255, 255, 255, 0.72);
+    --pc-link: var(--yellow-400);
+    --pc-ghost-bg: rgba(255, 255, 255, 0.04);
+    --pc-ghost-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+    --pc-ghost-text: #ffffff;
+    --pc-chip-bg: #161417;
+    --pc-chip-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+    --pc-chip-text: rgba(255, 255, 255, 0.78);
+  }
+</style>

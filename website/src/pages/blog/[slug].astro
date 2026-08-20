@@ -67,7 +67,8 @@ const articleJsonLd = {
   },
 };
 
-const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;";
+const sectionBorder =
+  "border:1px solid var(--th-section-border);margin-top:-1px;";
 ---
 
 <Site
@@ -75,6 +76,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
   description={description}
   ogType="article"
   ogImage={ogPath}
+  whiteChrome
 >
   <Fragment slot="head">
     <script
@@ -84,7 +86,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
     />
   </Fragment>
 
-  <article style={`background:#0E0D0F;${sectionBorder}padding:0 0 24px;`}>
+  <article style={`background:var(--bp-sec-1);${sectionBorder}padding:0 0 24px;`}>
     <!-- header -->
     <div
       class="ag-pad ag-post-head"
@@ -92,7 +94,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
     >
       <a
         href="/blog"
-        style="display:inline-flex;align-items:center;gap:7px;font:var(--text-label);color:rgba(255,255,255,0.55);text-decoration:none;"
+        style="display:inline-flex;align-items:center;gap:7px;font:var(--text-label);color:var(--bp-quiet);text-decoration:none;"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
           ><path
@@ -105,24 +107,24 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
       </a>
       <h1
         class="ag-h1"
-        style="margin:0;font:300 52px/1.08 var(--font-display);color:#F7F6F4;text-wrap:pretty;"
+        style="margin:0;font:300 52px/1.08 var(--font-display);color:var(--th-text-hi);text-wrap:pretty;"
       >
         {title}
       </h1>
       <p
-        style="margin:0;font:400 19px/1.5 var(--font-sans);letter-spacing:-0.011em;color:rgba(255,255,255,0.62);max-width:600px;text-wrap:pretty;"
+        style="margin:0;font:400 19px/1.5 var(--font-sans);letter-spacing:-0.011em;color:var(--bp-desc);max-width:600px;text-wrap:pretty;"
       >
         {description}
       </p>
 
       <!-- date · reading time: quiet single line directly below the subtitle -->
       <div
-        style="display:flex;align-items:center;justify-content:center;gap:9px;margin-top:-8px;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.45);"
+        style="display:flex;align-items:center;justify-content:center;gap:9px;margin-top:-8px;font:var(--text-caption);letter-spacing:0.03em;color:var(--th-text-mut);"
       >
         <span>{dateLabel}</span>
         {readingTime && (
           <>
-            <span style="width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,0.3);" />
+            <span style="width:3px;height:3px;border-radius:50%;background:var(--bp-dot);" />
             <span>{readingTime}</span>
           </>
         )}
@@ -147,18 +149,18 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
                     alt={a.data.name}
                     width="40"
                     height="40"
-                    style="display:block;width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 2px #0E0D0F,inset 0 0 0 3px rgba(255,255,255,0.1);"
+                    style="display:block;width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:var(--bp-avatar-ring);"
                   />
                 </a>
               ))}
             </div>
-            <span style="font:var(--text-label);color:#F7F6F4;">
+            <span style="font:var(--text-label);color:var(--th-text-hi);">
               {authors.map((a, i) => (
                 <>
-                  {i > 0 && <span style="color:rgba(255,255,255,0.45);"> & </span>}
+                  {i > 0 && <span style="color:var(--th-text-mut);"> & </span>}
                   <a
                     href={`/authors/${a.id}`}
-                    style="color:#F7F6F4;text-decoration:none;"
+                    style="color:var(--th-text-hi);text-decoration:none;"
                   >
                     {a.data.name}
                   </a>
@@ -186,7 +188,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
             loading="eager"
             fetchpriority="high"
             decoding="async"
-            style="display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);"
+            style="display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:14px;box-shadow:inset 0 0 0 1px var(--th-border-subtle);"
           />
         </div>
       )
@@ -206,20 +208,20 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
     related.length > 0 && (
       <section
         class="ag-pad"
-        style={`background:#0A0A0B;${sectionBorder}padding:72px 64px 88px;`}
+        style={`background:var(--bp-sec-0);${sectionBorder}padding:72px 64px 88px;`}
       >
         <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;">
           <div style="display:flex;flex-direction:column;gap:8px;">
-            <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:#F7F6F4;">
+            <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:var(--th-text-hi);">
               More from the blog
             </h2>
-            <p style="margin:0;font:var(--text-body-sm);color:rgba(255,255,255,0.55);">
+            <p style="margin:0;font:var(--text-body-sm);color:var(--bp-sub);">
               The latest updates and insights from Agenta
             </p>
           </div>
           <a
             href="/blog"
-            style="display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);text-decoration:none;"
+            style="display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:8px;background:var(--th-btn-ghost-bg);box-shadow:var(--th-btn-ghost-shadow);color:var(--th-btn-ghost-text);font:var(--text-label);text-decoration:none;"
           >
             View all blogs
             <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
@@ -247,6 +249,31 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
   }
 
   <style is:global>
+    /* Blog-post theme vars: light values per the light-theme spec (all-white
+       page); [data-theme="dark"] restores the exact literals the page
+       previously hard-coded, so dark stays pixel-identical. */
+    :root {
+      --bp-sec-1: var(--paper-0); /* article band                   */
+      --bp-sec-0: var(--paper-0); /* "More from the blog" band      */
+      --bp-quiet: var(--ink-600); /* "All blogs" back link          */
+      --bp-desc: var(--ink-600); /* post description                */
+      --bp-sub: var(--ink-600); /* related-section subtitle         */
+      --bp-dot: var(--paper-200); /* date · read-time separator     */
+      /* Byline avatar: 2px page-bg gap + 1px hairline ring. */
+      --bp-avatar-ring:
+        inset 0 0 0 2px #ffffff, inset 0 0 0 3px var(--paper-150);
+    }
+    [data-theme="dark"] {
+      --bp-sec-1: #0e0d0f;
+      --bp-sec-0: #0a0a0b;
+      --bp-quiet: rgba(255, 255, 255, 0.55);
+      --bp-desc: rgba(255, 255, 255, 0.62);
+      --bp-sub: rgba(255, 255, 255, 0.55);
+      --bp-dot: rgba(255, 255, 255, 0.3);
+      --bp-avatar-ring:
+        inset 0 0 0 2px #0e0d0f, inset 0 0 0 3px rgba(255, 255, 255, 0.1);
+    }
+
     /* "More from the blog" grid collapse: 4 → 2 (≤1024) → 1 (≤600). */
     @media (max-width: 1024px) {
       #post-related-grid {

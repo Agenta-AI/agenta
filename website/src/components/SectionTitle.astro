@@ -32,17 +32,31 @@ const titleFont =
   {badge && <Badge variant={dark ? "dark" : "default"}>{badge}</Badge>}
   <h2
     class={size === "xl" ? "ag-sectitle ag-sectitle-xl" : "ag-sectitle"}
-    style={`margin:0;font:${titleFont};color:${dark ? "#FFFFFF" : "var(--text-heading)"};text-wrap:pretty;`}
+    style={`margin:0;font:${titleFont};color:${dark ? "#FFFFFF" : "var(--st-title)"};text-wrap:pretty;`}
   >
     {title}
   </h2>
   {
     subtitle && (
       <p
-        style={`margin:0;font:var(--text-body-md);color:${dark ? "var(--text-on-dark-muted)" : "var(--text-muted)"};text-wrap:pretty;`}
+        style={`margin:0;font:var(--text-body-md);color:${dark ? "var(--text-on-dark-muted)" : "var(--st-sub)"};text-wrap:pretty;`}
       >
         {subtitle}
       </p>
     )
   }
 </header>
+
+<style is:global>
+  /* Themed (non-`dark`) variant. Dark values are pinned to the fixed `dark`
+     variant's exact recipe so a section moving off the `dark` prop renders
+     bit-identically in dark mode. */
+  .ag-sechead {
+    --st-title: var(--th-text-hi);
+    --st-sub: var(--th-text-body);
+  }
+  [data-theme="dark"] .ag-sechead {
+    --st-title: #ffffff;
+    --st-sub: var(--text-on-dark-muted);
+  }
+</style>

@@ -32,6 +32,10 @@ interface Props {
   ogImage?: string;
   // Show the shared yellow CTA band before the footer (default: true).
   showCta?: boolean;
+  // Blog/authors pages are ALL-WHITE in the light theme (nav, footer, gutter
+  // included) — they pass whiteChrome to opt the wrap into .th-page-white
+  // (see theme.css). No visual effect in dark.
+  whiteChrome?: boolean;
   // Optional copy/destinations for the CTA band; omitted keys fall back to the
   // landing defaults baked into CtaBand.astro.
   cta?: CtaProps;
@@ -43,6 +47,7 @@ const {
   ogType,
   ogImage,
   showCta = true,
+  whiteChrome = false,
   cta = {},
 } = Astro.props;
 ---
@@ -52,8 +57,8 @@ const {
 
   <!-- The page bg shows as a 12px frame around the 1440-wide section stack. -->
   <div
-    class="ag-wrap"
-    style="width:100%;max-width:1440px;margin:0 auto;background:#0A0A0B;padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);"
+    class:list={["ag-wrap", whiteChrome && "th-page-white"]}
+    style="width:100%;max-width:1440px;margin:0 auto;background:var(--th-page);padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);"
   >
     <SiteNav />
     <main>

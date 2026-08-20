@@ -1,11 +1,12 @@
 @import "./tokens.css";
 @import "./tokens-dark.css";
+@import "./theme.css";
 
 /* ── base reset (from the design's inline <style>) ──────────── */
 html,
 body {
   margin: 0;
-  background: var(--ag-d-bg-0);
+  background: var(--th-page);
 }
 * {
   box-sizing: border-box;
@@ -101,8 +102,8 @@ nav[data-pill] {
   box-sizing: border-box;
   width: 100%;
   margin-inline: auto;
-  background: var(--ag-d-chrome);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--th-chrome);
+  border: 1px solid var(--th-border-subtle);
   border-radius: 0;
   transition:
     background 0.25s ease,
@@ -121,12 +122,10 @@ nav[data-pill] {
   border-radius: var(--nav-pill-radius);
   border-color: transparent;
   transform: translateY(var(--nav-pill-inset));
-  background: var(--ag-d-glass, rgba(18, 16, 15, 0.72));
+  background: var(--th-glass);
   -webkit-backdrop-filter: saturate(1.6) blur(14px);
   backdrop-filter: saturate(1.6) blur(14px);
-  box-shadow:
-    0 0 0 1px rgba(250, 247, 242, 0.09),
-    0 12px 36px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--th-pill-shadow);
 }
 
 /* Center links: pinned to the shell's exact center in BOTH states. Absolute
@@ -174,13 +173,13 @@ nav[data-pill] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--th-scrollbar);
   border-radius: 10px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.26);
+  background: var(--th-scrollbar-hover);
   background-clip: content-box;
 }
 [data-scroll="dark"]::-webkit-scrollbar {
@@ -189,7 +188,43 @@ nav[data-pill] {
 html,
 [data-scroll="dark"] {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: var(--th-scrollbar) transparent;
+}
+
+/* ── theme switcher (SiteNav) ────────────────────────────────
+   A 30px ghost square that cycles system → light → dark. data-pref (set by
+   the SiteNav script) picks which of the three icons is visible. */
+.ag-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--th-ctl-bg);
+  box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
+  color: var(--th-ctl-text);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.ag-theme-btn:hover {
+  background: var(--th-active);
+}
+.ag-theme-btn [data-ico] {
+  display: none;
+  line-height: 0;
+}
+.ag-theme-btn[data-pref="system"] [data-ico="system"],
+.ag-theme-btn[data-pref="light"] [data-ico="light"],
+.ag-theme-btn[data-pref="dark"] [data-ico="dark"] {
+  display: inline-flex;
+}
+/* Before the script sets data-pref, show the system icon so the button never
+   renders empty. */
+.ag-theme-btn:not([data-pref]) [data-ico="system"] {
+  display: inline-flex;
 }
 
 /* ── interactive affordances (the .dc.html used DC hover hooks) ─ */
@@ -197,13 +232,18 @@ html,
   filter: brightness(0.97);
 }
 .ag-navlink:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--th-hover);
+}
+/* Light nav links darken to ink-900 on hover (mockup); dark keeps its fixed
+   white alpha so the dark site stays pixel-identical. */
+:root:not([data-theme="dark"]) .ag-navlink:hover {
+  color: var(--ink-900);
 }
 .ag-foot-link:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--th-text-hi);
 }
 .ag-foot-social:hover {
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--th-active);
 }
 .ag-oss-chip:hover {
   color: rgba(255, 255, 255, 0.95);
@@ -221,10 +261,17 @@ html,
   box-shadow: inset 0 3px 16px rgba(255, 255, 255, var(--key-alpha, 0.85));
 }
 .ag-ghost {
-  transition: background 0.2s ease;
+  transition:
+    background 0.2s ease,
+    filter 0.2s ease;
 }
-.ag-ghost:hover {
+/* Ghost/outline hover: dark brightens the translucent fill; light keeps the
+   keycap gradient and dims it a touch instead (a bg overlay would erase it). */
+[data-theme="dark"] .ag-ghost:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+:root:not([data-theme="dark"]) .ag-ghost:hover {
+  filter: brightness(0.98);
 }
 
 /* ── nav dropdowns (Resources / Community) ───────────────────────────
@@ -265,10 +312,8 @@ html,
   min-width: 264px;
   padding: 8px;
   border-radius: 14px;
-  background: var(--ag-d-chrome);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 20px 48px rgba(0, 0, 0, 0.55);
+  background: var(--th-menu-bg);
+  box-shadow: var(--th-menu-shadow);
 }
 .ag-navdd-item {
   display: flex;
@@ -280,7 +325,7 @@ html,
   transition: background 0.16s ease;
 }
 .ag-navdd-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--th-hover);
 }
 .ag-navdd-ico {
   flex: 0 0 auto;
@@ -290,18 +335,18 @@ html,
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.82);
+  background: var(--th-ctl-bg);
+  box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
+  color: var(--th-text-prose);
 }
 .ag-navdd-title {
   font: var(--text-label);
-  color: #f7f6f4;
+  color: var(--th-text-hi);
   line-height: 1.25;
 }
 .ag-navdd-desc {
   font: var(--text-caption);
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--th-text-mut);
   line-height: 1.25;
 }
 /* Chevron flips when its menu is open, like agenta.ai. */
@@ -430,7 +475,7 @@ html,
   }
   .ag-tpl-md {
     border-left: none !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-top: 1px solid var(--th-border-subtle) !important;
   }
   .ag-tpl-md-scroll {
     position: static !important;
@@ -567,7 +612,7 @@ html,
    We keep Inter for body and GT Alpina for headings — only size/weight/leading
    and tracking follow Linear. */
 .ag-prose {
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--th-text-prose);
   font-family: var(--font-sans);
   font-size: 16px;
   font-weight: 400;
@@ -584,37 +629,37 @@ html,
   margin: 2em 0 0.55em;
   font: 400 26px/1.25 var(--font-display);
   letter-spacing: -0.015em;
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
   text-wrap: pretty;
 }
 .ag-prose h3 {
   margin: 1.7em 0 0.5em;
   font: 400 20px/1.3 var(--font-display);
   letter-spacing: -0.012em;
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
   text-wrap: pretty;
 }
 .ag-prose h4 {
   margin: 1.5em 0 0.4em;
   font: 600 16px/1.4 var(--font-sans);
   letter-spacing: -0.006em;
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
 }
 .ag-prose a {
-  color: var(--yellow-400);
+  color: var(--th-link);
   font-weight: 400;
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: rgba(242, 242, 92, 0.55);
+  text-decoration-color: var(--th-accent-underline);
   /* Long URLs/identifiers in prose links must break rather than force the page
      wider than the phone viewport (they otherwise expand the layout to ~459px). */
   overflow-wrap: anywhere;
 }
 .ag-prose a:hover {
-  text-decoration-color: var(--yellow-400);
+  text-decoration-color: var(--th-link);
 }
 .ag-prose strong {
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
   font-weight: 600;
 }
 .ag-prose em {
@@ -629,7 +674,7 @@ html,
   margin: 0.35em 0;
 }
 .ag-prose li::marker {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--th-text-dim);
 }
 .ag-prose li > ul,
 .ag-prose li > ol {
@@ -638,11 +683,11 @@ html,
 .ag-prose code {
   font-family: var(--font-mono);
   font-size: 0.88em;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--th-code-bg);
+  border: 1px solid var(--th-code-border);
   border-radius: 5px;
   padding: 0.12em 0.4em;
-  color: #f7f6f4;
+  color: var(--th-code-text);
   /* Inline code with a long token/URL must break rather than force the page
      wider than the phone viewport. Fenced <pre> code is exempted below. */
   overflow-wrap: anywhere;
@@ -650,8 +695,8 @@ html,
 .ag-prose pre {
   margin: 0 0 1.4em;
   padding: 18px 20px;
-  background: #0b0a0c;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: var(--th-pre-bg);
+  border: 1px solid var(--th-pre-border);
   border-radius: 12px;
   overflow-x: auto;
   font-size: 14px;
@@ -665,14 +710,14 @@ html,
   border: none;
   padding: 0;
   font-size: inherit;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--th-pre-text);
   overflow-wrap: normal;
 }
 .ag-prose blockquote {
   margin: 1.4em 0;
   padding: 4px 0 4px 20px;
-  border-left: 2px solid var(--yellow-400);
-  color: rgba(255, 255, 255, 0.6);
+  border-left: 2px solid var(--th-link);
+  color: var(--th-text-body);
   font-style: italic;
 }
 .ag-prose blockquote p:last-child {
@@ -680,7 +725,7 @@ html,
 }
 .ag-prose hr {
   border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid var(--th-border);
   margin: 2.4em 0;
 }
 .ag-prose img {
@@ -689,7 +734,7 @@ html,
   height: auto;
   border-radius: 12px;
   margin: 1.6em 0;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px var(--th-border-subtle);
 }
 .ag-prose table {
   width: 100%;
@@ -702,13 +747,13 @@ html,
 .ag-prose th,
 .ag-prose td {
   padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--th-border);
   text-align: left;
 }
 .ag-prose th {
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--th-hover);
 }
 
 /* ============================================================================
@@ -743,9 +788,9 @@ html,
     margin-top: 0 !important;
     max-height: calc(100dvh - 70px);
     overflow-y: auto;
-    border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-top: 1px solid var(--th-border-subtle) !important;
     border-radius: 14px;
-    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55);
+    box-shadow: var(--th-menu-shadow);
   }
   /* When the landing nav has floated into its pill (inset 12px), drop the menu a
      touch lower so it clears the pill's bottom edge. */
