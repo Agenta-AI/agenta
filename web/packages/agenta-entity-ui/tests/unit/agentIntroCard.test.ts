@@ -1,10 +1,10 @@
 /**
- * The Build-mode empty state's capability chip. Harness built-ins are always active and are not
+ * The agent intro card's capability chip. Harness built-ins are always active and are not
  * configured, so a legacy config that still carries `{type: "builtin"}` entries must not count them.
  */
 import {describe, expect, it} from "vitest"
 
-import {capabilityLabel} from "./AgentChatEmptyState"
+import {capabilityLabel} from "../../src/agent/AgentIntroCard"
 
 const config = (tools: unknown[], skills: unknown[] = []) => ({agent: {tools, skills}})
 

@@ -1,8 +1,5 @@
-import {useMemo} from "react"
-
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {isHarnessBuiltinTool} from "@agenta/entity-ui/tool-utils"
+import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {Tag} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
@@ -40,35 +37,6 @@ const BUILD_STARTERS = [
 ]
 
 /** Read the agent config shape (same layout as ContextTab / buildAgentRequest). */
-const agentModel = (config: unknown): string | null => {
-    const a = (config as {agent?: {llm?: {model?: unknown}; model?: unknown}} | null)?.agent
-    const m = a?.llm?.model ?? a?.model
-    return typeof m === "string" && m ? m : null
-}
-
-const agentSummary = (config: unknown): string | null => {
-    const md = (config as {agent?: {instructions?: {agents_md?: unknown}}} | null)?.agent
-        ?.instructions?.agents_md
-    if (typeof md !== "string" || !md.trim()) return null
-    const line = md
-        .trim()
-        .split("\n")[0]
-        .replace(/^#+\s*/, "")
-    return line.length > 140 ? `${line.slice(0, 140)}…` : line
-}
-
-export const capabilityLabel = (config: unknown): string | null => {
-    const a = (config as {agent?: {tools?: unknown[]; skills?: unknown[]}} | null)?.agent
-    // Legacy harness built-in entries are ignored and render nowhere, so they must not be counted.
-    const tools = Array.isArray(a?.tools)
-        ? a!.tools!.filter((tool) => !isHarnessBuiltinTool(tool)).length
-        : 0
-    const skills = Array.isArray(a?.skills) ? a!.skills!.length : 0
-    const parts: string[] = []
-    if (tools) parts.push(`${tools} tool${tools === 1 ? "" : "s"}`)
-    if (skills) parts.push(`${skills} skill${skills === 1 ? "" : "s"}`)
-    return parts.length ? parts.join(" · ") : null
-}
 
 const Bot = ({size = 44}: {size?: number}) => (
     <div
@@ -119,10 +87,6 @@ const AgentChatEmptyState = ({
     onPrefill?: (text: string) => void
 }) => {
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
-    const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
-    const config = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
-    )
 
     if (onboarding && TEMPLATE_STRIP_MODE) {
         // Strip era: no tour video, no "Agent builder" eyebrow, no left-panel hint/starters — the
@@ -232,43 +196,10 @@ const AgentChatEmptyState = ({
         )
     }
 
-    const model = agentModel(config)
-    const capabilities = capabilityLabel(config)
-    const summary = agentSummary(config)
-
     return (
         <div className="m-auto w-full max-w-[420px]">
-            <div className="flex flex-col gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-4">
-                <div className="flex items-center gap-2.5">
-                    <Bot size={34} />
-                    <div className="min-w-0">
-                        <span
-                            className="block truncate text-sm font-medium text-colorText"
-                            title={name || "Agent"}
-                        >
-                            {name || "Agent"}
-                        </span>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                            {model ? (
-                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-xs text-colorTextSecondary">
-                                    {model}
-                                </span>
-                            ) : null}
-                            {capabilities ? (
-                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px text-xs text-colorTextSecondary">
-                                    {capabilities}
-                                </span>
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
-
-                {summary ? (
-                    <span className="text-xs leading-relaxed text-colorTextSecondary">
-                        {summary}
-                    </span>
-                ) : null}
-
+            <AgentIntroCard entityId={entityId} />
+            <div className="mt-3 flex flex-col gap-3">
                 {firstRunPrompt ? (
                     <div className="flex flex-col gap-2">
                         <span className="text-xs font-medium uppercase tracking-wide text-colorTextSecondary">

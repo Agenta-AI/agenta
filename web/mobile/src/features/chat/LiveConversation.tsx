@@ -7,6 +7,7 @@ import {
 } from "@agenta/chat/assets"
 import {useAgentConversation} from "@agenta/chat/hooks"
 import {getPendingApprovals} from "@agenta/chat/model"
+import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
@@ -136,11 +137,20 @@ export const LiveConversation = ({
     } else {
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                {conversation.historyUnavailable && conversation.isEmpty ? (
-                    <p className="text-muted-foreground grow p-6 text-xs">
-                        No messages here — this session has no replayable history. New messages
-                        still work.
-                    </p>
+                {conversation.isEmpty ? (
+                    // The SAME card the desktop shows a conversation with no messages: who you are
+                    // about to talk to. A blank session is not an error state — /m rendered nothing
+                    // here, and for a freshly minted one it claimed the history was unavailable,
+                    // which is a different and much more alarming thing to say.
+                    <div className="m-auto w-full max-w-[420px]">
+                        <AgentIntroCard entityId={entityId} />
+                        {conversation.historyUnavailable ? (
+                            <p className="text-muted-foreground mt-3 text-center text-xs">
+                                This session&apos;s earlier messages are no longer stored. New
+                                messages still work.
+                            </p>
+                        ) : null}
+                    </div>
                 ) : null}
                 {visibleTurns.map((turn) => (
                     <TurnRow key={turn.message.id} turn={turn} />
