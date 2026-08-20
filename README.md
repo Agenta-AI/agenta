@@ -256,7 +256,7 @@ If Agenta is useful to you, star the repository and tell us what you build.
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-79-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-80-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -367,6 +367,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/shafeeq27edu-ai"><img src="https://avatars.githubusercontent.com/u/234775624?v=4?s=100" width="100px;" alt="Shafeeq"/><br /><sub><b>Shafeeq</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=shafeeq27edu-ai" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.abdelkader.work/"><img src="https://avatars.githubusercontent.com/u/108610803?v=4?s=100" width="100px;" alt="Abdelkaderbzz"/><br /><sub><b>Abdelkaderbzz</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3AAbdelkaderbzz" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/panshularora"><img src="https://avatars.githubusercontent.com/u/170356171?v=4?s=100" width="100px;" alt="panshularora"/><br /><sub><b>panshularora</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=panshularora" title="Tests">⚠️</a></td>
     </tr>
   </tbody>
