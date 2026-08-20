@@ -89,6 +89,7 @@ export {
 export {
     SplitPane,
     paneSlideHoldMs,
+    usePaneSlide,
     paneSlideMs,
     PANE_SLIDE_MS,
     type SplitPaneProps,

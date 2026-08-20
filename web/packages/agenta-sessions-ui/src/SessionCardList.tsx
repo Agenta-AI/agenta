@@ -176,7 +176,12 @@ export const SessionCardList = ({
                               initial="initial"
                               animate="animate"
                               exit="exit"
-                              className="m-0 overflow-hidden px-2 pt-1 text-xs uppercase tracking-wide text-colorTextTertiary"
+                              // Sticky so the group a row belongs to stays named while you scroll
+                              // past it. `bg-inherit` rather than a fixed token: this list renders
+                              // on the popover's elevated surface, the chat pane's raised one and
+                              // the page's plain one, and a hardcoded colour would band on two of
+                              // the three. Inert wherever the container does not scroll.
+                              className="bg-inherit sticky top-0 z-10 m-0 overflow-hidden px-2 pb-1 pt-1 text-xs uppercase tracking-wide text-colorTextTertiary"
                           >
                               {group.label}
                           </motion.p>,
@@ -224,7 +229,10 @@ export const SessionCardList = ({
 
     return (
         <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
-            <div className="flex grow flex-col">
+            {/* `bg-inherit` so the sticky group headings below have an opaque surface to inherit:
+                without it they resolve to transparent and rows scroll visibly THROUGH them. The
+                host states the real colour on the scroll container; this only passes it down. */}
+            <div className="bg-inherit flex grow flex-col">
                 {/* Flat children: AnimatePresence tracks direct keyed children, so the headings
                     and rows must not hide inside fragments or exits are lost. */}
                 <AnimatePresence initial={false}>{flat}</AnimatePresence>

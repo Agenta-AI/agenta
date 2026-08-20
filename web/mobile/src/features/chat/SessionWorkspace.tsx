@@ -3,7 +3,7 @@ import {useState, type ReactNode} from "react"
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {SplitPane} from "@agenta/ui/ui"
+import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -73,6 +73,12 @@ export const SessionWorkspace = ({
     // config panel's cap and its default.
     const [paneSize, setPaneSize] = useState(440)
 
+    // Both panes slide rather than snap, on the same shared mechanism the desktop uses. Without
+    // it the pane's width flipped in one frame and its content unmounted before the flip, so
+    // opening and hiding either panel jumped instead of moving.
+    const configSlide = usePaneSlide(showPane)
+    const filesSlide = usePaneSlide(twoPane && filesOpen)
+
     // The same surface treatment the desktop layout applies: the workspace is a recessed ground,
     // the config panel is raised above it, the conversation is the recessed canvas. Without these
     // the shared panels render flat — identical components, missing surface ladder.
@@ -106,6 +112,7 @@ export const SessionWorkspace = ({
                         paneMax={440}
                         fillMin={420}
                         // Phone: no divider, no drag, and the visible half takes the full width.
+                        animate={configSlide.animate}
                         barHidden={!twoPane || !showPane}
                         resizable={twoPane && showPane}
                         paneGrow={!twoPane && showPane}
@@ -116,7 +123,7 @@ export const SessionWorkspace = ({
                         onResize={(size) => setPaneSize(size)}
                         onResizeEnd={(size) => setPaneSize(size)}
                         className="h-full"
-                        pane={pane}
+                        pane={configSlide.keepMounted ? pane : null}
                         fill={
                             <SplitPane
                                 paneSide="end"
@@ -124,11 +131,12 @@ export const SessionWorkspace = ({
                                 paneMin={320}
                                 paneMax={560}
                                 fillMin={360}
+                                animate={filesSlide.animate}
                                 barHidden={!twoPane || !filesOpen}
                                 resizable={twoPane && filesOpen}
                                 className="h-full"
                                 pane={
-                                    filesOpen ? (
+                                    filesSlide.keepMounted ? (
                                         <SessionFilesPane
                                             scope={filesScope}
                                             sessionId={sessionId}

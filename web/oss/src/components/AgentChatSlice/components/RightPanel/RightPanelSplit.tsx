@@ -1,6 +1,6 @@
-import {useEffect, useRef, useState, type ReactNode} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
-import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
+import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
 import {useAtom, type WritableAtom} from "jotai"
 
 import {
@@ -45,35 +45,9 @@ const RightPanelSplit = ({
     const [live, setLive] = useState(persisted)
     const [dragging, setDragging] = useState(false)
 
-    // Flip detection during render so the animate flag lands in the SAME commit as the size flip.
-    // It has to be a REF, not state: a render-phase `setPrevOpen` makes React re-render before it
-    // commits, and the re-render sees prevOpen === open — so `justToggled` was always false in the
-    // committed output, `holdAnimate` only arrived in an effect (after the new width was painted),
-    // and the panel snapped open and shut. A ref survives into the commit. Same shape MainLayout
-    // uses for the config pane.
-    const prevOpenRef = useRef(open)
-    const [closing, setClosing] = useState(false)
-    const [holdAnimate, setHoldAnimate] = useState(false)
-    const justToggled = prevOpenRef.current !== open
-    // One effect per flip: hold the transition class for the whole slide so removing it doesn't snap, and
-    // keep the panel's content mounted for the same window so it slides out instead of blanking to
-    // an empty sliver. Deps = `open` ONLY, and guarded on the ref, so mount and re-renders during
-    // the hold don't re-arm (which would cancel the timer and leave the class stuck on).
-    useEffect(() => {
-        if (prevOpenRef.current === open) return
-        prevOpenRef.current = open
-        setHoldAnimate(true)
-        if (!open) setClosing(true)
-        const timer = setTimeout(() => {
-            setHoldAnimate(false)
-            setClosing(false)
-        }, paneSlideHoldMs())
-        return () => clearTimeout(timer)
-    }, [open])
-    const animate = (justToggled || holdAnimate) && !dragging
-    // `justToggled` covers the closing frame itself — `closing` is only set in the effect above, so
-    // without it the panel would unmount for one frame and remount to slide out.
-    const keepPanelMounted = open || closing || justToggled
+    // The slide itself is the shared hook — the ref-not-state flip detection, the hold, and
+    // keeping the pane mounted through a close all have to line up or the panel snaps.
+    const {animate, keepMounted} = usePaneSlide(open, dragging)
 
     // Re-sync to the stored width each time the panel opens.
     useEffect(() => {
@@ -107,7 +81,7 @@ const RightPanelSplit = ({
                 setDragging(false)
                 if (open) setPersisted(clampWidth(size, total, min, max))
             }}
-            pane={keepPanelMounted ? panel : null}
+            pane={keepMounted ? panel : null}
             fill={children}
         />
     )

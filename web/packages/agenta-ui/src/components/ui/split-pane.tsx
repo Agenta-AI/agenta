@@ -79,6 +79,51 @@ export const paneSlideMs = (): number => {
 /** How long a host must keep its `animate` flag on to cover the whole slide. */
 export const paneSlideHoldMs = (): number => paneSlideMs() + 40
 
+/**
+ * The open/close slide, as a hook, because getting it right is subtle enough that two hosts
+ * writing it twice means one of them snaps.
+ *
+ * Three things have to line up:
+ * - `justToggled` comes from a REF, not state. A render-phase `setPrev` makes React re-render
+ *   before committing, and the re-render sees `prev === open`, so the flag was always false in the
+ *   committed output and the transition class only arrived in an effect — after the new width had
+ *   already painted, which IS the snap.
+ * - `holdAnimate` keeps the class for the whole slide, so removing it cannot cut the tail short.
+ * - `keepMounted` holds the pane's CONTENT through a close, so it slides out instead of blanking
+ *   to an empty sliver first.
+ *
+ * ```tsx
+ * const {animate, keepMounted} = usePaneSlide(open, dragging)
+ * <SplitPane animate={animate} paneSize={open ? width : 0} barHidden={!open}
+ *            pane={keepMounted ? panel : null} … />
+ * ```
+ */
+export const usePaneSlide = (open: boolean, dragging = false) => {
+    const prevOpenRef = React.useRef(open)
+    const [closing, setClosing] = React.useState(false)
+    const [holdAnimate, setHoldAnimate] = React.useState(false)
+    const justToggled = prevOpenRef.current !== open
+    // Deps = `open` ONLY, and guarded on the ref, so re-renders during the hold do not re-arm it
+    // (which would cancel the timer and leave the class stuck on).
+    React.useEffect(() => {
+        if (prevOpenRef.current === open) return
+        prevOpenRef.current = open
+        setHoldAnimate(true)
+        if (!open) setClosing(true)
+        const timer = setTimeout(() => {
+            setHoldAnimate(false)
+            setClosing(false)
+        }, paneSlideHoldMs())
+        return () => clearTimeout(timer)
+    }, [open])
+    return {
+        animate: (justToggled || holdAnimate) && !dragging,
+        // `justToggled` covers the closing frame itself — `closing` is only set in the effect, so
+        // without it the pane unmounts for one frame and remounts to slide out.
+        keepMounted: open || closing || justToggled,
+    }
+}
+
 /** Keyboard resize increments — the ARIA window-splitter pattern's arrow step and its coarse
  * (modifier-held) counterpart. */
 const KEY_STEP = 16

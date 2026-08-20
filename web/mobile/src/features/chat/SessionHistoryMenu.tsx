@@ -57,7 +57,10 @@ export const SessionHistoryMenu = ({
                 <span className="px-2 pt-1 text-xs font-medium">Session history</span>
                 {/* Capped and scrolled: the strip already shows the recent ones, so this is the
                     tail, and an agent with a hundred sessions must not grow the popover. */}
-                <div className="ag-scroll-quiet max-h-[320px] min-h-0 overflow-y-auto">
+                {/* The surface is restated here, not left to PopoverContent, because the sticky
+                    group headings paint `bg-inherit` and need something to inherit FROM. Same
+                    token the popover itself uses, so it is the same surface either way. */}
+                <div className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto">
                     <SessionCardList
                         agentId={agentId ?? undefined}
                         policy={{origin: "exclude-trigger", expansions: []}}
