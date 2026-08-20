@@ -606,8 +606,17 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
 
             completion_tokens = tokens.get("completion", 0.0)
 
+            # Only a real positive number qualifies. Non-numeric or negative garbage from a
+            # foreign OTLP source must degrade to "no cache kwarg", not reach the int() below
+            # and turn into a swallowed exception that drops the span's ENTIRE cost.
             cache_read_tokens = next(
-                (tokens[key] for key in CACHE_READ_TOKEN_KEYS if tokens.get(key)),
+                (
+                    value
+                    for key in CACHE_READ_TOKEN_KEYS
+                    if isinstance((value := tokens.get(key)), (int, float))
+                    and not isinstance(value, bool)
+                    and value > 0
+                ),
                 0.0,
             )
 

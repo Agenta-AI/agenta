@@ -396,6 +396,104 @@ def test_calculate_costs_ignores_a_zero_cached_count(monkeypatch):
     assert costs["total"] == pytest.approx(0.3)
 
 
+def test_calculate_costs_ignores_a_non_numeric_cached_count(monkeypatch):
+    """Garbage in the cache field must not cost the span its ENTIRE cost.
+
+    A foreign OTLP source can write anything under `tokens.incremental`. A truthy
+    non-numeric value that reached `int()` would raise inside the try, and the bare
+    `except` would swallow it into "no costs at all" for the span -- a regression
+    against the pre-fix behaviour, where a garbage cache field was simply ignored
+    and prompt/completion were still priced.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        cache_read_tokens="24540",
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["prompt"] == pytest.approx(0.1)
+    assert costs["completion"] == pytest.approx(0.2)
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_ignores_a_negative_cached_count(monkeypatch):
+    """A negative count is not a cached slice: still the legacy signature.
+
+    Negative is truthy, so without the numeric guard it would reach the pricer,
+    where "fresh = prompt - cached" arithmetic turns it into an overstated cost.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        cache_read_tokens=-5,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_prefers_cache_read_over_cached_when_both_present(monkeypatch):
+    """`cache_read` wins when both aliases appear on one span.
+
+    No ingest adapter writes both today, but the precedence should be pinned:
+    `cache_read` is the spelling the runner emits and the logfire path stores.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=25978,
+        completion_tokens=100,
+        cache_read_tokens=24540,
+        span_type=SpanType.CHAT,
+    )
+    span.attributes["ag"]["metrics"]["tokens"]["incremental"]["cached"] = 999
+    span_idx = {span.span_id: span}
+
+    seen = {}
+
+    def _capture(**kwargs):
+        seen.update(kwargs)
+        return (0.001, 0.002)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _capture,
+    )
+
+    calculate_costs(span_idx)
+
+    assert seen["cache_read_input_tokens"] == 24540
+
+
 def test_calculate_costs_bills_cached_tokens_below_fresh_input(monkeypatch):
     """End-to-end shape of #5711, with the pricer modelling litellm's published contract.
 
