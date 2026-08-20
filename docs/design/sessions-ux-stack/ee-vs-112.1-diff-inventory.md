@@ -2170,3 +2170,30 @@ widths (38 / 61 / 74); prod builds them from antd `<label>` + `<div>`, local fro
 Pane width differs (prod 447, local 620) and that is the already-adjudicated §4g case where
 **local is correct**: 620 is the declared default and antd's `Splitter` rescales px sizes against
 the container. A pixel VRT of this pane is meaningless for that reason — compare its controls.
+
+### D-22 / D-23 — two more dropped props in the SAME drawer facade — **found, NOT fixed**
+
+With D-21 fixed, `prop-drop-sweep.py` no longer reports `closeOnLayoutClick` (a clean regression
+check that the fix is real and the tool sees it). Two hits remain on `EnhancedDrawer`, both the
+same fingerprint — declared in the props interface, never read, no `...rest` to forward them:
+
+| | declared | passed by | consequence if dropped |
+|---|---|---|---|
+| **D-22** `closeIcon` | line 80 | `TestcaseDrawer.tsx:428` as `closeIcon={null}` | the author asked for NO close button; a close `X` renders anyway |
+| **D-23** `classNames` | line 94 | `VirtualizedScenarioTableAnnotateDrawer.tsx:868` as `{body: "!p-0"}` | body padding the author cancelled stays |
+
+Both are named in the same docstring line that got D-21 wrong: *"Deferred (rare / unused):
+`mask={false}`, custom `closeIcon`, `push`, `loading`."* `closeIcon` is neither rare nor unused.
+Note the facade DOES support the antd v6 object form `closable={{closeIcon}}` (line 31) — but the
+call site passes `closeIcon` top-level, so it goes nowhere.
+
+**Not fixed here** only because each needs driving in a browser (open the testcase drawer, confirm
+no `X`; open the annotate drawer, confirm the body has no padding) and this session is out of room.
+The fix mirrors D-21: destructure and forward. Do the sweep-then-verify loop again afterwards.
+
+### Pair re-matched
+
+Local's agent renamed to `Hello-world helper` to match prod's self-rename (prod has no inline
+rename — that is local-only lane design, so renaming local was the cheaper direction). The config
+strip drops from **3.29% → 2.70%** with the name band gone; what remains is the instructions
+preview and `Sandbox: daytona` vs `local`, both data.
