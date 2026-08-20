@@ -5,6 +5,8 @@ import {useRouter} from "next/router"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {useStartBlankSession} from "./useStartBlankSession"
+
 /**
  * Chat's left pane: this agent's sessions.
  *
@@ -25,6 +27,7 @@ export const SessionsPane = ({
 }) => {
     const router = useRouter()
     const menu = useSessionRowMenu(base)
+    const startBlank = useStartBlankSession(base)
 
     const open = (vm: SessionRowVm) => {
         if (vm.id === activeSessionId) return
@@ -40,7 +43,7 @@ export const SessionsPane = ({
                     <button
                         type="button"
                         aria-label="New session"
-                        onClick={() => void router.push(`${base}/agents/${agentId}`)}
+                        onClick={() => startBlank(agentId)}
                         className="text-colorTextSecondary hover:text-colorText focus-visible:text-colorText -m-2 cursor-pointer rounded-md border-0 bg-transparent p-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     >
                         <Plus size={16} />

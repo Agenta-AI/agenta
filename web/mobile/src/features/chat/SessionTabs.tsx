@@ -13,6 +13,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
+import {useStartBlankSession} from "./useStartBlankSession"
 
 /**
  * The conversation pane's header: this agent's sessions as tabs, the open one active — the same
@@ -47,6 +48,7 @@ export const SessionTabs = ({
     // The SAME verbs the sessions pane and the sessions list bind — rename, pin, archive, delete
     // with their confirms — so a session's menu is the same whether it is a tab or a row.
     const menu = useSessionRowMenu(base)
+    const startBlank = useStartBlankSession(base)
     const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
     const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
     // The singular GET /sessions/streams redirects with a root-path-less Location
@@ -75,7 +77,9 @@ export const SessionTabs = ({
                     if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
                 }}
                 // Starting a session needs an agent to start it with.
-                onNew={agentId ? () => void router.push(`${base}/agents/${agentId}`) : undefined}
+                // A blank session to type into — NOT the agent's overview, which is where this
+                // used to land.
+                onNew={agentId ? () => startBlank(agentId) : undefined}
                 leadingExtra={
                     !chatMaximized && configCollapsed ? (
                         <SimpleTooltip title="Show configuration">
