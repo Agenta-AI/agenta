@@ -2432,3 +2432,27 @@ because its trace carries less content. So this could be "prod hides its scrollb
 "prod had nothing to scroll", and the two are indistinguishable without a prod trace of comparable
 size. Worth resolving because 112.2 moved the config pane onto `ag-scroll-no-bar`; if that is the
 app's convention, a 6px classic bar here is inconsistent with it. Needs a matched-size trace.
+
+### Revision selector — PARITY
+
+The variant/version dropdown (`default` in the page header) is effectively pixel-identical:
+same box (483, 35, 280×191), same `Search` field, same `default` group with `v3 · Last modified`,
+`v2`, `v1`. **0.21%** over the panel. Nothing to do.
+
+### D-22 upgraded from unit-tested to VERIFIED AGAINST THE UNFIXED BUILD
+
+`TestcaseDrawer` needed a testset, and neither project had one — so I created `qa112-parity` on
+both (Arda's call: these are test projects) and opened the drawer from the first row.
+
+| | header buttons |
+|---|---|
+| prod (unfixed) | **`Close`** · `Close drawer` · Expand drawer · Previous testcase · Next testcase · Collapse all fields · Copy testcase payload · Form · Add to queue — **9** |
+| local (fixed) | `Close drawer` · Expand drawer · Previous testcase · Next testcase · Collapse all fields · Copy testcase payload · Form · Add to queue — **8** |
+
+Prod renders **two close affordances**: the facade's default X (`Close`) on top of the drawer's own
+`Close drawer`. That is precisely what `closeIcon={null}` exists to prevent, and precisely what the
+docstring's "deferred (rare / unused)" claim cost. Local now shows one.
+
+Drawer width is 736 on both and every other control matches, so the testcase drawer is otherwise at
+parity. **Worth the detour:** D-22 was previously pinned only by a render test, and a render test
+cannot tell you the real drawer stacks two X's on top of each other.
