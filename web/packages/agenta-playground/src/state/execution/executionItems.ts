@@ -42,6 +42,32 @@ import {extractTraceIdFromPayload} from "./trace"
 import type {ExecutionMode, RunResult, RunStatus} from "./types"
 
 // ============================================================================
+// SHARED ROW-ID HELPERS
+// ============================================================================
+
+/**
+ * Extract the logical row ID from a turn-style compound row ID.
+ *
+ * Turn IDs have the format `turn-<entityId>-<logicalId>`.
+ * logicalId is "msg-<uuid>" (current) or "lt-<id>" (legacy).
+ * Neither prefix can appear inside a hex UUID, so "-msg-" / "-lt-"
+ * unambiguously marks the boundary between the entity segment and the
+ * logical row ID regardless of whether the entity UUID itself contains hyphens.
+ *
+ * This function is the single source of truth used by both
+ * `handleExecutionResultAtom` (here) and `extractLogicalRowIdFromWorker`
+ * in webWorkerIntegration, so a regression in either is caught by tests
+ * that import from this module.
+ */
+export function extractLogicalRowId(rowId: string): string {
+    const msgIdx = rowId.indexOf("-msg-")
+    if (msgIdx >= 0) return rowId.slice(msgIdx + 1)
+    const ltIdx = rowId.indexOf("-lt-")
+    if (ltIdx >= 0) return rowId.slice(ltIdx + 1)
+    return rowId
+}
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -1466,9 +1492,8 @@ export const handleExecutionResultAtom = atom(
             // shared user message" is racy in comparison mode because the
             // first-to-finish variant auto-appends a blank user message
             // before the second variant's result arrives.
-            // rowId format in comparison mode: "turn-<entityUUID>-lt-<msgId>"
-            const ltIndex = rowId.indexOf("-lt-")
-            const logicalRowId = ltIndex >= 0 ? rowId.slice(ltIndex + 1) : rowId
+            // rowId format in comparison mode: "turn-<entityUUID>-<logicalId>"
+            const logicalRowId = extractLogicalRowId(rowId)
             const flatIds = get(messageIdsAtomFamily(loadableId))
             const flatById = get(messagesByIdAtomFamily(loadableId))
 
