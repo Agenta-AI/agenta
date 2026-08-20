@@ -753,6 +753,15 @@
       "contributions": [
         "test"
       ]
+    },
+    {
+      "login": "WhoamiI00",
+      "name": "Ankit",
+      "avatar_url": "https://avatars.githubusercontent.com/u/185078340?v=4",
+      "profile": "https://neokit.app/",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
