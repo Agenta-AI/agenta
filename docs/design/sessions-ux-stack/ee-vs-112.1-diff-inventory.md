@@ -12,7 +12,8 @@ Nothing here is inferred from code alone, and coverage gaps are listed explicitl
 
 ## 1. Method
 
-Captures live in `scratchpad/qa112/` (not committed):
+The harness lives in [`qa112/`](qa112/) — **committed**, see §5b. Captures land in its gitignored
+`shots/`. Historical note: it originally lived in a session scratchpad and was lost twice.
 
 | File | Purpose |
 |---|---|
@@ -1452,8 +1453,9 @@ pipeline over the two **live builds** (no Storybook — these are two deployment
 | 4. diff | `vrt.py <slug>` | % pixels differing + **ranked differing regions** in both device and CSS px, plus a 3-up `prod \| local \| heatmap` PNG |
 
 `vrt.py` deliberately does **not** rescale mismatched captures (that would invent
-differences); it reports the size mismatch and compares the common region. Runs from
-`scratchpad/vrtenv` (Pillow+numpy; the system python is PEP-668 managed).
+differences); it reports the size mismatch, names `pin_tab` as the fix (a mismatch is almost
+always two tabs at different DPR), and compares the common region. Runs from `qa112/venv`
+(Pillow+numpy; the system python is PEP-668 managed and has no Pillow).
 
 States to capture per page: **light + dark**, **empty + with-data**, and one per interactive
 surface (dropdown, tooltip, popover, drawer, modal).
@@ -1782,3 +1784,28 @@ durable — a gitignored `scratchpad/qa112/` inside the worktree, or committed u
 `docs/design/sessions-ux-stack/tools/` — not in a session-scoped temp directory. The shots can
 stay disposable; the scripts and `strips.py`'s measured boxes are the expensive part, and every
 trap they encode is written down in §5 and §4m above, so a rebuild is guided rather than blind.
+
+### Rebuilt and COMMITTED at `docs/design/sessions-ux-stack/qa112/`
+
+Rebuilt from the traps recorded above, in the repo this time — next to the already-committed
+`orphan-export-sweep.py`, so a `/private/tmp` wipe cannot take it again. `venv/`, `shots/` and
+`.tabpin.*` are gitignored; the scripts and the measured boxes are not.
+
+Everything the old copy had, plus two additions:
+
+- **`doctor.sh`** — preflight. Checks the venv, the daemon, the dev server, the docker stack,
+  `session_streams.references` (the D-08 migration whose absence makes every session surface read
+  empty), the DPR of both tabs, and that both base URLs still land on `/apps`. Each line exists
+  because that failure once produced a wrong FINDING instead of an error. It reads the daemon pid
+  out of the state file rather than calling `browse status`, because `status`/`tabs` auto-spawn a
+  headless daemon — the first version of this script created exactly the stray it warns about.
+- **`vrt.py … align`** — re-derived, since the 9px gutter it exists for is now a confirmed
+  deliberate design and every chat capture will carry the offset from here on.
+
+Verified without a browser, on synthetic captures: a +6 CSS px shift plus one local-only block
+reads 3 regions unaligned and, aligned, reports `(+6.0,+0.0) CSS` and leaves exactly the 1 real
+difference. The same-environment guard refuses an identical pair; a DPR mismatch warns and names
+`pin_tab` as the fix. `README.md` carries every trap, so the harness now teaches its own use.
+
+Still down at the time of writing: the browse daemon, the dev server and the `agenta-ee-dev-*`
+stack. Nothing can be driven until Arda brings them up.
