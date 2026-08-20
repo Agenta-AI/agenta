@@ -112,12 +112,16 @@ const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
 }
 
 const EntryList = ({entries, close}: {entries: SwitcherEntry[]; close: () => void}) => (
-    // Cap the list at 3 item rows (h-8 each); the rest scrolls, with the scrollbar hidden.
-    <div className="flex max-h-24 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    // Cap the list at 7 item rows (h-8 each) so the actions below it stay on screen.
+    <div className="ag-scroll-quiet flex max-h-56 flex-col overflow-y-auto">
         {entries.map((entry) => (
             <Row
                 key={entry.key}
-                className={clsx(ITEM_ROW_CLASS, entry.isActive && "bg-colorFillSecondary")}
+                className={clsx(
+                    ITEM_ROW_CLASS,
+                    // scroll-initial-target is Chromium-only; elsewhere the list opens at the top.
+                    entry.isActive && "bg-colorFillSecondary [scroll-initial-target:nearest]",
+                )}
                 onClick={() => {
                     close()
                     if (!entry.isActive) entry.onSelect()

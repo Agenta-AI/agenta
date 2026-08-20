@@ -1,42 +1,39 @@
 /**
- * Tool-step display foundation: the one place a raw runtime tool name (AI SDK part) becomes what
- * the chat UI shows. Resolution order: per-tool registry override → name-shape heuristics
- * (`mcp__…`, gateway double-underscore forms) → title-cased raw name. The store, the parsing
- * chain and the harness-wrapper unwrapping live in @agenta/chat/skin; this module registers the
- * desktop's special cases at import time and re-exports the resolver under the old name. Raw
- * names stay reachable via tooltips and Build mode.
+ * The desktop chat's tool-display seam. The naming/summary system — the verb table, the platform
+ * glossary, the shape parsers and the harness-wrapper unwrapping — lives in @agenta/chat/skin so
+ * every host words a call the same way; this module re-exports it under the names the desktop
+ * chat already imports, and keeps the one piece that is only ours (the call description).
+ * Desktop-specific display overrides go through `registerChatSkin({toolDisplay})` from here.
  */
 import {
     canonicalToolName,
-    registerChatSkin,
+    inSentence,
     resolveToolDisplay as resolveFromSkin,
 } from "@agenta/chat/skin"
-import type {ResolvedToolDisplay, ToolKind as SkinToolKind} from "@agenta/chat/skin"
+import type {
+    ResolvedToolDisplay,
+    ToolActivity as SkinToolActivity,
+    ToolKind as SkinToolKind,
+} from "@agenta/chat/skin"
 
 export type ToolKind = SkinToolKind
+export type ToolActivity = SkinToolActivity
 export type ToolDisplay = ResolvedToolDisplay
 
-export {canonicalToolName}
+export {canonicalToolName, inSentence}
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    Boolean(value && typeof value === "object" && !Array.isArray(value))
-
-registerChatSkin({
-    toolDisplay: {
-        commit_revision: {
-            summary: (input) => {
-                const commit =
-                    isRecord(input) && isRecord(input.workflow_revision)
-                        ? input.workflow_revision
-                        : null
-                return typeof commit?.message === "string" && commit.message ? commit.message : null
-            },
-        },
-    },
-})
-
-/** Resolve display info for a raw runtime tool name. Pure and total — never throws. */
-export const resolveToolDisplay = (raw: string): ToolDisplay => resolveFromSkin(raw)
+/**
+ * Resolve display info for a raw runtime tool name. Pure and total — never throws.
+ *
+ * `input`/`output` are optional; callers wanting only a label may omit them. `appName` comes from
+ * the catalog, which answers late: resolve once without it, look up `sourceKey`, resolve again.
+ */
+export const resolveToolDisplay = (
+    raw: string,
+    input?: unknown,
+    appName?: string,
+    output?: unknown,
+): ToolDisplay => resolveFromSkin(raw, input, appName, output)
 
 /**
  * Longest call description we render, counted in CODE POINTS.

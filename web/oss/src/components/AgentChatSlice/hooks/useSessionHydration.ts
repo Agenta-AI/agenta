@@ -3,16 +3,18 @@ import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "r
 import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
 import {isSessionFresh} from "@agenta/chat/state"
 import {
+    fetchSessionRecordsAtom,
     hasWaitingInteraction,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
+import {generateId} from "@agenta/shared/utils"
 import {type UIMessage} from "ai"
-import {useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {sessionRunningElsewhereAtomFamily} from "../state/liveness"
+import {sessionLivenessAtomFamily, sessionRunningElsewhereAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
 import {activeSessionIdAtomFamily} from "../state/sessions"
 
@@ -29,6 +31,12 @@ const REMOTE_RUN_POLL_MS = 15_000
  * resets to the fast cadence, so a long turn that is simply quiet (a slow tool call emits no
  * records until it returns) is still followed. */
 const REMOTE_RUN_POLL_MAX_MS = 60_000
+
+/** Retry budget for the stranded-first-send record check when the fetch itself fails
+ * (`records: null`). Bounded so a down endpoint gets a short burst, not a hammer; when the budget
+ * runs out the check re-arms and waits for the next dependency change instead. */
+const STRANDED_CHECK_MAX_ATTEMPTS = 3
+const STRANDED_CHECK_RETRY_MS = 2_000
 
 /**
  * Whether the records-changed relay's catch-up refetch must skip this tick.
@@ -48,6 +56,26 @@ export const shouldSkipRecordsRefresh = ({
     busy: boolean
     pendingResume: boolean
 }): boolean => busy || pendingResume
+
+/** A transcript whose tail is a user turn nothing ever answered — the shape a send that died
+ * client-side (aborted mid-prepare, a lost seed handoff) leaves behind (#6042). */
+export const hasStrandedTail = (messages: UIMessage[]): boolean =>
+    messages.length > 0 && messages[messages.length - 1]?.role === "user"
+
+/** Same carrier shape `useAgentChatSession`'s error effect uses, so the stamp renders through the
+ * existing red error bubble. */
+const strandedRunErrorCarrier = (): UIMessage =>
+    ({
+        id: `run-error-${generateId()}`,
+        role: "assistant",
+        parts: [],
+        metadata: {
+            runError: {
+                message:
+                    "This message never reached the agent — the run was not started. Send it again.",
+            },
+        },
+    }) as unknown as UIMessage
 
 /**
  * Hybrid history for one session tab. localStorage holds only the session INDEX; the durable
@@ -282,7 +310,10 @@ export const useSessionHydration = ({
                 }
             }
         }
-        timer = setTimeout(poll, delay)
+        // First tick fires NOW, not after REMOTE_RUN_POLL_MS: most turns finish inside 15s, and a
+        // pending first tick is discarded by the cleanup below when the run ends — so a delayed
+        // first tick meant short runs were often never fetched at all (#5624).
+        void poll()
         return () => {
             cancelled = true
             if (timer) clearTimeout(timer)
@@ -290,6 +321,78 @@ export const useSessionHydration = ({
         // Deliberately NOT keyed on `adoptServerTranscript` — the poll reads it through the ref
         // above, so a re-render can't cancel a pending tick or reset the backoff.
     }, [runningElsewhere, sessionId])
+
+    // One final catch-up on the falling edge (#5624). The poll above dies with `runningElsewhere`,
+    // discarding any pending tick, so a run that ends between ticks would leave the last records
+    // unfetched until a remount. Guarded adoption makes a spurious extra read harmless.
+    const prevRemoteRunRef = useRef({sessionId, running: false})
+    useEffect(() => {
+        const prev = prevRemoteRunRef.current
+        prevRemoteRunRef.current = {sessionId, running: runningElsewhere}
+        if (prev.sessionId !== sessionId || !prev.running || runningElsewhere) return
+        let cancelled = false
+        const adopt = adoptServerTranscriptRef.current
+        loadSessionMessages(sessionId, (fresh) => {
+            if (!cancelled) adopt(fresh, {armJump: false})
+        }).then((transcript) => {
+            if (!cancelled) adopt(transcript, {armJump: false})
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [runningElsewhere, sessionId])
+
+    // ── Stranded first send (#6042) ─────────────────────────────────────────────
+    // A restored transcript whose tail is an unanswered user turn, with the backend idle and the
+    // durable record log EMPTY, means the send died client-side before it ever reached the runner
+    // (aborted mid-prepare, a lost seed handoff). Without this check the session reads as
+    // busy-forever on every reopen. One-shot per mount, but the shot only counts once the fetch is
+    // CONCLUSIVE: `records: []` is a confirmed-empty log and stamps; `records: null` is a failed
+    // fetch and never stamps — it retries a bounded burst, then re-arms so a later dependency
+    // change can try again instead of latching the recovery out for the rest of the mount.
+    const liveness = useAtomValue(sessionLivenessAtomFamily(sessionId))
+    const strandedCheckRef = useRef<"idle" | "pending" | "done">("idle")
+    useEffect(() => {
+        if (strandedCheckRef.current !== "idle" || isHydrating || busy) return
+        if (liveness.isLoading || liveness.nest.isRunning) return
+        if (!hasStrandedTail(messagesRef.current)) return
+        strandedCheckRef.current = "pending"
+        let cancelled = false
+        let retryTimer: ReturnType<typeof setTimeout> | undefined
+        let attempts = 0
+        const check = () => {
+            attempts += 1
+            void getDefaultStore()
+                .set(fetchSessionRecordsAtom, sessionId)
+                .then(({records}) => {
+                    if (cancelled) return
+                    if (!records) {
+                        if (attempts < STRANDED_CHECK_MAX_ATTEMPTS) {
+                            retryTimer = setTimeout(check, STRANDED_CHECK_RETRY_MS)
+                        } else {
+                            strandedCheckRef.current = "idle"
+                        }
+                        return
+                    }
+                    strandedCheckRef.current = "done"
+                    if (busyRef.current) return
+                    if (records.length > 0) return
+                    const current = messagesRef.current
+                    if (!hasStrandedTail(current)) return
+                    const stamped = [...current, strandedRunErrorCarrier()]
+                    setMessages(stamped)
+                    persistMessages({id: sessionId, messages: stamped})
+                })
+        }
+        check()
+        return () => {
+            cancelled = true
+            if (retryTimer) clearTimeout(retryTimer)
+            // A dependency change mid-flight must retry, not deadlock on a shot that never
+            // concluded.
+            if (strandedCheckRef.current === "pending") strandedCheckRef.current = "idle"
+        }
+    }, [isHydrating, busy, liveness, sessionId, messagesRef, busyRef, setMessages, persistMessages])
 
     // ── Push counterpart to that poll: the session watch relay ─────────────────
     // The relay ticks whenever this session's durable records change — a turn resumed on another

@@ -152,6 +152,7 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
                         title={row.title}
                         summary={row.summary}
                         status={row.status}
+                        preserveTitle={row.key === "advanced"}
                         // `onOpen` is the primitive's "leaves for somewhere else" mode; only the
                         // expanding row (and a read-only host) omits it.
                         onOpen={row.expands || !onEdit ? undefined : onEdit}

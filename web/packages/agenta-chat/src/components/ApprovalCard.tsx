@@ -24,7 +24,7 @@ import {CaretDown, CaretRight, ShieldCheck} from "@phosphor-icons/react"
 
 import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
 import type {PendingApproval} from "../model/approvals"
-import {resolveToolDisplay} from "../skin/registry"
+import {inSentence, resolveToolDisplay} from "../skin/registry"
 
 const formatInput = (input: unknown): string => {
     if (input == null) return ""
@@ -219,7 +219,9 @@ export const ApprovalCard = ({
 
     if (!current) return null
 
-    const display = resolveToolDisplay(current.toolName)
+    // The grant covers every call of the tool, so its label must not carry THIS call's arguments:
+    // with them it reads "Always allow searching Github open bugs", which understates the scope.
+    const grantLabel = resolveToolDisplay(current.toolName).activity.running
     const grantInfo = infoFor(current.toolName)
     const canAlwaysAllow = Boolean(grantInfo.eligible && !grantInfo.alreadyAllowed)
     // Touch mode must NOT change the chrome — the card renders desktop-identical everywhere.
@@ -318,8 +320,8 @@ export const ApprovalCard = ({
                                             {approvals.map((a) => {
                                                 const preview = inputPreview(a.input)
                                                 const label =
-                                                    resolveToolDisplay(a.toolName)?.label ??
-                                                    a.toolName
+                                                    resolveToolDisplay(a.toolName, a.input).activity
+                                                        .running || a.toolName
                                                 return (
                                                     <div
                                                         key={a.approvalId}
@@ -463,7 +465,7 @@ export const ApprovalCard = ({
                             <span className="text-xs text-colorText">
                                 Always allow{" "}
                                 <span className="font-medium">
-                                    {display?.label ?? current.toolName}
+                                    {inSentence(grantLabel) || current.toolName}
                                 </span>{" "}
                                 for this agent
                             </span>
@@ -497,7 +499,8 @@ export const ApprovalCardFrame = ({
     payloadSurfaceClassName,
     payloadLabel,
 }: ApprovalCardFrameProps) => {
-    const display = resolveToolDisplay(toolName)
+    // The input goes in too, so the card says the same sentence as the row it gates.
+    const display = resolveToolDisplay(toolName, input)
     return (
         <div className={`flex flex-col rounded-lg ${className}`}>
             {/* Header: a quiet primary cue (not an error tint) + the ask + a count when batched. */}
@@ -537,10 +540,11 @@ export const ApprovalCardFrame = ({
                     <span className="text-xs text-colorTextSecondary" title={toolName}>
                         {headline ?? (
                             <>
-                                The agent wants to use{" "}
-                                <span className="font-medium text-colorText">{display.label}</span>
-                                {display.source ? ` from ${display.source}` : ""} before it can keep
-                                going.
+                                The agent needs your approval before{" "}
+                                <span className="font-medium text-colorText">
+                                    {inSentence(display.activity.running)}
+                                </span>
+                                {display.source ? ` from ${display.source}` : ""}.
                             </>
                         )}
                     </span>

@@ -2631,3 +2631,105 @@ Visual parity is genuinely closed. Functional parity is not, and cannot be judge
 **merge `origin/release/v0.112.2` into the lane (and thence here) before landing**, then re-run the
 chat comparisons — the tool rows above all, since that is where the missing work is concentrated.
 Everything else in this inventory was compared against a prod already running 112.2, so it stands.
+
+## 7. 112.2 MERGED — the 18 conflicts, and what each one actually was
+
+`origin/release/v0.112.2` merged into `fix/post-112-reconcile` (merge base `6b45c4e40b`, 113
+commits). Backup ref before the merge: `refs/backup/pre-112.2-merge`. The lane (PR #6065) is still
+445 behind — noted, deliberately NOT touched in this pass.
+
+### The shape of every conflict was the same
+
+The lane MOVED code into packages; 112.2 kept editing it at the old path. So git conflicted on
+"HEAD deleted these lines / 112.2 changed them", and almost every resolution was: **take 112.2's
+substance, re-apply it where the lane put the code.** Which half wins is not a judgement call —
+112.2's is the newer behaviour, the lane's is the newer address.
+
+Two conflicts were the exception, where the lane's version was strictly newer and 112.2's change
+was already satisfied:
+
+- `packages/agenta-entities/src/organization/api.ts` — 112.2's change was "remove the routine
+  `console.log` debug lines". The lane's package version had already dropped them (it is axios,
+  not `fetchJson`). Took HEAD. Its new test could not be relocated verbatim (it mocks `fetchJson`
+  and `getBaseUrl`, neither of which the package version uses) so it is **ported** to
+  `tests/unit/organization-api.test.ts` against an axios mock, keeping the "no routine logging"
+  assertion plus the 401-answers-empty behaviour the package version added. It went to
+  `tests/unit/` because `agenta-entities/vitest.config.ts` only collects there — dropping it at
+  `src/organization/index.test.ts`, where git suggested, would have made it a file that never runs.
+- `ApprovalDock.tsx` — the lane extracted the whole card into `@agenta/chat`'s `ApprovalCard`. All
+  five of 112.2's hunks were copy changes, so they were applied to `ApprovalCard.tsx` instead and
+  the dock took HEAD verbatim.
+
+### `toolDisplay.ts` — the one that mattered, and why it could not stay in oss
+
+The merge-base file (147 lines) held the resolver. **The lane copied it into
+`@agenta/chat/skin/registry.ts`** with a banner reading "the OSS original remains authoritative …
+keep byte-parity if either side changes", and thinned oss down to a registration + re-export.
+**112.2 grew the original to 685 lines** — the verb table, the platform glossary, the shape
+parsers, the query/detail extraction, the app-naming rules.
+
+Keeping 112.2's file in oss was not an option, and the tell was mechanical, not aesthetic: the
+merge had already rename-matched 112.2's `useAlwaysAllowTool` onto the lane's **package** copy, so
+`packages/agenta-chat/src/hooks/useAlwaysAllowTool.ts` was already calling
+`resolveToolDisplay(toolName).activity.running` against a resolver with no `activity`. The package
+resolver had to grow the system or the tree would not compile.
+
+So the whole system moved to `skin/registry.ts`, and 112.2's `BY_TOOL_NAME` became
+`DEFAULT_TOOL_DISPLAY` — the package's built-in defaults, which a registered skin entry now merges
+ONTO field-wise (a skin overriding only `summary` keeps the default's wording). `skin/types.ts`
+grew `ToolActivity`, `sourceKey`, `detail`, and the `activity`/`app` override fields; `ToolKind`
+gained `shell` and `file`. oss's `toolDisplay.ts` is a re-export plus `extractCallDescription`.
+
+**One real bug came out of that port, caught by the package's own suite.** 112.2's
+`ToolDisplayOverride` has no `label`/`source` — it words a call through `activity` instead — so a
+verbatim port dropped `override?.label ?? parsed.label`. The lane's `ToolDisplayEntry` still
+declares both and `registry.test.ts` pins them, so a registered skin's label silently stopped
+applying. Restored explicitly. The built-in defaults set neither, so it is inert for them.
+
+Verification that the port is faithful: **112.2's own `toolDisplay.test.ts` — 74 tests — passes
+unmodified against the package resolver**, as does the new `toolRow.test.ts` (29).
+
+The `@agenta/chat` registry pins needed updating for the wider return shape. Two of them now
+assert `source: undefined` where they used to say `"Gmail"` / `"Linear · MCP"` — that is not a
+regression, it is 112.2's "skip the app name when the object already says it": the sentence reads
+"Adding a Gmail label", so the chip would say Gmail twice.
+
+### The other resolutions, briefly
+
+| conflict | resolution |
+|---|---|
+| `navigation/dynamic/registry.ts` | 112.2 renamed `pendingSessionOpenAtom` → `addPendingSessionOpenAtom`; repointed at `@agenta/sessions/state`. 112.2's `SessionRunSpinner` import is dead here — the lane replaced that icon with an alive/pinned circle on purpose. |
+| `pendingSessionOpen` (the #6042 list rewrite) | Rename detection carried 112.2's single-slot→list rewrite into the lane's **package** file cleanly. `@agenta/sessions/state`'s barrel still exported the now-deleted singular atom; replaced with the three new ones. 112.2's new `pendingHandoffs.test.ts` landed at the oss path importing `./pendingSessionOpen`, which no longer exists there — repointed at the package. |
+| `useStartAgentSession` / `useOpenAgentSession` / `useAgentChatSession` / `AgentChatPanel` | Bodies auto-merged to 112.2's; only import blocks conflicted. `boundedRequest.ts` and `startupPhases.ts` are new 112.2 files and stay in oss. |
+| `useSessionHydration.ts` | Kept only 112.2's two NEW helpers (`hasStrandedTail`, `strandedRunErrorCarrier`); the rest of its conflicting block is transcript-adoption logic the lane moved to `@agenta/entities/session` and 112.2 never touched. Its test file was rebuilt from both sides: the `shouldAdoptTranscript` describes are gone with the code, `hasStrandedTail` kept. |
+| `useCreateAgent.ts` / `AgentMessage.tsx` | HEAD's structure + 112.2's rename (`addFirstRunSeedAtom`) / new `PendingTurn`, de-antd'd onto `ChatBubble`. |
+| `ToolActivity.tsx` | Rebuilt from 112.2's structure (the `displayFor`/`CatalogToolRow`/`ToolRowView` split and the catalog re-resolution ARE the feature) with the lane's two mechanical transforms re-applied: package import paths, and antd `Text` → the lane's `span`. The lane's one behavioural change, hiding the source chip in Build mode, is preserved as a `detailed` prop on 112.2's new `ToolSource`. |
+| `ElicitationWidget.tsx` | 112.2's `subtext` (ours goes unnamed; "Waiting on your input" dropped as a third restatement) in the lane's markup. |
+| `AgentOverview.tsx` | 112.2's only change was `?mode=automation` on the Automation-runs "View all". The lane extracted the body to `@agenta/entity-ui`'s `AgentOverviewBody`, so that grew an `automationSessionsHref` prop defaulting to `sessionsHref`. |
+| `ProjectOrgSwitcher` | 112.2 capped the list at 7 rows (`max-h-56`, `ag-scroll-quiet`) and moved the active-row fill onto a `Row` prop with `scroll-initial-target`. Applied to `@agenta/navigation-ui`'s `EntryList`, which mobile's drawer shares — a wider cap there too, and it is a max, so short lists are unaffected. |
+| auth (`[[...path]].tsx`, `PasswordlessAuth`) | 112.2's `passwordlessAttempt` sync kept; its duplicate `lastAuthMethod` import dropped (the lane moved that module to `@agenta/auth`). See below. |
+
+### The auth conflict hid a silent break
+
+112.2's passwordless work is a pair: `syncInitialPasswordlessAttempt` READS `attemptInfo.agentaApiUrl`
+to tell a resumable attempt from a stale one on another host, and `PasswordlessAuth`'s `sendOTP`
+WRITES that tag right after `createCode`. The lane had already extracted the form into
+`@agenta/auth-ui`'s `PasswordlessRequestForm`, which calls `@agenta/auth`'s `requestEmailCode`.
+
+Taking the lane's form (correct — it is the newer address) would have kept the reader and dropped
+the writer: `agentaApiUrl` would never be set, `getPasswordlessAttemptState` would answer `clear`
+every time, and the resume path would be dead code that nothing reports. **The tag is now written
+inside `requestEmailCode`**, which is the single place a code is created for every host.
+
+### Gates
+
+`pnpm lint-fix` clean. oss `tsc --noEmit` **0 errors**; mobile `tsc --noEmit` **0 errors**.
+Suites: `@agenta/ui` **85 tests / 12 files** — above the 83/11 floor, the extra file is 112.2's own
+`configAccordionSection.test.ts`, so the vitest config did not regress; `@agenta/chat` 345/34,
+`@agenta/entities` 1330/90, `@agenta/entity-ui` 455/33, `@agenta/sessions` 70/10, `@agenta/auth`
+45/4, `@agenta/oss` 52 files green.
+
+One red found along the way was **not** a merge regression: `sessions.delete.test.ts` fails on the
+pre-merge branch too — its `@agenta/entities/session` mock omits `sessionRowsFromPages`, which the
+`@agenta/sessions` barrel reads at module load, so the suite never imported. Verified by re-running
+it with the pre-merge barrel restored; fixed with the one missing mock key.

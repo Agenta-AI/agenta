@@ -36,6 +36,9 @@ vi.mock("@agenta/entities/session", () => ({
     markSessionFresh: vi.fn(),
     isSessionFresh: vi.fn(() => false),
     clearSessionFresh: vi.fn(),
+    // `sessions.ts` pulls the @agenta/sessions barrel, which reads this at module load — a full
+    // mock has to carry it or the whole suite fails to import.
+    sessionRowsFromPages: () => [],
 }))
 
 const {

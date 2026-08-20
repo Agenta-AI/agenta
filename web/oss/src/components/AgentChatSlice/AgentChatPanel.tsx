@@ -3,6 +3,7 @@ import {
     Suspense,
     useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState,
     useSyncExternalStore,
@@ -12,7 +13,11 @@ import {
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
-import {pendingSessionOpenAtom} from "@agenta/sessions/state"
+import {
+    pendingSessionOpensAtom,
+    removePendingSessionOpensAtom,
+    type PendingSessionOpen,
+} from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -129,37 +134,48 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // panel mounts; every additional session pane skips it (no per-switch flash).
     const composerRevealPlayedRef = useRef(false)
 
-    // A session opened from a project-wide surface (sessions page, Home) lands here after the nav.
-    // Adopt it so a session this browser has never seen becomes a real tab; its transcript then
-    // hydrates from records. Consumed once — clearing the slot is what stops it re-firing.
-    const pendingOpen = useAtomValue(pendingSessionOpenAtom)
-    const setPendingOpen = useSetAtom(pendingSessionOpenAtom)
+    // Sessions opened from a project-wide surface (sessions page, Home) land here after the nav.
+    // Adopt them so a session this browser has never seen becomes a real tab; its transcript then
+    // hydrates from records. EVERY queued entry for this scope is consumed — two rapid creates are
+    // two sessions, not an overwrite (#6042).
+    const pendingOpens = useAtomValue(pendingSessionOpensAtom)
+    const removePendingOpens = useSetAtom(removePendingSessionOpensAtom)
     const adoptSession = useSetAtom(adoptSessionAtomFamily(scope))
-    const pendingOpenForScope = pendingOpen?.appId === scope ? pendingOpen : null
+    const pendingOpensForScope = useMemo(
+        () => pendingOpens.filter((t) => t.appId === scope),
+        [pendingOpens, scope],
+    )
+    // Strict Mode replays this effect with the same captured values; the ref stops the replay
+    // adding the same session twice before the atom write lands.
+    const consumedOpensRef = useRef(new Set<PendingSessionOpen>())
     useEffect(() => {
-        if (!pendingOpenForScope) return
-        if (pendingOpenForScope.sessionId) {
-            adoptSession({id: pendingOpenForScope.sessionId, title: pendingOpenForScope.title})
-        } else {
-            // No id means "start a fresh conversation here" — Home's composer. A new empty session
-            // is also what lets a seeded first message find an empty conversation to send into.
-            addSession()
+        const fresh = pendingOpensForScope.filter((t) => !consumedOpensRef.current.has(t))
+        if (fresh.length === 0) return
+        for (const target of fresh) {
+            consumedOpensRef.current.add(target)
+            if (target.sessionId) {
+                adoptSession({id: target.sessionId, title: target.title})
+            } else {
+                // No id means "start a fresh conversation here" — Home's composer. It may name the
+                // session up front, so the message it sent along lands in this one and no other.
+                addSession({id: target.newSessionId})
+            }
         }
-        setPendingOpen(null)
-    }, [pendingOpenForScope, adoptSession, addSession, setPendingOpen])
+        removePendingOpens(fresh)
+    }, [pendingOpensForScope, adoptSession, addSession, removePendingOpens])
 
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode. Held while a deep-linked session is pending: adopting it satisfies the
     // at-least-one-tab rule, and seeding first would leave a stray blank tab beside it.
     const seeded = useRef(false)
     useEffect(() => {
-        if (pendingOpenForScope) return
+        if (pendingOpensForScope.length > 0) return
         if (sessions.length === 0 && !seeded.current) {
             seeded.current = true
             addSession()
         }
         if (sessions.length > 0) seeded.current = false
-    }, [sessions.length, addSession, pendingOpenForScope])
+    }, [sessions.length, addSession, pendingOpensForScope])
 
     // Sweep husks (never-run, untitled, empty sessions) that accumulated in history — from before
     // the close-time cleanup, or orphaned by a reload. Open tabs are untouched, so this never drops

@@ -41,10 +41,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 import Markdown from "../assets/markdown"
+import {useStartupPhase} from "../hooks/useStartupPhase"
 import {messageCreatedAtAtomFamily, timeAgo} from "../state/sessions"
 
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
+import {StartupActivity} from "./TurnActivity"
 
 /** A trace span's `start_time` (ISO string / epoch) → ms, or undefined if absent/unparseable. */
 const parseTraceTime = (value: unknown): number | undefined => {
@@ -215,6 +217,22 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
 const avatarFor = (isUser: boolean) => (
     <ChatBubbleAvatar icon={isUser ? <User size={16} /> : <Robot size={16} />} />
 )
+
+/** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
+ * turn, not once per message in the transcript. */
+const PendingTurn = ({sessionId}: {sessionId: string}) => {
+    const startupPhase = useStartupPhase(sessionId)
+    return startupPhase ? (
+        <ChatBubble
+            placement="start"
+            variant="borderless"
+            avatar={avatarFor(false)}
+            content={<StartupActivity label={startupPhase} />}
+        />
+    ) : (
+        <ChatBubble placement="start" variant="borderless" avatar={avatarFor(false)} loading />
+    )
+}
 
 const triggerDownload = (href: string, name: string) => {
     const link = document.createElement("a")
@@ -443,9 +461,7 @@ const AgentMessage = ({
 
     // Only the message being generated shows the loading state, and only until it has content.
     if (!isUser && isStreaming && !hasContent) {
-        return (
-            <ChatBubble placement="start" variant="borderless" avatar={avatarFor(false)} loading />
-        )
+        return <PendingTurn sessionId={sessionId} />
     }
 
     // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts

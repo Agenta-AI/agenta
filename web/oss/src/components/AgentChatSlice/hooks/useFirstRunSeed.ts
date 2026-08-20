@@ -1,9 +1,13 @@
 import {type MutableRefObject, useEffect, useRef, useState} from "react"
 
 import {workflowBuildKitOverlayReadyAtomFamily} from "@agenta/entities/workflow"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {agentFirstRunSeedAtom, type AgentFirstRunSeed} from "../state/firstRunSeed"
+import {
+    agentFirstRunSeedsAtom,
+    removeFirstRunSeedAtom,
+    type AgentFirstRunSeed,
+} from "../state/firstRunSeed"
 
 /**
  * Does THIS session own the pending seed?
@@ -79,41 +83,52 @@ export const useFirstRunSeed = ({
     /** The chat's own `addFiles` — seed files go through the same staging paste and drop use. */
     onSeedFiles?: (files: File[]) => void
 }) => {
-    const [firstRunSeed, setFirstRunSeed] = useAtom(agentFirstRunSeedAtom)
+    const seeds = useAtomValue(agentFirstRunSeedsAtom)
+    const removeSeed = useSetAtom(removeFirstRunSeedAtom)
     const [firstRunPrompt, setFirstRunPrompt] = useState<string | null>(null)
     // An explicit-"go" seed (the onboarding Create-agent click) sends as soon as the model is ready.
     const [firstRunAutoSend, setFirstRunAutoSend] = useState(false)
     const seedConsumedRef = useRef(false)
+    // The seed this conversation claimed but has not yet turned into a real message.
+    const claimedSeedRef = useRef<AgentFirstRunSeed | null>(null)
     useEffect(() => {
-        if (seedConsumedRef.current || !firstRunSeed) return
-        if (
-            !shouldConsumeSeed({
-                seed: firstRunSeed,
+        if (seedConsumedRef.current) return
+        const seed = seeds.find((s) =>
+            shouldConsumeSeed({
+                seed: s,
                 entityId,
                 scopeKey,
                 sessionId,
                 activeSessionId,
                 messagesCount,
                 isHydrating,
-            })
+            }),
         )
-            return
+        if (!seed) return
         seedConsumedRef.current = true
-        setFirstRunPrompt(firstRunSeed.seedMessage)
-        setFirstRunAutoSend(!!firstRunSeed.autoSend)
-        if (firstRunSeed.seedFiles?.length) onSeedFiles?.(firstRunSeed.seedFiles)
-        setFirstRunSeed(null)
+        claimedSeedRef.current = seed
+        setFirstRunPrompt(seed.seedMessage)
+        setFirstRunAutoSend(!!seed.autoSend)
+        if (seed.seedFiles?.length) onSeedFiles?.(seed.seedFiles)
     }, [
-        firstRunSeed,
+        seeds,
         entityId,
         scopeKey,
         activeSessionId,
         sessionId,
         messagesCount,
         isHydrating,
-        setFirstRunSeed,
         onSeedFiles,
     ])
+
+    // The seed leaves the global list only once this conversation actually CARRIES a message —
+    // dispatch confirmed. Clearing at claim time lost the message whenever the pane unmounted
+    // during the model/overlay wait below (#6042); parked, it survives the remount and retries.
+    useEffect(() => {
+        if (messagesCount === 0 || !claimedSeedRef.current) return
+        removeSeed(claimedSeedRef.current)
+        claimedSeedRef.current = null
+    }, [messagesCount, removeSeed])
 
     // Fires once, while the conversation is still empty, when EITHER: the model just unblocked (was
     // gated), OR the seed is an explicit "go" (`firstRunAutoSend` — the onboarding Create-agent

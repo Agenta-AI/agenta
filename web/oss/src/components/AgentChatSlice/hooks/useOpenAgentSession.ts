@@ -1,6 +1,10 @@
 import {useCallback} from "react"
 
-import {pendingSessionOpenAtom, type PendingSessionOpen} from "@agenta/sessions/state"
+import {
+    addPendingSessionOpenAtom,
+    removePendingSessionOpensAtom,
+    type PendingSessionOpen,
+} from "@agenta/sessions/state"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -17,17 +21,18 @@ import {urlAtom} from "@/oss/state/url"
 export function useOpenAgentSession(): (target: PendingSessionOpen) => void {
     const router = useRouter()
     const {baseAppURL} = useAtomValue(urlAtom)
-    const setPendingOpen = useSetAtom(pendingSessionOpenAtom)
+    const addPendingOpen = useSetAtom(addPendingSessionOpenAtom)
+    const removePendingOpens = useSetAtom(removePendingSessionOpensAtom)
 
     return useCallback(
         (target: PendingSessionOpen) => {
-            setPendingOpen(target)
+            addPendingOpen(target)
             // Clear on a failed navigation, or the target would be adopted by whatever agent
-            // playground this browser opens next.
+            // playground this browser opens next. Only OUR entry — others may be in flight.
             router.push(`${baseAppURL}/${target.appId}/playground`).catch(() => {
-                setPendingOpen(null)
+                removePendingOpens([target])
             })
         },
-        [router, baseAppURL, setPendingOpen],
+        [router, baseAppURL, addPendingOpen, removePendingOpens],
     )
 }

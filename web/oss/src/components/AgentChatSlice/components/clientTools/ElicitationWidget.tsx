@@ -15,7 +15,7 @@ import {
     type StepInfo,
     formatReviewValue,
 } from "@agenta/entity-ui/gatewayTool"
-import {isInteractionEndedOutput} from "@agenta/shared/clientTools"
+import {CLIENT_TOOL_NAMES, isInteractionEndedOutput} from "@agenta/shared/clientTools"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {
     type ElicitationResult,
@@ -38,7 +38,7 @@ import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@ph
 import {Form} from "antd"
 import dayjs from "dayjs"
 
-import {resolveToolDisplay} from "../../assets/toolDisplay"
+import {canonicalToolName, resolveToolDisplay} from "../../assets/toolDisplay"
 
 /** ElicitationResult → the settle channel's Record shape (interfaces carry no index signature). */
 const toOutput = (result: ElicitationResult) => ({...result}) as Record<string, unknown>
@@ -298,6 +298,13 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     if (!parsed.ok) return null // degradation auto-settle in flight (effect above)
 
     const requiredCount = parsed.payload.requestedSchema.required?.length ?? 0
+    // The composer dock and the turn's status line already say the run is parked on you.
+    const asker = CLIENT_TOOL_NAMES.has(canonicalToolName(meta.toolName))
+        ? null
+        : `Asked by ${resolveToolDisplay(meta.toolName).label}`
+    const subtext = [asker, requiredCount > 0 ? `${requiredCount} required` : null]
+        .filter(Boolean)
+        .join(" · ")
     const stepperHint = Boolean(parsed.payload.requestedSchema["x-ag-stepper"])
 
     const handleAccept = async () => {
@@ -348,13 +355,10 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 <Question size={14} weight="fill" className="shrink-0 mt-0.5 text-colorPrimary" />
                 <div className="flex min-w-0 flex-col">
                     <span className="text-xs text-colorText">{parsed.payload.message}</span>
-                    {/* Requester attribution — muted subtext, never a banner (design D-spec). */}
-                    <span className="text-xs text-colorTextSecondary">
-                        Asked by {resolveToolDisplay(meta.toolName).label}
-                        {requiredCount > 0
-                            ? ` · Waiting on your input · ${requiredCount} required`
-                            : " · Waiting on your input"}
-                    </span>
+                    {/* Requester attribution (design D-spec); ours goes unnamed, the card IS the ask. */}
+                    {subtext ? (
+                        <span className="text-xs text-colorTextSecondary">{subtext}</span>
+                    ) : null}
                 </div>
             </div>
 

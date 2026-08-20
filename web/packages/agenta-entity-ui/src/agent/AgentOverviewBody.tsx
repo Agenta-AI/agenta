@@ -10,8 +10,11 @@ import {NextTriggersSection} from "./NextTriggersSection"
 
 export interface AgentOverviewBodyProps {
     agentId: string
-    /** Where both list cards' "View all" lands. */
+    /** Where the Sessions card's "View all" lands. */
     sessionsHref: string
+    /** Where the Automation runs card's "View all" lands — the same list scoped to automation.
+     * Falls back to `sessionsHref`, which lands you on an unscoped list. */
+    automationSessionsHref?: string
     /**
      * The start-a-session composer, above the lists. Host-owned because starting a session is:
      * the desktop opens the playground transport, mobile routes to its chat screen.
@@ -41,6 +44,7 @@ export interface AgentOverviewBodyProps {
 export const AgentOverviewBody = ({
     agentId,
     sessionsHref,
+    automationSessionsHref,
     composer,
     onEditConfig,
     usage,
@@ -80,7 +84,7 @@ export const AgentOverviewBody = ({
                         limit={5}
                         minHeightClassName="min-h-[100px]"
                         emptyText="Runs from automations bound to this agent will show up here."
-                        viewAllHref={sessionsHref}
+                        viewAllHref={automationSessionsHref ?? sessionsHref}
                         alwaysShowPin={alwaysShowPin}
                         onOpenRow={onOpenRow}
                         menuFor={menuFor}

@@ -115,7 +115,11 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             raw: "tools__composio__gmail__ADD_LABEL__b81",
             kind: "gateway",
             label: "Add label",
-            source: "Gmail",
+            // The sentence already names Gmail, so the chip would say it twice.
+            source: undefined,
+            sourceKey: "gmail",
+            activity: {running: "Adding a Gmail label", done: "Added a Gmail label"},
+            detail: undefined,
             summary: undefined,
         })
     })
@@ -126,7 +130,12 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             raw: "mcp__linear__search_issues",
             kind: "mcp",
             label: "Search issues",
-            source: "Linear · MCP",
+            // Named inside the sentence, so no chip. An MCP server is not a catalog
+            // integration either, so there is nothing to look up.
+            source: undefined,
+            sourceKey: undefined,
+            activity: {running: "Searching Linear issues", done: "Searched Linear issues"},
+            detail: undefined,
             summary: undefined,
         })
     })
@@ -138,6 +147,9 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             kind: "platform",
             label: "Search",
             source: undefined,
+            sourceKey: undefined,
+            activity: {running: "Searching", done: "Searched"},
+            detail: undefined,
             summary: undefined,
         })
     })
@@ -157,5 +169,23 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
         expect(resolveToolDisplay("td_wins").label).toBe("First")
         registerChatSkin({toolDisplay: {td_wins: {label: "Second"}}})
         expect(resolveToolDisplay("td_wins").label).toBe("Second")
+    })
+})
+
+describe("toolDisplay registry — built-in defaults", () => {
+    it("words a harness builtin, and a registered summary merges onto the default", () => {
+        expect(resolveToolDisplay("Read").activity.done).toBe("Read a file")
+        const summary = () => "saved"
+        registerChatSkin({toolDisplay: {read: {summary}}})
+        const display = resolveToolDisplay("Read")
+        // The registration contributed only `summary`; the default's wording survives.
+        expect(display.activity.done).toBe("Read a file")
+        expect(display.summary).toBe(summary)
+    })
+
+    it("puts the call's own detail in the secondary slot", () => {
+        expect(resolveToolDisplay("Read", {file_path: "/repo/src/index.ts"}).detail).toBe(
+            "index.ts",
+        )
     })
 })

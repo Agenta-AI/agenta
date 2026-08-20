@@ -21,6 +21,7 @@ vi.mock("@agenta/entity-ui/gatewayTool", () => ({
 
 vi.mock("@agenta/shared/clientTools", () => ({
     isInteractionEndedOutput: () => false,
+    CLIENT_TOOL_NAMES: new Set(["request_connection", "request_input"]),
 }))
 
 vi.mock("@agenta/shared/hooks", () => ({
@@ -87,6 +88,7 @@ vi.mock("antd", () => {
 
 vi.mock("../../assets/toolDisplay", () => ({
     resolveToolDisplay: () => ({label: "Elicitation"}),
+    canonicalToolName: (raw: string) => raw,
 }))
 
 import ElicitationWidget from "./ElicitationWidget"

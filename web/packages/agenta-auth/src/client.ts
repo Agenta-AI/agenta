@@ -72,13 +72,32 @@ export async function signInWithEmailPassword(
 
 /* ------------------------------- email OTP -------------------------------- */
 
+/**
+ * Stamp the open attempt with the host it was opened against. A stored attempt carries no
+ * region, so a stale one from another host would resume the OTP screen with an unusable
+ * device id — `getPasswordlessAttemptState` reads this back to tell resume from clear.
+ */
+async function tagAttemptWithHost(): Promise<void> {
+    try {
+        const attemptInfo = await Passwordless.getLoginAttemptInfo()
+        if (!attemptInfo) return
+        await Passwordless.setLoginAttemptInfo({
+            attemptInfo: {...attemptInfo, agentaApiUrl: authApiUrl()},
+        })
+    } catch (error) {
+        console.error("Failed to tag passwordless login attempt:", error)
+    }
+}
+
 /** Send a one-time code to `email` and open a login attempt. */
 export async function requestEmailCode(
     email: string,
 ): Promise<{kind: "ok"} | {kind: "failed"; message: string}> {
     ensureAuthInit()
     try {
-        return describeCreateCode(await Passwordless.createCode({email}))
+        const outcome = describeCreateCode(await Passwordless.createCode({email}))
+        if (outcome.kind === "ok") await tagAttemptWithHost()
+        return outcome
     } catch {
         return describeCreateCode(null)
     }

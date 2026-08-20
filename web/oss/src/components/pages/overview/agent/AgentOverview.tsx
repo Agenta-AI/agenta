@@ -5,6 +5,7 @@ import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
+import {sessionRouteModes} from "@/oss/components/pages/sessions/assets/sessionRouteScope"
 import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
 import {
     SeedAttachButton,
@@ -54,6 +55,9 @@ const AgentOverview = ({appId, agentName}: Props) => {
     // filter you then have to trust.
     const {appURL} = useURL()
     const sessionsHref = appURL ? `${appURL}/sessions` : undefined
+    const automationSessionsHref = sessionsHref
+        ? `${sessionsHref}?mode=${sessionRouteModes.automation}`
+        : undefined
 
     const verbs = useSessionCardVerbs()
     const {goToPlayground} = usePlaygroundNavigation()
@@ -77,6 +81,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
         <AgentOverviewBody
             agentId={appId}
             sessionsHref={sessionsHref ?? ""}
+            automationSessionsHref={automationSessionsHref}
             onEditConfig={openConfig}
             usage={<UsageSummary variant="strip" />}
             {...verbs}

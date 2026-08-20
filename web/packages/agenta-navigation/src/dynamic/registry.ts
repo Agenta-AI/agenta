@@ -7,7 +7,7 @@ import {
     // nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
-import {pendingSessionOpenAtom} from "@agenta/sessions/state"
+import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
 import {ChatsCircleIcon, CircleIcon, PushPinIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
@@ -83,7 +83,7 @@ const ENTITIES: SidebarEntity[] = [
             // A row with no resolved agent yet cannot open anything; the sidebar still shows it so
             // a first-turn session keeps its place (#5974).
             if (!session.appId) return
-            getDefaultStore().set(pendingSessionOpenAtom, {
+            getDefaultStore().set(addPendingSessionOpenAtom, {
                 appId: session.appId,
                 sessionId: session.sessionId,
                 title: session.name ?? undefined,

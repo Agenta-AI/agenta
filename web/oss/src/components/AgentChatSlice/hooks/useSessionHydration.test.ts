@@ -11,9 +11,10 @@
  * local `addToolOutput` settle is still waiting for `sendAutomaticallyWhen` to fire — the adopted
  * transcript predates the settle and silently discards it.
  */
+import {type UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {shouldSkipRecordsRefresh} from "./useSessionHydration"
+import {hasStrandedTail, shouldSkipRecordsRefresh} from "./useSessionHydration"
 
 describe("shouldSkipRecordsRefresh", () => {
     it("does not skip when idle and no settle is pending a resume", () => {
@@ -31,5 +32,23 @@ describe("shouldSkipRecordsRefresh", () => {
 
     it("skips when both are true", () => {
         expect(shouldSkipRecordsRefresh({busy: true, pendingResume: true})).toBe(true)
+    })
+})
+
+describe("hasStrandedTail", () => {
+    const user = {id: "u1", role: "user", parts: []} as unknown as UIMessage
+    const assistant = {id: "a1", role: "assistant", parts: []} as unknown as UIMessage
+
+    it("flags a transcript ending in an unanswered user turn", () => {
+        expect(hasStrandedTail([user])).toBe(true)
+        expect(hasStrandedTail([assistant, user])).toBe(true)
+    })
+
+    it("passes a transcript whose tail was answered (or error-stamped)", () => {
+        expect(hasStrandedTail([user, assistant])).toBe(false)
+    })
+
+    it("passes an empty transcript", () => {
+        expect(hasStrandedTail([])).toBe(false)
     })
 })
