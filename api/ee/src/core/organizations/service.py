@@ -963,6 +963,9 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
     scope_from,
     Gauge,
 )
+from ee.src.core.funded_credits.service import (  # noqa: E402
+    schedule_funded_credits_seeding,
+)
 
 
 _subscription_service = SubscriptionsService(
@@ -999,6 +1002,13 @@ async def provision_signup_subscription(
         key=Gauge.USERS,
         delta=1,
         scope=scope_from(organization_id=organization.id),
+    )
+
+    # Fire-and-forget: a failure degrades to "no starter credits" and must never
+    # raise here — the signup path deletes the new user when setup fails.
+    schedule_funded_credits_seeding(
+        organization_id=str(organization.id),
+        organization_email=organization_email,
     )
 
 

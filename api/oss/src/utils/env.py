@@ -787,6 +787,72 @@ class DockerConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# funded_credits — starter-credit seeding at signup (EE).
+# ---------------------------------------------------------------------------
+
+
+def _parse_float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+class FundedCreditsConfig(BaseModel):
+    """Funded starter credits (EE): mint a budget-capped proxy key at signup and
+    seed it into the new organization's vault as a ready-to-use connection.
+
+    Inert unless `enabled` is true AND `proxy_url` + `master_key` are present.
+    The redeploy-free runtime switch is the PostHog feature flag (fail closed:
+    no flag signal means no seeding).
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_FUNDED_CREDITS_ENABLED", False)
+
+    # Admin base URL the API uses to mint keys (`{proxy_url}/key/generate`).
+    proxy_url: str | None = os.getenv("AGENTA_FUNDED_CREDITS_PROXY_URL") or None
+    master_key: str | None = os.getenv("AGENTA_FUNDED_CREDITS_MASTER_KEY") or None
+    # Base URL written into the seeded connection (what runs call, may include a
+    # path prefix like /v1). Defaults to proxy_url when unset.
+    connection_url: str | None = (
+        os.getenv("AGENTA_FUNDED_CREDITS_CONNECTION_URL") or None
+    )
+
+    grant_usd: float = _parse_float_env("AGENTA_FUNDED_CREDITS_GRANT_USD", 10.0)
+    model: str = os.getenv("AGENTA_FUNDED_CREDITS_MODEL") or "gemini-3.6-flash"
+    team_id: str | None = os.getenv("AGENTA_FUNDED_CREDITS_TEAM_ID") or None
+    rpm_limit: int | None = _parse_optional_positive_int_env(
+        "AGENTA_FUNDED_CREDITS_RPM_LIMIT"
+    )
+    tpm_limit: int | None = _parse_optional_positive_int_env(
+        "AGENTA_FUNDED_CREDITS_TPM_LIMIT"
+    )
+
+    feature_flag: str = (
+        os.getenv("AGENTA_FUNDED_CREDITS_FEATURE_FLAG") or "funded-credits-seeding"
+    )
+
+    # Velocity caps on mints, enforced with Redis day counters.
+    daily_mint_cap: int = (
+        _parse_optional_positive_int_env("AGENTA_FUNDED_CREDITS_DAILY_MINT_CAP") or 200
+    )
+    domain_daily_mint_cap: int = (
+        _parse_optional_positive_int_env("AGENTA_FUNDED_CREDITS_DOMAIN_DAILY_MINT_CAP")
+        or 10
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def armed(self) -> bool:
+        """True when the deployment opted in and holds the proxy credentials."""
+        return bool(self.enabled and self.proxy_url and self.master_key)
+
+
+# ---------------------------------------------------------------------------
 # identity — OIDC providers grouped by vendor.
 # ---------------------------------------------------------------------------
 
@@ -1660,6 +1726,7 @@ class EnvironSettings(BaseModel):
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
+    funded_credits: FundedCreditsConfig = FundedCreditsConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
