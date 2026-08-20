@@ -72,6 +72,10 @@ export const SessionWorkspace = ({
     // Controlled px, as on the desktop: the dragged width persists for the mount; 440 is the
     // config panel's cap and its default.
     const [paneSize, setPaneSize] = useState(440)
+    // The files pane needs its own width, for the same reason the config pane does: a hardcoded
+    // `paneSize` means a drag has nowhere to write, so the divider moves under the pointer and the
+    // pane snaps straight back. 380 is its default, within the 320/560 bounds below.
+    const [filesPaneSize, setFilesPaneSize] = useState(380)
 
     // Both panes slide rather than snap, on the same shared mechanism the desktop uses. Without
     // it the pane's width flipped in one frame and its content unmounted before the flip, so
@@ -127,13 +131,17 @@ export const SessionWorkspace = ({
                         fill={
                             <SplitPane
                                 paneSide="end"
-                                paneSize={twoPane && filesOpen ? 380 : 0}
+                                paneSize={twoPane && filesOpen ? filesPaneSize : 0}
                                 paneMin={320}
                                 paneMax={560}
                                 fillMin={360}
                                 animate={filesSlide.animate}
                                 barHidden={!twoPane || !filesOpen}
                                 resizable={twoPane && filesOpen}
+                                // Controlled width, so the drag must write through per tick or the
+                                // pane only moves at pointer-up.
+                                onResize={(size) => setFilesPaneSize(size)}
+                                onResizeEnd={(size) => setFilesPaneSize(size)}
                                 className="h-full"
                                 pane={
                                     filesSlide.keepMounted ? (
