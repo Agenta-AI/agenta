@@ -284,6 +284,9 @@ export function buildPersistingEmitter(
     // Always forward to the live stream (if any).
     liveEmit?.(event);
 
+    // Transient data describes the current live turn. It must not become transcript history.
+    if (event.type === "data" && event.transient) return;
+
     // Accumulate tool_call snapshots for one id; flush on any non-continuation below.
     if (event.type === "tool_call" && event.id) {
       if (openTool && openTool.id === event.id) {

@@ -281,9 +281,10 @@ const SessionTag = memo(function SessionTag({
                         // divider below. Selected reads by fill alone: `colorFill` is the antd
                         // "pressed/active" step (one notch past the Secondary/Tertiary/Quaternary
                         // hover washes), ink-tinted in light, translucent white in dark — clearly
-                        // stronger than the whisper-of-fill hover state unselected tags get.
+                        // stronger than the whisper-of-fill hover state unselected tags get, held
+                        // at 90% of that step so the chip sits a touch lighter on the canvas.
                         active
-                            ? "bg-colorFill text-colorText"
+                            ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
                             : "text-colorTextSecondary hover:bg-colorFillTertiary",
                     )}
                 >

@@ -230,8 +230,8 @@ export {
 
 const realKeepaliveEngine: KeepaliveEngine = {
   resolveKeepaliveMount: (request) => resolveKeepaliveMount(request),
-  acquireEnvironment: (request, signal, presignedMount) =>
-    acquireEnvironment(request, {}, signal, presignedMount),
+  acquireEnvironment: (request, signal, presignedMount, emit) =>
+    acquireEnvironment(request, {}, signal, presignedMount, emit),
   runTurn: (env, request, emit, signal, opts) =>
     runTurn(env, request, emit, signal, opts),
   // LIFECYCLE MIGRATION, STEP 6. The live-route applier. The coordinator gates on the plan being
@@ -267,6 +267,7 @@ const realKeepaliveEngine: KeepaliveEngine = {
       {},
       signal,
       presignedMount,
+      emit,
     );
     if (!acquired.ok) return { ok: false, error: acquired.error };
     let result: AgentRunResult | undefined;

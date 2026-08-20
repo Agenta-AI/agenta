@@ -1,15 +1,21 @@
 import {useRef, useState} from "react"
 
 import {Button, Form, FormProps, Input} from "antd"
-import {createCode} from "supertokens-auth-react/recipe/passwordless"
+import {
+    createCode,
+    getLoginAttemptInfo,
+    setLoginAttemptInfo,
+} from "supertokens-auth-react/recipe/passwordless"
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {
     clearPendingTurnstileToken,
     isTurnstileEnabled,
     setPendingTurnstileToken,
 } from "@/oss/lib/helpers/auth/turnstile"
 
+import {AgentaPasswordlessAttempt} from "../assets/passwordlessAttempt"
 import {PasswordlessAuthProps} from "../assets/types"
 import TurnstileWidget, {TurnstileWidgetHandle} from "../Turnstile"
 
@@ -63,6 +69,21 @@ const PasswordlessAuth = ({
             if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
                 setMessage({message: response.reason, type: "error"}) // the reason string is a user friendly message
             } else {
+                try {
+                    const attemptInfo = await getLoginAttemptInfo<AgentaPasswordlessAttempt>()
+
+                    if (attemptInfo) {
+                        await setLoginAttemptInfo({
+                            attemptInfo: {
+                                ...attemptInfo,
+                                agentaApiUrl: getAgentaApiUrl(),
+                            },
+                        })
+                    }
+                } catch (err) {
+                    console.error("Failed to tag passwordless login attempt:", err)
+                }
+
                 setMessage({
                     message: "Check your inbox for the OTP to continue!",
                     type: "success",
