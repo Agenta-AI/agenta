@@ -18,7 +18,6 @@ import {useLivenessPoll} from "../sessions/useLivenessPoll"
 import {ApprovalDock} from "./ApprovalDock"
 import {LiveConversation} from "./LiveConversation"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
-import {SessionTabs} from "./SessionTabs"
 import {SessionWorkspace} from "./SessionWorkspace"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
@@ -200,12 +199,6 @@ const ReplayScreen = ({
             embedded={embedded}
             header={
                 <>
-                    <SessionTabs
-                        sessionId={sessionId}
-                        projectId={projectId}
-                        workspaceId={workspaceId}
-                        agentId={agentId}
-                    />
                     {/* Why there is no composer. The session may still name an agent (the link
                         carries it) and only be missing a revision — don't claim it has none. */}
                     <p className="text-muted-foreground border-colorBorderSecondary m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-xs">

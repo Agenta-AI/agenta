@@ -14,7 +14,6 @@ import {AppShell} from "../nav/AppShell"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
-import {SessionTabs} from "./SessionTabs"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
@@ -156,12 +155,6 @@ export const LiveConversation = ({
             embedded={embedded}
             header={
                 <>
-                    <SessionTabs
-                        sessionId={sessionId}
-                        projectId={projectId}
-                        workspaceId={workspaceId}
-                        agentId={agentId}
-                    />
                     {running || streamingHere ? (
                         <div className="border-border shrink-0 border-b px-4 py-2">
                             <ContentRail className="flex items-center justify-between">

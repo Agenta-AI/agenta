@@ -82,8 +82,25 @@ const RailTab = ({
     draggable: boolean
 }) => {
     const ref = useRef<HTMLDivElement>(null)
+    // Reveal the active chip ONLY when it is actually off-screen. Scrolling on every activation
+    // meant that picking a session you could already see still yanked the rail — you scroll
+    // through a long strip, click, and it jumps back to centre the chip you just clicked. The
+    // desktop bar applies the same rule to its enter-animation nudge: move only when the tab
+    // pokes past a visible edge.
     useEffect(() => {
-        if (active) ref.current?.scrollIntoView({block: "nearest", inline: "nearest"})
+        if (!active) return
+        const tab = ref.current
+        if (!tab) return
+        let scroller: HTMLElement | null = tab.parentElement
+        while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowX)) {
+            scroller = scroller.parentElement
+        }
+        if (!scroller) return
+        const t = tab.getBoundingClientRect()
+        const s = scroller.getBoundingClientRect()
+        if (t.right > s.right || t.left < s.left) {
+            tab.scrollIntoView({block: "nearest", inline: "nearest"})
+        }
     }, [active])
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
 

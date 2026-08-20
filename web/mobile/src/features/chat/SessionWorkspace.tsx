@@ -10,6 +10,7 @@ import dynamic from "next/dynamic"
 import {AppShell} from "../nav/AppShell"
 
 import {SessionsPane} from "./SessionsPane"
+import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
 
 // Build's config panel carries the whole schema-form surface (DrillInView + the editor). Chat
@@ -134,7 +135,23 @@ export const SessionWorkspace = ({
                                         />
                                     ) : null
                                 }
-                                fill={<div className="ag-canvas h-full">{chat}</div>}
+                                fill={
+                                    <div className="ag-canvas flex h-full min-h-0 flex-col">
+                                        {/* The rail belongs to the WORKSPACE, not to one
+                                            conversation. It used to live inside the conversation's
+                                            pinned header, so keying that per session remounted the
+                                            rail too and reset its scroll to 0 — you would scroll a
+                                            long strip, pick a tab, and the strip snapped back to
+                                            the start. Up here it simply stays put. */}
+                                        <SessionTabs
+                                            sessionId={sessionId}
+                                            projectId={projectId}
+                                            workspaceId={workspaceId}
+                                            agentId={agentId}
+                                        />
+                                        <div className="min-h-0 flex-1">{chat}</div>
+                                    </div>
+                                }
                             />
                         }
                     />
