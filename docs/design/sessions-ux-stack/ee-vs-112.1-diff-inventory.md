@@ -1809,3 +1809,63 @@ difference. The same-environment guard refuses an identical pair; a DPR mismatch
 
 Still down at the time of writing: the browse daemon, the dev server and the `agenta-ee-dev-*`
 stack. Nothing can be driven until Arda brings them up.
+
+## 5c. Offline WP-3 pass — a prop-drop sweep, and what it found
+
+With the browser, dev server and stack all down, the one WP-3 lead that needs no browser is the
+one §2 already named: check the facades' own "deferred / unused" claims against real call sites.
+`EnhancedButton` (P-12) and `ChatBubble` (C-01) both hid behind a docstring asserting the
+opposite, so the claims are worth distrusting systematically.
+
+`qa112/prop-drop-sweep.py` generalises P-12's class: **props a call site passes that the component
+never reads.** `orphan-export-sweep.py` cannot see them — the symbol exists, type-checks and has
+consumers; it is the PROP that goes nowhere.
+
+**It is self-tested in both directions** against `a34206514b` (the P-12 fix): on the pre-fix source
+it reports `iconPosition  passed by 1 site(s): .../EmptyState.tsx`, and on the fixed source,
+nothing. That check earned its keep — three successive versions passed neither control:
+
+| version | why it failed |
+|---|---|
+| match by declaration | three `EmptyState`s and two `Select`s share a name; 25 call sites were attributed to a component that never sees them. Now resolved by what each site IMPORTS. |
+| `<Name[^>]*>` | truncates at the `>` inside `icon={<ArrowRight size={16} />}`, so every prop AFTER a JSX-valued prop is invisible — which is exactly where `iconPosition` sits. Now a depth-aware scanner. |
+| regex `name=` over the tag text | also matches props of JSX nested in a prop VALUE: `footer={<Button disabled loading/>}` made those look like drawer props from eight call sites. Now only depth-0 names. |
+| first `export *` wins | landed `EnhancedModal` on `InfiniteVirtualTable/columns/types.ts` and invented a group of 13. Now every `export *` is followed and only a branch that DECLARES the name is accepted. |
+
+71 raw hits became 13 real ones. **It cannot catch C-01's class** — a prop that is read but rendered
+with the wrong metrics — and says so; that needs a measurement against the other build.
+
+### D-21 — `closeOnLayoutClick` does nothing, and 13 drawers depend on it — **P1, NOT lane drift**
+
+`EnhancedDrawer` declares `closeOnLayoutClick?: boolean` (line 110) and its docstring lists it
+under **Covered**: "closeOnLayoutClick (Radix outside-click)". Those are its only two mentions.
+It is never destructured, never read, and the file has no `...rest`, so it cannot be forwarded
+implicitly either.
+
+Outside-click dismissal is gated on a differently-named prop:
+
+    onPointerDownOutside={(e) => { if (!maskClosable) e.preventDefault() }}
+    onInteractOutside={(e) => {  if (!maskClosable) e.preventDefault() }}
+
+with `maskClosable = true` as the default. **Thirteen drawers pass `closeOnLayoutClick={false}`
+and none of them passes `maskClosable`**, so every one of them dismisses on an outside click
+despite explicitly asking not to: `EditEvaluationDrawer`, `CreateEvaluatorDrawer`,
+`CreateHumanEvaluatorDrawer`, `HumanEvaluatorDrawer`, `OnlineEvaluationDrawer`,
+`TemplateSetupDrawer`, `TestcaseDrawer`, `TriggerSubscriptionDrawer`, `SessionDrawer`,
+`InspectorDrawer`, `TraceDrawer`, `FilesDrawer`, `FocusDrawer`. On the form drawers that means
+losing typed input to a stray click.
+
+**`origin/release/v0.112.2` is byte-identical here** (same two lines, same absence of a read), so
+this is PRE-EXISTING, not something the lane introduced — out of scope for a parity PR under the
+"112.2 wins" rule. Recorded, not fixed: the fix is small (`closeOnLayoutClick ?? maskClosable`)
+but it changes dismissal behaviour on thirteen surfaces, and no fix ships from this pass without
+being driven in a browser. Arda's call, and its own verification pass.
+
+### Cleared by the same sweep
+
+- `EnhancedButton`'s `disabled` (14 sites) and `aria-label` (6) — the file spreads `...rest` onto
+  the underlying button, so they arrive. The sweep flags `{...rest}` inline for exactly this.
+- `ChatBubble`, `SearchInput` (both definitions) and all three `EmptyState`s — every prop read.
+- `EnhancedModal`'s `mask` / `centered` / `classNames`, `EnhancedDrawer`'s `closeIcon` and
+  `classNames`, `InputNumber`'s `aria-labelledby`, `Select`'s `onValueChange` — all one to three
+  call sites, all cosmetic or `...rest`-covered. Not chased; listed so the next pass can skip them.

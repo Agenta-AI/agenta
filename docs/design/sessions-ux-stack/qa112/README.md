@@ -33,6 +33,7 @@ pin_tab local; pin_tab prod    # REQUIRED — see "DPR is per tab" below
 | `press.sh <env> <js>` | full pointer sequence (Radix needs `pointerdown`) |
 | `keepalive.sh <min>` | run backgrounded during long gates |
 | `doctor.sh` | preflight — run it first, and after any environment change |
+| `prop-drop-sweep.py` | props a call site passes that the component never reads (P-12's class) |
 
 Strips: `sidebar` · `content` · `content-top` · `content-body` · `config` · `config-top` · `chat`
 · `chat-body` · `full`, or an explicit `x,y,w,h` in CSS px.
