@@ -85,6 +85,13 @@ jobs:
           OSS_VERSION=$new_version
           cd ..
 
+          echo "Bumping web/mobile"
+          cd mobile
+          current_version=$(node -p "require('./package.json').version")
+          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          npm pkg set version="$new_version"
+          cd ..
+
           echo "Bumping web/packages/agenta-api-client"
           cd packages/agenta-api-client
           current_version=$(node -p "require('./package.json').version")
