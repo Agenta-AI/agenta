@@ -12,6 +12,8 @@ import {PageTitle} from "@/components/PageTitle"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {SessionHistoryMenu} from "./SessionHistoryMenu"
+
 /**
  * The conversation pane's header: this agent's sessions as tabs, the open one active — the same
  * strip the desktop playground carries above its transcript.
@@ -90,18 +92,29 @@ export const SessionTabs = ({
                     ) : undefined
                 }
                 extra={
-                    chatMaximized || filesOpen ? undefined : (
-                        <SimpleTooltip title="Show files" side="left">
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Show files pane"
-                                onClick={openPane}
-                                className="h-7 w-7 shrink-0 p-0"
-                            >
-                                <ChevronsLeft size={14} />
-                            </Button>
-                        </SimpleTooltip>
+                    chatMaximized ? undefined : (
+                        <>
+                            {/* Same slot and order as the desktop bar: history, then the files
+                                opener at the right edge the pane expands from. */}
+                            <SessionHistoryMenu
+                                agentId={agentId}
+                                base={base}
+                                activeSessionId={sessionId}
+                            />
+                            {filesOpen ? null : (
+                                <SimpleTooltip title="Show files" side="left">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Show files pane"
+                                        onClick={openPane}
+                                        className="h-7 w-7 shrink-0 p-0"
+                                    >
+                                        <ChevronsLeft size={14} />
+                                    </Button>
+                                </SimpleTooltip>
+                            )}
+                        </>
                     )
                 }
             />
