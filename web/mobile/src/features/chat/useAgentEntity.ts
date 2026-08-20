@@ -23,13 +23,18 @@ export const useAgentEntity = (
         queryFn: async () => {
             // `/sessions/query` rows carry the latest turn's workflow references (WP0-R3);
             // the raw stream row does NOT — references are stamped per turn.
-            const rows = await querySessions({projectId, sessionIds: [sessionId]})
-            // THIS session's row or nothing. The fallback here used to be `?? rows[0]`, which
-            // adopts a DIFFERENT session's agent whenever the response does not carry the one we
-            // asked for — a silent cross-session answer, cached for the full staleTime below.
-            const row = rows?.find((candidate) => candidate.session_id === sessionId)
-            // No row is a real answer for a session with no turns yet, so null rather than a
-            // throw. What is NOT an answer is another session's row.
+            // NOT `sessionIds: [sessionId]`. That filter matches the row's `session_id`, which is
+            // a different value from the `id` the route carries (v4 vs v7), so filtering by the
+            // route's id returns ZERO rows — measured against the running API.
+            const rows = await querySessions({projectId})
+            // Match on `id` — the session STREAM id, which is what the route carries. A row also
+            // has a `session_id`, and it is a different value entirely (v4 where `id` is v7), so
+            // matching on that never hit. It went unnoticed because the miss fell through to
+            // `?? rows[0]`: every session silently resolved the FIRST row's agent and revision.
+            const row = rows?.find(
+                (candidate) => candidate.id === sessionId || candidate.session_id === sessionId,
+            )
+            // No row is a real answer for a session with no turns yet. Another session's row is not.
             return row?.references?.find((ref) => ref.id && isValidUUID(ref.id))?.id ?? null
         },
         enabled: Boolean(sessionId && projectId),
