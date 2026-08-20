@@ -2059,3 +2059,17 @@ against the host on every call and `use_tab` proves the switch, rather than trus
 or `browse tab`'s exit code. Recovery: open a separate tab and re-pin; DPR 2 re-verified on both.
 
 This is the concrete payoff for `use_tab` proving the switch instead of trusting `browse tab`.
+
+### The commit modal is not reachable from a clean agent
+
+`Commit` is **disabled on both** while the config is `Saved` — correct, and identical. So the
+commit modal cannot be compared without deliberately dirtying a draft, which on prod is a write to
+Arda's cloud agent. Left for a session that has that permission; it is a real gap, since the modal
+is one of `@agenta/entity-ui`'s larger surfaces.
+
+One difference measured on the disabled button and **ruled out**: local sets
+`pointer-events: none`, prod leaves it `auto`. That would matter if a tooltip explained why the
+button is disabled — a disabled button with `pointer-events: none` cannot be hovered — but
+neither build attaches one (`title`, `aria-describedby` and any tooltip ancestor are all absent on
+both), so the difference is inert. Worth re-checking if a "nothing to commit" tooltip is ever
+added, because only prod's markup could show it.

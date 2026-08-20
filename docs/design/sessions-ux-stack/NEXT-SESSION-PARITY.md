@@ -30,6 +30,31 @@ touch new areas:
 
 It does NOT catch dropped **props** (that is how `iconPosition` hid) or behaviour changes.
 
+## 1b. Update — WP-1 is CLOSED, WP-2 is part-done
+
+Sessions since this was written (full detail in §4m–§5f of the inventory):
+
+- **WP-1 chat is finished.** Two bugs found and fixed, both driven: the 32px avatar column
+  (`ChatBubble`) and per-line fenced code blocks (Streamdown's `lineNumbers` coupling). Markdown
+  scale and rhythm restored to the desktop app's on Arda's call. Streaming, stop mid-stream, tool
+  steps, payload expanders, the composer, the send queue, elicitation (card + resume) and the
+  agent `/overview` are all confirmed at parity, in BOTH themes.
+- **WP-2 is started.** Config pane at rest is byte-identical (26 controls); the `Advanced`
+  drill-in drawer is at parity (0.11%). Only `model-harness` and `advanced` route to drawers —
+  every other section expands in place, so there are no other drill-ins to find.
+- **The harness is committed** at `qa112/` and survives a machine wipe. Run `doctor.sh` first,
+  then `pin_tab local; pin_tab prod`. It now also carries `prop-drop-sweep.py`.
+
+**Open decisions for Arda** (none shippable without him): **L-01** code-block theming
+(prod always-dark, local theme-following); **D-21** `closeOnLayoutClick` is inert so 13 drawers
+dismiss on outside clicks — pre-existing, so it wants its own PR; and whether to rename prod's
+agent back to `New agent` (it renamed ITSELF during an elicitation run, so the pair is no longer
+name-matched).
+
+**Next, in order:** the commit modal and Tools/Skills expansions (both need a dirty draft or an
+agent with real tools — the `PR reviewer` pair is the candidate), `DriveExplorer`, the entity
+pickers, then WP-3 with `prop-drop-sweep.py` as the entry point.
+
 ## 2. What is left, in priority order
 
 Prioritise by **files the lane changed**, not by route. Screening by route ranks the symptom;
