@@ -18,6 +18,11 @@ def test_trace_context_authorization_masked_in_repr() -> None:
     assert "supersecrettoken" not in repr(trace)
 
 
+def test_trace_context_export_authorization_masked_in_repr() -> None:
+    trace = TraceContext(export_authorization="Secret supersecrettoken")
+    assert "supersecrettoken" not in repr(trace)
+
+
 def test_wire_tool_callback_authorization_masked_in_repr() -> None:
     callback = WireToolCallback(
         endpoint="https://example.test/tools/call",

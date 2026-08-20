@@ -205,26 +205,31 @@ function redactAttributes(
   }
 }
 
-/** Cache one exporter per distinct endpoint+auth so we do not rebuild per export. */
-const exporterCache = new Map<string, OTLPTraceExporter>();
-
-function targetKey(target: ExportTarget): string {
-  return `${target.endpoint}\n${target.authorization ?? ""}`;
-}
+/**
+ * Cache ONE exporter per endpoint so we do not rebuild per export.
+ *
+ * Keyed on the endpoint alone, and the credential is held beside it only to detect a change.
+ * Keying on the bearer instead would grow this map by one live entry per credential — which,
+ * now that the export credential is refreshed every turn, means one per turn for the process's
+ * whole life, each retaining a usable token in memory long after its turn ended. Rotating
+ * replaces the entry, so a given endpoint retains exactly the credential currently in use.
+ */
+const exporterCache = new Map<
+  string,
+  { authorization: string; exporter: OTLPTraceExporter }
+>();
 
 function getExporter(target: ExportTarget): OTLPTraceExporter {
-  const key = targetKey(target);
-  let exporter = exporterCache.get(key);
-  if (!exporter) {
-    exporter = new OTLPTraceExporter({
-      url: target.endpoint,
-      headers: target.authorization
-        ? { Authorization: target.authorization }
-        : {},
-      timeoutMillis: 10_000,
-    });
-    exporterCache.set(key, exporter);
-  }
+  const authorization = target.authorization ?? "";
+  const cached = exporterCache.get(target.endpoint);
+  if (cached && cached.authorization === authorization) return cached.exporter;
+
+  const exporter = new OTLPTraceExporter({
+    url: target.endpoint,
+    headers: authorization ? { Authorization: authorization } : {},
+    timeoutMillis: 10_000,
+  });
+  exporterCache.set(target.endpoint, { authorization, exporter });
   return exporter;
 }
 
@@ -396,7 +401,7 @@ class TraceBatchProcessor implements SpanProcessor {
   shutdown(): Promise<void> {
     return this.forceFlush().then(async () => {
       await Promise.all(
-        [...exporterCache.values()].map((exporter) => exporter.shutdown()),
+        [...exporterCache.values()].map((entry) => entry.exporter.shutdown()),
       );
     });
   }

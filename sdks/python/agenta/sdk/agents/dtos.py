@@ -413,10 +413,23 @@ class TraceContext(BaseModel):
 
     - ``traceparent`` / ``baggage`` are per-call protocol CONTEXT (the W3C trace-context propagation
       headers, kept verbatim). They ride ``context.propagation`` via :meth:`context_to_wire`.
-    - ``endpoint`` / ``authorization`` / ``capture_content`` are operator-owned telemetry CONFIG +
-      POLICY + CREDENTIAL: where spans export, what is captured, and the exporter auth. They ride
-      ``telemetry`` via :meth:`telemetry_to_wire`, with the credential nested under the exporter's
-      ``headers`` rather than as a free-floating field.
+    - ``endpoint`` / ``authorization`` / ``export_authorization`` / ``capture_content`` are
+      operator-owned telemetry CONFIG + POLICY + CREDENTIALS: where spans export, what is captured,
+      and two credentials with DIFFERENT authority. They ride ``telemetry`` via
+      :meth:`telemetry_to_wire`.
+
+    The two credentials must not be swapped:
+
+    - ``authorization`` is the CALLER'S GENERAL credential, full authority. It rides
+      ``exporters.otlp.headers.authorization``, and the runner reads that slot as the credential
+      it authenticates ALL session-coordination calls with (ownership claims, mount signing, the
+      turns ledger, history reconstruction, working-copy restore, attachment resolution). Putting
+      a narrower token here breaks every one of those calls.
+    - ``export_authorization`` is EXPORT-ONLY: the credential for the span-export (OTLP ingest)
+      request and nothing else. It may be narrowly scoped and longer-lived than the general
+      credential. It rides the sibling wire key ``exportAuthorization``; when unset the runner
+      falls back to ``headers.authorization``, which is what every platform sent before this
+      field existed.
 
     All fields optional; with none set the run traces standalone (or not at all), the
     standalone-SDK case."""
@@ -425,6 +438,7 @@ class TraceContext(BaseModel):
     baggage: Optional[str] = None
     endpoint: Optional[str] = None  # OTLP traces URL
     authorization: Optional[str] = Field(default=None, repr=False)
+    export_authorization: Optional[str] = Field(default=None, repr=False)
     capture_content: bool = True
 
     def context_to_wire(self) -> Dict[str, Any]:
@@ -439,14 +453,19 @@ class TraceContext(BaseModel):
 
     def telemetry_to_wire(self) -> Dict[str, Any]:
         """The telemetry CONFIG: the capture POLICY (``capture.content.enabled``) and the OTLP
-        exporter destination (``exporters.otlp.endpoint``) with the CREDENTIAL nested under the
-        exporter's standard ``authorization`` header."""
+        exporter destination (``exporters.otlp.endpoint``) with both credentials.
+
+        ``headers.authorization`` must stay the caller's GENERAL credential — the runner
+        authenticates session-coordination calls with whatever sits in that slot. The
+        export-only credential rides the sibling ``exportAuthorization`` key (outside
+        ``headers``); the runner falls back to ``headers.authorization`` when it is null."""
         return {
             "capture": {"content": {"enabled": self.capture_content}},
             "exporters": {
                 "otlp": {
                     "endpoint": self.endpoint,
                     "headers": {"authorization": self.authorization},
+                    "exportAuthorization": self.export_authorization,
                 }
             },
         }

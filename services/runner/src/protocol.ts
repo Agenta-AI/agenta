@@ -77,14 +77,29 @@ export interface RequestContext {
  *  - `capture.content.enabled` is the capture POLICY: default on; `false` strips message and tool
  *    content from the exported spans.
  *  - `exporters.otlp` is the OTLP destination: `endpoint` is the traces URL, and `headers` carries
- *    the exporter CREDENTIAL under the standard `authorization` header (kept verbatim), so the
- *    secret lives under the thing it authenticates rather than as a free-floating field.
+ *    a CREDENTIAL under the standard `authorization` header (kept verbatim).
+ *
+ * TWO CREDENTIALS LIVE HERE, AND THEY ARE NOT INTERCHANGEABLE. Read the right one.
+ *
+ *  - `headers.authorization` is the caller's GENERAL credential. Despite sitting under the
+ *    exporter, it is the runner's only source for authenticating session-coordination calls AS
+ *    the caller — ownership claims, mount signing, the turns ledger, history reconstruction,
+ *    attachment resolution (see `runCredential`). It must stay a full-authority credential.
+ *  - `exportAuthorization` authenticates the span EXPORT and nothing else. It may be narrowly
+ *    scoped (trace ingest only) and longer-lived than the general credential, because a warm
+ *    session outlives the general credential many times over. Optional: absent, the export falls
+ *    back to `headers.authorization`, which is what every platform did before this field existed.
+ *
+ * Putting a scoped token in `headers.authorization` breaks every session call listed above, so
+ * resolve the export credential through `exportAuthorizationOf`, never by reading either field
+ * directly.
  *
  * All fields optional; an absent endpoint/headers falls back to the runner's env config.
  */
 export interface OtlpExporter {
   endpoint?: string;
   headers?: Record<string, string>;
+  exportAuthorization?: string;
 }
 
 export interface Telemetry {

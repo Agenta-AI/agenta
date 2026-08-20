@@ -41,6 +41,7 @@ import type {
   RunPlanPrompt,
   RunPlanWorkspace,
 } from "./run-plan.ts";
+import { exportAuthorizationOf } from "./runtime-policy.ts";
 
 type Log = (message: string) => void;
 
@@ -489,7 +490,9 @@ export function buildPiExtensionEnv(
   const otlp = telemetry?.exporters?.otlp;
   if (propagation?.traceparent) env.TRACEPARENT = propagation.traceparent;
   if (otlp?.endpoint) env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = otlp.endpoint;
-  if (otlp?.headers?.authorization && opts.otlpAuthFilePath)
+  // The EXPORT credential, never `runCredential` — see `exportAuthorizationOf`. The two ride the
+  // same wire object and only one of them may be scope-limited.
+  if (telemetry && exportAuthorizationOf(request) && opts.otlpAuthFilePath)
     env.AGENTA_AGENT_OTLP_AUTH_FILE = opts.otlpAuthFilePath;
   if (telemetry?.capture?.content?.enabled === false)
     env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED = "false";

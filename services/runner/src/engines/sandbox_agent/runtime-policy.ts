@@ -16,6 +16,27 @@ export function runCredential(request: AgentRunRequest): string {
   return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
 }
 
+/**
+ * The credential to authenticate the span EXPORT with — the sibling of `runCredential`, and the
+ * only one of the two that may be narrowly scoped.
+ *
+ * `runCredential` above reads the same wire object but must keep returning the caller's GENERAL
+ * credential: it authenticates session ownership, mount signing, the turns ledger, and history
+ * reconstruction. So the export credential rides its own field, and this falls back to the
+ * general one only because that is what every platform sent before the field existed.
+ *
+ * Both read sites (the in-sandbox Pi exporter's auth file, and the runner's own exporter) go
+ * through this, so the precedence has one definition and cannot drift between them.
+ */
+export function exportAuthorizationOf(
+  request: AgentRunRequest,
+): string | undefined {
+  const otlp = request.telemetry?.exporters?.otlp;
+  const scoped = otlp?.exportAuthorization?.trim();
+  if (scoped) return scoped;
+  return runCredential(request) || undefined;
+}
+
 export function serverPermissionsFromRequest(
   request: AgentRunRequest,
 ): ReadonlyMap<string, ToolPermission> {

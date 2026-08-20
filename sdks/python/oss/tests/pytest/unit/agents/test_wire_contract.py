@@ -182,6 +182,7 @@ def _pi_payload():
             traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             endpoint="https://otlp.example/v1/traces",
             authorization="Access tok-123",
+            export_authorization="Secret trace-tok-456",
             capture_content=True,
         ),
         # The run's own context (trace + workflow identity), refreshed per turn and consumed only by
@@ -415,12 +416,18 @@ def test_request_to_wire_pi_matches_golden(golden):
             "baggage": None,
         }
     }
+    # `headers.authorization` and `exportAuthorization` are two credentials with different
+    # authority riding side by side: the general credential authenticates every session-
+    # coordination call the runner makes AS the caller, while `exportAuthorization` authenticates
+    # only the span-export request and may be a narrower, longer-lived token. They must land in
+    # their own slots, never merged or swapped.
     assert payload["telemetry"] == {
         "capture": {"content": {"enabled": True}},
         "exporters": {
             "otlp": {
                 "endpoint": "https://otlp.example/v1/traces",
                 "headers": {"authorization": "Access tok-123"},
+                "exportAuthorization": "Secret trace-tok-456",
             }
         },
     }

@@ -27,7 +27,8 @@
         "endpoint": "https://otlp.example/v1/traces",
         "headers": {
           "authorization": "Access tok-123"
-        }
+        },
+        "exportAuthorization": "Secret trace-tok-456"
       }
     }
   },

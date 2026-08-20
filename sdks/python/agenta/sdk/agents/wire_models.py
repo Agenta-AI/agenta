@@ -185,10 +185,18 @@ class WireCapture(_WireModel):
 class WireOtlpExporter(_WireModel):
     """The OTLP exporter destination inside ``telemetry.exporters`` — the traces ``endpoint`` plus
     the credential nested under the standard ``authorization`` header, so the secret lives under the
-    thing it authenticates."""
+    thing it authenticates.
+
+    ``headers.authorization`` is the caller's GENERAL credential; the runner also authenticates
+    session-coordination calls (not just span export) with whatever sits in that slot, so it must
+    stay full-authority. ``export_authorization`` is a separate, EXPORT-only credential (may be
+    scoped/longer-lived); when unset the runner falls back to ``headers.authorization``."""
 
     endpoint: Optional[str] = None
     headers: Optional[Dict[str, str]] = None
+    export_authorization: Optional[str] = Field(
+        default=None, alias="exportAuthorization"
+    )
 
 
 class WireExporters(_WireModel):

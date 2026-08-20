@@ -169,8 +169,9 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.sessionId, "sess-1");
     // The run's tracing inputs reach the runner grouped by role (trace/telemetry restructure): the
     // per-call W3C propagation under `context.propagation`, and the operator-owned exporter config +
-    // capture policy under `telemetry` (the OTLP credential under the standard `authorization`
-    // header). No single `trace` bucket mixes the four roles anymore.
+    // capture policy under `telemetry`. No single `trace` bucket mixes the four roles anymore.
+    // The two telemetry credentials ride SEPARATE slots and carry different authority: see the
+    // `OtlpExporter` contract and `exportAuthorizationOf`.
     assert.equal(
       req.context!.propagation!.traceparent,
       "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
@@ -183,6 +184,10 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(
       req.telemetry!.exporters!.otlp!.headers!.authorization,
       "Access tok-123",
+    );
+    assert.equal(
+      req.telemetry!.exporters!.otlp!.exportAuthorization,
+      "Secret trace-tok-456",
     );
     assert.equal((req as Record<string, unknown>).trace, undefined);
     // Pi exposes the prompt overrides.

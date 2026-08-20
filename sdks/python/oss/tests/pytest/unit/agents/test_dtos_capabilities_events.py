@@ -66,7 +66,13 @@ def test_trace_context_serializes_into_role_separated_wire_objects():
     }
     assert trace.telemetry_to_wire() == {
         "capture": {"content": {"enabled": True}},  # defaults on
-        "exporters": {"otlp": {"endpoint": "ep", "headers": {"authorization": None}}},
+        "exporters": {
+            "otlp": {
+                "endpoint": "ep",
+                "headers": {"authorization": None},
+                "exportAuthorization": None,
+            }
+        },
     }
 
 
