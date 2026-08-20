@@ -177,6 +177,27 @@ I2 reports an unset `TELEGRAM_BOT_TOKEN` as a loud journey `SKIP` and makes the 
 green. The token is read from the process environment only and is never printed or stored in the
 result.
 
+## Cross-cutting invariants (fold into every cell's verdict)
+
+These are not cells. They are pure checks in `qa_matrix_lib.py` that a cell folds into its PASS
+condition, so a cell cannot report green on a run that violated one. Both exist because a cell's
+own assertions are scenario-shaped and can be satisfied for the wrong reason.
+
+| Invariant | What it pins | Wired into |
+|---|---|---|
+| `check_no_blank_success_on_refusal(turns, log_lines)` | No `tool_result` with empty output and `isError:false` may exist for a call the runner logged as `[commit-auth] refused`. A refusal must reach the wire as an error or a denial, never as a blank that reads as success. | `matrix_invariant_commit_auth_refusal.py` |
+| `check_no_silent_turn(turns)` | No turn may come back completely bare — no text, no tool call, no approval gate, no file or data payload, no error. That is a swallowed provider failure (ASD-EST100) arriving as a clean empty finish: the user sees a blank bubble with no reason anywhere. | `matrix_w7.py`, `matrix_w7_daytona.py`, `matrix_w7_per_harness.py`, `matrix_t8_saved_files.py`, `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`, `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py`, `matrix_w5.py` |
+
+The silent-turn check matters most in cells whose PASS depends on something NOT appearing (no
+error, no leak, no blank success): a turn that produced nothing satisfies those by doing nothing
+at all. Its definition of content deliberately mirrors `content_parts_emitted` in the product's
+own Vercel egress, so it never fires on a turn whose only output was a file or a data payload —
+and reasoning does not count, so a turn that only thought is still a violation. A cell must
+exclude any turn it deliberately aborted or interrupted, which legitimately ends bare;
+`matrix_w5.py` shows the pattern by checking only its post-interrupt turns. When you add a cell,
+add `and not silent["violations"]` to its verdict — `resources/test_qa_matrix_lib_silent_turns.py`
+fails if a wired cell drops it.
+
 ## Optional probes (`qa_longctx.py`)
 
 Separate from the gate, these need live **Gmail and GitHub Composio connections** in the target
