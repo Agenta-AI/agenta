@@ -1,16 +1,12 @@
 /**
  * Recovering a swallowed provider error from a REMOTE (Daytona) sandbox.
  *
- * `findSwallowedPiError` reads Pi's transcript to turn an empty turn into a real failure, but it
- * reads the runner's own filesystem, so it is switched off on Daytona (`pi-error.ts` says so in
- * its header, `run-turn.ts` gates it behind `!plan.isDaytona`). Cloud runs on Daytona. That makes
- * production the one place where the safety net does not exist — every swallowed provider error
- * there becomes a blank bubble, and the only copy of the message dies with the sandbox.
- *
- * The sandbox already exposes a daemon file API that other code reads through (`usage.ts` pulls
- * the usage file, `pi-assets.ts` pulls the skill-snapshot marker), so the transcript is reachable
- * before teardown. These tests stand a Pi transcript up inside a fake remote sandbox and pin that
- * the error reaches the caller.
+ * `findSwallowedPiError` reads Pi's transcript to turn an empty turn into a real failure. On a
+ * local run it reads the runner's own filesystem; on Daytona — which is where cloud runs — the
+ * transcript lives inside the remote sandbox, so the reader goes through the sandbox's daemon
+ * file API (the same API `usage.ts` and `pi-assets.ts` read through), before teardown takes the
+ * only copy of the message with it. These tests stand a Pi transcript up inside a fake remote
+ * sandbox and pin that the error reaches the caller.
  *
  * Fixture note: the fake supports both ways a reader might find the transcript — `readFsFile`
  * serves it for any `.jsonl` path, and `runProcess` answers an `ls` on stdout the way
@@ -85,45 +81,39 @@ describe("a Pi transcript inside a remote sandbox", () => {
     assert.equal(result.output, "The answer is 4.");
   });
 
-  it.fails(
-    "surfaces the provider failure on an empty turn [awaiting fix: Daytona swallowed-error reader]",
-    async () => {
-      const { result } = await runSilentTurn(
-        { harness: "pi_core", sandbox: "daytona" },
-        {
-          cwd: REMOTE_CWD,
-          sandboxTranscript: piTranscriptWithError(REMOTE_CWD, RATE_LIMIT_ERROR),
-        },
-      );
+  it("surfaces the provider failure on an empty turn", async () => {
+    const { result } = await runSilentTurn(
+      { harness: "pi_core", sandbox: "daytona" },
+      {
+        cwd: REMOTE_CWD,
+        sandboxTranscript: piTranscriptWithError(REMOTE_CWD, RATE_LIMIT_ERROR),
+      },
+    );
 
-      assert.equal(result.ok, false);
-      // Asserting on the substance of THIS failure, not on wording: only a recovery that actually
-      // read the remote transcript can produce it. A generic "the agent produced no output"
-      // cannot satisfy this, which is the point.
-      assert.ok(
-        result.error?.toLowerCase().includes("rate limit"),
-        `expected the transcript's failure, got: ${result.error}`,
-      );
-    },
-  );
+    assert.equal(result.ok, false);
+    // Asserting on the substance of THIS failure, not on wording: only a recovery that actually
+    // read the remote transcript can produce it. A generic "the agent produced no output"
+    // cannot satisfy this, which is the point.
+    assert.ok(
+      result.error?.toLowerCase().includes("rate limit"),
+      `expected the transcript's failure, got: ${result.error}`,
+    );
+  });
 
-  it.fails(
-    "reads the transcript out of the sandbox before teardown [awaiting fix: Daytona swallowed-error reader]",
-    async () => {
-      const { readFsFilePaths } = await runSilentTurn(
-        { harness: "pi_core", sandbox: "daytona" },
-        {
-          cwd: REMOTE_CWD,
-          sandboxTranscript: piTranscriptWithError(REMOTE_CWD, RATE_LIMIT_ERROR),
-        },
-      );
+  it("reads the transcript out of the sandbox before teardown", async () => {
+    const { readFsFilePaths } = await runSilentTurn(
+      { harness: "pi_core", sandbox: "daytona" },
+      {
+        cwd: REMOTE_CWD,
+        sandboxTranscript: piTranscriptWithError(REMOTE_CWD, RATE_LIMIT_ERROR),
+      },
+    );
 
-      // The recovery has to happen while the sandbox is still alive. Pinning the read (rather
-      // than only the message) is what stops the check being satisfied by a hard-coded string.
-      assert.ok(
-        readFsFilePaths.some((path) => path.endsWith(".jsonl")),
-        `no transcript read from the sandbox, only: ${readFsFilePaths.join(", ")}`,
-      );
-    },
-  );
+    // The recovery has to happen while the sandbox is still alive. Pinning the read (rather
+    // than only the message) is what stops the check being satisfied by a hard-coded string.
+    assert.ok(
+      readFsFilePaths.some((path) => path.endsWith(".jsonl")),
+      `no transcript read from the sandbox, only: ${readFsFilePaths.join(", ")}`,
+    );
+  });
 });

@@ -1,5 +1,5 @@
 /**
- * Recover a model-call error that Pi swallows on the local sandbox-agent path.
+ * Recover a model-call error that Pi swallows on the sandbox-agent path.
  *
  * When Pi's provider call fails (out-of-quota, bad key, rate limit, unknown model, ...),
  * Pi records the failed turn in its session transcript as an assistant message with
@@ -8,15 +8,15 @@
  * then returns an `ok: true` run with empty output, and the user sees a silent "No response"
  * instead of the real failure.
  *
- * This reader closes that gap on the LOCAL path (Pi runs on the runner host, so its session
- * dir is on this filesystem). After a Pi turn that produced no output, the engine asks this
+ * This reader closes that gap. After a Pi turn that produced no output, the engine asks this
  * helper for the transcript's last assistant `errorMessage`; when present, the run is failed
- * loud with that message instead of returning an empty turn.
+ * loud with that message instead of returning an empty turn. On a local run the transcript is
+ * on this filesystem; on a Daytona run it lives inside the remote sandbox and is read through
+ * the sandbox's daemon file API (the same API `usage.ts` and `pi-assets.ts` read through),
+ * which must happen while the sandbox is still alive — the transcript dies with it.
  *
  * It is deliberately best-effort and side-effect free: any filesystem/parse problem returns
  * `undefined` so a genuinely empty (but successful) turn is never turned into a false error.
- * Daytona is out of scope (the transcript lives in the remote sandbox); the empty-turn there
- * stays as-is until the harness surfaces the error over ACP.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -41,14 +41,8 @@ interface PiMessageRecord {
   };
 }
 
-/** The most recent assistant error in one transcript, or undefined if none / unreadable. */
-function lastAssistantError(jsonlPath: string): string | undefined {
-  let raw: string;
-  try {
-    raw = readFileSync(jsonlPath, "utf8");
-  } catch {
-    return undefined;
-  }
+/** The most recent assistant error in one transcript's content, or undefined if none. */
+function lastAssistantError(raw: string): string | undefined {
   let found: string | undefined;
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
@@ -72,19 +66,21 @@ function lastAssistantError(jsonlPath: string): string | undefined {
   return found;
 }
 
-/** The `session` record of a transcript file, or undefined if unreadable / not a session. */
-function readSessionRecord(jsonlPath: string): PiSessionRecord | undefined {
-  let raw: string;
-  try {
-    raw = readFileSync(jsonlPath, "utf8");
-  } catch {
-    return undefined;
-  }
+/** The `session` record of a transcript's content, or undefined if not a session. */
+function sessionRecordOf(raw: string): PiSessionRecord | undefined {
   const firstLine = raw.split("\n", 1)[0]?.trim();
   if (!firstLine) return undefined;
   try {
     const record = JSON.parse(firstLine) as PiSessionRecord;
     return record.type === "session" ? record : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readLocalFile(path: string): string | undefined {
+  try {
+    return readFileSync(path, "utf8");
   } catch {
     return undefined;
   }
@@ -100,8 +96,28 @@ function readSessionRecord(jsonlPath: string): PiSessionRecord | undefined {
  * transcripts flat into it, one `.jsonl` per session. Pi also stamps the cwd on every
  * transcript's `session` record; matching on it guards against stale or copied transcripts.
  * Among matches (a resumed session can have several), the newest file wins.
+ *
+ * Without `remote`, the transcript is read from this process's filesystem (a local run) and
+ * the answer is synchronous. With `remote`, it is read out of the given sandbox (a Daytona
+ * run) through the daemon file API, and the answer is a promise.
  */
 export function findSwallowedPiError(
+  sessionWorkspaceCwd: string,
+): string | undefined;
+export function findSwallowedPiError(
+  sessionWorkspaceCwd: string,
+  remote: { sandbox: any },
+): Promise<string | undefined>;
+export function findSwallowedPiError(
+  sessionWorkspaceCwd: string,
+  remote?: { sandbox: any },
+): string | undefined | Promise<string | undefined> {
+  if (remote)
+    return findRemoteSwallowedPiError(remote.sandbox, sessionWorkspaceCwd);
+  return findLocalSwallowedPiError(sessionWorkspaceCwd);
+}
+
+function findLocalSwallowedPiError(
   sessionWorkspaceCwd: string,
 ): string | undefined {
   const transcriptDir = piSessionWorkspaceDir(sessionWorkspaceCwd);
@@ -112,13 +128,14 @@ export function findSwallowedPiError(
     return undefined;
   }
 
-  let newestPath: string | undefined;
+  let newestRaw: string | undefined;
   let newestMtime = -1;
   for (const file of files) {
     if (!file.endsWith(".jsonl")) continue;
     const filePath = join(transcriptDir, file);
-    const session = readSessionRecord(filePath);
-    if (session?.cwd !== sessionWorkspaceCwd) continue;
+    const raw = readLocalFile(filePath);
+    if (raw === undefined) continue;
+    if (sessionRecordOf(raw)?.cwd !== sessionWorkspaceCwd) continue;
     let mtime: number;
     try {
       mtime = statSync(filePath).mtimeMs;
@@ -127,9 +144,50 @@ export function findSwallowedPiError(
     }
     if (mtime > newestMtime) {
       newestMtime = mtime;
-      newestPath = filePath;
+      newestRaw = raw;
     }
   }
 
-  return newestPath ? lastAssistantError(newestPath) : undefined;
+  return newestRaw ? lastAssistantError(newestRaw) : undefined;
+}
+
+async function findRemoteSwallowedPiError(
+  sandbox: any,
+  sessionWorkspaceCwd: string,
+): Promise<string | undefined> {
+  const transcriptDir = piSessionWorkspaceDir(sessionWorkspaceCwd);
+  let names: string[];
+  try {
+    // `-t` sorts newest-first, standing in for the local reader's mtime comparison (the
+    // remote listing carries no timestamps to compare).
+    const ls = await sandbox.runProcess({
+      command: "ls",
+      args: ["-1t", transcriptDir],
+      timeoutMs: 10_000,
+    });
+    names = String(ls?.stdout ?? "")
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } catch {
+    return undefined;
+  }
+
+  for (const name of names) {
+    if (!name.endsWith(".jsonl")) continue;
+    let raw: string;
+    try {
+      const bytes = await sandbox.readFsFile({
+        path: `${transcriptDir}/${name}`,
+      });
+      raw = typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+    } catch {
+      continue;
+    }
+    if (sessionRecordOf(raw)?.cwd !== sessionWorkspaceCwd) continue;
+    // The newest transcript this run owns decides, exactly like the local mtime pick: a
+    // stale sibling behind it must not resurrect an older error.
+    return lastAssistantError(raw);
+  }
+  return undefined;
 }
