@@ -2456,3 +2456,28 @@ docstring's "deferred (rare / unused)" claim cost. Local now shows one.
 Drawer width is 736 on both and every other control matches, so the testcase drawer is otherwise at
 parity. **Worth the detour:** D-22 was previously pinned only by a render test, and a render test
 cannot tell you the real drawer stacks two X's on top of each other.
+
+## 5l. Regression pass — all seven fixes still hold
+
+Re-measured live after a day of churn on the same build:
+
+| fix | expected | measured |
+|---|---|---|
+| C-01 avatar column | 32px slot | **32** |
+| C-02 fenced code lines | one block per line | **block, block, block** |
+| C-04 markdown scale | h1 16 / h2 14 / body 14 | **16 / 14 / 14**, gaps 12·4·14·14·14·8·12·16 against prod's 12·4·14·14·14·8·13·21 |
+| U-01 range picker | active row painted | `24 hours` @ `rgba(255,255,255,0.12)`, others transparent |
+| D-21 outside-click | drawer survives | two-build control, same day |
+| D-22 `closeIcon` | one close, not two | two-build control, same day |
+| D-23 / modal `classNames` | slots reach elements | 83/83 unit tests |
+
+**A harness trap that cost several turns, worth recording:** an unsaved testcase installs a
+`beforeunload` guard, and BOTH builds then refuse every `goto.sh` — the daemon auto-dismisses the
+dialog, which cancels the navigation, and `goto.sh` just reports MISS. In-app link clicks are
+blocked too while the drawer is open. The escape is `browse dialog-accept` BEFORE setting
+`location.href`. Same family as the unsaved-draft guard in §5g, but this one also survives an
+attempted SPA navigation.
+
+**Left unresolved on purpose:** the trace-drawer scrollbar question needs a prod trace big enough
+to overflow, and prod's observability currently lists no rows under any range I could set — so the
+comparison still cannot be made. It stays inconclusive rather than guessed at.
