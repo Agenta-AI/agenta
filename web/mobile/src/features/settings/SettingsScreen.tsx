@@ -11,7 +11,12 @@ import {
 } from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
-import {getSettingsTabDescription, getSettingsTabLabel, type SettingsTabKey} from "@agenta/settings"
+import {
+    getSettingsTabDescription,
+    getSettingsTabLabel,
+    getSettingsTabVariant,
+    type SettingsTabKey,
+} from "@agenta/settings"
 import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
     AccessControlsSection,
@@ -356,10 +361,12 @@ export const SettingsScreen = ({
 
     const content = (
         <div className="min-w-0 flex-1 overflow-y-auto">
-            {/* No content cap: the desktop's 640/1120 caps left every section floating in a
-                wide empty column here. */}
+            {/* The shared page cap, same as every desktop Settings tab. It was escaped here when
+                this app was phone-only; `max-w-[1248px]` never binds below ~1490px of viewport,
+                so it costs phones nothing and stops the page sprawling edge to edge on the
+                desktop widths this app now serves. */}
             <SettingsPageShell
-                variant="full"
+                variant={getSettingsTabVariant(active)}
                 title={getSettingsTabLabel(active, access)}
                 description={getSettingsTabDescription(active, access)}
             >

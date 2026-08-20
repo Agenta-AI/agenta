@@ -228,3 +228,19 @@ export const getSettingsSidebarTabs = (access: SettingsAccess) =>
         title: getSettingsTabLabel(tab.key, access),
         isHidden: !isSettingsTabVisible(tab.key, access),
     }))
+
+/** Tabs whose body is a short form, not a table: 640px, so the fields do not run the monitor. */
+const FORM_TABS = new Set<SettingsTabKey>(["account", "preferences"])
+
+/** The one tab that wants the whole width: the Audit Log's timestamp + event type + full UUID. */
+const FULL_WIDTH_TABS = new Set<SettingsTabKey>(["auditLog"])
+
+/**
+ * How wide a Settings tab's body runs, for `SettingsPageShell`'s `variant`.
+ *
+ * Shared because the shell DEFAULTS to `full`, so a host that forgets to pass this renders an
+ * uncapped page rather than an obviously broken one. /m did exactly that: Preferences ran the
+ * full 1544px against the desktop's 640px, which is only visible on a large screen.
+ */
+export const getSettingsTabVariant = (key: SettingsTabKey): "full" | "table" | "form" =>
+    FORM_TABS.has(key) ? "form" : FULL_WIDTH_TABS.has(key) ? "full" : "table"
