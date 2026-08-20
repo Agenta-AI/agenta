@@ -78,6 +78,7 @@ import {
   type SessionEnvironment,
 } from "./runtime-contracts.ts";
 import {
+  exportAuthorizationOf,
   runCredential,
   serverPermissionsFromRequest,
   shouldSuppressPausedToolCallUpdate,
@@ -265,7 +266,7 @@ export async function runTurn(
     // which reads the incoming request directly (just below).
     refreshOtlpAuthFile(
       env.otlpAuthFilePath,
-      request.telemetry?.exporters?.otlp?.headers?.authorization,
+      exportAuthorizationOf(request),
       logger,
     );
 
@@ -276,7 +277,9 @@ export async function runTurn(
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
       endpoint: request.telemetry?.exporters?.otlp?.endpoint,
-      authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
+      // The EXPORT credential, not `credential` above: that one is the caller's general
+      // credential for session-coordination calls, and only this one may be scope-limited.
+      authorization: exportAuthorizationOf(request),
       captureContent: request.telemetry?.capture?.content?.enabled,
       // Seed from the request's typed model/MCP credential material (`requestSecretValues` —
       // on a Daytona Secrets run the opaque values left the plaintext env for the secret plan

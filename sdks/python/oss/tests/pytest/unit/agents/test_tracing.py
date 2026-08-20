@@ -27,10 +27,13 @@ def test_trace_context_keeps_authorization_without_traceparent(monkeypatch):
     assert context.authorization == "ApiKey invoke-credential"
 
 
-def test_trace_context_prefers_telemetry_credentials(monkeypatch):
-    # The dedicated trace-ingest credential outlives the caller's general credential, so
-    # when the platform issues one the exporter must use it instead of the Authorization
-    # header that `inject` re-emits from the general credential.
+def test_trace_context_splits_general_and_export_credentials(monkeypatch):
+    # THE REGRESSION TEST for the session-breaking blocker: the runner reads
+    # `telemetry.exporters.otlp.headers.authorization` to authenticate ALL session-coordination
+    # calls (ownership claims, mount signing, the turns ledger, history reconstruction,
+    # working-copy restore, attachment resolution), not just span export. If a scoped
+    # trace-ingest-only credential ever lands in that slot instead of `export_authorization`,
+    # every one of those calls is rejected and agent sessions break end to end.
     monkeypatch.setattr(
         tracing,
         "inject",
@@ -45,14 +48,16 @@ def test_trace_context_prefers_telemetry_credentials(monkeypatch):
     context = tracing.trace_context()
 
     assert context is not None
-    assert context.authorization == "Secret telemetry-credential"
+    assert context.authorization == "Secret general-credential"
+    assert context.export_authorization == "Secret telemetry-credential"
 
 
 def test_trace_context_falls_back_to_authorization_without_telemetry_credentials(
     monkeypatch,
 ):
-    # Older platforms issue no telemetry credential; the exporter keeps using the
-    # caller's general credential exactly as before.
+    # Older platforms issue no telemetry credential; the runner falls back to
+    # `headers.authorization` for the export request too, and the general credential is
+    # unaffected either way.
     monkeypatch.setattr(
         tracing,
         "inject",
@@ -68,6 +73,7 @@ def test_trace_context_falls_back_to_authorization_without_telemetry_credentials
 
     assert context is not None
     assert context.authorization == "Secret general-credential"
+    assert context.export_authorization is None
 
 
 def test_trace_context_keeps_telemetry_credentials_without_traceparent(monkeypatch):
@@ -84,11 +90,17 @@ def test_trace_context_keeps_telemetry_credentials_without_traceparent(monkeypat
 
     assert context is not None
     assert context.traceparent is None
-    assert context.authorization == "Secret telemetry-credential"
+    assert context.authorization is None
+    assert context.export_authorization == "Secret telemetry-credential"
 
 
 def test_trace_context_none_without_traceparent_or_authorization(monkeypatch):
     monkeypatch.setattr(tracing, "inject", lambda _headers: {})
+    monkeypatch.setattr(
+        tracing.TracingContext,
+        "get",
+        lambda: SimpleNamespace(telemetry_credentials=None),
+    )
 
     assert tracing.trace_context() is None
 

@@ -172,6 +172,15 @@ async def test_trace_ingest_token_verifies_on_the_otlp_ingest_path(log):
     [
         "/workflows/123/revisions/commit",
         "/vault/v1/secrets",
+        # The agent runner's session-coordination calls, verbatim. They authenticate with the
+        # credential in `telemetry.exporters.otlp.headers.authorization` (see `runCredential`),
+        # so putting a trace-ingest token in that slot rejects EVERY one of them and the session
+        # dies. These paths are why the export credential rides its own wire field.
+        "/access/permissions/check",
+        "/sessions",
+        "/sessions/turns/",
+        "/sessions/turns/complete",
+        "/sessions/turns/query",
     ],
 )
 async def test_trace_ingest_token_is_rejected_everywhere_else(log, path):

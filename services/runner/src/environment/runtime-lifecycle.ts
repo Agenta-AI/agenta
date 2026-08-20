@@ -44,7 +44,10 @@ import {
   resolvePiToolSpecsDelivery,
   writePiToolSpecsFileLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
-import { applyClaudeConnectionEnv } from "../engines/sandbox_agent/runtime-policy.ts";
+import {
+  applyClaudeConnectionEnv,
+  exportAuthorizationOf,
+} from "../engines/sandbox_agent/runtime-policy.ts";
 import type { AgentRunRequest } from "../protocol.ts";
 import type { RunPlan } from "../engines/sandbox_agent/run-plan.ts";
 import type { Log } from "./timing.ts";
@@ -213,11 +216,7 @@ export function buildRuntimeEnvironment(
     p.isPi && !p.isDaytona ? `${p.workspace.relayDir}.otlp-auth` : undefined;
   // Turn one's bearer. Every later turn rewrites this file at dispatch (`runTurn`), because the
   // bearer outlives neither a warm session nor the extension's read-once consumption of it.
-  refreshOtlpAuthFile(
-    otlpAuthFilePath,
-    r.telemetry?.exporters?.otlp?.headers?.authorization,
-    input.log,
-  );
+  refreshOtlpAuthFile(otlpAuthFilePath, exportAuthorizationOf(r), input.log);
 
   const piExtEnv: Record<string, string> = p.isPi
     ? buildPiExtensionEnv(input.request, !p.isDaytona, {

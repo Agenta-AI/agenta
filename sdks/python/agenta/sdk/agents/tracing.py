@@ -43,11 +43,14 @@ def trace_context() -> Optional[TraceContext]:
 
     Threading the ``/invoke`` span's ``traceparent`` into the run makes the agent's spans
     children of that span, so the whole run shows up under the response's ``trace_id`` the
-    way completion/chat nest their LLM spans. The exporter credential prefers
-    ``TracingContext.telemetry_credentials`` — a dedicated trace-ingest-scoped token whose
-    lifetime covers warm agent sessions, unlike the caller's short-lived general credential —
-    and falls back to the caller's credential (``inject``'s ``Authorization`` re-emit from
-    ``TracingContext.credentials``) on platforms that do not issue one. Best-effort: any
+    way completion/chat nest their LLM spans. ``authorization`` is the caller's GENERAL
+    credential (``inject``'s ``Authorization`` re-emit from ``TracingContext.credentials``):
+    the runner reads that slot to authenticate session-coordination calls, so it must stay the
+    full-authority credential, never the telemetry one. ``export_authorization`` is the
+    EXPORT-only credential and prefers ``TracingContext.telemetry_credentials`` — a dedicated
+    trace-ingest-scoped token whose lifetime covers warm agent sessions, unlike the caller's
+    short-lived general credential — and is left unset when no telemetry credential was issued,
+    so the runner falls back to ``authorization`` for the export request too. Best-effort: any
     failure returns ``None`` and the run is traced standalone (or not at all) using the
     runner's env config.
     """
@@ -55,15 +58,14 @@ def trace_context() -> Optional[TraceContext]:
         headers = inject({})
 
         traceparent = headers.get("traceparent")
+        authorization = headers.get("Authorization")
         # The telemetry credential deliberately does NOT ride `inject()`'s
         # Authorization header (that one authenticates the caller's own outbound
         # calls); it is read off the context here, for the exporter only. A run
         # holding only a telemetry credential (no traceparent, no general
         # credential) still yields a TraceContext so its spans can export.
-        authorization = TracingContext.get().telemetry_credentials or headers.get(
-            "Authorization"
-        )
-        if not traceparent and not authorization:
+        export_authorization = TracingContext.get().telemetry_credentials
+        if not traceparent and not authorization and not export_authorization:
             return None
 
         endpoint = None
@@ -79,6 +81,7 @@ def trace_context() -> Optional[TraceContext]:
             baggage=headers.get("baggage"),
             endpoint=endpoint,
             authorization=authorization,
+            export_authorization=export_authorization,
             capture_content=_CAPTURE_CONTENT,
         )
     except Exception:  # pylint: disable=broad-except

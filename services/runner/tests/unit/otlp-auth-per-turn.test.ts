@@ -20,6 +20,11 @@ import factory, {
   readOtlpAuthFile,
 } from "../../src/extensions/agenta.ts";
 import { refreshOtlpAuthFile } from "../../src/engines/sandbox_agent/pi-assets.ts";
+import {
+  exportAuthorizationOf,
+  runCredential,
+} from "../../src/engines/sandbox_agent/runtime-policy.ts";
+import type { AgentRunRequest } from "../../src/protocol.ts";
 
 const tempRoots: string[] = [];
 
@@ -193,5 +198,55 @@ describe("the extension arms the per-turn refresh only when it exports traces", 
     await pi.fire("before_agent_start");
 
     assert.equal(readFileSync(path, "utf-8"), "Secret unused");
+  });
+});
+
+/**
+ * The export credential and the caller's general credential ride the SAME wire object, and
+ * exactly one of them may be scope-limited. Reading the wrong one is not a tracing bug: the
+ * runner authenticates session ownership, mount signing, the turns ledger, history
+ * reconstruction and attachment resolution with `runCredential`, so a trace-ingest-scoped token
+ * reaching that function fails every one of those calls and the session dies.
+ */
+describe("the export credential and the run credential stay separate", () => {
+  function requestWith(otlp: Record<string, unknown>): AgentRunRequest {
+    return {
+      harness: "pi_core",
+      messages: [{ role: "user", content: "hello" }],
+      telemetry: { exporters: { otlp } },
+    } as AgentRunRequest;
+  }
+
+  it("never lets a scoped export token become the run credential", () => {
+    const request = requestWith({
+      headers: { authorization: "Secret general-token" },
+      exportAuthorization: "Secret trace-ingest-token",
+    });
+
+    assert.equal(runCredential(request), "Secret general-token");
+    assert.equal(exportAuthorizationOf(request), "Secret trace-ingest-token");
+  });
+
+  it("exports with the general credential when the platform sends no scoped one", () => {
+    // Every platform predating the field, and every self-hosted stack yet to upgrade.
+    const request = requestWith({
+      headers: { authorization: "Secret general-token" },
+    });
+
+    assert.equal(exportAuthorizationOf(request), "Secret general-token");
+    assert.equal(runCredential(request), "Secret general-token");
+  });
+
+  it("reports no export credential when the run carries neither", () => {
+    assert.equal(exportAuthorizationOf(requestWith({})), undefined);
+  });
+
+  it("ignores a blank scoped token rather than exporting unauthenticated", () => {
+    const request = requestWith({
+      headers: { authorization: "Secret general-token" },
+      exportAuthorization: "   ",
+    });
+
+    assert.equal(exportAuthorizationOf(request), "Secret general-token");
   });
 });
