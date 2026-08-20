@@ -28,17 +28,8 @@ export const fetchAllOrgsList = async (): Promise<Org[]> => {
     const base = getBaseUrl()
     const url = new URL("api/organizations", base)
 
-    console.log("🔍 Organizations fetcher debug:", {
-        base,
-        url: url.toString(),
-    })
-
     try {
-        console.log("🚀 Calling fetchJson with URL:", url.toString())
         const data = await fetchJson(url)
-        console.log("✅ Organizations fetcher success:", {
-            count: data?.length || 0,
-        })
         return data || []
     } catch (error: any) {
         console.error("❌ Organizations fetcher failed:", {
@@ -65,19 +56,8 @@ export const fetchSingleOrg = async ({
     const base = getBaseUrl()
     const url = new URL(`api/organizations/${organizationId}`, base)
 
-    console.log("🔍 Single organization fetcher debug:", {
-        base,
-        organizationId,
-        url: url.toString(),
-    })
-
     try {
-        console.log("🚀 Calling fetchJson with URL:", url.toString())
         const data = await fetchJson(url)
-        console.log("✅ Single organization fetcher success:", {
-            organizationId,
-            name: data?.name,
-        })
         return data
     } catch (error: any) {
         console.error("❌ Single organization fetcher failed:", {

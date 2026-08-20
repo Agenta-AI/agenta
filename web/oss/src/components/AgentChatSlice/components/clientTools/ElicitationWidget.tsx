@@ -14,6 +14,7 @@ import {
     type StepInfo,
     formatReviewValue,
 } from "@agenta/entity-ui/gatewayTool"
+import {CLIENT_TOOL_NAMES, isInteractionEndedOutput} from "@agenta/shared/clientTools"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {
     type ElicitationResult,
@@ -33,7 +34,7 @@ import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@ph
 import {Button, Form, Typography} from "antd"
 import dayjs from "dayjs"
 
-import {resolveToolDisplay} from "../../assets/toolDisplay"
+import {canonicalToolName, resolveToolDisplay} from "../../assets/toolDisplay"
 
 import type {ClientToolHandlerProps} from "./types"
 
@@ -102,7 +103,7 @@ const SubmittedAnswers = ({
                     <div className="mt-1 flex min-w-0 flex-col gap-1 pl-[21px]">
                         {answered.map((f) => (
                             <div key={f.name} className="flex items-baseline justify-between gap-3">
-                                <Text type="secondary" className="!text-[11px] shrink-0">
+                                <Text type="secondary" className="!text-xs shrink-0">
                                     {f.label}
                                 </Text>
                                 <Text className="!text-xs max-w-[70%] truncate text-right">
@@ -131,7 +132,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
 
     // Accept stays disabled until every required question has an answer — a dominant, always-
     // enabled primary invites submitting unfinished forms. Defaults count, so a fully-prefilled
-    // form is born ready (one-click accept). Decline/Dismiss stay always-available.
+    // form is born ready (one-click accept). Decline/Dismiss stay available until a settle starts.
     const watchedValues = Form.useWatch([], form) as Record<string, unknown> | undefined
     const requiredNames = parsed.ok ? (parsed.payload.requestedSchema.required ?? []) : []
     const missingRequired = requiredNames.filter((name) => {
@@ -166,10 +167,17 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
             // storage unavailable — drafts are best-effort
         }
     }
+    // One settle per card: `meta.settled` only flips after an awaited record write, so without this
+    // latch a Decline landing on an in-flight Accept sends a second answer for the same tool call.
+    const settlingRef = useRef(false)
     const settleAndClear: typeof settle = (
         args: {output: Record<string, unknown>} | {errorText: string},
     ) => {
+        if (settlingRef.current) return
+        settlingRef.current = true
+        setSubmitting(true)
         clearDraft()
+        // Split by shape: `settle` is overloaded, so the union has to be narrowed to pick one.
         if ("errorText" in args) {
             settle(args)
         } else {
@@ -205,6 +213,13 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
 
     // Settled replays: chip copy comes from the envelope (`humanFriendlyMessage`), never re-resolved.
     if (partState !== "pending") {
+        if (isInteractionEndedOutput(meta.output)) {
+            return (
+                <Chip icon={<Question size={13} className="shrink-0 text-colorTextTertiary" />}>
+                    Request ended
+                </Chip>
+            )
+        }
         const envelopeMessage =
             meta.output &&
             typeof (meta.output as {humanFriendlyMessage?: unknown}).humanFriendlyMessage ===
@@ -281,6 +296,13 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     if (!parsed.ok) return null // degradation auto-settle in flight (effect above)
 
     const requiredCount = parsed.payload.requestedSchema.required?.length ?? 0
+    // The composer dock and the turn's status line already say the run is parked on you.
+    const asker = CLIENT_TOOL_NAMES.has(canonicalToolName(meta.toolName))
+        ? null
+        : `Asked by ${resolveToolDisplay(meta.toolName).label}`
+    const subtext = [asker, requiredCount > 0 ? `${requiredCount} required` : null]
+        .filter(Boolean)
+        .join(" · ")
     const stepperHint = Boolean(parsed.payload.requestedSchema["x-ag-stepper"])
 
     const handleAccept = async () => {
@@ -291,11 +313,13 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
             settleAndClear({
                 output: toOutput(buildAcceptResult(content, "Provided the requested input.")),
             })
+            // Deliberately still submitting: the settle is fire-and-forget behind an awaited record
+            // write, so re-enabling here lets a second click fire a second settle.
         } catch (err) {
             // antd surfaces inline field errors; in stepper mode, jump to the failing question.
             const first = (err as {errorFields?: {name: (string | number)[]}[]})?.errorFields?.[0]
             if (first?.name) formRef.current?.goToField?.(first.name)
-        } finally {
+            // The form is still open and answerable, so the button has to come back.
             setSubmitting(false)
         }
     }
@@ -329,13 +353,12 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 <Question size={14} weight="fill" className="shrink-0 mt-0.5 text-colorPrimary" />
                 <div className="flex min-w-0 flex-col">
                     <Text className="!text-xs">{parsed.payload.message}</Text>
-                    {/* Requester attribution — muted subtext, never a banner (design D-spec). */}
-                    <Text type="secondary" className="!text-[11px]">
-                        Asked by {resolveToolDisplay(meta.toolName).label}
-                        {requiredCount > 0
-                            ? ` · Waiting on your input · ${requiredCount} required`
-                            : " · Waiting on your input"}
-                    </Text>
+                    {/* Requester attribution (design D-spec); ours goes unnamed, the card IS the ask. */}
+                    {subtext ? (
+                        <Text type="secondary" className="!text-xs">
+                            {subtext}
+                        </Text>
+                    ) : null}
                 </div>
             </div>
 
@@ -389,6 +412,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 )}
                 <Button
                     type="text"
+                    disabled={submitting}
                     onClick={() =>
                         settleAndClear({
                             output: toOutput(buildDeclineResult("Declined the request.")),
@@ -400,6 +424,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 <Button
                     type="text"
                     className="ml-auto opacity-60"
+                    disabled={submitting}
                     onClick={() =>
                         settleAndClear({
                             output: toOutput(buildCancelResult("Dismissed the request.")),

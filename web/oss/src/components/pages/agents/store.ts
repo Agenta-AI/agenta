@@ -20,6 +20,7 @@ const mapWorkflowToRow = (workflow: Workflow): AppWorkflowRow => ({
     workflowId: workflow.id,
     name: workflow.name ?? workflow.slug ?? workflow.id,
     appType: "agent",
+    description: workflow.description ?? null,
     isEvaluator: false,
     updatedAt: workflow.updated_at ?? workflow.created_at ?? null,
     createdAt: workflow.created_at ?? null,

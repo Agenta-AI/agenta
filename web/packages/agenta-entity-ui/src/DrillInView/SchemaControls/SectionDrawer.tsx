@@ -68,7 +68,7 @@ export function SectionDrawer({
                 }
                 footer={
                     <div className="flex items-center justify-between gap-3">
-                        <span className="min-w-0 truncate text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
                             {footerNote}
                         </span>
                         <div className="flex shrink-0 items-center gap-2">

@@ -56,7 +56,7 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                 <div className="border-0 border-t border-solid border-colorBorderSecondary bg-[var(--ag-colorBgElevated)] px-4 py-2.5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-2.5">
-                            <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--ag-c-13C2C2,#13c2c2)_15%,transparent)] text-[var(--ag-c-13C2C2,#13c2c2)]">
+                            <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ag-type-agent-bg)] text-[var(--ag-type-agent-text)]">
                                 <Robot size={15} weight="fill" />
                             </span>
                             <div className="flex min-w-0 flex-col gap-0.5">
@@ -68,7 +68,7 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                                     <div className="flex min-w-0 flex-col items-start gap-0.5">
                                         <p
                                             ref={messageRef}
-                                            className={`m-0 min-w-0 break-words text-[11px] leading-4 text-colorTextSecondary ${
+                                            className={`m-0 min-w-0 break-words text-xs leading-4 text-colorTextSecondary ${
                                                 expanded
                                                     ? "max-h-24 overflow-y-auto pr-1"
                                                     : "line-clamp-2 overflow-hidden"
@@ -79,7 +79,7 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                                         {overflowing || expanded ? (
                                             <button
                                                 type="button"
-                                                className="cursor-pointer border-0 bg-transparent p-0 text-[11px] font-medium leading-4 text-colorPrimary hover:underline"
+                                                className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium leading-4 text-colorPrimary hover:underline"
                                                 onClick={() => setExpanded((v) => !v)}
                                             >
                                                 {expanded ? "Show less" : "Show more"}

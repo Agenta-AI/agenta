@@ -164,7 +164,7 @@ class PlatformOp(BaseModel):
     description: str = Field(
         min_length=1, description="Model-facing description (SDK-owned)."
     )
-    method: Optional[Literal["GET", "POST", "DELETE"]] = None
+    method: Optional[Literal["GET", "POST", "PUT", "DELETE"]] = None
     # An EXISTING Agenta endpoint, as a path relative to the API origin (e.g. ``/api/tools/discover``).
     # The runner binds the origin to the run's own Agenta and confines the path to the API mount.
     path: Optional[str] = Field(default=None, min_length=1)
@@ -1432,6 +1432,58 @@ _TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["target", "inputs"],
 }
 
+_RENAME_SESSION_DESCRIPTION = """Name and describe the session you are running in, so a person scanning a long list of sessions can tell what this one is. Call it once you understand what the session is about, which is usually after the first exchange. Call it again later whenever the session has moved on and the name or the recap no longer fits.
+
+`name` is the general subject: what this session is about, as a short label a person can scan in a list. A few words. Not the latest step, and not a sentence.
+
+`description` is the current state: a short recap of what has happened and what is open, one to one and a half sentences, short enough to read inside a table cell.
+
+This renames the session you are in and no other one. It works only inside a session."""
+
+_RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": r"\S",
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 300,
+        },
+    },
+    "required": ["name"],
+}
+
+_RENAME_AGENT_DESCRIPTION = """Name and describe yourself, so a person browsing the list of agents can tell what you are for. Call it once you understand your own purpose, which is usually right after your first task. Call it again if your purpose changes.
+
+`name` is what you are for, as a short label a person can scan in a list. A few words.
+
+`description` is what you do and where you currently stand, one to one and a half sentences, short enough to read inside a table cell.
+
+This renames the agent you are running as and no other one. It changes only your name and your description, never your configuration."""
+
+_RENAME_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": r"\S",
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 300,
+        },
+    },
+    "required": ["name"],
+}
+
 _EMPTY_INPUT_SCHEMA: Dict[str, Any] = {"type": "object", "properties": {}}
 _TRIGGER_ID_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1499,6 +1551,28 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             path="/api/spans/query",
             input_schema=_QUERY_SPANS_INPUT_SCHEMA,
             read_only=True,
+        ),
+        PlatformOp(
+            op="rename_session",
+            description=_RENAME_SESSION_DESCRIPTION,
+            method="POST",
+            path="/api/sessions/streams/header?session_id={session_id}",
+            input_schema=_RENAME_SESSION_INPUT_SCHEMA,
+            context_bindings={"session_id": "$ctx.session.id"},
+            read_only=False,
+        ),
+        PlatformOp(
+            op="rename_agent",
+            description=_RENAME_AGENT_DESCRIPTION,
+            method="PUT",
+            path="/api/workflows/{workflow_id}",
+            input_schema=_RENAME_AGENT_INPUT_SCHEMA,
+            args_into="workflow",
+            context_bindings={
+                "workflow_id": "$ctx.workflow.artifact.id",
+                "workflow.id": "$ctx.workflow.artifact.id",
+            },
+            read_only=False,
         ),
         PlatformOp(
             op="test_run",

@@ -56,6 +56,9 @@ export type {
     PlaygroundConfigSectionProps,
 } from "./PlaygroundConfigSection/types"
 
+// Stable reference: a new object here would re-run the context's classNames memo every render.
+const DRILL_IN_CLASS_NAMES = {fieldList: "bg-[var(--ag-surface-section-content)]"}
+
 function PlaygroundConfigSection({
     revisionId: targetRevisionId,
     disabled = false,
@@ -324,17 +327,22 @@ function PlaygroundConfigSection({
     }, [])
 
     // ========== COMBINED MODEL / FALLBACK / RETRY CONFIG POPOVER ==========
-    const {configurePopoverContent, handleConfigureOpenChange, isModelConfigOpen, promptModelInfo} =
-        useModelConfigurePopover({
-            activeData,
-            disabled,
-            dispatchUpdate,
-            llmProviderConfig,
-            parameters,
-            revisionId,
-            schema,
-            serverData,
-        })
+    const {
+        configurePopoverContent,
+        handleConfigureOpenChange,
+        isModelConfigOpen,
+        promptModelInfo,
+        selectedModelLabel,
+    } = useModelConfigurePopover({
+        activeData,
+        disabled,
+        dispatchUpdate,
+        llmProviderConfig,
+        parameters,
+        revisionId,
+        schema,
+        serverData,
+    })
 
     // ========== DRILL-IN FIELD SLOTS ==========
     const drillInSlots = useFieldSlots({
@@ -351,6 +359,7 @@ function PlaygroundConfigSection({
         onRefinePrompt,
         parameters,
         promptModelInfo,
+        selectedModelLabel,
         schema,
         setFeedbackMode,
         siblingGroups,
@@ -446,7 +455,7 @@ function PlaygroundConfigSection({
                 <>
                     {!hasTopLevelObjectSection && (
                         <div
-                            className="flex items-center w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] sticky z-[2]"
+                            className="flex items-center w-full px-3 py-2 bg-[var(--ag-surface-section-header)] border-0 border-b border-solid border-colorBorderSecondary sticky z-[2]"
                             style={{top: stickyHeaderTop}}
                         >
                             <span className="capitalize font-medium text-sm">Config</span>
@@ -461,6 +470,9 @@ function PlaygroundConfigSection({
                         showBreadcrumb={false}
                         collapsible={false}
                         slots={drillInSlots}
+                        // Section content is a white sheet on the warm panel body. Scoped to
+                        // this mount so other drill-in surfaces (drawers, modals) are untouched.
+                        classNames={DRILL_IN_CLASS_NAMES}
                     />
                 </>
             )}

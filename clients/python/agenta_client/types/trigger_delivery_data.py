@@ -9,15 +9,19 @@ from .reference import Reference
 
 class TriggerDeliveryData(UniversalBaseModel):
     event_key: typing.Optional[str] = None
+    session_id: typing.Optional[str] = None
     references: typing.Optional[typing.Dict[str, typing.Optional[Reference]]] = None
     inputs: typing.Optional[typing.Dict[str, typing.Any]] = None
     result: typing.Optional[typing.Dict[str, typing.Any]] = None
     error: typing.Optional[str] = None
     is_test: typing.Optional[bool] = None
-    
+
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
+
         class Config:
             frozen = True
             smart_union = True

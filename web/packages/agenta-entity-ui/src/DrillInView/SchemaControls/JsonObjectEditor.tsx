@@ -50,7 +50,7 @@ export function JsonObjectEditor({
 
     return (
         <div className="flex flex-col gap-1.5">
-            <div className="overflow-hidden rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]">
+            <div className="overflow-hidden rounded border border-solid border-[var(--ag-c-EAEFF5)]">
                 <SharedEditor
                     editorType="border"
                     initialValue={text}

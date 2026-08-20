@@ -91,7 +91,7 @@ const AgentTurn = ({
                 gated on position so it can never smear onto past turns. Cleared on resend / ask. */}
             {showStopped && (
                 <div className="flex items-center gap-2 self-start pl-1">
-                    <Tag className="!m-0 !text-[11px]">Stopped</Tag>
+                    <Tag className="!m-0 !text-xs">Stopped</Tag>
                     <Button
                         type="link"
                         size="small"

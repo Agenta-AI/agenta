@@ -189,7 +189,7 @@ export {
     type LiveAgentInteraction,
 } from "./execution"
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./execution"
-export {canReleaseQueuedMessage, isHitlPending} from "./execution"
+export {canReleaseQueuedMessage, isHitlPending, messageHasPendingHitl} from "./execution"
 export {
     appendCapped,
     buildTurnCapture,

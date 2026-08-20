@@ -21,6 +21,7 @@
         "./api": "./src/api/index.ts",
         "./api/env": "./src/api/env.ts",
         "./api/persist": "./src/api/persist/index.ts",
+        "./clientTools": "./src/clientTools/index.ts",
         "./state": "./src/state/index.ts",
         "./utils": "./src/utils/index.ts",
         "./utils/mobileGate": "./src/utils/mobileGate/index.ts",

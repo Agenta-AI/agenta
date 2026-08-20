@@ -10,7 +10,7 @@ import {
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect} from "@agenta/web-tests/utils"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
 import type {Locator} from "@playwright/test"
 
 import {expectAuthenticatedSession} from "../utils/auth"
@@ -125,9 +125,9 @@ const modelHubTests = () => {
                         .getByRole("button", {name: "Configure now"})
                         .first()
 
-                    const hasConfigureNow = await configureNowButton
-                        .isVisible({timeout: 5000})
-                        .catch(() => false)
+                    const hasConfigureNow = await pollLocatorState(() =>
+                        configureNowButton.isVisible({timeout: 5000}),
+                    )
 
                     testInfo.skip(
                         !hasConfigureNow,
@@ -222,7 +222,9 @@ const modelHubTests = () => {
         },
     )
 
-    test(
+    // Skipped per release-gate decision (Mahmoud, 2026-08-10): rotating environment-sensitive
+    // failure in CI (gate run 31401605372). Tracked for repair, not deleted.
+    test.skip(
         "should add and delete a custom provider via the UI",
         {tag: tagsLight},
         async ({page, testProviderHelpers}) => {

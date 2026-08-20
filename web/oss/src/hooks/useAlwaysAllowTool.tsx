@@ -116,7 +116,7 @@ export function useAlwaysAllowTool(entityId?: string) {
                 origin: "approval-dock",
                 summary: `Always allow ${toolName}`,
                 // Friendly display (matches the approval card) — a gateway tool's raw name is a slug.
-                label: resolveToolDisplay(toolName).label,
+                label: resolveToolDisplay(toolName).activity.running,
                 toolName,
                 at: Date.now(),
             })

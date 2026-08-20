@@ -43,6 +43,7 @@ from oss.src.apis.fastapi.triggers.models import (
 from oss.src.core.triggers.exceptions import (
     AdapterError,
     ConnectionNotFoundError,
+    ProviderNotConfiguredError,
     ProviderNotFoundError,
     ScheduleNotFoundError,
     SubscriptionNotFoundError,
@@ -64,10 +65,12 @@ _ENQUEUE_TIMEOUT_SECONDS = 5.0
 def handle_adapter_exceptions():
     """Map provider/adapter failures to HTTP, surfacing the upstream detail.
 
-    Unknown providers → 404. Any upstream failure (Composio 4xx such as a
-    rejected ``trigger_config``, or a malformed response) → 424 carrying the
-    provider's own message so the client can show it instead of a generic 500.
-    A true upstream 5xx → 502.
+    Unknown providers → 404. A recognized provider missing required
+    configuration (e.g. composio without COMPOSIO_API_KEY) → 503, naming the
+    env var, so a self-hoster can tell "not set up" from "endpoint missing".
+    Any upstream failure (Composio 4xx such as a rejected ``trigger_config``,
+    or a malformed response) → 424 carrying the provider's own message so the
+    client can show it instead of a generic 500. A true upstream 5xx → 502.
     """
 
     def decorator(func):
@@ -75,6 +78,11 @@ def handle_adapter_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except ProviderNotConfiguredError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(e),
+                ) from e
             except ProviderNotFoundError as e:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -1003,6 +1011,8 @@ class TriggersRouter:
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except TriggerReferenceInvalid as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
 
         return TriggerSubscriptionResponse(
             count=1 if subscription else 0,
@@ -1081,7 +1091,7 @@ class TriggersRouter:
     ) -> TriggerSubscriptionResponse:
         await self._check(request, Permission.VIEW_TRIGGERS)
 
-        subscription = await self.triggers_service.fetch_subscription(
+        subscription = await self.triggers_service.fetch_subscription_including_deleted(
             project_id=UUID(request.state.project_id),
             #
             subscription_id=subscription_id,
@@ -1114,12 +1124,15 @@ class TriggersRouter:
                 detail="Path subscription_id does not match body id",
             )
 
-        subscription = await self.triggers_service.edit_subscription(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(str(request.state.user_id)),
-            #
-            subscription=body.subscription,
-        )
+        try:
+            subscription = await self.triggers_service.edit_subscription(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                subscription=body.subscription,
+            )
+        except TriggerReferenceInvalid as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
         if not subscription:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1143,6 +1156,7 @@ class TriggersRouter:
 
         deleted = await self.triggers_service.delete_subscription(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
             #
             subscription_id=subscription_id,
         )
@@ -1330,7 +1344,7 @@ class TriggersRouter:
     ) -> TriggerScheduleResponse:
         await self._check(request, Permission.VIEW_TRIGGERS)
 
-        schedule = await self.triggers_service.fetch_schedule(
+        schedule = await self.triggers_service.fetch_schedule_including_deleted(
             project_id=UUID(request.state.project_id),
             #
             schedule_id=schedule_id,
@@ -1396,6 +1410,7 @@ class TriggersRouter:
 
         deleted = await self.triggers_service.delete_schedule(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
             #
             schedule_id=schedule_id,
         )

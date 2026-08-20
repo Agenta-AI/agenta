@@ -84,7 +84,7 @@ export function SectionRail({
                                     }`}
                                 />
                             ) : item.count != null ? (
-                                <span className="text-[10px] opacity-70">{item.count}</span>
+                                <span className="text-[12px] opacity-70">{item.count}</span>
                             ) : null}
                         </Button>
                     )

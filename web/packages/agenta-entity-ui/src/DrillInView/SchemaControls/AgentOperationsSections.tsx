@@ -25,8 +25,15 @@ import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSec
 const barClass = (sticky: boolean) =>
     `h-[48px] flex items-center justify-between overflow-hidden ${
         sticky ? "sticky top-0 z-[10]" : ""
-    } w-full border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))]`
+    } w-full border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-surface-section-header)]`
 const titleClass = "text-[13px] font-semibold text-[var(--ant-color-text)]"
+// Region BODIES are the white sheet the Configuration region's field list already paints
+// (`ag-drill-in-field-list`). Without it they'd expose the raised panel tint behind collapsed
+// section headers, so Subscriptions/Schedules would not match collapsed Tools/Skills.
+const bodyClass = "bg-[var(--ag-surface-section-content)] px-4 pb-3 pt-1"
+// Sections-holding body: no vertical padding, so an expanded section's band runs flush into the
+// region header above and the next region below instead of leaving white slivers.
+const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
 
 /**
  * Loading shape for the operational regions, shown while the panel's hydration/agent-ness is
@@ -41,17 +48,17 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                     <span className={titleClass}>Triggers</span>
                     <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                 </div>
-                <div className="flex flex-col px-4 pb-3 pt-1">
+                <div className={`flex flex-col ${bodyClass}`}>
                     <SkeletonSectionRow title={112} value={44} withAdd divider />
                     <SkeletonSectionRow title={82} value={44} withAdd />
                 </div>
             </section>
-            <section className="flex w-full flex-col" aria-busy>
+            <section className="flex w-full grow flex-col" aria-busy>
                 <div className={barClass(sticky)}>
                     <span className={titleClass}>Files</span>
                     <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                 </div>
-                <div className="flex flex-col px-4 pb-3 pt-1">
+                <div className={`flex grow flex-col ${bodyClass}`}>
                     <SkeletonSectionRow title={86} value={90} divider />
                     <SkeletonSectionRow title={110} value={110} />
                 </div>
@@ -90,17 +97,20 @@ export function AgentOperationsSections({
                         {countSummary(triggerCount, "trigger")}
                     </span>
                 </div>
-                <div className="px-4 pb-3 pt-1">
+                <div className={sectionsBodyClass}>
                     <TriggerManagementSection entityId={revisionId} disabled={disabled} />
                 </div>
             </section>
 
-            <section className="flex w-full flex-col">
+            {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
+                stopping at the last file row. */}
+            <section className="flex w-full grow flex-col">
                 <div className={barClass(sticky)}>
                     <span className={titleClass}>Files</span>
                     {storageHeader}
                 </div>
-                <div className="flex flex-col px-4 pb-3 pt-1">
+                {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
+                <div className={`flex grow flex-col ${bodyClass}`}>
                     {storage ?? (
                         // Static fallback for surfaces that don't slot the live Files body.
                         <span className="text-xs text-colorTextDescription">

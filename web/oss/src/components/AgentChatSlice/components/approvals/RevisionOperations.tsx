@@ -10,9 +10,9 @@ import {operationLabel, type RevisionOperationPreview} from "./operationsPreview
 
 const TextBlock = ({label, text, tone}: {label: string; text: string; tone: "old" | "new"}) => (
     <div className="flex min-w-0 flex-col gap-1">
-        <div className="text-[11px] font-medium text-colorTextTertiary">{label}</div>
+        <div className="text-xs font-medium text-colorTextTertiary">{label}</div>
         <pre
-            className={`m-0 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-colorBorderSecondary bg-colorBgContainer p-2 font-mono text-[11px] leading-snug ${
+            className={`m-0 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-colorBorderSecondary bg-colorBgContainer p-2 font-mono text-xs leading-snug ${
                 tone === "old" ? "text-colorTextTertiary" : "text-colorText"
             }`}
         >
@@ -28,10 +28,10 @@ const OperationCard = ({operation}: {operation: RevisionOperationPreview}) => (
                 {operationLabel(operation.operation)} {operation.targetLabel}
             </span>
             {operation.fromFile ? (
-                <span className="text-[11px] text-colorTextTertiary">from your workspace</span>
+                <span className="text-xs text-colorTextTertiary">from your workspace</span>
             ) : null}
             {operation.editCount ? (
-                <span className="text-[11px] text-colorTextTertiary">
+                <span className="text-xs text-colorTextTertiary">
                     {operation.editCount} {operation.editCount === 1 ? "edit" : "edits"}
                 </span>
             ) : null}
@@ -53,7 +53,7 @@ const OperationCard = ({operation}: {operation: RevisionOperationPreview}) => (
 
         {/* Saying so is the point: an absent old side must never read as "nothing was there". */}
         {operation.newText !== undefined && operation.oldText === undefined ? (
-            <div className="text-[11px] text-colorTextTertiary">
+            <div className="text-xs text-colorTextTertiary">
                 The current value is not shown here, so compare against the agent&apos;s
                 configuration if you need the exact before.
             </div>

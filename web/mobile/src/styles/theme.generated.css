@@ -4,25 +4,25 @@
  */
 :root {
     --background: #ffffff;
-    --foreground: #1c2c3d;
+    --foreground: #242424;
     --card: #ffffff;
-    --card-foreground: #1c2c3d;
+    --card-foreground: #242424;
     --popover: #ffffff;
-    --popover-foreground: #1c2c3d;
-    --primary: #1c2c3d;
+    --popover-foreground: #242424;
+    --primary: #242424;
     --primary-foreground: #ffffff;
-    --secondary: #f5f7fa;
-    --secondary-foreground: #1c2c3d;
-    --muted: #f5f7fa;
-    --muted-foreground: #586673;
-    --accent: #f5f7fa;
-    --accent-foreground: #1c2c3d;
-    --destructive: #d61010;
-    --success: #389e0d;
+    --secondary: #f6f5f3;
+    --secondary-foreground: #242424;
+    --muted: #f6f5f3;
+    --muted-foreground: #676770;
+    --accent: #f0efed;
+    --accent-foreground: #242424;
+    --destructive: #5e0908;
+    --success: #2e7d3a;
     --destructive-foreground: #ffffff;
-    --border: #eaeff5;
-    --input: #bdc7d1;
-    --ring: #1c2c3d;
+    --border: #e5e5e3;
+    --input: #d7d7d7;
+    --ring: #242424;
 }
 
 .dark {

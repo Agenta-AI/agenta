@@ -689,6 +689,52 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "iamhaseebn",
+      "name": "Haseeb Nazir",
+      "avatar_url": "https://avatars.githubusercontent.com/u/36381672?v=4",
+      "profile": "https://github.com/iamhaseebn",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Kirtofu",
+      "name": "cormid",
+      "avatar_url": "https://avatars.githubusercontent.com/u/107045341?v=4",
+      "profile": "https://cormid.xyz/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "mdsiddiqjuber",
+      "name": "mdsiddiqjuber",
+      "avatar_url": "https://avatars.githubusercontent.com/u/234624433?v=4",
+      "profile": "https://github.com/mdsiddiqjuber",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "SJY051",
+      "name": "Seojin Yoon",
+      "avatar_url": "https://avatars.githubusercontent.com/u/68188784?v=4",
+      "profile": "https://github.com/SJY051",
+      "contributions": [
+        "code",
+        "test"
+      ]
+    },
+    {
+      "login": "shafeeq27edu-ai",
+      "name": "Shafeeq",
+      "avatar_url": "https://avatars.githubusercontent.com/u/234775624?v=4",
+      "profile": "https://github.com/shafeeq27edu-ai",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

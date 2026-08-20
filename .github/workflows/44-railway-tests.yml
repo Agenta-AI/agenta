@@ -610,7 +610,9 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
-    timeout-minutes: 30
+    # 30 min was too tight: retries on slow tests (e.g. the 7-minute trace test x3
+    # attempts) plus real fixes need headroom before the job gets cut off mid-run.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

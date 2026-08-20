@@ -75,7 +75,7 @@ export function ResponseLens({sessionId}: {sessionId: string}) {
                                 >
                                     {opt.label}
                                 </span>
-                                <span className="text-[11px] leading-snug text-colorTextTertiary">
+                                <span className="text-xs leading-snug text-colorTextTertiary">
                                     {opt.blurb}
                                 </span>
                             </span>
