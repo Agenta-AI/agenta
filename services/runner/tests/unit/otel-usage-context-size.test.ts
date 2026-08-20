@@ -117,7 +117,10 @@ describe("usage_update carries context size, not tokens", () => {
     otel.finish();
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
     expect(agentSpan?.attributes["gen_ai.usage.cost"]).toBe(0.04);
-    expect(agentSpan?.attributes["gen_ai.usage.total_tokens"]).toBe(0);
+    // Cost is the only usage a parent reports; tokens belong to the `chat` leaf.
+    expect(usageKeys(agentSpan)).toEqual(["gen_ai.usage.cost"]);
+    const chatSpan = spans.find((s) => s.name.startsWith("chat"));
+    expect(chatSpan?.attributes["gen_ai.usage.total_tokens"]).toBe(0);
   });
 
   it("emits a token-only usage event with no cost key when the harness priced nothing", () => {
@@ -165,10 +168,14 @@ describe("usage_update carries context size, not tokens", () => {
     otel.setUsage({ input: 12, output: 3, total: 15, cost: 0.04 });
     otel.finish();
 
+    // The split lands on the model span that owns it (see otel-usage-ownership.test.ts).
+    const chatSpan = spans.find((s) => s.name.startsWith("chat"));
+    expect(chatSpan?.attributes["gen_ai.usage.input_tokens"]).toBe(12);
+    expect(chatSpan?.attributes["gen_ai.usage.output_tokens"]).toBe(3);
+    expect(chatSpan?.attributes["gen_ai.usage.total_tokens"]).toBe(15);
+    expect(chatSpan?.attributes["gen_ai.usage.cost"]).toBe(0.04);
+
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
-    expect(agentSpan?.attributes["gen_ai.usage.input_tokens"]).toBe(12);
-    expect(agentSpan?.attributes["gen_ai.usage.output_tokens"]).toBe(3);
-    expect(agentSpan?.attributes["gen_ai.usage.total_tokens"]).toBe(15);
     expect(agentSpan?.attributes["gen_ai.usage.cost"]).toBe(0.04);
   });
 });
