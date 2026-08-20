@@ -113,10 +113,17 @@ export const RangePicker = ({
     const rowClassName = (isSelected: boolean) =>
         cn(
             // CONTROL_RESET — preflight is off app-wide, so the button reset is per-control.
-            "box-border w-full cursor-pointer border-0 border-solid bg-transparent font-[inherit]",
+            "box-border w-full cursor-pointer border-0 border-solid font-[inherit]",
             "flex items-center justify-between gap-2 rounded-control-sm px-2 py-1 text-left",
             "text-field-sm text-foreground hover:bg-secondary",
-            isSelected && "bg-secondary",
+            // `cn` from `@agenta/ui/styles` is a plain CONCATENATOR, not tailwind-merge: an
+            // unconditional `bg-transparent` here did not lose to the conditional `bg-secondary`,
+            // both landed, and CSS order left every row transparent — so the active range showed
+            // no highlight at all. Make the base conditional instead of relying on a merge.
+            isSelected ? "bg-secondary" : "bg-transparent",
+            // These rows are real <button>s (prod's were inert <div>s), so they take focus — and
+            // with preflight off an unstyled one shows the UA's blue ring. Use the kit's.
+            "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring",
         )
 
     return (

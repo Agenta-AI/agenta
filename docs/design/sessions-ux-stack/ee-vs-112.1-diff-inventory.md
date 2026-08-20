@@ -2292,3 +2292,57 @@ is a latent gap closed, not a defect found.**
 **Sweep scorecard:** 3 real bugs (D-21 outside-click dismissal on 13 drawers, D-22 `closeIcon`,
 D-23 `classNames`), 1 latent gap closed, 11 false positives correctly explained by `{...rest}` or
 by design. The `{...rest}` warning the tool prints inline is what kept those 11 from being filed.
+
+## 5i. WP-3 driven deliberately — U-01, the time-range picker lost its selected state
+
+Prioritised by lane churn rather than route: `git diff --stat` over `@agenta/ui/src` against 112.2
+is dominated by large ADDITIONS — files the lane MOVED into the package, which is exactly where
+behaviour gets dropped. `date-range-picker.tsx` (633 lines) was the biggest interactive one, and
+it renders on Observability.
+
+### U-01 — the active range is not highlighted, and the focus ring is the browser's — **FIXED**
+
+Trigger geometry is identical on both (`Last 24 hours`, x=748 y=117 w=145) and both panels list the
+same eleven presets. Measured inside them:
+
+| | prod | local (before) |
+|---|---|---|
+| `24 hours` row background (the ACTIVE range) | `rgb(87,87,42)` — the primary fill | **`rgba(0,0,0,0)` — nothing** |
+| first row's outline | `rgba(255,255,255,.85) 3px` (app) | **`rgb(153,200,255) 1px` — the UA's blue** |
+| row width | 248 | 224 |
+
+So the panel gave no indication of which range was applied. This IS lane drift: 112.2 renders this
+control from `web/oss/src/components/Filters/Sort.tsx`, which sets `classes.popupSelectedItem` when
+`sort === item.value`; HEAD replaced it with `RangePicker` + `@agenta/ui/date-range-picker`.
+
+**The state was never the problem.** `aria-checked` reads `24 hours: true` at runtime and the JSX
+already does `className={rowClassName(selected === preset.label)}`. The bug is one layer down:
+
+> **`@agenta/ui/styles` exports a `cn` that is a plain CONCATENATOR, while
+> `@agenta/ui/components/ui/utils` exports one built on `extendTailwindMerge`.**
+
+`rowClassName` sets `bg-transparent` unconditionally and `isSelected && "bg-secondary"`
+conditionally — which only works under tailwind-merge. With the concatenating `cn` both classes
+land on the element (verified in the DOM: `hasTransparent: true, hasSecondary: true`) and CSS
+source order decides, so every row stayed transparent. `bg-secondary` itself resolves fine
+(`rgba(255,255,255,0.12)` on a bare probe) — it was never a missing token.
+
+Fixed by making the base conditional (`isSelected ? "bg-secondary" : "bg-transparent"`) rather than
+by switching `cn`: swapping the import would start deduping every other class in the file and needs
+its own verification pass. Also gave the rows the kit's focus treatment
+(`focus-visible:outline-2 focus-visible:outline-focus-ring`) — these rows are real `<button>`s
+where prod's were inert `<div>`s, so with preflight off an unstyled one shows the UA ring.
+
+Verified live: selected row `rgba(255,255,255,0.12)`, unselected `rgba(0,0,0,0)`, focus outline
+`rgb(87,87,42) 2px solid`. Prod's selected fill is the primary olive and local's is the neutral
+`bg-secondary` — that colour difference is the lane's token choice; the REGRESSION was that it
+painted nothing.
+
+### Blast radius of the `cn` split — checked, currently one instance
+
+35 files import the non-merging `cn`. Three combine a conditional `bg`/`text`/`border` with an
+unconditional one, and all three are safe on inspection: `SkillUploadZone` conflicts only on
+border-width vs border-colour, `ItemRow` uses two mutually exclusive conditionals with no
+unconditional `bg`, and `EntityCommitContent`'s are separate `className` strings, not one `cn`
+call. So U-01 is the only live instance — but the trap stays armed for the next edit, because
+nothing at the call site says which `cn` you imported.
