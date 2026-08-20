@@ -74,18 +74,18 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 link: `${projectURL}/apps`,
             },
             {
+                key: "mobile-agents",
+                title: "Agents",
+                icon: createElement(Bot, {size: 16}),
+                link: `${projectURL}/agents`,
+            },
+            {
                 key: SESSIONS_SIDEBAR_KEY,
                 title: "Sessions",
                 icon: createElement(MessagesSquare, {size: 16}),
                 link: `${projectURL}/sessions`,
                 defaultOpen: true,
                 submenu: resolveChildren(mobileSessionsEntity, source, projectURL),
-            },
-            {
-                key: "mobile-agents",
-                title: "Agents",
-                icon: createElement(Bot, {size: 16}),
-                link: `${projectURL}/agents`,
             },
             {
                 key: "mobile-observability",

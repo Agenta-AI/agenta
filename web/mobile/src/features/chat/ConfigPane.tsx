@@ -1,8 +1,11 @@
+import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
+import {ChevronsLeft} from "lucide-react"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
@@ -28,6 +31,7 @@ export const ConfigPane = ({
     sessionId: string
 }) => {
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     return (
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
             <DrillInBridgeProvider>
@@ -50,6 +54,22 @@ export const ConfigPane = ({
                         <AgentConfigHeader
                             revisionId={entityId}
                             appId={agentId ?? undefined}
+                            // The desktop's collapse: the header owns "«", the top bar owns the
+                            // "»" that brings the panel back. Without a way OUT, the restore
+                            // control in the bar could never be reached.
+                            trailing={
+                                <SimpleTooltip title="Hide configuration">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Hide configuration"
+                                        onClick={() => setConfigCollapsed(true)}
+                                        className="h-7 w-7 shrink-0 p-0"
+                                    >
+                                        <ChevronsLeft size={14} />
+                                    </Button>
+                                </SimpleTooltip>
+                            }
                             // The roster and the agent screens read the workflows list query; a
                             // commit mints a revision they would otherwise not see.
                             // A commit mints a revision: drop any pin so the workspace follows the

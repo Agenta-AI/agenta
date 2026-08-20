@@ -1,6 +1,7 @@
 import {useState, type ReactNode} from "react"
 
-import {chatPanelMaximizedAtom} from "@agenta/chat/state"
+import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {SplitPane} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -52,7 +53,15 @@ export const SessionWorkspace = ({
 }) => {
     const base = `/w/${workspaceId}/p/${projectId}`
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
-    const showBuild = !chatMaximized && Boolean(entityId)
+    // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
+    // Build with the panel out of the way, and the top bar's "»" brings it back.
+    const configCollapsed = useAtomValue(configPanelCollapsedAtom)
+    const showBuild = !chatMaximized && !configCollapsed && Boolean(entityId)
+    // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
+    // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
+    // must not snap the pane shut.
+    const filesScope = agentId ?? sessionId
+    const {open: filesOpen} = useSessionFilesPane(filesScope, sessionId)
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
     const twoPane = useMediaQuery("(min-width: 768px)")
     // Controlled px, as on the desktop: the dragged width persists for the mount; 440 is the
@@ -103,7 +112,27 @@ export const SessionWorkspace = ({
                         onResizeEnd={(size) => setPaneSize(size)}
                         className="h-full"
                         pane={pane}
-                        fill={<div className="ag-canvas h-full">{chat}</div>}
+                        fill={
+                            <SplitPane
+                                paneSide="end"
+                                paneSize={twoPane && filesOpen ? 380 : 0}
+                                paneMin={320}
+                                paneMax={560}
+                                fillMin={360}
+                                barHidden={!twoPane || !filesOpen}
+                                resizable={twoPane && filesOpen}
+                                className="h-full"
+                                pane={
+                                    filesOpen ? (
+                                        <SessionFilesPane
+                                            scope={filesScope}
+                                            sessionId={sessionId}
+                                        />
+                                    ) : null
+                                }
+                                fill={<div className="ag-canvas h-full">{chat}</div>}
+                            />
+                        }
                     />
                 </div>
             </div>
