@@ -1,5 +1,5 @@
 import warnings
-from typing import Dict
+from typing import Any, Dict, Optional
 from opentelemetry.trace import SpanKind
 
 import agenta as ag
@@ -8,6 +8,47 @@ from agenta.sdk.engines.tracing.spans import CustomSpan
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+
+def _read(source: Any, key: str) -> Any:
+    """Read ``key`` off a usage payload that may arrive as a dict or as an object."""
+    if source is None:
+        return None
+    if isinstance(source, dict):
+        return source.get(key)
+    return getattr(source, key, None)
+
+
+def _extract_token_usage(response_obj: Any) -> Dict[str, Optional[float]]:
+    """The token counts recorded under ``metrics.unit.tokens`` for one LLM call.
+
+    ``cache_read`` is the slice of the prompt the provider served from its cache, which
+    prices far below fresh input. It is a SUBSET of ``prompt_tokens``, not an addition to
+    it, so it is recorded alongside the prompt total and never deducted from it; the
+    cost calculation re-prices that slice at the cached rate.
+    """
+    usage = _read(response_obj, "usage")
+
+    prompt_tokens = _read(usage, "prompt_tokens")
+    completion_tokens = _read(usage, "completion_tokens")
+    total_tokens = _read(usage, "total_tokens")
+
+    # OpenAI and Google both report the cached count at
+    # ``prompt_tokens_details.cached_tokens``; Anthropic-style usage surfaces it flat as
+    # ``cache_read_input_tokens``. Check the nested form first: on a provider that reports
+    # both, the nested one is the OpenAI-convention value matching ``prompt_tokens``.
+    cache_read_tokens = _read(_read(usage, "prompt_tokens_details"), "cached_tokens")
+    if cache_read_tokens is None:
+        cache_read_tokens = _read(usage, "cache_read_input_tokens")
+
+    # Falsy -> None throughout, matching how prompt/completion/total have always been
+    # recorded: a zero carries no more information than an absent field here.
+    return {
+        "prompt": float(prompt_tokens) if prompt_tokens else None,
+        "completion": float(completion_tokens) if completion_tokens else None,
+        "total": float(total_tokens) if total_tokens else None,
+        "cache_read": float(cache_read_tokens) if cache_read_tokens else None,
+    }
 
 
 def litellm_handler():
@@ -174,29 +215,8 @@ def litellm_handler():
                 namespace="metrics.unit.costs",
             )
 
-            # Handle both dict and object attribute access for usage, and safely handle None
-            usage = getattr(response_obj, "usage", None)
-            if isinstance(usage, dict):
-                prompt_tokens = usage.get("prompt_tokens")
-                completion_tokens = usage.get("completion_tokens")
-                total_tokens = usage.get("total_tokens")
-            elif usage is not None:
-                prompt_tokens = getattr(usage, "prompt_tokens", None)
-                completion_tokens = getattr(usage, "completion_tokens", None)
-                total_tokens = getattr(usage, "total_tokens", None)
-            else:
-                prompt_tokens = completion_tokens = total_tokens = None
-
             span.set_attributes(
-                attributes=(
-                    {
-                        "prompt": float(prompt_tokens) if prompt_tokens else None,
-                        "completion": float(completion_tokens)
-                        if completion_tokens
-                        else None,
-                        "total": float(total_tokens) if total_tokens else None,
-                    }
-                ),
+                attributes=_extract_token_usage(response_obj),
                 namespace="metrics.unit.tokens",
             )
 
@@ -311,31 +331,8 @@ def litellm_handler():
                 namespace="metrics.unit.costs",
             )
 
-            # Handle both dict and object attribute access for usage
-            usage = getattr(response_obj, "usage", None)
-            if usage is None:
-                prompt_tokens = None
-                completion_tokens = None
-                total_tokens = None
-            elif isinstance(usage, dict):
-                prompt_tokens = usage.get("prompt_tokens")
-                completion_tokens = usage.get("completion_tokens")
-                total_tokens = usage.get("total_tokens")
-            else:
-                prompt_tokens = getattr(usage, "prompt_tokens", None)
-                completion_tokens = getattr(usage, "completion_tokens", None)
-                total_tokens = getattr(usage, "total_tokens", None)
-
             span.set_attributes(
-                attributes=(
-                    {
-                        "prompt": float(prompt_tokens) if prompt_tokens else None,
-                        "completion": float(completion_tokens)
-                        if completion_tokens
-                        else None,
-                        "total": float(total_tokens) if total_tokens else None,
-                    }
-                ),
+                attributes=_extract_token_usage(response_obj),
                 namespace="metrics.unit.tokens",
             )
 
