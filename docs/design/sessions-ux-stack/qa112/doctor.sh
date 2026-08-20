@@ -43,9 +43,11 @@ else
 fi
 
 echo "== dev server (local) =="
-CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 http://localhost:3000/ 2>/dev/null)
+# Probe the BASE, not "/". The mobile app serves under basePath /m and answers 404 at the root,
+# so probing "/" reported the dev server as down while it was serving the app perfectly well.
+CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$LOCAL_BASE/apps" 2>/dev/null)
 case "$CODE" in
-  2*|3*) ok "localhost:3000 -> HTTP $CODE" ;;
+  2*|3*) ok "${LOCAL_BASE%%/w/*} -> HTTP $CODE" ;;
   *) bad "localhost:3000 unreachable (HTTP ${CODE:-none}) — Arda starts the dev server; ask, don't start it" ;;
 esac
 
@@ -84,8 +86,14 @@ echo "== base URLs still resolve =="
     $B js "setTimeout(function(){location.href='$(base_for "$E")/apps'},0);'nav'" >/dev/null 2>&1
     sleep 6
     GOT=$($B js 'location.pathname' 2>/dev/null | tail -1 | tr -d '"')
+    # The path alone is NOT proof. Next serves its 404 AT the requested path, so a dev server
+    # that no longer owns this route passed this check while rendering "This page could not be
+    # found" (observed live when the desktop app was stopped and only /m was up).
+    TITLE=$($B js 'document.title' 2>/dev/null | tail -1 | tr -d '"')
+    case "$TITLE" in *404*|*"could not be found"*) GOT="404:$GOT" ;; esac
     case "$GOT" in
       */apps) ok "$E base resolves ($GOT)" ;;
+      404:*) bad "$E base path matched but the app rendered a 404 — wrong dev server for this base" ;;
       *) bad "$E base did NOT land on /apps (got '$GOT') — update $( [ "$E" = local ] && echo LOCAL_BASE || echo PROD_BASE ) in env.sh" ;;
     esac
   else

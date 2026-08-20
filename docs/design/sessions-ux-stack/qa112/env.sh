@@ -25,8 +25,12 @@ export BROWSE_STATE_FILE="${BROWSE_STATE_FILE:-$WORKTREE/.gstack/browse.json}"
 # --- The pair under comparison -------------------------------------------------------------
 # Both projects are named `112-QA`. These are per-account ids: if the local stack is rebuilt or
 # the project recreated, LOCAL_BASE changes. `doctor.sh` checks both before you trust a run.
-LOCAL_BASE="http://localhost:3000/w/019d720c-aed1-7611-95d2-98166db228f4/p/01a011ce-17a2-7cd3-a222-6d3a94a22796"
-PROD_BASE="https://eu.cloud.agenta.ai/w/01938831-7e29-7788-8fe8-c57904703742/p/01a011ce-2eb1-7e40-9348-b2652819ebbe"
+# Both accept an exported override, so one harness serves more than one comparison. The mobile
+# run needs it: /m is the same project on the same stack, one path segment over, and the lane's
+# aim is for /m at a DESKTOP viewport to match deployed prod on the agent surfaces.
+#   export LOCAL_BASE="http://localhost:3000/m/w/<ws>/p/<proj>"
+LOCAL_BASE="${LOCAL_BASE:-http://localhost:3000/w/019d720c-aed1-7611-95d2-98166db228f4/p/01a011ce-17a2-7cd3-a222-6d3a94a22796}"
+PROD_BASE="${PROD_BASE:-https://eu.cloud.agenta.ai/w/01938831-7e29-7788-8fe8-c57904703742/p/01a011ce-2eb1-7e40-9348-b2652819ebbe}"
 
 # The matched agents: `New agent`, Anthropic / Haiku 4.5, same 139-word AGENTS.md on both.
 # Finding a matched pair took the config strip from 32.70% to 2.72%, so always drive these two
