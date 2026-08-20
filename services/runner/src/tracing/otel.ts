@@ -358,7 +358,7 @@ class TraceBatchProcessor implements SpanProcessor {
           spans: group.length,
           redactors,
         };
-        if (!target.authorization && isAgentaIngest(target.endpoint)) {
+        if (!target.authorization?.trim() && isAgentaIngest(target.endpoint)) {
           // Agenta's ingest rejects an unauthenticated export, so sending one buys nothing and
           // reports as a 401 that reads like a BAD credential. Say the credential is missing
           // instead, and drop the batch here.
