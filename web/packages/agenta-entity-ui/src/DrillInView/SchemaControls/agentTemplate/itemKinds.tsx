@@ -10,6 +10,7 @@ import {GraduationCap, Plugs, Wrench} from "@phosphor-icons/react"
 import type {ConfigItemView} from "../ConfigItemDrawer"
 import {McpServerFormView} from "../McpServerFormView"
 import {SkillFormView} from "../SkillFormView"
+import {skillDraftError} from "../skillName"
 import {ToolFormView} from "../ToolFormView"
 import {parseGatewayTool} from "../toolUtils"
 
@@ -164,6 +165,9 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         isReadOnly: (item) => isStaticSkill(item),
         createSeed: () => ({name: "", description: "", body: ""}),
         // `@ag.embed` skill references carry no name and are always valid (they round-trip as-is).
-        draftInvalid: (draft) => !isEmbedRefSkill(draft) && !String(draft.name ?? "").trim(),
+        // Everything else is checked against the same rules the SDK enforces at run time
+        // (see `skillName.ts`) — a capitalised name or an empty description/body parses fine as
+        // JSON but fails `parse_skill_templates` on the first run, taking the whole agent with it.
+        draftInvalid: (draft) => !isEmbedRefSkill(draft) && skillDraftError(draft) !== undefined,
     },
 }
