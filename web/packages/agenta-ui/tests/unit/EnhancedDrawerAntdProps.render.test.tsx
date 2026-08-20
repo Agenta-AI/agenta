@@ -3,6 +3,7 @@ import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
 import {EnhancedDrawer} from "../../src/drawer/EnhancedDrawer"
+import {EnhancedModal} from "../../src/components/EnhancedModal"
 
 /**
  * `EnhancedDrawer` is an antd-`Drawer`-compatible facade, and three of the antd props its own
@@ -62,5 +63,38 @@ describe("EnhancedDrawer antd prop parity", () => {
         const body = screen.getByRole("dialog").querySelector("[data-slot=drawer-body]") as HTMLElement
         expect(body.className).toContain("cls")
         expect(body.style.padding).toBe("0px")
+    })
+})
+
+/** `EnhancedModal` carried the same unread `classNames` as the drawer. Inert for today's call-sites
+ * (they ask the footer for the flex/justify-end it already has), so this pins the wiring rather
+ * than a fixed bug — the next slot someone passes should not vanish. */
+describe("EnhancedModal antd prop parity", () => {
+    it("classNames slots reach header, body and footer", () => {
+        render(
+            <EnhancedModal
+                open
+                title="Modal title"
+                footer={<span>f</span>}
+                classNames={{header: "hdr-y", body: "bdy-y", footer: "ftr-y"}}
+            >
+                <div>body</div>
+            </EnhancedModal>,
+        )
+        const dialog = screen.getByRole("dialog")
+        expect(dialog.querySelector("[data-slot=dialog-header]")?.className).toContain("hdr-y")
+        expect(dialog.querySelector("[data-slot=modal-body]")?.className).toContain("bdy-y")
+        expect(dialog.querySelector("[data-slot=dialog-footer]")?.className).toContain("ftr-y")
+    })
+
+    it("keeps the slot's own classes when merging", () => {
+        render(
+            <EnhancedModal open title="t" footer={<span>f</span>} classNames={{footer: "ftr-y"}}>
+                <div>body</div>
+            </EnhancedModal>,
+        )
+        const footer = screen.getByRole("dialog").querySelector("[data-slot=dialog-footer]")
+        expect(footer?.className).toContain("ftr-y")
+        expect(footer?.className).toContain("justify-end")
     })
 })

@@ -247,7 +247,22 @@ def unread(prop, src):
     Counts identifier occurrences, then discards the ones that prove nothing: the props-interface
     line (`prop?: X`), a rename-to-void destructure (`prop: _prop`), and the doc comments. What is
     left is a real read — a forward, a condition, a spread key.
+
+    ALIASES. `classNames: customClassNames,` in a destructure is indistinguishable by shape from
+    the interface line `classNames?: DrawerClassNamesProp` — both start `prop:`. Skipping both made
+    the sweep re-report `classNames` as dropped AFTER it had been wired up, i.e. a false positive
+    against its own fix. So when the alias target is a plain identifier (not a type and not a void
+    `_name`), follow it: the prop is read iff the ALIAS is read.
     """
+    alias = None
+    for line in src.splitlines():
+        m = re.match(rf"^\s*{re.escape(prop)}\s*:\s*([a-z][A-Za-z0-9_]*)\s*,\s*$", line)
+        if m and not m.group(1).startswith("_"):
+            alias = m.group(1)
+            break
+    if alias:
+        return unread(alias, src)
+
     ident = re.compile(rf"\b{re.escape(prop)}\b")
     real = 0
     for line in src.splitlines():

@@ -2260,3 +2260,35 @@ comment naming the fix, rather than doing nothing. **A loud failure at the momen
 beats a silent skip discovered a year later.**
 
 All 13 package suites re-run green afterwards.
+
+## 5h. The prop-drop sweep is CLOSED — 3 real bugs, and one false positive against my own fix
+
+Final pass over every hit. `EnhancedDrawer` now reports **15 props, all read**.
+
+**A false positive the tool produced against its own fix, worth keeping.** After D-23 landed, the
+sweep still reported `classNames` as dropped. The cause was in `unread()`: a destructure ALIAS
+(`classNames: customClassNames,`) is indistinguishable by shape from an interface line
+(`classNames?: DrawerClassNamesProp`) — both start `prop:` — and it skipped both. So the sweep
+would have kept re-reporting every prop I fixed by aliasing. It now follows the alias: when the
+target is a plain identifier (not a type, not a void `_name`), the prop is read iff the ALIAS is
+read. Both `iconPosition` controls still hold either side of the fix.
+
+**What the remaining hits turned out to be — none of them live bugs:**
+
+| hit | verdict |
+|---|---|
+| `EnhancedButton` `aria-label` ×6, `disabled` ×14, `data-tour`, `href`, `block` | `{...rest}` is spread onto the button — they arrive |
+| `InputNumber` `aria-labelledby` | `{...rest}` lands on the `<input>` itself |
+| `Select` `onValueChange` ×2 | the whole props object is spread onto Radix `Root` |
+| `EnhancedModal` `centered` | "centered (always)" by design — correctly unread |
+| `EnhancedModal` `mask` | the known deferred case: Radix always renders the overlay |
+| `EnhancedModal` `classNames` ×3 | declared, never read — but **inert**: all three ask the footer for `flex justify-end`, which `DialogFooter` already applies |
+
+That last one is wired up anyway (mirroring the drawer, including the antd v6 function form) and
+pinned by tests — not because it fixes anything observable, but because it is the same drop that
+produced three real bugs, and the next slot someone passes should not vanish. Being explicit: **it
+is a latent gap closed, not a defect found.**
+
+**Sweep scorecard:** 3 real bugs (D-21 outside-click dismissal on 13 drawers, D-22 `closeIcon`,
+D-23 `classNames`), 1 latent gap closed, 11 false positives correctly explained by `{...rest}` or
+by design. The `{...rest}` warning the tool prints inline is what kept those 11 from being filed.
