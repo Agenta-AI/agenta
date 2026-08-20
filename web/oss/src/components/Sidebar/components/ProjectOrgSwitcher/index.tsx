@@ -42,22 +42,34 @@ const CAPTION_CLASS =
 /** px-[3px] + the card's 1px border + ROW_CLASS's px-2 = 12px, the nav rows' icon column. */
 const PANEL_CLASS = "flex flex-col px-[3px] py-1"
 
-/** Capped scroll list (3 h-8 rows) with the scrollbar hidden. */
-const SCROLL_LIST_CLASS =
-    "flex max-h-24 flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+/** Capping the list at 7 rows keeps the actions below it on screen. */
+const SCROLL_LIST_CLASS = "flex max-h-56 flex-col overflow-y-auto ag-scroll-quiet"
 
 const Row = ({
     onClick,
     className,
     children,
     title,
+    active,
 }: {
     onClick?: () => void
     className?: string
     children: React.ReactNode
     title?: string
+    /** The row in effect: takes the selected fill, and is where a capped list opens. */
+    active?: boolean
 }) => (
-    <button type="button" onClick={onClick} className={clsx(ROW_CLASS, className)} title={title}>
+    <button
+        type="button"
+        onClick={onClick}
+        className={clsx(
+            ROW_CLASS,
+            // scroll-initial-target is Chromium-only; elsewhere the list just opens at the top.
+            active && "bg-[var(--ag-colorFillSecondary)] [scroll-initial-target:nearest]",
+            className,
+        )}
+        title={title}
+    >
         {children}
     </button>
 )
@@ -181,10 +193,8 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                         return (
                             <Row
                                 key={`${proj.workspace_id}:${proj.project_id}`}
-                                className={clsx(
-                                    ITEM_ROW_CLASS,
-                                    isActive && "bg-[var(--ag-colorFillSecondary)]",
-                                )}
+                                className={ITEM_ROW_CLASS}
+                                active={isActive}
                                 onClick={() => {
                                     close()
                                     if (!isActive) switchProject(proj)
@@ -260,10 +270,8 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                         return (
                             <Row
                                 key={org.id}
-                                className={clsx(
-                                    ITEM_ROW_CLASS,
-                                    isActive && "bg-[var(--ag-colorFillSecondary)]",
-                                )}
+                                className={ITEM_ROW_CLASS}
+                                active={isActive}
                                 onClick={() => {
                                     close()
                                     if (!isActive) void switchOrg(org.id)

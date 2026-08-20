@@ -12,6 +12,7 @@ import {
     getReportDir,
     getStorageStatePath,
     getTestDir,
+    getTestLayer,
 } from "./playwright/config/runtime.ts"
 
 // Get current directory in ESM
@@ -29,6 +30,7 @@ dotenv.config({path: resolve(__dirname, ".env")})
  * See https://playwright.dev/docs/test-configuration.
  */
 const require = createRequire(import.meta.url)
+const shouldRunGlobalAuth = getTestLayer() !== "unit"
 export default defineConfig({
     testDir: getTestDir(),
     // Tests within each spec file run serially — they share browser state and often
@@ -48,8 +50,10 @@ export default defineConfig({
         [require.resolve("./playwright/live-reporter.ts")],
     ],
     outputDir: getOutputDir(),
-    globalSetup: require.resolve("./playwright/global-setup"),
-    globalTeardown: require.resolve("./playwright/global-teardown"),
+    globalSetup: shouldRunGlobalAuth ? require.resolve("./playwright/global-setup") : undefined,
+    globalTeardown: shouldRunGlobalAuth
+        ? require.resolve("./playwright/global-teardown")
+        : undefined,
     // Global test timeout
     timeout: 60000,
     expect: {
