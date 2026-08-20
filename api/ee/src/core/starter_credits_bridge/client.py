@@ -2,7 +2,7 @@ from typing import Any, Optional
 
 import httpx
 
-from ee.src.core.funded_credits.types import (
+from ee.src.core.starter_credits_bridge.types import (
     KeyAliasExistsError,
     MintedKey,
     ProxyRequestError,
@@ -11,8 +11,8 @@ from ee.src.core.funded_credits.types import (
 _REQUEST_TIMEOUT_SECONDS = 10.0
 
 
-class FundedCreditsProxyClient:
-    """Admin client for the funded-credits proxy (mint / inspect / block keys).
+class StarterCreditsProxyClient:
+    """Admin client for the starter-credits proxy (mint / inspect / block keys).
 
     Authenticates with the master key, which must never leave the backend.
     """
@@ -42,9 +42,7 @@ class FundedCreditsProxyClient:
         max_budget: float,
         models: list[str],
         metadata: dict[str, Any],
-        team_id: Optional[str] = None,
-        rpm_limit: Optional[int] = None,
-        tpm_limit: Optional[int] = None,
+        team_id: str,
     ) -> MintedKey:
         body: dict[str, Any] = {
             "key_alias": key_alias,
@@ -52,13 +50,9 @@ class FundedCreditsProxyClient:
             # An explicit list always; an omitted list would mean "any model".
             "models": models,
             "metadata": metadata,
+            # Always under the program team so its ceiling bounds total exposure.
+            "team_id": team_id,
         }
-        if team_id:
-            body["team_id"] = team_id
-        if rpm_limit is not None:
-            body["rpm_limit"] = rpm_limit
-        if tpm_limit is not None:
-            body["tpm_limit"] = tpm_limit
 
         payload = await self._request("POST", "/key/generate", json=body)
 
@@ -71,8 +65,29 @@ class FundedCreditsProxyClient:
 
         return MintedKey(key=key, key_alias=key_alias)
 
+    async def update_key(self, *, key: str, metadata: dict[str, Any]) -> None:
+        await self._request(
+            "POST", "/key/update", json={"key": key, "metadata": metadata}
+        )
+
+    async def delete_keys(self, *, key_aliases: list[str]) -> None:
+        await self._request("POST", "/key/delete", json={"key_aliases": key_aliases})
+
+    async def list_keys(self, *, key_alias: str) -> list[dict[str, Any]]:
+        payload = await self._request(
+            "GET",
+            "/key/list",
+            params={"key_alias": key_alias, "return_full_object": "true"},
+        )
+        keys = payload.get("keys") if isinstance(payload, dict) else None
+        return [key for key in keys or [] if isinstance(key, dict)]
+
     async def get_key_info(self, *, key: str) -> dict[str, Any]:
         payload = await self._request("GET", "/key/info", params={"key": key})
+        return payload if isinstance(payload, dict) else {}
+
+    async def get_team_info(self, *, team_id: str) -> dict[str, Any]:
+        payload = await self._request("GET", "/team/info", params={"team_id": team_id})
         return payload if isinstance(payload, dict) else {}
 
     async def block_key(self, *, key: str) -> None:

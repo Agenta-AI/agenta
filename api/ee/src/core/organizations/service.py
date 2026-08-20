@@ -963,8 +963,8 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
     scope_from,
     Gauge,
 )
-from ee.src.core.funded_credits.service import (  # noqa: E402
-    schedule_funded_credits_seeding,
+from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
+    seed_starter_credits_bridge_safely,
 )
 
 
@@ -1004,9 +1004,10 @@ async def provision_signup_subscription(
         scope=scope_from(organization_id=organization.id),
     )
 
-    # Fire-and-forget: a failure degrades to "no starter credits" and must never
-    # raise here — the signup path deletes the new user when setup fails.
-    schedule_funded_credits_seeding(
+    # Bounded (10s) and swallow-all: a failure degrades to "no starter credits"
+    # and must never raise here — the signup path deletes the new user when
+    # setup fails. Partial states converge via the admin reconcile endpoint.
+    await seed_starter_credits_bridge_safely(
         organization_id=str(organization.id),
         organization_email=organization_email,
     )

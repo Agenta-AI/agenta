@@ -1,11 +1,11 @@
 from pydantic import BaseModel
 
 
-class FundedCreditsError(Exception):
-    """Base exception for funded-credits errors."""
+class StarterCreditsBridgeError(Exception):
+    """Base exception for starter-credits-bridge errors."""
 
 
-class ProxyRequestError(FundedCreditsError):
+class ProxyRequestError(StarterCreditsBridgeError):
     """The proxy admin API refused or failed a request.
 
     Never carries key material; `detail` is a short, log-safe diagnosis.

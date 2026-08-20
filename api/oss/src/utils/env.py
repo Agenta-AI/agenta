@@ -787,72 +787,6 @@ class DockerConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# funded_credits — starter-credit seeding at signup (EE).
-# ---------------------------------------------------------------------------
-
-
-def _parse_float_env(name: str, default: float) -> float:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        return default
-
-
-class FundedCreditsConfig(BaseModel):
-    """Funded starter credits (EE): mint a budget-capped proxy key at signup and
-    seed it into the new organization's vault as a ready-to-use connection.
-
-    Inert unless `enabled` is true AND `proxy_url` + `master_key` are present.
-    The redeploy-free runtime switch is the PostHog feature flag (fail closed:
-    no flag signal means no seeding).
-    """
-
-    enabled: bool = _parse_bool_env("AGENTA_FUNDED_CREDITS_ENABLED", False)
-
-    # Admin base URL the API uses to mint keys (`{proxy_url}/key/generate`).
-    proxy_url: str | None = os.getenv("AGENTA_FUNDED_CREDITS_PROXY_URL") or None
-    master_key: str | None = os.getenv("AGENTA_FUNDED_CREDITS_MASTER_KEY") or None
-    # Base URL written into the seeded connection (what runs call, may include a
-    # path prefix like /v1). Defaults to proxy_url when unset.
-    connection_url: str | None = (
-        os.getenv("AGENTA_FUNDED_CREDITS_CONNECTION_URL") or None
-    )
-
-    grant_usd: float = _parse_float_env("AGENTA_FUNDED_CREDITS_GRANT_USD", 10.0)
-    model: str = os.getenv("AGENTA_FUNDED_CREDITS_MODEL") or "gemini-3.6-flash"
-    team_id: str | None = os.getenv("AGENTA_FUNDED_CREDITS_TEAM_ID") or None
-    rpm_limit: int | None = _parse_optional_positive_int_env(
-        "AGENTA_FUNDED_CREDITS_RPM_LIMIT"
-    )
-    tpm_limit: int | None = _parse_optional_positive_int_env(
-        "AGENTA_FUNDED_CREDITS_TPM_LIMIT"
-    )
-
-    feature_flag: str = (
-        os.getenv("AGENTA_FUNDED_CREDITS_FEATURE_FLAG") or "funded-credits-seeding"
-    )
-
-    # Velocity caps on mints, enforced with Redis day counters.
-    daily_mint_cap: int = (
-        _parse_optional_positive_int_env("AGENTA_FUNDED_CREDITS_DAILY_MINT_CAP") or 200
-    )
-    domain_daily_mint_cap: int = (
-        _parse_optional_positive_int_env("AGENTA_FUNDED_CREDITS_DOMAIN_DAILY_MINT_CAP")
-        or 10
-    )
-
-    model_config = ConfigDict(extra="ignore")
-
-    @property
-    def armed(self) -> bool:
-        """True when the deployment opted in and holds the proxy credentials."""
-        return bool(self.enabled and self.proxy_url and self.master_key)
-
-
-# ---------------------------------------------------------------------------
 # identity — OIDC providers grouped by vendor.
 # ---------------------------------------------------------------------------
 
@@ -1586,6 +1520,84 @@ class SendgridConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# starter_credits_bridge — starter-credit seeding at signup (EE, temporary bridge).
+# ---------------------------------------------------------------------------
+
+
+def _parse_float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+class StarterCreditsBridgeConfig(BaseModel):
+    """Starter-credits bridge (EE): mint a budget-capped proxy key at signup and
+    seed it into the new organization's vault as a ready-to-use connection.
+
+    Inert unless `enabled` is true AND `proxy_public_url` + `master_key` +
+    `team_id` are present (the team's budget ceiling is the program's
+    total-exposure bound, so seeding refuses to run without it). The
+    redeploy-free runtime switch is the PostHog feature flag (fail closed:
+    no flag signal means no seeding).
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_STARTER_CREDITS_BRIDGE_ENABLED", False)
+
+    # One public base URL: the API mints against its admin routes; the seeded
+    # connection points runs at the same host (sandboxes reach it publicly).
+    proxy_public_url: str | None = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_PROXY_PUBLIC_URL") or None
+    )
+    master_key: str | None = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY") or None
+    )
+    # Every minted key joins this team; its max_budget is the program ceiling.
+    team_id: str | None = os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_TEAM_ID") or None
+
+    grant_usd: float = _parse_float_env("AGENTA_STARTER_CREDITS_BRIDGE_GRANT_USD", 10.0)
+    model_id: str = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MODEL_ID")
+        or "vertex_ai/gemini-3.6-flash"
+    )
+
+    feature_flag: str = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_FEATURE_FLAG")
+        or "starter-credits-bridge-seeding"
+    )
+
+    # Velocity caps on mints, enforced with Redis day counters.
+    daily_mint_cap: int = (
+        _parse_optional_positive_int_env("AGENTA_STARTER_CREDITS_BRIDGE_DAILY_MINT_CAP")
+        or 30
+    )
+    domain_daily_mint_cap: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_STARTER_CREDITS_BRIDGE_DOMAIN_DAILY_MINT_CAP"
+        )
+        or 10
+    )
+
+    # Optional operator webhook ({"text": ...} POST) for refusals and failures.
+    alert_webhook: str | None = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_ALERT_WEBHOOK") or None
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def armed(self) -> bool:
+        """True when the deployment opted in and holds the proxy credentials
+        plus the program team whose ceiling bounds total exposure."""
+        return bool(
+            self.enabled and self.proxy_public_url and self.master_key and self.team_id
+        )
+
+
+# ---------------------------------------------------------------------------
 # stripe
 # ---------------------------------------------------------------------------
 
@@ -1726,7 +1738,6 @@ class EnvironSettings(BaseModel):
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
-    funded_credits: FundedCreditsConfig = FundedCreditsConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
@@ -1739,6 +1750,7 @@ class EnvironSettings(BaseModel):
     sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
+    starter_credits_bridge: StarterCreditsBridgeConfig = StarterCreditsBridgeConfig()
     store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
