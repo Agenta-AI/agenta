@@ -2346,3 +2346,38 @@ border-width vs border-colour, `ItemRow` uses two mutually exclusive conditional
 unconditional `bg`, and `EntityCommitContent`'s are separate `className` strings, not one `cn`
 call. So U-01 is the only live instance — but the trap stays armed for the next edit, because
 nothing at the call site says which `cn` you imported.
+
+### The other two big moved files — `checkbox-tree` and `tree-select`
+
+**`CheckboxTree` → the column-visibility popover. A lane ADDITION, not drift.** Prod's traces
+toolbar past x=1600 holds only `Add`; local adds `Edit columns` (x=1691). Since prod has no such
+control, the useful test is whether it WORKS, not whether prod matches — so it was driven:
+the popover opens with `VISIBILITY · Expand all · Collapse all · Show all · Hide all` and 16
+checkboxes, and unchecking `Cost` takes the header set from
+`Name·Inputs·Outputs·Duration·Cost·Usage·Timestamp·Status` to the same list without `Cost`.
+It works.
+
+**I then had to undo my own trap.** That toggle persists to `observability-table-columns` (+
+`__meta`), which is the localStorage key §4h warns about — a preference prod never had, on a key
+with no environment in it. My restore click missed, so local was left a column short. Clearing
+both keys and reloading restores the default eight. **Anything that writes a table preference has
+to be cleaned up in the same breath, or the next capture inherits it.**
+
+**`Root | LLM | All` is the DriveExplorer pattern again** — prod renders them as `<label>` (y154),
+local as `<button>` (y156). Same control, antd→kit markup, local more accessible. Likewise prod's
+unlabelled `ant-switch` at x=913 against local's `<button aria-label="Auto-refresh">`.
+
+**`TreeSelect` → the filter field selector. Panel at parity; the dropdown itself NOT compared.**
+The filter panel opens at the same box on both (694, 149, 700 wide) with the same structure —
+`Filter · Where · [Field] [Condition] [Value] · + Add · Clear · Cancel · Apply`. Prod's is taller
+only because it carries a saved filter (`Trace Type is Invocation`, and the `1` badge on the
+toolbar); local's is empty with `Apply` correctly disabled. **Being explicit: I did not manage to
+open the `TreeSelect` dropdown itself.** Several attempts hit the wrong control or dismissed the
+panel, so the tree's own rendering — the 645-line file this was meant to exercise — is still
+uncompared. It needs a scoped, one-command open-and-read rather than the coordinate-guessing that
+failed here.
+
+**A useful cross-check for U-01, though:** prod's open condition dropdown highlights its selected
+option (`is`) with the olive primary fill. That is the app's convention for "this one is
+selected" — the same treatment U-01 restored to the range picker, which supports the fix being
+right rather than merely different.
