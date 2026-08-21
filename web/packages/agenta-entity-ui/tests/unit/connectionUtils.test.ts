@@ -434,8 +434,21 @@ describe("connectionUtils: model_catalog is preferred when published", () => {
             deployments: ["direct"],
             connection_modes: ["agenta", "self_managed"],
             model_selection: "provider/id",
-            models: {openai: ["gpt-5.5"], anthropic: ["anthropic/claude-opus-4-7"]},
+            models: {
+                openai: ["gpt-5.5"],
+                anthropic: ["anthropic/claude-opus-4-7"],
+                gemini: ["gemini/gemini-3.6-flash"],
+            },
             model_catalog: [
+                // The shape the seeded connection's model needs to carry to read as a name. The
+                // backend publishes this catalog (SDK `capabilities.py`); the frontend only
+                // displays it, so this entry is what the display path is pinned against.
+                {
+                    id: "gemini/gemini-3.6-flash",
+                    provider: "gemini",
+                    source: "pi_generated",
+                    name: "Gemini 3.6 Flash",
+                },
                 {
                     id: "openai/gpt-5.5",
                     provider: "openai",
@@ -506,7 +519,9 @@ describe("connectionUtils: model_catalog is preferred when published", () => {
         it("leaves anything that is not a connection model key alone", () => {
             // A family-prefixed id is two segments and must survive: stripping it would break
             // every catalog lookup that matches on the family prefix.
-            expect(bareConnectionModelId("anthropic/claude-fable-5")).toBe("anthropic/claude-fable-5")
+            expect(bareConnectionModelId("anthropic/claude-fable-5")).toBe(
+                "anthropic/claude-fable-5",
+            )
             expect(bareConnectionModelId("gpt-5.5")).toBe("gpt-5.5")
             expect(bareConnectionModelId("eu.anthropic.claude-haiku-4-5")).toBe(
                 "eu.anthropic.claude-haiku-4-5",
@@ -517,15 +532,29 @@ describe("connectionUtils: model_catalog is preferred when published", () => {
 
         it("names a connection model key by the catalog's curated name", () => {
             // The user-visible fix: the Model row and the picker read "GPT-5.5", never the key.
+            expect(modelDisplayName(WITH_CATALOG, "pi_core", "Agenta/custom/openai/gpt-5.5")).toBe(
+                "GPT-5.5",
+            )
+        })
+
+        it("names the seeded connection's model from the catalog, prefix and all", () => {
+            // The exact key a provisioned connection stores, with the deployment's own prefix on
+            // the tail. Once the backend catalog carries the model, the row reads its name with no
+            // frontend change — that is the whole contract this pins.
             expect(
-                modelDisplayName(WITH_CATALOG, "pi_core", "Agenta/custom/openai/gpt-5.5"),
-            ).toBe("GPT-5.5")
+                modelDisplayName(
+                    WITH_CATALOG,
+                    "pi_core",
+                    "Agenta/custom/vertex_ai/gemini-3.6-flash",
+                ),
+            ).toBe("Gemini 3.6 Flash")
         })
 
         it("falls back to the bare id, never to a guessed prettification", () => {
+            // A model the catalog does not carry: shown exactly as stored, minus the namespace.
             expect(
-                modelDisplayName(WITH_CATALOG, "pi_core", "Agenta/custom/vertex_ai/gemini-3.6-flash"),
-            ).toBe("gemini-3.6-flash")
+                modelDisplayName(WITH_CATALOG, "pi_core", "Agenta/custom/vertex_ai/gemini-4-ultra"),
+            ).toBe("gemini-4-ultra")
         })
 
         it("still names an ordinary catalogued id, and returns the id for an unknown one", () => {
