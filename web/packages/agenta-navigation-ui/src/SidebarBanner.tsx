@@ -1,10 +1,9 @@
 import {memo} from "react"
 
+import type {BannerConfig} from "@agenta/navigation"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {X} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
 import {useRouter} from "next/router"
-
-import {BannerConfig} from "./types"
 
 interface SidebarBannerProps {
     banner: BannerConfig
@@ -64,16 +63,16 @@ const SidebarBanner = ({banner, onDismiss}: SidebarBannerProps) => {
                     <X size={16} />
                 </button>
             )}
-            <Typography.Text className="text-sm leading-5 font-semibold pr-10 text-colorText">
+            <span className="text-sm leading-5 font-semibold pr-10 text-colorText">
                 {banner.title}
-            </Typography.Text>
-            <Typography.Text className="text-[12px] leading-5 text-[var(--ag-c-586673)]">
+            </span>
+            <span className="text-[12px] leading-5 text-[var(--ag-c-586673)]">
                 {banner.description}
-            </Typography.Text>
+            </span>
             {banner.action && (
-                <Button onClick={handleActionClick} className="self-start" size="small">
+                <EnhancedButton onClick={handleActionClick} className="self-start" size="small">
                     {banner.action.label}
-                </Button>
+                </EnhancedButton>
             )}
         </section>
     )
