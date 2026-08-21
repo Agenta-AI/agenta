@@ -5,7 +5,7 @@
  */
 import {FileText, GraphIcon, Plugs} from "@phosphor-icons/react"
 
-import {parseGatewayTool, type ToolObj} from "../toolUtils"
+import {parseGatewayTool, parseGatewayToolkit, type ToolObj} from "../toolUtils"
 
 /** How a config-item row presents itself: avatar, name + description, and type tags. */
 export interface ItemDescriptor {
@@ -168,6 +168,30 @@ export function describeTool(tool: unknown): ItemDescriptor {
             typeLabel: "workflow",
             typeColor: "geekblue",
             subtitle: target ? `Referenced workflow · ${target}` : "Referenced workflow",
+        }
+    }
+
+    // Connection-level toolkit entry: one config item that grants a whole connected app. Rendered
+    // as a single row (unlike the per-action gateway tool below, which is one row per action).
+    const toolkit = parseGatewayToolkit(t)
+    if (toolkit) {
+        const count = toolkit.actions.length
+        return {
+            name:
+                toolkit.mode === "all"
+                    ? "All actions"
+                    : `${count} ${count === 1 ? "action" : "actions"}`,
+            monoName: false,
+            description:
+                toolkit.mode === "all"
+                    ? `Whole ${toolkit.integration} toolkit`
+                    : toolkit.actions.map(humanizeActionKey).join(", ") || undefined,
+            mono: monogram(toolkit.integration),
+            color: "#1c2c3d",
+            tags: [toolkit.integration, "toolkit"],
+            typeLabel: "toolkit",
+            typeColor: "geekblue",
+            subtitle: `Whole connected app · ${toolkit.integration}`,
         }
     }
 

@@ -44,6 +44,65 @@ export interface ParsedGatewayTool {
     permission?: string
 }
 
+/**
+ * A connection-level toolkit entry (`{type: "gateway_toolkit"}`): one config item that grants a
+ * whole connected app instead of one entry per action. It resolves server-side into a search and an
+ * execute meta-tool. `mode: "all"` allows every action; `mode: "include"` limits to `actions`.
+ */
+export interface ParsedGatewayToolkit {
+    provider: string
+    integration: string
+    connection: string
+    mode: "all" | "include"
+    /** Allowed Agenta action keys — only meaningful when `mode === "include"`. */
+    actions: string[]
+    /** Per-entry permission default (top-level, same slot as a per-action gateway tool). */
+    permission?: string
+}
+
+/** Normalize a `gateway_toolkit` entry into one view; null if it isn't one. */
+export function parseGatewayToolkit(tool: unknown): ParsedGatewayToolkit | null {
+    if (!tool || typeof tool !== "object" || Array.isArray(tool)) return null
+    const t = tool as Record<string, unknown>
+    if (t.type !== "gateway_toolkit") return null
+    const integration = typeof t.integration === "string" ? t.integration : ""
+    const connection = typeof t.connection === "string" ? t.connection : ""
+    if (!integration || !connection) return null
+    const provider = typeof t.provider === "string" && t.provider ? t.provider : "composio"
+    const policy =
+        t.tools && typeof t.tools === "object" && !Array.isArray(t.tools)
+            ? (t.tools as Record<string, unknown>)
+            : {}
+    const mode = policy.mode === "include" ? "include" : "all"
+    const actions = Array.isArray(policy.actions)
+        ? policy.actions.filter((a): a is string => typeof a === "string")
+        : []
+    const permission = typeof t.permission === "string" ? t.permission : undefined
+    return {provider, integration, connection, mode, actions, permission}
+}
+
+/** Build a `gateway_toolkit` config entry from a drawer selection (the persisted contract). */
+export function buildGatewayToolkit(input: {
+    provider: string
+    integration: string
+    connection: string
+    mode: "all" | "include"
+    actions?: string[]
+    permission?: string
+}): Record<string, unknown> {
+    return {
+        type: "gateway_toolkit",
+        provider: input.provider || "composio",
+        integration: input.integration,
+        connection: input.connection,
+        tools:
+            input.mode === "include"
+                ? {mode: "include", actions: input.actions ?? []}
+                : {mode: "all"},
+        ...(input.permission ? {permission: input.permission} : {}),
+    }
+}
+
 /** Normalize either encoding of a connected-app tool into one view. */
 export function parseGatewayTool(tool: unknown): ParsedGatewayTool | null {
     if (!tool || typeof tool !== "object" || Array.isArray(tool)) return null
@@ -85,6 +144,16 @@ export function gatewayToolIdentity(view: ParsedGatewayTool): string {
     return [view.provider, view.integration, view.action, view.connection].join(
         GATEWAY_IDENTITY_SEP,
     )
+}
+
+/** Stable identity for a `gateway_toolkit` entry (one per connection). The `toolkit` prefix keeps it
+ *  disjoint from a per-action identity, so a toolkit and an action never collide in the added-set. */
+export function gatewayToolkitIdentity(view: {
+    provider: string
+    integration: string
+    connection: string
+}): string {
+    return ["toolkit", view.provider, view.integration, view.connection].join(GATEWAY_IDENTITY_SEP)
 }
 
 // ============================================================================

@@ -110,6 +110,12 @@ export interface CatalogChooserProps<I, T, C> {
         integration: I,
         handlers: {onClose: () => void; onSuccess: () => void},
     ) => ReactNode
+    /**
+     * Optional slot rendered inside the selected-connection detail, above the item list. Lets a
+     * consumer add a connection-level affordance (e.g. the agent drawer's "add the whole toolkit"
+     * panel) without a parallel chooser. Omitted → nothing extra renders (triggers drawer).
+     */
+    renderConnectionExtra?: (connection: C, integration: I | undefined) => ReactNode
     defaultIntegrationKey?: string
     /** App-tile appearance. "subtle" drops the rest border (agent playground). @default "bordered" */
     cardVariant?: "bordered" | "subtle"
@@ -865,6 +871,10 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                 </button>
                                             )
                                         })()}
+                                    {props.renderConnectionExtra?.(
+                                        selectedConn,
+                                        selectedIntegration,
+                                    )}
                                     <div className="mb-2 mt-4 flex items-center justify-between gap-2">
                                         <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
                                             {props.itemsLabel}
