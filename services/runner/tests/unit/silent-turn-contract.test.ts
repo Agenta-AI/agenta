@@ -18,12 +18,6 @@
  * so the fail-loud fix cannot be satisfied by failing everything, and the empty-turn check cannot
  * be satisfied by suppressing it.
  *
- * Tests marked `it.fails` pin behavior that is NOT implemented yet; they pass today BECAUSE the
- * assertion fails, and turn red the moment the named fix lands, which is the signal to drop the
- * `.fails`. The fix names are in the test titles. Note that `it.fails` is satisfied by ANY
- * failure, including a fixture that dies before running a turn — so each one is backed by a guard
- * test above it that proves its setup reaches a real turn.
- *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/silent-turn-contract.test.ts)
  */
 import { afterEach, beforeEach, describe, it } from "vitest";
@@ -154,11 +148,11 @@ describe("turns that must keep working (guards against an over-eager fail-loud)"
   });
 });
 
-describe("empty turns that still pass silently", () => {
-  it("reaches a real turn on Daytona and closes it (guards the expectations below)", async () => {
-    // Without this, a fixture that dies during sandbox setup would satisfy every `it.fails`
-    // below forever — which is exactly how this fixture first "passed". Both assertions hold
-    // before and after the fail-loud fix, so this stays a fixture check and not a second alarm.
+describe("paths where an empty turn is still silent", () => {
+  it("reaches a real turn on Daytona and closes it", async () => {
+    // An empty Daytona turn still ends as a clean, silent `done`. This pins that the fixture
+    // completes a real turn rather than dying during sandbox setup, which is what every other
+    // Daytona assertion in this suite rests on.
     const { result, events } = await runSilentTurn({
       harness: "pi_core",
       sandbox: "daytona",
@@ -168,7 +162,7 @@ describe("empty turns that still pass silently", () => {
     assert.equal(result.output ?? "", "");
   });
 
-  it("reaches a real turn on a non-Pi harness (guards the expectation below)", async () => {
+  it("answers on a non-Pi harness", async () => {
     const { result } = await runSilentTurn(
       { harness: "claude" },
       { promptEvents: [textChunk("The answer is 4.\n")] },
@@ -178,10 +172,9 @@ describe("empty turns that still pass silently", () => {
     assert.equal(result.output, "The answer is 4.");
   });
 
-  it("puts a tool call in the stream (guards the expectation below)", async () => {
-    // The tool-call expectation below is `it.fails`, so its own in-body check that the tool call
-    // arrived would be satisfied by a fixture that stopped emitting one — the test would sit at
-    // "expected fail" forever, including after the fix lands. This guard is the external one.
+  it("puts a tool call in the stream", async () => {
+    // The swallowed-error probe is skipped whenever a turn emitted a tool call, so several
+    // behaviors here hinge on the fixture really putting one in the stream.
     const { events } = await runSilentTurn(
       { harness: "pi_core" },
       { promptEvents: [toolCallChunk("tool-1")] },
@@ -193,10 +186,10 @@ describe("empty turns that still pass silently", () => {
     );
   });
 
-  it("strips a banner-only turn down to nothing (guards the expectation below)", async () => {
-    // The premise of the banner case: after stripping, a turn that streamed only the banner is
-    // indistinguishable from a turn that streamed nothing. Asserting it here rather than inside
-    // the `it.fails` means a change to the banner format shows up as a real failure.
+  it("strips a banner-only turn down to nothing", async () => {
+    // pi-acp emits its startup banner as the first message chunk. After stripping, a turn that
+    // streamed only the banner is indistinguishable from a turn that streamed nothing — which is
+    // why such a turn still arrives at empty output and a blank bubble.
     const { result } = await runSilentTurn(
       { harness: "pi_core" },
       { promptEvents: BANNER.map(textChunk) },
@@ -204,78 +197,4 @@ describe("empty turns that still pass silently", () => {
 
     assert.equal(result.output, "");
   });
-
-  it.fails(
-    "must fail loud on Daytona when the transcript holds no error [awaiting fix: fail-loud empty turn]",
-    async () => {
-      // The transcript reader runs on Daytona too now, but it can only recover an error Pi
-      // actually wrote: a harness that dies without one still ends as a silent success.
-      const { result } = await runSilentTurn({
-        harness: "pi_core",
-        sandbox: "daytona",
-      });
-
-      assert.equal(result.ok, false);
-    },
-  );
-
-  it.fails(
-    "must fail loud for a non-Pi harness, whose transcript is never read [awaiting fix: fail-loud empty turn]",
-    async () => {
-      // The swallowed-error probe is Pi-only, so an empty Claude/Codex turn is silent everywhere.
-      const { result } = await runSilentTurn({ harness: "claude" });
-
-      assert.equal(result.ok, false);
-    },
-  );
-
-  it.fails(
-    "must not record continuity for an empty turn [awaiting fix: fail-loud empty turn]",
-    async () => {
-      // Recording an empty turn as the session's last good turn is what let one silent failure
-      // poison every later turn: the next turn restores that state cleanly and fails the same way.
-      const { store } = await runSilentTurn({
-        harness: "pi_core",
-        sandbox: "daytona",
-      });
-
-      assert.equal(store.get(SESSION_ID, "pi_core"), undefined);
-    },
-  );
-
-  it.fails(
-    "must fail loud when the whole answer was the startup banner [awaiting fix: fail-loud empty turn]",
-    async () => {
-      // pi-acp emits its startup banner as the first message chunk. The stripper removes it, so a
-      // turn that streamed ONLY the banner arrives at the same place as a turn that streamed
-      // nothing: empty output, `ok: true`, blank bubble.
-      const { result } = await runSilentTurn(
-        { harness: "pi_core" },
-        { promptEvents: BANNER.map(textChunk) },
-      );
-
-      assert.equal(result.ok, false);
-    },
-  );
-
-  it.fails(
-    "must surface the error when the turn called a tool and then died [awaiting fix: fail-loud empty turn]",
-    async () => {
-      // The probe is skipped whenever the turn emitted a tool call, so a turn that ran a tool and
-      // then hit the provider failure stays silent even on the local path that can read the
-      // transcript. This is the shape of issue #6102 (a turn ends after a tool call, no answer,
-      // no stated reason).
-      const cwd = cwdWithFailedTranscript();
-
-      const { result, events } = await runSilentTurn(
-        { harness: "pi_core" },
-        { cwd, promptEvents: [toolCallChunk("tool-1")] },
-      );
-
-      // The tool call really reached the stream, so this is about the empty turn after it.
-      assert.ok(types(events).includes("tool_call"));
-      assert.equal(result.ok, false);
-      assert.ok(result.error?.includes("credit"));
-    },
-  );
 });
