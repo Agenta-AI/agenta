@@ -1,8 +1,10 @@
 """Webhook responses are write-only-aware; internal signing keeps plaintext.
 
-The signing secret lives in the vault. Once that record is write-only (via the env gate or
-a manual tighten), no USER-facing webhook response — create echo, fetch, edit echo — may
-carry the value again, while the internal resolver the signer uses stays plaintext.
+The signing secret lives in the vault, but it is a SHARED secret: the subscriber verifies
+our signature with the same value, so webhook records are created readable regardless of
+the env gate. Once a record IS write-only (only a manual tighten gets it there), no
+USER-facing webhook response — create echo, fetch, edit echo — may carry the value again,
+while the internal resolver the signer uses stays plaintext.
 """
 
 from uuid import UUID, uuid4
@@ -117,9 +119,9 @@ def _subscription_create():
 
 
 @pytest.mark.asyncio
-async def test_gate_on_create_and_fetch_never_return_the_signing_secret(
-    services, monkeypatch
-):
+async def test_gate_on_still_leaves_the_signing_secret_readable(services, monkeypatch):
+    # The vault-wide write-only default must not reach webhook signing secrets: the
+    # subscriber needs the value to verify signatures.
     monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
     webhooks_service, _ = services
 
@@ -128,13 +130,45 @@ async def test_gate_on_create_and_fetch_never_return_the_signing_secret(
         user_id=USER_ID,
         subscription=_subscription_create(),
     )
-    assert created.secret is None
+    assert created.secret == "whsec_provided_by_user_12345"
 
     fetched = await webhooks_service.fetch_subscription(
         project_id=PROJECT_ID,
         subscription_id=created.id,
     )
-    assert fetched.secret is None
+    assert fetched.secret == "whsec_provided_by_user_12345"
+
+
+@pytest.mark.asyncio
+async def test_gate_on_returns_a_generated_secret_on_the_create_echo(
+    services, monkeypatch
+):
+    # The create echo is the ONLY place a caller can read a secret Agenta generated for
+    # them. Redacting it would ship a subscription that can never be verified.
+    monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
+    webhooks_service, _ = services
+
+    created = await webhooks_service.create_subscription(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        subscription=WebhookSubscriptionCreate(
+            name="notify",
+            data=WebhookSubscriptionData(url="https://example.com/hook"),
+        ),
+    )
+
+    assert created.secret
+
+    stored = await webhooks_service.dao.fetch_subscription(
+        project_id=PROJECT_ID, subscription_id=created.id
+    )
+    signing_value = await webhooks_service._resolve_secret(
+        project_id=PROJECT_ID,
+        secret_id=stored.secret_id,
+    )
+
+    # What the subscriber was handed is what we sign with.
+    assert created.secret == signing_value
 
 
 @pytest.mark.asyncio
@@ -188,13 +222,22 @@ async def test_manually_tightened_secret_stops_appearing_in_fetches(
 
 @pytest.mark.asyncio
 async def test_internal_resolver_keeps_plaintext_for_signing(services, monkeypatch):
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
-    webhooks_service, _ = services
+    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
+    webhooks_service, vault_service = services
 
     created = await webhooks_service.create_subscription(
         project_id=PROJECT_ID,
         user_id=USER_ID,
         subscription=_subscription_create(),
+    )
+
+    stored = await webhooks_service.dao.fetch_subscription(
+        project_id=PROJECT_ID, subscription_id=created.id
+    )
+    await vault_service.update_secret(
+        secret_id=UUID(str(stored.secret_id)),
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(write_only=True),
     )
 
     stored = await webhooks_service.dao.fetch_subscription(
@@ -251,13 +294,22 @@ async def test_rotating_the_signing_secret_through_edit_replaces_the_stored_valu
 async def test_rotation_echo_stays_redacted_for_a_write_only_secret(
     services, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
-    webhooks_service, _ = services
+    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
+    webhooks_service, vault_service = services
 
     created = await webhooks_service.create_subscription(
         project_id=PROJECT_ID,
         user_id=USER_ID,
         subscription=_subscription_create(),
+    )
+
+    stored = await webhooks_service.dao.fetch_subscription(
+        project_id=PROJECT_ID, subscription_id=created.id
+    )
+    await vault_service.update_secret(
+        secret_id=UUID(str(stored.secret_id)),
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(write_only=True),
     )
 
     edited = await webhooks_service.edit_subscription(
