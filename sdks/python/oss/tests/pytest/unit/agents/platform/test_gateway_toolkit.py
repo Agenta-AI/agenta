@@ -1,10 +1,9 @@
-"""The ``gateway_toolkit`` per-connection tool: config contract + resolver wrapping.
+"""The ``gateway_toolkit`` per-connection tool: config parsing + local spec synthesis.
 
 One ``gateway_toolkit`` config resolves into TWO callback specs — a search tool and a run
-tool. Resolution is server-side: the backend maps the connection slug to its id, keys both
-``call_ref`` values on that id, and encodes the policy. These tests cover the config contract
-(parse, the include/all guards, the default permission) and the SDK resolver wrapping the two
-specs the backend returns.
+tool — with no per-action provider call at resolve time. These tests cover the config
+contract (parse, the include/all guards) and the resolver output (two specs, stable
+call_refs, the policy carried on the run call_ref).
 """
 
 from __future__ import annotations
@@ -18,7 +17,6 @@ from agenta.sdk.agents.tools import (
     coerce_tool_config,
 )
 from agenta.sdk.agents.platform import AgentaGatewayToolResolver, PlatformConnection
-from agenta.sdk.agents.platform import gateway
 
 
 # ---------------------------------------------------------------------------
@@ -26,7 +24,7 @@ from agenta.sdk.agents.platform import gateway
 # ---------------------------------------------------------------------------
 
 
-def test_gateway_toolkit_config_parses_and_defaults():
+def test_gateway_toolkit_config_parses_and_defaults_to_all():
     config = coerce_tool_config(
         {
             "type": "gateway_toolkit",
@@ -52,7 +50,9 @@ def test_gateway_toolkit_config_parses_include_policy_and_permission():
         }
     )
     assert config.tools.mode == "include"
-    assert config.tools.actions == ["CREATE_AN_ISSUE"]  # Agenta action keys, not slugs
+    # Short Agenta action keys are stored; the run call_ref maps them to Composio slugs.
+    assert config.tools.actions == ["CREATE_AN_ISSUE"]
+    assert config.allowed_slugs == ["GITHUB_CREATE_AN_ISSUE"]
     assert config.permission == "allow"
 
 
@@ -63,7 +63,7 @@ def test_include_policy_requires_actions():
 
 def test_all_policy_rejects_actions():
     with pytest.raises(ValidationError):
-        ToolkitPolicy(mode="all", actions=["GET_ISSUE"])
+        ToolkitPolicy(mode="all", actions=["GITHUB_GET_ISSUE"])
 
 
 def test_action_key_charset_is_validated():
@@ -85,60 +85,60 @@ def test_old_per_action_gateway_type_still_parses():
 
 
 # ---------------------------------------------------------------------------
-# Resolver: wraps the two specs the backend returns
+# call_ref grammar
 # ---------------------------------------------------------------------------
 
 
-async def test_resolve_toolkit_posts_config_and_wraps_specs(fake_http, connection):
-    # The backend keys both call_refs on the connection id and encodes the policy; the SDK
-    # posts the config and wraps whatever specs come back (two per config, not one).
-    capture = fake_http(
-        gateway,
-        payload={
-            "custom": [
-                {
-                    "name": "github_github_main_search",
-                    "description": "Search github actions",
-                    "input_schema": {"type": "object"},
-                    "call_ref": "toolkit.composio.11111111-1111-1111-1111-111111111111.search",
-                    "read_only": True,
-                    "permission": "ask",
-                },
-                {
-                    "name": "github_github_main_run",
-                    "description": "Run one github action",
-                    "input_schema": {"type": "object"},
-                    "call_ref": (
-                        "toolkit.composio.11111111-1111-1111-1111-111111111111."
-                        "run.include.GITHUB_CREATE_AN_ISSUE"
-                    ),
-                    "permission": "ask",
-                },
-            ]
-        },
+def test_call_refs_encode_routing_and_mapped_policy():
+    # Short action keys in the config; the run call_ref carries the full Composio slugs.
+    config = GatewayToolkitConfig(
+        integration="github",
+        connection="github-main",
+        tools=ToolkitPolicy(mode="include", actions=["CREATE_AN_ISSUE", "GET_ISSUE"]),
+    )
+    assert config.search_call_ref == "toolkit.composio.github.github-main.search"
+    assert config.run_call_ref == (
+        "toolkit.composio.github.github-main.run.include."
+        "GITHUB_CREATE_AN_ISSUE.GITHUB_GET_ISSUE"
     )
 
+
+def test_run_call_ref_for_all_policy():
+    config = GatewayToolkitConfig(integration="slack", connection="slack-main")
+    assert config.run_call_ref == "toolkit.composio.slack.slack-main.run.all"
+
+
+# ---------------------------------------------------------------------------
+# Resolver: one config -> two specs
+# ---------------------------------------------------------------------------
+
+
+async def test_resolve_toolkit_yields_search_and_run_specs():
+    resolver = AgentaGatewayToolResolver(
+        connection=PlatformConnection(
+            base_url="https://api.x/api", authorization="Access tok"
+        )
+    )
     config = GatewayToolkitConfig(
         integration="github",
         connection="github-main",
         tools=ToolkitPolicy(mode="include", actions=["CREATE_AN_ISSUE"]),
     )
-    resolution = await AgentaGatewayToolResolver(connection=connection).resolve_toolkit(
-        [config]
-    )
 
-    # The whole config rode to /tools/resolve so the backend can map slug -> id.
-    assert capture["url"] == "https://api.x/api/tools/resolve"
-    assert capture["json"]["tools"][0]["type"] == "gateway_toolkit"
-    assert capture["json"]["tools"][0]["connection"] == "github-main"
+    resolution = await resolver.resolve_toolkit([config])
 
     assert len(resolution.tool_specs) == 2
     search, run = resolution.tool_specs
     assert search.name == "github_github_main_search"
-    assert search.call_ref.endswith(".search")
-    assert search.permission == "ask"
+    assert search.call_ref == config.search_call_ref
     assert run.name == "github_github_main_run"
-    assert ".run.include.GITHUB_CREATE_AN_ISSUE" in run.call_ref
+    assert run.call_ref == config.run_call_ref
+    assert run.permission == "ask"  # default carried onto the spec
+    # The include allow-list is offered to the model as an enum of full Composio slugs.
+    assert run.input_schema["properties"]["action"]["enum"] == [
+        "GITHUB_CREATE_AN_ISSUE"
+    ]
+    # Both callbacks point at the same server-side execute endpoint.
     assert resolution.tool_callback.endpoint == "https://api.x/api/tools/call"
     assert resolution.tool_callback.authorization == "Access tok"
 

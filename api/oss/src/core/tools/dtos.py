@@ -2,11 +2,7 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
-from agenta.sdk.agents.tools import (
-    BuiltinToolConfig,
-    GatewayToolConfig,
-    GatewayToolkitConfig,
-)
+from agenta.sdk.agents.tools import BuiltinToolConfig, GatewayToolConfig
 from agenta.sdk.models.workflows import JsonSchemas
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -209,16 +205,14 @@ class ToolExecutionResponse(BaseModel):
 
 BuiltinTool = BuiltinToolConfig
 ComposioTool = GatewayToolConfig
-ToolkitTool = GatewayToolkitConfig
-ToolReference = Union[BuiltinToolConfig, GatewayToolConfig, GatewayToolkitConfig]
+ToolReference = Union[BuiltinToolConfig, GatewayToolConfig]
 
 
 class ResolvedTool(BaseModel):
     """A runnable reference resolved into a model-ready tool spec.
 
-    ``call_ref`` is the slug the execution bridge sends back to ``POST /tools/call``:
-    ``tools.{provider}.{integration}.{action}.{connection}`` for a per-action gateway tool,
-    or ``toolkit.{provider}.{connection_id}.{search|run...}`` for a toolkit tool.
+    ``call_ref`` is the ``tools.{provider}.{integration}.{action}.{connection}`` slug
+    the execution bridge sends back to ``POST /tools/call``.
     """
 
     name: str
@@ -226,10 +220,6 @@ class ResolvedTool(BaseModel):
     input_schema: Optional[Dict[str, Any]] = None
     call_ref: str
     read_only: Optional[bool] = None
-    # Set only for toolkit tools, where resolution is fully server-side and the author's
-    # per-tool permission (default ``ask``) must travel with the spec. The per-action path
-    # leaves this None and the SDK applies the config's permission itself.
-    permission: Optional[Literal["allow", "ask", "deny"]] = None
 
 
 class ToolsResolution(BaseModel):

@@ -13,7 +13,8 @@ hint the backend forwards, not a choice the backend makes.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Sequence
+import re
+from typing import Any, Dict, List, Optional, Sequence
 
 import httpx
 
@@ -92,13 +93,86 @@ def _format_resolution_failure(status_code: int, detail: Optional[str]) -> str:
     return message
 
 
-def _to_toolkit_reference(tool_config: GatewayToolkitConfig) -> Dict[str, Any]:
-    """The ``gateway_toolkit`` config as a ``/tools/resolve`` reference.
+def _sanitize_tool_name(value: str) -> str:
+    """Make a model-facing tool name from a slug, keeping only ``[A-Za-z0-9_]``."""
+    return re.sub(r"[^A-Za-z0-9_]", "_", value)
 
-    The whole config rides so the backend can validate the connection, map its slug to the
-    connection id, and encode the policy into the two returned tool specs.
+
+def _build_toolkit_specs(tool_config: GatewayToolkitConfig) -> List[CallbackToolSpec]:
+    """Turn one ``gateway_toolkit`` config into a search spec and a run spec.
+
+    Both are fixed callback specs; the per-action provider calls happen only when the
+    model calls the run tool. The names include the integration and the connection so two
+    connections never collide; the ``call_ref`` values carry the routing and (for run) the
+    policy the server enforces.
     """
-    return tool_config.model_dump(mode="json", exclude_none=True)
+    integration = tool_config.integration
+    base_name = _sanitize_tool_name(f"{integration}_{tool_config.connection}")
+
+    search_spec = CallbackToolSpec(
+        name=f"{base_name}_search",
+        description=(
+            f"Search the available {integration} actions. Give a short description of "
+            "what you want to do (for example 'create an issue'). Returns the matching "
+            f"action slugs and the input schema for each. Then call {base_name}_run with "
+            "one of the slugs."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "A short description of what you want to do, "
+                        "for example 'create an issue'."
+                    ),
+                }
+            },
+            "required": ["query"],
+        },
+        call_ref=tool_config.search_call_ref,
+        render=tool_config.render,
+        permission=tool_config.permission,
+    )
+
+    action_schema: Dict[str, Any] = {
+        "type": "string",
+        "description": (
+            f"The {integration} action slug to run, from the search tool "
+            "(for example GITHUB_CREATE_AN_ISSUE)."
+        ),
+    }
+    run_description = (
+        f"Run one {integration} action. Pass 'action' (an action slug from the "
+        f"{base_name}_search tool) and 'arguments' (the inputs for that action, matching "
+        "its input schema). Returns the action result."
+    )
+    allowed_slugs = tool_config.allowed_slugs
+    if allowed_slugs:
+        # The model runs full Composio slugs, so the enum and the allow-list use them too.
+        action_schema["enum"] = allowed_slugs
+        run_description += " Allowed actions: " + ", ".join(allowed_slugs) + "."
+
+    run_spec = CallbackToolSpec(
+        name=f"{base_name}_run",
+        description=run_description,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "action": action_schema,
+                "arguments": {
+                    "type": "object",
+                    "description": "The inputs for the action.",
+                },
+            },
+            "required": ["action"],
+        },
+        call_ref=tool_config.run_call_ref,
+        render=tool_config.render,
+        permission=tool_config.permission,
+    )
+
+    return [search_spec, run_spec]
 
 
 def _to_gateway_reference(tool_config: GatewayToolConfig) -> Dict[str, Any]:
@@ -140,84 +214,21 @@ class AgentaGatewayToolResolver:
         self,
         tools: Sequence[GatewayToolkitConfig],
     ) -> GatewayToolResolution:
-        """Resolve ``gateway_toolkit`` configs into their search + run specs.
+        """Synthesize a search spec and a run spec per ``gateway_toolkit`` config.
 
-        Each config produces two specs. The backend does the slug -> connection-id lookup,
-        keys the two ``call_ref`` values on the connection id, and encodes the policy, so
-        this posts the configs to ``/tools/resolve`` and wraps the returned specs. Unlike
-        the per-action ``resolve``, it does not enforce one spec per reference.
+        No provider call happens here; the specs are fixed and the connection is validated
+        server-side at ``/tools/call``. Only the API base and the caller credential are read,
+        for the single shared :class:`ToolCallback`.
         """
         for tool_config in tools:
             if tool_config.provider != "composio":
                 raise UnsupportedToolProviderError(tool_config.provider)
 
-        api_base, tool_callback = self._tool_callback()
-        authorization = self._connection.authorization()
-        headers = self._connection.headers(authorization=authorization)
-        references = [_to_toolkit_reference(tool_config) for tool_config in tools]
-
-        try:
-            async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
-                response = await client.post(
-                    f"{api_base}/tools/resolve",
-                    json={"tools": references},
-                    headers=headers,
-                )
-        except httpx.HTTPError as exc:
-            log.warning(
-                "agent: gateway toolkit resolution request failed for %d config(s)",
-                len(tools),
-                exc_info=True,
-            )
-            raise GatewayToolResolutionError(
-                "Gateway toolkit resolution request failed",
-                ref_count=len(tools),
-            ) from exc
-
-        if response.status_code >= 400:
-            detail = _extract_resolution_detail(response)
-            error = GatewayToolResolutionError(
-                _format_resolution_failure(response.status_code, detail),
-                status=response.status_code,
-                ref_count=len(tools),
-                detail=detail,
-            )
-            log.warning("agent: %s", error)
-            raise error
-
-        try:
-            payload = response.json() or {}
-        except ValueError as exc:
-            raise GatewayToolResolutionError(
-                "Gateway toolkit resolution returned invalid JSON",
-                ref_count=len(tools),
-            ) from exc
-
-        raw_specs = payload.get("custom") if isinstance(payload, dict) else None
-        if not isinstance(raw_specs, list):
-            raw_specs = []
+        _, tool_callback = self._tool_callback()
 
         tool_specs: list[CallbackToolSpec] = []
-        for raw_spec in raw_specs:
-            if not isinstance(raw_spec, dict) or not raw_spec.get("call_ref"):
-                error = GatewayToolResolutionError(
-                    "Gateway toolkit resolution returned an incomplete spec "
-                    f"(name={raw_spec.get('name') if isinstance(raw_spec, dict) else None!r})"
-                )
-                log.warning("agent: %s", error)
-                raise error
-            name = raw_spec.get("name")
-            tool_specs.append(
-                CallbackToolSpec(
-                    name=str(name),
-                    description=raw_spec.get("description") or str(name),
-                    input_schema=raw_spec.get("input_schema")
-                    or {"type": "object", "properties": {}},
-                    call_ref=str(raw_spec["call_ref"]),
-                    permission=raw_spec.get("permission"),
-                    read_only=raw_spec.get("read_only"),
-                )
-            )
+        for tool_config in tools:
+            tool_specs.extend(_build_toolkit_specs(tool_config))
 
         return GatewayToolResolution(
             tool_specs=tool_specs,

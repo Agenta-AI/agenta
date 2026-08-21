@@ -19,22 +19,6 @@ def test_api_reuses_sdk_tool_config_classes():
     assert ComposioTool is GatewayToolConfig
 
 
-def test_resolve_request_accepts_gateway_toolkit_config():
-    from agenta.sdk.agents.tools import GatewayToolkitConfig
-
-    request = ToolResolveRequest(
-        tools=[
-            {
-                "type": "gateway_toolkit",
-                "integration": "github",
-                "connection": "github-main",
-                "tools": {"mode": "include", "actions": ["GET_USER"]},
-            }
-        ]
-    )
-    assert isinstance(request.tools[0], GatewayToolkitConfig)
-
-
 def test_resolve_request_coerces_legacy_composio_shape():
     request = ToolResolveRequest(
         tools=[
@@ -52,9 +36,7 @@ def test_resolve_request_coerces_legacy_composio_shape():
 
 
 def test_resolve_request_rejects_non_gateway_runtime_tools():
-    with pytest.raises(
-        ValidationError, match="only builtin, gateway, and gateway_toolkit"
-    ):
+    with pytest.raises(ValidationError, match="only builtin and gateway"):
         ToolResolveRequest(
             tools=[
                 {
