@@ -5,18 +5,17 @@ import {
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
+import {RunningElsewhereStrip} from "@agenta/chat/components"
 import {useAgentConversation} from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
 import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {StatusTag} from "@/components/StatusTag"
 
 import {takePendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
@@ -213,30 +212,6 @@ export const LiveConversation = ({
             // The top edge fades as a MASK, exactly as the desktop transcript does — content
             // dissolves under the tab bar instead of being cut by a hard line.
             scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
-            header={
-                <>
-                    {running || streamingHere ? (
-                        <div className="border-border shrink-0 border-b px-4 py-2">
-                            <ContentRail className="flex items-center justify-between">
-                                <StatusTag tone="running" dot>
-                                    running
-                                </StatusTag>
-                                {streamingHere ? (
-                                    <Button
-                                        variant="outline"
-                                        className="min-h-8"
-                                        onClick={conversation.stop}
-                                    >
-                                        Stop
-                                    </Button>
-                                ) : (
-                                    <StopButton sessionId={sessionId} projectId={projectId} />
-                                )}
-                            </ContentRail>
-                        </div>
-                    ) : null}
-                </>
-            }
             footer={
                 <div className="relative">
                     {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
@@ -248,6 +223,17 @@ export const LiveConversation = ({
                         className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
                         style={BOTTOM_FADE_OVERLAY_STYLE}
                     />
+                    {/* A run this device is not driving. Docked with the other strips above the
+                        composer, as on the desktop — it used to be a top bar that also appeared for
+                        THIS device's own turns, duplicating the composer's Stop and shifting the
+                        transcript twice per run. */}
+                    {running && !streamingHere ? (
+                        <ContentRail>
+                            <RunningElsewhereStrip
+                                action={<StopButton sessionId={sessionId} projectId={projectId} />}
+                            />
+                        </ContentRail>
+                    ) : null}
                     {pendingApprovals.length > 0 ? (
                         <ApprovalDock
                             approvals={pendingApprovals}

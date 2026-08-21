@@ -7,6 +7,7 @@ import {
     MicPermissionNotice,
     RecordingBar,
     RevealCollapse,
+    RunningElsewhereStrip,
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
@@ -42,7 +43,6 @@ import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
 import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"
 import QueuedMessages from "./QueuedMessages"
-import RunningElsewhereStrip from "./RunningElsewhereStrip"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
 /**
