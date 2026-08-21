@@ -6,7 +6,7 @@
  * typing loader.
  * Bodies stay caller-owned ReactNodes; nothing here knows about messages or parts.
  */
-import {type ReactNode} from "react"
+import {useEffect, useRef, type ReactNode} from "react"
 
 import {ArrowDown, FileText, FilmStrip, Image as ImageIcon} from "@phosphor-icons/react"
 
@@ -285,21 +285,33 @@ export const ChatJumpToLatest = ({
     show: boolean
     onClick: () => void
     className?: string
-}) => (
-    <Button
-        variant="outline"
-        size="sm"
-        onClick={onClick}
-        tabIndex={show ? 0 : -1}
-        aria-hidden={!show}
-        aria-label="Jump to latest message"
-        className={cn(
-            "border-colorBorderSecondary bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md transition-[opacity,transform] duration-200 ease-out",
-            show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
-            className,
-        )}
-    >
-        <ArrowDown size={14} />
-        Jump to latest
-    </Button>
-)
+}) => {
+    const ref = useRef<HTMLButtonElement>(null)
+    // `tabIndex={-1}` does not drop focus the element already has, so a button hidden while
+    // focused would stay keyboard-reachable while `aria-hidden` — and Enter would still fire it.
+    useEffect(() => {
+        if (show) return
+        const node = ref.current
+        if (node && node === document.activeElement) node.blur()
+    }, [show])
+
+    return (
+        <Button
+            ref={ref}
+            variant="outline"
+            size="sm"
+            onClick={onClick}
+            tabIndex={show ? 0 : -1}
+            aria-hidden={!show}
+            aria-label="Jump to latest message"
+            className={cn(
+                "border-colorBorderSecondary bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md transition-[opacity,transform] duration-200 ease-out",
+                show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
+                className,
+            )}
+        >
+            <ArrowDown size={14} />
+            Jump to latest
+        </Button>
+    )
+}
