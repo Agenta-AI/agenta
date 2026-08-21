@@ -1,11 +1,15 @@
 """The canonical classification of credential material inside vault secrets.
 
-One list, consumed by BOTH sides of the write-only contract so they can never drift:
+One vocabulary, consumed by BOTH sides of the write-only contract so they can never drift:
 
 - the SDK's connection resolver (``platform/connections.py``), which decides which extras
   are credentials to inject and whether a redacted record still holds usable material;
 - the API's redaction and update carry-over (``oss/src/core/secrets/redaction.py``), which
   must strip, refill, and report presence for exactly the same fields.
+
+Scope is deliberately what a CONNECTION carries. The per-kind primary value field lives on
+the API side (``oss/src/core/secrets/redaction.py``): it covers secret kinds the SDK never
+resolves — SSO providers, webhook signing secrets — and nothing here reads it.
 
 Every key the resolver accepts in a custom provider's ``extras`` must appear in exactly one
 of the two sets below; a parity test enforces that, so adding an extras key to the resolver
@@ -14,16 +18,7 @@ without classifying it here fails the build.
 
 from __future__ import annotations
 
-from typing import Dict, FrozenSet, Tuple
-
-# The primary value field per secret kind, as (container attribute, field name).
-PRIMARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, str]] = {
-    "provider_key": ("provider", "key"),
-    "custom_provider": ("provider", "key"),
-    "webhook_provider": ("provider", "key"),
-    "sso_provider": ("provider", "client_secret"),
-    "custom_secret": ("secret", "content"),
-}
+from typing import Dict, FrozenSet
 
 # Extras keys (as stored: the UI's snake_case aliases plus raw env-style names) that hold
 # credential material. `vertex_ai_credentials`/`GOOGLE_APPLICATION_CREDENTIALS` are
