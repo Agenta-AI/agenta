@@ -1,11 +1,10 @@
-import {createBatchFetcher} from "@agenta/shared/utils"
+import {createBatchFetcher, isValidUUID} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {normalizeRevision, type Revision, type RevisionListItem} from "./revisionSchema"

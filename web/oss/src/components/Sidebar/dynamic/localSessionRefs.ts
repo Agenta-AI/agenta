@@ -1,6 +1,7 @@
 import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {localSessionRefsAtom, type SessionSidebarRef} from "@agenta/navigation"
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
+import {isValidUUID} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
 import {
@@ -8,7 +9,6 @@ import {
     defaultScopeKeyAtom,
     sessionsListAtomFamily,
 } from "@/oss/components/AgentChatSlice/state/sessions"
-import {isValidUUID} from "@/oss/lib/helpers/validators"
 
 /**
  * OSS binding for `@agenta/navigation`'s local-session seam (#5974).
