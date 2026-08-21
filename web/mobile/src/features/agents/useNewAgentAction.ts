@@ -12,7 +12,7 @@ import {useRouter} from "next/router"
 
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
-import {agentHandoffPath} from "./agentHandoff"
+import {agentHandoffPath, isSeededCreate} from "./agentHandoff"
 
 /**
  * Create an agent from this app, over the SHARED mint+commit core — blank, seeded from a starter
@@ -55,20 +55,25 @@ export const useNewAgentAction = (base: string) => {
             // new agent is missing from the roster until something else refetches.
             void invalidateWorkflowsListCache()
 
-            const seed = params?.seedMessage?.trim()
-            const sessionId = seed ? (params?.sessionId ?? crypto.randomUUID()) : null
+            const seed = params?.seedMessage?.trim() ?? ""
+            const seedParts = params?.seedParts
+            const seeded = isSeededCreate({seed, partCount: seedParts?.length ?? 0})
+            const sessionId = seeded ? (params?.sessionId ?? crypto.randomUUID()) : null
             if (sessionId) {
                 // The session does not exist server-side until its first turn — mint the id, stash
                 // the instruction, and let the chat screen's engine send it once.
                 stashTask({
                     sessionId,
-                    task: {agentId: created.appId, text: seed as string, parts: params?.seedParts},
+                    task: {agentId: created.appId, text: seed, parts: seedParts},
                 })
             }
 
-            try {
-                await router.push(agentHandoffPath({base, appId: created.appId, sessionId}))
-            } catch {
+            // A cancelled navigation RESOLVES false rather than throwing, so both outcomes have to
+            // land here — otherwise the caller is told the hand-off worked and clears its draft.
+            const navigated = await router
+                .push(agentHandoffPath({base, appId: created.appId, sessionId}))
+                .catch(() => false)
+            if (!navigated) {
                 // The agent exists; only the navigation failed. Release the latch, or the button
                 // stays dead for the rest of the mount.
                 if (sessionId) dropTask(sessionId)

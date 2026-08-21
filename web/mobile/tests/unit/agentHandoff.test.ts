@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {agentHandoffPath} from "../../src/features/agents/agentHandoff"
+import {agentHandoffPath, isSeededCreate} from "../../src/features/agents/agentHandoff"
 
 const base = "/w/ws-1/p/proj-1"
 
@@ -16,5 +16,20 @@ describe("agentHandoffPath", () => {
         expect(agentHandoffPath({base, appId: "app-1", sessionId: null})).toBe(
             "/w/ws-1/p/proj-1/agents/app-1",
         )
+    })
+})
+
+describe("isSeededCreate", () => {
+    it("counts a typed instruction", () => {
+        expect(isSeededCreate({seed: "Triage my tickets", partCount: 0})).toBe(true)
+    })
+
+    it("counts attachments with no text", () => {
+        // The composer submits "" once staged files settle, and that is still a first turn.
+        expect(isSeededCreate({seed: "", partCount: 1})).toBe(true)
+    })
+
+    it("is a blank create when neither is present", () => {
+        expect(isSeededCreate({seed: "", partCount: 0})).toBe(false)
     })
 })

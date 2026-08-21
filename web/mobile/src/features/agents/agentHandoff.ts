@@ -7,6 +7,16 @@
  *
  * `?agent=` rides along because a session with no turns cannot name its agent from records.
  */
+/**
+ * Does this create carry a first turn?
+ *
+ * Attachments alone count. The composer submits `""` on purpose once staged files have settled
+ * (`SendButton`'s force-enabled send), so reading the text alone would drop a picture-only first
+ * message on the floor and land on the agent overview instead.
+ */
+export const isSeededCreate = ({seed, partCount}: {seed: string; partCount: number}): boolean =>
+    seed.length > 0 || partCount > 0
+
 export const agentHandoffPath = ({
     base,
     appId,
