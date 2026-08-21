@@ -114,8 +114,9 @@ def _build_toolkit_specs(tool_config: GatewayToolkitConfig) -> List[CallbackTool
         description=(
             f"Search the available {integration} actions. Give a short description of "
             "what you want to do (for example 'create an issue'). Returns the matching "
-            f"action slugs and the input schema for each. Then call {base_name}_run with "
-            "one of the slugs."
+            "action slugs and the input schema for each. Call this once per task. When it "
+            f"returns a matching action, call {base_name}_run with that action's slug and "
+            "stop searching."
         ),
         input_schema={
             "type": "object",
@@ -143,9 +144,9 @@ def _build_toolkit_specs(tool_config: GatewayToolkitConfig) -> List[CallbackTool
         ),
     }
     run_description = (
-        f"Run one {integration} action. Pass 'action' (an action slug from the "
-        f"{base_name}_search tool) and 'arguments' (the inputs for that action, matching "
-        "its input schema). Returns the action result."
+        f"Run one {integration} action that the {base_name}_search tool returned. Pass "
+        "'action' (the exact action slug from search) and 'arguments' (the inputs for that "
+        "action, matching its input schema). Returns the action result."
     )
     allowed_slugs = tool_config.allowed_slugs
     if allowed_slugs:
