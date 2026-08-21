@@ -650,6 +650,7 @@ export async function acquireEnvironment(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
             })) ?? undefined);
         const refusal = mountRefusal(storeEndpoint, endpoint);
@@ -719,6 +720,7 @@ export async function acquireEnvironment(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
             })) ?? undefined);
         const refusal = mountRefusal(storeEndpoint, endpoint);
