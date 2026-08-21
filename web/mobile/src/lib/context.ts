@@ -15,6 +15,13 @@ export interface LastContext {
     projectId: string
 }
 
+/**
+ * Where a resolved context lands. The one place the mobile "project home" route is spelled
+ * out — the root resolver and every `/w/...` index gate forward here.
+ */
+export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
+
 export function writeLastContext(context: LastContext): void {
     try {
         localStorage.setItem(LAST_CONTEXT_KEY, JSON.stringify(context))

@@ -1,15 +1,28 @@
 import {useState} from "react"
 
+import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
-import {ChatBubble, ChatBubbleAvatar} from "@agenta/ui/components/presentational"
+import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
+import {
+    ChatActionIconButton,
+    ChatBubble,
+    ChatBubbleAvatar,
+    ExecutionMetricsDisplay,
+    turnRowClass,
+    turnToolbarRevealClass,
+} from "@agenta/ui/components/presentational"
+import {useSetAtom} from "jotai"
 import {
     Ban,
     Bot,
     Brain,
+    Check,
     CheckCircle2,
     ChevronRight,
     CircleDashed,
+    Copy,
+    Network,
     User,
     Wrench,
     XCircle,
@@ -148,6 +161,28 @@ const RunErrorCallout = ({text}: {text: string}) => {
  * the red run-failure callout.
  */
 export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
+    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    const [copied, setCopied] = useState(false)
+    const traceId = getMessageTraceId(turn.message)
+    const usage = getMessageUsage(turn.message)
+
+    // The turn's text, which is what a reader wants on the clipboard — not its tool rows.
+    const handleCopy = async () => {
+        const text = (turn.message.parts ?? [])
+            .filter((part) => part.type === "text")
+            .map((part) => (part as {text?: string}).text ?? "")
+            .join("\n")
+            .trim()
+        if (!text) return
+        try {
+            await navigator.clipboard.writeText(text)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+        } catch {
+            // Clipboard denied (insecure origin, or the user said no) — nothing to recover.
+        }
+    }
+
     const body = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {turn.items.map((item, position) => {
@@ -200,7 +235,7 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
     )
 
     return (
-        <div className={`flex ${turn.isUser ? "justify-end" : "justify-start"}`}>
+        <div className={`${turnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser ? "filled" : "borderless"}
@@ -218,6 +253,28 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
                 }}
                 content={body}
             />
+            {/* The turn's information and actions, revealed on hover or keyboard focus — the same
+                lane the desktop transcript reserves, so a settled turn reads quietly until you
+                reach for it. */}
+            <div
+                className={`${turnToolbarRevealClass} absolute bottom-1 flex items-center gap-1 ${
+                    turn.isUser ? "right-10" : "left-10"
+                }`}
+            >
+                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
+                <ChatActionIconButton
+                    label={copied ? "Copied" : "Copy"}
+                    icon={copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    onClick={handleCopy}
+                />
+                {traceId ? (
+                    <ChatActionIconButton
+                        label="View trace"
+                        icon={<Network className="size-3.5" />}
+                        onClick={() => openTraceDrawer({traceId})}
+                    />
+                ) : null}
+            </div>
         </div>
     )
 }

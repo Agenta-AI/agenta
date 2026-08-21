@@ -5,19 +5,36 @@ import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {fetchProjects, readDesktopLastUsed, readLastContext, type LastContext} from "@/lib/context"
+import {
+    fetchProjects,
+    projectHomeUrl,
+    readDesktopLastUsed,
+    readLastContext,
+    type LastContext,
+} from "@/lib/context"
 
 import {selectContextTarget} from "./contextTarget"
 import {groupByWorkspace, type WorkspaceGroup} from "./workspaceGroups"
 
-const homeUrl = ({workspaceId, projectId}: LastContext) => `/w/${workspaceId}/p/${projectId}/apps`
+interface ContextResolverProps {
+    /**
+     * Confine resolution to the workspace the URL names (`/w/:workspace_id`, `/w/:id/p`), so
+     * a link into a workspace lands in THAT workspace rather than the remembered one. Omitted
+     * on `/m/` and `/m/w`, which resolve across the whole tree.
+     */
+    workspaceId?: string
+}
 
 /**
  * `/m/` root flow: resolve a project (remembered → desktop continuity → first) and forward to
  * its home. There is no picker page — switching lives in the drawer, exactly like the desktop
  * rail. This route only ever shows "Loading", an error, or leaves.
+ *
+ * Also the body of every `/w/...` index gate — the desktop's `WorkspaceSelection` /
+ * `WorkspaceRedirect` / `WorkspaceProjectRedirect` trio, collapsed into one resolver because
+ * mobile answers all three questions from the same project list.
  */
-export const ContextResolver = () => {
+export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
     const router = useRouter()
     // useState initializer: read once, client-only (SSR renders the loading branch).
     const [stored] = useState<LastContext | null>(() =>
@@ -46,12 +63,18 @@ export const ContextResolver = () => {
                 groups,
                 groupsLoaded: result?.kind === "ok",
                 desktopLastUsed: readDesktopLastUsed(),
+                workspaceId,
             }),
-        [router.isReady, stored, groups, result],
+        [router.isReady, stored, groups, result, workspaceId],
     )
 
     useEffect(() => {
-        if (target?.projectId) void router.replace(homeUrl(target))
+        if (!target?.projectId) return
+        const next = projectHomeUrl(target)
+        // A gate that forwards to itself would loop; nothing here ever resolves to its own
+        // path, but the guard keeps that true if a route is added under a project home.
+        if (router.asPath.split("?")[0] === next) return
+        void router.replace(next)
     }, [target])
 
     // Signed out is not a screen on a phone — the auth page is, and AuthGate routes there

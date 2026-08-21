@@ -16,6 +16,12 @@ export interface ContextTargetInput {
     groupsLoaded: boolean
     /** Desktop's last-used project per workspace. */
     desktopLastUsed: Record<string, string>
+    /**
+     * Set by the `/w/:workspace_id[/p]` gates: confine resolution to the workspace the URL
+     * names, so a link into a workspace lands in THAT workspace rather than the remembered
+     * one. Unset (`/m/`, `/m/w`) resolves across the whole tree.
+     */
+    workspaceId?: string | null
 }
 
 const contains = (groups: WorkspaceGroup[], {workspaceId, projectId}: LastContext) =>
@@ -37,19 +43,28 @@ export const selectContextTarget = ({
     groups,
     groupsLoaded,
     desktopLastUsed,
+    workspaceId,
 }: ContextTargetInput): LastContext | null => {
     if (!ready) return null
+
+    const inScope = workspaceId ? groups.filter((g) => g.workspaceId === workspaceId) : groups
+    // A URL naming a workspace the loaded tree does not hold — typo, deleted, access revoked —
+    // is not a dead end: resolve it across the whole tree, exactly as `/m/` would.
+    const pool = workspaceId && groupsLoaded && inScope.length === 0 ? groups : inScope
+
+    // Scoped routes may only use the remembered pair when it belongs to the named workspace.
+    const usable = shortcut && (!workspaceId || shortcut.workspaceId === workspaceId)
     // The remembered pair forwards on sight; only a fetched tree that no longer holds it —
     // project deleted, access revoked — is grounds to drop it and resolve again.
-    if (shortcut && (!groupsLoaded || contains(groups, shortcut))) return shortcut
-    if (groups.length === 0) return null
+    if (usable && shortcut && (!groupsLoaded || contains(pool, shortcut))) return shortcut
+    if (pool.length === 0) return null
     // Desktop continuity: the desktop's last-used pair, when it still exists in the fetched tree.
-    for (const group of groups) {
+    for (const group of pool) {
         const projectId = desktopLastUsed[group.workspaceId]
         if (projectId && group.projects.some((p) => p.project_id === projectId)) {
             return {workspaceId: group.workspaceId, projectId}
         }
     }
-    const first = groups[0]
+    const first = pool[0]
     return {workspaceId: first.workspaceId, projectId: first.projects[0]?.project_id ?? ""}
 }
