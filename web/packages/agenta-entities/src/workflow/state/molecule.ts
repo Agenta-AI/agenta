@@ -104,6 +104,7 @@ import {
     invalidateWorkflowVariantsCache,
     invalidateWorkflowRevisionsByWorkflowCache,
     agTypeSchemaAtomFamily,
+    workflowLatestRevisionIdAtomFamily,
 } from "./store"
 
 // ============================================================================
@@ -139,6 +140,21 @@ function invalidateWorkflowLifecycleCaches(workflowId: string, options?: StoreOp
  */
 const dataAtomFamily = atomFamily((workflowId: string) =>
     atom<Workflow | null>((get) => get(workflowBaseEntityAtomFamily(workflowId))),
+)
+
+/**
+ * Whether a revision is its workflow's head.
+ *
+ * Callers use it to decide whether an edit rewrites history. Answers "latest" until the
+ * latest-revision query resolves, so the common path is never withheld on a pending query.
+ */
+export const isLatestRevisionAtomFamily = atomFamily((revisionId: string) =>
+    atom((get) => {
+        const workflowId = get(dataAtomFamily(revisionId))?.workflow_id ?? ""
+        if (!workflowId) return true
+        const latestId = get(workflowLatestRevisionIdAtomFamily(workflowId))
+        return !latestId || latestId === revisionId
+    }),
 )
 
 /**

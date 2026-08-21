@@ -22,6 +22,7 @@ import {
 } from "@agenta/playground"
 import type {PlaygroundSnapshot} from "@agenta/playground/snapshot"
 import {
+    agentAutoCommitEngineAtomFamily,
     playgroundSnapshotController,
     type EntityType,
     type HydratedSnapshotEntity,
@@ -1353,6 +1354,37 @@ playgroundSyncAtom.onMount = (set) => {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // SUB 11: Arm agent auto-commit for each selected entity
+    // -----------------------------------------------------------------------
+    // The engine lives in @agenta/playground (mobile mounts it too and has no controller);
+    // subscribing to its atom is what starts it. Reconcile one sub per selected entity the
+    // same way SUB 1 tracks hydration sources. Every skip decision is the engine's — a
+    // non-agent entity arms nothing.
+    const autoCommitSubs = new Map<string, () => void>()
+
+    const reconcileAutoCommitSubs = () => {
+        const selected = new Set(store.get(playgroundController.selectors.entityIds()))
+
+        for (const [revisionId, unsub] of autoCommitSubs.entries()) {
+            if (!selected.has(revisionId)) {
+                unsub()
+                autoCommitSubs.delete(revisionId)
+            }
+        }
+
+        for (const revisionId of selected) {
+            if (autoCommitSubs.has(revisionId)) continue
+            autoCommitSubs.set(
+                revisionId,
+                store.sub(agentAutoCommitEngineAtomFamily(revisionId), () => {}),
+            )
+        }
+    }
+
+    reconcileAutoCommitSubs()
+    unsubs.push(store.sub(playgroundController.selectors.entityIds(), reconcileAutoCommitSubs))
+
     playgroundSyncMountedOnce = true
 
     // -----------------------------------------------------------------------
@@ -1362,6 +1394,8 @@ playgroundSyncAtom.onMount = (set) => {
         for (const unsub of unsubs) unsub()
         for (const [, unsub] of sourceIdSubs) unsub()
         sourceIdSubs.clear()
+        for (const [, unsub] of autoCommitSubs) unsub()
+        autoCommitSubs.clear()
     }
 }
 

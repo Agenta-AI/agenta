@@ -471,7 +471,7 @@ export const ApprovalCard = ({
                                 for this agent
                             </span>
                             <span className="text-xs text-colorTextSecondary">
-                                Applies when you approve; commit to use it in triggers.
+                                Applies when you approve.
                             </span>
                         </div>
                     </div>
