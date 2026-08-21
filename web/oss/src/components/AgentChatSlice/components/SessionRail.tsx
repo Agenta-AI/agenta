@@ -2,6 +2,7 @@ import {memo, useCallback, useRef, useState} from "react"
 
 import {sessionMessagesAtom} from "@agenta/chat/state"
 import {useSessionPins} from "@agenta/sessions/state"
+import {timeAgo} from "@agenta/shared/utils"
 import {Button, EmptyState, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
 import {
     Archive,
@@ -33,7 +34,6 @@ import {
     openSessionIdsAtomFamily,
     renameSessionAtomFamily,
     sessionHistoryAtomFamily,
-    timeAgo,
     unarchiveSessionAtomFamily,
 } from "../state/sessions"
 

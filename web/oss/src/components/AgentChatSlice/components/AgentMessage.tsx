@@ -2,15 +2,13 @@ import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {getMessageRunError, getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
-import {AudioPlayer} from "@agenta/chat/components"
+import {AudioPlayer, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
 import {isToolPart, toolIdentity} from "@agenta/chat/model"
 import {errorKey, expandedValueAtomFamily, reasoningKey, setExpandedAtom} from "@agenta/chat/state"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
-import {TurnMetrics} from "@agenta/entity-ui/agent"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
-import {nowTickAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
     ChatActionIconButton,
@@ -20,13 +18,11 @@ import {
     turnRowClass,
     turnToolbarRevealClass,
 } from "@agenta/ui/components/presentational"
-import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {
     ArrowUUpLeft,
     Brain,
     CaretRight,
     Check,
-    Clock,
     Copy,
     Robot,
     TreeStructure,
@@ -39,32 +35,10 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 import Markdown from "../assets/markdown"
 import {useStartupPhase} from "../hooks/useStartupPhase"
-import {messageCreatedAtAtomFamily, timeAgo} from "../state/sessions"
 
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
 import {StartupActivity} from "./TurnActivity"
-
-/** A trace span's `start_time` (ISO string / epoch) → ms, or undefined if absent/unparseable. */
-const parseTraceTime = (value: unknown): number | undefined => {
-    if (value == null) return undefined
-    const ms = new Date(value as string | number).getTime()
-    return Number.isFinite(ms) ? ms : undefined
-}
-
-/** Relative "just now / 5m ago / 2h ago" message stamp; subscribes to the minute tick so it stays
- * fresh, and shows the exact date/time on hover. */
-const MessageTimestamp = ({createdAt}: {createdAt: number}) => {
-    useAtomValue(nowTickAtom)
-    return (
-        <SimpleTooltip title={new Date(createdAt).toLocaleString()}>
-            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-xs text-colorTextTertiary">
-                <Clock size={12} />
-                {timeAgo(createdAt)}
-            </span>
-        </SimpleTooltip>
-    )
-}
 
 interface AgentMessageProps {
     message: UIMessage
@@ -323,20 +297,10 @@ const AgentMessage = ({
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
-    // Client-stamped first-seen time — only a fallback: it back-dates history to load time. The
-    // trace's real start time (own trace, or the paired turn trace for a user turn) is authoritative.
-    const createdAt = useAtomValue(messageCreatedAtAtomFamily(message.id))
     // A failed run (e.g. a quota error the runner swallowed into an empty turn) lands as an
     // error on the message's OWN trace; read it so the bubble can render as a failure.
     const ownSummary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? null))
     const traceError = ownSummary.error
-    // Timestamp uses the run's real start. An assistant turn already has `ownSummary`; only a user
-    // turn needs the paired turn's trace, so read that second (no-op when null) atom only then.
-    const pairedSummary = useAtomValue(
-        traceDataSummaryAtomFamily(!traceId && turnTraceId ? turnTraceId : null),
-    )
-    const timeSummary = traceId ? ownSummary : pairedSummary
-    const messageTime = parseTraceTime(timeSummary.rootSpan?.start_time) ?? createdAt
     // A failure can reach us two ways: recorded on the trace (backend), or stamped onto the turn
     // FE-side from the useChat stream error (AgentChatPanel). `errorText` is derived below, once
     // we know whether the turn produced an answer.
@@ -621,14 +585,9 @@ const AgentMessage = ({
         />
     )
 
-    // Restored turns have no first-seen stamp (a reload isn't their send time), so until their
-    // trace time arrives the slot holds a placeholder — never a wrong "just now". Settled with no
-    // trace (deleted/expired) → no stamp at all. Live turns show first-seen instantly as before.
-    const timestamp = messageTime ? (
-        <MessageTimestamp createdAt={messageTime} />
-    ) : timeSummary.isPending ? (
-        <SkeletonBlock active className="h-4 w-16 rounded-control-sm" />
-    ) : null
+    const timestamp = (
+        <TurnTimestamp messageId={message.id} traceId={traceId} turnTraceId={turnTraceId} />
+    )
 
     const toolbar = isUser ? (
         <>

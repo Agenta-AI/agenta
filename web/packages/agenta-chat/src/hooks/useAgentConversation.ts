@@ -45,6 +45,7 @@ import {
     type TurnViewModel,
 } from "../model/turnViewModel"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
+import {stampMessagesCreatedAtAtom} from "../state/messageStamps"
 import {clearSessionFresh, composerDraftBySession, isSessionFresh} from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
@@ -159,6 +160,7 @@ export const useAgentConversation = ({
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const pruneExpanded = useSetAtom(pruneExpandedAtom)
+    const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
 
     // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last)
     // turn, so this is a single boolean gated on position at render time. Cleared on the next
@@ -519,6 +521,16 @@ export const useAgentConversation = ({
         if (status === "streaming") return
         persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
     }, [messages, status, sessionId, persistMessages])
+
+    // Stamp a first-seen timestamp on any newly-appeared LIVE message (user + assistant) — the
+    // fallback the timestamp uses until the turn's trace arrives. Restored rows are excluded: their
+    // first-seen is the reload moment, not the turn's time, and stamping them makes day-old turns
+    // read "just now" forever.
+    useEffect(() => {
+        stampMessagesCreatedAt(
+            messages.filter((m) => !restoredIdsRef.current.has(m.id)).map((m) => m.id),
+        )
+    }, [messages, stampMessagesCreatedAt])
 
     // Bound the in-message expand-state store: on settle, drop entries whose owning message is
     // gone (rewound / evicted / closed). Live = every persisted session's messages ∪ this active
