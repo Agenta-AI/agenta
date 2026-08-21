@@ -320,6 +320,86 @@ describe("classifyRunError: budgeted-proxy refusals", () => {
     }
   });
 
+  /**
+   * The exact frame a spent funded key produced on the dev stack, verbatim from live QA: the
+   * status is prefixed onto a bare (not `{"error": {...}}`-wrapped) body, `Key=` is the
+   * organization UUID that aliases the key, and the parenthesized token is the key's suffix.
+   * Both identify the key and neither may reach the user.
+   */
+  const LIVE_KEY_BUDGET_BODY =
+    '429: {"message":"Budget has been exceeded! Key=01a02587-2bb7-72b3-bb3d-295ad563d116 (sk-...3kKQ) Current cost: 0.001690500000000003, Max budget: 1e-07","type":"budget_exceeded","code":"429"}';
+
+  it("maps the live refusal observed on the dev stack to the exhausted state", () => {
+    assert.deepEqual(
+      classifyRunError(new Error(LIVE_KEY_BUDGET_BODY), "pi_core", "gemini"),
+      {
+        message:
+          "This organization's starter credits are used up. Add your own provider key to keep going.",
+        code: "starter_credits_exhausted",
+      },
+    );
+  });
+
+  it("hides the key alias, the key suffix, and the spend figures of the live refusal", () => {
+    const { message } = classifyRunError(
+      new Error(LIVE_KEY_BUDGET_BODY),
+      "pi_core",
+      "gemini",
+    );
+    for (const identifier of [
+      "01a02587-2bb7-72b3-bb3d-295ad563d116",
+      "01a02587",
+      "sk-...3kKQ",
+      "3kKQ",
+      "0.001690500000000003",
+      "1e-07",
+      "Key=",
+      "budget_exceeded",
+      "429",
+    ]) {
+      assert.equal(
+        message.includes(identifier),
+        false,
+        `"${identifier}" leaked into: ${message}`,
+      );
+    }
+  });
+
+  it("classifies the refusal even when the harness's retry notice comes first", () => {
+    // The Pi harness treats this 429 as retryable and streams "Retrying (attempt 1/3, waiting
+    // 2s)..." before the failure surfaces. Classification reads the WHOLE error, not just its
+    // first line, so that chatter cannot displace the mapped message — the first-line fallback
+    // is only ever reached by an unclassified error.
+    assert.deepEqual(
+      classifyRunError(
+        new Error(
+          `Retrying (attempt 1/3, waiting 2s)...\n${LIVE_KEY_BUDGET_BODY}`,
+        ),
+        "pi_core",
+        "gemini",
+      ),
+      {
+        message:
+          "This organization's starter credits are used up. Add your own provider key to keep going.",
+        code: "starter_credits_exhausted",
+      },
+    );
+  });
+
+  it("does not classify the retry notice on its own", () => {
+    // The notice is ordinary harness text; only a refusal body may drive a state.
+    assert.deepEqual(
+      classifyRunError(
+        new Error("Retrying (attempt 1/3, waiting 2s)..."),
+        "pi_core",
+      ),
+      {
+        message: "Retrying (attempt 1/3, waiting 2s)...",
+        code: "runner_error",
+      },
+    );
+  });
+
   it("leaves every unclassified failure on the default code", () => {
     assert.deepEqual(classifyRunError(new Error("first line\nsecond"), "pi"), {
       message: "first line",

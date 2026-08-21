@@ -23,6 +23,34 @@ import { join } from "node:path";
 
 import { piSessionWorkspaceDir } from "./pi-assets.ts";
 
+/**
+ * pi-acp renders Pi's `auto_retry_start` / `auto_retry_end` harness events as ordinary assistant
+ * message chunks — the same channel as real model output. A turn whose provider call is retried
+ * therefore has non-empty output ("Retrying (attempt 1/3, waiting 2s)...") even when the model
+ * never produced a word, which silently closes the swallowed-error recovery below: the run
+ * returns `ok: true` with the retry chatter as its entire visible answer and the real refusal
+ * never surfaces. Recognizing the notices lets the recovery treat such a turn as the empty turn
+ * it really is. Kept as literal shapes rather than a loose /retry/i so genuine model text that
+ * happens to mention retrying is never discarded.
+ */
+const HARNESS_RETRY_NOTICE =
+  /^(?:Retrying(?:\s*\(attempt\s+\d+\/\d+,\s*waiting\s+[\d.]+s\))?\.\.\.|Retry finished, resuming\.)$/;
+
+/**
+ * True when `output` consists of nothing but harness retry notices — i.e. the turn carries no
+ * model output at all. False for empty input: an empty turn is already handled by the plain
+ * emptiness check, and this predicate answers only "is this chatter and nothing else".
+ */
+export function isOnlyHarnessRetryNotices(output: string): boolean {
+  const lines = output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  return (
+    lines.length > 0 && lines.every((line) => HARNESS_RETRY_NOTICE.test(line))
+  );
+}
+
 /** A Pi transcript `session` record (first line of the .jsonl). */
 interface PiSessionRecord {
   type?: string;

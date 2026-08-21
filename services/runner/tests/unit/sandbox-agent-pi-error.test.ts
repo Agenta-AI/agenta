@@ -20,7 +20,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { findSwallowedPiError } from "../../src/engines/sandbox_agent/pi-error.ts";
+import {
+  findSwallowedPiError,
+  isOnlyHarnessRetryNotices,
+} from "../../src/engines/sandbox_agent/pi-error.ts";
 // The transcript encoder is shared with the silent-turn suites, so the format lives in one
 // place: two hand-rolled copies could drift together and both stop matching what Pi writes.
 import { writePiTranscript as writeTranscript } from "../utils/silent-turn.ts";
@@ -130,5 +133,50 @@ describe("findSwallowedPiError", () => {
 
   it("returns undefined when the transcript dir is absent", () => {
     assert.equal(findSwallowedPiError(tempDir()), undefined);
+  });
+});
+
+/**
+ * The recovery above only runs on a turn with no model output. pi-acp renders Pi's auto-retry
+ * events as assistant message chunks, so a retried provider refusal leaves the turn holding
+ * chatter and nothing else — which used to look like a real answer and skip the recovery, with
+ * the user seeing "Retrying (attempt 1/3, waiting 2s)..." as the agent's entire reply.
+ */
+describe("isOnlyHarnessRetryNotices", () => {
+  it("recognizes the notices pi-acp renders, alone or in sequence", () => {
+    // Verbatim from pi-acp's `formatAutoRetryMessage` / `auto_retry_end` handling.
+    assert.equal(
+      isOnlyHarnessRetryNotices("Retrying (attempt 1/3, waiting 2s)..."),
+      true,
+    );
+    assert.equal(isOnlyHarnessRetryNotices("Retrying..."), true);
+    assert.equal(isOnlyHarnessRetryNotices("Retry finished, resuming."), true);
+    assert.equal(
+      isOnlyHarnessRetryNotices(
+        "Retrying (attempt 1/3, waiting 2s)...\nRetry finished, resuming.\nRetrying (attempt 2/3, waiting 4s)...",
+      ),
+      true,
+    );
+  });
+
+  it("never discards a turn that produced real text", () => {
+    // The whole risk of this predicate: a turn with a genuine answer must stay a success, even
+    // when the answer sits next to retry chatter or happens to talk about retrying.
+    assert.equal(
+      isOnlyHarnessRetryNotices(
+        "Retrying (attempt 1/3, waiting 2s)...\nHere is the summary you asked for.",
+      ),
+      false,
+    );
+    assert.equal(
+      isOnlyHarnessRetryNotices("I will keep retrying the failed request..."),
+      false,
+    );
+    assert.equal(isOnlyHarnessRetryNotices("Retrying the deploy now."), false);
+  });
+
+  it("answers false for an empty turn, which the plain emptiness check already covers", () => {
+    assert.equal(isOnlyHarnessRetryNotices(""), false);
+    assert.equal(isOnlyHarnessRetryNotices("   \n  "), false);
   });
 });

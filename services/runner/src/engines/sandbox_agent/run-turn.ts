@@ -60,7 +60,7 @@ import {
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import { classifyRunError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
-import { findSwallowedPiError } from "./pi-error.ts";
+import { findSwallowedPiError, isOnlyHarnessRetryNotices } from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
 import {
   buildApprovedContentWiring,
@@ -1139,10 +1139,15 @@ export async function runTurn(
     });
     run.setUsage(usage);
 
+    // A retried turn is empty too. pi-acp streams "Retrying (attempt 1/3, waiting 2s)..." as an
+    // assistant message chunk, so a provider refusal that Pi retries leaves `output()` non-empty
+    // with chatter alone — which used to skip the recovery below and ship that chatter as the
+    // turn's answer. See `isOnlyHarnessRetryNotices`.
+    const visibleOutput = run.output().trim();
     const swallowedPiError =
       plan.isPi &&
       !plan.isDaytona &&
-      !run.output().trim() &&
+      (!visibleOutput || isOnlyHarnessRetryNotices(visibleOutput)) &&
       !run.events().some((e) => e.type === "tool_call")
         ? // The helper derives the transcript location from
           // `piSessionWorkspaceDir(plan.workspace.cwd)`, the same shared helper
