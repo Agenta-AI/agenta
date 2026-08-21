@@ -25,6 +25,7 @@ import {Composer} from "./Composer"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
+import {showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -194,10 +195,14 @@ export const LiveConversation = ({
                         sessionId={sessionId}
                     />
                 ))}
-                {/* Only the PARKED case. The working indicator moved into the streaming turn
-                    itself, beside its avatar, where the desktop has always had it — as a line
-                    after the whole list it floated far below the turn it described. */}
-                <TurnStatusLine working={false} waitingForInput={conversation.hitlPending} />
+                {/* The working indicator moved into the streaming turn itself, beside its avatar,
+                    where the desktop has always had it — as a line after the whole list it floated
+                    far below the turn it described. It falls back to here for the one case that
+                    turn cannot cover: the request is submitted and no assistant turn exists yet. */}
+                <TurnStatusLine
+                    working={showTrailingWorkingPulse(streamingHere, visibleTurns)}
+                    waitingForInput={conversation.hitlPending}
+                />
             </ContentRail>
         )
     }

@@ -46,6 +46,9 @@ export const AuthGate = () => {
     const target = authRedirectTarget(verdict, router.pathname)
     useEffect(() => {
         if (target) void router.replace(target)
+        // The target string is the only trigger. The router object changes identity on every
+        // navigation, so including it would re-fire the redirect.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [target])
 
     return null

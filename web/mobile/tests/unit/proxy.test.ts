@@ -58,7 +58,7 @@ describe("mobile reverse gate proxy", () => {
 
     it("redirects a desktop UA on a mobile session URL to the desktop equivalent", () => {
         // Unit tests hit the handler without the Next server, so the /m
-        // basePath is still present in nextUrl — the middleware strips it
+        // basePath is still present in nextUrl — the proxy strips it
         // defensively (at runtime Next strips it before the handler runs).
         const res = proxy(req("/m/w/ws1/p/pr1/sessions/abc", doc(DESKTOP_UA)))
         expect(res.status).toBe(307)
