@@ -50,7 +50,10 @@ def _pack(
 ) -> str:
     # Security-sensitive namespaces pass full_project_id=True: the 12-character suffix
     # is a display-length compromise, and two projects sharing a suffix must never share
-    # a cache entry that guards tenant data.
+    # a cache entry that guards tenant data. The truncated default is a tracked exception
+    # (issue #6166): flipping it needs `invalidate_cache` to carry the flag as well, and a
+    # deploy plan for the evaluation lock keys, whose shape must not change under a
+    # rolling deploy.
     if project_id:
         if not full_project_id:
             project_id = project_id[-12:] if len(project_id) > 12 else project_id

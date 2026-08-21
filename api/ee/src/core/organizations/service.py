@@ -23,6 +23,7 @@ from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     UpdateSecretDTO,
+    UpdateSecretPayloadDTO,
     SecretDTO,
     SecretKind,
     SSOProviderDTO,
@@ -723,7 +724,7 @@ class OrganizationProvidersService:
             if settings_changed:
                 updated_secret = UpdateSecretDTO(
                     header=Header(name=provider.slug, description=provider.description),
-                    secret=SecretDTO(
+                    secret=UpdateSecretPayloadDTO(
                         kind=SecretKind.SSO_PROVIDER,
                         data=SSOProviderDTO(
                             provider=SSOProviderSettingsDTO(

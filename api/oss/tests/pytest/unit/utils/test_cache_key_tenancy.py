@@ -2,8 +2,15 @@
 
 The default key packing truncates project ids to their last 12 characters — fine for
 display-length economy, but two projects sharing a UUID suffix would share a cache entry.
-`full_project_id=True` is the opt-out the vault list uses; these pin both the key shape
-and the end-to-end isolation through the real (de)serialization path.
+`full_project_id=True` is the opt-in the vault namespaces use; these pin both the key
+shape and the end-to-end isolation through the real (de)serialization path.
+
+The truncated default is a TRACKED EXCEPTION, not the intended end state: every other
+namespace — `check_permissions` and `check_action_access` included — still keys on the
+short id. Flipping the default needs `invalidate_cache` to carry the flag too, and a
+deploy plan for the evaluation lock keys (a key-shape change mid rolling deploy loses
+mutual exclusion). Tracked in issue #6166; the test below pins the hazard so the
+exception stays visible instead of reading as an invariant.
 """
 
 import pytest
@@ -18,10 +25,12 @@ PROJECT_A = "aaaaaaaa-aaaa-4aaa-8aaa-123456789012"
 PROJECT_B = "bbbbbbbb-bbbb-4bbb-8bbb-123456789012"
 
 
-def test_truncated_packing_collides_on_a_shared_suffix_and_full_packing_does_not():
+def test_the_truncated_default_is_a_known_collision_hazard_full_packing_removes():
+    # Not a property worth keeping: a live record of what issue #6166 has to fix. When the
+    # default flips, this assertion inverts and the namespaces below stop needing the flag.
     truncated_a = pack(namespace="list_secrets", key={}, project_id=PROJECT_A)
     truncated_b = pack(namespace="list_secrets", key={}, project_id=PROJECT_B)
-    assert truncated_a == truncated_b  # the hazard full_project_id exists to remove
+    assert truncated_a == truncated_b
 
     full_a = pack(
         namespace="list_secrets", key={}, project_id=PROJECT_A, full_project_id=True

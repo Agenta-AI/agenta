@@ -16,6 +16,7 @@ from oss.src.core.webhooks.types import (
     WebhookSubscription,
     WebhookSubscriptionCreate,
     WebhookSubscriptionData,
+    WebhookSubscriptionEdit,
 )
 from oss.src.utils.env import env
 
@@ -80,6 +81,20 @@ class _FakeWebhooksDAO:
 
     async def fetch_subscription(self, *, project_id, subscription_id):
         return self.subscriptions.get(subscription_id)
+
+    async def edit_subscription(self, *, project_id, user_id, subscription, secret_id):
+        record = self.subscriptions.get(subscription.id)
+        if record is None:
+            return None
+        record = record.model_copy(
+            update={
+                "name": subscription.name or record.name,
+                "data": subscription.data,
+                "secret_id": secret_id or record.secret_id,
+            }
+        )
+        self.subscriptions[record.id] = record
+        return record
 
 
 @pytest.fixture(name="services")
@@ -191,3 +206,69 @@ async def test_internal_resolver_keeps_plaintext_for_signing(services, monkeypat
     )
 
     assert signing_value == "whsec_provided_by_user_12345"
+
+
+@pytest.mark.asyncio
+async def test_rotating_the_signing_secret_through_edit_replaces_the_stored_value(
+    services, monkeypatch
+):
+    # The rotation path builds an update-path payload DTO; the parent `SecretDTO` does not
+    # validate there, so this pins that editing a subscription's secret still works.
+    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
+    webhooks_service, _ = services
+
+    created = await webhooks_service.create_subscription(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        subscription=_subscription_create(),
+    )
+
+    edited = await webhooks_service.edit_subscription(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        subscription=WebhookSubscriptionEdit(
+            id=created.id,
+            name="notify",
+            data=WebhookSubscriptionData(url="https://example.com/hook"),
+            secret="whsec_test_rotated",
+        ),
+    )
+
+    assert edited is not None
+
+    stored = await webhooks_service.dao.fetch_subscription(
+        project_id=PROJECT_ID, subscription_id=created.id
+    )
+    signing_value = await webhooks_service._resolve_secret(
+        project_id=PROJECT_ID,
+        secret_id=stored.secret_id,
+    )
+
+    assert signing_value == "whsec_test_rotated"
+
+
+@pytest.mark.asyncio
+async def test_rotation_echo_stays_redacted_for_a_write_only_secret(
+    services, monkeypatch
+):
+    monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
+    webhooks_service, _ = services
+
+    created = await webhooks_service.create_subscription(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        subscription=_subscription_create(),
+    )
+
+    edited = await webhooks_service.edit_subscription(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        subscription=WebhookSubscriptionEdit(
+            id=created.id,
+            name="notify",
+            data=WebhookSubscriptionData(url="https://example.com/hook"),
+            secret="whsec_test_rotated",
+        ),
+    )
+
+    assert edited.secret is None
