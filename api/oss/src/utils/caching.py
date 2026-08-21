@@ -46,20 +46,12 @@ def _pack(
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
     pattern: Optional[bool] = False,
-    full_project_id: bool = False,
 ) -> str:
-    # Security-sensitive namespaces pass full_project_id=True: the 12-character suffix
-    # is a display-length compromise, and two projects sharing a suffix must never share
-    # a cache entry that guards tenant data. The truncated default is a tracked exception
-    # (issue #6166): flipping it needs `invalidate_cache` to carry the flag as well, and a
-    # deploy plan for the evaluation lock keys, whose shape must not change under a
-    # rolling deploy.
     if project_id:
-        if not full_project_id:
-            project_id = project_id[-12:] if len(project_id) > 12 else project_id
+        project_id = project_id[-12:] if len(project_id) > 12 else project_id
     else:
         project_id = ""
-    project_id = project_id + "-" * max(0, 12 - len(project_id))
+    project_id = project_id + "-" * (12 - len(project_id))
 
     if user_id:
         user_id = user_id[-12:] if len(user_id) > 12 else user_id
@@ -89,7 +81,6 @@ def pack(
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
     pattern: Optional[bool] = False,
-    full_project_id: bool = False,
 ) -> str:
     return _pack(
         namespace=namespace,
@@ -97,7 +88,6 @@ def pack(
         project_id=project_id,
         user_id=user_id,
         pattern=pattern,
-        full_project_id=full_project_id,
     )
 
 
@@ -237,7 +227,6 @@ async def _maybe_retry_get(
     model: Optional[Type[BaseModel]] = None,
     is_list: Optional[bool] = False,
     retry: Optional[bool] = True,
-    full_project_id: bool = False,
     *,
     ttl: Optional[int] = None,
     lock_ttl: int,
@@ -252,7 +241,6 @@ async def _maybe_retry_get(
         key=key,
         project_id=project_id,
         user_id=user_id,
-        full_project_id=full_project_id,
     )
 
     if CACHE_DEBUG:
@@ -319,7 +307,6 @@ async def _maybe_retry_get(
             model=model,
             is_list=is_list,
             retry=retry,
-            full_project_id=full_project_id,
             #
             ttl=ttl,
             lock=lock_ttl,
@@ -341,7 +328,6 @@ async def set_cache(
     key: Optional[Union[str, dict]] = None,
     value: Optional[Any] = None,
     ttl: Optional[int] = AGENTA_CACHE_TTL,
-    full_project_id: bool = False,
 ) -> Optional[bool]:
     # Noop if caching is disabled
     if not env.agenta.api.caching.enabled:
@@ -353,7 +339,6 @@ async def set_cache(
             key=key,
             project_id=project_id,
             user_id=user_id,
-            full_project_id=full_project_id,
         )
         cache_value: bytes = _serialize(value)
         cache_px = int(ttl * 1000)
@@ -409,7 +394,6 @@ async def get_cache(
     model: Optional[Type[BaseModel]] = None,
     is_list: Optional[bool] = False,
     retry: Optional[bool] = True,
-    full_project_id: bool = False,
     *,
     ttl: Optional[int] = None,
     lock: Optional[int] = AGENTA_CACHE_LOCK_TTL,
@@ -429,7 +413,6 @@ async def get_cache(
             key=key,
             project_id=project_id,
             user_id=user_id,
-            full_project_id=full_project_id,
         )
 
         data = await _try_get_and_maybe_renew(cache_name, model, is_list, ttl)
@@ -446,7 +429,6 @@ async def get_cache(
                 model=model,
                 is_list=is_list,
                 retry=retry,
-                full_project_id=full_project_id,
                 #
                 ttl=ttl,
                 lock_ttl=lock,
