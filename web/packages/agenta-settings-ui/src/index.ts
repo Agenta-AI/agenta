@@ -3,12 +3,13 @@ export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicke
 export {PreferencesPage, type PreferencesPageProps, type PreferenceFlag} from "./PreferencesPage"
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
-export {
-    SecretProviderTable,
-    type SecretProviderTableProps,
-    type ProviderDialogState,
-} from "./secrets/SecretProviderTable"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
+export {
+    AIProvidersPage,
+    SUBSCRIPTION_DOCS_URL,
+    type AIProvidersPageProps,
+    type ProviderRemovalState,
+} from "./providers/AIProvidersPage"
 export {WebhooksPage, type WebhooksPageProps} from "./webhooks/WebhooksPage"
 export {
     ProjectsPage,
