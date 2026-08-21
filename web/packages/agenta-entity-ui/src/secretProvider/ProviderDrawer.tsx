@@ -130,11 +130,17 @@ const ProviderDrawer = ({
     width = DRAWER_WIDTH,
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
-    // A connection Agenta provisioned is not one the user connected, so it is not counted here.
-    const visibleCount = useMemo(
-        () => connections.filter((candidate) => !candidate.managedBy).length,
+    /**
+     * The connections the user actually connected. A provisioned one (`managedBy`) is not editable
+     * — saving it answers 409 — so it is neither counted nor listed, the same rule the Settings
+     * table applies. It stays in the `connections` prop the card reads, and in the callers' own
+     * lists, so the model picker and the "Connect key" gate keep counting it.
+     */
+    const userConnections = useMemo(
+        () => connections.filter((candidate) => !candidate.managedBy),
         [connections],
     )
+    const visibleCount = userConnections.length
     const settingsHref = useSettingsHref()
     // The card owns the save; the footer that triggers it lives out here, so the card publishes
     // what it needs. Cleared on every level change — the next card publishes its own.
@@ -322,7 +328,7 @@ const ProviderDrawer = ({
                 <>
                     {showConnected ? (
                         <PlaygroundConnectedSection
-                            connections={connections}
+                            connections={userConnections}
                             onSelect={(picked) =>
                                 showView({
                                     level: "connection",

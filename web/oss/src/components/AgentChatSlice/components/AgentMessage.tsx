@@ -147,7 +147,7 @@ const isBigError = (text: string) => text.length > 240 || text.split("\n").lengt
  * full; a big one (stacktrace) clamps behind a "Show more" that opens a scrollable block, so it
  * can't drown the chat.
  */
-const RunErrorBody = ({
+export const RunErrorBody = ({
     text,
     stateKey,
     code,
