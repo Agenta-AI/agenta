@@ -285,6 +285,7 @@ export {
     ChatJumpToLatest,
     ChatTypingDots,
     turnRowClass,
+    turnToolbarClass,
     turnToolbarRevealClass,
     type ChatAttachmentCardProps,
     type ChatBubbleProps,

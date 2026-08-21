@@ -21,6 +21,7 @@ import {
     ChatBubble,
     ChatBubbleAvatar,
     turnRowClass,
+    turnToolbarClass,
     turnToolbarRevealClass,
 } from "@agenta/ui/components/presentational"
 import {
@@ -649,9 +650,7 @@ const AgentMessage = ({
                 content={body}
             />
             <div
-                className={`absolute bottom-0 z-10 flex items-center gap-1 rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated px-1 shadow-sm ${
-                    isUser ? "right-2" : "left-10"
-                } ${toolbarReveal}`}
+                className={`${turnToolbarClass} ${isUser ? "right-2" : "left-10"} ${toolbarReveal}`}
             >
                 {toolbar}
             </div>
