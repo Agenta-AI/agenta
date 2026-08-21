@@ -2,12 +2,19 @@ import {useEffect, useState} from "react"
 
 import {
     AuthDivider,
+    AuthShell,
     EmailPasswordForm,
     OtpVerifyForm,
     PasswordlessRequestForm,
     SocialAuthButtons,
     type AuthMessage,
 } from "@agenta/auth-ui"
+
+import {providerIcon} from "./providerIcons"
+import {SsoDiscoveryForm} from "./SsoDiscoveryForm"
+import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
+import {NoAuthMethods} from "./states/NoAuthMethods"
+import {useAuthSuccess} from "./useAuthSuccess"
 
 import {AgentaLogo} from "@/components/AgentaLogo"
 import {
@@ -18,12 +25,6 @@ import {
     type EmailSignInMode,
     type OidcProvider,
 } from "@/lib/auth"
-
-import {providerIcon} from "./providerIcons"
-import {SsoDiscoveryForm} from "./SsoDiscoveryForm"
-import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
-import {NoAuthMethods} from "./states/NoAuthMethods"
-import {useAuthSuccess} from "./useAuthSuccess"
 
 interface ResolvedMethods {
     mode: EmailSignInMode
@@ -121,13 +122,22 @@ export const SignInScreen = () => {
         )
     }
 
+    // The frame, the column and the panel are the package's (`AuthShell`) — the same one oss and
+    // ee render, so /m is the desktop sign-in, not a second version of it. The corner logo is
+    // desktop-only; on a phone it sits centered with the form, the way this screen shipped.
     return (
-        <div className="auth-redesign flex min-h-dvh flex-col items-center justify-center gap-8 p-6">
-            <header className="flex flex-col items-center gap-3">
-                <AgentaLogo className="h-6 w-auto text-[var(--a-heading)]" />
+        <AuthShell
+            header={<AgentaLogo className="h-6 w-auto text-[var(--a-heading)]" />}
+            headerClassName="hidden lg:block"
+        >
+            <header className="flex flex-col items-center gap-3 lg:items-start lg:gap-1">
+                <AgentaLogo className="h-6 w-auto text-[var(--a-heading)] lg:hidden" />
+                <h1 className="auth-headline auth-headline-form m-0 hidden lg:block">
+                    Welcome to Agenta
+                </h1>
                 <p className="auth-subline m-0">Sign in or create an account.</p>
             </header>
-            <div className="flex w-full max-w-sm flex-col items-center gap-4">{body}</div>
-        </div>
+            {body}
+        </AuthShell>
     )
 }

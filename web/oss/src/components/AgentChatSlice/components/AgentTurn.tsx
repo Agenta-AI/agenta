@@ -1,6 +1,7 @@
 import {memo, useCallback} from "react"
 
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
+import {WaitingForInput, WorkingDots} from "@agenta/chat/components"
 import {Tag} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {TreeStructure} from "@phosphor-icons/react"
@@ -8,7 +9,6 @@ import {type UIMessage} from "ai"
 
 import AgentMessage from "./AgentMessage"
 import MessageRow from "./MessageRow"
-import {WaitingForInput, WorkingDots} from "./TurnActivity"
 
 interface AgentTurnProps {
     message: UIMessage

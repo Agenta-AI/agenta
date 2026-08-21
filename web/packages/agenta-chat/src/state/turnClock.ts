@@ -1,4 +1,4 @@
-import {atom} from "jotai"
+import {atom, useAtomValue} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 /**
@@ -29,3 +29,7 @@ export const clearTurnClockAtom = atom(null, (get, set, sessionId: string) => {
     delete next[sessionId]
     set(turnStartMapAtom, next)
 })
+
+/** The latest observed startup label for a session, or null when no turn is being narrated. */
+export const useStartupPhase = (sessionId: string): string | null =>
+    useAtomValue(turnStartAtomFamily(sessionId)) ?? null

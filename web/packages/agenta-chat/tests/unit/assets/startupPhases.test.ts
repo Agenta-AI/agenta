@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {startupLabelFromDataPart} from "./startupPhases"
+import {startupLabelFromDataPart} from "../../../src/assets/startupPhases"
 
 describe("observed startup labels", () => {
     it("maps the runner's observed environment boundaries", () => {

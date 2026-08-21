@@ -2,9 +2,10 @@ import {useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
+import {StartupActivity, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
+import {useStartupPhase} from "@agenta/chat/state"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
@@ -12,6 +13,7 @@ import {
     ChatActionIconButton,
     ChatBubble,
     ChatBubbleAvatar,
+    ChatTypingDots,
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
@@ -160,6 +162,31 @@ const RunErrorCallout = ({text}: {text: string}) => {
 }
 
 /**
+ * The started-but-empty assistant turn: what the agent is DOING, in words, beside its avatar.
+ *
+ * The indicator belongs to the turn, not to the transcript. /m rendered it as a status line after
+ * the whole list, so on a tall pane it floated far below the avatar it belonged to, detached from
+ * anything. And it was wordless — the runner narrates its startup (#6047) so a cold boot reads as
+ * progress rather than a stall, and /m dropped that narration entirely.
+ */
+const PendingTurn = ({sessionId}: {sessionId: string}) => {
+    const startupPhase = useStartupPhase(sessionId)
+    return (
+        <div className={`${turnRowClass} justify-start`}>
+            <ChatBubble
+                placement="start"
+                variant="borderless"
+                avatar={<ChatBubbleAvatar icon={<Bot className="size-4" />} />}
+                className="min-w-0 max-w-[85%]"
+                content={
+                    startupPhase ? <StartupActivity label={startupPhase} /> : <ChatTypingDots />
+                }
+            />
+        </div>
+    )
+}
+
+/**
  * One transcript turn on the shared bubble chrome — the mobile face of the desktop
  * AgentMessage: user turns as filled bubbles hugging the right, assistant turns flush on the
  * canvas, both with the 24px icon avatar; reasoning folds, tool lines with status glyphs, and
@@ -169,6 +196,7 @@ export const TurnRow = ({
     turn,
     onClientToolOutput,
     onRewind,
+    sessionId,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -177,6 +205,8 @@ export const TurnRow = ({
     onClientToolOutput?: ClientToolOutputHandler
     /** Re-run the conversation from this turn. Absent on the read-only transcript screen. */
     onRewind?: (turn: TurnViewModel) => void
+    /** Scopes the startup narration to this conversation. */
+    sessionId: string
 }) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const [copied, setCopied] = useState(false)
@@ -207,6 +237,12 @@ export const TurnRow = ({
         } catch {
             // Clipboard denied (insecure origin, or the user said no) — nothing to recover.
         }
+    }
+
+    // Only the turn being generated shows the loading state, and only until it has content —
+    // the same gate the desktop uses.
+    if (!turn.isUser && turn.isStreamingTurn && !turn.status.hasContent) {
+        return <PendingTurn sessionId={sessionId} />
     }
 
     const body = (

@@ -36,6 +36,7 @@ import {useSetAtom, useStore} from "jotai"
 import {filesToParts} from "../assets/files"
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
+import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
 import {parseAgentRunError, type ParsedRunError} from "../model/error"
@@ -55,6 +56,7 @@ import {
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
 } from "../state/sessionMessages"
+import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 import {AgentChatTransport} from "../transport/AgentChatTransport"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
@@ -168,6 +170,8 @@ export const useAgentConversation = ({
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const pruneExpanded = useSetAtom(pruneExpandedAtom)
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
+    const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
+    const clearTurnClock = useSetAtom(clearTurnClockAtom)
 
     // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last)
     // turn, so this is a single boolean gated on position at render time. Cleared on the next
@@ -250,6 +254,12 @@ export const useAgentConversation = ({
         // The turn's trace may not be ingested yet when a row asks for its summary — marking it
         // fresh lets the trace queries retry through the ingestion lag. A finished turn may also
         // have written files: mark the session's drive data stale so every mount surface refetches.
+        // #6047 startup states: the runner narrates what it is doing while the environment boots,
+        // so a 15s cold start reads as progress instead of a stalled session.
+        onData: (part) => {
+            const label = startupLabelFromDataPart(part)
+            if (label) setTurnStartupLabel(sessionId, label)
+        },
         onFinish: ({message}) => {
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
@@ -537,6 +547,14 @@ export const useAgentConversation = ({
         if (status === "streaming") return
         persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
     }, [messages, status, sessionId, persistMessages])
+
+    // One startup label per in-flight turn. `submitted` opens a NEW turn, so a label the previous
+    // one left behind must go; `streaming` is the same turn continuing, so its clock is left alone;
+    // every other status is terminal (answered, errored, stopped) and must not strand a label.
+    useEffect(() => {
+        if (status === "streaming") return
+        clearTurnClock(sessionId)
+    }, [status, sessionId, clearTurnClock])
 
     // Stamp a first-seen timestamp on any newly-appeared LIVE message (user + assistant) — the
     // fallback the timestamp uses until the turn's trace arrives. Restored rows are excluded: their

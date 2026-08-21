@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {readLastAuthMethod} from "@agenta/auth"
+import {AuthShell} from "@agenta/auth-ui"
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
 import {
     AppleOutlined,
@@ -45,7 +46,6 @@ const EmailPasswordAuth = dynamic(() => import("@/oss/components/pages/auth/Emai
 const EmailFirst = dynamic(() => import("@/oss/components/pages/auth/EmailFirst"))
 const SocialAuth = dynamic(() => import("@/oss/components/pages/auth/SocialAuth"), {ssr: false})
 const SendOTP = dynamic(() => import("@/oss/components/pages/auth/SendOTP"), {ssr: false})
-const SideBanner = dynamic(() => import("@/oss/components/pages/auth/SideBanner"), {ssr: false})
 const RegionSelector = dynamic(() => import("@/oss/components/pages/auth/RegionSelector"), {
     ssr: false,
 })
@@ -463,318 +463,293 @@ const Auth = () => {
     // Pre-discovery entry screen; gated on the normal flow so auth-upgrade still shows social buttons.
     const showEntryScreen = shouldShowNormalAuthFlow && !emailSubmitted && !isLoginCodeVisible
 
+    // Frame, method column and marketing panel come from @agenta/auth-ui, so this page and /m
+    // render the same sign-in rather than two copies of it.
     return (
-        <main
-            className="auth-redesign flex h-screen w-screen items-stretch justify-center gap-3 overflow-hidden p-3"
-            data-display-font={displayFontUrl ? "serif" : undefined}
-        >
-            {displayFontUrl && (
-                <style>{`@font-face{font-family:"Agenta Display";src:url("${displayFontUrl}");font-weight:300;font-display:swap;}`}</style>
-            )}
-            <section className="relative flex w-full flex-col overflow-y-auto lg:w-[560px] lg:shrink-0">
-                <div className="px-9 pt-7 pb-10">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- local SVG logo, no optimization needed */}
-                    <img
-                        src={
-                            isDark
-                                ? "/assets/logos/Agenta-logo-full-dark.svg"
-                                : "/assets/logos/Agenta-logo-full-light.svg"
-                        }
-                        alt="Agenta"
-                        className="h-[23px] w-auto"
-                    />
-                </div>
-                <div className="flex flex-1 items-center justify-center px-4 pb-10">
-                    <div className="flex w-full max-w-[400px] flex-col gap-[22px]">
-                        <div className="flex flex-col gap-1">
-                            <h1 className="auth-headline auth-headline-form">{heading}</h1>
-                            {!isReturning && (
-                                <p className="auth-subline">Sign in or create an account.</p>
-                            )}
-                        </div>
-
-                        <div className="flex flex-col gap-[22px]">
-                            {shouldShowRegionSelector() && <RegionSelector />}
-                            {/* Show invite email mismatch message */}
-                            {hasInviteEmailMismatch && (
-                                <div className="flex flex-col gap-4">
-                                    <Alert
-                                        showIcon
-                                        message="Signed in with a different account"
-                                        description={`This invitation was sent to ${inviteEmail}, but you're currently signed in as ${currentUserEmail}. Please sign out and sign in with the correct account to accept this invitation.`}
-                                        type="warning"
-                                    />
-                                    <div className="flex gap-3 justify-center">
-                                        <Button onClick={() => router.replace("/w")}>
-                                            Go to your organizations
-                                        </Button>
-                                        <Button
-                                            type="primary"
-                                            onClick={() => {
-                                                signOut()
-                                                    .then(() => {
-                                                        // Stay on current page with invite params
-                                                        router.replace(router.asPath)
-                                                    })
-                                                    .catch(console.error)
-                                            }}
-                                        >
-                                            Sign out
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Show auth upgrade required message prominently */}
-                            {isAuthUpgradeRequired && authMessage && !hasInviteEmailMismatch && (
-                                <Alert
-                                    showIcon
-                                    message="Additional authentication required"
-                                    description={authMessage}
-                                    type="warning"
-                                />
-                            )}
-
-                            {/* Entry screen — residency + methods, ordered by the returning
-                            state (design frames 2a / 2b / 3a). */}
-                            {showEntryScreen && (
-                                <>
-                                    {/* 2b: last-used provider promoted (yellow keycap) */}
-                                    {promotedProvider && (
-                                        <>
-                                            <SocialAuth
-                                                authErrorMsg={authErrorMsg}
-                                                disabled={isAuthLoading || isInitialOtpCheckLoading}
-                                                isLoading={isSocialAuthLoading}
-                                                setIsLoading={setIsSocialAuthLoading}
-                                                providers={[promotedProvider]}
-                                                variant="promoted"
-                                                yellow
-                                                lastUsedProviderId={promotedProvider.id}
-                                            />
-                                            {(otherProviders.length > 0 ||
-                                                (showEmailEntry && shouldShowEmailFlow)) && (
-                                                <div className="auth-divider">or</div>
-                                            )}
-                                        </>
-                                    )}
-
-                                    {/* 3a: last-used email promoted (yellow keycap) */}
-                                    {isReturningEmail && shouldShowEmailFlow && (
-                                        <>
-                                            <EmailFirst
-                                                email={email}
-                                                setEmail={setEmail}
-                                                onContinue={handleEmailContinue}
-                                                message={message}
-                                                disabled={
-                                                    isSocialAuthLoading || isInitialOtpCheckLoading
-                                                }
-                                                promoted
-                                                primary
-                                            />
-                                            {socialAvailable && (
-                                                <div className="auth-divider">or</div>
-                                            )}
-                                        </>
-                                    )}
-
-                                    {/* Providers list (2a: all; 2b: the rest; 3a: all) */}
-                                    {socialAvailable && otherProviders.length > 0 && (
-                                        <SocialAuth
-                                            authErrorMsg={authErrorMsg}
-                                            disabled={isAuthLoading || isInitialOtpCheckLoading}
-                                            isLoading={isSocialAuthLoading}
-                                            setIsLoading={setIsSocialAuthLoading}
-                                            providers={otherProviders}
-                                        />
-                                    )}
-
-                                    {/* Email entry (2a: yellow after providers; 2b: neutral).
-                                    3a already shows email promoted above. */}
-                                    {showEmailEntry && !isReturningEmail && shouldShowEmailFlow && (
-                                        <>
-                                            {socialAvailable && !promotedProvider && (
-                                                <div className="auth-divider">or</div>
-                                            )}
-                                            <EmailFirst
-                                                email={email}
-                                                setEmail={setEmail}
-                                                onContinue={handleEmailContinue}
-                                                message={message}
-                                                disabled={
-                                                    isSocialAuthLoading || isInitialOtpCheckLoading
-                                                }
-                                                primary={!promotedProvider}
-                                            />
-                                        </>
-                                    )}
-                                </>
-                            )}
-
-                            {/* Step 3: After email discovery, show available methods */}
-                            {emailSubmitted && discoveryComplete && shouldShowEmailFlow && (
-                                <>
-                                    {/* Show OTP flow if available */}
-                                    {emailOtpAvailable && !isLoginCodeVisible && (
-                                        <PasswordlessAuth
-                                            email={email}
-                                            setEmail={setEmail}
-                                            message={message}
-                                            setMessage={setMessage}
-                                            authErrorMsg={authErrorMsg}
-                                            setIsLoginCodeVisible={setIsLoginCodeVisible}
-                                            disabled={
-                                                isSocialAuthLoading || isInitialOtpCheckLoading
-                                            }
-                                            lockEmail
-                                        />
-                                    )}
-
-                                    {/* Show password field if available */}
-                                    {emailPasswordAvailable && !isLoginCodeVisible && (
-                                        <EmailPasswordAuth
-                                            message={message}
-                                            setMessage={setMessage}
-                                            authErrorMsg={authErrorMsg}
-                                            initialEmail={email}
-                                            lockEmail
-                                        />
-                                    )}
-
-                                    {/* Show OTP input if OTP was sent */}
-                                    {emailOtpAvailable && isLoginCodeVisible && (
-                                        <SendOTP
-                                            message={message}
-                                            email={email}
-                                            setMessage={setMessage}
-                                            authErrorMsg={authErrorMsg}
-                                            setIsLoginCodeVisible={setIsLoginCodeVisible}
-                                            isInvitedUser={isInvitedUser}
-                                        />
-                                    )}
-
-                                    {(emailPasswordAvailable || emailOtpAvailable) &&
-                                        ssoAvailable && <div className="auth-divider">or</div>}
-
-                                    {ssoAvailable && (
-                                        <div className="flex flex-col gap-2">
-                                            {ssoProviders.map((provider) => (
-                                                <Button
-                                                    key={provider.id}
-                                                    size="large"
-                                                    className="w-full"
-                                                    onClick={() => redirectToSsoProvider(provider)}
-                                                    loading={isSocialAuthLoading}
-                                                    disabled={
-                                                        isAuthLoading || isInitialOtpCheckLoading
-                                                    }
-                                                >
-                                                    Continue with SSO (
-                                                    {formatSsoProviderLabel(provider)})
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* Show back button to change email */}
-                                    {!isLoginCodeVisible && (
-                                        <Button
-                                            type="link"
-                                            onClick={() => {
-                                                setEmailSubmitted(false)
-                                                setDiscoveryComplete(false)
-                                                setAvailableMethods({})
-                                            }}
-                                            className="text-center w-full"
-                                        >
-                                            Use a different email
-                                        </Button>
-                                    )}
-                                </>
-                            )}
-
-                            {/* Auth upgrade: show organization switch and sign out options */}
-                            {isAuthUpgradeRequired &&
-                                isAuthenticated &&
-                                !hasInviteEmailMismatch && (
-                                    <div className="flex flex-col gap-3 pt-2 border-t border-[var(--ag-c-E5E7EB)]">
-                                        {otherOrgs.length > 0 && (
-                                            <div className="flex flex-col gap-2">
-                                                <Text className="text-sm text-[var(--ag-c-586673)]">
-                                                    Or switch to a different organization:
-                                                </Text>
-                                                <Select
-                                                    placeholder="Select an organization"
-                                                    className="w-full"
-                                                    options={orgSelectOptions}
-                                                    onChange={(value) => {
-                                                        router.replace(`/w/${value}`)
-                                                    }}
-                                                />
-                                            </div>
-                                        )}
-                                        <Button
-                                            type="link"
-                                            className="text-center p-0"
-                                            onClick={() => {
-                                                // Clear auth upgrade state before signing out
-                                                if (typeof window !== "undefined") {
-                                                    window.localStorage.removeItem(
-                                                        "authUpgradeOrgId",
-                                                    )
-                                                }
-                                                signOut()
-                                                    .then(() => {
-                                                        // Clear auth error params to avoid showing stale error message
-                                                        router.replace("/auth")
-                                                    })
-                                                    .catch(console.error)
-                                            }}
-                                        >
-                                            Sign out and use a different account
-                                        </Button>
-                                    </div>
-                                )}
-                        </div>
-
-                        {isDemo() && !isLoginCodeVisible && shouldShowNormalAuthFlow && (
-                            <p className="auth-terms">
-                                By continuing, you agree to Agenta's{" "}
-                                <a
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    href="https://app.termly.io/policy-viewer/policy.html?policyUUID=506861af-ea3d-41d2-b85a-561e15b0c7b7"
-                                >
-                                    Terms of Service
-                                </a>{" "}
-                                and{" "}
-                                <a
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    href="https://app.termly.io/policy-viewer/policy.html?policyUUID=ce8134b1-80c5-44b7-b3b2-01dba9765e59"
-                                >
-                                    Privacy Policy
-                                </a>
-                                .
-                            </p>
-                        )}
-                    </div>
-                </div>
-            </section>
-
-            <SideBanner />
-
-            {message.type && message.type !== "error" ? (
-                <Alert
-                    showIcon
-                    closable
-                    message={message.message}
-                    type={message.type}
-                    className="absolute bottom-6 right-6"
+        <AuthShell
+            displayFontUrl={displayFontUrl}
+            header={
+                /* eslint-disable-next-line @next/next/no-img-element -- local SVG logo, no optimization needed */
+                <img
+                    src={
+                        isDark
+                            ? "/assets/logos/Agenta-logo-full-dark.svg"
+                            : "/assets/logos/Agenta-logo-full-light.svg"
+                    }
+                    alt="Agenta"
+                    className="h-[23px] w-auto"
                 />
-            ) : null}
-        </main>
+            }
+            overlay={
+                message.type && message.type !== "error" ? (
+                    <Alert
+                        showIcon
+                        closable
+                        message={message.message}
+                        type={message.type}
+                        className="absolute bottom-6 right-6"
+                    />
+                ) : null
+            }
+        >
+            <div className="flex flex-col gap-1">
+                <h1 className="auth-headline auth-headline-form">{heading}</h1>
+                {!isReturning && <p className="auth-subline">Sign in or create an account.</p>}
+            </div>
+
+            <div className="flex flex-col gap-[22px]">
+                {shouldShowRegionSelector() && <RegionSelector />}
+                {/* Show invite email mismatch message */}
+                {hasInviteEmailMismatch && (
+                    <div className="flex flex-col gap-4">
+                        <Alert
+                            showIcon
+                            message="Signed in with a different account"
+                            description={`This invitation was sent to ${inviteEmail}, but you're currently signed in as ${currentUserEmail}. Please sign out and sign in with the correct account to accept this invitation.`}
+                            type="warning"
+                        />
+                        <div className="flex gap-3 justify-center">
+                            <Button onClick={() => router.replace("/w")}>
+                                Go to your organizations
+                            </Button>
+                            <Button
+                                type="primary"
+                                onClick={() => {
+                                    signOut()
+                                        .then(() => {
+                                            // Stay on current page with invite params
+                                            router.replace(router.asPath)
+                                        })
+                                        .catch(console.error)
+                                }}
+                            >
+                                Sign out
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Show auth upgrade required message prominently */}
+                {isAuthUpgradeRequired && authMessage && !hasInviteEmailMismatch && (
+                    <Alert
+                        showIcon
+                        message="Additional authentication required"
+                        description={authMessage}
+                        type="warning"
+                    />
+                )}
+
+                {/* Entry screen — residency + methods, ordered by the returning
+                            state (design frames 2a / 2b / 3a). */}
+                {showEntryScreen && (
+                    <>
+                        {/* 2b: last-used provider promoted (yellow keycap) */}
+                        {promotedProvider && (
+                            <>
+                                <SocialAuth
+                                    authErrorMsg={authErrorMsg}
+                                    disabled={isAuthLoading || isInitialOtpCheckLoading}
+                                    isLoading={isSocialAuthLoading}
+                                    setIsLoading={setIsSocialAuthLoading}
+                                    providers={[promotedProvider]}
+                                    variant="promoted"
+                                    yellow
+                                    lastUsedProviderId={promotedProvider.id}
+                                />
+                                {(otherProviders.length > 0 ||
+                                    (showEmailEntry && shouldShowEmailFlow)) && (
+                                    <div className="auth-divider">or</div>
+                                )}
+                            </>
+                        )}
+
+                        {/* 3a: last-used email promoted (yellow keycap) */}
+                        {isReturningEmail && shouldShowEmailFlow && (
+                            <>
+                                <EmailFirst
+                                    email={email}
+                                    setEmail={setEmail}
+                                    onContinue={handleEmailContinue}
+                                    message={message}
+                                    disabled={isSocialAuthLoading || isInitialOtpCheckLoading}
+                                    promoted
+                                    primary
+                                />
+                                {socialAvailable && <div className="auth-divider">or</div>}
+                            </>
+                        )}
+
+                        {/* Providers list (2a: all; 2b: the rest; 3a: all) */}
+                        {socialAvailable && otherProviders.length > 0 && (
+                            <SocialAuth
+                                authErrorMsg={authErrorMsg}
+                                disabled={isAuthLoading || isInitialOtpCheckLoading}
+                                isLoading={isSocialAuthLoading}
+                                setIsLoading={setIsSocialAuthLoading}
+                                providers={otherProviders}
+                            />
+                        )}
+
+                        {/* Email entry (2a: yellow after providers; 2b: neutral).
+                                    3a already shows email promoted above. */}
+                        {showEmailEntry && !isReturningEmail && shouldShowEmailFlow && (
+                            <>
+                                {socialAvailable && !promotedProvider && (
+                                    <div className="auth-divider">or</div>
+                                )}
+                                <EmailFirst
+                                    email={email}
+                                    setEmail={setEmail}
+                                    onContinue={handleEmailContinue}
+                                    message={message}
+                                    disabled={isSocialAuthLoading || isInitialOtpCheckLoading}
+                                    primary={!promotedProvider}
+                                />
+                            </>
+                        )}
+                    </>
+                )}
+
+                {/* Step 3: After email discovery, show available methods */}
+                {emailSubmitted && discoveryComplete && shouldShowEmailFlow && (
+                    <>
+                        {/* Show OTP flow if available */}
+                        {emailOtpAvailable && !isLoginCodeVisible && (
+                            <PasswordlessAuth
+                                email={email}
+                                setEmail={setEmail}
+                                message={message}
+                                setMessage={setMessage}
+                                authErrorMsg={authErrorMsg}
+                                setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                disabled={isSocialAuthLoading || isInitialOtpCheckLoading}
+                                lockEmail
+                            />
+                        )}
+
+                        {/* Show password field if available */}
+                        {emailPasswordAvailable && !isLoginCodeVisible && (
+                            <EmailPasswordAuth
+                                message={message}
+                                setMessage={setMessage}
+                                authErrorMsg={authErrorMsg}
+                                initialEmail={email}
+                                lockEmail
+                            />
+                        )}
+
+                        {/* Show OTP input if OTP was sent */}
+                        {emailOtpAvailable && isLoginCodeVisible && (
+                            <SendOTP
+                                message={message}
+                                email={email}
+                                setMessage={setMessage}
+                                authErrorMsg={authErrorMsg}
+                                setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                isInvitedUser={isInvitedUser}
+                            />
+                        )}
+
+                        {(emailPasswordAvailable || emailOtpAvailable) && ssoAvailable && (
+                            <div className="auth-divider">or</div>
+                        )}
+
+                        {ssoAvailable && (
+                            <div className="flex flex-col gap-2">
+                                {ssoProviders.map((provider) => (
+                                    <Button
+                                        key={provider.id}
+                                        size="large"
+                                        className="w-full"
+                                        onClick={() => redirectToSsoProvider(provider)}
+                                        loading={isSocialAuthLoading}
+                                        disabled={isAuthLoading || isInitialOtpCheckLoading}
+                                    >
+                                        Continue with SSO ({formatSsoProviderLabel(provider)})
+                                    </Button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Show back button to change email */}
+                        {!isLoginCodeVisible && (
+                            <Button
+                                type="link"
+                                onClick={() => {
+                                    setEmailSubmitted(false)
+                                    setDiscoveryComplete(false)
+                                    setAvailableMethods({})
+                                }}
+                                className="text-center w-full"
+                            >
+                                Use a different email
+                            </Button>
+                        )}
+                    </>
+                )}
+
+                {/* Auth upgrade: show organization switch and sign out options */}
+                {isAuthUpgradeRequired && isAuthenticated && !hasInviteEmailMismatch && (
+                    <div className="flex flex-col gap-3 pt-2 border-t border-[var(--ag-c-E5E7EB)]">
+                        {otherOrgs.length > 0 && (
+                            <div className="flex flex-col gap-2">
+                                <Text className="text-sm text-[var(--ag-c-586673)]">
+                                    Or switch to a different organization:
+                                </Text>
+                                <Select
+                                    placeholder="Select an organization"
+                                    className="w-full"
+                                    options={orgSelectOptions}
+                                    onChange={(value) => {
+                                        router.replace(`/w/${value}`)
+                                    }}
+                                />
+                            </div>
+                        )}
+                        <Button
+                            type="link"
+                            className="text-center p-0"
+                            onClick={() => {
+                                // Clear auth upgrade state before signing out
+                                if (typeof window !== "undefined") {
+                                    window.localStorage.removeItem("authUpgradeOrgId")
+                                }
+                                signOut()
+                                    .then(() => {
+                                        // Clear auth error params to avoid showing stale error message
+                                        router.replace("/auth")
+                                    })
+                                    .catch(console.error)
+                            }}
+                        >
+                            Sign out and use a different account
+                        </Button>
+                    </div>
+                )}
+            </div>
+
+            {isDemo() && !isLoginCodeVisible && shouldShowNormalAuthFlow && (
+                <p className="auth-terms">
+                    By continuing, you agree to Agenta's{" "}
+                    <a
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        href="https://app.termly.io/policy-viewer/policy.html?policyUUID=506861af-ea3d-41d2-b85a-561e15b0c7b7"
+                    >
+                        Terms of Service
+                    </a>{" "}
+                    and{" "}
+                    <a
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        href="https://app.termly.io/policy-viewer/policy.html?policyUUID=ce8134b1-80c5-44b7-b3b2-01dba9765e59"
+                    >
+                        Privacy Policy
+                    </a>
+                    .
+                </p>
+            )}
+        </AuthShell>
     )
 }
 

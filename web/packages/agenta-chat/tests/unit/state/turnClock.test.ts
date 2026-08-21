@@ -1,7 +1,7 @@
 import {createStore} from "jotai"
 import {describe, expect, it} from "vitest"
 
-import {clearTurnClockAtom, startTurnClockAtom, turnStartAtomFamily} from "./turnClock"
+import {clearTurnClockAtom, startTurnClockAtom, turnStartAtomFamily} from "../../../src/state/turnClock"
 
 describe("turn startup label", () => {
     it("has no label for an idle session", () => {
