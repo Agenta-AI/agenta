@@ -181,7 +181,14 @@ export const SessionCardList = ({
                               // on the popover's elevated surface, the chat pane's raised one and
                               // the page's plain one, and a hardcoded colour would band on two of
                               // the three. Inert wherever the container does not scroll.
-                              className="bg-inherit sticky top-0 z-10 m-0 overflow-hidden px-2 pb-1 pt-1 text-xs uppercase tracking-wide text-colorTextTertiary"
+                              className="bg-inherit sticky z-10 m-0 overflow-hidden px-2 pb-1 pt-1 text-xs uppercase tracking-wide text-colorTextTertiary"
+                              // Pins BELOW the host's own sticky header rather than on top of it:
+                              // two sticky elements both at `top-0` in one scroller pin to the
+                              // same line and simply overlap. A host with a header of its own
+                              // publishes its MEASURED height as `--ag-panel-header-h`; the 0px
+                              // fallback is the bare top, for a host without one (the popover,
+                              // the full sessions list).
+                              style={{top: "var(--ag-panel-header-h, 0px)"}}
                           >
                               {group.label}
                           </motion.p>,
