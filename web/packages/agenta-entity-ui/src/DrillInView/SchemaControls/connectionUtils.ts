@@ -360,6 +360,47 @@ export function modelLabel(
 }
 
 /**
+ * The model's own id inside a connection model key.
+ *
+ * A credential-set connection stores its models as `model_keys`, spelled
+ * `<connection>/<deployment>/<id>` — and the id can itself carry the deployment's own prefix
+ * ("Agenta/custom/vertex_ai/gemini-3.6-flash"). None of that namespace is the model's name, so it
+ * is dropped for display. Anything that is not a model key comes back untouched, which is why the
+ * second segment must name a deployment before this strips anything: a plain provider-prefixed id
+ * ("anthropic/claude-opus-4-7") is two segments and never matches.
+ *
+ * Display only. The stored config keeps the full key — that is what the resolver matches on.
+ */
+export function bareConnectionModelId(modelId: string): string {
+    const parts = modelId.split("/")
+    if (parts.length < 3 || !isDeploymentProviderKind(parts[1])) return modelId
+    return parts[parts.length - 1]
+}
+
+/**
+ * What to CALL a model in the UI: the catalog's curated name when it knows the id, else the id
+ * itself. Never null — every surface that shows a model needs something to print.
+ *
+ * A connection model key is looked up twice, on the stored spelling and on its bare id, so a
+ * provisioned connection's model reads "Gemini 3.6 Flash" rather than the whole key. No
+ * prettifier: an id the catalog does not curate is shown exactly as it is stored, because a
+ * guessed capitalization is worse than the real string.
+ */
+export function modelDisplayName(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+    modelId: string | null | undefined,
+): string {
+    if (!modelId) return ""
+    const bare = bareConnectionModelId(modelId)
+    return (
+        modelLabel(capabilities, harness, modelId) ??
+        modelLabel(capabilities, harness, bare) ??
+        bare
+    )
+}
+
+/**
  * The provider family that owns a picked model id, derived from the harness's published models
  * (the group the id sits in). Returns null when the id is not in any group (e.g. a stale id under
  * a switched harness). Use this so picking a model sets BOTH provider and model.
