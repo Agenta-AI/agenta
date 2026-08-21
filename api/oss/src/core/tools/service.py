@@ -339,6 +339,83 @@ class ToolsService:
         )
 
     # -----------------------------------------------------------------------
+    # Toolkit tools (one connection → a search tool + a run tool)
+    # -----------------------------------------------------------------------
+
+    async def search_toolkit_actions(
+        self,
+        *,
+        project_id: UUID,
+        provider_key: str,
+        integration_key: str,
+        query: str,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Search a connection's toolkit for actions that fit a query.
+
+        Wraps the provider's semantic search and returns only the actions of this
+        integration, each with its input schema, so the model can pick one and run it.
+        """
+        search = await self._cached_search(
+            provider_key=provider_key,
+            project_id=project_id,
+            use_cases=[query],
+        )
+
+        integration = integration_key.lower()
+        matches = {
+            slug: schema
+            for slug, schema in search.tool_schemas.items()
+            if ((schema.toolkit or slug.split("_", 1)[0]).lower() == integration)
+        }
+
+        # Rank the search's own primary/related order first, then any remaining matches.
+        ranked: List[str] = []
+        seen: set[str] = set()
+        for result in search.results:
+            for slug in (*result.primary_tool_slugs, *result.related_tool_slugs):
+                if slug in matches and slug not in seen:
+                    seen.add(slug)
+                    ranked.append(slug)
+        for slug in matches:
+            if slug not in seen:
+                seen.add(slug)
+                ranked.append(slug)
+
+        actions: List[Dict[str, Any]] = []
+        for slug in ranked[:limit]:
+            schema = matches[slug]
+            actions.append(
+                {
+                    "slug": slug,
+                    "description": schema.description,
+                    "input_schema": schema.input_schema,
+                }
+            )
+        return actions
+
+    async def execute_toolkit_action(
+        self,
+        *,
+        provider_key: str,
+        tool_slug: str,
+        provider_connection_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        arguments: Dict[str, Any],
+    ) -> ToolExecutionResponse:
+        """Run one full provider tool slug (the toolkit run tool's execute path)."""
+        adapter = self.adapter_registry.get(provider_key)
+        execute_fn = getattr(adapter, "execute_action_slug", None)
+        if execute_fn is None:
+            raise DiscoveryUnsupportedError(provider_key)
+        return await execute_fn(
+            tool_slug=tool_slug,
+            provider_connection_id=provider_connection_id,
+            user_id=user_id,
+            arguments=arguments,
+        )
+
+    # -----------------------------------------------------------------------
     # Tool resolution (references → model-ready specs)
     # -----------------------------------------------------------------------
 

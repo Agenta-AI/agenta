@@ -12,6 +12,7 @@ from .models import (
     ClientToolConfig,
     CodeToolConfig,
     GatewayToolConfig,
+    GatewayToolkitConfig,
     PlatformToolConfig,
     ReferenceToolConfig,
     ToolConfig,
@@ -66,6 +67,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
         (
             BuiltinToolConfig,
             GatewayToolConfig,
+            GatewayToolkitConfig,
             CodeToolConfig,
             ClientToolConfig,
             ReferenceToolConfig,
@@ -89,6 +91,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     if data.get("type") in {
         "builtin",
         "gateway",
+        "gateway_toolkit",
         "code",
         "client",
         "reference",

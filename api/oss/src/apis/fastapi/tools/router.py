@@ -93,7 +93,97 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 # ``workflow.variant.{slug}[.{version}]`` or ``workflow.environment.{environment}.{slug}``.
 _WORKFLOW_CALL_REF_PREFIX = "workflow."
 
+# A per-connection ``gateway_toolkit`` tool carries this call_ref prefix. One config
+# resolves into two of them: ``toolkit.{provider}.{integration}.{connection}.search`` and
+# ``toolkit.{provider}.{integration}.{connection}.run.{policy}``. The run policy is
+# ``all`` (every slug) or ``include.<SLUG>.<SLUG>...`` (only the listed slugs), so the
+# server enforces the allow-list from the call_ref without needing the config.
+_TOOLKIT_CALL_REF_PREFIX = "toolkit."
+
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
+# A provider action slug (e.g. ``GITHUB_CREATE_AN_ISSUE``); dot-free so it rides a
+# dot-separated call_ref and a run-tool argument safely.
+_ACTION_SLUG_RE = re.compile(r"[A-Za-z0-9_]+")
+
+
+class _ToolkitCallRef(BaseModel):
+    """A parsed ``toolkit.*`` call_ref (see ``_TOOLKIT_CALL_REF_PREFIX``)."""
+
+    provider: str
+    integration: str
+    connection: str
+    kind: str  # "search" | "run"
+    mode: Optional[str] = None  # "all" | "include" (run only)
+    allowed: Optional[List[str]] = None  # the include allow-list (run + include only)
+
+
+def _parse_toolkit_call_ref(call_ref: str) -> _ToolkitCallRef:
+    """Parse and validate a ``toolkit.*`` call_ref, or raise ``ValueError``.
+
+    Grammar (dot-separated, all segments dot-free):
+    - ``toolkit.{provider}.{integration}.{connection}.search``
+    - ``toolkit.{provider}.{integration}.{connection}.run.all``
+    - ``toolkit.{provider}.{integration}.{connection}.run.include.{SLUG}[.{SLUG}...]``
+    """
+    parts = call_ref.split(".")
+    if len(parts) < 5 or parts[0] != "toolkit":
+        raise ValueError(f"not a toolkit call_ref: {call_ref!r}")
+
+    provider, integration, connection, kind = parts[1], parts[2], parts[3], parts[4]
+    for segment in (provider, integration, connection):
+        if not _SLUG_SEGMENT_RE.fullmatch(segment):
+            raise ValueError(f"invalid call_ref segment: {segment!r}")
+
+    if kind == "search":
+        if len(parts) != 5:
+            raise ValueError(f"malformed search call_ref: {call_ref!r}")
+        return _ToolkitCallRef(
+            provider=provider,
+            integration=integration,
+            connection=connection,
+            kind="search",
+        )
+
+    if kind == "run":
+        if len(parts) < 6:
+            raise ValueError(f"malformed run call_ref: {call_ref!r}")
+        mode = parts[5]
+        if mode == "all":
+            if len(parts) != 6:
+                raise ValueError(f"malformed run call_ref: {call_ref!r}")
+            return _ToolkitCallRef(
+                provider=provider,
+                integration=integration,
+                connection=connection,
+                kind="run",
+                mode="all",
+            )
+        if mode == "include":
+            allowed = parts[6:]
+            if not allowed:
+                raise ValueError("run include policy has no actions")
+            for slug in allowed:
+                if not _ACTION_SLUG_RE.fullmatch(slug):
+                    raise ValueError(f"invalid action slug in policy: {slug!r}")
+            return _ToolkitCallRef(
+                provider=provider,
+                integration=integration,
+                connection=connection,
+                kind="run",
+                mode="include",
+                allowed=allowed,
+            )
+
+    raise ValueError(f"unknown toolkit call_ref kind: {kind!r}")
+
+
+def _toolkit_run_allows(ref: _ToolkitCallRef, requested_slug: str) -> bool:
+    """Whether the run policy in ``ref`` permits ``requested_slug`` (case-insensitive)."""
+    if ref.mode == "all":
+        return True
+    allowed = {slug.upper() for slug in (ref.allowed or [])}
+    return requested_slug.upper() in allowed
+
 
 log = get_module_logger(__name__)
 
@@ -1185,6 +1275,8 @@ class ToolsRouter:
             )
         if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
             return await self._call_workflow_tool(request=request, body=body)
+        if call_ref.startswith(_TOOLKIT_CALL_REF_PREFIX):
+            return await self._call_toolkit_tool(request=request, body=body)
         # Parse tool slug — accept both dot and double-underscore formats.
         # Double-underscore is used for LLM function names where dots are forbidden.
         slug_parts = body.data.function.name.replace("__", ".").split(".")
@@ -1347,6 +1439,168 @@ class ToolsRouter:
         )
 
         return ToolCallResponse(call=result)
+
+    async def _call_toolkit_tool(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """Execute a ``gateway_toolkit`` search or run tool (one connection, two tools).
+
+        The model's call routes here via a ``toolkit.*`` call_ref. The search tool wraps the
+        provider's semantic search, scoped to the connection's integration. The run tool
+        enforces the call_ref's allow-list, then runs the requested slug with the connection's
+        account. The provider key stays server-side; only the connection slug is in the call_ref.
+        """
+        try:
+            ref = _parse_toolkit_call_ref(body.data.function.name.replace("__", "."))
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid toolkit tool call_ref: {body.data.function.name}. {e}",
+            ) from e
+
+        project_id = UUID(request.state.project_id)
+
+        try:
+            connection = await self.tools_service.resolve_connection_by_slug(
+                project_id=project_id,
+                provider_key=ref.provider,
+                integration_key=ref.integration,
+                connection_slug=ref.connection,
+            )
+        except ConnectionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+        except ConnectionInactiveError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ConnectionInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+
+        arguments = self._parse_call_arguments(body.data.function.arguments)
+
+        if ref.kind == "search":
+            query = arguments.get("query")
+            if not isinstance(query, str) or not query.strip():
+                return self._toolkit_error_result(
+                    body=body,
+                    message="Provide a non-empty 'query' describing what you want to do.",
+                )
+            actions = await self.tools_service.search_toolkit_actions(
+                project_id=project_id,
+                provider_key=ref.provider,
+                integration_key=ref.integration,
+                query=query,
+            )
+            return self._toolkit_ok_result(body=body, content={"actions": actions})
+
+        # kind == "run"
+        requested_slug = arguments.get("action")
+        if not isinstance(requested_slug, str) or not _ACTION_SLUG_RE.fullmatch(
+            requested_slug
+        ):
+            return self._toolkit_error_result(
+                body=body,
+                message=(
+                    "Provide 'action' as an action slug from the search tool, "
+                    "for example GITHUB_CREATE_AN_ISSUE."
+                ),
+            )
+
+        if not _toolkit_run_allows(ref, requested_slug):
+            allowed = ", ".join(ref.allowed or [])
+            return self._toolkit_error_result(
+                body=body,
+                message=(
+                    f"Action '{requested_slug}' is not allowed for this connection. "
+                    f"Allowed actions: {allowed}."
+                ),
+            )
+
+        action_arguments = arguments.get("arguments")
+        if not isinstance(action_arguments, dict):
+            action_arguments = {}
+
+        # Use the stored project_id as the Composio user_id (the entity the connection was
+        # created under), matching the per-action execute path.
+        user_id = (
+            connection.data.get("project_id")
+            if isinstance(connection.data, dict)
+            else None
+        )
+
+        execution_result = await self.tools_service.execute_toolkit_action(
+            provider_key=ref.provider,
+            tool_slug=requested_slug,
+            provider_connection_id=connection.provider_connection_id,
+            user_id=user_id,
+            arguments=action_arguments,
+        )
+
+        result = ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=json.dumps(execution_result.model_dump()),
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_OK"
+                if execution_result.successful
+                else "STATUS_CODE_ERROR",
+                message=execution_result.error,
+            ),
+        )
+        return ToolCallResponse(call=result)
+
+    @staticmethod
+    def _parse_call_arguments(raw: Any) -> Dict[str, Any]:
+        """Normalise a model tool-call's ``arguments`` (a JSON string or dict) to a dict."""
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as e:
+                log.warning("Failed to parse tool arguments as JSON: %s", e)
+                return {}
+            return parsed if isinstance(parsed, dict) else {}
+        return raw if isinstance(raw, dict) else {}
+
+    @staticmethod
+    def _toolkit_ok_result(
+        *, body: ToolCall, content: Dict[str, Any]
+    ) -> ToolCallResponse:
+        return ToolCallResponse(
+            call=ToolResult(
+                id=uuid4(),
+                data=ToolResultData(
+                    tool_call_id=body.data.id,
+                    content=json.dumps(content),
+                ),
+                status=Status(
+                    timestamp=datetime.now(timezone.utc),
+                    code="STATUS_CODE_OK",
+                ),
+            )
+        )
+
+    @staticmethod
+    def _toolkit_error_result(*, body: ToolCall, message: str) -> ToolCallResponse:
+        # A soft, model-readable failure: the run continues and the model can correct itself
+        # (pick an allowed slug, fix the query), so this is a 200 result with an error status.
+        return ToolCallResponse(
+            call=ToolResult(
+                id=uuid4(),
+                data=ToolResultData(
+                    tool_call_id=body.data.id,
+                    content=json.dumps({"error": message}),
+                ),
+                status=Status(
+                    timestamp=datetime.now(timezone.utc),
+                    code="STATUS_CODE_ERROR",
+                    message=message,
+                ),
+            )
+        )
 
     @staticmethod
     def _validate_slug_segments(*, segments: List[str]) -> None:

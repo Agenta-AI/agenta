@@ -28,6 +28,7 @@ from .models import (
     CodeToolConfig,
     CodeToolSpec,
     GatewayToolConfig,
+    GatewayToolkitConfig,
     MissingSecretPolicy,
     PlatformToolConfig,
     ReferenceToolConfig,
@@ -192,6 +193,11 @@ class ToolResolver:
             for tool_config in tool_configs
             if isinstance(tool_config, GatewayToolConfig)
         ]
+        toolkit_configs = [
+            tool_config
+            for tool_config in tool_configs
+            if isinstance(tool_config, GatewayToolkitConfig)
+        ]
         reference_configs = [
             tool_config
             for tool_config in tool_configs
@@ -299,6 +305,17 @@ class ToolResolver:
                 # keep one.
                 tool_callback = gateway_resolution.tool_callback or tool_callback
             tool_specs = [*gateway_specs, *tool_specs]
+
+        # A ``gateway_toolkit`` config resolves into two callback specs (search + run)
+        # without any per-action provider call, so it needs no per-tool drop-on-404 loop.
+        if toolkit_configs:
+            if self._gateway_resolver is None:
+                raise UnsupportedToolProviderError(toolkit_configs[0].provider)
+            toolkit_resolution = await self._gateway_resolver.resolve_toolkit(
+                toolkit_configs
+            )
+            tool_specs = [*toolkit_resolution.tool_specs, *tool_specs]
+            tool_callback = toolkit_resolution.tool_callback or tool_callback
 
         _validate_unique_names(tool_specs)
         return ResolvedToolSet(

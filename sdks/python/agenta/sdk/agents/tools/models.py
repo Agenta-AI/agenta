@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
@@ -99,6 +100,105 @@ class GatewayToolConfig(ToolConfigBase):
         return (
             f"tools.{self.provider}.{self.integration}.{self.action}.{self.connection}"
         )
+
+
+# A per-connection tool config resolves into TWO runtime tools — a search tool and a
+# run tool — instead of one tool per action. The old per-action ``gateway`` type above
+# stays for backward compatibility; this type uses a distinct ``gateway_toolkit``
+# discriminator so old configs keep parsing. See
+# docs/design/composio-tools-rework/{design,api-design}.md.
+
+# A connection slug or integration key. It must stay dot-free so it can ride a
+# dot-separated ``call_ref`` without ambiguity (the run/search call_ref splits on ``.``).
+_SLUG_FIELD_RE = r"^[A-Za-z0-9_-]+$"
+# An Agenta action key (e.g. ``CREATE_AN_ISSUE`` — the integration prefix stripped). The
+# run call_ref maps it to the full Composio slug ``INTEGRATION_ACTION``. Dot-free.
+_ACTION_KEY_RE = r"^[A-Za-z0-9_]+$"
+
+
+class ToolkitPolicy(BaseModel):
+    """Which actions of a connection the agent may run.
+
+    ``all`` allows every action of the toolkit. ``include`` allows only the listed Agenta
+    action keys (short, e.g. ``CREATE_AN_ISSUE``); the run call_ref maps them to Composio
+    slugs and the server rejects any other slug at run time.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["all", "include"] = "all"
+    actions: Optional[List[str]] = None
+
+    @field_validator("actions")
+    @classmethod
+    def _check_action_keys(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        if value is None:
+            return value
+        for action in value:
+            if not re.fullmatch(_ACTION_KEY_RE, action):
+                raise ValueError(
+                    f"invalid action key {action!r}; expected characters [A-Za-z0-9_]"
+                )
+        return value
+
+    @model_validator(mode="after")
+    def _check_include_has_actions(self) -> "ToolkitPolicy":
+        if self.mode == "include" and not self.actions:
+            raise ValueError("a toolkit policy with mode='include' needs `actions`")
+        if self.mode == "all" and self.actions:
+            raise ValueError("a toolkit policy with mode='all' must not set `actions`")
+        return self
+
+
+class GatewayToolkitConfig(ToolConfigBase):
+    """A whole gateway connection exposed to the agent as a search tool and a run tool.
+
+    One entry names the integration and the connection and says which actions are
+    allowed. At resolve time it becomes two callback tools (``search`` and ``run``); the
+    per-action Composio calls happen only when the model calls ``run``. The connection's
+    secret stays server-side; only the connection slug is stored here, and the two tool
+    identities are keyed on it (unique within a project for the integration).
+
+    ``permission`` defaults to ``ask`` (human-in-the-loop) because the run tool can call
+    any allowed action; an author or the UI can widen it to ``allow``.
+    """
+
+    type: Literal["gateway_toolkit"] = "gateway_toolkit"
+    provider: str = Field(default="composio", min_length=1, pattern=_SLUG_FIELD_RE)
+    integration: str = Field(min_length=1, pattern=_SLUG_FIELD_RE)
+    connection: str = Field(min_length=1, pattern=_SLUG_FIELD_RE)
+    tools: ToolkitPolicy = Field(default_factory=ToolkitPolicy)
+    permission: Optional[Permission] = "ask"
+
+    @property
+    def allowed_slugs(self) -> List[str]:
+        """The include policy's action keys mapped to full Composio slugs.
+
+        A Composio slug is ``INTEGRATION_ACTION`` (e.g. ``github`` + ``CREATE_AN_ISSUE`` ->
+        ``GITHUB_CREATE_AN_ISSUE``), which is what search returns and the model runs. Empty
+        for ``all`` mode.
+        """
+        if self.tools.mode == "include" and self.tools.actions:
+            prefix = self.integration.upper()
+            return [f"{prefix}_{action}" for action in self.tools.actions]
+        return []
+
+    @property
+    def search_call_ref(self) -> str:
+        """The opaque ``toolkit.{provider}.{integration}.{connection}.search`` callback the
+        server-side ``/tools/call`` parser routes by the ``toolkit.`` prefix."""
+        return f"toolkit.{self.provider}.{self.integration}.{self.connection}.search"
+
+    @property
+    def run_call_ref(self) -> str:
+        """The opaque run callback. It carries the policy as full Composio slugs so the
+        server enforces it without the config: ``...run.all`` allows every slug;
+        ``...run.include.<SLUG>...`` allows only the listed slugs."""
+        base = f"toolkit.{self.provider}.{self.integration}.{self.connection}.run"
+        allowed = self.allowed_slugs
+        if allowed:
+            return base + ".include." + ".".join(allowed)
+        return base + ".all"
 
 
 class CodeToolConfig(ToolConfigBase):
@@ -231,6 +331,7 @@ ToolConfig = Annotated[
     Union[
         BuiltinToolConfig,
         GatewayToolConfig,
+        GatewayToolkitConfig,
         CodeToolConfig,
         ClientToolConfig,
         ReferenceToolConfig,
