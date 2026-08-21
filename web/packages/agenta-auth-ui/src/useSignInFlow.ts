@@ -146,12 +146,15 @@ export function useSignInFlow({
         setLastMethod(readLastAuthMethod())
     }, [])
 
+    const inviteToken = firstQueryValue(query.token)
+    const inviteOrganizationId = firstQueryValue(query.organization_id)
+
     // Stash the invite before any redirect: the provider round trip drops the query string.
     useEffect(() => {
         const invite = readInviteParams(query)
         if (invite) onInvite?.(invite)
         // The invite is a property of the URL, so the query is the only dependency that matters.
-    }, [emailFromQuery, firstQueryValue(query.token), firstQueryValue(query.organization_id)])
+    }, [emailFromQuery, inviteToken, inviteOrganizationId])
 
     // A redirect back from a provider can carry its own verdict.
     useEffect(() => {
@@ -199,7 +202,12 @@ export function useSignInFlow({
             setDiscovering(true)
 
             const result = await discoverAuthMethods(value, controller.signal)
-            if (result.kind === "aborted") return
+            if (result.kind === "aborted") {
+                // A newer probe owns the spinner; anything else aborted without a successor,
+                // so the entry button would stay in its loading state forever.
+                if (abortRef.current === controller) setDiscovering(false)
+                return
+            }
             setDiscovering(false)
 
             if (result.kind === "failed") {
@@ -216,11 +224,12 @@ export function useSignInFlow({
         [resolved.emailEnabled, resolved.oidcEnabled, reportError, startSso],
     )
 
-    // An address in the link is the same as one typed in.
+    // An address in the link is the same as one typed in. It has to wait for the config: before
+    // it lands, `resolved` is NO_METHODS_YET and the probe would report "no methods configured".
     useEffect(() => {
-        if (!emailFromQuery || discovered || restoring) return
+        if (!config || !emailFromQuery || discovered || restoring) return
         void continueWithEmail(emailFromQuery)
-    }, [emailFromQuery, restoring])
+    }, [config, emailFromQuery, restoring])
 
     useEffect(() => {
         if (!resumeCodeAttempt || restoredRef.current) return
