@@ -21,6 +21,12 @@ log = get_module_logger(__name__)
 
 AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
 
+# The platform runtime's proof of what it is, for the credential exchange below.
+_RUNTIME_KEY_HEADER = "X-Agenta-Runtime-Key"
+_RUNTIME_KEY = (
+    getenv("AGENTA_SERVICES_INTERNAL_KEY") or getenv("AGENTA_AUTH_KEY") or ""
+).strip()
+
 _AUTH_ENABLED = (
     getenv("AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED")
     or getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED")
@@ -97,6 +103,16 @@ async def get_credentials(
         # HEADERS
         authorization = request.headers.get("authorization", None)
         headers = {"Authorization": authorization} if authorization else None
+
+        # This service exchanges the END USER's credential on their behalf, so the token
+        # it sends says nothing about who is asking. The platform's own secret is what
+        # says "this is the runtime starting a run", and it is what lets the returned
+        # credential read write-only secret values. Sent only on this internal hop, never
+        # logged, never handed to the runner or into a sandbox. A deployment that does not
+        # set it simply gets a credential without that ability.
+        runtime_key = _RUNTIME_KEY
+        if runtime_key:
+            headers = {**(headers or {}), _RUNTIME_KEY_HEADER: runtime_key}
 
         # COOKIES
         access_token = request.cookies.get("sAccessToken", None)

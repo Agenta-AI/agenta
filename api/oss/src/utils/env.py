@@ -603,6 +603,18 @@ class AgentaConfig(BaseModel):
 
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
+    # Shared secret that proves a caller IS the platform runtime (the workflow service),
+    # as opposed to a browser or an ApiKey holder reaching the same public route. Only a
+    # caller holding it can be issued a credential that reads write-only secret values.
+    # Defaults to `auth_key` because the services container already receives it through
+    # the same env file the API uses, so existing deployments keep working; setting a
+    # dedicated value narrows what one leaked secret can do. NEVER sent to the runner or
+    # into a sandbox.
+    services_internal_key: str = (
+        os.getenv("AGENTA_SERVICES_INTERNAL_KEY")
+        or os.getenv("AGENTA_AUTH_KEY")
+        or "replace-me"
+    )
 
     access: AccessConfig = AccessConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
