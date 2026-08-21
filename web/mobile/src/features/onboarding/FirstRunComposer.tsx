@@ -53,7 +53,13 @@ export const FirstRunComposer = ({
         const handedOff = await newAgent.createFromPrompt({text, sessionId, parts})
         // Cleared only once the destination is committed to. A create that failed leaves the files
         // staged and still sendable, and reports itself through `newAgent.error` below.
-        if (handedOff) attachments.clearAttachments(staged.map((file) => file.uid))
+        if (handedOff) {
+            attachments.clearAttachments(staged.map((file) => file.uid))
+            return
+        }
+        // The input cleared itself on submit, so a failure would swallow the whole description.
+        // Only refill an input the user has not started retyping in.
+        if (!inputRef.current?.getMarkdown().trim()) inputRef.current?.setMarkdown(text)
     }
 
     return (
@@ -77,7 +83,7 @@ export const FirstRunComposer = ({
                             inputRef.current?.setMarkdown(starter)
                             inputRef.current?.focus()
                         }}
-                        className="border-border text-muted-foreground hover:border-primary hover:text-foreground box-border cursor-pointer rounded-full border border-solid bg-transparent px-3 py-1 text-xs transition-colors disabled:opacity-50"
+                        className="border-border text-muted-foreground hover:border-primary hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 box-border cursor-pointer rounded-full border border-solid bg-transparent px-3 py-1 text-xs outline-none transition-colors focus-visible:ring-[3px] disabled:opacity-50"
                     >
                         {starter}
                     </button>
