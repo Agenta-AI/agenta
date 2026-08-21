@@ -12,6 +12,7 @@ import {queryClient} from "@/lib/queryClient"
 
 import {AuthGate} from "./AuthGate"
 import {ContextSync} from "./ContextSync"
+import {ExecutionHeaders} from "./ExecutionHeaders"
 
 // Module scope, like the desktop _app: __env.js is beforeInteractive, so
 // window.__env is already populated when this module first evaluates.
@@ -33,6 +34,7 @@ export const AppProviders = ({children}: PropsWithChildren) => (
             <HydrateAtoms>
                 <ContextSync />
                 <AuthGate />
+                <ExecutionHeaders />
                 {children}
             </HydrateAtoms>
         </Provider>

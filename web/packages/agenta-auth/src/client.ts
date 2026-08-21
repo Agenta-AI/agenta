@@ -215,6 +215,25 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
  * refresh token or the backend rejects it — the caller's signed-out verdict
  * stands. Never throws (network failure counts as "not refreshed").
  */
+/**
+ * The signed-in session's access token, or `null` when there is no session.
+ *
+ * Callers that need to send an explicit `Authorization` header rather than rely on the cookie —
+ * the playground's run requests are the case that matters, because the backend only honours the
+ * `project_id` query param alongside an Authorization header, and without it a run resolves
+ * against the caller's DEFAULT project instead of the one it belongs to.
+ */
+export async function getAccessToken(): Promise<string | null> {
+    if (typeof window === "undefined") return null
+    ensureAuthInit()
+    try {
+        if (!(await Session.doesSessionExist())) return null
+        return (await Session.getAccessToken()) ?? null
+    } catch {
+        return null
+    }
+}
+
 export async function tryRefreshSession(): Promise<boolean> {
     if (typeof window === "undefined") return false
     ensureAuthInit()
