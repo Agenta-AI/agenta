@@ -2,11 +2,11 @@ import {useEffect} from "react"
 
 import {type SessionStream} from "@agenta/entities/session"
 import {sessionListPolicies} from "@agenta/sessions/state"
+import {isValidUUID} from "@agenta/shared/utils"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {projectSessionSummary, queryProjectSessions} from "./projectSessionsQuery"
