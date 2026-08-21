@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import type {SidebarScope, SidebarSection, SidebarSelection} from "@agenta/navigation"
-import {SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
+import {SidebarBanners, SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
 
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from "./useMobileNavItems"
@@ -49,11 +49,21 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         <DrawerProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
     )
 
+    // Same slot the desktop rail fills, and hidden while collapsed for the same reason: the
+    // card has no 48px form. The drawer is never collapsed, so it always shows there.
+    const Footer = ({collapsed}: {collapsed: boolean}) =>
+        collapsed ? null : (
+            <div className="w-full">
+                <SidebarBanners />
+            </div>
+        )
+
     return {
         id: MOBILE_NAV_SCOPE_ID,
         useSelection,
         useSections,
         header: Header,
+        footer: Footer,
         afterBottom: AfterBottom,
     }
 }

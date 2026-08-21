@@ -1,9 +1,9 @@
 import {memo} from "react"
 
+import {dismissBannerAtom, topVisibleBannerAtom} from "@agenta/navigation"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import SidebarBanner from "./SidebarBanner"
-import {dismissBannerAtom, topVisibleBannerAtom} from "./state/atoms"
 
 /**
  * SidebarBanners container component.

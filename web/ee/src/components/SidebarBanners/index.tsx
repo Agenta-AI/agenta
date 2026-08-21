@@ -1,26 +1,26 @@
 import {memo, useEffect} from "react"
 
-import OssSidebarBanners from "@agenta/oss/src/components/SidebarBanners"
-import {additionalBannersAtom} from "@agenta/oss/src/components/SidebarBanners/state/atoms"
+import {additionalBannersAtom} from "@agenta/navigation"
+import {SidebarBanners as SharedSidebarBanners} from "@agenta/navigation-ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {eeBannersAtom} from "./state/atoms"
 
 /**
  * EE SidebarBanners component.
- * Injects EE-specific banners (trial, upgrade) into the OSS banner system
- * and renders the OSS component.
+ * Injects EE-specific banners (trial, upgrade) into the shared banner system
+ * and renders the shared component.
  */
 const SidebarBanners = () => {
     const eeBanners = useAtomValue(eeBannersAtom)
     const setAdditionalBanners = useSetAtom(additionalBannersAtom)
 
-    // Inject EE banners into the OSS banner system
+    // Inject EE banners into the shared banner system
     useEffect(() => {
         setAdditionalBanners(eeBanners)
     }, [eeBanners, setAdditionalBanners])
 
-    return <OssSidebarBanners />
+    return <SharedSidebarBanners />
 }
 
 export default memo(SidebarBanners)

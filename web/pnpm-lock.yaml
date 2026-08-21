@@ -144,6 +144,12 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../packages/agenta-entity-ui
         version: link:../packages/agenta-entity-ui
+      '@agenta/navigation':
+        specifier: workspace:../packages/agenta-navigation
+        version: link:../packages/agenta-navigation
+      '@agenta/navigation-ui':
+        specifier: workspace:../packages/agenta-navigation-ui
+        version: link:../packages/agenta-navigation-ui
       '@agenta/observability-ui':
         specifier: workspace:../packages/agenta-observability-ui
         version: link:../packages/agenta-observability-ui
