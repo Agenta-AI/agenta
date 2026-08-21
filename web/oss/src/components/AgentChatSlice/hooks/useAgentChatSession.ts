@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {getMessageTraceId} from "@agenta/chat/assets"
 import {ignoreStreamRejection, parseAgentRunError} from "@agenta/chat/model"
+import {stampMessagesCreatedAtAtom} from "@agenta/chat/state"
 import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
 import {
     persistSessionMessagesAtom,
@@ -41,7 +42,6 @@ import {doesAgentChatStopKillSession} from "../assets/constants"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
-import {stampMessagesCreatedAtAtom} from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 

@@ -3,14 +3,7 @@ import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
-/** The streamed message's usage figures. Declared structurally rather than imported: the shape
- * lives in @agenta/chat, and this package must not depend on it. */
-export interface TurnMetricsUsage {
-    promptTokens?: number
-    completionTokens?: number
-    totalTokens?: number
-    totalCost?: number
-}
+import type {MessageUsageMetrics} from "../assets"
 
 /**
  * A turn's cost, tokens and latency — the same data and component the playground and the trace
@@ -31,7 +24,7 @@ export const TurnMetrics = ({
     usage,
 }: {
     traceId?: string | null
-    usage?: TurnMetricsUsage
+    usage?: MessageUsageMetrics
 }) => {
     const summary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? ""))
     if (!traceId) {
