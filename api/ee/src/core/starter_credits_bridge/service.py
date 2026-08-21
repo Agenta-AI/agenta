@@ -43,10 +43,13 @@ log = get_module_logger(__name__)
 # recreate the slug, so nothing ownership-sensitive reads it.
 STARTER_CREDITS_SLUG = "starter-credits"
 
-# The connection's display name. It is ALSO the namespace of the stored model keys
-# ("<name>/custom/<model>"), so once orgs are seeded it is a permanent contract:
-# renaming it would orphan every seeded org's model selector.
-STARTER_CREDITS_NAME = "Starter credits"
+# The connection's display name, and therefore the namespace of the stored model
+# keys ("<name>/custom/<model>"). It is permanent PER ROW: an organization keeps
+# the name and the keys it was seeded with, so changing this renames nothing that
+# already exists — it sets what the next organization gets. Changing it after a
+# real rollout would leave two namespaces in the field, each correct for its own
+# organizations, so treat it as settled once seeding runs anywhere real.
+STARTER_CREDITS_NAME = "Agenta"
 
 # Ownership marker carried in the proxy key's metadata (with the org id). Key
 # metadata is master-key-only mutable, so it is the unforgeable side of any
