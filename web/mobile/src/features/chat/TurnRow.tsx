@@ -98,7 +98,10 @@ const ToolLines = ({item}: {item: ToolsItem}) => (
             const midText =
                 summary && shownName.toLowerCase().endsWith(summary.toLowerCase()) ? null : summary
             return (
-                <p key={key} className="m-0 flex min-w-0 items-center gap-2 text-xs">
+                <p
+                    key={key}
+                    className="m-0 flex min-w-0 items-center gap-2 overflow-hidden text-xs"
+                >
                     {awaiting ? (
                         <Wrench className="text-colorWarning size-3.5 shrink-0" />
                     ) : denied ? (
@@ -110,7 +113,14 @@ const ToolLines = ({item}: {item: ToolsItem}) => (
                     ) : (
                         <CircleDashed className="text-colorTextTertiary size-3.5 shrink-0 motion-safe:animate-spin" />
                     )}
-                    <span className="text-colorText min-w-0 truncate font-medium">{shownName}</span>
+                    {/* The sentence never yields, as on the desktop row: the detail and the status
+                        beside it absorb the squeeze. With `min-w-0` here instead, every child was
+                        equally shrinkable, so a long argument took the width and left "Listed
+                        files" as "Li…" on a phone. `max-w-full` caps a sentence that is wider than
+                        the row on its own, and the row clips what is left. */}
+                    <span className="text-colorText max-w-full shrink-0 truncate font-medium">
+                        {shownName}
+                    </span>
                     {display.detail ? (
                         <span className="text-colorTextSecondary min-w-0 truncate font-mono">
                             {display.detail}
