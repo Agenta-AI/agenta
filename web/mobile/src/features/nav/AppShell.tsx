@@ -26,7 +26,7 @@ export const AppShell = ({
     useTrackLastNonSettingsPath()
 
     return (
-        <div className="flex h-dvh">
+        <div className="flex h-[var(--ag-viewport-height,100dvh)]">
             <NavRail workspaceId={workspaceId} projectId={projectId} scope={scope} />
             <main className="min-w-0 flex-1">{children}</main>
         </div>
