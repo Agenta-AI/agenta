@@ -27,6 +27,7 @@ import {
     buildAgentRequest,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
+import {setAgentAutoCommitHoldAtom} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {useChat} from "@ai-sdk/react"
 import type {FileUIPart, UIMessage} from "ai"
@@ -471,6 +472,17 @@ export const useAgentConversation = ({
         () => () => setSessionStatus({id: sessionId, status: "idle"}),
         [sessionId, setSessionStatus],
     )
+
+    // Hold auto-commit while this session is busy. The agent's own `commit_revision` checks
+    // HEAD, so a concurrent unattended commit would fail it. `awaiting` covers the HITL pause,
+    // where the turn is live but nothing is streaming. The cleanup keys on `entityId` so a
+    // self-commit's revision switch moves the hold instead of leaking it on the old id.
+    const autoCommitHeld = runStatus === "running" || runStatus === "awaiting"
+    const setAutoCommitHold = useSetAtom(setAgentAutoCommitHoldAtom)
+    useEffect(() => {
+        setAutoCommitHold({revisionId: entityId, key: sessionId, held: autoCommitHeld})
+        return () => setAutoCommitHold({revisionId: entityId, key: sessionId, held: false})
+    }, [autoCommitHeld, entityId, sessionId, setAutoCommitHold])
 
     // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
     // it renders as an error bubble with the real reason (and persists with the session via the
