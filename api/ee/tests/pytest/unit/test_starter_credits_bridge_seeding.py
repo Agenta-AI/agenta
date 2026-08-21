@@ -1125,3 +1125,26 @@ class TestRefusalLogging:
         assert fields["rule"] == "velocity_counters_unavailable"
         assert fields["domain"] == "acme.test"
         assert "carol" not in repr((message, fields))
+
+
+def test_a_bridge_deployment_without_a_runtime_key_is_warned_at_startup(monkeypatch):
+    # The bridge seeds write-only rows, so this deployment needs the runtime key even
+    # with the platform-wide write-only default off. The warning lives in the OSS startup
+    # path; the bridge half of its condition can only be exercised where the bridge
+    # config exists, which is here.
+    from oss.src.utils import helpers
+
+    recorded: list = []
+    monkeypatch.setattr(
+        helpers,
+        "log",
+        type("_Log", (), {"warning": staticmethod(lambda msg: recorded.append(msg))})(),
+    )
+    monkeypatch.setattr(env.agenta, "services_internal_key", "replace-me")
+    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
+    monkeypatch.setattr(env, "starter_credits_bridge", _armed_config())
+
+    helpers.warn_unconfigured_platform_runtime_key()
+
+    assert len(recorded) == 1
+    assert "AGENTA_SERVICES_INTERNAL_KEY" in recorded[0]
