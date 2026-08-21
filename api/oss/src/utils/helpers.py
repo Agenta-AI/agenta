@@ -202,8 +202,12 @@ def warn_unconfigured_platform_runtime_key():
     if runtime_key and runtime_key != "replace-me":
         return
 
-    needs_it = env.agenta.vault.write_only_default or env.starter_credits_bridge.enabled
-    if not needs_it:
+    # The bridge config is an EE addition and may not exist on this build, so ask rather
+    # than assume: this runs at startup, where an AttributeError would stop the API.
+    bridge = getattr(env, "starter_credits_bridge", None)
+    seeds_write_only_rows = bool(bridge is not None and bridge.enabled)
+
+    if not (env.agenta.vault.write_only_default or seeds_write_only_rows):
         return
 
     log.warning(
