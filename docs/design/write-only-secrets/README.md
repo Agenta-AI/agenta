@@ -163,6 +163,13 @@ The vault returns plaintext only to a caller whose verified `Secret` token carri
   re-deciding it. The runner is never given the runtime secret, and it never reaches a
   sandbox.
 
+**A deployment that sets neither loses agent runs against write-only connections**, and
+the failure names something else: the run reports "provide the provider key in this run's
+environment", which is right for a standalone run and misleading here. The services
+middleware therefore warns once, at the point of use, naming the variable to set. The
+placeholder is the shipped default in the example env files, so this is the common case,
+not an edge one.
+
 The exchange never mints the grant from the requested `action` alone. It did once, and
 that made the grant self-serve: `VIEWER_PERMISSIONS` includes both `run_service` and
 `view_secret`, so any member could ask for a credential and spend it on the vault routes.
