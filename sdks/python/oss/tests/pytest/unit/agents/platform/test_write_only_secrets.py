@@ -2,7 +2,8 @@
 
 The platform runtime reads write-only secrets in plaintext through its granted credential,
 so in-platform runs never see the redacted shape. A standalone run (ApiKey credential)
-does — and must fail loud with instructions, never pass an empty key to a provider.
+does — and then falls back to this run's own provider key from the environment, failing
+loud with instructions when there is none. It never passes an empty key to a provider.
 """
 
 from __future__ import annotations
@@ -14,9 +15,23 @@ from agenta.sdk.agents.connections import (
     ModelRef,
     WriteOnlySecretError,
 )
+from agenta.sdk.agents.capabilities import PROVIDER_ENV_VARS
 from agenta.sdk.agents.platform import connections
 from agenta.sdk.agents.platform.secrets import _is_write_only_redacted
 from agenta.sdk.middlewares.running.vault import _split_write_only_redacted
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_provider_keys(monkeypatch):
+    """A developer machine exports provider keys; the fallback must not read them here.
+
+    Every case below states its own environment, so the ambient one is cleared first.
+    """
+    for name in set(PROVIDER_ENV_VARS.values()) | {
+        "AWS_BEARER_TOKEN_BEDROCK",
+        "AZURE_OPENAI_API_KEY",
+    }:
+        monkeypatch.delenv(name, raising=False)
 
 
 def _model(model: str = "gpt-5.5", provider: str = "openai") -> ModelRef:
@@ -55,9 +70,31 @@ def test_redacted_write_only_key_fails_loud_with_instructions():
 
     message = str(raised.value)
     assert "write-only" in message
-    assert "environment variable" in message
+    assert "OPENAI_API_KEY" in message
+    assert "this run's environment" in message
     # Never the misleading "add your key" error: the key exists, it is just unreadable here.
     assert not isinstance(raised.value, MissingCredentialError)
+
+
+def test_redacted_write_only_key_uses_this_runs_own_provider_key(monkeypatch):
+    # What the error text instructs, made true: the run's own key resolves the connection.
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env")
+
+    resolved = connections._resolve_from_secrets(
+        secrets=[_redacted_provider_key()], model=_model(), harness="pi_core"
+    )
+
+    env = {item.binding.name: item.value for item in resolved.credentials}
+    assert env["OPENAI_API_KEY"] == "sk-from-env"
+
+
+def test_a_key_for_another_provider_family_is_not_a_fallback(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-env")
+
+    with pytest.raises(WriteOnlySecretError):
+        connections._resolve_from_secrets(
+            secrets=[_redacted_provider_key()], model=_model(), harness="pi_core"
+        )
 
 
 def test_granted_plaintext_write_only_key_resolves_normally():
@@ -113,6 +150,43 @@ def test_redacted_aws_only_secret_fails_loud_despite_surviving_config_extras():
         )
 
 
+def test_a_bedrock_connection_never_falls_back_to_the_family_api_key(monkeypatch):
+    # Bedrock authenticates with a bearer token of its own; an Anthropic API key in the
+    # environment is a credential for a different service and must not be sent instead.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-env")
+    redacted = {
+        "kind": "custom_provider",
+        "slug": "bedrock-conn",
+        "header": {"name": "bedrock-conn"},
+        "data": {
+            "kind": "bedrock",
+            "provider": {"extras": {"aws_region_name": "eu-west-1"}},
+            "models": [{"slug": "claude-opus-5"}],
+            "provider_slug": "bedrock-conn",
+        },
+        "write_only": True,
+        "has_key": True,
+    }
+    model = ModelRef(
+        provider="anthropic",
+        model="claude-opus-5",
+        connection={"mode": "agenta", "slug": "bedrock-conn"},
+    )
+
+    with pytest.raises(WriteOnlySecretError):
+        connections._resolve_from_secrets(
+            secrets=[redacted], model=model, harness="claude_code"
+        )
+
+    # Its own channel does resolve it.
+    monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "aws-bearer-env")
+    resolved = connections._resolve_from_secrets(
+        secrets=[redacted], model=model, harness="claude_code"
+    )
+    env = {item.binding.name: item.value for item in resolved.credentials}
+    assert env["AWS_BEARER_TOKEN_BEDROCK"] == "aws-bearer-env"
+
+
 def test_plaintext_aws_only_secret_is_not_treated_as_redacted():
     plaintext = {
         "kind": "custom_provider",
@@ -152,16 +226,46 @@ def test_redacted_custom_provider_fails_loud_too():
         "has_key": True,
     }
 
+    model = ModelRef(
+        provider="openai",
+        model="gpt-5.5",
+        connection={"mode": "agenta", "slug": "my-gateway"},
+    )
+
     with pytest.raises(WriteOnlySecretError):
         connections._resolve_from_secrets(
-            secrets=[redacted],
-            model=ModelRef(
-                provider="openai",
-                model="gpt-5.5",
-                connection={"mode": "agenta", "slug": "my-gateway"},
-            ),
-            harness="pi_core",
+            secrets=[redacted], model=model, harness="pi_core"
         )
+
+
+def test_a_redacted_gateway_resolves_with_this_runs_key(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-gateway-env")
+    redacted = {
+        "kind": "custom_provider",
+        "slug": "my-gateway",
+        "header": {"name": "my-gateway"},
+        "data": {
+            "kind": "openai",
+            "provider": {"url": "https://gateway.example.com/v1"},
+            "models": [{"slug": "gpt-5.5"}],
+            "provider_slug": "my-gateway",
+        },
+        "write_only": True,
+        "has_key": True,
+    }
+
+    resolved = connections._resolve_from_secrets(
+        secrets=[redacted],
+        model=ModelRef(
+            provider="openai",
+            model="gpt-5.5",
+            connection={"mode": "agenta", "slug": "my-gateway"},
+        ),
+        harness="pi_core",
+    )
+
+    env = {item.binding.name: item.value for item in resolved.credentials}
+    assert env["OPENAI_API_KEY"] == "sk-gateway-env"
 
 
 # --- the vault middleware's list partition ---------------------------------------------
