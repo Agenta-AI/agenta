@@ -196,7 +196,7 @@ def seeding_env(monkeypatch):
     async def fake_team_verified(client, config):
         return True
 
-    async def fake_velocity(organization_email):
+    async def fake_policy_allows(organization_email):
         return True
 
     async def fake_invalidate_cache(**kwargs):
@@ -213,7 +213,7 @@ def seeding_env(monkeypatch):
     monkeypatch.setattr(service, "_vault_service", lambda: vault)
     monkeypatch.setattr(service, "_feature_flag_enabled", fake_flag_enabled)
     monkeypatch.setattr(service, "_team_ceiling_verified", fake_team_verified)
-    monkeypatch.setattr(service, "_within_velocity_limits", fake_velocity)
+    monkeypatch.setattr(service, "_mint_policy_allows", fake_policy_allows)
     monkeypatch.setattr(service, "invalidate_cache", fake_invalidate_cache)
     monkeypatch.setattr(service, "_send_alert", fake_send_alert)
     monkeypatch.setattr(service, "StarterCreditsProxyClient", FakeProxyClient)
@@ -329,11 +329,11 @@ class TestSeeding:
         assert _all_generate_calls() == []
         assert seeding_env.vault.created == []
 
-    async def test_velocity_cap_skips_mint(self, seeding_env):
-        async def over_limit(organization_email):
+    async def test_policy_refusal_skips_mint(self, seeding_env):
+        async def refused(organization_email):
             return False
 
-        seeding_env.monkeypatch.setattr(service, "_within_velocity_limits", over_limit)
+        seeding_env.monkeypatch.setattr(service, "_mint_policy_allows", refused)
 
         await _seed()
 
@@ -697,43 +697,186 @@ class FakeCacheEngine:
         self.expired.append((key, ttl))
 
 
-class TestVelocityLimits:
+# Synthetic policy values for tests only; the real values ship via the PostHog
+# payload and are deliberately absent from source.
+def _policy(**overrides) -> service.MintPolicy:
+    values = dict(
+        global_daily=4,
+        global_hourly=3,
+        work_domain_daily=1,
+        freemail_domains=["freemail.test"],
+        block_digit_locals=True,
+    )
+    values.update(overrides)
+    return service.MintPolicy(**values)
+
+
+class TestMintPolicyAllows:
     @pytest.fixture(autouse=True)
     def armed(self, monkeypatch):
-        monkeypatch.setattr(
-            env,
-            "starter_credits_bridge",
-            _armed_config(daily_mint_cap=2, domain_daily_mint_cap=1),
-        )
+        monkeypatch.setattr(env, "starter_credits_bridge", _armed_config())
+        self.engine = FakeCacheEngine()
+        monkeypatch.setattr(service, "get_cache_engine", lambda: self.engine)
         self.monkeypatch = monkeypatch
 
-    async def test_under_caps_allows_and_sets_expiry(self):
-        engine = FakeCacheEngine()
-        self.monkeypatch.setattr(service, "get_cache_engine", lambda: engine)
+    def _resolve_to(self, policy):
+        async def fake_resolve():
+            return policy
 
-        assert await service._within_velocity_limits(ORGANIZATION_EMAIL) is True
-        assert len(engine.expired) == 2
+        self.monkeypatch.setattr(service, "_resolve_mint_policy", fake_resolve)
 
-    async def test_domain_cap_blocks_second_mint_for_same_domain(self):
-        engine = FakeCacheEngine()
-        self.monkeypatch.setattr(service, "get_cache_engine", lambda: engine)
+    async def test_no_policy_signal_fails_closed(self):
+        self._resolve_to(None)
 
-        assert await service._within_velocity_limits(ORGANIZATION_EMAIL) is True
-        assert await service._within_velocity_limits(ORGANIZATION_EMAIL) is False
+        assert await service._mint_policy_allows("a@freemail.test") is False
+        assert self.engine.counts == {}
 
-    async def test_global_cap_blocks_across_domains(self):
-        engine = FakeCacheEngine()
-        self.monkeypatch.setattr(service, "get_cache_engine", lambda: engine)
+    async def test_freemail_skips_domain_counter_and_digit_rule(self):
+        self._resolve_to(_policy())
 
-        assert await service._within_velocity_limits("a@one.test") is True
-        assert await service._within_velocity_limits("b@two.test") is True
-        assert await service._within_velocity_limits("c@three.test") is False
+        assert await service._mint_policy_allows("john99@freemail.test") is True
+        assert len(self.engine.counts) == 2
+        assert not any("domain" in key for key in self.engine.counts)
+
+    async def test_work_domain_digit_local_refused_before_counters(self):
+        self._resolve_to(_policy())
+
+        assert await service._mint_policy_allows("john99@acme.test") is False
+        assert self.engine.counts == {}
+
+    async def test_work_domain_daily_cap_blocks(self):
+        self._resolve_to(_policy())
+
+        assert await service._mint_policy_allows("alice@acme.test") is True
+        assert await service._mint_policy_allows("bob@acme.test") is False
+
+    async def test_digit_rule_can_be_disabled_by_policy(self):
+        self._resolve_to(_policy(block_digit_locals=False))
+
+        assert await service._mint_policy_allows("john99@acme.test") is True
+
+    async def test_global_hourly_cap_blocks(self):
+        self._resolve_to(_policy(global_hourly=2))
+
+        assert await service._mint_policy_allows("a@freemail.test") is True
+        assert await service._mint_policy_allows("b@freemail.test") is True
+        assert await service._mint_policy_allows("c@freemail.test") is False
+
+    async def test_global_daily_cap_blocks(self):
+        self._resolve_to(_policy(global_daily=1, global_hourly=10))
+
+        assert await service._mint_policy_allows("a@freemail.test") is True
+        assert await service._mint_policy_allows("b@freemail.test") is False
 
     async def test_redis_error_fails_closed(self):
-        engine = FakeCacheEngine(error=ConnectionError("redis down"))
-        self.monkeypatch.setattr(service, "get_cache_engine", lambda: engine)
+        self._resolve_to(_policy())
+        self.engine.error = ConnectionError("redis down")
 
-        assert await service._within_velocity_limits(ORGANIZATION_EMAIL) is False
+        assert await service._mint_policy_allows("a@freemail.test") is False
+
+
+class TestMintPolicyResolution:
+    _PAYLOAD = {
+        "global_daily": 4,
+        "global_hourly": 3,
+        "work_domain_daily": 1,
+        "freemail_domains": ["freemail.test"],
+        "block_digit_locals": True,
+    }
+
+    @pytest.fixture(autouse=True)
+    def armed(self, monkeypatch):
+        monkeypatch.setattr(env, "starter_credits_bridge", _armed_config())
+        self.cache: dict = {}
+
+        async def fake_get_cache(*, namespace, key, retry=False, **kwargs):
+            return self.cache.get((namespace, tuple(sorted(key.items()))))
+
+        async def fake_set_cache(*, namespace, key, value, **kwargs):
+            self.cache[(namespace, tuple(sorted(key.items())))] = value
+
+        monkeypatch.setattr(service, "get_cache", fake_get_cache)
+        monkeypatch.setattr(service, "set_cache", fake_set_cache)
+        self.monkeypatch = monkeypatch
+
+    def _posthog_with(self, payload):
+        return SimpleNamespace(
+            get_feature_flag_payload=lambda flag, distinct_id: payload
+        )
+
+    def _broken_posthog(self):
+        def boom(flag, distinct_id):
+            raise RuntimeError("posthog down")
+
+        return SimpleNamespace(get_feature_flag_payload=boom)
+
+    async def test_payload_resolves_and_caches(self):
+        self.monkeypatch.setattr(
+            service, "_load_posthog", lambda: self._posthog_with(dict(self._PAYLOAD))
+        )
+
+        policy = await service._resolve_mint_policy()
+
+        assert policy is not None
+        assert policy.global_daily == 4
+        assert policy.freemail_domains == ["freemail.test"]
+        assert len(self.cache) == 1
+
+    async def test_json_string_payload_parses(self):
+        import json
+
+        self.monkeypatch.setattr(
+            service,
+            "_load_posthog",
+            lambda: self._posthog_with(json.dumps(self._PAYLOAD)),
+        )
+
+        policy = await service._resolve_mint_policy()
+
+        assert policy is not None
+        assert policy.global_hourly == 3
+
+    async def test_env_overrides_take_precedence(self):
+        self.monkeypatch.setattr(
+            env,
+            "starter_credits_bridge",
+            _armed_config(global_daily_mint_cap=7, freemail_domains=["other.test"]),
+        )
+        self.monkeypatch.setattr(
+            service, "_load_posthog", lambda: self._posthog_with(dict(self._PAYLOAD))
+        )
+
+        policy = await service._resolve_mint_policy()
+
+        assert policy is not None
+        assert policy.global_daily == 7
+        assert policy.freemail_domains == ["other.test"]
+
+    async def test_no_signal_anywhere_fails_closed(self):
+        self.monkeypatch.setattr(service, "_load_posthog", lambda: None)
+
+        assert await service._resolve_mint_policy() is None
+
+    async def test_incomplete_payload_fails_closed(self):
+        partial = dict(self._PAYLOAD)
+        del partial["work_domain_daily"]
+        self.monkeypatch.setattr(
+            service, "_load_posthog", lambda: self._posthog_with(partial)
+        )
+
+        assert await service._resolve_mint_policy() is None
+
+    async def test_outage_falls_back_to_cached_payload(self):
+        self.monkeypatch.setattr(
+            service, "_load_posthog", lambda: self._posthog_with(dict(self._PAYLOAD))
+        )
+        assert await service._resolve_mint_policy() is not None
+
+        self.monkeypatch.setattr(service, "_load_posthog", self._broken_posthog)
+        policy = await service._resolve_mint_policy()
+
+        assert policy is not None
+        assert policy.global_daily == 4
 
 
 class TestAdminRouter:

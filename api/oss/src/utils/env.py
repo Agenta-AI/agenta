@@ -1534,6 +1534,20 @@ def _parse_float_env(name: str, default: float) -> float:
         return default
 
 
+def _parse_optional_bool_env(name: str) -> bool | None:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    return raw.strip().lower() in _TRUTHY
+
+
+def _parse_optional_csv_env(name: str) -> list[str] | None:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    return [value.strip().lower() for value in raw.split(",") if value.strip()]
+
+
 class StarterCreditsBridgeConfig(BaseModel):
     """Starter-credits bridge (EE): mint a budget-capped proxy key at signup and
     seed it into the new organization's vault as a ready-to-use connection.
@@ -1588,16 +1602,29 @@ class StarterCreditsBridgeConfig(BaseModel):
         or "starter-credits-bridge-seeding"
     )
 
-    # Velocity caps on mints, enforced with Redis day counters.
-    daily_mint_cap: int = (
-        _parse_optional_positive_int_env("AGENTA_STARTER_CREDITS_BRIDGE_DAILY_MINT_CAP")
-        or 30
+    # Mint policy (velocity caps, domain classification, eligibility rules) ships
+    # via the PostHog policy flag's payload so thresholds never live in source;
+    # code carries NO default values. The fields below override single payload
+    # fields when set; with neither payload nor overrides the policy is
+    # unresolved and seeding fails closed.
+    policy_flag: str = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_POLICY_FLAG")
+        or "starter-credits-bridge-policy"
     )
-    domain_daily_mint_cap: int = (
-        _parse_optional_positive_int_env(
-            "AGENTA_STARTER_CREDITS_BRIDGE_DOMAIN_DAILY_MINT_CAP"
-        )
-        or 10
+    global_daily_mint_cap: int | None = _parse_optional_positive_int_env(
+        "AGENTA_STARTER_CREDITS_BRIDGE_GLOBAL_DAILY_MINT_CAP"
+    )
+    global_hourly_mint_cap: int | None = _parse_optional_positive_int_env(
+        "AGENTA_STARTER_CREDITS_BRIDGE_GLOBAL_HOURLY_MINT_CAP"
+    )
+    work_domain_daily_mint_cap: int | None = _parse_optional_positive_int_env(
+        "AGENTA_STARTER_CREDITS_BRIDGE_WORK_DOMAIN_DAILY_MINT_CAP"
+    )
+    freemail_domains: list[str] | None = _parse_optional_csv_env(
+        "AGENTA_STARTER_CREDITS_BRIDGE_FREEMAIL_DOMAINS"
+    )
+    block_digit_locals: bool | None = _parse_optional_bool_env(
+        "AGENTA_STARTER_CREDITS_BRIDGE_BLOCK_DIGIT_LOCALS"
     )
 
     # Optional operator webhook ({"text": ...} POST) for refusals and failures.

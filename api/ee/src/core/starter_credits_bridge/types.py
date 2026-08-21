@@ -1,4 +1,24 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+class MintPolicy(BaseModel):
+    """Mint velocity/eligibility policy. The values ship via the PostHog policy
+    flag payload (env fields can override single fields) so thresholds never
+    live in source; an unresolved policy means no seeding."""
+
+    global_daily: int
+    global_hourly: int
+    work_domain_daily: int
+    freemail_domains: list[str]
+    block_digit_locals: bool
+
+    @field_validator("freemail_domains")
+    @classmethod
+    def _normalize_domains(cls, domains: list[str]) -> list[str]:
+        return [domain.strip().lower() for domain in domains if domain.strip()]
+
+    def is_freemail(self, domain: str) -> bool:
+        return domain.lower() in self.freemail_domains
 
 
 class StarterCreditsBridgeError(Exception):

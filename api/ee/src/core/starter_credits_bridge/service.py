@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
@@ -25,7 +26,7 @@ from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
 
 from ee.src.core.starter_credits_bridge.client import StarterCreditsProxyClient
-from ee.src.core.starter_credits_bridge.types import KeyAliasExistsError
+from ee.src.core.starter_credits_bridge.types import KeyAliasExistsError, MintPolicy
 
 log = get_module_logger(__name__)
 
@@ -118,7 +119,7 @@ async def seed_starter_credits_bridge(
     if existing is not None:
         return
 
-    if not await _within_velocity_limits(organization_email):
+    if not await _mint_policy_allows(organization_email):
         return
 
     await _mint_and_seed(
@@ -138,8 +139,9 @@ async def reconcile_starter_credits_bridge(*, organization_id: str) -> str:
     exhausted orphan is blocked, not replaced); row-without-key -> replace the
     row, but ONLY when it carries our ownership marker; both present -> no-op.
     Velocity caps do not apply: this converges already-approved seeds, it never
-    grants new ones a signup would not have gotten. Invariant shared with every
-    sweep path: a reconcile never increases an organization's total lifetime grant.
+    grants new ones a signup would not have gotten. Manual and operator-run only
+    (there is deliberately no automatic sweep), under one invariant: a reconcile
+    never increases an organization's total lifetime grant.
     """
     config = env.starter_credits_bridge
     if not config.armed:
@@ -243,8 +245,8 @@ async def _mint_and_seed(
             return "orphan_unverifiable"
         if remaining < 0.01:
             # Keep the exhausted key in place (blocked): its occupied alias is what
-            # makes "spent" durable — deleting it would let the next sweep re-mint
-            # a full grant.
+            # makes "spent" durable — deleting it would let a later reconcile
+            # re-mint a full grant.
             await _block_orphan(client, organization_id)
             log.info(
                 "[starter_credits_bridge] orphaned key exhausted; not re-seeding",
@@ -459,37 +461,132 @@ async def _feature_flag_enabled(organization_id: str) -> bool:
     return False
 
 
-async def _within_velocity_limits(organization_email: str) -> bool:
-    """Bound mints per day globally and per email domain. Fail closed on Redis
-    errors: an unverifiable mint on the money path is a skipped mint."""
-    config = env.starter_credits_bridge
-    day = datetime.now(timezone.utc).strftime("%Y%m%d")
-    domain = (
-        organization_email.rsplit("@", 1)[1].lower()
-        if "@" in organization_email
-        else "unknown"
-    )
+async def _resolve_mint_policy() -> Optional[MintPolicy]:
+    """Resolve the mint policy: PostHog payload live-first with the Redis-cached
+    copy as outage fallback, single fields overridable from env. The values are
+    deliberately absent from source; no resolvable policy means no seeding."""
+    flag = env.starter_credits_bridge.policy_flag
 
-    counters = (
-        (f"starter_credits_bridge:mints:{day}", config.daily_mint_cap, "global"),
+    payload: Optional[dict] = None
+    posthog = _load_posthog()
+    if posthog is not None:
+        try:
+            raw = posthog.get_feature_flag_payload(flag, "starter-credits-bridge")
+        except Exception as exc:
+            log.warning(
+                "[starter_credits_bridge] live policy lookup failed; using cached value",
+                reason=str(exc),
+            )
+        else:
+            payload = _parse_policy_payload(raw)
+            if payload is not None:
+                await set_cache(
+                    namespace="starter_credits_bridge:policy",
+                    key={"ff": flag},
+                    value=payload,
+                )
+
+    if payload is None:
+        cached = await get_cache(
+            namespace="starter_credits_bridge:policy",
+            key={"ff": flag},
+            retry=False,
+        )
+        if isinstance(cached, dict):
+            payload = cached
+
+    config = env.starter_credits_bridge
+    overrides = {
+        "global_daily": config.global_daily_mint_cap,
+        "global_hourly": config.global_hourly_mint_cap,
+        "work_domain_daily": config.work_domain_daily_mint_cap,
+        "freemail_domains": config.freemail_domains,
+        "block_digit_locals": config.block_digit_locals,
+    }
+    merged = {**(payload or {})}
+    merged.update({key: value for key, value in overrides.items() if value is not None})
+
+    try:
+        return MintPolicy(**merged)
+    except Exception:
+        log.warning(
+            "[starter_credits_bridge] mint policy incomplete or invalid; seeding disabled (fail closed)",
+        )
+        return None
+
+
+def _parse_policy_payload(raw: Any) -> Optional[dict]:
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
+async def _mint_policy_allows(organization_email: str) -> bool:
+    """Apply the mint policy: eligibility rules, then Redis counters (global
+    daily + hourly; per-domain daily on non-free-mail domains only). Fail closed
+    on a missing policy or Redis errors: an unverifiable mint is a skipped mint."""
+    policy = await _resolve_mint_policy()
+    if policy is None:
+        return False
+
+    local_part, _, domain = organization_email.rpartition("@")
+    domain = domain.lower() or "unknown"
+    freemail = policy.is_freemail(domain)
+
+    if (
+        not freemail
+        and policy.block_digit_locals
+        and any(character.isdigit() for character in local_part)
+    ):
+        log.warning(
+            "[starter_credits_bridge] policy refused mint; skipping seed",
+            rule="digit_local_part",
+        )
+        return False
+
+    day = datetime.now(timezone.utc).strftime("%Y%m%d")
+    hour = datetime.now(timezone.utc).strftime("%Y%m%d%H")
+
+    counters = [
         (
-            f"starter_credits_bridge:mints:{day}:domain:{domain}",
-            config.domain_daily_mint_cap,
-            "domain",
+            f"starter_credits_bridge:mints:{day}",
+            policy.global_daily,
+            _VELOCITY_COUNTER_TTL_SECONDS,
+            "global_daily",
         ),
-    )
+        (
+            f"starter_credits_bridge:mints:hour:{hour}",
+            policy.global_hourly,
+            2 * 3600,
+            "global_hourly",
+        ),
+    ]
+    if not freemail:
+        counters.append(
+            (
+                f"starter_credits_bridge:mints:{day}:domain:{domain}",
+                policy.work_domain_daily,
+                _VELOCITY_COUNTER_TTL_SECONDS,
+                "work_domain_daily",
+            )
+        )
 
     engine = get_cache_engine()
     try:
-        for counter_key, cap, scope in counters:
+        for counter_key, cap, ttl, scope in counters:
             count = await engine.incr(counter_key)
             if count == 1:
-                await engine.expire(counter_key, _VELOCITY_COUNTER_TTL_SECONDS)
+                await engine.expire(counter_key, ttl)
             if count > cap:
                 log.warning(
                     "[starter_credits_bridge] velocity cap reached; skipping seed",
                     scope=scope,
-                    cap=cap,
                 )
                 return False
     except Exception as exc:
