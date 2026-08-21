@@ -15,10 +15,14 @@ from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     UpdateSecretDTO,
     SecretResponseDTO,
+    WriteOnlyCannotBeDisabledError,
 )
+from oss.src.core.secrets.redaction import redact_secret_response
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
+
+from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT, request_has_grant
 
 
 log = get_module_logger(__name__)
@@ -104,6 +108,21 @@ class VaultRouter:
             operation_id="delete_secret",
         )
 
+    @staticmethod
+    def _for_caller(
+        request: Request, secret_dto: SecretResponseDTO
+    ) -> SecretResponseDTO:
+        """The response shape ``request``'s principal may see.
+
+        Only the platform runtime (a Secret token carrying the ``secret-resolve`` grant)
+        receives write-only values in plaintext; every user principal — session, ApiKey,
+        unscoped Secret token — gets the redacted shape.
+        """
+        if request_has_grant(request, SECRET_RESOLVE_GRANT):
+            return secret_dto
+
+        return redact_secret_response(secret_dto)
+
     @intercept_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
         has_permission = await check_action_access(
@@ -126,7 +145,7 @@ class VaultRouter:
         await invalidate_cache(
             project_id=request.state.project_id,
         )
-        return vault_secret
+        return self._for_caller(request, vault_secret)
 
     @intercept_exceptions()
     async def list_secrets(self, request: Request):
@@ -143,6 +162,13 @@ class VaultRouter:
                 status_code=403,
             )
 
+        # The runtime (secret-resolve grant) needs plaintext, and the shared cache only
+        # ever stores the redacted shape, so grant-bearing reads go straight to the DB.
+        if request_has_grant(request, SECRET_RESOLVE_GRANT):
+            return await self.service.list_secrets(
+                project_id=UUID(request.state.project_id),
+            )
+
         cache_key = {}
 
         secrets_dtos = await get_cache(
@@ -154,11 +180,15 @@ class VaultRouter:
         )
 
         if secrets_dtos is not None:
-            return secrets_dtos
+            # Entries are stored redacted; re-redacting is idempotent and shields against
+            # entries written before write-only secrets existed.
+            return [redact_secret_response(dto) for dto in secrets_dtos]
 
         secrets_dtos = await self.service.list_secrets(
             project_id=UUID(request.state.project_id),
         )
+
+        secrets_dtos = [redact_secret_response(dto) for dto in secrets_dtos]
 
         await set_cache(
             project_id=request.state.project_id,
@@ -207,7 +237,7 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
             )
-        return secrets_dto
+        return self._for_caller(request, secrets_dto)
 
     @intercept_exceptions()
     async def update_secret(
@@ -226,12 +256,17 @@ class VaultRouter:
                 status_code=403,
             )
 
-        secrets_dto = await self.service.update_secret(
-            project_id=UUID(request.state.project_id),
-            secret_id=UUID(secret_id),
-            update_secret_dto=body,
-            user_id=UUID(request.state.user_id),
-        )
+        try:
+            secrets_dto = await self.service.update_secret(
+                project_id=UUID(request.state.project_id),
+                secret_id=UUID(secret_id),
+                update_secret_dto=body,
+                user_id=UUID(request.state.user_id),
+            )
+        except WriteOnlyCannotBeDisabledError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=e.message
+            ) from e
         if secrets_dto is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
@@ -239,7 +274,7 @@ class VaultRouter:
         await invalidate_cache(
             project_id=request.state.project_id,
         )
-        return secrets_dto
+        return self._for_caller(request, secrets_dto)
 
     @intercept_exceptions()
     async def delete_secret(self, request: Request, secret_id: str):

@@ -60,9 +60,18 @@ async def resolve_named_secrets(
                         "agent: named-secret read HTTP %s", response.status_code
                     )
                     continue
-                value = _text_custom_secret_value(response.json())
+                payload = response.json()
+                value = _text_custom_secret_value(payload)
                 if value is not None:
                     resolved[name] = value
+                elif _is_write_only_redacted(payload):
+                    # Engineering copy; adjust freely.
+                    log.error(
+                        "agent: secret %r is write-only: its value cannot be read back "
+                        "outside the platform runtime. For standalone runs, provide it "
+                        "via the tool's environment instead.",
+                        name,
+                    )
             except Exception:  # pylint: disable=broad-except
                 log.warning("agent: named-secret read failed", exc_info=True)
 
@@ -70,6 +79,15 @@ async def resolve_named_secrets(
     if missing_count:
         log.warning("agent: %d named secret(s) unresolved", missing_count)
     return resolved
+
+
+def _is_write_only_redacted(payload: Any) -> bool:
+    """Whether the vault says a value exists but redacted it for this caller."""
+    return (
+        isinstance(payload, dict)
+        and bool(payload.get("write_only"))
+        and bool(payload.get("has_key"))
+    )
 
 
 def _text_custom_secret_value(payload: Any) -> Optional[str]:

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone
 import asyncio
@@ -91,6 +91,22 @@ _SECRET_EXP = 15 * 60  # 15 minutes
 # Signer and verifier can be different replicas with drifting clocks, and `iat` makes PyJWT
 # reject a token minted a moment "in the future". Tolerate that much drift on `iat` and `exp`.
 _SECRET_LEEWAY = 30  # seconds
+
+# A grant ADDS one capability to an otherwise general-purpose token, instead of
+# confining that token to a narrower use. The runtime's credential must stay
+# general-purpose (it authenticates workflows, tools, and vault reads alike), so the
+# vault's plaintext-read capability rides a grant.
+SECRET_RESOLVE_GRANT = "secret-resolve"
+
+
+def request_has_grant(request: Request, grant: str) -> bool:
+    """Whether the request's verified credential carries ``grant``.
+
+    Only `verify_secret_token` populates grants; session and ApiKey principals never
+    carry any, so this is False for them by construction.
+    """
+    return grant in getattr(request.state, "token_grants", ())
+
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 _NULL_UUID = "null"
@@ -916,6 +932,8 @@ async def verify_secret_token(
             leeway=_SECRET_LEEWAY,
         )
 
+        request.state.token_grants = tuple(auth_context.get("grants") or ())
+
         request.state.user_id = auth_context.get("user_id")
         request.state.user_email = auth_context.get("user_email")
         request.state.project_id = auth_context.get("project_id")
@@ -1000,6 +1018,7 @@ async def sign_secret_token(
     workspace_id: Optional[str] = None,
     organization_id: Optional[str] = None,
     organization_name: Optional[str] = None,
+    grants: Optional[List[str]] = None,
 ):
     try:
         if not _SECRET_KEY:
@@ -1018,6 +1037,11 @@ async def sign_secret_token(
             "iat": _issued_at,
             "exp": _exp,
         }
+
+        # A token with no grants carries no `grants` key at all, rather than a null or
+        # empty one, so its payload stays the shape every existing holder was issued.
+        if grants:
+            auth_context["grants"] = list(grants)
 
         secret_token = encode(
             payload=auth_context,
