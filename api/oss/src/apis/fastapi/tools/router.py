@@ -94,10 +94,9 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 _WORKFLOW_CALL_REF_PREFIX = "workflow."
 
 # A per-connection ``gateway_toolkit`` tool carries this call_ref prefix. One config
-# resolves into two of them: ``toolkit.{provider}.{connection_id}.search`` and
-# ``toolkit.{provider}.{connection_id}.run.{policy}``. The identity is keyed on the
-# connection id (not the slug) so it is stable and unique. The run policy is ``all``
-# (every slug) or ``include.<SLUG>.<SLUG>...`` (only the listed Composio slugs), so the
+# resolves into two of them: ``toolkit.{provider}.{integration}.{connection}.search`` and
+# ``toolkit.{provider}.{integration}.{connection}.run.{policy}``. The run policy is
+# ``all`` (every slug) or ``include.<SLUG>.<SLUG>...`` (only the listed slugs), so the
 # server enforces the allow-list from the call_ref without needing the config.
 _TOOLKIT_CALL_REF_PREFIX = "toolkit."
 
@@ -111,7 +110,8 @@ class _ToolkitCallRef(BaseModel):
     """A parsed ``toolkit.*`` call_ref (see ``_TOOLKIT_CALL_REF_PREFIX``)."""
 
     provider: str
-    connection_id: str  # the connection UUID (identity is keyed on it, not the slug)
+    integration: str
+    connection: str
     kind: str  # "search" | "run"
     mode: Optional[str] = None  # "all" | "include" (run only)
     allowed: Optional[List[str]] = None  # the include allow-list (run + include only)
@@ -121,46 +121,45 @@ def _parse_toolkit_call_ref(call_ref: str) -> _ToolkitCallRef:
     """Parse and validate a ``toolkit.*`` call_ref, or raise ``ValueError``.
 
     Grammar (dot-separated, all segments dot-free):
-    - ``toolkit.{provider}.{connection_id}.search``
-    - ``toolkit.{provider}.{connection_id}.run.all``
-    - ``toolkit.{provider}.{connection_id}.run.include.{SLUG}[.{SLUG}...]``
+    - ``toolkit.{provider}.{integration}.{connection}.search``
+    - ``toolkit.{provider}.{integration}.{connection}.run.all``
+    - ``toolkit.{provider}.{integration}.{connection}.run.include.{SLUG}[.{SLUG}...]``
     """
     parts = call_ref.split(".")
-    if len(parts) < 4 or parts[0] != "toolkit":
+    if len(parts) < 5 or parts[0] != "toolkit":
         raise ValueError(f"not a toolkit call_ref: {call_ref!r}")
 
-    provider, connection_id, kind = parts[1], parts[2], parts[3]
-    if not _SLUG_SEGMENT_RE.fullmatch(provider):
-        raise ValueError(f"invalid call_ref provider: {provider!r}")
-    try:
-        UUID(connection_id)
-    except ValueError as exc:
-        raise ValueError(f"invalid connection id: {connection_id!r}") from exc
+    provider, integration, connection, kind = parts[1], parts[2], parts[3], parts[4]
+    for segment in (provider, integration, connection):
+        if not _SLUG_SEGMENT_RE.fullmatch(segment):
+            raise ValueError(f"invalid call_ref segment: {segment!r}")
 
     if kind == "search":
-        if len(parts) != 4:
+        if len(parts) != 5:
             raise ValueError(f"malformed search call_ref: {call_ref!r}")
         return _ToolkitCallRef(
             provider=provider,
-            connection_id=connection_id,
+            integration=integration,
+            connection=connection,
             kind="search",
         )
 
     if kind == "run":
-        if len(parts) < 5:
+        if len(parts) < 6:
             raise ValueError(f"malformed run call_ref: {call_ref!r}")
-        mode = parts[4]
+        mode = parts[5]
         if mode == "all":
-            if len(parts) != 5:
+            if len(parts) != 6:
                 raise ValueError(f"malformed run call_ref: {call_ref!r}")
             return _ToolkitCallRef(
                 provider=provider,
-                connection_id=connection_id,
+                integration=integration,
+                connection=connection,
                 kind="run",
                 mode="all",
             )
         if mode == "include":
-            allowed = parts[5:]
+            allowed = parts[6:]
             if not allowed:
                 raise ValueError("run include policy has no actions")
             for slug in allowed:
@@ -168,7 +167,8 @@ def _parse_toolkit_call_ref(call_ref: str) -> _ToolkitCallRef:
                     raise ValueError(f"invalid action slug in policy: {slug!r}")
             return _ToolkitCallRef(
                 provider=provider,
-                connection_id=connection_id,
+                integration=integration,
+                connection=connection,
                 kind="run",
                 mode="include",
                 allowed=allowed,
@@ -1448,10 +1448,10 @@ class ToolsRouter:
     ) -> ToolCallResponse:
         """Execute a ``gateway_toolkit`` search or run tool (one connection, two tools).
 
-        The model's call routes here via a ``toolkit.*`` call_ref keyed on the connection id.
-        The search tool wraps the provider's semantic search, scoped to the connection's
-        integration. The run tool enforces the call_ref's allow-list, then runs the requested
-        slug with the connection's account. The provider key stays server-side.
+        The model's call routes here via a ``toolkit.*`` call_ref. The search tool wraps the
+        provider's semantic search, scoped to the connection's integration. The run tool
+        enforces the call_ref's allow-list, then runs the requested slug with the connection's
+        account. The provider key stays server-side; only the connection slug is in the call_ref.
         """
         try:
             ref = _parse_toolkit_call_ref(body.data.function.name.replace("__", "."))
@@ -1464,9 +1464,11 @@ class ToolsRouter:
         project_id = UUID(request.state.project_id)
 
         try:
-            connection = await self.tools_service.resolve_connection_by_id(
+            connection = await self.tools_service.resolve_connection_by_slug(
                 project_id=project_id,
-                connection_id=UUID(ref.connection_id),
+                provider_key=ref.provider,
+                integration_key=ref.integration,
+                connection_slug=ref.connection,
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1487,7 +1489,7 @@ class ToolsRouter:
             actions = await self.tools_service.search_toolkit_actions(
                 project_id=project_id,
                 provider_key=ref.provider,
-                integration_key=connection.integration_key,
+                integration_key=ref.integration,
                 query=query,
             )
             return self._toolkit_ok_result(body=body, content={"actions": actions})

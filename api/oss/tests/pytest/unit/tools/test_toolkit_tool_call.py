@@ -1,11 +1,10 @@
-"""The ``gateway_toolkit`` tools: server-side resolution + the ``/tools/call`` branch.
+"""The ``/tools/call`` branch for ``gateway_toolkit`` tools (one connection → search + run).
 
-A ``gateway_toolkit`` config resolves server-side into two callback specs whose call_refs are
-``toolkit.{provider}.{connection_id}.search`` and
-``toolkit.{provider}.{connection_id}.run.{policy}`` — keyed on the connection id, with the
-policy's Agenta action keys mapped to Composio slugs. When the model calls one, the runner
-POSTs the OpenAI tool-call envelope to ``/tools/call``; the router routes the ``toolkit.``
-prefix to ``_call_toolkit_tool``. These tests exercise resolution, the call_ref grammar, the
+A ``gateway_toolkit`` config resolves (SDK-side) into two callback specs whose call_refs are
+``toolkit.{provider}.{integration}.{connection}.search`` and
+``toolkit.{provider}.{integration}.{connection}.run.{policy}``. When the model calls one, the
+runner POSTs the OpenAI tool-call envelope to ``/tools/call``; the router routes the
+``toolkit.`` prefix to ``_call_toolkit_tool``. These tests exercise the call_ref grammar, the
 policy check, and the handler with a fake ToolsService (no DB, no live Composio).
 """
 
@@ -13,7 +12,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
@@ -30,60 +29,6 @@ from oss.src.core.tools.dtos import (
     ToolCallFunction,
     ToolExecutionResponse,
 )
-from oss.src.core.tools.service import ToolsService
-
-_CID = "11111111-1111-1111-1111-111111111111"
-
-
-# ---------------------------------------------------------------------------
-# Server-side resolution: one config -> two specs keyed on the connection id
-# ---------------------------------------------------------------------------
-
-
-async def test_resolve_toolkit_tool_builds_two_specs_keyed_on_connection_id():
-    service = ToolsService.__new__(ToolsService)
-
-    async def _fake_resolve(**_kwargs):
-        return SimpleNamespace(id=UUID(_CID))
-
-    service.resolve_connection_by_slug = _fake_resolve  # type: ignore[method-assign]
-
-    config = GatewayToolkitConfig(
-        integration="github",
-        connection="github-main",
-        tools=ToolkitPolicy(mode="include", actions=["CREATE_AN_ISSUE", "GET_ISSUE"]),
-        permission="ask",
-    )
-    specs = await service._resolve_toolkit_tool(project_id=uuid4(), ref=config)
-
-    assert len(specs) == 2
-    search, run = specs
-    assert search.call_ref == f"toolkit.composio.{_CID}.search"
-    assert search.read_only is True
-    assert search.permission == "ask"
-    # Agenta action keys -> Composio slugs, encoded on the run call_ref and offered as an enum.
-    assert run.call_ref == (
-        f"toolkit.composio.{_CID}.run.include.GITHUB_CREATE_AN_ISSUE.GITHUB_GET_ISSUE"
-    )
-    assert run.input_schema["properties"]["action"]["enum"] == [
-        "GITHUB_CREATE_AN_ISSUE",
-        "GITHUB_GET_ISSUE",
-    ]
-    assert run.permission == "ask"
-
-
-async def test_resolve_toolkit_tool_all_policy_has_no_slug_list():
-    service = ToolsService.__new__(ToolsService)
-
-    async def _fake_resolve(**_kwargs):
-        return SimpleNamespace(id=UUID(_CID))
-
-    service.resolve_connection_by_slug = _fake_resolve  # type: ignore[method-assign]
-
-    config = GatewayToolkitConfig(integration="slack", connection="slack-main")
-    _search, run = await service._resolve_toolkit_tool(project_id=uuid4(), ref=config)
-    assert run.call_ref == f"toolkit.composio.{_CID}.run.all"
-    assert "enum" not in run.input_schema["properties"]["action"]
 
 
 # ---------------------------------------------------------------------------
@@ -92,14 +37,15 @@ async def test_resolve_toolkit_tool_all_policy_has_no_slug_list():
 
 
 def test_parse_search_call_ref():
-    ref = _parse_toolkit_call_ref(f"toolkit.composio.{_CID}.search")
+    ref = _parse_toolkit_call_ref("toolkit.composio.github.github-main.search")
     assert ref.kind == "search"
     assert ref.provider == "composio"
-    assert ref.connection_id == _CID
+    assert ref.integration == "github"
+    assert ref.connection == "github-main"
 
 
 def test_parse_run_all_call_ref():
-    ref = _parse_toolkit_call_ref(f"toolkit.composio.{_CID}.run.all")
+    ref = _parse_toolkit_call_ref("toolkit.composio.slack.slack-main.run.all")
     assert ref.kind == "run"
     assert ref.mode == "all"
     assert ref.allowed is None
@@ -107,7 +53,8 @@ def test_parse_run_all_call_ref():
 
 def test_parse_run_include_call_ref():
     ref = _parse_toolkit_call_ref(
-        f"toolkit.composio.{_CID}.run.include.GITHUB_CREATE_AN_ISSUE.GITHUB_GET_ISSUE"
+        "toolkit.composio.github.github-main.run.include."
+        "GITHUB_CREATE_AN_ISSUE.GITHUB_GET_ISSUE"
     )
     assert ref.kind == "run"
     assert ref.mode == "include"
@@ -117,12 +64,12 @@ def test_parse_run_include_call_ref():
 @pytest.mark.parametrize(
     "call_ref",
     [
-        "toolkit.composio",  # too short
+        "toolkit.composio.github",  # too short
         "workflow.variant.x",  # wrong prefix
-        "toolkit.composio.not-a-uuid.search",  # bad connection id
-        f"toolkit.composio.{_CID}.run.include",  # include with no actions
-        f"toolkit.composio.{_CID}.run.bogus",  # unknown mode
-        f"toolkit.composio.{_CID}.jump",  # unknown kind
+        "toolkit.composio.github.github-main.run.include",  # include with no actions
+        "toolkit.composio.github.github-main.run.bogus",  # unknown mode
+        "toolkit.composio.github.github-main.jump",  # unknown kind
+        "toolkit.composio.gi thub.c.search",  # bad segment
     ],
 )
 def test_parse_rejects_malformed_call_refs(call_ref):
@@ -131,11 +78,11 @@ def test_parse_rejects_malformed_call_refs(call_ref):
 
 
 def test_run_policy_allows():
-    all_ref = _parse_toolkit_call_ref(f"toolkit.composio.{_CID}.run.all")
+    all_ref = _parse_toolkit_call_ref("toolkit.composio.slack.slack-main.run.all")
     assert _toolkit_run_allows(all_ref, "SLACK_ANYTHING") is True
 
     include_ref = _parse_toolkit_call_ref(
-        f"toolkit.composio.{_CID}.run.include.GITHUB_GET_ISSUE"
+        "toolkit.composio.github.github-main.run.include.GITHUB_GET_ISSUE"
     )
     assert _toolkit_run_allows(include_ref, "GITHUB_GET_ISSUE") is True
     assert (
@@ -159,9 +106,10 @@ class FakeToolsService:
         self.searched: list[dict] = []
         self.executed: list[dict] = []
 
-    async def resolve_connection_by_id(self, *, project_id, connection_id):
+    async def resolve_connection_by_slug(
+        self, *, project_id, provider_key, integration_key, connection_slug
+    ):
         return SimpleNamespace(
-            integration_key="github",
             provider_connection_id="ca_123",
             data={"project_id": str(project_id)},
         )
@@ -216,9 +164,10 @@ async def test_search_returns_actions():
     tools = FakeToolsService()
     response = await _router(tools)._call_toolkit_tool(
         request=_request(),
-        body=_call(f"toolkit.composio.{_CID}.search", {"query": "create an issue"}),
+        body=_call(
+            "toolkit.composio.github.github-main.search", {"query": "create an issue"}
+        ),
     )
-    # Integration comes from the resolved connection row, not the call_ref.
     assert tools.searched == [{"integration": "github", "query": "create an issue"}]
     result = response.call
     assert result.status.code == "STATUS_CODE_OK"
@@ -232,7 +181,7 @@ async def test_run_executes_allowed_action():
     response = await _router(tools)._call_toolkit_tool(
         request=request,
         body=_call(
-            f"toolkit.composio.{_CID}.run.include.GITHUB_GET_THE_AUTHENTICATED_USER",
+            "toolkit.composio.github.github-main.run.include.GITHUB_GET_THE_AUTHENTICATED_USER",
             {"action": "GITHUB_GET_THE_AUTHENTICATED_USER", "arguments": {}},
         ),
     )
@@ -249,7 +198,7 @@ async def test_run_rejects_disallowed_action_without_executing():
     response = await _router(tools)._call_toolkit_tool(
         request=_request(),
         body=_call(
-            f"toolkit.composio.{_CID}.run.include.GITHUB_GET_ISSUE",
+            "toolkit.composio.github.github-main.run.include.GITHUB_GET_ISSUE",
             {"action": "GITHUB_CREATE_AN_ISSUE", "arguments": {"title": "x"}},
         ),
     )
@@ -261,11 +210,44 @@ async def test_run_rejects_disallowed_action_without_executing():
     assert "GITHUB_CREATE_AN_ISSUE" in result.status.message
 
 
+async def test_short_action_keys_map_to_slugs_and_enforce_end_to_end():
+    # The config stores SHORT Agenta action keys; the SDK maps them to Composio slugs in the
+    # run call_ref, and /tools/call enforces against those slugs. Allow ["GET_PROFILE"] on a
+    # gmail connection, then a run of GMAIL_SEND_EMAIL must be rejected and GMAIL_GET_PROFILE
+    # allowed.
+    config = GatewayToolkitConfig(
+        integration="gmail",
+        connection="gmail-main",
+        tools=ToolkitPolicy(mode="include", actions=["GET_PROFILE"]),
+    )
+    assert config.run_call_ref.endswith(".run.include.GMAIL_GET_PROFILE")
+
+    tools = FakeToolsService()
+    rejected = await _router(tools)._call_toolkit_tool(
+        request=_request(),
+        body=_call(
+            config.run_call_ref, {"action": "GMAIL_SEND_EMAIL", "arguments": {}}
+        ),
+    )
+    assert tools.executed == []
+    assert rejected.call.status.code == "STATUS_CODE_ERROR"
+    assert "GMAIL_SEND_EMAIL" in rejected.call.status.message
+
+    allowed = await _router(tools)._call_toolkit_tool(
+        request=_request(),
+        body=_call(
+            config.run_call_ref, {"action": "GMAIL_GET_PROFILE", "arguments": {}}
+        ),
+    )
+    assert [e["tool_slug"] for e in tools.executed] == ["GMAIL_GET_PROFILE"]
+    assert allowed.call.status.code == "STATUS_CODE_OK"
+
+
 async def test_run_without_action_returns_soft_error():
     tools = FakeToolsService()
     response = await _router(tools)._call_toolkit_tool(
         request=_request(),
-        body=_call(f"toolkit.composio.{_CID}.run.all", {"arguments": {}}),
+        body=_call("toolkit.composio.github.github-main.run.all", {"arguments": {}}),
     )
     assert tools.executed == []
     assert response.call.status.code == "STATUS_CODE_ERROR"
