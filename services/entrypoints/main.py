@@ -1,3 +1,5 @@
+from os import getenv
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp
@@ -112,6 +114,11 @@ app = FastAPI(
 )
 
 
+def _extra_allowed_origins() -> list:
+    raw = getenv("AGENTA_SERVICES_ALLOWED_ORIGINS", "")
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
 app.add_middleware(MockMiddleware)
 
 app.add_middleware(
@@ -121,6 +128,9 @@ app.add_middleware(
         "http://localhost:3001",
         "http://0.0.0.0:3000",
         "http://0.0.0.0:3001",
+        # A dev stack may serve the web app from a different origin than this service, and the
+        # browser then needs that origin allowed here. Comma-separated; empty everywhere else.
+        *_extra_allowed_origins(),
     ],
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
