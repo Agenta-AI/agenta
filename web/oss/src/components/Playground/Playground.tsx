@@ -8,6 +8,7 @@ import {
 } from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {preloadEditorPlugins} from "@agenta/ui"
+import {useVisualViewportHeight} from "@agenta/ui/hooks"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -51,6 +52,12 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     // Mount imperative playground state sync (store.sub subscriptions)
     // This replaces the old usePlaygroundUrlSync hook with React-free subscriptions
     useAtomValue(playgroundSyncAtom)
+
+    // Phone browsers open the keyboard over the page, so the bottom of this `dvh`-tall frame —
+    // the chat composer — ends up under it. Track the visual viewport and size the frame against
+    // it while the keyboard is open. Idle on desktop and on Android, where the viewport meta's
+    // `interactive-widget=resizes-content` already shrinks `dvh`.
+    useVisualViewportHeight()
 
     // Playground-native onboarding: mint + drive an ephemeral agent inside this real playground (so it
     // reuses all the machinery above). Fully inert when `onboarding` is false — normal playground path.
@@ -99,7 +106,7 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     const content = (
         <OSSPlaygroundShell providers={providers}>
             <PlaygroundPageTitle onboarding={onboarding} />
-            <div className="flex flex-col w-full h-dvh overflow-hidden">
+            <div className="flex flex-col w-full h-[var(--ag-viewport-height,100dvh)] overflow-hidden">
                 {prefetchAgentCatalogs ? <AgentCatalogPrefetcher /> : null}
                 <PlaygroundOnboarding />
                 <PlaygroundHeader key={`${uri}-header`} />

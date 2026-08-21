@@ -18,6 +18,7 @@ import {
 import {type getPendingApprovals} from "@agenta/chat/model"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
+import {hasCoarsePointer} from "@agenta/ui/hooks"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {Button, LoadingButton} from "@agenta/ui/ui"
@@ -160,6 +161,19 @@ const AgentComposerDock = ({
             richInputRef.current?.blur()
         }, [richInputRef]),
     })
+    // Sending on a touch device dismisses the on-screen keyboard, which returns the page to its
+    // full height and puts the transcript back in view — the message you just sent is the thing
+    // you want to read next. Guarded by the pointer type: on desktop the editor keeps focus after
+    // Enter so the next message can be typed straight away.
+    const submitMessage = useCallback(
+        (text: string) => {
+            const result = onSubmit(text)
+            if (hasCoarsePointer()) richInputRef.current?.blur()
+            return result
+        },
+        [onSubmit, richInputRef],
+    )
+
     // Restoring focus can only happen AFTER the picker unmounts: a focus() call in the handler is
     // undone when the still-focused panel (or Radix popover) leaves the DOM.
     const hadPickerRef = useRef(slash.picker)
@@ -370,7 +384,7 @@ const AgentComposerDock = ({
                         fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
                         // Onboarding: submit = commit the ephemeral — Enter creates the agent
                         // (matching the composer's "↵ Send" hint).
-                        onSubmit={onboardingActive ? () => handleCreateAgent() : onSubmit}
+                        onSubmit={onboardingActive ? () => handleCreateAgent() : submitMessage}
                         disabled={onboardingActive ? ideHandoffActive : modelBlocked}
                         hideSendButton={onboardingActive}
                         placeholder={
