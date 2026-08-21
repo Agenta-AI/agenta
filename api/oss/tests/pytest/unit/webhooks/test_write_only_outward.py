@@ -50,11 +50,22 @@ class _FakeSecretsDAO:
         return list(self.records.values())
 
     async def update(
-        self, secret_id, update_secret_dto, project_id, organization_id, user_id=None
+        self,
+        secret_id,
+        update_secret_dto,
+        project_id,
+        organization_id,
+        user_id=None,
+        resolve_update=None,
     ):
         stored = self.records.get(secret_id)
         if stored is None:
             return None
+
+        # Production resolves the update against the row under the write lock; the fake
+        # does the same at the same point, so keep-on-omit is exercised, not skipped.
+        if resolve_update is not None:
+            resolve_update(stored)
         write_only = update_secret_dto.write_only
         if write_only is None:
             write_only = stored.write_only

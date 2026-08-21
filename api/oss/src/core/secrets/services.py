@@ -1,4 +1,5 @@
 from typing import Any, Optional
+from functools import partial
 from uuid import UUID, uuid4
 
 from oss.src.utils.env import env
@@ -16,6 +17,7 @@ from oss.src.core.secrets.redaction import (
 )
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
+    SecretResponseDTO,
     SecretValueRequiredError,
     UpdateSecretDTO,
     WriteOnlyCannotBeDisabledError,
@@ -128,6 +130,45 @@ def _carry_over_saved_extras(*, stored_data: Any, update_data: Any) -> None:
         stored_value = stored_extras.get(extras_key)
         if stored_value is not None and not update_extras.get(extras_key):
             update_extras[extras_key] = stored_value
+
+
+def _resolve_credential_carry_over(
+    stored_secret_dto: SecretResponseDTO,
+    *,
+    update_secret_dto: UpdateSecretDTO,
+) -> None:
+    """Fill this update's omitted credential from the row UNDER THE WRITE LOCK.
+
+    Called by the DAO inside the locked transaction rather than by the service before it,
+    because a value carried over from a snapshot read earlier is a value another writer
+    may already have replaced: a rotation that commits in between would be silently
+    undone, the update writing the older credential back over the newer one.
+
+    Keep-on-omit is also identity-local — a stored credential never silently becomes
+    another kind's or another provider's credential — and that decision reads the same
+    stored row, so it belongs under the same lock.
+    """
+    if update_secret_dto.secret is None:
+        return
+
+    same_identity = stored_secret_dto.kind == (
+        update_secret_dto.secret.kind
+    ) and _provider_family(stored_secret_dto.data) == _provider_family(
+        update_secret_dto.secret.data
+    )
+
+    if same_identity:
+        _carry_over_saved_policy(
+            stored_data=stored_secret_dto.data,
+            update_data=update_secret_dto.secret.data,
+        )
+        _carry_over_saved_value(
+            kind=str(stored_secret_dto.kind.value),
+            stored_data=stored_secret_dto.data,
+            update_data=update_secret_dto.secret.data,
+        )
+    else:
+        _require_explicit_value(secret=update_secret_dto.secret)
 
 
 def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
@@ -309,35 +350,22 @@ class VaultService:
                     ):
                         raise WriteOnlyCannotBeDisabledError()
 
-                    if update_secret_dto.secret is not None:
-                        # Keep-on-omit is an identity-local contract: a stored credential
-                        # never silently becomes another kind's or another provider's
-                        # credential. Changing either requires an explicit new value.
-                        same_identity = stored_secret_dto.kind == (
-                            update_secret_dto.secret.kind
-                        ) and _provider_family(
-                            stored_secret_dto.data
-                        ) == _provider_family(update_secret_dto.secret.data)
-
-                        if same_identity:
-                            _carry_over_saved_policy(
-                                stored_data=stored_secret_dto.data,
-                                update_data=update_secret_dto.secret.data,
-                            )
-                            _carry_over_saved_value(
-                                kind=str(stored_secret_dto.kind.value),
-                                stored_data=stored_secret_dto.data,
-                                update_data=update_secret_dto.secret.data,
-                            )
-                        else:
-                            _require_explicit_value(secret=update_secret_dto.secret)
-
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,
                 update_secret_dto=update_secret_dto,
                 project_id=project_id,
                 organization_id=organization_id,
                 user_id=user_id,
+                # Resolved against the LOCKED row, not the snapshot above: see
+                # `_resolve_credential_carry_over`.
+                resolve_update=(
+                    partial(
+                        _resolve_credential_carry_over,
+                        update_secret_dto=update_secret_dto,
+                    )
+                    if update_secret_dto.secret is not None
+                    else None
+                ),
             )
             return secret_dto
 
