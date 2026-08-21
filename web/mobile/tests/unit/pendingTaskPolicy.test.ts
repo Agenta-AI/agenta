@@ -6,6 +6,7 @@ const gate = (overrides: Partial<PendingTaskGate> = {}): PendingTaskGate => ({
     sessionId: "session-1",
     sentFor: null,
     hydrating: false,
+    modelKeyLoading: false,
     modelBlocked: false,
     ...overrides,
 })
@@ -17,6 +18,17 @@ describe("canSendPendingTask", () => {
 
     it("holds while the transcript is still hydrating", () => {
         expect(canSendPendingTask(gate({hydrating: true}))).toBe(false)
+    })
+
+    it("holds while the vault has not answered yet", () => {
+        // The cold first run: hydration settles before the vault does, and `modelBlocked` is
+        // still false because nothing has told us the project is keyless.
+        expect(canSendPendingTask(gate({modelKeyLoading: true}))).toBe(false)
+    })
+
+    it("sends once an unresolved vault comes back with a key", () => {
+        expect(canSendPendingTask(gate({modelKeyLoading: true}))).toBe(false)
+        expect(canSendPendingTask(gate({modelKeyLoading: false, modelBlocked: false}))).toBe(true)
     })
 
     it("holds while the connect-model gate is up", () => {

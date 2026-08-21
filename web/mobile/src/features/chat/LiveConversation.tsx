@@ -71,13 +71,17 @@ export const LiveConversation = ({
     // the strip below.
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
+    // The strip stays hidden until the vault answers (`gateActive` is false while it loads), but
+    // the parked task must NOT go out on that same unknown — see `pendingTaskPolicy`.
+    const modelKeyLoading = modelKey.loading
 
     // A task started from Home lands here as a stashed message: the session did not exist when
     // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
     // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
     // until hydration settles, or the engine would send into a transcript it is still filling,
-    // and held while the model gate is up so the first message is not spent on a run that cannot
-    // succeed — it goes out on its own the moment a key lands. The guard holds the SESSION it
+    // and held while the vault is unresolved or the model gate is up, so the first message is not
+    // spent on a run that cannot succeed — it goes out on its own the moment a key lands (or the
+    // vault says one already exists). The guard holds the SESSION it
     // fired for, not a bare flag: this component survives a session switch, and a flag would
     // swallow the next session's stashed task.
     const takePendingTask = useSetAtom(takePendingTaskAtom)
@@ -89,6 +93,7 @@ export const LiveConversation = ({
                 sessionId,
                 sentFor: sentPendingTaskFor.current,
                 hydrating: isHydrating,
+                modelKeyLoading,
                 modelBlocked,
             })
         )
@@ -97,7 +102,7 @@ export const LiveConversation = ({
         if (!task) return
         sentPendingTaskFor.current = sessionId
         void send({text: task.text, parts: task.parts})
-    }, [isHydrating, modelBlocked, send, sessionId, takePendingTask])
+    }, [isHydrating, modelKeyLoading, modelBlocked, send, sessionId, takePendingTask])
 
     // Push-invalidation: a records change (another device's turn, a steer resume) folds into
     // the engine's transcript under its adopt guards.
