@@ -26,6 +26,7 @@ import {
     type WorkflowArchiveResult,
 } from "@agenta/entities/workflow"
 import {playgroundController, setOnSelectionChangeCallback} from "@agenta/playground"
+import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {
     workflowRevisionDrawerEntityIdAtom as drawerVariantIdAtom,
     workflowRevisionDrawerExpandedAtom,
@@ -34,9 +35,14 @@ import {
 import {getDefaultStore} from "jotai"
 
 import {
+    clearEvaluatorWorkflowCache,
+    evaluatorsPaginatedStore,
+} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
+import {
     registryPaginatedStore,
     clearRegistryVariantNameCache,
 } from "@/oss/components/VariantsComponents/store/registryStore"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {routerAppNavigationAtom} from "@/oss/state/app"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
@@ -309,4 +315,22 @@ registerWorkflowArchiveCallbacks({
             }
         }
     },
+})
+
+// ============================================================================
+// AGENT AUTO-COMMIT: the app-layer work a commit used to get from the button
+// ============================================================================
+// Agent config commits itself now (#6126), so it no longer passes through
+// `useCommitHostAdapter` — the hook the agent header used to spread. Everything that hook
+// contributed still has to happen: the evaluator caches it clears (the registry half already
+// rides `onQueryInvalidate` above) and the onboarding event it records.
+//
+// Registered once at module scope: app-wide work that must not depend on a header being mounted.
+// Auto-commit is agent-only and the classic playground still fires the same event through the
+// button, so nothing double-counts; the key makes an HMR re-eval replace rather than stack.
+registerAgentAutoCommitHandler("oss-host", () => {
+    const store = getDefaultStore()
+    clearEvaluatorWorkflowCache()
+    store.set(evaluatorsPaginatedStore.actions.refresh)
+    store.set(recordWidgetEventAtom, "playground_committed_change")
 })

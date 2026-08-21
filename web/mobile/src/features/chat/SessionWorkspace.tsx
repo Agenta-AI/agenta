@@ -92,7 +92,7 @@ export const SessionWorkspace = ({
     // the shared panels render flat — identical components, missing surface ladder.
     const pane =
         showConfig && entityId ? (
-            <ConfigPane entityId={entityId} agentId={agentId} sessionId={sessionId} />
+            <ConfigPane entityId={entityId} sessionId={sessionId} />
         ) : (
             <SessionsPane agentId={agentId} base={base} activeSessionId={sessionId} />
         )

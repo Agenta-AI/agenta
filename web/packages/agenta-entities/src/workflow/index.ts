@@ -42,7 +42,12 @@ import "./snapshotAdapter"
 // MOLECULE (Primary API)
 // ============================================================================
 
-export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
+export {
+    workflowMolecule,
+    isLatestRevisionAtomFamily,
+    type WorkflowMolecule,
+    type WorkflowType,
+} from "./state/molecule"
 
 export {
     deriveWorkflowTypeFromRevision,
