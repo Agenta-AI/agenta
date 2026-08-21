@@ -63,6 +63,10 @@ class FakeVaultService:
         self.row = None
         self.created_count = 0
         self.updated_count = 0
+        self.create_dto = None
+        # One entry per update: the owner flag the caller passed. The real service
+        # refuses a managed row without it, so a False here is a broken write path.
+        self.update_allow_managed = []
 
     async def get_secret_by_slug(self, secret_slug, project_id=None, **kwargs):
         assert secret_slug == service.STARTER_CREDITS_SLUG
@@ -72,18 +76,28 @@ class FakeVaultService:
         await asyncio.sleep(0)
         if self.row is not None:
             raise RuntimeError("duplicate slug (unique index)")
+        self.create_dto = create_secret_dto
         self.row = SimpleNamespace(
             id=uuid4(),
             header=create_secret_dto.header,
             data=create_secret_dto.secret.data,
+            managed_by=create_secret_dto.managed_by,
+            write_only=bool(create_secret_dto.write_only),
         )
         self.created_count += 1
         return self.row
 
     async def update_secret(
-        self, *, secret_id, update_secret_dto, project_id=None, **kwargs
+        self,
+        *,
+        secret_id,
+        update_secret_dto,
+        project_id=None,
+        allow_managed=False,
+        **kwargs,
     ):
         assert self.row is not None and self.row.id == secret_id
+        self.update_allow_managed.append(allow_managed)
         self.row.data = update_secret_dto.secret.data
         self.updated_count += 1
         return self.row
@@ -1043,3 +1057,44 @@ class TestAdminRouter:
         assert seen["organization_id"] == ORGANIZATION_ID
         assert response.status_code == 200
         assert b"healthy" in response.body
+
+
+class TestManagedAndWriteOnlyRow:
+    """The seeded connection is Agenta's from creation: unreadable and undeletable.
+
+    `managed_by` refuses user deletes and re-credentialing; `write_only` keeps the proxy
+    virtual key out of every user-facing read. Both ride the CREATE, so the row is never
+    briefly readable or removable, and every later write by this component carries the
+    owner flag that gets it past the managed guard.
+    """
+
+    async def test_the_row_is_created_managed_and_write_only(self, seeding_env):
+        await _seed()
+
+        create_dto = seeding_env.vault.create_dto
+        assert create_dto is not None
+        assert create_dto.managed_by == service.ORIGIN_MARKER
+        assert create_dto.write_only is True
+
+        assert seeding_env.vault.row.managed_by == service.ORIGIN_MARKER
+        assert seeding_env.vault.row.write_only is True
+
+    async def test_every_update_carries_the_owner_flag(self, seeding_env):
+        await _seed()
+
+        # Row-first seeding writes the grant record, then finalizes with the minted key.
+        assert seeding_env.vault.update_allow_managed
+        assert all(seeding_env.vault.update_allow_managed)
+
+    async def test_reconcile_updates_also_carry_the_owner_flag(self, seeding_env):
+        await _seed()
+        seeding_env.vault.update_allow_managed.clear()
+
+        # The concurrency scar from `test_unpaired_key_is_repaired_at_its_remaining`:
+        # reconcile re-mints and writes the new key back into the managed row.
+        FakeProxyClient.records[ORGANIZATION_ID]["metadata"]["secret_id"] = str(uuid4())
+        FakeProxyClient.records[ORGANIZATION_ID]["spend"] = 2.0
+
+        assert await _reconcile() == "reseeded"
+        assert seeding_env.vault.update_allow_managed
+        assert all(seeding_env.vault.update_allow_managed)

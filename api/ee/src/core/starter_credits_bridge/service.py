@@ -489,6 +489,12 @@ async def _upsert_row_with_record(
                     kind=SecretKind.CUSTOM_PROVIDER,
                     data=data,
                 ),
+                # The row is Agenta's from the moment it exists: `managed_by` refuses
+                # user deletes and re-credentialing, `write_only` makes the proxy virtual
+                # key unreadable. Both are set on CREATE rather than added later, so no
+                # window exists in which the seeded connection is readable or removable.
+                managed_by=ORIGIN_MARKER,
+                write_only=True,
             ),
         )
         await invalidate_cache(project_id=str(project_id))
@@ -504,6 +510,8 @@ async def _upsert_row_with_record(
         update_secret_dto=UpdateSecretDTO(
             secret=UpdateSecretPayloadDTO(kind=SecretKind.CUSTOM_PROVIDER, data=data),
         ),
+        # This component owns the row, so it edits through the managed guard.
+        allow_managed=True,
     )
     await invalidate_cache(project_id=str(project_id))
     return row
@@ -529,6 +537,8 @@ async def _finalize_row(
         update_secret_dto=UpdateSecretDTO(
             secret=UpdateSecretPayloadDTO(kind=SecretKind.CUSTOM_PROVIDER, data=data),
         ),
+        # This component owns the row, so it edits through the managed guard.
+        allow_managed=True,
     )
     await invalidate_cache(project_id=str(project_id))
 
@@ -671,6 +681,8 @@ async def _resolve_mint_policy() -> Optional[MintPolicy]:
     payload. Env fields override single payload fields. No resolvable policy
     means no seeding."""
     flag = env.starter_credits_bridge.policy_flag
+    # Deliberately global, unlike the per-org flag cache above: the mint policy is one
+    # program-wide payload (caps, domain rules), identical for every organization.
     cache_key = {"ff": flag}
 
     payload: Optional[dict] = None
