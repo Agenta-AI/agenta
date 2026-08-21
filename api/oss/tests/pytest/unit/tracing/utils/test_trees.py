@@ -28,6 +28,11 @@ TRACE_UUID = "31d6cfe0-4b90-11ec-8001-42010a8000b0"
 ROOT_UUID = "31d6cfe0-4b90-11ec-31d6-cfe04b9011ec"
 CHILD_A_UUID = "41d6cfe0-4b90-11ec-41d6-cfe04b9011ec"
 CHILD_B_UUID = "51d6cfe0-4b90-11ec-51d6-cfe04b9011ec"
+ABSENT_PARENT_UUID = "61d6cfe0-4b90-11ec-61d6-cfe04b9011ec"
+ORPHAN_UUID = "71d6cfe0-4b90-11ec-71d6-cfe04b9011ec"
+ORPHAN_CHILD_UUID = "81d6cfe0-4b90-11ec-81d6-cfe04b9011ec"
+CYCLE_A_UUID = "91d6cfe0-4b90-11ec-91d6-cfe04b9011ec"
+CYCLE_B_UUID = "a1d6cfe0-4b90-11ec-a1d6-cfe04b9011ec"
 
 
 def _span(
@@ -118,6 +123,162 @@ def test_parse_span_dtos_to_span_idx_and_tree_hierarchy():
     assert set(span_idx.keys()) == {ROOT_UUID, CHILD_A_UUID}
     assert list(tree.keys()) == [ROOT_UUID]
     assert list(tree[ROOT_UUID].keys()) == [CHILD_A_UUID]
+
+
+def test_parentless_root_still_seeds_its_own_tree_only():
+    # A span with parent_id=None keeps seeding exactly as before; widening the rule to
+    # dangling parents must not turn its children into extra roots.
+    root = _span(span_id=ROOT_UUID, span_name="root", start_offset_s=0)
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="child",
+        start_offset_s=1,
+    )
+    grandchild = _span(
+        span_id=CHILD_B_UUID,
+        parent_id=CHILD_A_UUID,
+        span_name="grandchild",
+        start_offset_s=2,
+    )
+
+    span_idx = parse_span_dtos_to_span_idx([grandchild, child, root])
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    assert list(tree.keys()) == [ROOT_UUID]
+    assert list(tree[ROOT_UUID].keys()) == [CHILD_A_UUID]
+    assert list(tree[ROOT_UUID][CHILD_A_UUID].keys()) == [CHILD_B_UUID]
+
+
+def test_span_with_parent_absent_from_batch_seeds_and_cumulates():
+    # The agent runner ships its subtree in its own OTLP request; the top span points at
+    # a parent that arrived in the SDK's request. That span must still root a tree.
+    invoke_agent = _span(
+        span_id=ORPHAN_UUID,
+        parent_id=ABSENT_PARENT_UUID,
+        span_name="invoke_agent",
+        errors=1,
+        start_offset_s=0,
+    )
+    llm_call = _span(
+        span_id=ORPHAN_CHILD_UUID,
+        parent_id=ORPHAN_UUID,
+        span_name="llm_call",
+        prompt_tokens=10,
+        completion_tokens=20,
+        prompt_cost=0.1,
+        completion_cost=0.2,
+        errors=2,
+        start_offset_s=1,
+    )
+
+    span_idx = parse_span_dtos_to_span_idx([invoke_agent, llm_call])
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    assert list(tree.keys()) == [ORPHAN_UUID]
+    assert list(tree[ORPHAN_UUID].keys()) == [ORPHAN_CHILD_UUID]
+
+    cumulate_tokens(tree, span_idx)
+    cumulate_costs(tree, span_idx)
+    cumulate_errors(tree, span_idx)
+
+    metrics = span_idx[ORPHAN_UUID].attributes["ag"]["metrics"]
+
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 10.0,
+        "completion": 20.0,
+        "total": 30.0,
+    }
+    assert metrics["costs"]["cumulative"]["total"] == pytest.approx(0.3)
+    assert metrics["errors"]["cumulative"] == 3
+
+
+def test_disconnected_subtrees_cumulate_independently():
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=1,
+        start_offset_s=0,
+    )
+    root_child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="root-child",
+        prompt_tokens=2,
+        start_offset_s=1,
+    )
+    orphan = _span(
+        span_id=ORPHAN_UUID,
+        parent_id=ABSENT_PARENT_UUID,
+        span_name="orphan",
+        prompt_tokens=4,
+        start_offset_s=2,
+    )
+    orphan_child = _span(
+        span_id=ORPHAN_CHILD_UUID,
+        parent_id=ORPHAN_UUID,
+        span_name="orphan-child",
+        prompt_tokens=8,
+        start_offset_s=3,
+    )
+
+    span_idx = parse_span_dtos_to_span_idx([root, root_child, orphan, orphan_child])
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    assert list(tree.keys()) == [ROOT_UUID, ORPHAN_UUID]
+
+    cumulate_tokens(tree, span_idx)
+
+    def _cumulative_prompt(span_id: str) -> float:
+        return span_idx[span_id].attributes["ag"]["metrics"]["tokens"]["cumulative"][
+            "prompt"
+        ]
+
+    assert _cumulative_prompt(ROOT_UUID) == 3.0
+    assert _cumulative_prompt(ORPHAN_UUID) == 12.0
+    assert _cumulative_prompt(CHILD_A_UUID) == 2.0
+    assert _cumulative_prompt(ORPHAN_CHILD_UUID) == 8.0
+
+
+def test_parent_cycle_terminates_and_is_left_out_of_the_forest():
+    cycle_a = _span(
+        span_id=CYCLE_A_UUID,
+        parent_id=CYCLE_B_UUID,
+        span_name="cycle-a",
+        prompt_tokens=1,
+        start_offset_s=0,
+    )
+    cycle_b = _span(
+        span_id=CYCLE_B_UUID,
+        parent_id=CYCLE_A_UUID,
+        span_name="cycle-b",
+        prompt_tokens=2,
+        start_offset_s=1,
+    )
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=4,
+        start_offset_s=2,
+    )
+
+    span_idx = parse_span_dtos_to_span_idx([cycle_a, cycle_b, root])
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    assert list(tree.keys()) == [ROOT_UUID]
+    assert tree[ROOT_UUID] == {}
+
+    cumulate_tokens(tree, span_idx)
+
+    assert span_idx[ROOT_UUID].attributes["ag"]["metrics"]["tokens"]["cumulative"][
+        "prompt"
+    ] == pytest.approx(4.0)
+    assert (
+        "cumulative" not in span_idx[CYCLE_A_UUID].attributes["ag"]["metrics"]["tokens"]
+    )
+    assert (
+        "cumulative" not in span_idx[CYCLE_B_UUID].attributes["ag"]["metrics"]["tokens"]
+    )
 
 
 def test_cumulate_tokens_and_costs_propagate_from_children_to_parent():

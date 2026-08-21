@@ -708,6 +708,17 @@ class TestAttributeMapUpdates:
 
         assert features.metrics["unit.tokens.cache_read"] == 2304
 
+    def test_reported_cost_mapped_to_cumulative_not_incremental(self, adapter):
+        # gen_ai.usage.cost is the aggregate for the whole run, so it lands on
+        # `cumulative`; as an `incremental` value the tree roll-up would add it on top
+        # of the run's own model-call spans.
+        bag = _make_bag({"gen_ai.usage.cost": 0.4237})
+        features = SpanFeatures()
+        adapter.process(bag, features)
+
+        assert features.metrics["costs.cumulative.total"] == 0.4237
+        assert "costs.incremental.total" not in features.metrics
+
     def test_provider_name_mapped(self, adapter):
         bag = _make_bag({"gen_ai.provider.name": "openai"})
         features = SpanFeatures()
