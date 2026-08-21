@@ -10,6 +10,12 @@ export {ShowErrorMessage} from "./ShowErrorMessage"
 export {AuthDivider} from "./AuthDivider"
 export {default as AuthSideBanner} from "./AuthSideBanner"
 export {AuthShell, type AuthShellProps} from "./AuthShell"
+export {
+    useSignInFlow,
+    type SignInFlow,
+    type SignInStage,
+    type UseSignInFlowOptions,
+} from "./useSignInFlow"
 export {EmailFirstForm, type EmailFirstFormProps} from "./EmailFirstForm"
 export {
     SocialAuthButtons,

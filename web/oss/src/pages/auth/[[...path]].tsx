@@ -1,7 +1,7 @@
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo, useState, type ReactNode} from "react"
 
-import {readLastAuthMethod} from "@agenta/auth"
-import {AuthShell} from "@agenta/auth-ui"
+import {firstQueryValue} from "@agenta/auth"
+import {AuthShell, useSignInFlow} from "@agenta/auth-ui"
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
 import {
     AppleOutlined,
@@ -29,14 +29,12 @@ import {
     AgentaPasswordlessAttempt,
     syncInitialPasswordlessAttempt,
 } from "@/oss/components/pages/auth/assets/passwordlessAttempt"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import axios from "@/oss/lib/api/assets/axiosConfig"
+import "@/oss/lib/auth/configureAuthPackage"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {getDisplayFontUrl, getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {shouldShowRegionSelector} from "@/oss/lib/helpers/region"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {AuthErrorMsgType} from "@/oss/lib/Types"
 import {orgsAtom} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
@@ -51,59 +49,71 @@ const RegionSelector = dynamic(() => import("@/oss/components/pages/auth/RegionS
 })
 
 const {Text} = Typography
-const LAST_SSO_ORG_SLUG_KEY = "lastSsoOrgSlug"
+
+/** Provider id → this app's icon. The package knows which providers exist, not how they look. */
+const PROVIDER_ICONS: Record<string, ReactNode> = {
+    google: <GoogleOutlined />,
+    "google-workspaces": <GoogleOutlined />,
+    github: <GithubOutlined />,
+    facebook: <FacebookOutlined />,
+    apple: <AppleOutlined />,
+    twitter: <TwitterOutlined />,
+    linkedin: <LinkedinOutlined />,
+}
+
+const withProviderIcon = (provider: {id: string; label: string}) => ({
+    ...provider,
+    icon: PROVIDER_ICONS[provider.id] ?? <GlobalOutlined />,
+})
 
 const Auth = () => {
     const {appTheme} = useAppTheme()
     const isDark = appTheme === ThemeMode.Dark
-    const [isAuthLoading, setIsAuthLoading] = useState(false)
-    const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const router = useRouter()
-    const {authnEmail, authEmailEnabled, authOidcEnabled, oidcProviders} = getEffectiveAuthConfig()
-    const isPasswordlessDemo = isDemo() && authnEmail === "otp"
-    const showEmailEntry = authEmailEnabled || authOidcEnabled
-    const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
-    const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
-    const [isInitialOtpCheckLoading, setIsInitialOtpCheckLoading] = useState(isPasswordlessDemo)
-    // Read once on mount (localStorage is client-only) to flip into the returning state.
-    const [lastMethod, setLastMethod] = useState<string | null>(null)
-    const discoveryInProgress = useRef(false)
-    const discoveryAbortRef = useRef<AbortController | null>(null)
-    const hasCheckedInitialOTP = useRef(false)
-    const ssoRedirectInFlight = useRef(false)
-    const [availableMethods, setAvailableMethods] = useState<{
-        "email:password"?: boolean
-        "email:otp"?: boolean
-        "social:google"?: boolean
-        "social:google-workspaces"?: boolean
-        "social:github"?: boolean
-        "social:facebook"?: boolean
-        "social:apple"?: boolean
-        "social:discord"?: boolean
-        "social:twitter"?: boolean
-        "social:gitlab"?: boolean
-        "social:bitbucket"?: boolean
-        "social:linkedin"?: boolean
-        "social:okta"?: boolean
-        "social:azure-ad"?: boolean
-        "social:boxy-saml"?: boolean
-        sso?: {providers: {id: string; slug: string; third_party_id?: string}[]}
-    }>({})
-    const [discoveryComplete, setDiscoveryComplete] = useState(false)
+    const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [invite, setInvite] = useLocalStorage("invite", {})
 
-    const firstString = (value: string | string[] | undefined): string | undefined => {
-        if (Array.isArray(value)) return value[0]
-        return typeof value === "string" ? value : undefined
-    }
+    const {authnEmail} = getEffectiveAuthConfig()
+    const isPasswordlessDemo = isDemo() && authnEmail === "otp"
 
-    const token = firstString(router.query.token)
-    const organizationId = firstString(router.query.organization_id)
-    const projectId = firstString(router.query.project_id)
-    const workspaceId = firstString(router.query.workspace_id)
-    const emailFromQuery = firstString(router.query.email)
-    const authMessage = firstString(router.query.auth_message)
-    const authError = firstString(router.query.auth_error)
+    // Reopen an OTP attempt this browser left open (demo installs sign in with codes).
+    const resumeCodeAttempt = useCallback(async () => {
+        const attempt = await syncInitialPasswordlessAttempt({
+            currentApiUrl: getAgentaApiUrl(),
+            getLoginAttemptInfo: () => getLoginAttemptInfo<AgentaPasswordlessAttempt>(),
+            clearLoginAttemptInfo,
+            onError: (err) => console.error("Failed to sync passwordless login attempt:", err),
+        })
+        return attempt.status === "resume" ? {email: attempt.email} : null
+    }, [])
+
+    // Entry → methods → code, discovery and its cancellation, the returning-visitor promotion:
+    // all of it is @agenta/auth-ui's, shared with /m. This page supplies only what it alone
+    // owns — the desktop's registered OIDC redirect, its invite store, its backend-down test.
+    const flow = useSignInFlow({
+        query: router.query,
+        startThirdParty: async (thirdPartyId) => {
+            const callbackUrl = `${getAgentaWebUrl()}/auth/callback/${thirdPartyId}`
+            const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
+                thirdPartyId,
+                frontendRedirectURI: callbackUrl,
+                redirectURIOnProviderDashboard: callbackUrl,
+            })
+            window.location.href = authUrl
+        },
+        onInvite: (parsed) => {
+            if (Object.keys(invite).length === 0) setInvite(parsed)
+        },
+        isBackendDown: isBackendAvailabilityIssue,
+        resumeCodeAttempt: isPasswordlessDemo ? resumeCodeAttempt : undefined,
+    })
+    const {entry, methods, message, setMessage, reportError: authErrorMsg} = flow
+    const isLoginCodeVisible = flow.stage === "code"
+    const isAuthLoading = flow.discovering
+    const isInitialOtpCheckLoading = flow.restoring
+
+    const emailFromQuery = firstQueryValue(router.query.email)
+    const authError = firstQueryValue(router.query.auth_error)
     const {redirectToPath, ...queries} = router.query
     const isInvitedUser = Object.keys(queries.token ? queries : invite).length > 0
 
@@ -112,6 +122,8 @@ const Auth = () => {
     const orgs = useAtomValue(orgsAtom)
     const {user} = useProfileData()
     const isAuthUpgradeRequired = authError === "upgrade_required"
+    const authMessage = firstQueryValue(router.query.auth_message)
+    const organizationId = firstQueryValue(router.query.organization_id)
 
     // Check if there's an invite email mismatch
     const inviteEmail = emailFromQuery?.toLowerCase()
@@ -141,327 +153,24 @@ const Auth = () => {
         [otherOrgs],
     )
 
-    const [email, setEmail] = useState(emailFromQuery ?? "")
-    const [emailSubmitted, setEmailSubmitted] = useState(!!emailFromQuery)
-
-    useEffect(() => {
-        if (isInvitedUser && Object.keys(invite).length === 0) {
-            setInvite({
-                token,
-                organization_id: organizationId,
-                project_id: projectId,
-                workspace_id: workspaceId,
-                email: emailFromQuery,
-            })
-        }
-    }, [
-        isInvitedUser,
-        invite,
-        setInvite,
-        token,
-        organizationId,
-        projectId,
-        workspaceId,
-        emailFromQuery,
-    ])
-
-    useEffect(() => {
-        if (authMessage) {
-            setMessage({
-                message: authMessage,
-                type: authError === "sso_denied" ? "info" : "error",
-            })
-        }
-    }, [authMessage, authError])
-
-    const authErrorMsg = (error: any) => {
-        if (error.isSuperTokensGeneralError === true) {
-            // this may be a custom error message sent from the API by you.
-            setMessage({message: error.message, type: "error"})
-        } else if (isBackendAvailabilityIssue(error)) {
-            setMessage({
-                message: "Unable to connect to the authentication service",
-                sub: "Please check if the backend is running and accessible. If you're self-hosting, ensure all services are started properly.",
-                type: "error",
-            })
-        } else {
-            setMessage({
-                message: "Oops, something went wrong. Please try again",
-                sub: "If the issue persists, please contact support",
-                type: "error",
-            })
-        }
-    }
-
-    const syncAuthPasswordlessAttempt = async () => {
-        if (!isPasswordlessDemo) {
-            setIsInitialOtpCheckLoading(false)
-            return
-        }
-
-        try {
-            const attemptState = await syncInitialPasswordlessAttempt({
-                currentApiUrl: getAgentaApiUrl(),
-                getLoginAttemptInfo: () => getLoginAttemptInfo<AgentaPasswordlessAttempt>(),
-                clearLoginAttemptInfo,
-                onError: (err) => {
-                    console.error("Failed to sync passwordless login attempt:", err)
-                },
-            })
-
-            if (attemptState.status === "resume") {
-                setEmail(attemptState.email)
-                setAvailableMethods({"email:otp": true})
-                setDiscoveryComplete(true)
-                setEmailSubmitted(true)
-                setIsLoginCodeVisible(true)
-                return
-            }
-
-            setIsLoginCodeVisible(false)
-        } finally {
-            setIsInitialOtpCheckLoading(false)
-        }
-    }
-
-    const parseSsoOrgSlug = (thirdPartyId?: string): string | null => {
-        if (!thirdPartyId) return null
-        if (!thirdPartyId.startsWith("sso:")) return null
-        const [, orgSlug] = thirdPartyId.split(":")
-        return orgSlug || null
-    }
-
-    const formatSsoProviderLabel = (provider: {slug: string; third_party_id?: string}) => {
-        const suffix = provider.third_party_id?.startsWith("sso:")
-            ? provider.third_party_id.replace(/^sso:/, "")
-            : provider.slug
-        return suffix
-    }
-
-    const redirectToSsoProvider = async (provider: {
-        id: string
-        slug: string
-        third_party_id?: string
-    }) => {
-        if (isSocialAuthLoading || ssoRedirectInFlight.current) return
-        ssoRedirectInFlight.current = true
-        setIsSocialAuthLoading(true)
-
-        try {
-            if (!provider.third_party_id) {
-                throw new Error("SSO provider is missing a third_party_id")
-            }
-
-            // Store the org slug so the post-auth redirect can land in the SSO org,
-            // not Personal, after the callback completes.
-            const orgSlug = parseSsoOrgSlug(provider.third_party_id)
-            if (orgSlug && typeof window !== "undefined") {
-                window.localStorage.setItem(LAST_SSO_ORG_SLUG_KEY, orgSlug)
-            }
-
-            const callbackUrl = `${getAgentaWebUrl()}/auth/callback/${provider.third_party_id}`
-            const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
-                thirdPartyId: provider.third_party_id,
-                frontendRedirectURI: callbackUrl,
-                redirectURIOnProviderDashboard: callbackUrl,
-            })
-
-            window.location.href = authUrl
-        } catch (err) {
-            ssoRedirectInFlight.current = false
-            setIsSocialAuthLoading(false)
-            authErrorMsg(err)
-        }
-    }
-
-    useEffect(() => {
-        setLastMethod(readLastAuthMethod())
-    }, [])
-
-    useEffect(() => {
-        // Guard against StrictMode's dev-mode double-invoke calling clearLoginAttemptInfo twice.
-        if (isPasswordlessDemo && !hasCheckedInitialOTP.current) {
-            hasCheckedInitialOTP.current = true
-            syncAuthPasswordlessAttempt()
-        }
-    }, [])
-
-    useEffect(() => {
-        return () => {
-            discoveryAbortRef.current?.abort()
-        }
-    }, [])
-
-    // Discover available auth methods after email is submitted
-    const handleEmailDiscovery = async (emailToDiscover: string) => {
-        if (isInitialOtpCheckLoading) {
-            return
-        }
-
-        // Prevent duplicate calls
-        if (discoveryInProgress.current) {
-            console.warn("⚠️ Discovery already in progress, aborting previous request...")
-            discoveryAbortRef.current?.abort()
-            discoveryInProgress.current = false
-        }
-
-        // Only probe discover if either auth path is configured
-        if (!authEmailEnabled && !authOidcEnabled) {
-            console.warn(
-                "⚠️ Both authEmailEnabled and authOidcEnabled are false - no auth methods available!",
-            )
-            setMessage({
-                message: "No authentication methods are configured",
-                type: "error",
-            })
-            return
-        }
-
-        try {
-            discoveryInProgress.current = true
-            setIsAuthLoading(true)
-
-            discoveryAbortRef.current?.abort()
-            const controller = new AbortController()
-            discoveryAbortRef.current = controller
-
-            const {data} = await axios.post(
-                `${getAgentaApiUrl()}/auth/discover`,
-                {
-                    email: emailToDiscover,
-                },
-                {
-                    signal: controller.signal,
-                },
-            )
-
-            if (data?.methods) {
-                setAvailableMethods(data.methods)
-                setDiscoveryComplete(true)
-                setEmailSubmitted(true)
-
-                // Check if only SSO is available and auto-redirect
-                const methods = data.methods
-                const ssoProviders = Array.isArray(methods.sso?.providers)
-                    ? methods.sso.providers
-                    : []
-                const ssoMethods = Object.keys(methods).filter(
-                    (key) => key.startsWith("social:") && methods[key] === true,
-                )
-                const hasSSOOnly =
-                    ssoProviders.length > 0 &&
-                    methods["email:password"] === false &&
-                    methods["email:otp"] === false &&
-                    ssoMethods.length === 0
-
-                if (hasSSOOnly && ssoProviders.length === 1) {
-                    await redirectToSsoProvider(ssoProviders[0])
-                }
-            } else {
-                console.warn("⚠️ No methods in discovery response")
-                setDiscoveryComplete(true)
-                setEmailSubmitted(true)
-            }
-        } catch (err) {
-            const isCanceled =
-                // typed as-is: `isCancel` is a module static absent on this axios instance, so this is always undefined
-                (axios as {isCancel?: (value: unknown) => boolean}).isCancel?.(err) ||
-                (err as {code?: string}).code === "ERR_CANCELED" ||
-                (err instanceof Error &&
-                    (err.name === "AbortError" ||
-                        err.name === "CanceledError" ||
-                        err.message === "canceled"))
-
-            if (isCanceled) {
-                return
-            }
-
-            console.error("❌ Failed to fetch auth discover info:", err)
-            if (err instanceof Error) {
-                setDiscoveryComplete(true)
-                setEmailSubmitted(true)
-                authErrorMsg(err)
-            }
-        } finally {
-            discoveryInProgress.current = false
-            setIsAuthLoading(false)
-        }
-    }
-
-    const handleEmailContinue = async (emailValue: string) => {
-        setEmail(emailValue)
-        setMessage({} as AuthErrorMsgType)
-        await handleEmailDiscovery(emailValue)
-    }
-
-    // Auto-discover if email comes from query params
-    useEffect(() => {
-        if (emailFromQuery && !discoveryComplete && !isInitialOtpCheckLoading) {
-            handleEmailDiscovery(emailFromQuery)
-        }
-    }, [emailFromQuery, isInitialOtpCheckLoading])
-
-    const oidcProviderMeta = [
-        {id: "google", label: "Google", icon: <GoogleOutlined />},
-        {id: "google-workspaces", label: "Google Workspaces", icon: <GoogleOutlined />},
-        {id: "github", label: "GitHub", icon: <GithubOutlined />},
-        {id: "facebook", label: "Facebook", icon: <FacebookOutlined />},
-        {id: "apple", label: "Apple", icon: <AppleOutlined />},
-        {id: "discord", label: "Discord", icon: <GlobalOutlined />},
-        {id: "twitter", label: "X", icon: <TwitterOutlined />},
-        {id: "gitlab", label: "GitLab", icon: <GlobalOutlined />},
-        {id: "bitbucket", label: "Bitbucket", icon: <GlobalOutlined />},
-        {id: "linkedin", label: "LinkedIn", icon: <LinkedinOutlined />},
-        {id: "okta", label: "Okta", icon: <GlobalOutlined />},
-        {id: "azure-ad", label: "Azure AD", icon: <GlobalOutlined />},
-        {id: "boxy-saml", label: "SAML", icon: <GlobalOutlined />},
-    ]
-
-    const configuredProviderIds = new Set(oidcProviders.map((provider) => provider.id))
-    const providersToShow = oidcProviderMeta.filter((provider) =>
-        configuredProviderIds.has(provider.id),
-    )
-
-    const socialAvailable = authOidcEnabled && providersToShow.length > 0
-    const ssoProviders = Array.isArray(availableMethods.sso?.providers)
-        ? availableMethods.sso.providers
-        : []
-    const ssoAvailable = ssoProviders.length > 0
-
-    // After discovery, check what's actually available
-    const emailPasswordAvailable = discoveryComplete && authEmailEnabled && authnEmail !== "otp"
-
-    const emailOtpAvailable = discoveryComplete && authEmailEnabled && authnEmail === "otp"
-
-    useLazyEffect(() => {
-        if (message.message && message.type !== "error") {
-            setTimeout(() => {
-                setMessage({} as AuthErrorMsgType)
-            }, 5000)
-        }
-    }, [message])
-
-    useEffect(() => {
-        if (emailSubmitted) {
-            setMessage({} as AuthErrorMsgType)
-        }
-    }, [emailSubmitted])
-
-    // Returning-visit state (design frames 2b / 3a). Absence of a remembered
-    // method = first visit (2a).
-    const isReturning = Boolean(lastMethod)
-    const promotedProvider = lastMethod
-        ? providersToShow.find((provider) => provider.id === lastMethod)
+    // The package lists the providers a deployment configured; the icons are this app's.
+    const promotedProvider = entry.promotedProvider
+        ? withProviderIcon(entry.promotedProvider)
         : undefined
-    const isReturningEmail = lastMethod === "email" && showEmailEntry
-    const otherProviders = promotedProvider
-        ? providersToShow.filter((provider) => provider.id !== promotedProvider.id)
-        : providersToShow
-    const heading = isReturning ? "Welcome back" : "Welcome to Agenta"
+    const otherProviders = entry.otherProviders.map(withProviderIcon)
+    const socialAvailable = entry.providers.length > 0
+    const showEmailEntry = entry.showEmailEntry
+    const isReturningEmail = entry.promotedEmail
+    const ssoProviders = methods.sso
+    const ssoAvailable = ssoProviders.length > 0
+    const emailPasswordAvailable = methods.password
+    const emailOtpAvailable = methods.otp
+    const heading = entry.heading
+    const isReturning = entry.isReturning
     // Optional deploy-time display font for the headlines; Inter when unset.
     const displayFontUrl = getDisplayFontUrl()
     // Pre-discovery entry screen; gated on the normal flow so auth-upgrade still shows social buttons.
-    const showEntryScreen = shouldShowNormalAuthFlow && !emailSubmitted && !isLoginCodeVisible
+    const showEntryScreen = shouldShowNormalAuthFlow && flow.stage === "entry"
 
     // Frame, method column and marketing panel come from @agenta/auth-ui, so this page and /m
     // render the same sign-in rather than two copies of it.
@@ -567,9 +276,9 @@ const Auth = () => {
                         {isReturningEmail && shouldShowEmailFlow && (
                             <>
                                 <EmailFirst
-                                    email={email}
-                                    setEmail={setEmail}
-                                    onContinue={handleEmailContinue}
+                                    email={flow.email}
+                                    setEmail={flow.setEmail}
+                                    onContinue={flow.continueWithEmail}
                                     message={message}
                                     disabled={isSocialAuthLoading || isInitialOtpCheckLoading}
                                     promoted
@@ -598,9 +307,9 @@ const Auth = () => {
                                     <div className="auth-divider">or</div>
                                 )}
                                 <EmailFirst
-                                    email={email}
-                                    setEmail={setEmail}
-                                    onContinue={handleEmailContinue}
+                                    email={flow.email}
+                                    setEmail={flow.setEmail}
+                                    onContinue={flow.continueWithEmail}
                                     message={message}
                                     disabled={isSocialAuthLoading || isInitialOtpCheckLoading}
                                     primary={!promotedProvider}
@@ -611,17 +320,17 @@ const Auth = () => {
                 )}
 
                 {/* Step 3: After email discovery, show available methods */}
-                {emailSubmitted && discoveryComplete && shouldShowEmailFlow && (
+                {flow.stage !== "entry" && shouldShowEmailFlow && (
                     <>
                         {/* Show OTP flow if available */}
                         {emailOtpAvailable && !isLoginCodeVisible && (
                             <PasswordlessAuth
-                                email={email}
-                                setEmail={setEmail}
+                                email={flow.email}
+                                setEmail={flow.setEmail}
                                 message={message}
                                 setMessage={setMessage}
                                 authErrorMsg={authErrorMsg}
-                                setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                setIsLoginCodeVisible={flow.setCodeSent}
                                 disabled={isSocialAuthLoading || isInitialOtpCheckLoading}
                                 lockEmail
                             />
@@ -633,7 +342,7 @@ const Auth = () => {
                                 message={message}
                                 setMessage={setMessage}
                                 authErrorMsg={authErrorMsg}
-                                initialEmail={email}
+                                initialEmail={flow.email}
                                 lockEmail
                             />
                         )}
@@ -642,10 +351,10 @@ const Auth = () => {
                         {emailOtpAvailable && isLoginCodeVisible && (
                             <SendOTP
                                 message={message}
-                                email={email}
+                                email={flow.email}
                                 setMessage={setMessage}
                                 authErrorMsg={authErrorMsg}
-                                setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                setIsLoginCodeVisible={flow.setCodeSent}
                                 isInvitedUser={isInvitedUser}
                             />
                         )}
@@ -661,11 +370,11 @@ const Auth = () => {
                                         key={provider.id}
                                         size="large"
                                         className="w-full"
-                                        onClick={() => redirectToSsoProvider(provider)}
-                                        loading={isSocialAuthLoading}
+                                        onClick={() => void flow.startSso(provider)}
+                                        loading={isSocialAuthLoading || flow.redirecting}
                                         disabled={isAuthLoading || isInitialOtpCheckLoading}
                                     >
-                                        Continue with SSO ({formatSsoProviderLabel(provider)})
+                                        Continue with SSO ({provider.label})
                                     </Button>
                                 ))}
                             </div>
@@ -675,11 +384,7 @@ const Auth = () => {
                         {!isLoginCodeVisible && (
                             <Button
                                 type="link"
-                                onClick={() => {
-                                    setEmailSubmitted(false)
-                                    setDiscoveryComplete(false)
-                                    setAvailableMethods({})
-                                }}
+                                onClick={flow.useDifferentEmail}
                                 className="text-center w-full"
                             >
                                 Use a different email
