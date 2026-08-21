@@ -8,7 +8,7 @@
 import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it} from "vitest"
 
-import {StartupActivity} from "./TurnActivity"
+import {StartupActivity} from "../../src/components/TurnActivity"
 
 const render = (node: Parameters<typeof renderToStaticMarkup>[0]) => {
     const host = document.createElement("div")

@@ -191,12 +191,13 @@ export const LiveConversation = ({
                         turn={turn}
                         onClientToolOutput={conversation.sendToolOutput}
                         onRewind={handleRewind}
+                        sessionId={sessionId}
                     />
                 ))}
-                <TurnStatusLine
-                    working={streamingHere || running}
-                    waitingForInput={conversation.hitlPending}
-                />
+                {/* Only the PARKED case. The working indicator moved into the streaming turn
+                    itself, beside its avatar, where the desktop has always had it — as a line
+                    after the whole list it floated far below the turn it described. */}
+                <TurnStatusLine working={false} waitingForInput={conversation.hitlPending} />
             </ContentRail>
         )
     }

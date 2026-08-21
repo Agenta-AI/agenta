@@ -8,6 +8,8 @@
 export type {AuthMessage, AuthSecurityAdapter, AuthSuccessPayload} from "./types"
 export {ShowErrorMessage} from "./ShowErrorMessage"
 export {AuthDivider} from "./AuthDivider"
+export {default as AuthSideBanner} from "./AuthSideBanner"
+export {AuthShell, type AuthShellProps} from "./AuthShell"
 export {EmailFirstForm, type EmailFirstFormProps} from "./EmailFirstForm"
 export {
     SocialAuthButtons,

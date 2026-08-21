@@ -7,9 +7,15 @@ import {
     isClientToolPart,
     type ClientToolOutputHandler,
 } from "@agenta/chat/clientTools"
-import {AudioPlayer, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
+import {AudioPlayer, StartupActivity, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
 import {isToolPart, toolIdentity} from "@agenta/chat/model"
-import {errorKey, expandedValueAtomFamily, reasoningKey, setExpandedAtom} from "@agenta/chat/state"
+import {
+    errorKey,
+    expandedValueAtomFamily,
+    reasoningKey,
+    setExpandedAtom,
+    useStartupPhase,
+} from "@agenta/chat/state"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
@@ -40,10 +46,8 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 import Markdown from "../assets/markdown"
-import {useStartupPhase} from "../hooks/useStartupPhase"
 
 import ToolActivity from "./ToolActivity"
-import {StartupActivity} from "./TurnActivity"
 
 interface AgentMessageProps {
     message: UIMessage
