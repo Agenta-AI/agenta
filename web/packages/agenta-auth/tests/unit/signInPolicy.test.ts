@@ -183,6 +183,16 @@ describe("mapAuthError", () => {
     it("falls back to the generic apology", () => {
         expect(mapAuthError(new Error("boom")).message).toContain("something went wrong")
     })
+
+    it("ignores a general-error marker that carries no usable message", () => {
+        for (const error of [
+            {isSuperTokensGeneralError: true},
+            {isSuperTokensGeneralError: true, message: 42},
+            {isSuperTokensGeneralError: true, message: ""},
+        ]) {
+            expect(mapAuthError(error).message).toContain("something went wrong")
+        }
+    })
 })
 
 describe("readInviteParams", () => {

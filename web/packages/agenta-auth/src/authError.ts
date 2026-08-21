@@ -19,7 +19,10 @@ export interface MapAuthErrorOptions {
 const isSuperTokensGeneralError = (error: unknown): error is {message: string} =>
     typeof error === "object" &&
     error !== null &&
-    (error as {isSuperTokensGeneralError?: boolean}).isSuperTokensGeneralError === true
+    (error as {isSuperTokensGeneralError?: boolean}).isSuperTokensGeneralError === true &&
+    // The marker alone is not enough: without a string message the copy would be `undefined`.
+    typeof (error as {message?: unknown}).message === "string" &&
+    (error as {message: string}).message.length > 0
 
 export function mapAuthError(error: unknown, options: MapAuthErrorOptions = {}): AuthErrorCopy {
     if (isSuperTokensGeneralError(error)) return {message: error.message, type: "error"}

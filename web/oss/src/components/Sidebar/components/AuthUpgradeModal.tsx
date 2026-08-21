@@ -1,5 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
+import {LAST_SSO_ORG_SLUG_KEY} from "@agenta/auth"
 import {EnhancedModal as Modal} from "@agenta/ui"
 import {
     AppleOutlined,
@@ -121,7 +122,7 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
             // intended SSO org instead of briefly landing on Personal.
             const orgSlug = parseSsoOrgSlug(provider.third_party_id)
             if (orgSlug && typeof window !== "undefined") {
-                window.localStorage.setItem("lastSsoOrgSlug", orgSlug)
+                window.localStorage.setItem(LAST_SSO_ORG_SLUG_KEY, orgSlug)
             }
             const callbackUrl = `${getAgentaWebUrl()}/auth/callback/${provider.third_party_id}`
             const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({

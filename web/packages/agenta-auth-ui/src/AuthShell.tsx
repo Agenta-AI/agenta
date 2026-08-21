@@ -28,6 +28,12 @@ export interface AuthShellProps {
     overlay?: ReactNode
 }
 
+/**
+ * Percent-encode the characters that could close the `url("...")` and inject CSS. The value is a
+ * deploy-time env var, but it reaches a raw <style> tag, so it is escaped rather than trusted.
+ */
+const cssUrl = (url: string) => encodeURI(url).replace(/[()"'\\]/g, encodeURIComponent)
+
 export const AuthShell = ({
     header,
     headerClassName,
@@ -41,7 +47,7 @@ export const AuthShell = ({
         data-display-font={displayFontUrl ? "serif" : undefined}
     >
         {displayFontUrl && (
-            <style>{`@font-face{font-family:"Agenta Display";src:url("${displayFontUrl}");font-weight:300;font-display:swap;}`}</style>
+            <style>{`@font-face{font-family:"Agenta Display";src:url("${cssUrl(displayFontUrl)}");font-weight:300;font-display:swap;}`}</style>
         )}
         <section className="relative flex w-full flex-col overflow-y-auto lg:w-[560px] lg:shrink-0">
             {header ? (

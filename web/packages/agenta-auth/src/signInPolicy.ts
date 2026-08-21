@@ -92,4 +92,27 @@ export function parseSsoOrgSlug(thirdPartyId: string | undefined): string | null
 }
 
 /** Where the post-auth redirect reads the SSO org back from, so it lands there and not Personal. */
-export const LAST_SSO_ORG_SLUG_KEY = "lastSsoOrgSlug"
+export const LAST_SSO_ORG_SLUG_KEY = "agenta:lastSsoOrgSlug"
+
+/**
+ * The key this value shipped under before the `agenta:` prefix. A user who starts an SSO
+ * redirect on the old build and returns on the new one still has the slug under the old key,
+ * so the read falls back to it and the clear removes both.
+ */
+const LEGACY_LAST_SSO_ORG_SLUG_KEY = "lastSsoOrgSlug"
+
+/** Read the remembered SSO org slug, accepting a value left by the pre-prefix build. */
+export function readLastSsoOrgSlug(): string | null {
+    if (typeof window === "undefined") return null
+    return (
+        window.localStorage.getItem(LAST_SSO_ORG_SLUG_KEY) ??
+        window.localStorage.getItem(LEGACY_LAST_SSO_ORG_SLUG_KEY)
+    )
+}
+
+/** Forget the remembered SSO org slug under both the current and the legacy key. */
+export function clearLastSsoOrgSlug(): void {
+    if (typeof window === "undefined") return
+    window.localStorage.removeItem(LAST_SSO_ORG_SLUG_KEY)
+    window.localStorage.removeItem(LEGACY_LAST_SSO_ORG_SLUG_KEY)
+}
