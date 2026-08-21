@@ -4,7 +4,10 @@ from uuid import UUID
 from fastapi import APIRouter, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from oss.src.middlewares.auth import sign_secret_token
+from oss.src.middlewares.auth import (
+    SECRET_RESOLVE_GRANT,
+    sign_secret_token,
+)
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.context import get_auth_context, get_auth_scope
@@ -135,6 +138,12 @@ class AccessRouter:
         # Always re-mint a fresh ephemeral Secret token (same scope, new expiry) so the
         # returned credential is uniformly short-lived and renewable — never echoing an
         # ApiKey/Bearer. Callers (services, the runner) re-check periodically to refresh.
+        #
+        # A run_service exchange is "I am about to execute a workload that needs the stored
+        # keys", so that credential — and only that one — carries the secret-resolve grant
+        # letting the vault return write-only secret values in plaintext. This is the
+        # GitHub-secrets line: a member who can run workloads can reach the values through
+        # a run either way; direct reads with a session/ApiKey stay redacted.
         secret_token = await sign_secret_token(
             user_id=user_id,
             user_email=getattr(request.state, "user_email", None),
@@ -142,6 +151,7 @@ class AccessRouter:
             workspace_id=str(ctx.scope.workspace_id),
             organization_id=str(ctx.scope.organization_id),
             organization_name=getattr(request.state, "organization_name", None),
+            grants=[SECRET_RESOLVE_GRANT] if action == "run_service" else None,
         )
         credentials_header = f"Secret {secret_token}"
 

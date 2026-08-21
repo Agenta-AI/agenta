@@ -38,6 +38,7 @@ from ..connections import (
     ResolvedConnection,
     RuntimeAuthContext,
     UnsupportedConnectionModeError,
+    WriteOnlySecretError,
 )
 from ..model_catalog import model_input_modalities
 from .connection import PlatformConnection
@@ -260,6 +261,9 @@ class _ConnectionCandidate:
     # harness intersection). Neither field filters resolution here yet.
     models: Optional[List[str]] = None
     harnesses: Optional[List[str]] = None
+    # True when the vault says a key exists (write_only + has_key) but this caller's
+    # credential received the redacted, value-less shape.
+    write_only_redacted: bool = False
 
     def matches_provider(self, provider: Optional[str]) -> bool:
         return bool(
@@ -363,6 +367,11 @@ def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
     return {value for value in values if value}
 
 
+def _write_only_redacted(secret: Dict[str, Any], value: Optional[str]) -> bool:
+    """Whether the vault redacted this record's value for the current caller."""
+    return bool(secret.get("write_only")) and bool(secret.get("has_key")) and not value
+
+
 def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandidate]:
     data = _data(secret)
     provider = _stripped(data.get("kind"))
@@ -380,6 +389,7 @@ def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandi
         api_key=key,
         models=_saved_models(data),
         harnesses=_saved_harnesses(data),
+        write_only_redacted=_write_only_redacted(secret, key),
     )
 
 
@@ -445,6 +455,7 @@ def _custom_provider_candidate(
         ),
         models=_saved_models(data),
         harnesses=_saved_harnesses(data),
+        write_only_redacted=_write_only_redacted(secret, api_key),
     )
 
 
@@ -598,6 +609,10 @@ def _resolve_from_secrets(
     env = chosen.resolved_env(provider)
     resolved_model = chosen.selected_model_id(model)
     if not env:
+        # A key that EXISTS but was redacted must not surface as "add your key" — the key
+        # is already in the vault; this caller's credential just may not read it.
+        if chosen.write_only_redacted:
+            raise WriteOnlySecretError(slug=chosen.slug, provider=provider)
         raise MissingCredentialError(provider=provider, slug=chosen.slug)
     return build_resolved_connection(
         provider=provider,

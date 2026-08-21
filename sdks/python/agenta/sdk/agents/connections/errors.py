@@ -55,6 +55,32 @@ class MissingCredentialError(ConnectionResolutionError):
         self.slug = slug
 
 
+class WriteOnlySecretError(ConnectionResolutionError):
+    """Raised when the chosen connection's key exists but came back redacted.
+
+    The vault holds a write-only secret for this connection: the platform runtime reads it
+    through a granted credential, but this caller's credential (typically an ApiKey in a
+    standalone run) only receives the redacted shape. Passing the redacted (empty) key to a
+    provider would fail with a misleading auth error, so this fails loud with instructions.
+    """
+
+    # A standalone run against a write-only secret is a config situation, not a server fault.
+    status_code = 422
+
+    def __init__(self, *, slug: Optional[str] = None, provider: str = "") -> None:
+        subject = (
+            f"connection '{slug}'" if slug else f"provider '{provider}' connection"
+        )
+        # Engineering copy; adjust freely.
+        super().__init__(
+            f"{subject} uses a write-only secret: its value cannot be read back "
+            "outside the platform runtime. For standalone runs, provide the provider "
+            "key via its environment variable (for example OPENAI_API_KEY) instead."
+        )
+        self.slug = slug
+        self.provider = provider
+
+
 class InvalidConnectionConfigurationError(AgentConnectionError):
     """Raised when resolved routing and credentials form an unsafe combination."""
 
