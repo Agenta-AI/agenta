@@ -33,6 +33,7 @@ import {useChat} from "@ai-sdk/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"
 
+import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {filesToParts} from "../assets/files"
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
@@ -207,14 +208,15 @@ export const useAgentConversation = ({
             new AgentChatTransport({
                 api: "",
                 prepareSendMessagesRequest: async ({messages, id}) => {
-                    const req = await buildAgentRequest(entityIdRef.current, messages, {
-                        sessionId: id ?? sessionId,
-                    })
-                    if (!req) {
-                        throw new Error(
-                            "This agent workflow has no invocation URL — it can’t be run yet.",
-                        )
-                    }
+                    // Bounded, not instant. A null build means the workflow entity has not loaded
+                    // its invocation URL YET — the first send to a freshly created agent races
+                    // that fetch, and failing on the first null made a new user's first message
+                    // fail (#6042 on the desktop; the same race reached /m through this hook).
+                    const req = await buildRequestWithinDeadline(() =>
+                        buildAgentRequest(entityIdRef.current, messages, {
+                            sessionId: id ?? sessionId,
+                        }),
+                    )
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
             }),

@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {getMessageTraceId, startupLabelFromDataPart} from "@agenta/chat/assets"
+import {
+    buildRequestWithinDeadline,
+    getMessageTraceId,
+    startupLabelFromDataPart,
+} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {ignoreStreamRejection, parseAgentRunError} from "@agenta/chat/model"
 import {
@@ -41,7 +45,6 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"

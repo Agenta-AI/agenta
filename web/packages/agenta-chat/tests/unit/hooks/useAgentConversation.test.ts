@@ -90,6 +90,13 @@ const mount = (store: ReturnType<typeof createStore>, entityId: string, sessionI
 beforeEach(() => {
     fetchMock.mockReset()
     vi.mocked(buildAgentRequest).mockClear()
+    // Restore the ready-workflow build: one test replaces it with a not-yet-loaded one, and
+    // `mockClear` keeps the implementation.
+    vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+        invocationUrl: "https://agent.test/invoke",
+        headers: {Accept: "text/event-stream", "content-type": "application/json"},
+        requestBody: {session_id: opts?.sessionId},
+    }))
 })
 
 describe("useAgentConversation", () => {
@@ -226,6 +233,50 @@ describe("useAgentConversation", () => {
         await waitFor(() => expect(result.current.isHydrating).toBe(false), {timeout: 5000})
         expect(result.current.historyUnavailable).toBe(true)
         expect(result.current.isEmpty).toBe(true)
+    })
+
+    // M3: the first message to a NEWLY created agent failed with "no invocation URL". The
+    // workflow entity carrying that URL is still being fetched when the hand-off fires the
+    // stashed first message, and this builder returns null until it lands. Failing on the first
+    // null made a new user's first action fail; the desktop bounded the same build in #6042.
+    it("waits out a workflow whose invocation URL has not loaded yet, instead of failing the send", async () => {
+        fetchMock.mockResolvedValue(streamResponse("Hello back"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+
+        // Null twice — the entity fetch lands on the third build, ~600ms in.
+        let builds = 0
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => {
+            builds += 1
+            if (builds < 3) return null
+            return {
+                invocationUrl: "https://agent.test/invoke",
+                headers: {Accept: "text/event-stream", "content-type": "application/json"},
+                requestBody: {session_id: opts?.sessionId},
+            }
+        })
+
+        const {result} = mount(store, "rev-1", sessionId)
+        await act(async () => {
+            await result.current.send({text: "my first message"})
+        })
+
+        await waitFor(
+            () => {
+                expect(result.current.status).toBe("ready")
+                expect(result.current.messages).toHaveLength(2)
+            },
+            {timeout: 5000},
+        )
+        // The build was retried rather than failed on the first null.
+        expect(builds).toBeGreaterThanOrEqual(3)
+        // The turn answered rather than carrying the missing-URL error.
+        await waitFor(() => {
+            expect(result.current.turns[1].status.hasAnswer).toBe(true)
+            expect(result.current.turns[1].status.isError).toBe(false)
+        })
+        expect(result.current.runStatus).toBe("idle")
     })
 
     it("stamps a stream failure onto the turn and reports the parsed error", async () => {
