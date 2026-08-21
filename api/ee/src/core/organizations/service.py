@@ -871,9 +871,27 @@ class OrganizationProvidersService:
             await session.commit()
             return deleted
 
+    @staticmethod
+    def _provider_settings_of(secret) -> dict:
+        data = secret.data
+        if hasattr(data, "provider"):
+            return data.provider.model_dump()
+        if isinstance(data, dict):
+            provider = data.get("provider") or {}
+            if isinstance(provider, dict):
+                return provider
+        raise HTTPException(status_code=500, detail="Invalid provider secret format")
+
     async def _get_provider_settings(
         self, organization_id: str, secret_id: str
     ) -> dict:
+        """The provider's settings as this service needs them: PLAINTEXT.
+
+        Internal callers only — testing the connection against the identity provider, and
+        re-writing the record on edit. Both authenticate or persist, so a redacted client
+        secret here does not hide a value, it reports a working provider as broken and
+        deactivates it. Response shaping goes through `_get_outward_provider_settings`.
+        """
         secret = await self._vault_service().get_secret_by_id(
             secret_id=UUID(secret_id),
             organization_id=UUID(organization_id),
@@ -881,31 +899,41 @@ class OrganizationProvidersService:
         if not secret:
             raise HTTPException(status_code=404, detail="Provider secret not found")
 
-        # This feeds USER-facing provider responses, so a write-only secret loses its
-        # client_secret here. The login-time reader (the SuperTokens overrides) resolves
-        # the secret through VaultService directly and keeps plaintext.
-        secret = redact_secret_response(secret)
+        return self._provider_settings_of(secret)
 
-        data = secret.data
-        if hasattr(data, "provider"):
-            return data.provider.model_dump()
-        if isinstance(data, dict):
-            provider = data.get("provider") or {}
-            if isinstance(provider, dict):
-                if getattr(secret, "write_only", False):
-                    provider = {
-                        key: value
-                        for key, value in provider.items()
-                        if key != "client_secret"
-                    }
-                return provider
-        raise HTTPException(status_code=500, detail="Invalid provider secret format")
+    async def _get_outward_provider_settings(
+        self, organization_id: str, secret_id: str
+    ) -> dict:
+        """The provider's settings as a USER response may carry them.
+
+        Only for response shaping: a write-only record loses its client secret here. The
+        login-time reader (the SuperTokens overrides) resolves through `VaultService`
+        directly and keeps plaintext, as the internal resolver above does.
+        """
+        secret = await self._vault_service().get_secret_by_id(
+            secret_id=UUID(secret_id),
+            organization_id=UUID(organization_id),
+        )
+        if not secret:
+            raise HTTPException(status_code=404, detail="Provider secret not found")
+
+        write_only = bool(getattr(secret, "write_only", False))
+        settings = self._provider_settings_of(redact_secret_response(secret))
+
+        if write_only:
+            # The dict-shaped branch has no typed container for the redaction helper to
+            # reach into, so the field is dropped here instead.
+            settings = {
+                key: value for key, value in settings.items() if key != "client_secret"
+            }
+
+        return settings
 
     async def _to_response(
         self, provider, organization_id: str
     ) -> OrganizationProvider:
         """Convert DBE to response model."""
-        settings = await self._get_provider_settings(
+        settings = await self._get_outward_provider_settings(
             organization_id, str(provider.secret_id)
         )
 
