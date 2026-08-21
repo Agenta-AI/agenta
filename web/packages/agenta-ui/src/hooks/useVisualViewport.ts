@@ -60,7 +60,11 @@ export function keyboardInset(sample: VisualViewportSample): number {
  * viewport, so its bottom edge must land at `offsetTop + height` to sit on the bottom of what the
  * user sees after the browser pushed the visual viewport down.
  */
-export function viewportHeightOverride(sample: VisualViewportSample): string | null {
+export function viewportHeightOverride(
+    sample: VisualViewportSample,
+    activeOverride: string | null = null,
+): string | null {
+    if (sample.scale > 1.01) return activeOverride
     if (keyboardInset(sample) < KEYBOARD_INSET_MIN_PX) return null
     return `${Math.round(sample.height + sample.offsetTop)}px`
 }
@@ -97,12 +101,13 @@ export function useVisualViewportHeight(): void {
 
         const root = document.documentElement
         let frame: number | null = null
+        let activeOverride: string | null = null
 
         const apply = () => {
             frame = null
             const sample = readVisualViewport()
-            const override = sample ? viewportHeightOverride(sample) : null
-            if (override) root.style.setProperty(VIEWPORT_HEIGHT_VAR, override)
+            activeOverride = sample ? viewportHeightOverride(sample, activeOverride) : null
+            if (activeOverride) root.style.setProperty(VIEWPORT_HEIGHT_VAR, activeOverride)
             else root.style.removeProperty(VIEWPORT_HEIGHT_VAR)
         }
         const sync = () => {

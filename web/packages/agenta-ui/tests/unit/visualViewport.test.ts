@@ -75,4 +75,12 @@ describe("viewportHeightOverride", () => {
     it("stays out of the way while the user pinch-zooms", () => {
         expect(viewportHeightOverride(sample({height: 300, scale: 2}))).toBeNull()
     })
+
+    it("keeps the active keyboard height while the user pinch-zooms", () => {
+        expect(viewportHeightOverride(sample({height: 300, scale: 2}), "508px")).toBe("508px")
+    })
+
+    it("clears the active keyboard height after zoom and keyboard end", () => {
+        expect(viewportHeightOverride(sample(), "508px")).toBeNull()
+    })
 })
