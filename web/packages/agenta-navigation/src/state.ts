@@ -68,6 +68,15 @@ export const sidebarWidthAtom = atomWithStorage<number>(
 
 export const sidebarPopupGroupsAtomFamily = atomFamily((_scopeId: string) => atom<string[]>([]))
 
+/**
+ * The `defaultOpen` keys the shell is currently displaying as expanded, published per scope.
+ * Not persisted: it mirrors what the user SEES so the gated entity sources agree with the
+ * screen. Seeding the persisted atom instead would clobber it before storage hydrates.
+ */
+export const sidebarDefaultOpenGroupsAtomFamily = atomFamily((_scopeId: string) =>
+    atom<string[]>([]),
+)
+
 export const setSidebarPopupGroupOpenAtom = atom(
     null,
     (get, set, {scopeId, key, open}: {scopeId: string; key: string; open: boolean}) => {

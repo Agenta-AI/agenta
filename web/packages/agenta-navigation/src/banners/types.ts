@@ -1,12 +1,13 @@
+import type {ReactNode} from "react"
+
 /**
  * Banner type determines the priority order.
  * Lower priority number = shown first.
  *
  * To add a new banner type:
  * 1. Add it to this union type
- * 2. Add its priority to PRIORITY_ORDER in state/atoms.ts
- * 3. Create the banner content component in banners/
- * 4. Register it in the appropriate atom (activeBannersAtom for OSS, eeBannersAtom for EE)
+ * 2. Add its priority to PRIORITY_ORDER in banners/state.ts
+ * 3. Register it in the appropriate atom (activeBannersAtom here, eeBannersAtom in EE)
  */
 export type BannerType = "trial" | "upgrade" | "changelog" | "star-repo"
 
@@ -30,5 +31,5 @@ export interface BannerConfig {
     /** Optional action button */
     action?: BannerAction
     /** Optional custom content renderer */
-    customContent?: React.ReactNode
+    customContent?: ReactNode
 }
