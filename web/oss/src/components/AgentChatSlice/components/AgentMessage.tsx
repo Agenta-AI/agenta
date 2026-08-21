@@ -579,6 +579,7 @@ const AgentMessage = ({
                             onOutput={onClientToolOutput}
                             renderMap={renderMap}
                             degradedEarlierInTurn={degradedEarlierInTurn}
+                            turnStreaming={isStreaming}
                         />
                     )
                 }
