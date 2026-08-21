@@ -110,7 +110,12 @@ export const PanelSection = ({
                       // then pins to a box that never scrolls — i.e. `sticky` silently does
                       // nothing. `clip` establishes no scrollport, so the header pins to the
                       // real scroller ({@link PanelScroll}) as intended.
-                      "shrink-0 overflow-clip rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated"
+                      //
+                      // The card carries the warm tinted surface rather than plain white, so the
+                      // rail reads as one object against the page. Light only: dark restores
+                      // colorBgElevated, where the tint would flatten into the page ground. The
+                      // frame, the header and the body all state it, so no slot stays white.
+                      "shrink-0 overflow-clip rounded-xl border border-solid border-colorBorderSecondary bg-[var(--ag-surface-paper)] dark:bg-colorBgElevated"
                     : ""
             } ${minHeightClassName ?? ""}`}
         >
@@ -118,7 +123,7 @@ export const PanelSection = ({
                 ref={headerRef}
                 className={`ag-panel-section-header flex shrink-0 items-center justify-between gap-2 ${
                     isRail
-                        ? `bg-colorBgElevated px-4 pb-2 pt-4 ${sticky ? "sticky top-0 z-10" : ""}`
+                        ? `bg-[var(--ag-surface-paper)] px-4 pb-2 pt-4 dark:bg-colorBgElevated ${sticky ? "sticky top-0 z-10" : ""}`
                         : `px-2 pb-2 pt-2 ${
                               // The page surface is colorBgContainer (#141414 dark / #fff light);
                               // colorBgLayout is pure black and paints a bar the page never uses.
@@ -144,9 +149,11 @@ export const PanelSection = ({
                 list's own sticky heading — resolves to something opaque. Without it those
                 headings are transparent and rows scroll visibly THROUGH them. */}
             <div
-                className={`${isRail ? "bg-colorBgElevated" : "bg-colorBgContainer"} ${
-                    bodyClassName ?? "flex flex-col gap-0.5 px-2 pb-3"
-                }`}
+                className={`${
+                    isRail
+                        ? "bg-[var(--ag-surface-paper)] dark:bg-colorBgElevated"
+                        : "bg-colorBgContainer"
+                } ${bodyClassName ?? "flex flex-col gap-0.5 px-2 pb-3"}`}
             >
                 {children}
             </div>

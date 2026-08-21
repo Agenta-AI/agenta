@@ -16,9 +16,10 @@ import {cn} from "./utils"
  * step it (Shift for a coarse step), Home/End jump to the bounds, and every path — pointer or
  * key — runs the same `onResizeStart → onResize → onResizeEnd` cycle through the same clamp.
  *
- * The divider is the agent playground's gutter: a 9px channel (`--ag-surface-gutter`) with a
- * centred hairline and a grip pill that takes a primary tint on hover/drag (ported from
- * `.playground-splitter-agent` in globals.css).
+ * The divider is the agent playground's seam: the panes sit FLUSH and the divider is painted on
+ * the seam itself — a 2px hairline plus a grip pill that takes a primary tint on hover/drag
+ * (ported from `.playground-splitter-agent` in globals.css). The bar carries no layout width, so
+ * the grab target is a wider invisible overlay centred on the seam.
  */
 export interface SplitPaneProps {
     /** Which side the driven pane sits on. */
@@ -52,7 +53,16 @@ export interface SplitPaneProps {
     barClassName?: string
 }
 
-const BAR_WIDTH = 9
+/**
+ * The bar carries NO layout width: the agent playground's panes sit flush and the divider is
+ * PAINTED on the seam, which is what `.playground-splitter-agent` did (`flex-basis: 0; width: 0`).
+ * A tinted gutter channel here made the two seams read differently from each other, because each
+ * one's neighbouring surfaces differ.
+ */
+const BAR_WIDTH = 0
+
+/** Invisible hit-slop centred on the seam — the visible pixels are only 2-4px wide. */
+const BAR_HIT_WIDTH = 12
 
 /** The pane slide's duration. Slow it down to inspect the motion — see `paneSlideMs` below. */
 export const PANE_SLIDE_MS = 240
@@ -322,7 +332,9 @@ export function SplitPane({
             onPointerCancel={barHidden ? undefined : handlePointerFinish}
             onKeyDown={barHidden ? undefined : handleKeyDown}
             className={cn(
-                "group relative z-[5] box-border h-full shrink-0 touch-none select-none overflow-hidden bg-[var(--ag-surface-gutter)]",
+                // `overflow-visible`: the hairline, the grip and the hit-slop all paint OUTSIDE
+                // the zero-width bar box, centred on the seam.
+                "group relative z-[5] box-border h-full shrink-0 touch-none select-none overflow-visible",
                 resizable &&
                     !barHidden &&
                     "cursor-col-resize outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
@@ -337,17 +349,20 @@ export function SplitPane({
                 transition: `flex-basis ${slideMs}ms ${PANE_SLIDE_CURVE}, height ${slideMs}ms ${PANE_SLIDE_CURVE}`,
             }}
         >
-            {/* Centre hairline — strengthens to the border tone on hover/drag. */}
-            <span
-                aria-hidden
-                className={cn(
-                    "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-colorFillQuaternary transition-colors duration-150",
-                    resizable && "group-hover:bg-colorBorder",
-                    dragging && "bg-colorBorder",
-                )}
-            />
+            {/* Centre hairline — strengthens to the border tone on hover/drag. A hidden bar
+                paints nothing: the box no longer clips, so this has to be gated explicitly. */}
+            {barHidden ? null : (
+                <span
+                    aria-hidden
+                    className={cn(
+                        "absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-colorBorderSecondary transition-colors duration-150",
+                        resizable && "group-hover:bg-colorBorder",
+                        dragging && "bg-colorBorder",
+                    )}
+                />
+            )}
             {/* Grip pill — quiet at rest, a longer primary tint under the pointer. */}
-            {resizable ? (
+            {resizable && !barHidden ? (
                 <span
                     aria-hidden
                     className={cn(
@@ -356,6 +371,16 @@ export function SplitPane({
                         "group-hover:h-9 group-hover:bg-colorPrimary group-hover:opacity-70",
                         dragging && "h-9 bg-colorPrimary opacity-70",
                     )}
+                />
+            ) : null}
+            {/* Hit-slop: the visible pixels are 2-4px wide, so the grab target is a wider
+                invisible overlay centred on the seam (antd's dragger was 12px). Its pointer
+                events bubble to the bar's own handlers. */}
+            {resizable && !barHidden ? (
+                <span
+                    aria-hidden
+                    className="absolute inset-y-0 left-1/2 -translate-x-1/2 cursor-col-resize"
+                    style={{width: BAR_HIT_WIDTH}}
                 />
             ) : null}
         </div>
