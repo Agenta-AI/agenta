@@ -122,6 +122,20 @@ async def seed_starter_credits_bridge(
     if not config.armed:
         return
 
+    # The row this seeds is write-only, and a write-only secret is readable only through
+    # a credential the platform runtime is issued — which the API issues only to a caller
+    # holding the runtime key. Without it, seeding would mint a funded key and store it
+    # where no run can reach it: money spent on a connection that cannot work. Refuse
+    # instead, and say which variable is missing.
+    if not _platform_runtime_key_configured():
+        log.error(
+            "[starter_credits_bridge] AGENTA_SERVICES_INTERNAL_KEY is not configured; "
+            "a seeded connection would be unreadable by any run. Refusing to seed.",
+            organization_id=organization_id,
+        )
+        _alert_once_about_the_runtime_key()
+        return
+
     policy = await _resolve_mint_policy()
     if policy is None:
         return
@@ -413,6 +427,31 @@ def _monotonic() -> float:
 # The development-policy notice is worth seeing, and worth seeing once: it would
 # otherwise repeat on every signup for the whole life of a dev process.
 _development_policy_announced = False
+
+
+_UNCONFIGURED_RUNTIME_KEY = "replace-me"
+_runtime_key_alerted = False
+
+
+def _platform_runtime_key_configured() -> bool:
+    """Whether this deployment can issue a credential that reads a write-only secret."""
+    runtime_key = (env.agenta.services_internal_key or "").strip()
+
+    return bool(runtime_key) and runtime_key != _UNCONFIGURED_RUNTIME_KEY
+
+
+def _alert_once_about_the_runtime_key() -> None:
+    """Page the operator the first time, then stay quiet: every signup would repeat it."""
+    global _runtime_key_alerted
+
+    if _runtime_key_alerted:
+        return
+
+    _runtime_key_alerted = True
+    _send_alert_background(
+        "starter-credits-bridge: AGENTA_SERVICES_INTERNAL_KEY is not configured; "
+        "seeding is refused because the seeded connection would be unreadable by any run"
+    )
 
 
 def _development_policy() -> MintPolicy:
