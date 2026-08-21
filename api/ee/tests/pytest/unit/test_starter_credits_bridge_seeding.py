@@ -76,11 +76,11 @@ class FakeVaultService:
 
 
 class FakeProxyClient:
-    """Stands in for StarterCreditsProxyClient with a real alias registry, so
-    partial-state convergence (alias exists -> delete -> re-mint) is exercised."""
+    """Stands in for StarterCreditsProxyClient with a real per-alias key registry
+    (budget + spend), so partial-state convergence (alias exists -> read remaining
+    -> delete -> re-mint) is exercised against realistic proxy state."""
 
-    aliases: set = set()
-    list_result: list = []
+    records: dict = {}
     instances: list = []
 
     def __init__(self, *, base_url, master_key):
@@ -89,7 +89,18 @@ class FakeProxyClient:
         self.generate_calls = []
         self.delete_calls = []
         self.update_calls = []
+        self.block_calls = []
         FakeProxyClient.instances.append(self)
+
+    @classmethod
+    def seed_record(cls, key_alias, *, max_budget=10.0, spend=0.0, metadata=None):
+        cls.records[key_alias] = {
+            "key_alias": key_alias,
+            "token": f"hash-{key_alias}",
+            "max_budget": max_budget,
+            "spend": spend,
+            "metadata": metadata or {},
+        }
 
     async def generate_key(
         self,
@@ -115,22 +126,29 @@ class FakeProxyClient:
                 tpm_limit=tpm_limit,
             )
         )
-        if key_alias in FakeProxyClient.aliases:
+        if key_alias in FakeProxyClient.records:
             raise KeyAliasExistsError(status_code=400, detail="alias exists")
-        FakeProxyClient.aliases.add(key_alias)
+        FakeProxyClient.seed_record(
+            key_alias, max_budget=max_budget, metadata=dict(metadata)
+        )
         return MintedKey(
             key=f"sk-virtual-{len(self.generate_calls)}", key_alias=key_alias
         )
 
     async def delete_keys(self, *, key_aliases):
         self.delete_calls.append(list(key_aliases))
-        FakeProxyClient.aliases -= set(key_aliases)
+        for key_alias in key_aliases:
+            FakeProxyClient.records.pop(key_alias, None)
 
     async def update_key(self, *, key, metadata):
         self.update_calls.append(dict(key=key, metadata=metadata))
 
+    async def block_key(self, *, key):
+        self.block_calls.append(key)
+
     async def list_keys(self, *, key_alias):
-        return list(FakeProxyClient.list_result)
+        record = FakeProxyClient.records.get(key_alias)
+        return [dict(record)] if record else []
 
 
 def _all_generate_calls():
@@ -156,8 +174,7 @@ def _all_update_calls():
 @pytest.fixture
 def seeding_env(monkeypatch):
     """Arm the config and stub every dependency; returns the mutable stubs."""
-    FakeProxyClient.aliases = set()
-    FakeProxyClient.list_result = []
+    FakeProxyClient.records = {}
     FakeProxyClient.instances = []
     service._verified_team_ids.clear()
 
@@ -340,14 +357,39 @@ class TestSeeding:
 
 
 class TestConvergence:
-    async def test_orphaned_key_is_deleted_and_reminted(self, seeding_env):
-        FakeProxyClient.aliases.add(ORGANIZATION_ID)
+    async def test_orphaned_key_is_reminted_at_remaining_budget(self, seeding_env):
+        FakeProxyClient.seed_record(ORGANIZATION_ID, max_budget=10.0, spend=4.0)
 
         await _seed()
 
         assert _all_delete_calls() == [[ORGANIZATION_ID]]
         assert len(_all_generate_calls()) == 2
+        assert _all_generate_calls()[-1]["max_budget"] == 6.0
         assert len(seeding_env.vault.created) == 1
+
+    async def test_exhausted_orphan_is_blocked_not_reseeded(self, seeding_env):
+        FakeProxyClient.seed_record(ORGANIZATION_ID, max_budget=10.0, spend=10.0)
+
+        await _seed()
+
+        assert _all_delete_calls() == []
+        assert seeding_env.vault.created == []
+        assert ORGANIZATION_ID in FakeProxyClient.records
+        (blocked,) = [
+            call
+            for instance in FakeProxyClient.instances
+            for call in instance.block_calls
+        ]
+        assert blocked == f"hash-{ORGANIZATION_ID}"
+
+    async def test_unreadable_orphan_budget_refuses_to_remint(self, seeding_env):
+        FakeProxyClient.seed_record(ORGANIZATION_ID)
+        del FakeProxyClient.records[ORGANIZATION_ID]["spend"]
+
+        await _seed()
+
+        assert _all_delete_calls() == []
+        assert seeding_env.vault.created == []
 
     async def test_mint_ok_vault_fail_then_next_call_converges(self, seeding_env):
         seeding_env.vault.fail_next_create = True
@@ -359,10 +401,12 @@ class TestConvergence:
 
         await _seed_safely()
 
-        # mint, alias-exists on retry, delete, re-mint, then a good vault write
+        # mint, alias-exists on retry, delete, re-mint (nothing spent -> full
+        # grant carries over), then a good vault write
         assert len(seeding_env.vault.created) == 1
         assert _all_delete_calls() == [[ORGANIZATION_ID]]
         assert len(_all_generate_calls()) == 3
+        assert _all_generate_calls()[-1]["max_budget"] == 10.0
 
     async def test_double_entry_is_idempotent(self, seeding_env):
         await _seed()
@@ -413,9 +457,9 @@ class TestReconcile:
 
     async def test_healthy_state_is_untouched(self, seeding_env):
         seeding_env.vault.row = _our_row()
-        FakeProxyClient.list_result = [
-            {"metadata": {"origin": service.ORIGIN_MARKER}},
-        ]
+        FakeProxyClient.seed_record(
+            ORGANIZATION_ID, metadata={"origin": service.ORIGIN_MARKER}
+        )
 
         outcome = await service.reconcile_starter_credits_bridge(
             organization_id=ORGANIZATION_ID
@@ -434,10 +478,12 @@ class TestReconcile:
         assert len(seeding_env.vault.created) == 1
 
     async def test_orphaned_key_without_row_is_replaced(self, seeding_env):
-        FakeProxyClient.aliases.add(ORGANIZATION_ID)
-        FakeProxyClient.list_result = [
-            {"metadata": {"origin": service.ORIGIN_MARKER}},
-        ]
+        FakeProxyClient.seed_record(
+            ORGANIZATION_ID,
+            max_budget=10.0,
+            spend=2.5,
+            metadata={"origin": service.ORIGIN_MARKER},
+        )
 
         outcome = await service.reconcile_starter_credits_bridge(
             organization_id=ORGANIZATION_ID
@@ -446,6 +492,23 @@ class TestReconcile:
         assert outcome == "reseeded"
         assert _all_delete_calls() == [[ORGANIZATION_ID]]
         assert len(seeding_env.vault.created) == 1
+        assert _all_generate_calls()[-1]["max_budget"] == 7.5
+
+    async def test_exhausted_orphan_reports_exhausted(self, seeding_env):
+        FakeProxyClient.seed_record(
+            ORGANIZATION_ID,
+            max_budget=10.0,
+            spend=9.995,
+            metadata={"origin": service.ORIGIN_MARKER},
+        )
+
+        outcome = await service.reconcile_starter_credits_bridge(
+            organization_id=ORGANIZATION_ID
+        )
+
+        assert outcome == "exhausted_not_reseeded"
+        assert seeding_env.vault.created == []
+        assert ORGANIZATION_ID in FakeProxyClient.records
 
     async def test_our_row_without_key_is_replaced(self, seeding_env):
         row = _our_row()

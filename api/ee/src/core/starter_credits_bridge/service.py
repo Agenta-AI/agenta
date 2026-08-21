@@ -134,10 +134,12 @@ async def reconcile_starter_credits_bridge(*, organization_id: str) -> str:
     """Repair partial seed states for one organization; returns the outcome.
 
     States and repairs: key-without-row (orphan) -> delete the orphan and re-mint
-    (the raw key value is unrecoverable by design); row-without-key -> replace the
+    at its REMAINING budget (the raw key value is unrecoverable by design; an
+    exhausted orphan is blocked, not replaced); row-without-key -> replace the
     row, but ONLY when it carries our ownership marker; both present -> no-op.
     Velocity caps do not apply: this converges already-approved seeds, it never
-    grants new ones a signup would not have gotten.
+    grants new ones a signup would not have gotten. Invariant shared with every
+    sweep path: a reconcile never increases an organization's total lifetime grant.
     """
     config = env.starter_credits_bridge
     if not config.armed:
@@ -170,13 +172,15 @@ async def reconcile_starter_credits_bridge(*, organization_id: str) -> str:
         return "healthy"
 
     if row is None:
-        await _mint_and_seed(
+        outcome = await _mint_and_seed(
             client=client,
             config=config,
             vault_service=vault_service,
             project_id=project.id,
             organization_id=organization_id,
         )
+        if outcome != "seeded":
+            return outcome
         return "reseeded" if our_keys or keys else "seeded"
 
     # Row without a key: replace it only when it is provably ours.
@@ -189,14 +193,14 @@ async def reconcile_starter_credits_bridge(*, organization_id: str) -> str:
 
     await vault_service.delete_secret(secret_id=row.id, project_id=project.id)
     await invalidate_cache(project_id=str(project.id))
-    await _mint_and_seed(
+    outcome = await _mint_and_seed(
         client=client,
         config=config,
         vault_service=vault_service,
         project_id=project.id,
         organization_id=organization_id,
     )
-    return "reseeded"
+    return "reseeded" if outcome == "seeded" else outcome
 
 
 async def _mint_and_seed(
@@ -206,13 +210,13 @@ async def _mint_and_seed(
     vault_service: VaultService,
     project_id: UUID,
     organization_id: str,
-) -> None:
+) -> str:
     metadata = {"organization_id": organization_id, "origin": ORIGIN_MARKER}
 
-    async def _mint():
+    async def _mint(max_budget: float):
         return await client.generate_key(
             key_alias=organization_id,
-            max_budget=config.grant_usd,
+            max_budget=max_budget,
             models=[config.model_id],
             metadata=metadata,
             team_id=config.team_id,
@@ -222,17 +226,38 @@ async def _mint_and_seed(
         )
 
     try:
-        minted = await _mint()
+        minted = await _mint(config.grant_usd)
     except KeyAliasExistsError:
-        # Orphaned key from a partial earlier run (no vault row). The raw key value
-        # is unrecoverable by design, so delete-and-remint is the compensation that
-        # makes re-entry converge instead of give up.
+        # Orphaned key from a partial earlier run (no vault row) — a state a user
+        # can also create by deleting their vault connection. The raw key value is
+        # unrecoverable by design, so the compensation is delete-and-remint, but
+        # ONLY at the orphan's remaining budget: a reconcile never increases an
+        # organization's total lifetime grant, or "spend, delete the connection,
+        # get reseeded" becomes a refill exploit.
+        remaining = await _orphan_remaining_budget(client, organization_id)
+        if remaining is None:
+            log.error(
+                "[starter_credits_bridge] orphaned key budget unreadable; refusing to re-mint",
+                organization_id=organization_id,
+            )
+            return "orphan_unverifiable"
+        if remaining < 0.01:
+            # Keep the exhausted key in place (blocked): its occupied alias is what
+            # makes "spent" durable — deleting it would let the next sweep re-mint
+            # a full grant.
+            await _block_orphan(client, organization_id)
+            log.info(
+                "[starter_credits_bridge] orphaned key exhausted; not re-seeding",
+                organization_id=organization_id,
+            )
+            return "exhausted_not_reseeded"
         log.warning(
-            "[starter_credits_bridge] deleting orphaned key and re-minting",
+            "[starter_credits_bridge] deleting orphaned key and re-minting remaining budget",
             organization_id=organization_id,
+            remaining_usd=remaining,
         )
         await client.delete_keys(key_aliases=[organization_id])
-        minted = await _mint()
+        minted = await _mint(remaining)
 
     created = await vault_service.create_secret(
         project_id=project_id,
@@ -259,6 +284,49 @@ async def _mint_and_seed(
         project_id=str(project_id),
         secret_id=str(created.id),
     )
+    return "seeded"
+
+
+async def _orphan_remaining_budget(
+    client: StarterCreditsProxyClient,
+    key_alias: str,
+) -> Optional[float]:
+    """The orphan's unspent budget in USD, rounded down to the cent; None when it
+    cannot be read (fail closed: an unverifiable orphan is never re-minted)."""
+    try:
+        keys = await client.list_keys(key_alias=key_alias)
+    except Exception:
+        return None
+    if not keys:
+        return None
+
+    entry = keys[0]
+    max_budget = entry.get("max_budget")
+    spend = entry.get("spend")
+    for value in (max_budget, spend):
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return None
+
+    remaining_cents = int((max(0.0, max_budget - spend) + 1e-9) * 100)
+    return remaining_cents / 100.0
+
+
+async def _block_orphan(
+    client: StarterCreditsProxyClient,
+    key_alias: str,
+) -> None:
+    """Best-effort block of an exhausted orphan; the proxy's budget enforcement
+    already refuses its calls, so a failed block only loses defense in depth."""
+    try:
+        keys = await client.list_keys(key_alias=key_alias)
+        token = (keys[0] if keys else {}).get("token")
+        if isinstance(token, str) and token:
+            await client.block_key(key=token)
+    except Exception:
+        log.warning(
+            "[starter_credits_bridge] could not block exhausted orphan",
+            exc_info=True,
+        )
 
 
 def _build_secret_dto(*, config: Any, virtual_key: str) -> CreateSecretDTO:
