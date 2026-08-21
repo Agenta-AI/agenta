@@ -1,6 +1,5 @@
 import os
 import hashlib
-import math
 import warnings
 from typing import List, Optional
 from uuid import getnode
@@ -1525,40 +1524,6 @@ class SendgridConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-_FALSY = {"false", "0", "f", "n", "no", "off", "disable", "disabled"}
-
-
-def _parse_optional_positive_finite_float_env(name: str) -> float | None:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return None
-    value = float(raw)
-    if not math.isfinite(value) or value <= 0:
-        raise ValueError(f"{name} must be a finite positive number, got {raw!r}")
-    return value
-
-
-def _parse_optional_bool_env(name: str) -> bool | None:
-    # Strict tri-state: an unrecognized value raises instead of silently reading
-    # as False (these values override policy rules; a typo must fail loudly).
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return None
-    value = raw.strip().lower()
-    if value in _TRUTHY:
-        return True
-    if value in _FALSY:
-        return False
-    raise ValueError(f"{name} must be a boolean value, got {raw!r}")
-
-
-def _parse_optional_csv_env(name: str) -> list[str] | None:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return None
-    return [value.strip().lower() for value in raw.split(",") if value.strip()]
-
-
 class StarterCreditsBridgeConfig(BaseModel):
     """Starter-credits bridge (EE): mint a budget-capped proxy key at signup and
     seed it into the new organization's vault as a ready-to-use connection.
@@ -1566,8 +1531,8 @@ class StarterCreditsBridgeConfig(BaseModel):
     Inert unless `enabled` is true AND `proxy_public_url` + `master_key` +
     `team_id` are present (the team's budget ceiling is the program's
     total-exposure bound, so seeding refuses to run without it). The
-    redeploy-free runtime switch is the PostHog feature flag (fail closed:
-    no flag signal means no seeding).
+    redeploy-free runtime switch is the PostHog policy payload: clearing or
+    emptying it leaves the policy unresolved, and seeding fails closed.
     """
 
     enabled: bool = _parse_bool_env("AGENTA_STARTER_CREDITS_BRIDGE_ENABLED", False)
@@ -1588,49 +1553,16 @@ class StarterCreditsBridgeConfig(BaseModel):
         or "vertex_ai/gemini-3.6-flash"
     )
 
-    feature_flag: str = (
-        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_FEATURE_FLAG")
-        or "starter-credits-bridge-seeding"
-    )
-
     # The mint policy (velocity caps, domain classification, eligibility rules,
-    # grant size, per-key limits) ships via the PostHog policy flag's payload so
-    # no real value lives in source; code carries NO defaults. The fields below
-    # override single payload fields when set — with strict parsing, since a typo
-    # must fail loudly rather than silently loosen a money value. With neither
-    # payload nor overrides the policy is unresolved and seeding fails closed.
+    # grant size, per-key limits) ships via the PostHog policy flag's payload:
+    # the payload is the only source, so no real value lives in source and no
+    # money value can be changed one field at a time on a single deployment.
+    # Without a resolvable payload the policy is unresolved and seeding fails
+    # closed. Only the flag's NAME is configurable here.
     policy_flag: str = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_POLICY_FLAG")
         or "starter-credits-bridge-policy"
     )
-    global_daily_mint_cap: int | None = _parse_optional_positive_int_env(
-        "AGENTA_STARTER_CREDITS_BRIDGE_GLOBAL_DAILY_MINT_CAP"
-    )
-    global_hourly_mint_cap: int | None = _parse_optional_positive_int_env(
-        "AGENTA_STARTER_CREDITS_BRIDGE_GLOBAL_HOURLY_MINT_CAP"
-    )
-    work_domain_daily_mint_cap: int | None = _parse_optional_positive_int_env(
-        "AGENTA_STARTER_CREDITS_BRIDGE_WORK_DOMAIN_DAILY_MINT_CAP"
-    )
-    freemail_domains: list[str] | None = _parse_optional_csv_env(
-        "AGENTA_STARTER_CREDITS_BRIDGE_FREEMAIL_DOMAINS"
-    )
-    block_digit_locals: bool | None = _parse_optional_bool_env(
-        "AGENTA_STARTER_CREDITS_BRIDGE_BLOCK_DIGIT_LOCALS"
-    )
-    grant_usd: float | None = _parse_optional_positive_finite_float_env(
-        "AGENTA_STARTER_CREDITS_BRIDGE_GRANT_USD"
-    )
-    key_max_parallel_requests: int | None = _parse_optional_positive_int_env(
-        "AGENTA_STARTER_CREDITS_BRIDGE_KEY_MAX_PARALLEL_REQUESTS"
-    )
-    key_rpm_limit: int | None = _parse_optional_positive_int_env(
-        "AGENTA_STARTER_CREDITS_BRIDGE_KEY_RPM_LIMIT"
-    )
-    key_tpm_limit: int | None = _parse_optional_positive_int_env(
-        "AGENTA_STARTER_CREDITS_BRIDGE_KEY_TPM_LIMIT"
-    )
-
     # Optional operator webhook ({"text": ...} POST) for refusals and failures.
     alert_webhook: str | None = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_ALERT_WEBHOOK") or None

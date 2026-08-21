@@ -192,9 +192,6 @@ def seeding_env(monkeypatch):
         assert organization_id == ORGANIZATION_ID
         return project
 
-    async def fake_flag_enabled(organization_id):
-        return True
-
     async def fake_resolve_policy():
         return policy
 
@@ -219,7 +216,6 @@ def seeding_env(monkeypatch):
         fake_get_default_project,
     )
     monkeypatch.setattr(service, "_vault_service", lambda: vault)
-    monkeypatch.setattr(service, "_feature_flag_enabled", fake_flag_enabled)
     monkeypatch.setattr(service, "_resolve_mint_policy", fake_resolve_policy)
     monkeypatch.setattr(service, "_team_ceiling_verified", fake_team_verified)
     monkeypatch.setattr(service, "_mint_policy_allows", fake_policy_allows)
@@ -300,17 +296,6 @@ class TestSeeding:
         await _seed()
 
         assert FakeProxyClient.instances == []
-
-    async def test_flag_off_makes_no_calls(self, seeding_env):
-        async def flag_off(organization_id):
-            return False
-
-        seeding_env.monkeypatch.setattr(service, "_feature_flag_enabled", flag_off)
-
-        await _seed()
-
-        assert FakeProxyClient.instances == []
-        assert seeding_env.vault.row is None
 
     async def test_unresolved_policy_skips_seed(self, seeding_env):
         async def no_policy():
@@ -606,61 +591,6 @@ class TestTeamCeilingGate:
         assert len(self.alerts) == 1
 
 
-class TestFeatureFlagGate:
-    @pytest.fixture(autouse=True)
-    def armed(self, monkeypatch):
-        monkeypatch.setattr(env, "starter_credits_bridge", _armed_config())
-        self.cache: dict = {}
-
-        async def fake_get_cache(*, namespace, key, retry=False, **kwargs):
-            return self.cache.get((namespace, tuple(sorted(key.items()))))
-
-        async def fake_set_cache(*, namespace, key, value, **kwargs):
-            self.cache[(namespace, tuple(sorted(key.items())))] = value
-
-        monkeypatch.setattr(service, "get_cache", fake_get_cache)
-        monkeypatch.setattr(service, "set_cache", fake_set_cache)
-        self.monkeypatch = monkeypatch
-
-    def _posthog(self, decisions):
-        return SimpleNamespace(
-            feature_enabled=lambda flag, distinct_id: decisions.get(distinct_id)
-        )
-
-    def _broken_posthog(self):
-        def boom(flag, distinct_id):
-            raise RuntimeError("posthog down")
-
-        return SimpleNamespace(feature_enabled=boom)
-
-    async def test_posthog_unavailable_and_no_cache_fails_closed(self):
-        self.monkeypatch.setattr(service, "_load_posthog", lambda: None)
-
-        assert await service._feature_flag_enabled(ORGANIZATION_ID) is False
-
-    async def test_outage_fallback_is_per_organization(self):
-        organization_a, organization_b, organization_c = "org-a", "org-b", "org-c"
-        self.monkeypatch.setattr(
-            service,
-            "_load_posthog",
-            lambda: self._posthog({organization_a: True, organization_b: False}),
-        )
-        assert await service._feature_flag_enabled(organization_a) is True
-        assert await service._feature_flag_enabled(organization_b) is False
-
-        self.monkeypatch.setattr(service, "_load_posthog", self._broken_posthog)
-
-        # Each organization keeps ITS decision; an unknown one fails closed.
-        assert await service._feature_flag_enabled(organization_a) is True
-        assert await service._feature_flag_enabled(organization_b) is False
-        assert await service._feature_flag_enabled(organization_c) is False
-
-    async def test_no_signal_fails_closed(self):
-        self.monkeypatch.setattr(service, "_load_posthog", lambda: self._posthog({}))
-
-        assert await service._feature_flag_enabled(ORGANIZATION_ID) is False
-
-
 class TestMintPolicyResolution:
     _PAYLOAD = {
         "global_daily": 4,
@@ -731,22 +661,19 @@ class TestMintPolicyResolution:
         assert policy is not None
         assert policy.global_hourly == 3
 
-    async def test_env_overrides_take_precedence(self):
+    async def test_the_payload_is_the_only_source_of_policy_values(self):
+        # No deployment can raise a cap or a grant on its own: the payload is it.
+        payload = dict(self._PAYLOAD, grant_usd=7.5)
         self.monkeypatch.setattr(
-            env,
-            "starter_credits_bridge",
-            _armed_config(grant_usd=7.5, freemail_domains=["other.test"]),
-        )
-        self.monkeypatch.setattr(
-            service, "_load_posthog", lambda: self._posthog_with(dict(self._PAYLOAD))
+            service, "_load_posthog", lambda: self._posthog_with(payload)
         )
 
         policy = await service._resolve_mint_policy()
 
         assert policy is not None
         assert policy.grant_usd == 7.5
-        # The env list adds to the built-in defaults rather than replacing them.
-        assert policy.is_freemail("other.test") is True
+        # The payload's list adds to the built-in defaults rather than replacing them.
+        assert policy.is_freemail("freemail.test") is True
         assert policy.is_freemail("gmail.com") is True
 
     async def test_no_signal_anywhere_fails_closed(self):

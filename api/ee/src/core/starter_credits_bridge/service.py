@@ -111,14 +111,10 @@ async def seed_starter_credits_bridge(
     """Mint a budget-capped virtual key and seed it into the org's default-project
     vault as a ready-to-use provider connection."""
     config = env.starter_credits_bridge
+    # Two kill switches, both program-wide: AGENTA_STARTER_CREDITS_BRIDGE_ENABLED
+    # (needs a redeploy) and the PostHog policy payload below — emptying or deleting
+    # it leaves the policy unresolved and stops seeding without one.
     if not config.armed:
-        return
-
-    if not await _feature_flag_enabled(organization_id):
-        log.info(
-            "[starter_credits_bridge] feature flag off; skipping seed",
-            organization_id=organization_id,
-        )
         return
 
     policy = await _resolve_mint_policy()
@@ -397,59 +393,15 @@ def _monotonic() -> float:
     return time.monotonic()
 
 
-async def _feature_flag_enabled(organization_id: str) -> bool:
-    """Evaluate the PostHog kill switch, live-first so a flip takes effect on the
-    next signup. Fail closed, per organization: on a PostHog outage the last
-    Redis-cached decision FOR THIS ORGANIZATION stands in (never another org's);
-    with no cached decision either, no seeding."""
-    flag = env.starter_credits_bridge.feature_flag
-    cache_key = {"ff": flag, "org": organization_id}
-
-    posthog = _load_posthog()
-    if posthog is not None:
-        try:
-            # The SDK call is synchronous; a worker thread keeps it preemptible
-            # by the signup path's overall timeout.
-            result = await asyncio.to_thread(
-                posthog.feature_enabled, flag, organization_id
-            )
-        except Exception as exc:
-            log.warning(
-                "[starter_credits_bridge] live feature flag lookup failed; using cached value",
-                reason=str(exc),
-            )
-        else:
-            enabled = result is True
-            await set_cache(
-                namespace="starter_credits_bridge:flag",
-                key=cache_key,
-                value=enabled,
-            )
-            return enabled
-
-    cached = await get_cache(
-        namespace="starter_credits_bridge:flag",
-        key=cache_key,
-        retry=False,
-    )
-    if cached is not None:
-        return bool(cached)
-
-    log.warning(
-        "[starter_credits_bridge] no feature flag signal; seeding disabled (fail closed)",
-    )
-    return False
-
-
 async def _resolve_mint_policy() -> Optional[MintPolicy]:
     """Resolve the mint policy. Live-first; a MALFORMED live payload fails
     closed with an alert (a bad rollout must never silently keep old caps via
     the cache) — only a transport failure may fall back to the Redis-cached
-    payload. Env fields override single payload fields. No resolvable policy
-    means no seeding."""
+    payload. The payload is the only source of policy values. No resolvable
+    policy means no seeding."""
     flag = env.starter_credits_bridge.policy_flag
-    # Deliberately global, unlike the per-org flag cache above: the mint policy is one
-    # program-wide payload (caps, domain rules), identical for every organization.
+    # Deliberately global: the mint policy is one program-wide payload (caps, domain
+    # rules), identical for every organization.
     cache_key = {"ff": flag}
 
     payload: Optional[dict] = None
@@ -467,8 +419,8 @@ async def _resolve_mint_policy() -> Optional[MintPolicy]:
             )
         else:
             if raw is None:
-                # A reachable PostHog with no payload is a real "no policy"
-                # signal (env overrides may still complete it below).
+                # A reachable PostHog with no payload is a real "no policy" signal:
+                # nothing else can supply one, so the resolve below fails closed.
                 payload = None
             else:
                 payload = _parse_policy_payload(raw)
@@ -484,23 +436,8 @@ async def _resolve_mint_policy() -> Optional[MintPolicy]:
         if isinstance(cached, dict):
             payload = cached
 
-    config = env.starter_credits_bridge
-    overrides = {
-        "global_daily": config.global_daily_mint_cap,
-        "global_hourly": config.global_hourly_mint_cap,
-        "work_domain_daily": config.work_domain_daily_mint_cap,
-        "freemail_domains": config.freemail_domains,
-        "block_digit_locals": config.block_digit_locals,
-        "grant_usd": config.grant_usd,
-        "key_max_parallel_requests": config.key_max_parallel_requests,
-        "key_rpm_limit": config.key_rpm_limit,
-        "key_tpm_limit": config.key_tpm_limit,
-    }
-    merged = {} if live_malformed else {**(payload or {})}
-    merged.update({key: value for key, value in overrides.items() if value is not None})
-
     try:
-        policy = MintPolicy(**merged)
+        policy = MintPolicy(**({} if live_malformed else (payload or {})))
     except Exception:
         log.error(
             "[starter_credits_bridge] mint policy missing or invalid; seeding disabled (fail closed)",
