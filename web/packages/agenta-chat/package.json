@@ -24,7 +24,8 @@
         "./state": "./src/state/index.ts",
         "./hooks": "./src/hooks/index.ts",
         "./skin": "./src/skin/index.ts",
-        "./tests/goldenSessions": "./tests/unit/assets/__fixtures__/goldenSessions.ts"
+        "./tests/goldenSessions": "./tests/unit/assets/__fixtures__/goldenSessions.ts",
+        "./clientTools": "./src/clientTools/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

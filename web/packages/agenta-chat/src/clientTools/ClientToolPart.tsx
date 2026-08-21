@@ -8,11 +8,13 @@
  */
 import {createElement, memo, useCallback} from "react"
 
+import {clientToolWidgets} from "@agenta/entity-ui/clientTools"
 import type {RenderHintLike} from "@agenta/playground"
 import type {ToolUIPart} from "ai"
 
+import {resolveClientToolWidget} from "../skin"
+
 import {clientToolMeta} from "./meta"
-import {resolveClientToolHandler} from "./registry"
 import UnhandledClientTool from "./UnhandledClientTool"
 
 /** Settle a parked client tool. The panel maps this onto `addToolOutput` (success or error). */
@@ -38,7 +40,7 @@ const ClientToolPart = ({
     const meta = clientToolMeta(part, renderMap)
     // The handler is a STABLE module-level component picked from the registry (not created during
     // render), so dispatch via `createElement` — `<Handler/>` would trip the static-components rule.
-    const handler = resolveClientToolHandler(meta) ?? UnhandledClientTool
+    const handler = resolveClientToolWidget(meta, clientToolWidgets) ?? UnhandledClientTool
 
     const settle = useCallback(
         (args: {output: Record<string, unknown>} | {errorText: string}) => {

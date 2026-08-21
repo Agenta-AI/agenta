@@ -17,14 +17,13 @@
  */
 import {memo, useCallback, useRef} from "react"
 
+import {clientToolMeta, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import type {ClientToolMeta, SettleClientTool} from "@agenta/chat/skin"
+import {useConnectFlow} from "@agenta/entity-ui/clientTools"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
 import {Button} from "@agenta/ui/ui"
 import {Plugs, Spinner} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-
-import {clientToolMeta, type ClientToolOutputHandler} from "./clientTools"
-import {useConnectFlow} from "./clientTools/useConnectFlow"
 
 /** Whether this client-tool meta is the connect interaction (registry's two dispatch axes). */
 const isConnectInteraction = (meta: ClientToolMeta): boolean =>

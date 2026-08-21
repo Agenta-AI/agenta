@@ -22,6 +22,7 @@ import {
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
+import {buildRenderMap} from "@agenta/playground"
 import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
@@ -36,6 +37,7 @@ import {filesToParts} from "../assets/files"
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {getMessageTraceId} from "../assets/trace"
+import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
 import {parseAgentRunError, type ParsedRunError} from "../model/error"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
@@ -94,8 +96,10 @@ export interface ToolOutputSettleInput {
 export interface UseAgentConversationArgs {
     entityId: string
     sessionId: string
-    /** Registry-backed client-tool predicate for the turn render model; without it no part is
-     * treated as a client tool (they fold into the regular tool groups). */
+    /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
+     * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
+     * silently folded every client tool into the plain "used N tools" group, leaving the run
+     * parked with nothing on screen to answer. */
     isClientToolPart?: ClientToolPartPredicate
 }
 
@@ -129,6 +133,9 @@ export interface AgentConversation {
     stopped: boolean
     /** Messages held while a turn is in flight, in FIFO order. */
     queued: QueuedMessage[]
+    /** The run is parked on the USER — an approval gate or an unanswered client tool (elicitation,
+     * connect). Typed messages queue rather than send while this holds. */
+    hitlPending: boolean
     removeQueued: (id: string) => void
     clearQueue: () => void
     /** Headless approval-dock state wired to the live-gate-aware response path. */
@@ -435,6 +442,15 @@ export const useAgentConversation = ({
         [addToolApprovalResponse],
     )
 
+    // `render.kind` rides as a sibling `data-render` part (AI SDK tool chunks are strict), so the
+    // widget dispatch needs a toolCallId → hint map. Built across the WHOLE conversation rather
+    // than per message: toolCallIds are unique, and the predicate below sees parts without knowing
+    // which message they came from.
+    const renderMap = useMemo(
+        () => buildRenderMap(messages.flatMap((m) => m.parts) as {type?: string; data?: unknown}[]),
+        [messages],
+    )
+
     const approvals = useApprovalDock({messages, respond: handleApprovalResponse})
 
     // Settle a parked client tool (#4920). A widget calls this with the structured reference;
@@ -635,8 +651,14 @@ export const useAgentConversation = ({
     // recreated hook-side so the identity JSON.stringify doesn't re-run per streamed token.
     const [executedFor] = useState(() => createExecutedToolIdentityCache())
     const turns = useMemo(
-        () => buildTurnViewModels(messages, {busy, executedFor, isClientToolPart}),
-        [messages, busy, executedFor, isClientToolPart],
+        () =>
+            buildTurnViewModels(messages, {
+                busy,
+                executedFor,
+                isClientToolPart: (part, ctx) =>
+                    (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
+            }),
+        [messages, busy, executedFor, isClientToolPart, renderMap],
     )
 
     const parsedError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
@@ -656,6 +678,7 @@ export const useAgentConversation = ({
         historyUnavailable,
         stopped,
         queued,
+        hitlPending,
         removeQueued,
         clearQueue,
         approvals,

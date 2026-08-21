@@ -14,7 +14,7 @@ import {
     extractConnectErrorMessage,
     isConnectModeResolving,
     resolveConnectMode,
-} from "./useConnectFlow"
+} from "../../src/clientTools/useConnectFlow"
 
 describe("resolveConnectMode", () => {
     it("RENDER fallback: keeps the hint when the catalog has no auth_schemes yet (loading, or backend reported none) — `isConnectModeResolving` below is what stops a click from acting on this before it's verified", () => {

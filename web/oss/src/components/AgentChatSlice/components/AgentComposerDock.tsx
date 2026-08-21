@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, type RefObject} from "react"
 
 import {CHAT_COLUMN} from "@agenta/chat/assets"
+import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     ChatComposer,
     MicPermissionNotice,
@@ -37,7 +38,6 @@ import {type useOnboardingChat} from "../hooks/useOnboardingChat"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
-import type {ClientToolOutputHandler} from "./clientTools"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
 import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"

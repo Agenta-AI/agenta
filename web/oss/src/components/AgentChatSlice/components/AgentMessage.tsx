@@ -2,6 +2,11 @@ import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {getMessageRunError, getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
+import {
+    ClientToolPart,
+    isClientToolPart,
+    type ClientToolOutputHandler,
+} from "@agenta/chat/clientTools"
 import {AudioPlayer, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
 import {isToolPart, toolIdentity} from "@agenta/chat/model"
 import {errorKey, expandedValueAtomFamily, reasoningKey, setExpandedAtom} from "@agenta/chat/state"
@@ -36,7 +41,6 @@ import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 import Markdown from "../assets/markdown"
 import {useStartupPhase} from "../hooks/useStartupPhase"
 
-import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
 import {StartupActivity} from "./TurnActivity"
 

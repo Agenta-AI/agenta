@@ -1,3 +1,4 @@
+import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {ChatBubble} from "@agenta/ui/components/presentational"
 import {type UIMessage} from "ai"
 
@@ -7,7 +8,6 @@ import AgentChatEmptyState from "./AgentChatEmptyState"
 import AgentChatHistoryUnavailable from "./AgentChatHistoryUnavailable"
 import {TranscriptSkeleton} from "./AgentChatSkeleton"
 import AgentMessage from "./AgentMessage"
-import type {ClientToolOutputHandler} from "./clientTools"
 import MessageRow from "./MessageRow"
 
 /**
