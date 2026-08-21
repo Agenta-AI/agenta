@@ -107,4 +107,56 @@ describe("selectContextTarget", () => {
     it("resolves nothing for an account with no projects", () => {
         expect(selectContextTarget(input())).toBeNull()
     })
+
+    it("stays inside the workspace the URL names", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    workspaceId: "w2",
+                    shortcut: {workspaceId: "w1", projectId: "p1"},
+                    groups: [group("w1", ["p1"]), group("w2", ["p2"])],
+                }),
+            ),
+        ).toEqual({workspaceId: "w2", projectId: "p2"})
+    })
+
+    it("keeps the remembered pair when it belongs to the named workspace", () => {
+        const shortcut = {workspaceId: "w1", projectId: "p2"}
+        expect(
+            selectContextTarget(
+                input({workspaceId: "w1", shortcut, groups: [group("w1", ["p1", "p2"])]}),
+            ),
+        ).toEqual(shortcut)
+    })
+
+    it("waits for the tree before forwarding a remembered pair from another workspace", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    workspaceId: "w2",
+                    shortcut: {workspaceId: "w1", projectId: "p1"},
+                    groupsLoaded: false,
+                }),
+            ),
+        ).toBeNull()
+    })
+
+    it("falls back to the whole tree when the named workspace is not in it", () => {
+        // A truncated or stale link is not a dead end — land somewhere the drawer can correct.
+        expect(
+            selectContextTarget(input({workspaceId: "gone", groups: [group("w1", ["p1"])]})),
+        ).toEqual({workspaceId: "w1", projectId: "p1"})
+    })
+
+    it("follows desktop continuity within the named workspace", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    workspaceId: "w2",
+                    groups: [group("w1", ["p1"]), group("w2", ["p2", "p3"])],
+                    desktopLastUsed: {w1: "p1", w2: "p3"},
+                }),
+            ),
+        ).toEqual({workspaceId: "w2", projectId: "p3"})
+    })
 })
