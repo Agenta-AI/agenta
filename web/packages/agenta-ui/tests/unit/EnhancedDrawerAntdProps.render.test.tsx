@@ -30,17 +30,23 @@ const open = {open: true, title: "Drawer title", children: <div>body content</di
 describe("EnhancedDrawer antd prop parity", () => {
     it("renders a close button by default", () => {
         render(<EnhancedDrawer {...open} />)
-        expect(screen.getByRole("dialog").querySelector("[data-slot=sheet-header] button")).not.toBeNull()
+        expect(
+            screen.getByRole("dialog").querySelector("[data-slot=sheet-header] button"),
+        ).not.toBeNull()
     })
 
     it("closeIcon={null} hides the close button (antd's 'no close icon')", () => {
         render(<EnhancedDrawer {...open} closeIcon={null} />)
-        expect(screen.getByRole("dialog").querySelector("[data-slot=sheet-header] button")).toBeNull()
+        expect(
+            screen.getByRole("dialog").querySelector("[data-slot=sheet-header] button"),
+        ).toBeNull()
     })
 
     it("closable={false} also hides it, and does not depend on closeIcon", () => {
         render(<EnhancedDrawer {...open} closable={false} />)
-        expect(screen.getByRole("dialog").querySelector("[data-slot=sheet-header] button")).toBeNull()
+        expect(
+            screen.getByRole("dialog").querySelector("[data-slot=sheet-header] button"),
+        ).toBeNull()
     })
 
     it("classNames.body reaches the body slot", () => {
@@ -52,15 +58,29 @@ describe("EnhancedDrawer antd prop parity", () => {
     })
 
     it("classNames.header and .footer reach their slots", () => {
-        render(<EnhancedDrawer {...open} footer={<span>f</span>} classNames={{header: "hdr-x", footer: "ftr-x"}} />)
+        render(
+            <EnhancedDrawer
+                {...open}
+                footer={<span>f</span>}
+                classNames={{header: "hdr-x", footer: "ftr-x"}}
+            />,
+        )
         const dialog = screen.getByRole("dialog")
         expect(dialog.querySelector("[data-slot=sheet-header]")?.className).toContain("hdr-x")
         expect(dialog.querySelector("[data-slot=sheet-footer]")?.className).toContain("ftr-x")
     })
 
     it("styles.body still applies alongside classNames.body", () => {
-        render(<EnhancedDrawer {...open} classNames={{body: "cls"}} styles={{body: {padding: "0px"}}} />)
-        const body = screen.getByRole("dialog").querySelector("[data-slot=drawer-body]") as HTMLElement
+        render(
+            <EnhancedDrawer
+                {...open}
+                classNames={{body: "cls"}}
+                styles={{body: {padding: "0px"}}}
+            />,
+        )
+        const body = screen
+            .getByRole("dialog")
+            .querySelector("[data-slot=drawer-body]") as HTMLElement
         expect(body.className).toContain("cls")
         expect(body.style.padding).toBe("0px")
     })
