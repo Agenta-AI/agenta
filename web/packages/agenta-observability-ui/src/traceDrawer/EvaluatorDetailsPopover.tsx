@@ -152,7 +152,13 @@ const EvaluatorDetailsPopover = ({
                     {children || <span>{evaluatorName}</span>}
                 </span>
             </PopoverTrigger>
-            <PopoverContent side="bottom" align="start" className="w-auto max-w-[420px]">
+            {/* Same inset and text size the antd popover carried, for the same reason as the
+                Tokens & Cost pill: this panel portals out of the app's font scope. */}
+            <PopoverContent
+                side="bottom"
+                align="start"
+                className="w-auto max-w-[420px] p-3 text-sm"
+            >
                 {popoverContent}
             </PopoverContent>
         </Popover>
