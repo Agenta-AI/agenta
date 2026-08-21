@@ -147,10 +147,11 @@ class VaultService:
                 uuid4(),
             )
 
-        # Write-only is the platform default for NEW secrets; an explicit False is the
-        # compatibility escape hatch. Existing rows are untouched (they carry no flag).
+        # The write-only default for NEW secrets is env-gated (off until the web UI ships
+        # replace-only secret forms); an explicit request value always wins. Existing rows
+        # are untouched (they carry no flag).
         if create_secret_dto.write_only is None:
-            create_secret_dto.write_only = True
+            create_secret_dto.write_only = env.agenta.vault.write_only_default
 
         if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
             await self._name_and_slug_provider_key(
