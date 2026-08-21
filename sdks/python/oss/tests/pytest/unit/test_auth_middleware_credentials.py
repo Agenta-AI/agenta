@@ -105,3 +105,24 @@ async def test_no_runtime_key_means_no_header(platform, monkeypatch):
     await _get_credentials()
 
     assert "X-Agenta-Runtime-Key" not in (platform.last_headers or {})
+
+
+async def test_a_missing_runtime_key_says_so_once(platform, monkeypatch, caplog):
+    # The failure it causes reports a missing provider key, which is the wrong advice for
+    # this cause. An operator who never set AGENTA_AUTH_KEY — the shipped default — has no
+    # other way to reach it.
+    monkeypatch.setattr(auth_module, "_RUNTIME_KEY", "")
+    monkeypatch.setattr(auth_module, "_RUNTIME_KEY_WARNED", False)
+    platform.body = {"effect": "allow", "credentials": "Secret general-token"}
+
+    with caplog.at_level("WARNING"):
+        await _get_credentials()
+        await _get_credentials()
+
+    notices = [
+        record
+        for record in caplog.records
+        if "no platform runtime key configured" in record.getMessage()
+    ]
+    assert len(notices) == 1
+    assert "AGENTA_SERVICES_INTERNAL_KEY" in notices[0].getMessage()
