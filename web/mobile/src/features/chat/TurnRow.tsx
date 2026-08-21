@@ -3,12 +3,12 @@ import {useState} from "react"
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
+import {TurnMetrics} from "@agenta/entity-ui/agent"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {
     ChatActionIconButton,
     ChatBubble,
     ChatBubbleAvatar,
-    ExecutionMetricsDisplay,
     turnRowClass,
     turnToolbarRevealClass,
 } from "@agenta/ui/components/presentational"
@@ -261,7 +261,7 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
                     turn.isUser ? "right-10" : "left-10"
                 }`}
             >
-                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
+                <TurnMetrics traceId={traceId} usage={usage} />
                 <ChatActionIconButton
                     label={copied ? "Copied" : "Copy"}
                     icon={copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}

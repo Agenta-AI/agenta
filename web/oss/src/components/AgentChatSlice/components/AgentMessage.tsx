@@ -1,17 +1,13 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {
-    getMessageRunError,
-    getMessageTraceId,
-    getMessageUsage,
-    type MessageUsageMetrics,
-} from "@agenta/chat/assets"
+import {getMessageRunError, getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
 import {AudioPlayer} from "@agenta/chat/components"
 import {isToolPart, toolIdentity} from "@agenta/chat/model"
 import {errorKey, expandedValueAtomFamily, reasoningKey, setExpandedAtom} from "@agenta/chat/state"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {TurnMetrics} from "@agenta/entity-ui/agent"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {nowTickAtom} from "@agenta/shared/state"
@@ -21,7 +17,6 @@ import {
     ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
-    ExecutionMetricsDisplay,
     turnRowClass,
     turnToolbarRevealClass,
 } from "@agenta/ui/components/presentational"
@@ -69,26 +64,6 @@ const MessageTimestamp = ({createdAt}: {createdAt: number}) => {
             </span>
         </SimpleTooltip>
     )
-}
-
-/** Cost / tokens / latency for a message, read from its trace (same data + component the
- * playground and trace drawer use). */
-const TraceMetrics = ({traceId, usage}: {traceId: string; usage?: MessageUsageMetrics}) => {
-    const summary = useAtomValue(traceDataSummaryAtomFamily(traceId))
-    // Latency comes from the trace; tokens/cost come from the streamed message usage
-    // (the agent-run trace summary doesn't surface them on the Pi/local path). Usage
-    // wins where both exist so the figures match what the model actually reported.
-    // Only the latency slot waits on the trace — usage renders immediately, and a fixed-size
-    // placeholder holds latency's spot so the row doesn't shift (or blank known data) meanwhile.
-    if (summary.isPending) {
-        return (
-            <div className="flex items-center gap-1">
-                <SkeletonBlock active className="h-[22px] w-14 rounded-control-sm" />
-                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
-            </div>
-        )
-    }
-    return <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} size="small" />
 }
 
 interface AgentMessageProps {
@@ -666,11 +641,7 @@ const AgentMessage = ({
             {/* Show run metrics (tokens/cost, + latency when traced). Usage is stamped on the
                 settled message itself, so surface it even on the no-trace playground path instead
                 of leaving the turn with no data. */}
-            {traceId ? (
-                <TraceMetrics traceId={traceId} usage={usage} />
-            ) : usage ? (
-                <ExecutionMetricsDisplay metrics={usage} size="small" />
-            ) : null}
+            <TurnMetrics traceId={traceId} usage={usage} />
             <ChatActionIconButton
                 label={copied ? "Copied" : "Copy"}
                 icon={copied ? <Check size={14} /> : <Copy size={14} />}
