@@ -2,6 +2,22 @@
 
 Date: 2026-06-23
 
+> **Addendum 2026-07-13.** This plan predates the `services/agent` → `services/runner`
+> rename; read its `services/agent/src/...` paths as `services/runner/src/...`. The
+> extracted seams it produced are now the basis for two follow-on projects that extend
+> the sandbox axis rather than refactor it:
+> [docker-sandbox](../docker-sandbox/docker-sandbox-plan.md) (a `docker` provider —
+> per-session containers instead of parked host processes, with the container naming,
+> labeling, and GC conventions the persistent-sessions PoC lacked) and
+> [allowed-sandboxes](../allowed-sandboxes/allowed-sandboxes-plan.md)
+> (`AGENTA_RUNNER_SANDBOXES_ALLOWLIST` — a per-deployment provider allowlist enforced
+> at every layer, generalizing `AGENTA_SANDBOX_LOCAL_ALLOWED`). When reviewing this
+> refactor, the seams those plans lean on hardest are `provider.ts`
+> (`buildSandboxProvider`, `KNOWN_SANDBOX_IDS`), `run-plan.ts` (sandbox-id resolution
+> and the refuse-early gates), `session-identity.ts` (`KeepaliveProviderName`,
+> `readKeepaliveConfig`), and the `plan.isDaytona` branches in `environment.ts` /
+> `server.ts` that both plans propose turning into capability checks.
+
 ## Working Memory
 
 This project should be treated as the active agent-workflows stack. Start future work by
