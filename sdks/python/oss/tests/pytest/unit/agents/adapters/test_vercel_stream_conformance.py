@@ -341,6 +341,87 @@ async def test_swallowed_provider_error_emits_exactly_one_error_frame_dev_twin()
     assert not any(p.get("errorText") == "The agent produced no output." for p in parts)
 
 
+@pytest.mark.asyncio
+async def test_runner_error_code_reaches_the_data_part() -> None:
+    """The runner classifies some failures (a budgeted-proxy refusal, throttling) into a stable
+    code so a client can render a purposeful state instead of parsing the prose. That code has to
+    survive the adapter: the `data-agent-error` part is the only frame that carries it, since the
+    standard `error` frame is pinned to two keys.
+    """
+    message = (
+        "This organization's starter credits are used up. "
+        "Add your own provider key to keep going."
+    )
+
+    async def _events():
+        yield {
+            "type": "error",
+            "data": {"message": message, "code": "starter_credits_exhausted"},
+        }
+
+    parts = [
+        part
+        async for part in agent_stream_to_vercel_stream(_events(), trace_id="t-code")
+    ]
+    for part in parts:
+        assert_conforms(part)
+    assert_error_pair(parts, code="starter_credits_exhausted", error_text=message)
+
+
+@pytest.mark.asyncio
+async def test_runner_error_code_reaches_the_data_part_dev_twin() -> None:
+    message = (
+        "The starter credits service is temporarily unavailable. Try again in a moment."
+    )
+    records = [
+        {
+            "kind": "event",
+            "event": {
+                "type": "error",
+                "message": message,
+                "code": "starter_credits_unavailable",
+            },
+        },
+        {"kind": "result", "result": {"ok": False, "error": message}},
+    ]
+    parts = [
+        part async for part in agent_run_to_vercel_parts(AgentStream(_records(records)))
+    ]
+    for part in parts:
+        assert_conforms(part)
+    assert_error_pair(parts, code="starter_credits_unavailable", error_text=message)
+
+
+@pytest.mark.asyncio
+async def test_a_non_slug_runner_code_falls_back_to_the_generic_code() -> None:
+    """The code field is a stable slug, never prose. An older runner sends none, and a confused
+    one could send a raw provider string — neither may reach the client as a code, or a consumer
+    switching on it would branch on attacker- or vendor-controlled text.
+    """
+    message = "something went wrong"
+
+    for bad_code in [
+        None,
+        "",
+        429,
+        "Budget has been exceeded! Key=sk-EXAMPLE-not-a-real-key",
+        "Starter_Credits_Exhausted",
+    ]:
+
+        async def _events(bad_code=bad_code):
+            yield {"type": "error", "data": {"message": message, "code": bad_code}}
+
+        parts = [
+            part
+            async for part in agent_stream_to_vercel_stream(
+                _events(), trace_id="t-bad-code"
+            )
+        ]
+        for part in parts:
+            assert_conforms(part)
+        assert_error_pair(parts, code="runner_error", error_text=message)
+
+
 def test_vendored_version_matches_package_pin() -> None:
     # CI-grep-able tripwire: bump this const (and re-audit the shape above) whenever
     # web/oss/package.json's "ai" pin changes.
