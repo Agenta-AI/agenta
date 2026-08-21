@@ -1,5 +1,6 @@
 import os
 import hashlib
+import math
 import warnings
 from typing import List, Optional
 from uuid import getnode
@@ -1524,21 +1525,31 @@ class SendgridConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _parse_float_env(name: str, default: float) -> float:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        return default
+_FALSY = {"false", "0", "f", "n", "no", "off", "disable", "disabled"}
 
 
-def _parse_optional_bool_env(name: str) -> bool | None:
+def _parse_optional_positive_finite_float_env(name: str) -> float | None:
     raw = os.getenv(name)
     if raw is None or not raw.strip():
         return None
-    return raw.strip().lower() in _TRUTHY
+    value = float(raw)
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} must be a finite positive number, got {raw!r}")
+    return value
+
+
+def _parse_optional_bool_env(name: str) -> bool | None:
+    # Strict tri-state: an unrecognized value raises instead of silently reading
+    # as False (these values override policy rules; a typo must fail loudly).
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    value = raw.strip().lower()
+    if value in _TRUTHY:
+        return True
+    if value in _FALSY:
+        return False
+    raise ValueError(f"{name} must be a boolean value, got {raw!r}")
 
 
 def _parse_optional_csv_env(name: str) -> list[str] | None:
@@ -1572,29 +1583,9 @@ class StarterCreditsBridgeConfig(BaseModel):
     # Every minted key joins this team; its max_budget is the program ceiling.
     team_id: str | None = os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_TEAM_ID") or None
 
-    grant_usd: float = _parse_float_env("AGENTA_STARTER_CREDITS_BRIDGE_GRANT_USD", 10.0)
     model_id: str = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MODEL_ID")
         or "vertex_ai/gemini-3.6-flash"
-    )
-
-    # Per-key limits set at mint. The proxy reserves each request's projected cost
-    # at admission, so the residual overshoot hole is concurrent admission; keeping
-    # parallelism and throughput low bounds it. Parallelism 2 leaves room for a
-    # title/summary call overlapping an agent turn.
-    key_max_parallel_requests: int = (
-        _parse_optional_positive_int_env(
-            "AGENTA_STARTER_CREDITS_BRIDGE_KEY_MAX_PARALLEL_REQUESTS"
-        )
-        or 2
-    )
-    key_rpm_limit: int = (
-        _parse_optional_positive_int_env("AGENTA_STARTER_CREDITS_BRIDGE_KEY_RPM_LIMIT")
-        or 30
-    )
-    key_tpm_limit: int = (
-        _parse_optional_positive_int_env("AGENTA_STARTER_CREDITS_BRIDGE_KEY_TPM_LIMIT")
-        or 200_000
     )
 
     feature_flag: str = (
@@ -1602,11 +1593,12 @@ class StarterCreditsBridgeConfig(BaseModel):
         or "starter-credits-bridge-seeding"
     )
 
-    # Mint policy (velocity caps, domain classification, eligibility rules) ships
-    # via the PostHog policy flag's payload so thresholds never live in source;
-    # code carries NO default values. The fields below override single payload
-    # fields when set; with neither payload nor overrides the policy is
-    # unresolved and seeding fails closed.
+    # The mint policy (velocity caps, domain classification, eligibility rules,
+    # grant size, per-key limits) ships via the PostHog policy flag's payload so
+    # no real value lives in source; code carries NO defaults. The fields below
+    # override single payload fields when set — with strict parsing, since a typo
+    # must fail loudly rather than silently loosen a money value. With neither
+    # payload nor overrides the policy is unresolved and seeding fails closed.
     policy_flag: str = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_POLICY_FLAG")
         or "starter-credits-bridge-policy"
@@ -1625,6 +1617,18 @@ class StarterCreditsBridgeConfig(BaseModel):
     )
     block_digit_locals: bool | None = _parse_optional_bool_env(
         "AGENTA_STARTER_CREDITS_BRIDGE_BLOCK_DIGIT_LOCALS"
+    )
+    grant_usd: float | None = _parse_optional_positive_finite_float_env(
+        "AGENTA_STARTER_CREDITS_BRIDGE_GRANT_USD"
+    )
+    key_max_parallel_requests: int | None = _parse_optional_positive_int_env(
+        "AGENTA_STARTER_CREDITS_BRIDGE_KEY_MAX_PARALLEL_REQUESTS"
+    )
+    key_rpm_limit: int | None = _parse_optional_positive_int_env(
+        "AGENTA_STARTER_CREDITS_BRIDGE_KEY_RPM_LIMIT"
+    )
+    key_tpm_limit: int | None = _parse_optional_positive_int_env(
+        "AGENTA_STARTER_CREDITS_BRIDGE_KEY_TPM_LIMIT"
     )
 
     # Optional operator webhook ({"text": ...} POST) for refusals and failures.

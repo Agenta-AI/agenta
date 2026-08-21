@@ -98,10 +98,17 @@ class TestGenerateKey:
         assert excinfo.value.status_code == 500
 
     async def test_alias_conflict_raises_key_alias_exists(self):
+        # The measured v1.97.0 wording; only this shape may trigger the
+        # destructive delete-and-remint compensation.
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 400,
-                json={"error": {"message": "Unique key_alias required; alias exists"}},
+                json={
+                    "error": {
+                        "message": "Key with alias 'org-123' already exists. "
+                        "Unique key aliases across all keys are required."
+                    }
+                },
             )
 
         client = _client_with_handler(handler)
@@ -113,6 +120,43 @@ class TestGenerateKey:
                 metadata={},
                 team_id="team-1",
             )
+
+    async def test_validation_400_mentioning_alias_is_not_a_conflict(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                400,
+                json={"error": {"message": "key_alias: value is not a valid string"}},
+            )
+
+        client = _client_with_handler(handler)
+        with pytest.raises(ProxyRequestError) as excinfo:
+            await client.generate_key(
+                key_alias="org-123",
+                max_budget=1.0,
+                models=["some-model"],
+                metadata={},
+                team_id="team-1",
+            )
+        assert not isinstance(excinfo.value, KeyAliasExistsError)
+
+    async def test_error_detail_redacts_key_material(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                500,
+                text='update failed for {"key": "sk-virtual-secret-123"}',
+            )
+
+        client = _client_with_handler(handler)
+        with pytest.raises(ProxyRequestError) as excinfo:
+            await client.generate_key(
+                key_alias="org-123",
+                max_budget=1.0,
+                models=["some-model"],
+                metadata={},
+                team_id="team-1",
+            )
+        assert "sk-virtual-secret-123" not in excinfo.value.detail
+        assert "sk-[redacted]" in excinfo.value.detail
 
     async def test_missing_key_in_response_raises(self):
         def handler(request: httpx.Request) -> httpx.Response:
@@ -145,26 +189,6 @@ class TestGenerateKey:
 
 
 class TestKeyLifecycle:
-    async def test_update_key_posts_metadata(self):
-        seen = {}
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            seen["url"] = str(request.url)
-            seen["body"] = _read_body(request)
-            return httpx.Response(200, json={})
-
-        client = _client_with_handler(handler)
-        await client.update_key(
-            key="sk-virtual-abc",
-            metadata={"secret_id": "sec-1", "origin": "starter-credits-bridge"},
-        )
-
-        assert seen["url"] == "https://proxy.internal.test/key/update"
-        assert seen["body"] == {
-            "key": "sk-virtual-abc",
-            "metadata": {"secret_id": "sec-1", "origin": "starter-credits-bridge"},
-        }
-
     async def test_delete_keys_by_alias(self):
         seen = {}
 

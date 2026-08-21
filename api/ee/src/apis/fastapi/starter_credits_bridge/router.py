@@ -5,6 +5,8 @@ partial seed states of one organization: orphaned key without a vault row,
 or vault row without a key.
 """
 
+from uuid import UUID
+
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -17,7 +19,7 @@ from ee.src.core.starter_credits_bridge.service import (
 
 
 class StarterCreditsReconcileRequest(BaseModel):
-    organization_id: str
+    organization_id: UUID
 
 
 class StarterCreditsBridgeAdminRouter:
@@ -28,12 +30,13 @@ class StarterCreditsBridgeAdminRouter:
             "/reconcile",
             self.reconcile,
             methods=["POST"],
+            operation_id="reconcile_starter_credits_bridge",
         )
 
     @intercept_exceptions()
     async def reconcile(self, request_body: StarterCreditsReconcileRequest):
         outcome = await reconcile_starter_credits_bridge(
-            organization_id=request_body.organization_id,
+            organization_id=str(request_body.organization_id),
         )
         return JSONResponse(
             status_code=status.HTTP_200_OK,

@@ -1,3 +1,4 @@
+import re
 from typing import Any, Optional
 
 import httpx
@@ -9,6 +10,8 @@ from ee.src.core.starter_credits_bridge.types import (
 )
 
 _REQUEST_TIMEOUT_SECONDS = 10.0
+
+_KEY_PATTERN = re.compile(r"sk-[A-Za-z0-9_\-]+")
 
 
 class StarterCreditsProxyClient:
@@ -74,11 +77,6 @@ class StarterCreditsProxyClient:
 
         return MintedKey(key=key, key_alias=key_alias)
 
-    async def update_key(self, *, key: str, metadata: dict[str, Any]) -> None:
-        await self._request(
-            "POST", "/key/update", json={"key": key, "metadata": metadata}
-        )
-
     async def delete_keys(self, *, key_aliases: list[str]) -> None:
         await self._request("POST", "/key/delete", json={"key_aliases": key_aliases})
 
@@ -90,10 +88,6 @@ class StarterCreditsProxyClient:
         )
         keys = payload.get("keys") if isinstance(payload, dict) else None
         return [key for key in keys or [] if isinstance(key, dict)]
-
-    async def get_key_info(self, *, key: str) -> dict[str, Any]:
-        payload = await self._request("GET", "/key/info", params={"key": key})
-        return payload if isinstance(payload, dict) else {}
 
     async def get_team_info(self, *, team_id: str) -> dict[str, Any]:
         payload = await self._request("GET", "/team/info", params={"team_id": team_id})
@@ -125,9 +119,17 @@ class StarterCreditsProxyClient:
             ) from exc
 
         if response.status_code >= 400:
-            # Truncated body text is safe to log: error bodies never echo minted keys.
-            detail = response.text[:300]
-            if response.status_code == 400 and "alias" in detail.lower():
+            # Redact key material before the body can reach logs (a proxy error
+            # may echo the failing request, which can carry a virtual key).
+            detail = _KEY_PATTERN.sub("sk-[redacted]", response.text)[:300]
+            # Only the measured conflict wording may trigger the destructive
+            # delete-and-remint compensation; a validation 400 that merely
+            # mentions the alias field must not.
+            if (
+                response.status_code == 400
+                and "alias" in detail.lower()
+                and "already exists" in detail.lower()
+            ):
                 raise KeyAliasExistsError(
                     status_code=response.status_code,
                     detail=detail,
