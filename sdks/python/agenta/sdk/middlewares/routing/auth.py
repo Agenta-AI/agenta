@@ -26,6 +26,10 @@ _RUNTIME_KEY_HEADER = "X-Agenta-Runtime-Key"
 _RUNTIME_KEY = (
     getenv("AGENTA_SERVICES_INTERNAL_KEY") or getenv("AGENTA_AUTH_KEY") or ""
 ).strip()
+# The placeholder a deployment that configured nothing carries. Sending it would be
+# sending a value every reader of the repo knows.
+if _RUNTIME_KEY == "replace-me":
+    _RUNTIME_KEY = ""
 
 _AUTH_ENABLED = (
     getenv("AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED")

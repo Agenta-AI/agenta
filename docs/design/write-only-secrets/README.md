@@ -144,6 +144,30 @@ read: no session, ApiKey, or list/get call ever returns the value.
   wants the escape hatch exposed.
 - Regenerate the Fern client for the new `write_only`, `has_key`, `key_preview` fields.
 
+
+## Who may read a value: the grant
+
+The vault returns plaintext only to a caller whose verified `Secret` token carries the
+`secret-resolve` grant. Two callers can hold it, and there is no third:
+
+- **The platform runtime**, on the hop that starts a run. The workflow service exchanges
+  the END USER's credential at `/access/permissions/check` on their behalf, so nothing
+  about the presented token says a run is starting — and that route is reachable by a
+  browser. The runtime therefore proves what it is with a secret only the backend holds
+  (`AGENTA_SERVICES_INTERNAL_KEY`, falling back to `AGENTA_AUTH_KEY`), sent as
+  `X-Agenta-Runtime-Key` on the internal hop and compared in constant time. The
+  well-known placeholder is refused, so an unconfigured deployment issues no grant rather
+  than accepting a string anyone could send.
+- **A caller refreshing a grant it already holds.** The runner re-exchanges its run
+  credential every few heartbeats; the exchange carries the grant forward rather than
+  re-deciding it. The runner is never given the runtime secret, and it never reaches a
+  sandbox.
+
+The exchange never mints the grant from the requested `action` alone. It did once, and
+that made the grant self-serve: `VIEWER_PERMISSIONS` includes both `run_service` and
+`view_secret`, so any member could ask for a credential and spend it on the vault routes.
+
+
 ## Known gap: cache-key tenancy (elsewhere)
 
 The platform cache truncates a project id to its last 12 characters, so two projects whose
