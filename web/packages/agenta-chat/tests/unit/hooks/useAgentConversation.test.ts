@@ -47,7 +47,6 @@ vi.mock("@agenta/entities/trace", () => ({
     markTraceAsFresh: vi.fn(),
 }))
 
-
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
 import {markSessionFresh} from "../../../src/state/sessionEphemera"
 import {sessionMessagesAtom, sessionStatusAtomFamily} from "../../../src/state/sessionMessages"
