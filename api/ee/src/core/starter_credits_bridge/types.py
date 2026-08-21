@@ -3,6 +3,92 @@ import math
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
+# Consumer mail providers. Classification drives the per-domain daily cap, which only
+# means anything on a domain one company controls: unrecognized free mail counts every
+# signup from it against a single "company" and, with `block_digit_locals`, judges a
+# personal address by rules meant for a work one. A plain constant rather than config
+# because it tracks the mail industry, not an operator decision, and because the policy
+# payload UNIONS with it (see `_normalize_domains`) — extending the list must never
+# silently drop gmail.com.
+DEFAULT_FREEMAIL_DOMAINS: tuple[str, ...] = (
+    "gmail.com",
+    "googlemail.com",
+    "yahoo.com",
+    "yahoo.co.uk",
+    "yahoo.co.in",
+    "yahoo.fr",
+    "yahoo.de",
+    "ymail.com",
+    "rocketmail.com",
+    "hotmail.com",
+    "hotmail.co.uk",
+    "hotmail.fr",
+    "hotmail.de",
+    "hotmail.it",
+    "outlook.com",
+    "outlook.de",
+    "outlook.fr",
+    "outlook.es",
+    "outlook.in",
+    "live.com",
+    "live.co.uk",
+    "msn.com",
+    "aol.com",
+    "aim.com",
+    "icloud.com",
+    "me.com",
+    "mac.com",
+    "proton.me",
+    "protonmail.com",
+    "pm.me",
+    "tutanota.com",
+    "tuta.com",
+    "fastmail.com",
+    "hey.com",
+    "zoho.com",
+    "mail.com",
+    "gmx.com",
+    "gmx.de",
+    "gmx.net",
+    "web.de",
+    "t-online.de",
+    "freenet.de",
+    "orange.fr",
+    "wanadoo.fr",
+    "free.fr",
+    "laposte.net",
+    "libero.it",
+    "virgilio.it",
+    "seznam.cz",
+    "wp.pl",
+    "onet.pl",
+    "interia.pl",
+    "mail.ru",
+    "yandex.ru",
+    "yandex.com",
+    "rambler.ru",
+    "qq.com",
+    "163.com",
+    "126.com",
+    "sina.com",
+    "naver.com",
+    "daum.net",
+    "hanmail.net",
+    "rediffmail.com",
+    "comcast.net",
+    "verizon.net",
+    "att.net",
+    "sbcglobal.net",
+    "cox.net",
+    "btinternet.com",
+    "sky.com",
+    "virginmedia.com",
+    "bigpond.com",
+    "uol.com.br",
+    "bol.com.br",
+)
+
+
 class MintPolicy(BaseModel):
     """Mint policy: velocity caps, domain classification, eligibility rules, and
     the money values (grant, per-key limits). Everything ships via the PostHog
@@ -11,12 +97,14 @@ class MintPolicy(BaseModel):
     payload fields are rejected so a malformed rollout fails closed instead of
     half-applying."""
 
-    model_config = ConfigDict(extra="forbid")
+    # `validate_default` so an absent `freemail_domains` still picks up the built-in
+    # defaults through the validator below.
+    model_config = ConfigDict(extra="forbid", validate_default=True)
 
     global_daily: int
     global_hourly: int
     work_domain_daily: int
-    freemail_domains: list[str]
+    freemail_domains: list[str] = []
     block_digit_locals: bool
     grant_usd: float
     key_max_parallel_requests: int
@@ -26,7 +114,15 @@ class MintPolicy(BaseModel):
     @field_validator("freemail_domains")
     @classmethod
     def _normalize_domains(cls, domains: list[str]) -> list[str]:
-        return [domain.strip().lower() for domain in domains if domain.strip()]
+        """Whatever the payload names, UNIONED with the built-in defaults.
+
+        A configured list adds providers the defaults miss; it never replaces them, so a
+        rollout that names three domains cannot quietly reclassify gmail.com as a company
+        domain.
+        """
+        configured = {domain.strip().lower() for domain in domains if domain.strip()}
+
+        return sorted(configured | set(DEFAULT_FREEMAIL_DOMAINS))
 
     @field_validator("grant_usd")
     @classmethod

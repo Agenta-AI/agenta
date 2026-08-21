@@ -591,6 +591,9 @@ async def _mint_policy_allows(
         log.warning(
             "[starter_credits_bridge] policy refused mint; skipping seed",
             rule="digit_local_part",
+            # The domain, never the address: it is what makes a refusal diagnosable
+            # (which provider, which rule) without logging who signed up.
+            domain=domain,
         )
         return False
 
@@ -605,12 +608,15 @@ async def _mint_policy_allows(
             if count > cap:
                 log.warning(
                     "[starter_credits_bridge] velocity cap reached; skipping seed",
-                    scope=scope,
+                    rule=scope,
+                    domain=domain,
                 )
                 return False
     except Exception as exc:
         log.warning(
             "[starter_credits_bridge] velocity counters unavailable; skipping seed (fail closed)",
+            rule="velocity_counters_unavailable",
+            domain=domain,
             reason=str(exc),
         )
         return False

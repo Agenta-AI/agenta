@@ -745,7 +745,9 @@ class TestMintPolicyResolution:
 
         assert policy is not None
         assert policy.grant_usd == 7.5
-        assert policy.freemail_domains == ["other.test"]
+        # The env list adds to the built-in defaults rather than replacing them.
+        assert policy.is_freemail("other.test") is True
+        assert policy.is_freemail("gmail.com") is True
 
     async def test_no_signal_anywhere_fails_closed(self):
         self.monkeypatch.setattr(service, "_load_posthog", lambda: None)
@@ -900,3 +902,97 @@ class TestManagedAndWriteOnlyRow:
 
         assert seeding_env.vault.row.managed_by == service.ORIGIN_MARKER
         assert seeding_env.vault.row.write_only is True
+
+
+class TestFreemailDefaults:
+    """Consumer mail providers are recognized without an operator listing them.
+
+    A domain the policy does not classify as free mail is treated as a company domain:
+    every signup from it shares one per-domain daily cap, and a digit in the local part
+    refuses the mint. Applying that to proton.me or icloud.com refuses ordinary personal
+    signups, so the defaults ship in code and a configured list only adds to them.
+    """
+
+    @pytest.mark.parametrize(
+        "domain",
+        ["proton.me", "icloud.com", "outlook.de", "gmx.net", "yandex.ru", "qq.com"],
+    )
+    def test_a_payload_without_a_list_still_classifies_consumer_mail(self, domain):
+        policy = MintPolicy(
+            global_daily=4,
+            global_hourly=3,
+            work_domain_daily=1,
+            block_digit_locals=True,
+            grant_usd=10.0,
+            key_max_parallel_requests=2,
+            key_rpm_limit=30,
+            key_tpm_limit=200_000,
+        )
+
+        assert policy.is_freemail(domain) is True
+
+    def test_a_configured_list_is_added_to_the_defaults_not_swapped_for_them(self):
+        policy = _policy(freemail_domains=["freemail.test"])
+
+        assert policy.is_freemail("freemail.test") is True
+        assert policy.is_freemail("gmail.com") is True
+        assert policy.is_freemail("acme.test") is False
+
+    def test_classification_ignores_case_and_padding(self):
+        policy = _policy(freemail_domains=["  Other.TEST  "])
+
+        assert policy.is_freemail("PROTON.ME") is True
+        assert policy.is_freemail("other.test") is True
+
+
+class TestRefusalLogging:
+    """A refusal names the rule and the DOMAIN. Never the address: the domain is what
+    makes a refusal diagnosable, and the local part identifies the person."""
+
+    @pytest.fixture(autouse=True)
+    def armed(self, monkeypatch):
+        monkeypatch.setattr(env, "starter_credits_bridge", _armed_config())
+        self.engine = FakeCacheEngine()
+        monkeypatch.setattr(service, "get_cache_engine", lambda: self.engine)
+        self.records: list = []
+
+        class _RecordingLog:
+            def __init__(self, records):
+                self._records = records
+
+            def warning(self, message, **kwargs):
+                self._records.append((message, kwargs))
+
+            def __getattr__(self, _name):
+                return lambda *args, **kwargs: None
+
+        monkeypatch.setattr(service, "log", _RecordingLog(self.records))
+
+    async def test_a_digit_local_refusal_names_the_rule_and_the_domain(self):
+        assert await service._mint_policy_allows("john99@acme.test", _policy()) is False
+
+        message, fields = self.records[-1]
+        assert fields["rule"] == "digit_local_part"
+        assert fields["domain"] == "acme.test"
+        assert "john99" not in repr((message, fields))
+
+    async def test_a_velocity_refusal_names_the_rule_and_the_domain(self):
+        policy = _policy(work_domain_daily=1)
+
+        assert await service._mint_policy_allows("alice@acme.test", policy) is True
+        assert await service._mint_policy_allows("bob@acme.test", policy) is False
+
+        message, fields = self.records[-1]
+        assert fields["rule"] == "work_domain_daily"
+        assert fields["domain"] == "acme.test"
+        assert "bob" not in repr((message, fields))
+
+    async def test_an_unverifiable_refusal_names_the_rule_and_the_domain(self):
+        self.engine.error = ConnectionError("redis down")
+
+        assert await service._mint_policy_allows("carol@acme.test", _policy()) is False
+
+        message, fields = self.records[-1]
+        assert fields["rule"] == "velocity_counters_unavailable"
+        assert fields["domain"] == "acme.test"
+        assert "carol" not in repr((message, fields))
