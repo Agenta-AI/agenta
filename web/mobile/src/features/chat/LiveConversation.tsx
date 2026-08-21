@@ -6,7 +6,7 @@ import {
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
 import {RunningElsewhereStrip} from "@agenta/chat/components"
-import {useAgentConversation} from "@agenta/chat/hooks"
+import {useAgentConversation, useAgentModelKeyStatus} from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
@@ -22,6 +22,8 @@ import {AppShell} from "../nav/AppShell"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
+import {ConnectModelStrip} from "./ConnectModelStrip"
+import {canSendPendingTask} from "./pendingTaskPolicy"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
@@ -63,22 +65,39 @@ export const LiveConversation = ({
 }) => {
     const conversation = useAgentConversation({entityId, sessionId})
 
+    // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
+    // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
+    // send, not shown a raw 422 after it. Blocks the composer, holds the parked task, and raises
+    // the strip below.
+    const modelKey = useAgentModelKeyStatus(entityId)
+    const modelBlocked = modelKey.gateActive
+
     // A task started from Home lands here as a stashed message: the session did not exist when
     // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
     // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
-    // until hydration settles, or the engine would send into a transcript it is still filling.
-    // The guard holds the SESSION it fired for, not a bare flag: this component survives a
-    // session switch, and a flag would swallow the next session's stashed task.
+    // until hydration settles, or the engine would send into a transcript it is still filling,
+    // and held while the model gate is up so the first message is not spent on a run that cannot
+    // succeed — it goes out on its own the moment a key lands. The guard holds the SESSION it
+    // fired for, not a bare flag: this component survives a session switch, and a flag would
+    // swallow the next session's stashed task.
     const takePendingTask = useSetAtom(takePendingTaskAtom)
     const sentPendingTaskFor = useRef<string | null>(null)
     const {isHydrating, send} = conversation
     useEffect(() => {
-        if (sentPendingTaskFor.current === sessionId || isHydrating) return
+        if (
+            !canSendPendingTask({
+                sessionId,
+                sentFor: sentPendingTaskFor.current,
+                hydrating: isHydrating,
+                modelBlocked,
+            })
+        )
+            return
         const task = takePendingTask(sessionId)
         if (!task) return
         sentPendingTaskFor.current = sessionId
         void send({text: task.text, parts: task.parts})
-    }, [isHydrating, send, sessionId, takePendingTask])
+    }, [isHydrating, modelBlocked, send, sessionId, takePendingTask])
 
     // Push-invalidation: a records change (another device's turn, a steer resume) folds into
     // the engine's transcript under its adopt guards.
@@ -243,10 +262,18 @@ export const LiveConversation = ({
                             bottomMost={false}
                         />
                     ) : null}
+                    {/* Docked with the other strips, directly above the composer it disables —
+                        the same place the desktop banner sits. */}
+                    <ContentRail>
+                        <ConnectModelStrip
+                            providerEntry={modelKey.providerEntry}
+                            gateActive={modelBlocked}
+                        />
+                    </ContentRail>
                     <Composer
                         sessionId={sessionId}
                         onSend={({text, parts}) => conversation.send({text, parts})}
-                        disabled={conversation.isHydrating}
+                        disabled={conversation.isHydrating || modelBlocked}
                         waitingOnUser={conversation.hitlPending}
                         streaming={streamingHere}
                         onStop={conversation.stop}
