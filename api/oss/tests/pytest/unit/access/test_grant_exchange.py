@@ -16,6 +16,7 @@ import oss.src.middlewares.auth as auth_module
 from oss.src.apis.fastapi.access import router as access_router_module
 from oss.src.apis.fastapi.access.router import AccessRouter
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+from oss.src.utils.env import env
 from oss.src.utils.context import (
     AuthContext,
     AuthScope,
@@ -26,6 +27,7 @@ from oss.src.utils.context import (
 
 
 SECRET_KEY = "unit-test-secret-key-with-32-bytes"
+RUNTIME_KEY = "unit-test-runtime-key-not-a-secret"
 
 ORGANIZATION_ID = uuid4()
 WORKSPACE_ID = uuid4()
@@ -36,6 +38,7 @@ USER_ID = uuid4()
 @pytest.fixture(name="exchange")
 def _exchange(monkeypatch):
     monkeypatch.setattr(auth_module, "_SECRET_KEY", SECRET_KEY)
+    monkeypatch.setattr(env.agenta, "services_internal_key", RUNTIME_KEY)
 
     verdict = {"allow": True}
 
@@ -56,18 +59,23 @@ def _exchange(monkeypatch):
 
     router = AccessRouter()
 
-    async def run(action, resource_type="service", carried_grants=()):
+    async def run(action, resource_type="service", carried_grants=(), runtime_key=None):
         """Run the exchange as a principal whose credential carries ``carried_grants``.
 
         A session or ApiKey principal never has any: `verify_secret_token` is the only
         path that populates `token_grants`, and only from a verified Secret token.
+        ``runtime_key`` is what the caller presents as the platform-runtime secret.
         """
         request = Request(
             {
                 "type": "http",
                 "method": "GET",
                 "path": "/access/permissions/check",
-                "headers": [],
+                "headers": (
+                    [(b"x-agenta-runtime-key", runtime_key.encode())]
+                    if runtime_key is not None
+                    else []
+                ),
                 "query_string": b"",
                 "scheme": "http",
                 "server": ("testserver", 80),
@@ -131,6 +139,37 @@ async def test_a_granted_caller_keeps_the_grant_through_the_exchange(exchange):
     claims = _claims(body["credentials"])
     assert claims["grants"] == [SECRET_RESOLVE_GRANT]
     assert claims["project_id"] == str(PROJECT_ID)
+
+
+@pytest.mark.asyncio
+async def test_the_platform_runtime_is_issued_the_grant(exchange):
+    # The path every product run takes: the workflow service exchanges the END USER's
+    # credential on their behalf, so nothing about the token says "this is a run". The
+    # runtime proves what it is with a secret only it holds.
+    run, _ = exchange
+
+    body = _body(await run("run_service", runtime_key=RUNTIME_KEY))
+
+    claims = _claims(body["credentials"])
+    assert claims["grants"] == [SECRET_RESOLVE_GRANT]
+
+
+@pytest.mark.asyncio
+async def test_a_wrong_runtime_key_is_not_the_runtime(exchange):
+    run, _ = exchange
+
+    body = _body(await run("run_service", runtime_key="not-the-key"))
+
+    assert "grants" not in _claims(body["credentials"])
+
+
+@pytest.mark.asyncio
+async def test_the_runtime_key_only_grants_a_run_exchange(exchange):
+    run, _ = exchange
+
+    body = _body(await run("view_secret", runtime_key=RUNTIME_KEY))
+
+    assert "grants" not in _claims(body["credentials"])
 
 
 @pytest.mark.asyncio
