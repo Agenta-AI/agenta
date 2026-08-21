@@ -30,6 +30,7 @@ def _armed_config(**overrides) -> StarterCreditsBridgeConfig:
     values = dict(
         enabled=True,
         proxy_public_url="https://credits-proxy.example.test",
+        proxy_admin_url="http://litellm-proxy:4000",
         master_key="sk-master-test",
         team_id="team-starter",
         model_id="vertex_ai/some-model",
@@ -270,7 +271,11 @@ class TestSeeding:
         }
 
         assert row.data.kind == CustomProviderKind.CUSTOM
+        # The row carries the PUBLIC address: a sandboxed run dials it from
+        # outside, while minting used the internal admin one.
         assert row.data.provider.url == "https://credits-proxy.example.test"
+        (client,) = FakeProxyClient.instances
+        assert client.base_url == "http://litellm-proxy:4000"
         assert row.data.provider.key.startswith("sk-virtual-")
         assert row.data.provider.key == FakeProxyClient.records[ORGANIZATION_ID]["key"]
         assert [model.slug for model in row.data.models] == ["vertex_ai/some-model"]
@@ -296,6 +301,18 @@ class TestSeeding:
         await _seed()
 
         assert FakeProxyClient.instances == []
+
+    async def test_missing_admin_url_disarms(self, seeding_env):
+        # Every admin route lives on the internal address; without it a mint
+        # would dial a path the proxy does not serve publicly.
+        seeding_env.monkeypatch.setattr(
+            env, "starter_credits_bridge", _armed_config(proxy_admin_url=None)
+        )
+
+        await _seed()
+
+        assert FakeProxyClient.instances == []
+        assert seeding_env.vault.row is None
 
     async def test_unresolved_policy_skips_seed(self, seeding_env):
         async def no_policy():

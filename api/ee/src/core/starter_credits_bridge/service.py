@@ -113,7 +113,8 @@ async def seed_starter_credits_bridge(
     config = env.starter_credits_bridge
     # Two kill switches, both program-wide: AGENTA_STARTER_CREDITS_BRIDGE_ENABLED
     # (needs a redeploy) and the PostHog policy payload below — emptying or deleting
-    # it leaves the policy unresolved and stops seeding without one.
+    # it leaves the policy unresolved and stops seeding without one. `armed` also
+    # requires both proxy addresses (public for the seeded row, admin for minting).
     if not config.armed:
         return
 
@@ -279,6 +280,8 @@ async def _create_row(
     data = CustomProviderDTO(
         kind=CustomProviderKind.CUSTOM,
         provider=CustomProviderSettingsDTO(
+            # The PUBLIC address: this is what a run dials, and a sandboxed run
+            # is outside the proxy's network.
             url=config.proxy_public_url,
             key=virtual_key,
         ),
@@ -310,8 +313,11 @@ async def _create_row(
 
 
 def _proxy_client(config: StarterCreditsBridgeConfig) -> StarterCreditsProxyClient:
+    # The ADMIN address, never the public one: the proxy publishes only its
+    # inference paths publicly, so /key/generate, /key/block and /team/info are
+    # reachable on the internal network alone.
     return StarterCreditsProxyClient(
-        base_url=config.proxy_public_url,
+        base_url=config.proxy_admin_url,
         master_key=config.master_key,
     )
 

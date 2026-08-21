@@ -1528,19 +1528,26 @@ class StarterCreditsBridgeConfig(BaseModel):
     """Starter-credits bridge (EE): mint a budget-capped proxy key at signup and
     seed it into the new organization's vault as a ready-to-use connection.
 
-    Inert unless `enabled` is true AND `proxy_public_url` + `master_key` +
-    `team_id` are present (the team's budget ceiling is the program's
-    total-exposure bound, so seeding refuses to run without it). The
+    Inert unless `enabled` is true AND `proxy_admin_url` + `proxy_public_url` +
+    `master_key` + `team_id` are present (the team's budget ceiling is the
+    program's total-exposure bound, so seeding refuses to run without it). The
     redeploy-free runtime switch is the PostHog policy payload: clearing or
     emptying it leaves the policy unresolved, and seeding fails closed.
     """
 
     enabled: bool = _parse_bool_env("AGENTA_STARTER_CREDITS_BRIDGE_ENABLED", False)
 
-    # One public base URL: the API mints against its admin routes; the seeded
-    # connection points runs at the same host (sandboxes reach it publicly).
+    # Two base URLs for the same proxy, because it is reachable two ways. The
+    # public one is what the SEEDED CONNECTION stores, so a sandboxed run can
+    # reach the proxy's inference paths from outside; only those paths are
+    # publicly routed. The admin routes (/key/generate, /key/block, /team/info)
+    # are not, so the master-keyed admin client dials the proxy's internal
+    # address instead — and the master key never leaves the private network.
     proxy_public_url: str | None = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_PROXY_PUBLIC_URL") or None
+    )
+    proxy_admin_url: str | None = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_PROXY_ADMIN_URL") or None
     )
     master_key: str | None = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY") or None
@@ -1572,10 +1579,16 @@ class StarterCreditsBridgeConfig(BaseModel):
 
     @property
     def armed(self) -> bool:
-        """True when the deployment opted in and holds the proxy credentials
-        plus the program team whose ceiling bounds total exposure."""
+        """True when the deployment opted in and holds both proxy addresses and
+        the proxy credentials, plus the program team whose ceiling bounds total
+        exposure. Without the admin address every mint would dial a route that is
+        not publicly served, so a missing one keeps the bridge inert."""
         return bool(
-            self.enabled and self.proxy_public_url and self.master_key and self.team_id
+            self.enabled
+            and self.proxy_public_url
+            and self.proxy_admin_url
+            and self.master_key
+            and self.team_id
         )
 
 

@@ -1,5 +1,8 @@
 """Unit tests for the starter-credits proxy admin client
-(``ee.src.core.starter_credits_bridge.client``) against a mocked proxy."""
+(``ee.src.core.starter_credits_bridge.client``) against a mocked proxy.
+
+The base URL here is the proxy's INTERNAL address on purpose: admin routes are
+not publicly served, so this client is always pointed at `proxy_admin_url`."""
 
 import json
 
