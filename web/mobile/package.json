@@ -1,6 +1,6 @@
 {
     "name": "@agenta/mobile",
-    "version": "0.112.3",
+    "version": "0.113.0",
     "private": true,
     "engines": {
         "node": "24.x"
