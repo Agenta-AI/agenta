@@ -283,6 +283,8 @@ export {
     ChatBubble,
     ChatBubbleAvatar,
     ChatTypingDots,
+    turnRowClass,
+    turnToolbarRevealClass,
     type ChatAttachmentCardProps,
     type ChatBubbleProps,
 } from "./chat"

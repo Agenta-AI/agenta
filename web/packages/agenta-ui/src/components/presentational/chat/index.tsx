@@ -99,6 +99,32 @@ export const ChatBubbleAvatar = ({icon, className}: {icon: ReactNode; className?
 )
 
 /** One toolbar icon button with its tooltip — an antd-x `Actions` item, as plain markup. */
+/**
+ * The per-turn toolbar's reveal, and the row hook it hangs off.
+ *
+ * A turn's actions and its run metrics only appear on hover or keyboard focus, so a transcript at
+ * rest stays quiet. Kept as one definition because it is three coupled parts and a second copy
+ * drifts: the row must be `group` (the reveal keys off it) and `ag-turn` (the transcript's bottom
+ * fade watches that class and lifts while a turn is hovered, so a revealed toolbar is never washed
+ * out), the lane must be reserved in the row's padding or the reveal shifts layout, and the hidden
+ * toolbar must be `pointer-events-none` or it swallows clicks while invisible.
+ *
+ * ```tsx
+ * <div className={`${turnRowClass} ${isUser ? "justify-end" : "justify-start"}`}>
+ *     …bubble…
+ *     <div className={turnToolbarRevealClass}>…actions…</div>
+ * </div>
+ * ```
+ */
+export const turnToolbarRevealClass =
+    "opacity-0 transition-opacity duration-150 pointer-events-none " +
+    "group-hover:opacity-100 group-hover:pointer-events-auto " +
+    "focus-within:opacity-100 focus-within:pointer-events-auto"
+
+/** The turn row the reveal above hangs off. `pb-10` reserves the toolbar's lane so revealing it
+ * never reflows the transcript — the scroll engineering is sensitive to hover-driven layout. */
+export const turnRowClass = "ag-turn group relative flex items-start pb-10"
+
 export const ChatActionIconButton = ({
     label,
     icon,

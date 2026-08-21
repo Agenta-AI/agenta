@@ -22,6 +22,8 @@ import {
     ChatBubble,
     ChatBubbleAvatar,
     ExecutionMetricsDisplay,
+    turnRowClass,
+    turnToolbarRevealClass,
 } from "@agenta/ui/components/presentational"
 import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {
@@ -630,10 +632,7 @@ const AgentMessage = ({
     // items carry no `disabled`, so the busy guard lives in the handlers: `onRewind` →
     // `handleRewind` early-returns while a stream is in flight (copy / view-trace are always
     // safe). The item `label` renders as the hover tooltip.
-    const toolbarReveal =
-        "opacity-0 transition-opacity duration-150 pointer-events-none " +
-        "group-hover:opacity-100 group-hover:pointer-events-auto " +
-        "focus-within:opacity-100 focus-within:pointer-events-auto"
+    const toolbarReveal = turnToolbarRevealClass
     // Rewinding the LAST turn just re-runs the turn that's already current — redundant, so hide it.
     const rewindButton = isLastMessage ? null : (
         <ChatActionIconButton
@@ -695,9 +694,7 @@ const AgentMessage = ({
     // `ag-turn` is the hook the transcript's bottom fade watches (see BOTTOM_FADE_OVERLAY_STYLE):
     // it drops the fade while this row is hovered/focused, so the revealed toolbar can't be washed.
     return (
-        <div
-            className={`ag-turn group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
-        >
+        <div className={`${turnRowClass} ${isUser ? "justify-end" : "justify-start"}`}>
             <ChatBubble
                 placement={isUser ? "end" : "start"}
                 // Borderless assistant turns: content sits on the panel bg with just the avatar and
