@@ -19,7 +19,7 @@ import {atomWithStorage} from "jotai/utils"
 
 import type {ConfigItemView} from "../ConfigItemDrawer"
 import {CollapsibleProviderGroup, SubSectionHeader} from "../sectionGroups"
-import {isHarnessBuiltinTool, parseGatewayTool} from "../toolUtils"
+import {isHarnessBuiltinTool, parseGatewayTool, parseGatewayToolkit} from "../toolUtils"
 
 import {describeTool, isFunctionTool} from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
@@ -295,12 +295,15 @@ export function ToolManagementList({
                     references.push({item, index})
                     return
                 }
-                const gw = parseGatewayTool(item)
-                if (gw) {
-                    let group = groups.get(gw.integration)
+                // Per-action gateway tool OR a connection-level toolkit entry — both group under
+                // their integration in the Connected apps section.
+                const integrationKey =
+                    parseGatewayTool(item)?.integration ?? parseGatewayToolkit(item)?.integration
+                if (integrationKey) {
+                    let group = groups.get(integrationKey)
                     if (!group) {
-                        group = {key: gw.integration, items: []}
-                        groups.set(gw.integration, group)
+                        group = {key: integrationKey, items: []}
+                        groups.set(integrationKey, group)
                     }
                     group.items.push({item, index})
                     return

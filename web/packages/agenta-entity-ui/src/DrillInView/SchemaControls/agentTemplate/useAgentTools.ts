@@ -8,7 +8,13 @@ import {useCallback, useMemo, type MutableRefObject} from "react"
 import type {WorkflowReferenceBridge, WorkflowReferencePayload} from "@agenta/ui/drill-in"
 
 import type {ToolSelectionMeta} from "../ToolSelectorPopover"
-import {gatewayToolIdentity, parseGatewayTool, type ToolObj} from "../toolUtils"
+import {
+    gatewayToolIdentity,
+    gatewayToolkitIdentity,
+    parseGatewayTool,
+    parseGatewayToolkit,
+    type ToolObj,
+} from "../toolUtils"
 
 import {isBuiltinPayloadMatch, toolName, toolReferenceSlug} from "./itemDescriptors"
 import type {ItemKind} from "./itemKinds"
@@ -140,7 +146,9 @@ export function useAgentTools({
                 tools
                     .map((t) => {
                         const v = parseGatewayTool(t)
-                        return v ? gatewayToolIdentity(v) : null
+                        if (v) return gatewayToolIdentity(v)
+                        const tk = parseGatewayToolkit(t)
+                        return tk ? gatewayToolkitIdentity(tk) : null
                     })
                     .filter((s): s is string => Boolean(s)),
             ),
@@ -156,6 +164,11 @@ export function useAgentTools({
                     if (removed) return true
                     const v = parseGatewayTool(t)
                     if (v && gatewayToolIdentity(v) === identity) {
+                        removed = true
+                        return false
+                    }
+                    const tk = parseGatewayToolkit(t)
+                    if (tk && gatewayToolkitIdentity(tk) === identity) {
                         removed = true
                         return false
                     }
