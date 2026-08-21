@@ -5,11 +5,15 @@ user. The platform runtime keeps reading it through a granted internal path so r
 work. This is the GitHub-secrets model.
 
 Status: backend landed (API + Python SDK), inert by default behind
-`AGENTA_VAULT_WRITE_ONLY_DEFAULT=false`. The web half is deferred until the frontend
-refactor (PR #6065) lands; frontend and Fern client regeneration follow in a second PR,
-after which the gate flips on. Until then, an explicitly created `write_only: true` secret
-shows cosmetically as "not configured" in today's Settings (the UI does not read `has_key`
-yet) — accepted; the run path is unaffected either way.
+`AGENTA_VAULT_WRITE_ONLY_DEFAULT=false`. Two PR numbers appear around this work and mean
+different things: **#6065** is the frontend package-extraction refactor (merged) that the
+web half of this feature builds on, and **#6135** is the branch this backend PR is
+stacked on (the per-turn trace-export credential fix), which is a stacking base only and
+has nothing to do with secrets. The web half (replace-only forms plus Fern client
+regeneration) follows in a second PR, after which the gate flips on. Until then, an
+explicitly created `write_only: true` secret shows cosmetically as "not configured" in
+today's Settings (the UI does not read `has_key` yet) — accepted; the run path is
+unaffected either way.
 
 ## The contract
 
@@ -141,3 +145,16 @@ read: no session, ApiKey, or list/get call ever returns the value.
 - Optional "readable" toggle at creation only (maps to `write_only: false`), if product
   wants the escape hatch exposed.
 - Regenerate the Fern client for the new `write_only`, `has_key`, `key_preview` fields.
+
+## Known gap: cache-key tenancy
+
+Both vault namespaces (`list_secrets`, `list_secrets_generation`) pack their Redis keys
+with the FULL project id, because they cache secret payloads. The platform default still
+truncates a project id to its last 12 characters, so every other namespace, including
+`check_permissions` and `check_action_access`, would share an entry between two projects
+whose UUIDs end the same way. Server-generated UUID4s make that remote, and unreachable by
+a caller who cannot pick their own project id, but it is a default worth removing.
+
+Not fixed here: flipping it needs `invalidate_cache` to carry the same flag (its scan
+pattern is packed short today) and a deploy plan for the evaluation lock keys, whose shape
+must not change under a rolling deploy. Tracked in issue #6166.

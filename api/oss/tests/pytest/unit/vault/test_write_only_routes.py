@@ -114,12 +114,18 @@ class _FakeCache:
     ):
         self.store[self._name(project_id, namespace, key)] = value
 
+    # Both vault namespaces are packed with the FULL project id, while the router's
+    # blanket `invalidate_cache(project_id=...)` scans the TRUNCATED-id pattern — so
+    # production invalidation reaches neither of them. Modelling that here is what keeps
+    # the stale-snapshot test honest: it must pass because the generation is dead, not
+    # because a fake wiped the entry. Anything else the project caches is still swept.
+    _FULL_ID_NAMESPACES = ("list_secrets", "list_secrets_generation")
+
     async def invalidate_cache(self, *, project_id):
-        # The real pattern invalidation does not reach the full-id generation keys.
         self.store = {
             name: value
             for name, value in self.store.items()
-            if name[0] == "list_secrets_generation"
+            if name[0] in self._FULL_ID_NAMESPACES
         }
 
     def entries(self, namespace):

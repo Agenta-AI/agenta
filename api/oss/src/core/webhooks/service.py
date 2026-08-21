@@ -11,6 +11,7 @@ from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretDTO,
     UpdateSecretDTO,
+    UpdateSecretPayloadDTO,
     WebhookProviderDTO,
     WebhookProviderSettingsDTO,
 )
@@ -409,7 +410,7 @@ class WebhooksService:
                     secret_id=existing.secret_id,
                     project_id=project_id,
                     update_secret_dto=UpdateSecretDTO(
-                        secret=SecretDTO(
+                        secret=UpdateSecretPayloadDTO(
                             kind=SecretKind.WEBHOOK_PROVIDER,
                             data=WebhookProviderDTO(
                                 provider=WebhookProviderSettingsDTO(

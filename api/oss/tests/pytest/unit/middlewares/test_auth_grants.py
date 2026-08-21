@@ -13,6 +13,7 @@ from jwt import decode, encode
 from starlette.requests import Request
 
 from oss.src.middlewares import auth
+from oss.src.utils.exceptions import UnauthorizedException
 
 
 SECRET_KEY = "unit-test-secret-key-with-32-bytes"
@@ -125,7 +126,7 @@ async def test_grants_ride_expiry_unchanged(log):
 
 
 @pytest.mark.asyncio
-async def test_forged_grants_on_an_unsigned_token_are_rejected(log):
+async def test_forged_grants_on_a_foreign_signed_token_are_rejected(log):
     expiry = datetime.now(timezone.utc) + timedelta(seconds=600)
     forged = encode(
         payload={
@@ -137,5 +138,10 @@ async def test_forged_grants_on_an_unsigned_token_are_rejected(log):
         algorithm="HS256",
     )
 
-    with pytest.raises(Exception):
+    # The concrete rejection, not any failure: a signature check that broke into an
+    # AttributeError would otherwise still read as "rejected".
+    with pytest.raises(UnauthorizedException) as rejected:
         await auth.verify_secret_token(request=_request(), secret_token=forged)
+
+    assert rejected.value.status_code == 401
+    assert rejected.value.detail["reason"] == "invalid_token"
