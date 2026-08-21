@@ -1,6 +1,8 @@
 import {createElement, useMemo} from "react"
 
+import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {
+    AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
     buildInviteTeammateNavItem,
     defineSidebarEntity,
@@ -58,12 +60,27 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
 )
 
 /**
+ * Same shape for agents, over the roster query the Agents screen already reads — so opening the
+ * group costs nothing once that screen has run. Children land on mobile's own agent overview.
+ */
+const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
+    kind: "app",
+    icon: createElement(Bot, {size: 14}),
+    listAtom: agentWorkflowsListQueryStateAtom,
+    getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
+    childPath: (workflow) => `/agents/${workflow.id}`,
+    emptyLabel: "No agents",
+    showAllPath: "/agents",
+})
+
+/**
  * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
  * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
  * forking a component.
  */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const source = useAtomValue(mobileSessionsEntity.activeSourceAtom)
+    const agentsSource = useAtomValue(mobileAgentsEntity.activeSourceAtom)
 
     return useMemo(
         () => [
@@ -74,10 +91,11 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 link: `${projectURL}/apps`,
             },
             {
-                key: "mobile-agents",
+                key: AGENTS_SIDEBAR_KEY,
                 title: "Agents",
                 icon: createElement(Bot, {size: 16}),
                 link: `${projectURL}/agents`,
+                submenu: resolveChildren(mobileAgentsEntity, agentsSource, projectURL),
             },
             {
                 key: SESSIONS_SIDEBAR_KEY,
@@ -94,7 +112,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 link: `${projectURL}/observability`,
             },
         ],
-        [source, projectURL],
+        [agentsSource, source, projectURL],
     )
 }
 

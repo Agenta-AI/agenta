@@ -3,13 +3,14 @@ import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef
 import {
     filterVisibleSections,
     SIDEBAR_COLLAPSED_WIDTH,
+    sidebarDefaultOpenGroupsAtomFamily,
     type SidebarConfig,
     type SidebarScope,
     type SidebarSection,
     type SidebarShellProps,
     useSidebarResize,
 } from "@agenta/navigation"
-import {useAtom} from "jotai"
+import {useAtom, useSetAtom} from "jotai"
 
 import {NavMenu} from "./NavMenu"
 
@@ -149,6 +150,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         [openGroupsAtomFamily, scope.id],
     )
     const [persistedOpenGroups, setPersistedOpenGroups] = useAtom(openGroupsAtom)
+    const setDefaultOpenGroups = useSetAtom(sidebarDefaultOpenGroupsAtomFamily(scope.id))
     const lastSelectedKeyRef = useRef<string | undefined>(undefined)
     const selection = scope.useSelection()
     const sections = scope.useSections()
@@ -188,6 +190,16 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         () => uniqueKeys(persistedOrDefaultOpenGroups),
         [persistedOrDefaultOpenGroups],
     )
+
+    // A `defaultOpen` group renders expanded off `defaultOpenKeys` alone, but the gated entity
+    // sources read the open-groups atoms — unpublished, a visibly expanded group stays "idle"
+    // and shows "Open to load" forever. Publish (never persist: the persisted atom is empty
+    // until localStorage hydrates, so writing there would wipe the real open groups).
+    useEffect(() => {
+        setDefaultOpenGroups((current) =>
+            haveSameKeys(current, defaultOpenKeys) ? current : defaultOpenKeys,
+        )
+    }, [defaultOpenKeys, setDefaultOpenGroups])
 
     useEffect(() => {
         if (selectedKey === lastSelectedKeyRef.current && persistedOpenGroups !== undefined) return

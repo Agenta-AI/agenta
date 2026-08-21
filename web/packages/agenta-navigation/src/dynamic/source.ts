@@ -2,7 +2,11 @@ import type {ListQueryState} from "@agenta/entities/shared"
 import {idleReadyAtom} from "@agenta/shared/state"
 import {atom, type Atom} from "jotai"
 
-import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtomFamily} from "../state"
+import {
+    sidebarDefaultOpenGroupsAtomFamily,
+    sidebarOpenGroupsAtomFamily,
+    sidebarPopupGroupsAtomFamily,
+} from "../state"
 
 import type {SidebarEntityRef, SidebarEntitySource} from "./types"
 
@@ -18,7 +22,12 @@ export const gatedSidebarSource = <TRef extends SidebarEntityRef>(
     listAtom: Atom<ListQueryState<TRef>>,
 ): Atom<SidebarEntitySource<TRef>> =>
     atom((get) => {
-        const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(parentKey)
+        // Mirror the shell's own display rule (`persisted ?? defaults`) — a `defaultOpen` group
+        // is expanded on screen with nothing persisted, and must count as open here too.
+        const persistedOpen = get(sidebarOpenGroupsAtomFamily(scopeId))
+        const effectiveOpen =
+            persistedOpen ?? get(sidebarDefaultOpenGroupsAtomFamily(scopeId)) ?? []
+        const inlineOpen = effectiveOpen.includes(parentKey)
         const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(parentKey)
 
         if (!inlineOpen && !popupOpen) {
