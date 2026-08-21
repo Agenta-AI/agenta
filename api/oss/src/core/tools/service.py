@@ -28,6 +28,7 @@ from oss.src.core.tools.dtos import (
     ToolExecutionResponse,
     ToolProviderKind,
     ToolReference,
+    ToolkitTool,
     ToolsResolution,
 )
 from oss.src.core.tools.discovery import (
@@ -496,6 +497,15 @@ class ToolsService:
                     builtins.append(ref.name)
                 continue
 
+            if isinstance(ref, ToolkitTool):
+                custom.extend(
+                    await self._resolve_toolkit_tool(
+                        project_id=project_id,
+                        ref=ref,
+                    )
+                )
+                continue
+
             if isinstance(ref, ComposioTool):
                 custom.append(
                     await self._resolve_composio_tool(
@@ -556,6 +566,157 @@ class ToolsService:
             call_ref=call_ref,
             read_only=action.read_only,
         )
+
+    async def _resolve_toolkit_tool(
+        self,
+        *,
+        project_id: UUID,
+        ref: ToolkitTool,
+    ) -> List[ResolvedTool]:
+        """Resolve one ``gateway_toolkit`` config into a search tool and a run tool.
+
+        The connection slug is mapped to the connection id here, and both ``call_ref``
+        values are keyed on that id so the tool identity is stable and unique. The policy's
+        Agenta action keys are mapped to Composio slugs and encoded on the run ``call_ref``,
+        which the ``/tools/call`` handler enforces against the slug the model runs.
+        """
+        provider_key = ToolProviderKind.COMPOSIO.value
+        if ref.provider != provider_key:
+            raise ToolSlugInvalidError(
+                slug=f"{ref.provider}.{ref.integration}.{ref.connection}",
+                detail=f"Unsupported toolkit provider: {ref.provider!r}",
+            )
+
+        for segment in (ref.integration, ref.connection):
+            if not _SLUG_SEGMENT_RE.match(segment):
+                raise ToolSlugInvalidError(
+                    slug=f"{provider_key}.{ref.integration}.{ref.connection}",
+                    detail=f"Invalid slug segment: {segment!r}",
+                )
+
+        # Fail fast if the connection is missing/inactive/invalid, and get its id.
+        connection = await self.resolve_connection_by_slug(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=ref.integration,
+            connection_slug=ref.connection,
+        )
+        connection_id = str(connection.id)
+
+        base = f"toolkit.{provider_key}.{connection_id}"
+        base_name = re.sub(r"[^A-Za-z0-9_]", "_", f"{ref.integration}_{ref.connection}")
+
+        # Map the policy's Agenta action keys to Composio slugs (INTEGRATION_ACTION); both
+        # the run call_ref (enforced server-side) and the enum offered to the model use them.
+        allowed_slugs = (
+            [f"{ref.integration.upper()}_{action}" for action in ref.tools.actions]
+            if ref.tools.mode == "include" and ref.tools.actions
+            else []
+        )
+
+        search_tool = ResolvedTool(
+            name=f"{base_name}_search",
+            description=(
+                f"Search the available {ref.integration} actions. Give a short description "
+                "of what you want to do (for example 'create an issue'). Returns the "
+                f"matching action slugs and the input schema for each. Then call "
+                f"{base_name}_run with one of the slugs."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "A short description of what you want to do, "
+                            "for example 'create an issue'."
+                        ),
+                    }
+                },
+                "required": ["query"],
+            },
+            call_ref=f"{base}.search",
+            read_only=True,
+            permission=ref.permission,
+        )
+
+        action_schema: Dict[str, Any] = {
+            "type": "string",
+            "description": (
+                f"The {ref.integration} action slug to run, from the search tool "
+                "(for example GITHUB_CREATE_AN_ISSUE)."
+            ),
+        }
+        run_description = (
+            f"Run one {ref.integration} action. Pass 'action' (an action slug from the "
+            f"{base_name}_search tool) and 'arguments' (the inputs for that action, "
+            "matching its input schema). Returns the action result."
+        )
+        if allowed_slugs:
+            action_schema["enum"] = allowed_slugs
+            run_call_ref = f"{base}.run.include." + ".".join(allowed_slugs)
+            run_description += " Allowed actions: " + ", ".join(allowed_slugs) + "."
+        else:
+            run_call_ref = f"{base}.run.all"
+
+        run_tool = ResolvedTool(
+            name=f"{base_name}_run",
+            description=run_description,
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "action": action_schema,
+                    "arguments": {
+                        "type": "object",
+                        "description": "The inputs for the action.",
+                    },
+                },
+                "required": ["action"],
+            },
+            call_ref=run_call_ref,
+            permission=ref.permission,
+        )
+
+        return [search_tool, run_tool]
+
+    async def resolve_connection_by_id(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+    ) -> ToolConnection:
+        """Resolve a connection id to a usable connection row.
+
+        The toolkit ``call_ref`` carries the connection id (not the slug), so ``/tools/call``
+        resolves by id. Raises the same domain exceptions as ``resolve_connection_by_slug``
+        when the connection is missing, inactive, invalid, or never finished its handshake.
+        """
+        connection = await self.get_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        label = str(connection_id)
+
+        if not connection:
+            raise ConnectionNotFoundError(
+                provider_key=ToolProviderKind.COMPOSIO.value,
+                integration_key="",
+                connection_slug=label,
+            )
+        if not connection.is_active:
+            raise ConnectionInactiveError(connection_id=label)
+        if not connection.is_valid:
+            raise ConnectionInvalidError(
+                connection_slug=label,
+                detail="Please refresh the connection.",
+            )
+        if connection.has_auth and not connection.provider_connection_id:
+            raise ConnectionNotFoundError(
+                provider_key=ToolProviderKind.COMPOSIO.value,
+                integration_key=connection.integration_key,
+                connection_slug=label,
+            )
+        return connection
 
     # -----------------------------------------------------------------------
     # Tool discovery (discover_tools)
