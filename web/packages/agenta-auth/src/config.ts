@@ -71,3 +71,28 @@ export function getEmailSignInMode(read: EnvReader = authEnv): EmailSignInMode {
     if (authnEmail === "password" || authnEmail === "otp") return authnEmail
     return "disabled"
 }
+
+/**
+ * The deployment's auth switches, in the raw shape the sign-in policy reasons about.
+ *
+ * Mirrors the desktop's `getEffectiveAuthConfig` field for field, including the case
+ * `getEmailSignInMode` collapses away: `AUTH_EMAIL_ENABLED=true` with no `AUTHN_EMAIL` keeps
+ * email on (as password), which the three-value mode cannot express.
+ */
+export interface AuthConfig {
+    /** Raw `NEXT_PUBLIC_AGENTA_AUTHN_EMAIL`, defaulted to "password" on a non-OIDC deployment. */
+    authnEmail: string
+    emailEnabled: boolean
+    oidcEnabled: boolean
+    providers: OidcProvider[]
+}
+
+export function readAuthConfig(read: EnvReader = authEnv): AuthConfig {
+    const oidcEnabled = isOidcEnabled(read)
+    const authnEmail = read("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || (oidcEnabled ? "" : "password")
+    const emailEnabled =
+        read("NEXT_PUBLIC_AGENTA_AUTH_EMAIL_ENABLED").toLowerCase() === "true" ||
+        authnEmail === "password" ||
+        authnEmail === "otp"
+    return {authnEmail, emailEnabled, oidcEnabled, providers: listOidcProviders(read)}
+}
