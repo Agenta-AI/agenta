@@ -488,6 +488,97 @@ async def test_kind_change_with_omitted_content_is_rejected(service):
 
 
 @pytest.mark.asyncio
+async def test_a_format_change_with_omitted_content_is_rejected(service):
+    # text -> json with no content used to carry the stored STRING into the json shape.
+    # The payload validators never saw it (they ran before the carry-over filled it in),
+    # so an invalid row reached the database: a json secret holding a string.
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "Token"},
+            secret={
+                "kind": "custom_secret",
+                "data": {
+                    "secret": {"format": "text", "content": "ghp_example_token_xyz"}
+                },
+            },
+            write_only=True,
+        ),
+    )
+
+    update = UpdateSecretDTO(
+        secret={"kind": "custom_secret", "data": {"secret": {"format": "json"}}},
+    )
+
+    with pytest.raises(SecretValueRequiredError):
+        await service.update_secret(
+            secret_id=created.id, project_id=PROJECT_ID, update_secret_dto=update
+        )
+
+    stored = await service.get_secret_by_id(created.id, project_id=PROJECT_ID)
+    assert stored.data.secret.format.value == "text"
+    assert stored.data.secret.content == "ghp_example_token_xyz"
+
+
+@pytest.mark.asyncio
+async def test_a_format_change_with_a_new_value_is_allowed(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "Token"},
+            secret={
+                "kind": "custom_secret",
+                "data": {
+                    "secret": {"format": "text", "content": "ghp_example_token_xyz"}
+                },
+            },
+            write_only=True,
+        ),
+    )
+
+    updated = await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            secret={
+                "kind": "custom_secret",
+                "data": {
+                    "secret": {"format": "json", "content": {"token": "ghp-example"}}
+                },
+            },
+        ),
+    )
+
+    assert updated.data.secret.format.value == "json"
+    assert updated.data.secret.content == {"token": "ghp-example"}
+
+
+@pytest.mark.asyncio
+async def test_an_omitted_content_still_keeps_the_stored_one_within_a_format(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "Token"},
+            secret={
+                "kind": "custom_secret",
+                "data": {"secret": {"format": "json", "content": {"token": "abc"}}},
+            },
+            write_only=True,
+        ),
+    )
+
+    updated = await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            secret={"kind": "custom_secret", "data": {"secret": {"format": "json"}}},
+        ),
+    )
+
+    assert updated.data.secret.content == {"token": "abc"}
+
+
+@pytest.mark.asyncio
 async def test_family_change_does_not_carry_credential_extras(service):
     created = await service.create_secret(
         project_id=PROJECT_ID,
@@ -887,3 +978,17 @@ def test_update_call_sites_build_the_update_path_payload():
         "UpdateSecretDTO(secret=...) must be built with UpdateSecretPayloadDTO: "
         + "; ".join(offenders)
     )
+
+
+def test_primary_credential_fields_cover_every_secret_kind():
+    # The redaction, the presence report, and the carry-over all key off this map, so a
+    # kind missing from it silently stops being redacted.
+    from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
+
+    assert set(PRIMARY_CREDENTIAL_FIELDS) == {
+        "provider_key",
+        "custom_provider",
+        "webhook_provider",
+        "sso_provider",
+        "custom_secret",
+    }
