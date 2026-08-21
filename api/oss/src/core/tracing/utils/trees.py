@@ -373,6 +373,7 @@ def cumulate_costs(
         _get_cumulative,
         _accumulate,
         _set_cumulative,
+        prefer_children=True,
     )
 
 
@@ -495,6 +496,7 @@ def cumulate_tokens(
         _get_cumulative,
         _accumulate,
         _set_cumulative,
+        prefer_children=True,
     )
 
 
@@ -564,6 +566,18 @@ def cumulate_errors(
     )
 
 
+def _is_non_zero(metric) -> bool:
+    if isinstance(metric, dict):
+        return any(value for value in metric.values())
+
+    return bool(metric)
+
+
+def _is_model_call(span: OTelFlatSpan) -> bool:
+    """Whether the span calls a model itself, so its usage is its own spend."""
+    return bool(span.span_type) and span.span_type.name.lower() in TYPES_WITH_COSTS
+
+
 def _cumulate_tree_dfs(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
@@ -571,11 +585,12 @@ def _cumulate_tree_dfs(
     get_cumulative,
     accumulate,
     set_cumulative,
+    prefer_children: bool = False,
 ):
     for span_id, children_spans_id_tree in spans_id_tree.items():
         children_spans_id_tree: OrderedDict
 
-        cumulated_metric = get_incremental(spans_idx[span_id])
+        own_metric = get_incremental(spans_idx[span_id])
 
         _cumulate_tree_dfs(
             children_spans_id_tree,
@@ -584,11 +599,36 @@ def _cumulate_tree_dfs(
             get_cumulative,
             accumulate,
             set_cumulative,
+            prefer_children,
         )
+
+        children_metric = None
 
         for child_span_id in children_spans_id_tree.keys():
             marginal_metric = get_cumulative(spans_idx[child_span_id])
-            cumulated_metric = accumulate(cumulated_metric, marginal_metric)
+
+            children_metric = (
+                marginal_metric
+                if children_metric is None
+                else accumulate(children_metric, marginal_metric)
+            )
+
+        if children_metric is None:
+            cumulated_metric = own_metric
+        elif (
+            prefer_children
+            and _is_non_zero(children_metric)
+            and not _is_model_call(spans_idx[span_id])
+        ):
+            # Usage on a span that cannot call a model itself is a roll-up of
+            # the calls its children already report: an agent harness stamps the
+            # run total on the agent span, and the per-call chat spans repeat
+            # it. Adding both would count every call twice. A span whose
+            # children report nothing still falls back to its own figure, which
+            # is what keeps runs with no per-call instrumentation working.
+            cumulated_metric = children_metric
+        else:
+            cumulated_metric = accumulate(own_metric, children_metric)
 
         set_cumulative(spans_idx[span_id], cumulated_metric)
 

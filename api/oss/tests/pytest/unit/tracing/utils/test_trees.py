@@ -145,10 +145,48 @@ def test_cumulate_tokens_and_costs_propagate_from_children_to_parent():
     ]
     root_costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["cumulative"]
 
+    # The root is a task, which cannot call a model itself, so the usage on it
+    # is a roll-up of what the child already reports and is not added again.
+    assert root_tokens == {"prompt": 4.0, "completion": 5.0, "total": 9.0}
+    assert root_costs["prompt"] == pytest.approx(0.4)
+    assert root_costs["completion"] == pytest.approx(0.5)
+    assert root_costs["total"] == pytest.approx(0.9)
+
+
+def test_a_model_call_adds_its_own_usage_to_its_children():
+    """A chat span makes its own call, so its usage is real, not a roll-up."""
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        span_type=SpanType.CHAT,
+        prompt_tokens=1,
+        completion_tokens=2,
+        prompt_cost=0.1,
+        completion_cost=0.2,
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="child",
+        span_type=SpanType.CHAT,
+        prompt_tokens=4,
+        completion_tokens=5,
+        prompt_cost=0.4,
+        completion_cost=0.5,
+        start_offset_s=1,
+    )
+
+    span_idx = parse_span_dtos_to_span_idx([root, child])
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    cumulate_tokens(tree, span_idx)
+    cumulate_costs(tree, span_idx)
+
+    root_tokens = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["tokens"][
+        "cumulative"
+    ]
+
     assert root_tokens == {"prompt": 5.0, "completion": 7.0, "total": 12.0}
-    assert root_costs["prompt"] == pytest.approx(0.5)
-    assert root_costs["completion"] == pytest.approx(0.7)
-    assert root_costs["total"] == pytest.approx(1.2)
 
 
 def test_cumulate_errors_propagates_scalar_counts_from_children_to_parent():
@@ -644,3 +682,69 @@ def test_calculate_costs_still_prices_a_span_without_a_reported_cost(monkeypatch
     costs = span.attributes["ag"]["metrics"]["costs"]["incremental"]
 
     assert costs["total"] == pytest.approx(100 * 0.01 + 10 * 0.02)
+
+
+def test_the_agent_run_total_is_not_counted_twice(monkeypatch):
+    """The harness stamps the run total on the agent span; children repeat it."""
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        lambda model, prompt_tokens, completion_tokens: (0.0, 0.0),
+    )
+
+    batch = _harness_batch()
+    agent = batch[0]
+
+    # What sdk/agents/tracing.py record_usage stamps on the agent span.
+    agent.attributes["ag"]["metrics"]["tokens"]["incremental"] = {
+        "prompt": 14100 + 17700,
+        "completion": 471 + 23,
+        "total": EXPECTED_TOTAL_TOKENS,
+    }
+    agent.attributes["ag"]["metrics"]["costs"]["incremental"] = {
+        "total": EXPECTED_TOTAL_COST,
+    }
+
+    out = calculate_and_propagate_metrics(batch)
+    out_idx = {span.span_id: span for span in out}
+    agent_metrics = out_idx[AGENT_UUID].attributes["ag"]["metrics"]
+
+    assert agent_metrics["tokens"]["cumulative"]["total"] == EXPECTED_TOTAL_TOKENS
+    assert round(agent_metrics["costs"]["cumulative"]["total"], 8) == round(
+        EXPECTED_TOTAL_COST, 8
+    )
+
+
+def test_an_agent_without_per_call_spans_keeps_its_reported_usage(monkeypatch):
+    """Not every harness emits per-call spans; that run must still show usage."""
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        lambda model, prompt_tokens, completion_tokens: (0.0, 0.0),
+    )
+
+    agent = _span(
+        span_id=AGENT_UUID,
+        span_name="invoke_agent",
+        span_type=SpanType.AGENT,
+        start_offset_s=1,
+    )
+    agent.attributes["ag"]["metrics"]["tokens"]["incremental"] = {
+        "prompt": 100.0,
+        "completion": 10.0,
+        "total": 110.0,
+    }
+    agent.attributes["ag"]["metrics"]["costs"]["incremental"] = {"total": 0.5}
+
+    tool = _span(
+        span_id=TURN_UUID,
+        parent_id=AGENT_UUID,
+        span_name="execute_tool read",
+        span_type=SpanType.TOOL,
+        start_offset_s=2,
+    )
+
+    out = calculate_and_propagate_metrics([agent, tool])
+    out_idx = {span.span_id: span for span in out}
+    agent_metrics = out_idx[AGENT_UUID].attributes["ag"]["metrics"]
+
+    assert agent_metrics["tokens"]["cumulative"]["total"] == 110.0
+    assert agent_metrics["costs"]["cumulative"]["total"] == 0.5
