@@ -158,7 +158,10 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
     ],
+    # ``gemini-3.6-flash`` postdates the pinned pi-ai catalog, so its facts ride the curated
+    # ``additions`` list in ``data/pi_models.curated.json`` until a regeneration carries it.
     "gemini": [
+        "gemini/gemini-3.6-flash",
         "gemini/gemini-3.5-flash",
         "gemini/gemini-3.1-pro-preview",
     ],
