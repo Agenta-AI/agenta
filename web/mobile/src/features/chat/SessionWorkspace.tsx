@@ -101,7 +101,7 @@ export const SessionWorkspace = ({
         <AppShell workspaceId={workspaceId} projectId={projectId}>
             {/* The workspace column: the shared playground top bar, then the panes under it. The
                 column owns the top safe-area inset (the bar is the topmost chrome). */}
-            <div className="ag-app-ground flex h-dvh min-w-0 flex-col pt-[env(safe-area-inset-top)]">
+            <div className="ag-app-ground flex h-[var(--ag-viewport-height,100dvh)] min-w-0 flex-col pt-[env(safe-area-inset-top)]">
                 <SessionTopBar
                     entityId={entityId}
                     agentId={agentId}

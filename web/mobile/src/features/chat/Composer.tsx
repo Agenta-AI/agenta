@@ -7,6 +7,7 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {stagedFilesToParts, useComposerAttachments, useVoiceComposer} from "@agenta/chat/hooks"
+import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import type {FileUIPart} from "ai"
 import {AnimatePresence, motion} from "motion/react"
@@ -61,6 +62,11 @@ export const Composer = ({
         // is still in flight; a second pass would re-send the same staged tray.
         if (sending.current) return
         sending.current = true
+        // Close the on-screen keyboard. It covered the transcript while you typed, and the reply
+        // to the message you just sent is the thing you want to see next. The helper defers the
+        // blur past the editor's own clear, whose reconcile would otherwise re-focus the input and
+        // pop the keyboard straight back up.
+        dismissSoftKeyboardAfterSend(() => richInputRef.current?.blur())
         try {
             await runSubmit(text, extraFiles)
         } finally {
