@@ -11,6 +11,11 @@
  * The fixtures and the deliberate oss-vs-package divergences live in
  * `transcriptBuilderParity.test.ts`; this file reuses its golden set.
  */
+import {transcriptToMessages} from "@agenta/chat/assets"
+import {getPendingApprovals} from "@agenta/chat/model"
+import {partToolName} from "@agenta/chat/model"
+import {canonicalToolName} from "@agenta/chat/skin"
+import {goldenSession, rowStatesFromInteractions} from "@agenta/chat/tests/goldenSessions"
 import type {SessionInteraction, SessionRecord} from "@agenta/entities/session"
 import {
     CLIENT_TOOL_DESCRIPTORS,
@@ -20,12 +25,7 @@ import {parseElicitationPayload} from "@agenta/shared/utils"
 import type {ToolUIPart, UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {getPendingApprovals} from "../components/ApprovalDock"
 import {clientToolMeta, isClientToolPart} from "../components/clientTools/meta"
-
-import {goldenSession, rowStatesFromInteractions} from "./__fixtures__/goldenSessions"
-import {canonicalToolName, partToolName} from "./toolDisplay"
-import {transcriptToMessages} from "./transcriptToMessages"
 
 type AnyPart = Record<string, unknown>
 

@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import type {Org} from "@agenta/entities/organization"
 import type {User} from "@agenta/shared/types"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Checkbox, Form, Input, Radio, Rate, Space, Typography} from "antd"
@@ -13,7 +14,6 @@ import {
 } from "posthog-js"
 import {flushSync} from "react-dom"
 
-import type {Org} from "@/oss/lib/Types"
 import {
     buildPostLoginPathResolved,
     waitForWorkspaceContext,

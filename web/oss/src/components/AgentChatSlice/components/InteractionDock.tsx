@@ -1,65 +1,163 @@
-/** Persistent shortcut from the composer to a parked connect card in the transcript. */
+/**
+ * Persistent "the agent is waiting for you" band for parked CLIENT-TOOL interactions — the sibling
+ * of ApprovalDock with the same placement contract: it lives in the composer region (between the
+ * transcript and the input) so a paused run can't scroll out of reach, and it OWNS the actions
+ * while the inline transcript row is just a marker.
+ *
+ * Why it exists (UX): when the runner parks a `request_connection`, the stream genuinely ends —
+ * `useChat` reads "ready", so nothing busy-derived (working dots, stop button) signals the pause,
+ * while the message queue silently holds every send (`isHitlPending`). This dock makes the paused
+ * state visible where the user is typing AND provides the escape hatch a parked connection
+ * previously lacked: "Not now" settles the call as a structured decline, so the run resumes and
+ * the conversation unfreezes.
+ *
+ * v1 covers the connect interaction (`request_connection` / render.kind "connect"). Elicitation
+ * stays inline — it's a form the user fills in the transcript, and it carries its own
+ * Decline/Dismiss actions; the composer's waiting state covers its visibility.
+ */
 import {memo, useCallback, useRef} from "react"
 
+import type {ClientToolMeta, SettleClientTool} from "@agenta/chat/skin"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
-import {CLIENT_TOOL_DESCRIPTORS} from "@agenta/shared/clientTools"
-import {ArrowUp, Plugs} from "@phosphor-icons/react"
+import {Button} from "@agenta/ui/ui"
+import {Plugs, Spinner} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-import {Typography} from "antd"
 
-import {clientToolMeta, type ClientToolMeta} from "./clientTools"
-
-const {Text} = Typography
+import {clientToolMeta, type ClientToolOutputHandler} from "./clientTools"
+import {useConnectFlow} from "./clientTools/useConnectFlow"
 
 /** Whether this client-tool meta is the connect interaction (registry's two dispatch axes). */
 const isConnectInteraction = (meta: ClientToolMeta): boolean =>
-    meta.renderKind === CLIENT_TOOL_DESCRIPTORS.connection.renderKind ||
-    meta.toolName === CLIENT_TOOL_DESCRIPTORS.connection.toolName
+    meta.renderKind === "connect" || meta.toolName === "request_connection"
 
-/** The newest parked connect interaction across the transcript, or null. */
+/**
+ * The parked connect interaction the run is currently blocked on, or null. Like
+ * `getPendingApprovals`, HITL only ever pauses the LAST assistant turn (see `isHitlPending`), so
+ * only that turn is read. The runner parks one interaction per turn — first match wins.
+ */
 export const getPendingConnectInteraction = (messages: UIMessage[]): ClientToolMeta | null => {
-    // The shortcut points to the most recent pending connect card.
-    for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
-        const message = messages[messageIndex]
-        if (message.role !== "assistant") continue
-        const parts = message.parts ?? []
-        const renderMap = buildRenderMap(parts as {type?: string; data?: unknown}[])
-        for (let partIndex = parts.length - 1; partIndex >= 0; partIndex--) {
-            const part = parts[partIndex]
-            if (!isPendingClientToolInteraction(part as {type?: string; state?: string}, renderMap))
-                continue
-            const meta = clientToolMeta(part as ToolUIPart, renderMap)
-            if (isConnectInteraction(meta)) return meta
-        }
+    const last = messages[messages.length - 1]
+    if (!last || last.role !== "assistant") return null
+    const parts = last.parts ?? []
+    const renderMap = buildRenderMap(parts as {type?: string; data?: unknown}[])
+    for (const part of parts) {
+        if (!isPendingClientToolInteraction(part as {type?: string; state?: string}, renderMap))
+            continue
+        const meta = clientToolMeta(part as ToolUIPart, renderMap)
+        if (isConnectInteraction(meta)) return meta
     }
     return null
+}
+
+/** The dock's connect card: header + per-phase body + actions, driven by the shared OAuth flow. */
+const ConnectCard = ({
+    meta,
+    onOutput,
+    active,
+}: {
+    meta: ClientToolMeta
+    onOutput: ClientToolOutputHandler
+    active: boolean
+}) => {
+    // Same settle mapping as ClientToolPart — the dock is a second dispatch site for this part.
+    const settle = useCallback<SettleClientTool>(
+        (args: {output: Record<string, unknown>} | {errorText: string}) => {
+            if ("errorText" in args) {
+                onOutput({
+                    toolName: meta.toolName,
+                    toolCallId: meta.toolCallId,
+                    errorText: args.errorText,
+                })
+            } else {
+                onOutput({
+                    toolName: meta.toolName,
+                    toolCallId: meta.toolCallId,
+                    output: args.output,
+                })
+            }
+        },
+        [onOutput, meta.toolName, meta.toolCallId],
+    )
+    const {label, phase, errorText, modeResolving, runConnect, cancel, decline} = useConnectFlow(
+        meta,
+        settle,
+        active,
+    )
+
+    return (
+        <div className="ag-surface-chat mb-2 flex flex-col gap-2.5 rounded-lg p-3">
+            {/* Header: a quiet primary cue, same visual language as the approval dock's header. */}
+            <div className="flex items-center gap-2">
+                <Plugs size={15} weight="fill" className="shrink-0 text-colorPrimary" />
+                <span className="text-xs font-medium text-colorText">
+                    The agent is waiting for you
+                </span>
+            </div>
+
+            {phase === "connecting" ? (
+                <div className="flex items-center gap-2">
+                    <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
+                    <span className="text-xs text-colorTextSecondary">
+                        Connecting {label}… finish signing in from the popup window.
+                    </span>
+                </div>
+            ) : phase === "error" ? (
+                <span className="text-xs text-colorError" title={errorText ?? undefined}>
+                    {errorText ?? "Connection failed."}
+                </span>
+            ) : (
+                <span className="text-xs text-colorTextSecondary">
+                    Connect <span className="font-medium text-colorText">{label}</span> to let the
+                    agent continue, or continue without the connection.
+                </span>
+            )}
+
+            <div className="flex items-center justify-end gap-1.5">
+                {phase === "connecting" ? (
+                    <Button variant="outline" onClick={cancel}>
+                        Cancel
+                    </Button>
+                ) : (
+                    <>
+                        <Button variant="outline" onClick={decline}>
+                            Not now
+                        </Button>
+                        <Button
+                            disabled={modeResolving}
+                            title={
+                                modeResolving ? "Checking how this toolkit connects…" : undefined
+                            }
+                            onClick={() => runConnect(true)}
+                        >
+                            {phase === "error" ? "Retry" : `Connect ${label}`}
+                        </Button>
+                    </>
+                )}
+            </div>
+        </div>
+    )
 }
 
 interface InteractionDockProps {
     /** The parked connect interaction the run is blocked on (from `getPendingConnectInteraction`). */
     pending: ClientToolMeta | null
+    /** Settle channel — the panel maps this onto `addToolOutput` (marks the resume as live). */
+    onOutput: ClientToolOutputHandler
     className?: string
 }
 
 /**
  * Always mounted; enter + leave animate via the grid-rows 0fr↔1fr height collapse (+ opacity), the
  * same idiom as ApprovalDock. `inert` while closed drops the (clipped, latched) card from tab order
- * + a11y so a keyboard user can't reach the hidden shortcut.
+ * + a11y so a keyboard user can't reach hidden buttons.
  */
-const InteractionDock = ({pending, className}: InteractionDockProps) => {
+const InteractionDock = ({pending, onOutput, className}: InteractionDockProps) => {
     const open = !!pending
     // Latch the last pending interaction so the card persists through the height collapse.
     const shownRef = useRef(pending)
     if (pending) shownRef.current = pending
     const shown = shownRef.current
-    const toolCallId = shown?.toolCallId
-    const scrollToCard = useCallback(() => {
-        if (!toolCallId) return
-        // Virtualized transcript cards may not be mounted.
-        document
-            .querySelector(`[data-client-tool-call-id="${CSS.escape(toolCallId)}"]`)
-            ?.scrollIntoView({behavior: "smooth", block: "center"})
-    }, [toolCallId])
+    const shownIsActive = !!pending && shown?.toolCallId === pending.toolCallId
 
     return (
         <div
@@ -70,22 +168,13 @@ const InteractionDock = ({pending, className}: InteractionDockProps) => {
         >
             <div className="min-h-0 overflow-hidden">
                 {shown ? (
-                    <button
-                        type="button"
-                        onClick={scrollToCard}
-                        className="ag-surface-chat mb-2 flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 p-3 text-left transition-colors hover:bg-colorFillTertiary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-colorPrimary"
-                    >
-                        <Plugs size={15} weight="fill" className="shrink-0 text-colorPrimary" />
-                        <span className="flex min-w-0 flex-col">
-                            <Text className="!text-xs !font-medium">
-                                The run is waiting for you
-                            </Text>
-                            <Text type="secondary" className="!text-xs">
-                                Go to the connection card above
-                            </Text>
-                        </span>
-                        <ArrowUp size={14} className="ml-auto shrink-0 text-colorTextTertiary" />
-                    </button>
+                    // Keyed by call id so flow state (phase/popup) resets per parked call.
+                    <ConnectCard
+                        key={shown.toolCallId}
+                        meta={shown}
+                        onOutput={onOutput}
+                        active={shownIsActive}
+                    />
                 ) : null}
             </div>
         </div>

@@ -109,6 +109,7 @@ export {
     useToolCatalogActions,
     useToolCatalogCategories,
     useToolCatalogIntegrations,
+    invalidateToolConnections,
     useToolConnectionActions,
     useToolConnectionQuery,
     useToolConnectionsQuery,

@@ -107,6 +107,7 @@ export {
 } from "./state/records"
 export {
     fetchSessionInteractionStatesAtom,
+    hasWaitingInteraction,
     revalidateSessionInteractionsAtom,
     type SessionInteractionRowState,
     type SessionInteractionRowStates,
@@ -140,3 +141,9 @@ export {
     type SessionFileActivityEntry,
     type FileActivityEffect,
 } from "./state/fileActivity"
+export {
+    clearSessionFresh,
+    freshSessionIds,
+    isSessionFresh,
+    markSessionFresh,
+} from "./core/freshSessions"

@@ -1,5 +1,6 @@
 import {useCallback} from "react"
 
+import {addPendingSessionOpenAtom, removePendingSessionOpensAtom} from "@agenta/sessions/state"
 import {generateId} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -7,7 +8,6 @@ import {useRouter} from "next/router"
 import {urlAtom} from "@/oss/state/url"
 
 import {addFirstRunSeedAtom, removeFirstRunSeedAtom} from "../state/firstRunSeed"
-import {addPendingSessionOpenAtom, removePendingSessionOpensAtom} from "../state/pendingSessionOpen"
 
 /**
  * Start a NEW conversation with an existing agent, seeded with what the user typed — the daily

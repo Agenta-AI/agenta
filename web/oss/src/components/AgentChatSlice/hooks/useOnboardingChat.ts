@@ -1,6 +1,7 @@
 import {type RefObject, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {type UIMessage} from "ai"
@@ -13,9 +14,7 @@ import {
 import {
     captureFirstAgentIntent,
     classifyAgentIntent,
-    truncateForCapture,
 } from "@/oss/components/pages/agent-home/assets/onboardingAnalytics"
-import {type AgentTemplate} from "@/oss/components/pages/agent-home/assets/templates"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -74,7 +73,7 @@ export const useOnboardingChat = ({
     const isFreshAgentRevision =
         !revisionQuery.isPending && typeof revisionVersion === "number" && revisionVersion <= 1
     const handleStripPick = useCallback(
-        (template: AgentTemplate) => {
+        (template: AgentStarterTemplate) => {
             stripProvenance.pick(template)
             captureFirstAgentIntent(onboardingPosthog, {
                 source: "template",
@@ -110,7 +109,6 @@ export const useOnboardingChat = ({
         if (text) {
             captureFirstAgentIntent(onboardingPosthog, {
                 source: "composer",
-                properties: {message: truncateForCapture(text)},
                 intentValue: classifyAgentIntent(text),
             })
         }

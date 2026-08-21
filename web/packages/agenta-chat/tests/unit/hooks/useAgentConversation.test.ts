@@ -8,14 +8,14 @@
 // persist-on-settle → run-status publish, plus error stamping and the rewind plan.
 import {createElement, type ReactNode} from "react"
 
-import {buildAgentRequest} from "@agenta/playground"
+import {buildAgentRequest} from "@agenta/playground/agent-chat"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-vi.mock("@agenta/playground", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("@agenta/playground")>()
+vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@agenta/playground/agent-chat")>()
     return {
         ...actual,
         buildAgentRequest: vi.fn(
@@ -28,9 +28,13 @@ vi.mock("@agenta/playground", async (importOriginal) => {
     }
 })
 
-vi.mock("@agenta/entities/session", async () => {
+vi.mock("@agenta/entities/session", async (importOriginal) => {
     const {atom} = await import("jotai")
+    // Spread the real module: the fresh-session registry lives here now and these tests drive it
+    // directly (`markSessionFresh`), so a mock that only lists the atoms below would drop it.
+    const actual = await importOriginal<typeof import("@agenta/entities/session")>()
     return {
+        ...actual,
         revalidateSessionMountsAtom: atom(null, () => {}),
         revalidateSessionRecordsAtom: atom(null, () => {}),
         // The hydration seam's records fetch: "no server history" for these tests.
@@ -42,6 +46,7 @@ vi.mock("@agenta/entities/session", async () => {
 vi.mock("@agenta/entities/trace", () => ({
     markTraceAsFresh: vi.fn(),
 }))
+
 
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
 import {markSessionFresh} from "../../../src/state/sessionEphemera"

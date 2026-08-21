@@ -1,9 +1,9 @@
+import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import type {IStepResponse} from "@/oss/lib/evaluations"
-import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import type {PreviewTestCase} from "@/oss/lib/Types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"

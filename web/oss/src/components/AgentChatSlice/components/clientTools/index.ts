@@ -6,4 +6,3 @@
 export {default as ClientToolPart, type ClientToolOutputHandler} from "./ClientToolPart"
 export {clientToolMeta, isClientToolPart, clientToolName} from "./meta"
 export {hasClientToolHandler, resolveClientToolHandler} from "./registry"
-export type {ClientToolMeta, ClientToolHandlerProps} from "./types"

@@ -14,12 +14,9 @@ import type {ReactNode} from "react"
  */
 
 /** The rail column's frame. Transparent now — the sections are the cards, and a card inside a
- * card was exactly the "one monolithic block" problem. The cap (`max-h-full min-h-0`) lives here,
- * not at call sites: without it {@link PanelScroll} grows with its content and never scrolls. */
+ * card was exactly the "one monolithic block" problem. */
 export const PanelSurface = ({children, className}: {children: ReactNode; className?: string}) => (
-    <div className={`box-border flex max-h-full min-h-0 flex-col ${className ?? ""}`}>
-        {children}
-    </div>
+    <div className={`box-border ${className ?? ""}`}>{children}</div>
 )
 
 /**
@@ -87,8 +84,12 @@ export const PanelSection = ({
                 isRail
                     ? // Each section is its own card. Stacked inside one, they read as a single
                       // block: same surface, same colour, a hairline carrying every boundary.
-                      // `overflow-clip`, not `-hidden`: hidden makes this the sticky header's
-                      // scroll ancestor, so it never pins against PanelScroll.
+                      //
+                      // `overflow-clip`, not `overflow-hidden`: both round the corners, but
+                      // `hidden` also makes the section a scroll container, and a sticky header
+                      // then pins to a box that never scrolls — i.e. `sticky` silently does
+                      // nothing. `clip` establishes no scrollport, so the header pins to the
+                      // real scroller ({@link PanelScroll}) as intended.
                       "shrink-0 overflow-clip rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated"
                     : ""
             } ${minHeightClassName ?? ""}`}

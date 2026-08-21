@@ -8,6 +8,7 @@
  */
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/chat/skin"
 import {
     SchemaForm,
     type SchemaFormHandle,
@@ -30,15 +31,14 @@ import {
 } from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {ShortcutHint} from "@agenta/ui/rich-chat-input"
+import {Button, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
-import {Button, Form, Typography} from "antd"
+// DELIBERATE RESIDUE — antd `Form` stays: it is SchemaForm's cross-package state engine
+// (registration, rules, useWatch); see the matching note in @agenta/entity-ui SchemaForm.
+import {Form} from "antd"
 import dayjs from "dayjs"
 
 import {canonicalToolName, resolveToolDisplay} from "../../assets/toolDisplay"
-
-import type {ClientToolHandlerProps} from "./types"
-
-const {Text} = Typography
 
 /** ElicitationResult → the settle channel's Record shape (interfaces carry no index signature). */
 const toOutput = (result: ElicitationResult) => ({...result}) as Record<string, unknown>
@@ -58,9 +58,13 @@ const Chip = ({
 }) => (
     <div className="flex min-w-0 items-center gap-2 py-1">
         {icon}
-        <Text type={tone === "warning" ? "warning" : "secondary"} className="!text-xs truncate">
+        <span
+            className={`truncate text-xs ${
+                tone === "warning" ? "text-colorWarning" : "text-colorTextSecondary"
+            }`}
+        >
             {children}
-        </Text>
+        </span>
     </div>
 )
 
@@ -94,21 +98,19 @@ const SubmittedAnswers = ({
                     className={`shrink-0 text-colorTextTertiary transition-transform ${open ? "rotate-90" : ""}`}
                 />
                 <CheckCircle size={13} weight="fill" className="shrink-0 text-colorSuccess" />
-                <Text type="secondary" className="!text-xs truncate">
-                    {message}
-                </Text>
+                <span className="truncate text-xs text-colorTextSecondary">{message}</span>
             </button>
             {answered.length > 0 ? (
                 <HeightCollapse open={open}>
                     <div className="mt-1 flex min-w-0 flex-col gap-1 pl-[21px]">
                         {answered.map((f) => (
                             <div key={f.name} className="flex items-baseline justify-between gap-3">
-                                <Text type="secondary" className="!text-xs shrink-0">
+                                <span className="shrink-0 text-xs text-colorTextSecondary">
                                     {f.label}
-                                </Text>
-                                <Text className="!text-xs max-w-[70%] truncate text-right">
+                                </span>
+                                <span className="max-w-[70%] truncate text-right text-xs text-colorText">
                                     {formatReviewValue(f, content[f.name])}
-                                </Text>
+                                </span>
                             </div>
                         ))}
                     </div>
@@ -352,12 +354,10 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
             <div className="flex items-start gap-2">
                 <Question size={14} weight="fill" className="shrink-0 mt-0.5 text-colorPrimary" />
                 <div className="flex min-w-0 flex-col">
-                    <Text className="!text-xs">{parsed.payload.message}</Text>
+                    <span className="text-xs text-colorText">{parsed.payload.message}</span>
                     {/* Requester attribution (design D-spec); ours goes unnamed, the card IS the ask. */}
                     {subtext ? (
-                        <Text type="secondary" className="!text-xs">
-                            {subtext}
-                        </Text>
+                        <span className="text-xs text-colorTextSecondary">{subtext}</span>
                     ) : null}
                 </div>
             </div>
@@ -392,12 +392,9 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
 
             <div className="flex items-center gap-2">
                 {inStepper ? (
-                    <Button type="primary" onClick={handlePrimaryAction}>
-                        Next
-                    </Button>
+                    <Button onClick={handlePrimaryAction}>Next</Button>
                 ) : (
-                    <Button
-                        type="primary"
+                    <LoadingButton
                         loading={submitting}
                         disabled={!requiredReady}
                         title={
@@ -408,10 +405,10 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                         onClick={handlePrimaryAction}
                     >
                         Accept
-                    </Button>
+                    </LoadingButton>
                 )}
                 <Button
-                    type="text"
+                    variant="ghost"
                     disabled={submitting}
                     onClick={() =>
                         settleAndClear({
@@ -422,7 +419,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                     Decline
                 </Button>
                 <Button
-                    type="text"
+                    variant="ghost"
                     className="ml-auto opacity-60"
                     disabled={submitting}
                     onClick={() =>

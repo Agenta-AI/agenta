@@ -18,15 +18,20 @@ const doc = (ua: string, extra: Record<string, string> = {}) => ({
 })
 
 let savedFlag: string | undefined
+let savedReverseFlag: string | undefined
 
 beforeEach(() => {
     savedFlag = process.env.AGENTA_MOBILE_GATE
+    savedReverseFlag = process.env.AGENTA_MOBILE_REVERSE_GATE
     process.env.AGENTA_MOBILE_GATE = "true"
+    delete process.env.AGENTA_MOBILE_REVERSE_GATE
 })
 
 afterEach(() => {
     if (savedFlag === undefined) delete process.env.AGENTA_MOBILE_GATE
     else process.env.AGENTA_MOBILE_GATE = savedFlag
+    if (savedReverseFlag === undefined) delete process.env.AGENTA_MOBILE_REVERSE_GATE
+    else process.env.AGENTA_MOBILE_REVERSE_GATE = savedReverseFlag
 })
 
 describe("mobile reverse gate middleware", () => {
@@ -34,6 +39,21 @@ describe("mobile reverse gate middleware", () => {
         process.env.AGENTA_MOBILE_GATE = "false"
         const res = middleware(req("/m/", doc(DESKTOP_UA)))
         expect(res.headers.get("location")).toBeNull()
+    })
+
+    it("passes desktop UAs when AGENTA_MOBILE_REVERSE_GATE=false", () => {
+        process.env.AGENTA_MOBILE_REVERSE_GATE = "false"
+        expect(middleware(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBeNull()
+        // An iPad on default Safari settings sends the macOS desktop UA.
+        expect(
+            middleware(req("/m/w/ws1/p/pr1/sessions", doc(DESKTOP_UA))).headers.get("location"),
+        ).toBeNull()
+    })
+
+    it("?view=mobile still sets the opt-in cookie with the reverse gate off", () => {
+        process.env.AGENTA_MOBILE_REVERSE_GATE = "false"
+        const res = middleware(req("/m/?view=mobile", doc(DESKTOP_UA)))
+        expect(res.headers.get("set-cookie") ?? "").toContain("agenta-mobile-optin=1")
     })
 
     it("redirects a desktop UA on a mobile session URL to the desktop equivalent", () => {

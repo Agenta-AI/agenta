@@ -6,6 +6,12 @@
  * its message was silently lost (reproduced live on the 8180 dev stack: "Repro test 1 …" left no
  * session row, no run, no error, while "Repro test 2 …" ran normally).
  */
+import {
+    addPendingSessionOpenAtom,
+    pendingSessionOpensAtom,
+    removePendingSessionOpensAtom,
+    type PendingSessionOpen,
+} from "@agenta/sessions/state"
 import {createStore} from "jotai"
 import {describe, expect, it} from "vitest"
 
@@ -15,12 +21,6 @@ import {
     removeFirstRunSeedAtom,
     type AgentFirstRunSeed,
 } from "./firstRunSeed"
-import {
-    addPendingSessionOpenAtom,
-    pendingSessionOpensAtom,
-    removePendingSessionOpensAtom,
-    type PendingSessionOpen,
-} from "./pendingSessionOpen"
 
 const seed = (over: Partial<AgentFirstRunSeed> = {}): AgentFirstRunSeed => ({
     appId: "app-1",

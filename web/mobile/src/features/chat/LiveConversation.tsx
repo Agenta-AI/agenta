@@ -1,0 +1,240 @@
+import {useEffect, useMemo, useRef} from "react"
+
+import {
+    BOTTOM_FADE_HOVER_HIDE,
+    BOTTOM_FADE_OVERLAY_STYLE,
+    EDGE_FADE_MASK,
+} from "@agenta/chat/assets"
+import {useAgentConversation} from "@agenta/chat/hooks"
+import {getPendingApprovals} from "@agenta/chat/model"
+import {AgentIntroCard} from "@agenta/entity-ui/agent"
+import {Button} from "@agenta/ui/ui"
+import {useSetAtom} from "jotai"
+
+import {ContentRail} from "@/components/ContentRail"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {StatusTag} from "@/components/StatusTag"
+
+import {takePendingTaskAtom} from "../home/pendingTask"
+import {AppShell} from "../nav/AppShell"
+
+import {ApprovalDock} from "./ApprovalDock"
+import {Composer} from "./Composer"
+import {ChatLoading} from "./states/ChatStates"
+import {StopButton} from "./StopButton"
+import {TurnRow} from "./TurnRow"
+import {TurnStatusLine} from "./TurnStatusLine"
+import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
+import {useSessionWatch} from "./useSessionWatch"
+import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
+
+/**
+ * The LIVE conversation screen — the same engine the desktop chat runs on
+ * (`useAgentConversation`: transport, streaming, hydration from records, localStorage cache,
+ * queue, approvals, persistence), with mobile's skin: TurnRow transcript, the bottom approval
+ * dock, and the pinned composer. Mount with `key={sessionId}`.
+ *
+ * Approvals route through the ENGINE (approve/deny ride the stream transport and auto-resume,
+ * for live and restored gates alike — desktop parity). Steer (deny + redirect note) keeps
+ * mobile's detached resume path; after it fires, the records change and the watch relay's
+ * `revalidate()` folds the resumed turn in.
+ */
+export const LiveConversation = ({
+    entityId,
+    sessionId,
+    projectId,
+    workspaceId,
+    running,
+    agentId,
+    embedded = false,
+}: {
+    entityId: string
+    sessionId: string
+    projectId: string
+    workspaceId: string
+    /** Backend liveness (cross-device) — shows the running strip even when this device idles. */
+    running: boolean
+    /** Scopes the session tab rail to this agent's sessions. */
+    agentId?: string | null
+    /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
+    embedded?: boolean
+}) => {
+    const conversation = useAgentConversation({entityId, sessionId})
+
+    // A task started from Home lands here as a stashed message: the session did not exist when
+    // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
+    // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
+    // until hydration settles, or the engine would send into a transcript it is still filling.
+    // The guard holds the SESSION it fired for, not a bare flag: this component survives a
+    // session switch, and a flag would swallow the next session's stashed task.
+    const takePendingTask = useSetAtom(takePendingTaskAtom)
+    const sentPendingTaskFor = useRef<string | null>(null)
+    const {isHydrating, send} = conversation
+    useEffect(() => {
+        if (sentPendingTaskFor.current === sessionId || isHydrating) return
+        const task = takePendingTask(sessionId)
+        if (!task) return
+        sentPendingTaskFor.current = sessionId
+        void send({text: task.text, parts: task.parts})
+    }, [isHydrating, send, sessionId, takePendingTask])
+
+    // Push-invalidation: a records change (another device's turn, a steer resume) folds into
+    // the engine's transcript under its adopt guards.
+    const watch = useSessionWatch({sessionId, projectId, onRecordsChanged: conversation.revalidate})
+    // The watch relay is the primary cross-device signal; when it cannot connect, fall back to a
+    // slow revalidate poll only while the backend says the session is running elsewhere.
+    useEffect(() => {
+        if (watch.connected || !running) return
+        const timer = setInterval(() => conversation.revalidate(), 7_500)
+        return () => clearInterval(timer)
+    }, [watch.connected, running, conversation.revalidate])
+
+    // The engine's own dock latches the shown set; the mobile dock renders the raw pending list
+    // (same source function, same index-0 ordering) and acts through the engine.
+    const pendingApprovals = useMemo(
+        () => getPendingApprovals(conversation.messages),
+        [conversation.messages],
+    )
+    // Steer keeps the detached resume dispatcher; plain approve/deny go through the engine.
+    const steerActions = useApprovalActions({
+        sessionId,
+        projectId,
+        pendingApprovalIds: useMemo(
+            () => pendingApprovals.map((approval) => approval.approvalId),
+            [pendingApprovals],
+        ),
+    })
+    const approvalActions: ApprovalActions = useMemo(
+        () => ({
+            phase: conversation.approvals.responding ? "resuming" : steerActions.phase,
+            errorText: steerActions.errorText,
+            respond: ({approved, message, approvalId}) => {
+                if (message) {
+                    steerActions.respond({approvalId, approved, message})
+                    return
+                }
+                conversation.approvals.respond(approved)
+            },
+            approveAll: () => conversation.approvals.approveAll(),
+        }),
+        [conversation.approvals, steerActions],
+    )
+
+    // The auto-scroll effect keys on IDENTITY, so a fresh array every render would re-pin the
+    // transcript on renders that changed nothing about it (a watch reconnect, a steer phase).
+    // Memoized, it re-pins exactly when the turns actually change.
+    const visibleTurns = useMemo(
+        () => conversation.turns.filter((turn) => !turn.hidden),
+        [conversation.turns],
+    )
+    const autoScroll = useTranscriptAutoScroll(visibleTurns)
+
+    const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+
+    let body
+    if (conversation.isHydrating) {
+        body = <ChatLoading />
+    } else {
+        body = (
+            <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                {conversation.isEmpty ? (
+                    // The SAME card the desktop shows a conversation with no messages: who you are
+                    // about to talk to. A blank session is not an error state — /m rendered nothing
+                    // here, and for a freshly minted one it claimed the history was unavailable,
+                    // which is a different and much more alarming thing to say.
+                    <div className="m-auto w-full max-w-[420px]">
+                        <AgentIntroCard entityId={entityId} />
+                        {conversation.historyUnavailable ? (
+                            <p className="text-muted-foreground mt-3 text-center text-xs">
+                                This session&apos;s earlier messages are no longer stored. New
+                                messages still work.
+                            </p>
+                        ) : null}
+                    </div>
+                ) : null}
+                {visibleTurns.map((turn) => (
+                    <TurnRow key={turn.message.id} turn={turn} />
+                ))}
+                <TurnStatusLine
+                    working={streamingHere || running}
+                    waitingForInput={pendingApprovals.length > 0}
+                />
+            </ContentRail>
+        )
+    }
+
+    const scaffold = (
+        <ScreenScaffold
+            scrollRef={autoScroll.ref}
+            onScroll={autoScroll.onScroll}
+            embedded={embedded}
+            // The top edge fades as a MASK, exactly as the desktop transcript does — content
+            // dissolves under the tab bar instead of being cut by a hard line.
+            scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
+            header={
+                <>
+                    {running || streamingHere ? (
+                        <div className="border-border shrink-0 border-b px-4 py-2">
+                            <ContentRail className="flex items-center justify-between">
+                                <StatusTag tone="running" dot>
+                                    running
+                                </StatusTag>
+                                {streamingHere ? (
+                                    <Button
+                                        variant="outline"
+                                        className="min-h-8"
+                                        onClick={conversation.stop}
+                                    >
+                                        Stop
+                                    </Button>
+                                ) : (
+                                    <StopButton sessionId={sessionId} projectId={projectId} />
+                                )}
+                            </ContentRail>
+                        </div>
+                    ) : null}
+                </>
+            }
+            footer={
+                <div className="relative">
+                    {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
+                        would fade any hover toolbar that scrolls into the band, and no z-index
+                        escapes an ancestor's mask — the desktop learned this the same way. It sits
+                        above the footer and is dropped while a turn is hovered. */}
+                    <div
+                        aria-hidden
+                        className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
+                        style={BOTTOM_FADE_OVERLAY_STYLE}
+                    />
+                    {pendingApprovals.length > 0 ? (
+                        <ApprovalDock
+                            approvals={pendingApprovals}
+                            actions={approvalActions}
+                            entityId={entityId}
+                            bottomMost={false}
+                        />
+                    ) : null}
+                    <Composer
+                        sessionId={sessionId}
+                        onSend={({text, parts}) => conversation.send({text, parts})}
+                        disabled={conversation.isHydrating}
+                        waitingOnUser={pendingApprovals.length > 0}
+                        streaming={streamingHere}
+                        onStop={conversation.stop}
+                    />
+                </div>
+            }
+        >
+            {body}
+        </ScreenScaffold>
+    )
+
+    // Embedded: the workspace owns the shell and the pane geometry.
+    return embedded ? (
+        scaffold
+    ) : (
+        <AppShell workspaceId={workspaceId} projectId={projectId}>
+            {scaffold}
+        </AppShell>
+    )
+}

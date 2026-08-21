@@ -3,11 +3,11 @@
  * a part is a client tool the playground must fulfill (vs an ordinary server tool or an approval
  * gate, which `ToolActivity` owns).
  */
+import type {ClientToolMeta} from "@agenta/chat/skin"
 import {renderKindFor, type RenderHintLike} from "@agenta/playground"
 import type {ToolUIPart} from "ai"
 
 import {hasClientToolHandler} from "./registry"
-import type {ClientToolMeta} from "./types"
 
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 const APPROVAL = new Set(["approval-requested", "approval-responded"])

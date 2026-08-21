@@ -15,6 +15,13 @@ export interface LastContext {
     projectId: string
 }
 
+/**
+ * Where a resolved context lands. The one place the mobile "project home" route is spelled
+ * out — the root resolver and every `/w/...` index gate forward here.
+ */
+export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
+
 export function writeLastContext(context: LastContext): void {
     try {
         localStorage.setItem(LAST_CONTEXT_KEY, JSON.stringify(context))
@@ -75,7 +82,16 @@ const projectRowSchema = z.object({
     project_name: z.string(),
     workspace_id: z.string().nullish(),
     workspace_name: z.string().nullish(),
+    // The switcher names the ORGANIZATION, as the desktop rail does. Every project in this
+    // account sits in one workspace called "Default", so labelling by workspace showed
+    // "Default" where the desktop showed the org.
+    organization_id: z.string().nullish(),
+    organization_name: z.string().nullish(),
     is_demo: z.boolean().nullish(),
+    // Only the settings list reads these two; every other consumer ignores them. They stay
+    // optional because the schema is a drift check, not a contract we want to fail on.
+    user_role: z.string().nullish(),
+    is_default_project: z.boolean().optional(),
 })
 
 export type MobileProject = z.infer<typeof projectRowSchema>

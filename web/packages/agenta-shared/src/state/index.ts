@@ -5,6 +5,11 @@
 export {projectIdAtom, setProjectIdAtom} from "./project"
 export {sessionAtom, setSessionAtom} from "./session"
 export {userAtom, setUserAtom} from "./user"
+export {
+    activeUserIdAtom,
+    agentVoiceInputEnabledAtom,
+    playgroundInspectorEnabledAtom,
+} from "./featureFlags"
 export {simulatedAgentRunAtomFamily} from "./simulatedAgentRun"
 export type {SimulatedAgentRunRequest} from "./simulatedAgentRun"
 export {openAgentConfigSectionAtom} from "./openConfigSection"
@@ -36,3 +41,6 @@ export {stringStorage} from "./stringStorage"
 
 // Boot-phase idle gate for non-critical bootstrap queries
 export {idleReadyAtom} from "./idleReady"
+
+// One shared minute clock for relative timestamps
+export {nowTickAtom} from "./nowTick"

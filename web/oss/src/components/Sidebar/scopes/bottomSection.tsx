@@ -1,5 +1,7 @@
 import {useCallback, useMemo, type MouseEvent} from "react"
 
+import {buildHelpDocsNavItem, buildInviteTeammateNavItem} from "@agenta/navigation"
+import type {SidebarConfig, SidebarSection} from "@agenta/navigation"
 import {GithubFilled} from "@ant-design/icons"
 import {
     ChatCircleIcon,
@@ -21,8 +23,6 @@ import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {openWidgetAtom} from "@/oss/lib/onboarding"
 import {useOrgData} from "@/oss/state/org"
-
-import type {SidebarConfig, SidebarSection} from "../engine/types"
 
 interface SidebarBottomSectionOptions {
     includeSettingsLink?: boolean
@@ -76,15 +76,12 @@ export const useSidebarBottomSection = ({
     )
 
     const inviteItem = useMemo<SidebarConfig>(
-        () => ({
-            key: "invite-teammate-link",
-            title: "Invite Teammate",
-            link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
-            icon: <PaperPlaneIcon size={14} />,
-            tooltip: "Invite Teammate",
-            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
-            disabled: !hasProjectURL,
-        }),
+        () =>
+            buildInviteTeammateNavItem({
+                projectURL: hasProjectURL ? projectURL : "",
+                icon: <PaperPlaneIcon size={14} />,
+                isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
+            }),
         [canInviteMembers, doesSessionExist, hasProjectURL, projectURL, selectedOrg],
     )
 
@@ -102,44 +99,25 @@ export const useSidebarBottomSection = ({
                 isHidden: !SHOW_GET_STARTED_GUIDE || !doesSessionExist,
                 onClick: handleOpenWidget,
             },
-            {
-                key: "help-docs-link",
-                title: "Help & Docs",
-                icon: <QuestionIcon size={14} />,
+            // The four destinations are shared with the mobile drawer; Live Chat needs Crisp,
+            // so it rides in as an extra rather than being reproduced there.
+            buildHelpDocsNavItem({
+                icons: {
+                    help: <QuestionIcon size={14} />,
+                    docs: <ScrollIcon size={14} />,
+                    github: <GithubFilled style={{fontSize: 14}} />,
+                    slack: <SlackLogoIcon size={14} />,
+                    bookCall: <PhoneIcon size={14} />,
+                },
+                // Live Chat relocates here from a standalone row; keep the divider only when it
+                // will actually render (demo + Crisp), else it dangles.
+                dividerAfterBookCall: isDemo() && isCrispEnabled,
                 suffix: version ? (
                     <span className="text-[12px] leading-none text-colorTextTertiary">
                         v{version}
                     </span>
                 ) : undefined,
-                submenu: [
-                    {
-                        key: "docs",
-                        title: "Documentation",
-                        link: "https://agenta.ai/docs/",
-                        icon: <ScrollIcon size={14} />,
-                        divider: true,
-                    },
-                    {
-                        key: "github-support",
-                        title: "GitHub Support",
-                        link: "https://github.com/Agenta-AI/agenta/issues",
-                        icon: <GithubFilled style={{fontSize: 14}} />,
-                    },
-                    {
-                        key: "slack-connect",
-                        title: "Slack Support",
-                        link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
-                        icon: <SlackLogoIcon size={14} />,
-                    },
-                    {
-                        key: "book-call",
-                        title: "Book a call",
-                        link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
-                        icon: <PhoneIcon size={14} />,
-                        // Live Chat relocates here from a standalone row; keep the divider only
-                        // when it will actually render (demo + Crisp), else it dangles.
-                        divider: isDemo() && isCrispEnabled,
-                    },
+                extraItems: [
                     {
                         key: "support-chat-link",
                         title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
@@ -148,7 +126,7 @@ export const useSidebarBottomSection = ({
                         onClick: handleToggleSupport,
                     },
                 ],
-            },
+            }),
         ],
         [
             doesSessionExist,

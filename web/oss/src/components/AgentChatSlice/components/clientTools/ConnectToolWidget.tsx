@@ -2,14 +2,17 @@
  * Connect widget — the `request_connection` / `render.kind: "connect"` client tool (#4920).
  *
  * The agent asked for a connection it lacks (e.g. GitHub). While the call is PARKED, this inline
- * row owns the Connect / Not now actions. The InteractionDock remains a shortcut back to it.
+ * row is a passive marker only — the actions (Connect / Not now / Cancel) live in the
+ * InteractionDock in the composer region, mirroring ApprovalDock's "dock acts, inline marks"
+ * contract, so the paused run can never scroll out of reach and always has an escape hatch.
  *
  * After the call settles this row owns the result UX (U1) — an inline status chip in the same
  * visual language as approve/deny: "GitHub connected" ✓, or "Connection not completed" + Retry
  * (which re-runs the OAuth via the shared `useConnectFlow`, priming the vault for the agent's
  * re-ask — the settled part itself can't be re-resolved).
  */
-import {isInteractionEndedOutput} from "@agenta/shared/clientTools"
+import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/chat/skin"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
     CheckCircle,
@@ -18,12 +21,8 @@ import {
     Spinner,
     Warning,
 } from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
 
-import type {ClientToolHandlerProps} from "./types"
-import {settledFailureChip, useConnectFlow, type ConnectOutput} from "./useConnectFlow"
-
-const {Text} = Typography
+import {useConnectFlow, type ConnectOutput} from "./useConnectFlow"
 
 /**
  * The runner parks only ONE interaction per turn; a second `request_connection` in the same step is
@@ -33,19 +32,14 @@ const {Text} = Typography
  */
 const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 
+/** Non-error terminal reasons (see `ConnectOutput.reason`): render generic wording for
+ * these; any other `reason` is a real failure message and must be shown verbatim — a
+ * create failure was previously settling silently with no error surfaced at all. */
+const KNOWN_CONNECT_REASONS = new Set(["declined", "cancelled", "timeout"])
+
 const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
-    const {
-        label,
-        phase,
-        errorText,
-        errorRetryable,
-        outcome,
-        manuallyConnected,
-        modeResolving,
-        runConnect,
-        cancel,
-        decline,
-    } = useConnectFlow(meta, settle)
+    const {label, phase, errorText, outcome, manuallyConnected, modeResolving, runConnect, cancel} =
+        useConnectFlow(meta, settle)
 
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
     // connection failure); see DEFERRED_SENTINEL.
@@ -59,10 +53,8 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     if (phase === "connecting") {
         return (
             <ChipRow icon={<Spinner size={13} className="animate-spin text-colorPrimary" />}>
-                <Text type="secondary" className="!text-xs">
-                    Connecting {label}…
-                </Text>
-                <Button type="text" onClick={cancel} className="!px-2">
+                <span className="text-xs text-colorTextSecondary">Connecting {label}…</span>
+                <Button variant="ghost" size="sm" onClick={cancel} className="px-2">
                     Cancel
                 </Button>
             </ChipRow>
@@ -72,21 +64,12 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     // ── Settled: the result chip (U1). `outcome` covers the render before `meta.settled` flips. ──
     if (meta.settled || outcome) {
         const output = (meta.output ?? {}) as ConnectOutput
-        if (isInteractionEndedOutput(meta.output)) {
-            return (
-                <ChipRow icon={<Plugs size={13} className="text-colorTextTertiary" />}>
-                    <Text type="secondary" className="!text-xs !text-colorTextTertiary">
-                        Connection request ended
-                    </Text>
-                </ChipRow>
-            )
-        }
         if (manuallyConnected || output.connected === true || outcome?.connected === true) {
             return (
                 <ChipRow
                     icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
                 >
-                    <Text className="!text-xs">{label} connected</Text>
+                    <span className="text-xs text-colorText">{label} connected</span>
                 </ChipRow>
             )
         }
@@ -95,16 +78,18 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         if (deferredByRunner) {
             return (
                 <ChipRow icon={<Hourglass size={13} className="text-colorTextTertiary" />}>
-                    <Text type="secondary" className="!text-xs !text-colorTextTertiary">
-                        Connecting {label} next…
-                    </Text>
+                    <span className="text-xs text-colorTextTertiary">Connecting {label} next…</span>
                 </ChipRow>
             )
         }
-        // Declined / cancelled / timeout get quiet generic wording; any other reason is the create
-        // call's own failure message and is shown verbatim. This branch is the one a parked card
-        // takes, the only one that survives a reload, and the only one a post-settle retry reaches.
-        const {failureDetail, retryable: settledRetryable} = settledFailureChip(outcome, output)
+        // Declined / cancelled / timeout: quiet generic wording — these are expected, not
+        // errors. Any other reason is the create call's own failure message and must be
+        // shown, not swallowed behind the same generic text (it previously was).
+        const reason = outcome?.reason ?? output.reason
+        const failureDetail =
+            typeof reason === "string" && reason && !KNOWN_CONNECT_REASONS.has(reason)
+                ? reason
+                : undefined
         return (
             <ChipRow
                 icon={
@@ -115,18 +100,15 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                     />
                 }
             >
-                <Text
-                    type={failureDetail ? "danger" : "secondary"}
-                    className="!text-xs truncate"
+                <span
+                    className={`truncate text-xs ${
+                        failureDetail ? "text-colorError" : "text-colorTextSecondary"
+                    }`}
                     title={failureDetail}
                 >
                     {failureDetail ?? "Connection not completed"}
-                </Text>
-                {/* No Retry for a duplicate: repeating the create can only 409 again, and the call
-                    is already settled so there is nothing else to act on. */}
-                {settledRetryable ? (
-                    <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
-                ) : null}
+                </span>
+                <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
         )
     }
@@ -135,39 +117,19 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     if (phase === "error") {
         return (
             <ChipRow icon={<Warning size={13} weight="fill" className="text-colorError" />}>
-                <Text type="danger" className="!text-xs truncate" title={errorText ?? undefined}>
+                <span className="truncate text-xs text-colorError" title={errorText ?? undefined}>
                     {errorText ?? "Connection failed."}
-                </Text>
-                <div className="ml-auto flex items-center gap-1.5">
-                    <Button type="text" size="small" onClick={decline}>
-                        Not now
-                    </Button>
-                    {/* A duplicate-connection failure can only repeat, so Retry is not offered. */}
-                    {errorRetryable ? (
-                        <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
-                    ) : null}
-                </div>
+                </span>
+                <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
         )
     }
 
+    // ── Pending: passive marker — the InteractionDock (above the composer) owns the actions ──────
     return (
         <ChipRow icon={<Plugs size={13} className="text-colorPrimary" />}>
-            <Text className="!text-xs">Connect {label}</Text>
-            <div className="ml-auto flex items-center gap-1.5">
-                <Button type="text" size="small" onClick={decline}>
-                    Not now
-                </Button>
-                <Button
-                    type="primary"
-                    size="small"
-                    disabled={modeResolving}
-                    title={modeResolving ? "Checking how this toolkit connects…" : undefined}
-                    onClick={() => runConnect(true)}
-                >
-                    Connect {label}
-                </Button>
-            </div>
+            <span className="text-xs text-colorText">Connect {label}</span>
+            <span className="text-xs text-colorTextTertiary">waiting for your response below</span>
         </ChipRow>
     )
 }
@@ -181,13 +143,8 @@ const ChipRow = ({icon, children}: {icon: React.ReactNode; children: React.React
 )
 
 const RetryButton = ({onClick, disabled}: {onClick: () => void; disabled?: boolean}) => (
-    <Button
-        type="text"
-        onClick={onClick}
-        disabled={disabled}
-        icon={<ArrowClockwise size={13} />}
-        className="!px-2"
-    >
+    <Button variant="ghost" size="sm" onClick={onClick} disabled={disabled} className="px-2">
+        <ArrowClockwise size={13} />
         Retry
     </Button>
 )

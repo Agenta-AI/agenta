@@ -1,4 +1,4 @@
-import {Bubble} from "@ant-design/x"
+import {ChatBubble} from "@agenta/ui/components/presentational"
 import {type UIMessage} from "ai"
 
 import OnboardingBrowseTemplates from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingBrowseTemplates"
@@ -25,6 +25,7 @@ const TranscriptPlaceholder = ({
     isHydrating,
     hydratedEmpty,
     firstRunPrompt,
+    showTemplateStrip,
     canStart,
     onStart,
     onPrefill,
@@ -40,6 +41,8 @@ const TranscriptPlaceholder = ({
     isHydrating: boolean
     hydratedEmpty: boolean
     firstRunPrompt: string | null
+    /** The composer-docked template strip is rendering — the empty state drops its starter pills. */
+    showTemplateStrip: boolean
     canStart: boolean
     onStart: (text: string) => void | Promise<void>
     onPrefill: (text: string) => void
@@ -59,7 +62,7 @@ const TranscriptPlaceholder = ({
                     onRewind={onRewind}
                     onClientToolOutput={onClientToolOutput}
                 />
-                <Bubble placement="start" variant="borderless" loading content="" />
+                <ChatBubble placement="start" variant="borderless" loading />
             </MessageRow>
         )
     }
@@ -76,6 +79,7 @@ const TranscriptPlaceholder = ({
             entityId={entityId}
             onStart={onStart}
             firstRunPrompt={firstRunPrompt}
+            showTemplateStrip={showTemplateStrip}
             canStart={canStart}
             onboarding={onboardingActive}
             onPrefill={onPrefill}

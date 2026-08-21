@@ -8,11 +8,12 @@
  *
  * The chrome (antd, SchemaForm, icons) is mocked — this is about the settle channel, not layout.
  */
+
 import {act} from "react"
 
+import type {ClientToolMeta, SettleClientTool} from "@agenta/chat/skin"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-
 vi.mock("@agenta/entity-ui/gatewayTool", () => ({
     SchemaForm: () => <div />,
     formatReviewValue: (_field: unknown, value: unknown) => String(value),
@@ -55,13 +56,10 @@ vi.mock("@agenta/ui/rich-chat-input", () => ({
     ShortcutHint: () => <span />,
 }))
 
-vi.mock("@phosphor-icons/react", () => ({
-    CaretRight: () => <i />,
-    CheckCircle: () => <i />,
-    Prohibit: () => <i />,
-    Question: () => <i />,
-    Warning: () => <i />,
-    XCircle: () => <i />,
+// Spread the real module rather than hand-listing icons: this widget's tree pulls in new ones as
+// the packages it renders grow, and a missing name fails the whole FILE, not just one assertion.
+vi.mock("@phosphor-icons/react", async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
 }))
 
 vi.mock("antd", () => {
@@ -94,7 +92,6 @@ vi.mock("../../assets/toolDisplay", () => ({
 }))
 
 import ElicitationWidget from "./ElicitationWidget"
-import type {ClientToolMeta, SettleClientTool} from "./types"
 
 const META = {
     toolCallId: "call-1",

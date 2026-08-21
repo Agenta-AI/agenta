@@ -1,6 +1,8 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
+import AppMessageContext from "@agenta/ui/app-message"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
@@ -27,7 +29,6 @@ import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
-import {SETTINGS_SIDEBAR_SCOPE_ID} from "../Sidebar/scopes/constants"
 import {resolveSidebarLastPath} from "../Sidebar/scopes/sidebarLastPath"
 import {resolveSidebarView} from "../Sidebar/scopes/viewRegistry"
 import type {SidebarView} from "../Sidebar/types"
@@ -65,11 +66,6 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isAnnotations = pathname.includes("/annotations")
     const isRegistry = pathname.includes("/variants")
     const isObservability = pathname.includes("/observability") || pathname.includes("/traces")
-    // The Audit Log settings tab hosts a full-height InfiniteVirtualTable.
-    // Scoped to the `tab` query param so other settings tabs keep the default
-    // (content-flow) layout.
-    const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab
-    const isAuditLog = pathname.includes("/settings") && tab === "auditLog"
     // The agent-templates gallery has its own fixed header + rail with an
     // internally-scrolling card grid, so it needs the bounded full-height frame.
     const isAgentTemplates = pathname.includes("/agent-templates")
@@ -93,7 +89,6 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAnnotations ||
             isRegistry ||
             isObservability ||
-            isAuditLog ||
             isAgentTemplates ||
             isAgents ||
             isSessions ||
@@ -437,6 +432,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     return (
         <>
             <PostHogThemeCapture />
+            <AppMessageContext />
             {typeof window === "undefined" ? null : isAuthRoute ? (
                 <Layout className={classes.layout}>
                     <ErrorBoundary FallbackComponent={ErrorFallback}>

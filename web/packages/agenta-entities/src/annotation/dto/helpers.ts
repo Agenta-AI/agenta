@@ -1,0 +1,213 @@
+import type {AnnotationDto} from "./types"
+
+export interface GroupedOutputs {
+    metrics: Record<string, number | boolean>
+    notes: Record<string, string>
+    extra: Record<string, unknown>
+}
+
+export interface AnnotationMetricValue {
+    value: number | boolean
+    user: string
+}
+
+export interface AggregatedAnnotationMetric {
+    average?: number
+    latest?: boolean
+    annotations: AnnotationMetricValue[]
+}
+
+/** evaluator slug → metric name → aggregate */
+export type AggregatedEvaluatorMetrics = Record<string, Record<string, AggregatedAnnotationMetric>>
+
+export interface AnnotationAttachments {
+    annotations: AnnotationDto[]
+    aggregatedEvaluatorMetrics: AggregatedEvaluatorMetrics
+}
+
+/**
+ * Generates a formatted span UUID string from an annotation object.
+ *
+ * Extracts the trace_id and span_id from the annotation's links.invocation property, formats the trace ID as 'xxxxxxxx-xxxx-xxxx',
+ * and the span ID as 'xxxx-xxxxxxxxxxxx'. Returns the combined string in the format:
+ *   'f0245be0-780e-ae9f-33f1-ff4651d9375e'
+ *
+ * @param annotation - The AnnotationDto object containing the trace and span IDs.
+ * @returns The formatted span UUID string.
+ */
+export const spanUuidFromAnnotation = (annotation: AnnotationDto) => {
+    const annotationSpanId = annotation.links?.invocation?.span_id
+    // "33f1ff4651d9375a" to "33f1-ff4651d9375e"
+    const spanUuidPart = `${annotationSpanId?.slice(0, 4)}-${annotationSpanId?.slice(4)}`
+
+    function splitId(id: string): string {
+        // Take the last 16 characters as the "interesting" part
+        const last16 = id.slice(-16)
+        const part1 = last16.slice(0, 8)
+        const part2 = last16.slice(8, 12)
+        const part3 = last16.slice(12, 16)
+        // If the ID is shorter than expected, handle gracefully
+        return [part1, part2, part3].filter(Boolean).join("-")
+    }
+
+    // turn an id like 442d8202a01bfe43f0245be0780eae9f into 3 parts such as f0245be0-780e-ae9f
+    const annotationTraceId = annotation.links?.invocation?.trace_id
+    const tracePart = splitId(annotationTraceId || "")
+
+    return `${tracePart}-${spanUuidPart}`
+}
+
+export const groupOutputValues = (outputs: Record<string, unknown>): GroupedOutputs => {
+    const grouped: GroupedOutputs = {
+        metrics: {},
+        notes: {},
+        extra: {}, // we need the other data type info to add those in the endpoint when updating annotations
+    }
+
+    function recurse(obj: Record<string, unknown>) {
+        for (const [key, value] of Object.entries(obj)) {
+            if (value === null) continue
+
+            if (typeof value === "number" || typeof value === "boolean") {
+                grouped.metrics[key] = value
+            } else if (typeof value === "string") {
+                grouped.notes[key] = value
+            } else {
+                grouped.extra[key] = value
+            }
+        }
+    }
+
+    recurse(outputs)
+    return grouped
+}
+
+/**
+ * Groups annotations by evaluator slug and aggregates their metric values.
+ *
+ * For each annotation, this function groups metrics by the evaluator slug name and metric name.
+ * Then, based on the value type of the metric:
+ *   - If the values are all numbers, it calculates the average.
+ *   - If the values are all booleans, it takes the latest (last) boolean value.
+ *
+ * Only metrics with number or boolean values are considered. Each metric record also retains the
+ * original annotation values along with the user who created them.
+ *
+ * @param annotations - The list of annotation objects to process.
+ * @returns An object where keys are evaluator slug names, and values are objects mapping each
+ *          metric name to either:
+ *            - { average, annotations } for number metrics
+ *            - { latest, annotations } for boolean metrics
+ */
+export const groupAnnotationsByReferenceId = (
+    annotations: AnnotationDto[],
+): AggregatedEvaluatorMetrics => {
+    const grouped: Record<string, Record<string, {values: AnnotationMetricValue[]}>> = {}
+
+    for (const annotation of annotations) {
+        const evaluatorSlot = annotation.references?.evaluator?.slug
+        if (!evaluatorSlot) continue
+
+        if (!grouped[evaluatorSlot]) {
+            grouped[evaluatorSlot] = {}
+        }
+
+        const rawMetrics = annotation.data?.outputs?.metrics
+        const metrics: Record<string, unknown> =
+            rawMetrics && typeof rawMetrics === "object" && !Array.isArray(rawMetrics)
+                ? rawMetrics
+                : {}
+        for (const [metricName, value] of Object.entries(metrics)) {
+            if (typeof value !== "number" && typeof value !== "boolean") continue
+
+            if (!grouped[evaluatorSlot][metricName]) {
+                grouped[evaluatorSlot][metricName] = {values: []}
+            }
+
+            grouped[evaluatorSlot][metricName].values.push({
+                value,
+                user: annotation.createdBy || "",
+            })
+        }
+    }
+
+    // Final processing
+    const result: AggregatedEvaluatorMetrics = {}
+
+    for (const [evaluatorSlot, metricsGroup] of Object.entries(grouped)) {
+        result[evaluatorSlot] = {}
+
+        for (const [metricName, metricData] of Object.entries(metricsGroup)) {
+            const {values} = metricData
+            const allNumbers = values.every((v) => typeof v.value === "number")
+            const allBooleans = values.every((v) => typeof v.value === "boolean")
+
+            if (allBooleans) {
+                if (values.length === 1) {
+                    // A single boolean feedback is shown as True/False (color-coded by
+                    // the UI). Averaging one boolean would only produce a meaningless
+                    // "mean 0/1".
+                    result[evaluatorSlot][metricName] = {
+                        latest: values[0].value as boolean,
+                        annotations: values,
+                    }
+                } else {
+                    // Multiple boolean feedbacks fall back to the share that are true.
+                    const total = values.reduce((sum, v) => sum + (v.value ? 1 : 0), 0)
+                    result[evaluatorSlot][metricName] = {
+                        average: parseFloat((total / values.length).toFixed(2)),
+                        annotations: values,
+                    }
+                }
+            } else if (allNumbers) {
+                const total = values.reduce((sum, v) => sum + (v.value as number), 0)
+                const average = total / values.length
+                result[evaluatorSlot][metricName] = {
+                    average: parseFloat(average.toFixed(2)),
+                    annotations: values,
+                }
+            } else {
+                // mixed or unsupported types — skip
+                continue
+            }
+        }
+    }
+
+    return result
+}
+
+interface AnnotatableTrace {
+    invocationIds?: {trace_id?: string; span_id?: string} | null
+    children?: unknown[] | null
+}
+
+export function attachAnnotationsToTraces<T>(
+    traces: T[],
+    annotations: AnnotationDto[] = [],
+): (T & AnnotationAttachments)[] {
+    function attach(trace: T): T & AnnotationAttachments {
+        const node = trace as AnnotatableTrace
+        const invocationIds = node.invocationIds
+
+        const matchingAnnotations = annotations.filter((annotation: AnnotationDto) => {
+            // Check if annotation links to this trace via ANY link key (including "invocation" and dynamic keys like "test-xxx")
+            if (annotation.links && typeof annotation.links === "object") {
+                const linkValues = Object.values(annotation.links)
+                return linkValues.some(
+                    (link) =>
+                        link?.trace_id === (invocationIds?.trace_id || "") &&
+                        link?.span_id === (invocationIds?.span_id || ""),
+                )
+            }
+            return false
+        })
+
+        return {
+            ...trace,
+            annotations: matchingAnnotations,
+            aggregatedEvaluatorMetrics: groupAnnotationsByReferenceId(matchingAnnotations),
+            children: node.children?.map((child) => attach(child as T)),
+        }
+    }
+    return traces.map(attach)
+}

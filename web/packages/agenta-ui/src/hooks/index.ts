@@ -7,3 +7,4 @@
 export {useSelectionState, type UseSelectionStateResult} from "./useSelectionState"
 export {useRunAllShortcut, type UseRunAllShortcutParams} from "./useRunAllShortcut"
 export {useDefaultStoreAtomValue} from "./useDefaultStoreAtomValue"
+export {useMediaQuery, useIsNarrowScreen, NARROW_SCREEN_QUERY} from "./useMediaQuery"

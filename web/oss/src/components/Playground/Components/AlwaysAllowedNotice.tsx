@@ -1,12 +1,11 @@
 import {useEffect, useRef} from "react"
 
+import {useAlwaysAllowTool} from "@agenta/chat/hooks"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
+import {Button} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, ShieldCheck, X} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useAtom} from "jotai"
-
-import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
 
 /**
  * "Always allowed" notice — the draft-blue counterpart of {@link AgentCommitNotice}, pinned to the
@@ -61,23 +60,25 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         <Button
-                            type="text"
-                            className="!h-6 !gap-1 !rounded-md !px-2 !text-xs !font-medium !text-colorPrimary !bg-[color-mix(in_srgb,var(--ag-colorPrimary)_12%,transparent)] hover:!bg-[color-mix(in_srgb,var(--ag-colorPrimary)_22%,transparent)]"
-                            icon={<ArrowCounterClockwise size={12} weight="bold" />}
+                            variant="ghost"
+                            className="h-6 gap-1 rounded-md bg-[color-mix(in_srgb,var(--ag-colorPrimary)_12%,transparent)] px-2 text-xs font-medium text-colorPrimary hover:bg-[color-mix(in_srgb,var(--ag-colorPrimary)_22%,transparent)]"
                             onClick={() => {
                                 if (shown?.toolName) revoke(shown.toolName)
                                 setSignal(null)
                             }}
                         >
+                            <ArrowCounterClockwise size={12} weight="bold" />
                             Undo
                         </Button>
                         <Button
-                            type="text"
+                            variant="ghost"
+                            size="icon-sm"
                             aria-label="Dismiss"
-                            className="!h-6 !w-6 !px-0 !text-colorTextTertiary hover:!bg-colorFillTertiary hover:!text-colorText"
-                            icon={<X size={13} />}
+                            className="h-6 w-6 p-0 text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
                             onClick={() => setSignal(null)}
-                        />
+                        >
+                            <X size={13} />
+                        </Button>
                     </div>
                 </div>
             </div>
