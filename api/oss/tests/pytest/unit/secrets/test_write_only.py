@@ -764,3 +764,51 @@ def test_update_mapping_never_clears_the_flag_on_a_stale_explicit_false():
     stored = json.loads(dbe.data)
     assert stored["write_only"] is True
     assert stored["provider"]["key"] == "sk-rotated-9876543210xyz"
+
+
+# --- the update-path payload type, at every call site ----------------------------------
+
+
+def test_update_call_sites_build_the_update_path_payload():
+    """`UpdateSecretDTO.secret` is `UpdateSecretPayloadDTO`, and pydantic rejects the
+    parent `SecretDTO` there — a caller that builds the parent breaks that write path at
+    runtime, not at import time. This walks the source so a new call site cannot
+    reintroduce the mismatch (it caught webhook secret rotation and SSO provider updates).
+    """
+    import ast
+    from pathlib import Path
+
+    source_roots = [
+        Path(__file__).resolve().parents[5] / "oss" / "src",
+        Path(__file__).resolve().parents[5] / "ee" / "src",
+    ]
+
+    offenders = []
+
+    for root in source_roots:
+        if not root.exists():  # EE is absent in an OSS-only checkout.
+            continue
+
+        for path in root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                if getattr(node.func, "id", None) != "UpdateSecretDTO":
+                    continue
+
+                for keyword in node.keywords:
+                    if keyword.arg != "secret":
+                        continue
+                    if not isinstance(keyword.value, ast.Call):
+                        continue  # a dict or a variable: validated by pydantic as data.
+
+                    built = getattr(keyword.value.func, "id", None)
+                    if built != "UpdateSecretPayloadDTO":
+                        offenders.append(f"{path}:{node.lineno} builds {built}")
+
+    assert not offenders, (
+        "UpdateSecretDTO(secret=...) must be built with UpdateSecretPayloadDTO: "
+        + "; ".join(offenders)
+    )
