@@ -3,6 +3,7 @@ from typing import Any, List, Optional, Union
 from agenta.sdk.agents.tools import (
     BuiltinToolConfig,
     GatewayToolConfig,
+    GatewayToolkitConfig,
     ToolConfigurationError,
     coerce_tool_configs,
 )
@@ -124,10 +125,15 @@ class ToolResolveRequest(BaseModel):
         unsupported = [
             config
             for config in configs
-            if not isinstance(config, (BuiltinToolConfig, GatewayToolConfig))
+            if not isinstance(
+                config,
+                (BuiltinToolConfig, GatewayToolConfig, GatewayToolkitConfig),
+            )
         ]
         if unsupported:
-            raise ValueError("/tools/resolve accepts only builtin and gateway tools")
+            raise ValueError(
+                "/tools/resolve accepts only builtin, gateway, and gateway_toolkit tools"
+            )
         return configs
 
 
