@@ -8,3 +8,13 @@ export {useSelectionState, type UseSelectionStateResult} from "./useSelectionSta
 export {useRunAllShortcut, type UseRunAllShortcutParams} from "./useRunAllShortcut"
 export {useDefaultStoreAtomValue} from "./useDefaultStoreAtomValue"
 export {useMediaQuery, useIsNarrowScreen, NARROW_SCREEN_QUERY} from "./useMediaQuery"
+export {
+    useVisualViewportHeight,
+    hasCoarsePointer,
+    keyboardInset,
+    viewportHeightOverride,
+    COARSE_POINTER_QUERY,
+    KEYBOARD_INSET_MIN_PX,
+    VIEWPORT_HEIGHT_VAR,
+    type VisualViewportSample,
+} from "./useVisualViewport"
