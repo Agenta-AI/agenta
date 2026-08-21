@@ -1006,7 +1006,7 @@ async def provision_signup_subscription(
 
     # Bounded (10s) and swallow-all: a failure degrades to "no starter credits"
     # and must never raise here — the signup path deletes the new user when
-    # setup fails. Partial states converge via the admin reconcile endpoint.
+    # setup fails. Nothing retries a failed seed.
     await seed_starter_credits_bridge_safely(
         organization_id=str(organization.id),
         organization_email=organization_email,

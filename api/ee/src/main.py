@@ -31,9 +31,6 @@ from ee.src.apis.fastapi.billing.router import BillingRouter
 from ee.src.apis.fastapi.spans.router import SpansRetentionRouter
 from ee.src.apis.fastapi.events.router import EventsRouter, EventsRetentionRouter
 from ee.src.apis.fastapi.sessions.records.router import RecordsRetentionRouter
-from ee.src.apis.fastapi.starter_credits_bridge.router import (
-    StarterCreditsBridgeAdminRouter,
-)
 from ee.src.apis.fastapi.organizations.router import router as organization_router
 from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
@@ -128,9 +125,6 @@ records_retention_router = RecordsRetentionRouter(
     records_retention_service=records_retention_service,
 )
 
-starter_credits_bridge_router = StarterCreditsBridgeAdminRouter()
-
-
 log = get_module_logger(__name__)
 
 
@@ -173,13 +167,6 @@ def extend_main(app: FastAPI):
     app.include_router(
         router=records_retention_router.admin_router,
         prefix="/admin/records",
-        tags=["Admin"],
-        include_in_schema=False,
-    )
-
-    app.include_router(
-        router=starter_credits_bridge_router.admin_router,
-        prefix="/admin/starter-credits",
         tags=["Admin"],
         include_in_schema=False,
     )

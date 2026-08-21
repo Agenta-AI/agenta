@@ -189,39 +189,6 @@ class TestGenerateKey:
 
 
 class TestKeyLifecycle:
-    async def test_delete_keys_by_alias(self):
-        seen = {}
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            seen["url"] = str(request.url)
-            seen["body"] = _read_body(request)
-            return httpx.Response(200, json={})
-
-        client = _client_with_handler(handler)
-        await client.delete_keys(key_aliases=["org-123"])
-
-        assert seen["url"] == "https://proxy.internal.test/key/delete"
-        assert seen["body"] == {"key_aliases": ["org-123"]}
-
-    async def test_list_keys_returns_dict_entries(self):
-        def handler(request: httpx.Request) -> httpx.Response:
-            assert request.url.params["key_alias"] == "org-123"
-            assert request.url.params["return_full_object"] == "true"
-            return httpx.Response(
-                200,
-                json={
-                    "keys": [
-                        {"key_alias": "org-123", "metadata": {"origin": "x"}},
-                        "sk-opaque-hash",
-                    ]
-                },
-            )
-
-        client = _client_with_handler(handler)
-        keys = await client.list_keys(key_alias="org-123")
-
-        assert keys == [{"key_alias": "org-123", "metadata": {"origin": "x"}}]
-
     async def test_block_key_posts_to_key_block(self):
         seen = {}
 

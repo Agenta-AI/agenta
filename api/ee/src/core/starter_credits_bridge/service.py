@@ -1,6 +1,4 @@
 import asyncio
-import hashlib
-import hmac
 import json
 import math
 import time
@@ -23,8 +21,6 @@ from oss.src.core.secrets.dtos import (
     CustomProviderSettingsDTO,
     SecretDTO,
     SecretKind,
-    UpdateSecretDTO,
-    UpdateSecretPayloadDTO,
 )
 from oss.src.core.secrets.enums import CustomProviderKind
 from oss.src.core.secrets.services import VaultService
@@ -32,15 +28,18 @@ from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
 
 from ee.src.core.starter_credits_bridge.client import StarterCreditsProxyClient
-from ee.src.core.starter_credits_bridge.types import MintPolicy
+from ee.src.core.starter_credits_bridge.types import (
+    KeyAliasExistsError,
+    MintedKey,
+    MintPolicy,
+    ProxyRequestError,
+)
 
 log = get_module_logger(__name__)
 
 # Slug of the seeded vault connection; with the project+slug unique index it makes
 # the vault write idempotent. NOT proof of ownership: a user can delete and
-# recreate the slug, so every ownership-sensitive decision requires the exact
-# pairing (the key's metadata.secret_id equals the row id) or an HMAC-valid
-# grant record, never the slug or display fields alone.
+# recreate the slug, so nothing ownership-sensitive reads it.
 STARTER_CREDITS_SLUG = "starter-credits"
 
 # The connection's display name. It is ALSO the namespace of the stored model keys
@@ -48,24 +47,22 @@ STARTER_CREDITS_SLUG = "starter-credits"
 # renaming it would orphan every seeded org's model selector.
 STARTER_CREDITS_NAME = "Starter credits"
 
-# Ownership marker carried in the proxy key's metadata (with the org id and the
-# exact vault secret id). Key metadata is master-key-only mutable, so it is the
-# unforgeable side of every ownership check.
+# Ownership marker carried in the proxy key's metadata (with the org id). Key
+# metadata is master-key-only mutable, so it is the unforgeable side of any
+# later operator-side inspection.
 ORIGIN_MARKER = "starter-credits-bridge"
 
-# Namespaced field in the row's provider.extras holding the HMAC-signed grant
-# record while a (re-)mint is in flight. The SDK exports extras into sandbox env
-# through an allowlist, so this field never reaches a sandbox. The HMAC (keyed
-# with the server-side crypt key) makes a user-edited or user-forged record
-# verify as invalid: reconcile then treats the grant as unrecoverable rather
-# than minting an attacker-chosen amount.
-_GRANT_RECORD_FIELD = "starter_credits_bridge"
-
-# Stand-in key value a row carries between its creation and the paired mint.
-_PLACEHOLDER_KEY = "pending-rotation"
-
-# Upper bound on the inline seeding work inside the signup path.
+# The grant invariant: we mint at most one key per organization, guarded by the
+# alias (one key per org id on the proxy) and by the slug's unique index in the
+# vault. A failed seed is never retried by a repair — the organization simply
+# stays unseeded and meets the connect-your-key wall as before.
 _SEED_TIMEOUT_SECONDS = 10.0
+
+# The mint is the one call worth retrying inside the seeding bound: a dropped
+# connection or a proxy restart is common enough to cost real signups, and a
+# retry cannot double-grant (the alias conflict below stops the second key).
+_MINT_ATTEMPTS = 3
+_MINT_RETRY_BACKOFF_SECONDS = 0.2
 
 _VELOCITY_COUNTER_TTL_SECONDS = 2 * 24 * 3600
 
@@ -96,13 +93,13 @@ async def seed_starter_credits_bridge_safely(
             )
     except Exception:
         log.warning(
-            "[starter_credits_bridge] seeding failed; organization stays unseeded",
+            "[starter_credits_bridge] seed_failed; organization stays unseeded",
             organization_id=organization_id,
             exc_info=True,
         )
         _send_alert_background(
-            f"starter-credits-bridge: seeding failed for organization {organization_id}; "
-            "it stays unseeded (reconcile to repair)"
+            f"starter-credits-bridge: seed_failed for organization {organization_id}; "
+            "it stays unseeded"
         )
 
 
@@ -112,10 +109,7 @@ async def seed_starter_credits_bridge(
     organization_email: str,
 ) -> None:
     """Mint a budget-capped virtual key and seed it into the org's default-project
-    vault as a ready-to-use provider connection. The vault row is created BEFORE
-    the mint and carries an HMAC-signed record of the authorized remaining, so a
-    crash at any boundary leaves a durable record that reconcile converges from
-    without ever increasing the organization's lifetime grant."""
+    vault as a ready-to-use provider connection."""
     config = env.starter_credits_bridge
     if not config.armed:
         return
@@ -149,94 +143,25 @@ async def seed_starter_credits_bridge(
         project_id=project.id,
     )
     if row is not None:
-        # Idempotent re-entry; partial states are the reconcile endpoint's job.
         return
 
     if not await _mint_policy_allows(organization_email, policy):
         return
 
+    seeded = False
     try:
-        outcome = await _provision(
+        seeded = await _provision(
             client=client,
             config=config,
             policy=policy,
             vault_service=vault_service,
             project_id=project.id,
             organization_id=organization_id,
-            row=None,
-            allow_fresh=True,
         )
-    except Exception:
-        await _release_velocity_slots(organization_email, policy)
-        raise
-    if outcome != "seeded":
-        # The consumed velocity slot funded no mint; hand it back best-effort.
-        await _release_velocity_slots(organization_email, policy)
-
-
-async def reconcile_starter_credits_bridge(*, organization_id: str) -> str:
-    """Repair partial seed states for one organization; returns the outcome.
-
-    Manual and operator-run only (there is deliberately no automatic sweep),
-    under one invariant that survives every failure boundary: a reconcile never
-    increases an organization's total lifetime grant, and it never creates a
-    FIRST grant (policy approval happens only on the signup path; an empty state
-    reports "never_seeded" and mints nothing).
-    """
-    config = env.starter_credits_bridge
-    if not config.armed:
-        return "disabled"
-
-    if not await _feature_flag_enabled(organization_id):
-        return "flag_off"
-
-    policy = await _resolve_mint_policy()
-    if policy is None:
-        return "policy_unavailable"
-
-    client = _proxy_client(config)
-    if not await _team_ceiling_verified(client, config):
-        return "team_unverified"
-
-    project = await db_manager.get_default_project_by_organization_id(organization_id)
-    if project is None:
-        return "no_default_project"
-
-    vault_service = _vault_service()
-    row = await vault_service.get_secret_by_slug(
-        STARTER_CREDITS_SLUG,
-        project_id=project.id,
-    )
-    entry = await _alias_entry(client, organization_id)
-    if entry is not None and not _entry_is_ours(entry, organization_id):
-        log.warning(
-            "[starter_credits_bridge] alias held by a key without our marker; refusing",
-            organization_id=organization_id,
-        )
-        return "foreign_key"
-
-    if row is None and entry is None:
-        return "never_seeded"
-
-    if (
-        row is not None
-        and entry is not None
-        and _paired(entry, row)
-        and _read_grant_record(row, organization_id) is None
-    ):
-        return "healthy"
-
-    outcome = await _provision(
-        client=client,
-        config=config,
-        policy=policy,
-        vault_service=vault_service,
-        project_id=project.id,
-        organization_id=organization_id,
-        row=row,
-        allow_fresh=False,
-    )
-    return "reseeded" if outcome == "seeded" else outcome
+    finally:
+        if not seeded:
+            # The consumed velocity slot funded no mint; hand it back best-effort.
+            await _release_velocity_slots(organization_email, policy)
 
 
 async def _provision(
@@ -247,105 +172,35 @@ async def _provision(
     vault_service: VaultService,
     project_id: UUID,
     organization_id: str,
-    row: Any,
-    allow_fresh: bool,
-) -> str:
-    """Converge the org to exactly one paired (row, key). Order of operations is
-    the invariant: the authorized remaining becomes durable (in a live key's
-    budget or the row's signed record) BEFORE any destructive step, and every
-    mint is bounded by that record and by the policy grant."""
-    entry = await _alias_entry(client, organization_id)
-    if entry is not None and not _entry_is_ours(entry, organization_id):
-        log.warning(
-            "[starter_credits_bridge] alias held by a key without our marker; refusing",
+) -> bool:
+    try:
+        minted = await _mint_key(
+            client=client,
+            config=config,
+            policy=policy,
             organization_id=organization_id,
         )
-        return "foreign_key"
+    except KeyAliasExistsError:
+        # One alias per organization, so a conflict means this org already holds
+        # its key (a duplicate signup race). Never re-mint.
+        log.info(
+            "[starter_credits_bridge] alias already minted; organization is seeded",
+            organization_id=organization_id,
+        )
+        return False
 
-    recorded = _read_grant_record(row, organization_id) if row is not None else None
-
-    if entry is not None:
-        remaining = _entry_remaining(entry)
-        if remaining is None:
-            log.error(
-                "[starter_credits_bridge] key budget unreadable; refusing to re-mint",
-                organization_id=organization_id,
-            )
-            return "orphan_unverifiable"
-        if recorded is not None:
-            remaining = min(remaining, recorded)
-        remaining = min(remaining, policy.grant_usd)
-        if remaining < 0.01:
-            # Keep the exhausted key in place (blocked): its occupied alias is
-            # what makes "spent" durable — deleting it would let a later
-            # reconcile treat the org as never-seeded history-free.
-            await _block_entry(client, entry)
-            log.info(
-                "[starter_credits_bridge] key exhausted; not re-seeding",
-                organization_id=organization_id,
-            )
-            return "exhausted_not_reseeded"
-        # Make the remaining durable BEFORE deleting the only live record of it.
-        row = await _upsert_row_with_record(
+    try:
+        row = await _create_row(
             vault_service=vault_service,
             project_id=project_id,
-            organization_id=organization_id,
             config=config,
-            row=row,
-            remaining=remaining,
+            virtual_key=minted.key,
         )
-        await client.delete_keys(key_aliases=[organization_id])
-    else:
-        if row is None:
-            if not allow_fresh:
-                return "never_seeded"
-            remaining = policy.grant_usd
-            row = await _upsert_row_with_record(
-                vault_service=vault_service,
-                project_id=project_id,
-                organization_id=organization_id,
-                config=config,
-                row=None,
-                remaining=remaining,
-            )
-        else:
-            if recorded is None:
-                # No key and no valid record: historical spend is unknowable, so
-                # the ruling is assume spent — minting anything here could
-                # increase the lifetime grant.
-                log.error(
-                    "[starter_credits_bridge] row without key or valid grant record; assuming spent",
-                    organization_id=organization_id,
-                )
-                return "grant_unrecoverable"
-            remaining = min(recorded, policy.grant_usd)
-            if remaining < 0.01:
-                return "exhausted_not_reseeded"
-
-    minted = await client.generate_key(
-        key_alias=organization_id,
-        max_budget=remaining,
-        models=[config.model_id],
-        metadata={
-            "organization_id": organization_id,
-            "origin": ORIGIN_MARKER,
-            # Recorded AT mint (the row always exists by now), so the exact
-            # pairing is never a best-effort afterthought.
-            "secret_id": str(row.id),
-        },
-        team_id=config.team_id,
-        max_parallel_requests=policy.key_max_parallel_requests,
-        rpm_limit=policy.key_rpm_limit,
-        tpm_limit=policy.key_tpm_limit,
-    )
-
-    await _finalize_row(
-        vault_service=vault_service,
-        project_id=project_id,
-        row=row,
-        config=config,
-        virtual_key=minted.key,
-    )
+    except Exception:
+        # The key is live but nothing references it; block it so an orphaned
+        # grant can never be spent.
+        await _block_key(client, minted.key)
+        raise
 
     log.info(
         "[starter_credits_bridge] seeded starter credits",
@@ -353,194 +208,106 @@ async def _provision(
         project_id=str(project_id),
         secret_id=str(row.id),
     )
-    return "seeded"
+    return True
 
 
-# --- proxy-side state ------------------------------------------------------
-
-
-async def _alias_entry(
+async def _mint_key(
+    *,
     client: StarterCreditsProxyClient,
+    config: StarterCreditsBridgeConfig,
+    policy: MintPolicy,
     organization_id: str,
-) -> Optional[dict]:
-    keys = await client.list_keys(key_alias=organization_id)
-    return keys[0] if keys else None
+) -> MintedKey:
+    """Mint the org's one key, retrying only transport failures and proxy 5xx.
+    A 4xx is the proxy's verdict on this request (an alias conflict, a rejected
+    body) and repeating it can only waste the seeding bound."""
+    for attempt in range(_MINT_ATTEMPTS):
+        try:
+            # The proxy caps what a key may ask for (`upperbound_key_generate_params`:
+            # max_budget 5, max_parallel_requests 2, rpm 30, tpm 200000, duration 90d)
+            # and fills an OMITTED duration with its cap, so every funded key expires
+            # after 90 days. Send no duration rather than a longer one. Raising
+            # `grant_usd` or a per-key limit in the policy payload ABOVE a cap makes
+            # every mint fail with HTTP 400 until the proxy config is bumped and
+            # redeployed; lowering a value is a live payload edit.
+            return await client.generate_key(
+                key_alias=organization_id,
+                max_budget=policy.grant_usd,
+                models=[config.model_id],
+                metadata={
+                    "organization_id": organization_id,
+                    "origin": ORIGIN_MARKER,
+                },
+                team_id=config.team_id,
+                max_parallel_requests=policy.key_max_parallel_requests,
+                rpm_limit=policy.key_rpm_limit,
+                tpm_limit=policy.key_tpm_limit,
+            )
+        except ProxyRequestError as exc:
+            if not _is_transient(exc) or attempt == _MINT_ATTEMPTS - 1:
+                raise
+            log.warning(
+                "[starter_credits_bridge] transient mint failure; retrying",
+                organization_id=organization_id,
+                attempt=attempt + 1,
+                status_code=exc.status_code,
+            )
+            await asyncio.sleep(_MINT_RETRY_BACKOFF_SECONDS * (2**attempt))
+
+    raise ProxyRequestError(status_code=None, detail="mint retries exhausted")
 
 
-def _entry_is_ours(entry: dict, organization_id: str) -> bool:
-    metadata = entry.get("metadata") or {}
-    return (
-        metadata.get("origin") == ORIGIN_MARKER
-        and metadata.get("organization_id") == organization_id
-    )
+def _is_transient(error: ProxyRequestError) -> bool:
+    return error.status_code is None or error.status_code >= 500
 
 
-def _entry_remaining(entry: dict) -> Optional[float]:
-    max_budget = entry.get("max_budget")
-    spend = entry.get("spend")
-    for value in (max_budget, spend):
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
-            return None
-    remaining_cents = int((max(0.0, max_budget - spend) + 1e-9) * 100)
-    return remaining_cents / 100.0
-
-
-def _paired(entry: dict, row: Any) -> bool:
-    metadata = entry.get("metadata") or {}
-    return metadata.get("secret_id") == str(getattr(row, "id", None))
-
-
-async def _block_entry(
-    client: StarterCreditsProxyClient,
-    entry: dict,
-) -> None:
-    """Best-effort block; the proxy's budget enforcement already refuses the
-    key's calls, so a failed block only loses defense in depth."""
-    token = entry.get("token")
-    if not isinstance(token, str) or not token:
-        return
+async def _block_key(client: StarterCreditsProxyClient, key: str) -> None:
+    """Best-effort block; a failed block leaves a key nothing can reach through
+    the product, still bounded by its own budget and the team ceiling."""
     try:
-        await client.block_key(key=token)
+        await client.block_key(key=key)
     except Exception:
         log.warning(
-            "[starter_credits_bridge] could not block exhausted key",
+            "[starter_credits_bridge] could not block the orphaned key",
             exc_info=True,
         )
 
 
-# --- vault-side state ------------------------------------------------------
-
-
-def _grant_record_signature(organization_id: str, remaining_cents: int) -> str:
-    key = (env.agenta.crypt_key or "").encode()
-    message = f"{ORIGIN_MARKER}:{organization_id}:{remaining_cents}".encode()
-    return hmac.new(key, message, hashlib.sha256).hexdigest()
-
-
-def _build_grant_record(organization_id: str, remaining: float) -> dict:
-    remaining_cents = int(round(remaining * 100))
-    return {
-        "remaining_usd": remaining_cents / 100.0,
-        "signature": _grant_record_signature(organization_id, remaining_cents),
-    }
-
-
-def _read_grant_record(row: Any, organization_id: str) -> Optional[float]:
-    """The row's recorded remaining in USD, or None when absent or when the
-    signature does not verify (a user-edited or forged record reads as absent,
-    which downstream means "grant unrecoverable", never a mint)."""
-    data = getattr(row, "data", None)
-    provider = getattr(data, "provider", None)
-    extras = getattr(provider, "extras", None) or {}
-    record = extras.get(_GRANT_RECORD_FIELD)
-    if not isinstance(record, dict):
-        return None
-    remaining = record.get("remaining_usd")
-    signature = record.get("signature")
-    if not isinstance(remaining, (int, float)) or isinstance(remaining, bool):
-        return None
-    if not isinstance(signature, str):
-        return None
-    remaining_cents = int(round(remaining * 100))
-    expected = _grant_record_signature(organization_id, remaining_cents)
-    if not hmac.compare_digest(signature, expected):
-        return None
-    return remaining_cents / 100.0
-
-
-def _row_data_dict(row: Any, config: StarterCreditsBridgeConfig) -> dict:
-    data = getattr(row, "data", None)
-    if data is not None and hasattr(data, "model_dump"):
-        return data.model_dump()
-    return _fresh_provider_data(config)
-
-
-def _fresh_provider_data(config: StarterCreditsBridgeConfig) -> dict:
-    return CustomProviderDTO(
+async def _create_row(
+    *,
+    vault_service: VaultService,
+    project_id: UUID,
+    config: StarterCreditsBridgeConfig,
+    virtual_key: str,
+) -> Any:
+    data = CustomProviderDTO(
         kind=CustomProviderKind.CUSTOM,
         provider=CustomProviderSettingsDTO(
             url=config.proxy_public_url,
-            key=_PLACEHOLDER_KEY,
+            key=virtual_key,
         ),
         models=[CustomModelSettingsDTO(slug=config.model_id)],
     ).model_dump()
 
-
-async def _upsert_row_with_record(
-    *,
-    vault_service: VaultService,
-    project_id: UUID,
-    organization_id: str,
-    config: StarterCreditsBridgeConfig,
-    row: Any,
-    remaining: float,
-) -> Any:
-    record = _build_grant_record(organization_id, remaining)
-
-    if row is None:
-        data = _fresh_provider_data(config)
-        data["provider"]["extras"] = {_GRANT_RECORD_FIELD: record}
-        created = await vault_service.create_secret(
-            project_id=project_id,
-            create_secret_dto=CreateSecretDTO(
-                slug=STARTER_CREDITS_SLUG,
-                header=Header(name=STARTER_CREDITS_NAME, description=ORIGIN_MARKER),
-                secret=SecretDTO(
-                    kind=SecretKind.CUSTOM_PROVIDER,
-                    data=data,
-                ),
-                # The row is Agenta's from the moment it exists: `managed_by` refuses
-                # user deletes and re-credentialing, `write_only` makes the proxy virtual
-                # key unreadable. Both are set on CREATE rather than added later, so no
-                # window exists in which the seeded connection is readable or removable.
-                managed_by=ORIGIN_MARKER,
-                write_only=True,
+    created = await vault_service.create_secret(
+        project_id=project_id,
+        create_secret_dto=CreateSecretDTO(
+            slug=STARTER_CREDITS_SLUG,
+            header=Header(name=STARTER_CREDITS_NAME, description=ORIGIN_MARKER),
+            secret=SecretDTO(
+                kind=SecretKind.CUSTOM_PROVIDER,
+                data=data,
             ),
-        )
-        await invalidate_cache(project_id=str(project_id))
-        return created
-
-    data = _row_data_dict(row, config)
-    extras = dict(data.get("provider", {}).get("extras") or {})
-    extras[_GRANT_RECORD_FIELD] = record
-    data["provider"]["extras"] = extras
-    await vault_service.update_secret(
-        secret_id=row.id,
-        project_id=project_id,
-        update_secret_dto=UpdateSecretDTO(
-            secret=UpdateSecretPayloadDTO(kind=SecretKind.CUSTOM_PROVIDER, data=data),
+            # The row is Agenta's from the moment it exists: `managed_by` refuses
+            # user deletes and re-credentialing, `write_only` makes the proxy virtual
+            # key unreadable. Both are set on CREATE rather than added later, so no
+            # window exists in which the seeded connection is readable or removable.
+            managed_by=ORIGIN_MARKER,
+            write_only=True,
         ),
-        # This component owns the row, so it edits through the managed guard.
-        allow_managed=True,
     )
     await invalidate_cache(project_id=str(project_id))
-    return row
-
-
-async def _finalize_row(
-    *,
-    vault_service: VaultService,
-    project_id: UUID,
-    row: Any,
-    config: StarterCreditsBridgeConfig,
-    virtual_key: str,
-) -> None:
-    data = _row_data_dict(row, config)
-    data["provider"]["url"] = config.proxy_public_url
-    data["provider"]["key"] = virtual_key
-    extras = dict(data.get("provider", {}).get("extras") or {})
-    extras.pop(_GRANT_RECORD_FIELD, None)
-    data["provider"]["extras"] = extras or None
-    await vault_service.update_secret(
-        secret_id=row.id,
-        project_id=project_id,
-        update_secret_dto=UpdateSecretDTO(
-            secret=UpdateSecretPayloadDTO(kind=SecretKind.CUSTOM_PROVIDER, data=data),
-        ),
-        # This component owns the row, so it edits through the managed guard.
-        allow_managed=True,
-    )
-    await invalidate_cache(project_id=str(project_id))
+    return created
 
 
 # --- gates -----------------------------------------------------------------

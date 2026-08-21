@@ -1,8 +1,8 @@
 """Unit tests for the starter-credits-bridge seeding service
 (``ee.src.core.starter_credits_bridge.service``): gating, team-ceiling refusal,
-the row-first grant-record protocol and its failure boundaries (the lifetime
-grant never increases), exact key/row pairing, concurrency, policy resolution,
-and velocity caps, with every external dependency stubbed."""
+the mint-then-write seed and its failure behavior (transient retry, orphan
+blocking, alias conflicts), policy resolution, and velocity caps, with every
+external dependency stubbed."""
 
 import asyncio
 from types import SimpleNamespace
@@ -62,11 +62,8 @@ class FakeVaultService:
     def __init__(self):
         self.row = None
         self.created_count = 0
-        self.updated_count = 0
         self.create_dto = None
-        # One entry per update: the owner flag the caller passed. The real service
-        # refuses a managed row without it, so a False here is a broken write path.
-        self.update_allow_managed = []
+        self.create_error = None
 
     async def get_secret_by_slug(self, secret_slug, project_id=None, **kwargs):
         assert secret_slug == service.STARTER_CREDITS_SLUG
@@ -74,6 +71,8 @@ class FakeVaultService:
 
     async def create_secret(self, *, project_id, create_secret_dto):
         await asyncio.sleep(0)
+        if self.create_error is not None:
+            raise self.create_error
         if self.row is not None:
             raise RuntimeError("duplicate slug (unique index)")
         self.create_dto = create_secret_dto
@@ -87,51 +86,30 @@ class FakeVaultService:
         self.created_count += 1
         return self.row
 
-    async def update_secret(
-        self,
-        *,
-        secret_id,
-        update_secret_dto,
-        project_id=None,
-        allow_managed=False,
-        **kwargs,
-    ):
-        assert self.row is not None and self.row.id == secret_id
-        self.update_allow_managed.append(allow_managed)
-        self.row.data = update_secret_dto.secret.data
-        self.updated_count += 1
-        return self.row
-
 
 class FakeProxyClient:
-    """Stands in for StarterCreditsProxyClient with a per-alias key registry
-    (budget + spend + metadata), so convergence is exercised against realistic
-    proxy state."""
+    """Stands in for StarterCreditsProxyClient with a per-alias key registry, so
+    the alias conflict that guards the one-key-per-organization invariant is
+    exercised against realistic proxy state."""
 
     records: dict = {}
-    generate_fail_times: int = 0
+    generate_failures: list = []
     instances: list = []
 
     def __init__(self, *, base_url, master_key):
         self.base_url = base_url
         self.master_key = master_key
         self.generate_calls = []
-        self.delete_calls = []
         self.block_calls = []
         FakeProxyClient.instances.append(self)
 
     @classmethod
-    def seed_record(
-        cls, key_alias, *, max_budget=10.0, spend=0.0, metadata=None, key=None
-    ):
-        cls.records[key_alias] = {
-            "key_alias": key_alias,
-            "token": f"hash-{key_alias}",
-            "key": key or f"sk-preexisting-{key_alias}",
-            "max_budget": max_budget,
-            "spend": spend,
-            "metadata": metadata or {},
-        }
+    def fail_generate(cls, times: int, *, status_code: int = 500):
+        """Queue `times` mint failures before the next success."""
+        cls.generate_failures = [
+            ProxyRequestError(status_code=status_code, detail="mint failed")
+            for _ in range(times)
+        ]
 
     async def generate_key(
         self,
@@ -158,15 +136,13 @@ class FakeProxyClient:
                 tpm_limit=tpm_limit,
             )
         )
-        if FakeProxyClient.generate_fail_times > 0:
-            FakeProxyClient.generate_fail_times -= 1
-            raise ProxyRequestError(status_code=500, detail="mint failed")
+        if FakeProxyClient.generate_failures:
+            raise FakeProxyClient.generate_failures.pop(0)
         if key_alias in FakeProxyClient.records:
             raise KeyAliasExistsError(status_code=400, detail="already exists: alias")
         value = f"sk-virtual-{uuid4().hex[:8]}"
         FakeProxyClient.records[key_alias] = {
             "key_alias": key_alias,
-            "token": f"hash-{key_alias}",
             "key": value,
             "max_budget": max_budget,
             "spend": 0.0,
@@ -174,20 +150,8 @@ class FakeProxyClient:
         }
         return MintedKey(key=value, key_alias=key_alias)
 
-    async def delete_keys(self, *, key_aliases):
-        self.delete_calls.append(list(key_aliases))
-        for key_alias in key_aliases:
-            FakeProxyClient.records.pop(key_alias, None)
-
     async def block_key(self, *, key):
         self.block_calls.append(key)
-
-    async def list_keys(self, *, key_alias):
-        record = FakeProxyClient.records.get(key_alias)
-        if not record:
-            return []
-        entry = {k: v for k, v in record.items() if k != "key"}
-        return [dict(entry)]
 
 
 def _all_generate_calls():
@@ -198,33 +162,24 @@ def _all_generate_calls():
     ]
 
 
-def _all_delete_calls():
-    return [
-        call for instance in FakeProxyClient.instances for call in instance.delete_calls
-    ]
-
-
 def _all_block_calls():
     return [
         call for instance in FakeProxyClient.instances for call in instance.block_calls
     ]
 
 
-def _row_extras(vault):
-    provider = vault.row.data.provider
-    return provider.extras or {}
-
-
 @pytest.fixture
 def seeding_env(monkeypatch):
     """Arm the config and stub every dependency; returns the mutable stubs."""
     FakeProxyClient.records = {}
-    FakeProxyClient.generate_fail_times = 0
+    FakeProxyClient.generate_failures = []
     FakeProxyClient.instances = []
     service._verified_teams.clear()
 
     config = _armed_config()
     monkeypatch.setattr(env, "starter_credits_bridge", config)
+    # The retry backoff is behavior under test only for its shape, not its wall time.
+    monkeypatch.setattr(service, "_MINT_RETRY_BACKOFF_SECONDS", 0.0)
 
     project = SimpleNamespace(id=uuid4())
     vault = FakeVaultService()
@@ -299,14 +254,8 @@ async def _seed_safely():
     )
 
 
-async def _reconcile():
-    return await service.reconcile_starter_credits_bridge(
-        organization_id=ORGANIZATION_ID
-    )
-
-
 class TestSeeding:
-    async def test_happy_path_row_first_then_paired_mint(self, seeding_env):
+    async def test_happy_path_mints_then_writes_the_row(self, seeding_env):
         await _seed()
 
         row = seeding_env.vault.row
@@ -319,20 +268,19 @@ class TestSeeding:
         assert call["max_parallel_requests"] == 2
         assert call["rpm_limit"] == 30
         assert call["tpm_limit"] == 200_000
-        # The pairing is recorded AT mint, never as a best-effort afterthought.
         assert call["metadata"] == {
             "organization_id": ORGANIZATION_ID,
             "origin": service.ORIGIN_MARKER,
-            "secret_id": str(row.id),
         }
 
-        # The row is finalized: real key, grant record cleared.
         assert row.data.kind == CustomProviderKind.CUSTOM
+        assert row.data.provider.url == "https://credits-proxy.example.test"
         assert row.data.provider.key.startswith("sk-virtual-")
         assert row.data.provider.key == FakeProxyClient.records[ORGANIZATION_ID]["key"]
-        assert service._GRANT_RECORD_FIELD not in _row_extras(seeding_env.vault)
+        assert [model.slug for model in row.data.models] == ["vertex_ai/some-model"]
         assert row.header.name == service.STARTER_CREDITS_NAME
-        assert len(seeding_env.invalidated) >= 2
+        assert seeding_env.invalidated == [{"project_id": str(seeding_env.project.id)}]
+        assert seeding_env.released == []
 
     async def test_disarmed_config_is_a_noop(self, seeding_env):
         seeding_env.monkeypatch.setattr(
@@ -421,227 +369,126 @@ class TestSeeding:
 
         assert _all_generate_calls() == []
 
-    async def test_foreign_alias_key_refused_untouched_and_slot_released(
-        self, seeding_env
-    ):
-        FakeProxyClient.seed_record(
-            ORGANIZATION_ID, metadata={"origin": "someone-else"}
-        )
+
+class TestOneKeyPerOrganization:
+    """We mint at most one key per organization; a failed seed is never retried
+    by a repair."""
+
+    async def test_alias_conflict_reads_as_already_seeded(self, seeding_env):
+        # A key already holds this org's alias (a duplicate signup race, or an
+        # earlier seed whose row the user deleted).
+        FakeProxyClient.records[ORGANIZATION_ID] = {
+            "key_alias": ORGANIZATION_ID,
+            "key": "sk-preexisting",
+            "max_budget": 10.0,
+            "spend": 4.0,
+            "metadata": {},
+        }
 
         await _seed()
 
-        assert _all_generate_calls() == []
-        assert _all_delete_calls() == []
-        assert ORGANIZATION_ID in FakeProxyClient.records
+        # Exactly one mint attempt, no second key, no row, no failure alert.
+        assert len(_all_generate_calls()) == 1
+        assert FakeProxyClient.records[ORGANIZATION_ID]["key"] == "sk-preexisting"
+        assert seeding_env.vault.row is None
+        assert seeding_env.alerts == []
         assert seeding_env.released == [ORGANIZATION_EMAIL]
 
-    async def test_failed_mint_releases_velocity_slot(self, seeding_env):
-        FakeProxyClient.generate_fail_times = 1
+    async def test_concurrent_seeds_produce_one_key_and_one_row(self, seeding_env):
+        await asyncio.gather(_seed(), _seed(), return_exceptions=True)
 
-        await _seed_safely()
-
-        assert seeding_env.released == [ORGANIZATION_EMAIL]
-        assert len(seeding_env.alerts) == 1
-
-
-def _ours_metadata(secret_id=None):
-    metadata = {
-        "organization_id": ORGANIZATION_ID,
-        "origin": service.ORIGIN_MARKER,
-    }
-    if secret_id is not None:
-        metadata["secret_id"] = str(secret_id)
-    return metadata
-
-
-class TestGrantInvariant:
-    """The lifetime grant never increases, across every failure boundary."""
-
-    async def test_fresh_mint_failure_leaves_recorded_row_then_converges(
-        self, seeding_env
-    ):
-        FakeProxyClient.generate_fail_times = 1
-
-        await _seed_safely()
-
-        row = seeding_env.vault.row
-        assert row is not None
-        assert (
-            service._read_grant_record(row, ORGANIZATION_ID) == 10.0
-        )  # durable before the mint
-        assert ORGANIZATION_ID not in FakeProxyClient.records
-
-        outcome = await _reconcile()
-
-        assert outcome == "reseeded"
-        assert _all_generate_calls()[-1]["max_budget"] == 10.0
-        assert (
-            service._read_grant_record(seeding_env.vault.row, ORGANIZATION_ID) is None
-        )
-
-    async def test_orphan_is_reminted_at_remaining_budget(self, seeding_env):
-        FakeProxyClient.seed_record(
-            ORGANIZATION_ID, max_budget=10.0, spend=4.0, metadata=_ours_metadata()
-        )
-
-        outcome = await _reconcile()
-
-        assert outcome == "reseeded"
-        assert _all_delete_calls() == [[ORGANIZATION_ID]]
-        assert _all_generate_calls()[-1]["max_budget"] == 6.0
+        assert len(FakeProxyClient.records) == 1
+        assert seeding_env.vault.created_count == 1
         row = seeding_env.vault.row
         assert row.data.provider.key == FakeProxyClient.records[ORGANIZATION_ID]["key"]
 
-    async def test_delete_then_mint_failure_never_refills_to_full(self, seeding_env):
-        FakeProxyClient.seed_record(
-            ORGANIZATION_ID, max_budget=10.0, spend=4.0, metadata=_ours_metadata()
-        )
-        FakeProxyClient.generate_fail_times = 1
+    async def test_failed_seed_is_not_retried_on_the_next_signup_hook(
+        self, seeding_env
+    ):
+        FakeProxyClient.fail_generate(service._MINT_ATTEMPTS)
 
-        with pytest.raises(ProxyRequestError):  # the attempt failed loudly
-            await _reconcile()
+        await _seed_safely()
 
-        # The old key is gone; only the signed row record knows the remaining.
-        assert ORGANIZATION_ID not in FakeProxyClient.records
-        assert service._read_grant_record(seeding_env.vault.row, ORGANIZATION_ID) == 6.0
-
-        second = await _reconcile()
-
-        assert second == "reseeded"
-        assert _all_generate_calls()[-1]["max_budget"] == 6.0
-
-    async def test_row_without_key_and_without_record_assumes_spent(self, seeding_env):
-        await _seed()
-        await FakeProxyClient.instances[0].delete_keys(key_aliases=[ORGANIZATION_ID])
-
-        outcome = await _reconcile()
-
-        assert outcome == "grant_unrecoverable"
-        assert len(_all_generate_calls()) == 1  # only the original seed mint
-
-    async def test_forged_grant_record_reads_as_absent(self, seeding_env):
-        await _seed()
-        await FakeProxyClient.instances[0].delete_keys(key_aliases=[ORGANIZATION_ID])
-        extras = dict(seeding_env.vault.row.data.provider.extras or {})
-        extras[service._GRANT_RECORD_FIELD] = {
-            "remaining_usd": 10.0,
-            "signature": "forged",
-        }
-        seeding_env.vault.row.data.provider.extras = extras
-
-        outcome = await _reconcile()
-
-        assert outcome == "grant_unrecoverable"
-        assert len(_all_generate_calls()) == 1
-
-    async def test_recorded_remaining_is_clamped_to_policy_grant(self, seeding_env):
-        await _seed()
-        await FakeProxyClient.instances[0].delete_keys(key_aliases=[ORGANIZATION_ID])
-        # A validly signed record can still exceed the current grant (for
-        # example after the policy shrank); the mint is clamped.
-        extras = dict(seeding_env.vault.row.data.provider.extras or {})
-        extras[service._GRANT_RECORD_FIELD] = service._build_grant_record(
-            ORGANIZATION_ID, 15.0
-        )
-        seeding_env.vault.row.data.provider.extras = extras
-
-        outcome = await _reconcile()
-
-        assert outcome == "reseeded"
-        assert _all_generate_calls()[-1]["max_budget"] == 10.0
-
-    async def test_exhausted_key_is_blocked_not_reseeded(self, seeding_env):
-        FakeProxyClient.seed_record(
-            ORGANIZATION_ID, max_budget=10.0, spend=9.995, metadata=_ours_metadata()
-        )
-
-        outcome = await _reconcile()
-
-        assert outcome == "exhausted_not_reseeded"
-        assert _all_delete_calls() == []
-        assert ORGANIZATION_ID in FakeProxyClient.records
-        assert _all_block_calls() == [f"hash-{ORGANIZATION_ID}"]
         assert seeding_env.vault.row is None
+        # The org stays unseeded; nothing in the module converges it later.
+        assert not hasattr(service, "reconcile_starter_credits_bridge")
 
-    async def test_unreadable_key_budget_refuses_to_remint(self, seeding_env):
-        FakeProxyClient.seed_record(ORGANIZATION_ID, metadata=_ours_metadata())
-        del FakeProxyClient.records[ORGANIZATION_ID]["spend"]
 
-        outcome = await _reconcile()
+class TestMintRetry:
+    async def test_transient_failure_is_retried_within_the_bound(self, seeding_env):
+        FakeProxyClient.fail_generate(1, status_code=500)
 
-        assert outcome == "orphan_unverifiable"
-        assert _all_delete_calls() == []
+        await _seed()
 
-    async def test_empty_state_reconcile_never_creates_a_first_grant(self, seeding_env):
-        outcome = await _reconcile()
+        assert len(_all_generate_calls()) == 2
+        assert seeding_env.vault.row is not None
+        assert seeding_env.alerts == []
 
-        assert outcome == "never_seeded"
-        assert _all_generate_calls() == []
+    async def test_connection_failure_is_retried(self, seeding_env):
+        FakeProxyClient.generate_failures = [
+            ProxyRequestError(status_code=None, detail="connection failed")
+        ]
+
+        await _seed()
+
+        assert len(_all_generate_calls()) == 2
+        assert seeding_env.vault.row is not None
+
+    async def test_retries_are_bounded(self, seeding_env):
+        FakeProxyClient.fail_generate(service._MINT_ATTEMPTS)
+
+        await _seed_safely()
+
+        assert len(_all_generate_calls()) == service._MINT_ATTEMPTS
+        assert seeding_env.vault.row is None
+        assert len(seeding_env.alerts) == 1
+        assert "seed_failed" in seeding_env.alerts[0]
+        assert seeding_env.released == [ORGANIZATION_EMAIL]
+
+    async def test_client_error_is_never_retried(self, seeding_env):
+        FakeProxyClient.fail_generate(1, status_code=400)
+
+        await _seed_safely()
+
+        assert len(_all_generate_calls()) == 1
+        assert seeding_env.vault.row is None
+        assert len(seeding_env.alerts) == 1
+
+    async def test_alias_conflict_is_never_retried(self, seeding_env):
+        FakeProxyClient.generate_failures = [
+            KeyAliasExistsError(status_code=400, detail="already exists: alias")
+        ]
+
+        await _seed()
+
+        assert len(_all_generate_calls()) == 1
         assert seeding_env.vault.row is None
 
 
-class TestPairing:
-    async def test_exactly_paired_state_is_healthy(self, seeding_env):
-        await _seed()
+class TestRowWriteFailure:
+    async def test_row_write_failure_blocks_the_orphaned_key(self, seeding_env):
+        seeding_env.vault.create_error = RuntimeError("vault write failed")
 
-        outcome = await _reconcile()
+        await _seed_safely()
 
-        assert outcome == "healthy"
-        assert len(_all_generate_calls()) == 1
+        assert seeding_env.vault.row is None
+        minted = FakeProxyClient.records[ORGANIZATION_ID]["key"]
+        assert _all_block_calls() == [minted]
+        assert len(seeding_env.alerts) == 1
+        assert "seed_failed" in seeding_env.alerts[0]
 
-    async def test_unpaired_key_is_repaired_at_its_remaining(self, seeding_env):
-        await _seed()
-        # Simulate the concurrency scar: a live our-key that references a
-        # different (dead) row id.
-        FakeProxyClient.records[ORGANIZATION_ID]["metadata"]["secret_id"] = str(uuid4())
-        FakeProxyClient.records[ORGANIZATION_ID]["spend"] = 2.0
+    async def test_a_failing_block_still_degrades_quietly(self, seeding_env):
+        seeding_env.vault.create_error = RuntimeError("vault write failed")
 
-        outcome = await _reconcile()
+        async def block_fails(self, *, key):
+            raise ProxyRequestError(status_code=500, detail="block failed")
 
-        assert outcome == "reseeded"
-        assert _all_generate_calls()[-1]["max_budget"] == 8.0
-        entry = FakeProxyClient.records[ORGANIZATION_ID]
-        assert entry["metadata"]["secret_id"] == str(seeding_env.vault.row.id)
-        assert seeding_env.vault.row.data.provider.key == entry["key"]
+        seeding_env.monkeypatch.setattr(FakeProxyClient, "block_key", block_fails)
 
-    async def test_paired_but_unfinalized_row_is_not_healthy(self, seeding_env):
-        await _seed()
-        # Simulate a crash between mint and finalize: the record is back while
-        # the key is already paired.
-        extras = dict(seeding_env.vault.row.data.provider.extras or {})
-        extras[service._GRANT_RECORD_FIELD] = service._build_grant_record(
-            ORGANIZATION_ID, 10.0
-        )
-        seeding_env.vault.row.data.provider.extras = extras
+        await _seed_safely()
 
-        outcome = await _reconcile()
-
-        assert outcome == "reseeded"
-        assert (
-            service._read_grant_record(seeding_env.vault.row, ORGANIZATION_ID) is None
-        )
-        entry = FakeProxyClient.records[ORGANIZATION_ID]
-        assert entry["metadata"]["secret_id"] == str(seeding_env.vault.row.id)
-
-
-class TestConcurrency:
-    async def test_concurrent_seeds_converge_to_one_bounded_pair(self, seeding_env):
-        await asyncio.gather(_seed(), _seed(), return_exceptions=True)
-
-        outcome = await _reconcile()
-
-        assert outcome in ("healthy", "reseeded")
-        if outcome == "reseeded":
-            outcome = await _reconcile()
-            assert outcome == "healthy"
-
-        assert len(FakeProxyClient.records) == 1
-        entry = FakeProxyClient.records[ORGANIZATION_ID]
-        assert entry["max_budget"] <= 10.0
-        row = seeding_env.vault.row
-        assert entry["metadata"]["secret_id"] == str(row.id)
-        assert row.data.provider.key == entry["key"]
-        assert service._read_grant_record(row, ORGANIZATION_ID) is None
+        assert seeding_env.vault.row is None
+        assert len(seeding_env.alerts) == 1
 
 
 class TestTimeoutBound:
@@ -1035,37 +882,12 @@ class TestMintPolicyAllows:
         assert all(count == 0 for count in self.engine.counts.values())
 
 
-class TestAdminRouter:
-    async def test_reconcile_route_returns_outcome(self, monkeypatch):
-        from ee.src.apis.fastapi.starter_credits_bridge import router as admin_router
-
-        seen = {}
-
-        async def fake_reconcile(*, organization_id):
-            seen["organization_id"] = organization_id
-            return "healthy"
-
-        monkeypatch.setattr(
-            admin_router, "reconcile_starter_credits_bridge", fake_reconcile
-        )
-
-        instance = admin_router.StarterCreditsBridgeAdminRouter()
-        response = await instance.reconcile(
-            admin_router.StarterCreditsReconcileRequest(organization_id=ORGANIZATION_ID)
-        )
-
-        assert seen["organization_id"] == ORGANIZATION_ID
-        assert response.status_code == 200
-        assert b"healthy" in response.body
-
-
 class TestManagedAndWriteOnlyRow:
     """The seeded connection is Agenta's from creation: unreadable and undeletable.
 
     `managed_by` refuses user deletes and re-credentialing; `write_only` keeps the proxy
     virtual key out of every user-facing read. Both ride the CREATE, so the row is never
-    briefly readable or removable, and every later write by this component carries the
-    owner flag that gets it past the managed guard.
+    briefly readable or removable.
     """
 
     async def test_the_row_is_created_managed_and_write_only(self, seeding_env):
@@ -1078,23 +900,3 @@ class TestManagedAndWriteOnlyRow:
 
         assert seeding_env.vault.row.managed_by == service.ORIGIN_MARKER
         assert seeding_env.vault.row.write_only is True
-
-    async def test_every_update_carries_the_owner_flag(self, seeding_env):
-        await _seed()
-
-        # Row-first seeding writes the grant record, then finalizes with the minted key.
-        assert seeding_env.vault.update_allow_managed
-        assert all(seeding_env.vault.update_allow_managed)
-
-    async def test_reconcile_updates_also_carry_the_owner_flag(self, seeding_env):
-        await _seed()
-        seeding_env.vault.update_allow_managed.clear()
-
-        # The concurrency scar from `test_unpaired_key_is_repaired_at_its_remaining`:
-        # reconcile re-mints and writes the new key back into the managed row.
-        FakeProxyClient.records[ORGANIZATION_ID]["metadata"]["secret_id"] = str(uuid4())
-        FakeProxyClient.records[ORGANIZATION_ID]["spend"] = 2.0
-
-        assert await _reconcile() == "reseeded"
-        assert seeding_env.vault.update_allow_managed
-        assert all(seeding_env.vault.update_allow_managed)

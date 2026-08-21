@@ -15,7 +15,7 @@ _KEY_PATTERN = re.compile(r"sk-[A-Za-z0-9_\-]+")
 
 
 class StarterCreditsProxyClient:
-    """Admin client for the starter-credits proxy (mint / inspect / block keys).
+    """Admin client for the starter-credits proxy (mint / block keys, team info).
 
     Authenticates with the master key, which must never leave the backend.
     """
@@ -77,18 +77,6 @@ class StarterCreditsProxyClient:
 
         return MintedKey(key=key, key_alias=key_alias)
 
-    async def delete_keys(self, *, key_aliases: list[str]) -> None:
-        await self._request("POST", "/key/delete", json={"key_aliases": key_aliases})
-
-    async def list_keys(self, *, key_alias: str) -> list[dict[str, Any]]:
-        payload = await self._request(
-            "GET",
-            "/key/list",
-            params={"key_alias": key_alias, "return_full_object": "true"},
-        )
-        keys = payload.get("keys") if isinstance(payload, dict) else None
-        return [key for key in keys or [] if isinstance(key, dict)]
-
     async def get_team_info(self, *, team_id: str) -> dict[str, Any]:
         payload = await self._request("GET", "/team/info", params={"team_id": team_id})
         return payload if isinstance(payload, dict) else {}
@@ -122,9 +110,9 @@ class StarterCreditsProxyClient:
             # Redact key material before the body can reach logs (a proxy error
             # may echo the failing request, which can carry a virtual key).
             detail = _KEY_PATTERN.sub("sk-[redacted]", response.text)[:300]
-            # Only the measured conflict wording may trigger the destructive
-            # delete-and-remint compensation; a validation 400 that merely
-            # mentions the alias field must not.
+            # Only the measured conflict wording may read as "this organization
+            # already holds its key"; a validation 400 that merely mentions the
+            # alias field must not.
             if (
                 response.status_code == 400
                 and "alias" in detail.lower()
