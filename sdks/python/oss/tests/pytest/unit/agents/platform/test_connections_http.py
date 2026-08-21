@@ -67,6 +67,7 @@ def _custom_provider(
     extras: dict | None = None,
     models: list[str] | None = None,
     slug: str | None = None,
+    model_keys: list[str] | None = None,
 ) -> dict:
     secret = {
         "kind": "custom_provider",
@@ -81,7 +82,9 @@ def _custom_provider(
                 "extras": extras or {},
             },
             "models": [{"slug": m} for m in (models or ["my-model"])],
-            "model_keys": [f"{name}/{kind}/{m}" for m in (models or ["my-model"])],
+            "model_keys": model_keys
+            if model_keys is not None
+            else [f"{name}/{kind}/{m}" for m in (models or ["my-model"])],
         },
     }
     # Records created before named connections have no slug and are addressed by their name.
@@ -712,6 +715,122 @@ async def test_full_custom_model_key_selects_and_strips_to_backend_model(
     )
     assert resolved.model == "anthropic.claude-x"
     assert resolved.deployment == "bedrock"
+
+
+# ------------------------------------------ namespaced custom model keys (with a provider)
+
+_GATEWAY_URL = "https://93.184.216.34/v1"
+_BACKEND_MODEL = "vertex_ai/gemini-3.6-flash"
+
+
+def _starter_credits(*, name: str = "Starter credits", model_keys=None) -> dict:
+    """The seeded OpenAI-compatible gateway connection, addressed by its stable slug.
+
+    Its stored ``model_keys`` are namespaced ``<name>/custom/<backend model>`` and carry no
+    provider prefix, which is what the playground writes into the committed config.
+    """
+    return _custom_provider(
+        name,
+        "custom",
+        key="sk-gateway",
+        url=_GATEWAY_URL,
+        models=[_BACKEND_MODEL],
+        slug="starter-credits",
+        model_keys=model_keys,
+    )
+
+
+async def test_namespaced_custom_model_key_strips_when_a_provider_is_set(
+    fake_http, connection
+):
+    # The playground commits provider="openai" alongside the namespaced model id. The stored key
+    # has no provider prefix, so matching and stripping must both compare the unprefixed
+    # spelling; otherwise the connection matches but the upstream is asked for a model literally
+    # named "Starter credits/custom/vertex_ai/gemini-3.6-flash".
+    fake_http(connections, payload=[_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=f"Starter credits/custom/{_BACKEND_MODEL}",
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _BACKEND_MODEL
+    assert resolved.provider == "openai"
+    assert resolved.deployment == "custom"
+    assert resolved.endpoint.base_url == _GATEWAY_URL
+
+
+async def test_namespaced_custom_model_key_strips_without_a_provider(
+    fake_http, connection
+):
+    # The same config with no provider set already worked; pin it so the fix keeps both
+    # spellings resolving to the same backend model id.
+    fake_http(connections, payload=[_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model=f"Starter credits/custom/{_BACKEND_MODEL}",
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _BACKEND_MODEL
+    assert resolved.provider == "openai"
+
+
+async def test_legacy_none_namespaced_custom_model_key_strips(fake_http, connection):
+    # Rows written before the connection carried a name are namespaced with the literal
+    # "None"; they must strip the same way.
+    legacy_key = f"None/custom/{_BACKEND_MODEL}"
+    fake_http(connections, payload=[_starter_credits(model_keys=[legacy_key])])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=legacy_key,
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _BACKEND_MODEL
+
+
+async def test_bare_backend_model_id_is_left_untouched(fake_http, connection):
+    # A request that already names the backend model (slashes and all) must pass through
+    # unchanged: there is no namespace to strip, and nothing may be cut off the front.
+    fake_http(connections, payload=[_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=_BACKEND_MODEL,
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _BACKEND_MODEL
+
+
+async def test_provider_key_model_id_is_unaffected(fake_http, connection):
+    # A plain provider key stores no namespaced model keys; its model id must survive verbatim.
+    fake_http(
+        connections, payload=[_provider_key("My OpenAI key", "openai", "sk-prod")]
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("openai", provider="openai", model="gpt-5.5"),
+        context=_context(),
+    )
+
+    assert resolved.model == "gpt-5.5"
+    assert resolved.deployment == "direct"
 
 
 async def test_resolve_fails_loud_on_http_error(fake_http, connection):
