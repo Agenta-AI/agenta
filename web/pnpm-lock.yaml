@@ -1335,18 +1335,12 @@ importers:
 
   packages/agenta-entity-ui:
     dependencies:
-      '@agenta/chat':
-        specifier: workspace:../agenta-chat
-        version: link:../agenta-chat
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
       '@agenta/sessions-ui':
         specifier: workspace:../agenta-sessions-ui
         version: link:../agenta-sessions-ui
-      '@agenta/settings-ui':
-        specifier: workspace:../agenta-settings-ui
-        version: link:../agenta-settings-ui
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
@@ -2138,6 +2132,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.4
         version: 4.1.6(vitest@4.1.6)
+      ai:
+        specifier: 6.0.0-beta.150
+        version: 6.0.0-beta.150(zod@4.4.3)
       fake-indexeddb:
         specifier: ^6.2.5
         version: 6.2.5

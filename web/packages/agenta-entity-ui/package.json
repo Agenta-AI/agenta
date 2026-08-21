@@ -35,10 +35,8 @@
         "./clientTools": "./src/clientTools/index.ts"
     },
     "dependencies": {
-        "@agenta/chat": "workspace:../agenta-chat",
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/sessions-ui": "workspace:../agenta-sessions-ui",
-        "@agenta/settings-ui": "workspace:../agenta-settings-ui",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",

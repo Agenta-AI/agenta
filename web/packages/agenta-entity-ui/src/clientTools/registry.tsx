@@ -9,26 +9,35 @@
  * before the replay path carried the sibling part has none. Each later kind is one added entry,
  * not a protocol change. Contract: docs/design/agent-chat-interaction-kinds/decisions.md
  *
- * The store itself lives in ../skin (`registerChatSkin`); this module registers the
- * DESKTOP skin's widgets at import time and re-exports the shared resolvers under the names the
- * slice always used. A streamed client tool with no entry is NOT an error — `ClientToolPart`
- * renders the neutral "not handled by this client" surface, which settles a non-error output so
- * the run never hangs.
+ * The store and the resolvers live in @agenta/chat/skin. The dispatcher there reaches these
+ * widgets by VALUE (`resolveClientToolWidget(meta, clientToolWidgets)`), and its lookup checks the
+ * registered store BEFORE this fallback, so a host skin can still override any entry through
+ * `registerChatSkin`. This module must NOT import @agenta/chat at all, not even for types: the
+ * dispatcher's value import already points chat → entity-ui, and a dependency back the other way
+ * is a workspace package cycle. pnpm materializes such a cycle as an endless symlink chain in
+ * node_modules, and webpack's context-directory hashing walks it until it dies
+ * (`RangeError: Invalid array length` inside `FileSystemInfo._getUnresolvedContextTsh`). The shared
+ * contract in @agenta/shared/clientTools exists for exactly this reason.
+ *
+ * A streamed client tool with no entry is NOT an error — `ClientToolPart` renders the neutral
+ * "not handled by this client" surface, which settles a non-error output so the run never hangs.
  */
-import {hasClientToolWidget, registerChatSkin, resolveClientToolWidget} from "@agenta/chat/skin"
-import type {ClientToolMeta, ClientToolWidgetProps} from "@agenta/chat/skin"
+import type {ClientToolWidget} from "@agenta/shared/clientTools"
 
 import ConnectToolWidget from "./ConnectToolWidget"
 import ElicitationWidget from "./ElicitationWidget"
 
 /** The built-in client-tool widgets, as a plain value.
  *
- * Exported rather than only registered because registration is a module SIDE EFFECT, and both this
- * package and @agenta/chat declare `sideEffects: false` — a bare `import "…/clientTools"` from the
- * dispatcher was tree-shaken away, the registry stayed empty, and every elicitation silently
+ * Exported as a VALUE rather than registered, because registration is a module SIDE EFFECT and both
+ * this package and @agenta/chat declare `sideEffects: false` — a bare `import "…/clientTools"` from
+ * the dispatcher was tree-shaken away, the registry stayed empty, and every elicitation silently
  * auto-settled as "not handled by this client". A value import cannot be shaken.
  */
-export const clientToolWidgets = {
+export const clientToolWidgets: {
+    byRenderKind: Record<string, ClientToolWidget>
+    byToolName: Record<string, ClientToolWidget>
+} = {
     // Keyed by `render.kind` (checked first — the finer dispatch axis).
     byRenderKind: {
         connect: ConnectToolWidget,
@@ -43,15 +52,3 @@ export const clientToolWidgets = {
         request_input: ElicitationWidget,
     },
 }
-
-// Registering as well keeps the shared store the single lookup a HOST overrides through.
-registerChatSkin({clientTools: clientToolWidgets})
-
-type ClientToolHandler = React.ComponentType<ClientToolWidgetProps>
-
-/** Resolve the widget for a client tool, or `null` when none is registered. */
-export const resolveClientToolHandler = (meta: ClientToolMeta): ClientToolHandler | null =>
-    resolveClientToolWidget(meta) ?? null
-
-/** Whether this client tool has a dedicated widget (used to route known tools in every state). */
-export const hasClientToolHandler = (meta: ClientToolMeta): boolean => hasClientToolWidget(meta)

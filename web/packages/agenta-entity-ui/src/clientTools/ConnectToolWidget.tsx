@@ -11,7 +11,7 @@
  * (which re-runs the OAuth via the shared `useConnectFlow`, priming the vault for the agent's
  * re-ask — the settled part itself can't be re-resolved).
  */
-import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/chat/skin"
+import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/shared/clientTools"
 import {Button} from "@agenta/ui/ui"
 import {
     ArrowClockwise,

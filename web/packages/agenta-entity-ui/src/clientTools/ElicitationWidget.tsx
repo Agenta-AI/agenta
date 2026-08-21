@@ -8,9 +8,10 @@
  */
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/chat/skin"
-import {canonicalToolName, resolveToolDisplay} from "@agenta/chat/skin"
-import {CLIENT_TOOL_NAMES, isInteractionEndedOutput} from "@agenta/shared/clientTools"
+import {
+    type ClientToolWidgetProps as ClientToolHandlerProps,
+    isInteractionEndedOutput,
+} from "@agenta/shared/clientTools"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {
     type ElicitationResult,
@@ -120,7 +121,12 @@ const SubmittedAnswers = ({
     )
 }
 
-const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHandlerProps) => {
+const ElicitationWidget = ({
+    meta,
+    settle,
+    degradedEarlierInTurn,
+    askerLabel,
+}: ClientToolHandlerProps) => {
     const [form] = Form.useForm()
     const formRef = useRef<SchemaFormHandle>(null)
     const modifierKey = useModifierKey()
@@ -298,10 +304,10 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     if (!parsed.ok) return null // degradation auto-settle in flight (effect above)
 
     const requiredCount = parsed.payload.requestedSchema.required?.length ?? 0
-    // The composer dock and the turn's status line already say the run is parked on you.
-    const asker = CLIENT_TOOL_NAMES.has(canonicalToolName(meta.toolName))
-        ? null
-        : `Asked by ${resolveToolDisplay(meta.toolName).label}`
+    // The composer dock and the turn's status line already say the run is parked on you. The
+    // dispatcher resolves the label, because the tool-display store lives in @agenta/chat and this
+    // package must not depend on it (see the layering note in ./registry.tsx).
+    const asker = askerLabel ? `Asked by ${askerLabel}` : null
     const subtext = [asker, requiredCount > 0 ? `${requiredCount} required` : null]
         .filter(Boolean)
         .join(" · ")

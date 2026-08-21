@@ -10,9 +10,10 @@ import {createElement, memo, useCallback} from "react"
 
 import {clientToolWidgets} from "@agenta/entity-ui/clientTools"
 import type {RenderHintLike} from "@agenta/playground"
+import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import type {ToolUIPart} from "ai"
 
-import {resolveClientToolWidget} from "../skin"
+import {canonicalToolName, resolveClientToolWidget, resolveToolDisplay} from "../skin"
 
 import {clientToolMeta} from "./meta"
 import UnhandledClientTool from "./UnhandledClientTool"
@@ -41,6 +42,13 @@ const ClientToolPart = ({
     // The handler is a STABLE module-level component picked from the registry (not created during
     // render), so dispatch via `createElement` — `<Handler/>` would trip the static-components rule.
     const handler = resolveClientToolWidget(meta, clientToolWidgets) ?? UnhandledClientTool
+    // Resolved HERE because the tool-display store lives in this package. A widget that resolved it
+    // itself would import @agenta/chat back from @agenta/entity-ui, closing a workspace package
+    // cycle that breaks the production build. Null for a platform client tool: its own chrome
+    // already says who asks.
+    const askerLabel = CLIENT_TOOL_NAMES.has(canonicalToolName(meta.toolName))
+        ? null
+        : resolveToolDisplay(meta.toolName).label
 
     const settle = useCallback(
         (args: {output: Record<string, unknown>} | {errorText: string}) => {
@@ -63,7 +71,7 @@ const ClientToolPart = ({
 
     return (
         <div data-client-tool-call-id={meta.toolCallId}>
-            {createElement(handler, {meta, settle, degradedEarlierInTurn})}
+            {createElement(handler, {meta, settle, degradedEarlierInTurn, askerLabel})}
         </div>
     )
 }

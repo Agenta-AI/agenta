@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/gatewayTool"
 import {
     Button,
     Dialog,
@@ -15,8 +16,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-
-import {useToolsConnections, type CreateConnectionInput} from "./hooks/useToolsConnections"
 
 interface Props {
     open: boolean

@@ -11,7 +11,7 @@
 
 import {act} from "react"
 
-import type {ClientToolMeta, SettleClientTool} from "@agenta/chat/skin"
+import type {ClientToolMeta, SettleClientTool} from "@agenta/shared/clientTools"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("@agenta/entity-ui/gatewayTool", () => ({

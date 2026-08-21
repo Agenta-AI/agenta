@@ -10,10 +10,21 @@ import type {RenderHintLike} from "@agenta/playground"
 import type {ToolUIPart} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {ConnectToolWidget, ElicitationWidget} from "@agenta/entity-ui/clientTools"
+import {
+    ConnectToolWidget,
+    ElicitationWidget,
+    clientToolWidgets,
+} from "@agenta/entity-ui/clientTools"
 
 import {clientToolMeta, isClientToolPart} from "../../src/clientTools/meta"
-import {resolveClientToolWidget as resolveClientToolHandler} from "../../src/skin"
+import {type ClientToolMeta, resolveClientToolWidget} from "../../src/skin"
+
+// The dispatcher's real call shape: the built-ins arrive as a VALUE fallback, never through a
+// registration side effect. `sideEffects: false` on both packages tree-shakes a bare registration
+// import away, and a registration call in the widget package would need it to import @agenta/chat
+// back — the workspace cycle that breaks the production build.
+const resolveClientToolHandler = (meta: Pick<ClientToolMeta, "toolName" | "renderKind">) =>
+    resolveClientToolWidget(meta, clientToolWidgets)
 
 const settledCtx = {isStreaming: false, isLastMessage: true}
 

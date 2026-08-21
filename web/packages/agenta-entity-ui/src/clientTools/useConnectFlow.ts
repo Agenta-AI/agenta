@@ -27,10 +27,9 @@
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import type {ClientToolMeta, SettleClientTool} from "@agenta/chat/skin"
-import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
-import {useToolsConnections} from "@agenta/settings-ui"
+import {useToolIntegrationDetail, useToolsConnections} from "@agenta/entities/gatewayTool"
 import {getAgentaApiUrl} from "@agenta/shared/api"
+import type {ClientToolMeta, SettleClientTool} from "@agenta/shared/clientTools"
 
 /**
  * No terminal signal within this bound settles the call as a timeout so the run can't wait forever.

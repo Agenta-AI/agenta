@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import type {ToolConnection} from "@agenta/entities/gatewayTool"
+import {type ToolConnection, useToolsConnections} from "@agenta/entities/gatewayTool"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
@@ -9,8 +9,6 @@ import {DataTable, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
 
 import type {ConfirmDestructive} from "../confirm"
-
-import {useToolsConnections} from "./hooks/useToolsConnections"
 
 interface Props {
     integrationKey: string
