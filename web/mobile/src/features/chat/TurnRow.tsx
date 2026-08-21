@@ -27,6 +27,7 @@ import {
     CircleDashed,
     Copy,
     Network,
+    Undo2,
     User,
     Wrench,
     XCircle,
@@ -167,12 +168,15 @@ const RunErrorCallout = ({text}: {text: string}) => {
 export const TurnRow = ({
     turn,
     onClientToolOutput,
+    onRewind,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
      * the read-only transcript screen has no engine to settle into — and it passes no client-tool
      * predicate either, so it never produces one of these items to begin with. */
     onClientToolOutput?: ClientToolOutputHandler
+    /** Re-run the conversation from this turn. Absent on the read-only transcript screen. */
+    onRewind?: (turn: TurnViewModel) => void
 }) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const [copied, setCopied] = useState(false)
@@ -304,6 +308,19 @@ export const TurnRow = ({
                     icon={copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                     onClick={handleCopy}
                 />
+                {/* Rewinding the LAST turn just re-runs the turn that is already current, so the
+                    desktop hides it there and so do we. */}
+                {onRewind && !turn.isLast ? (
+                    <ChatActionIconButton
+                        label={
+                            turn.isUser
+                                ? "Rewind here — edit and re-run the conversation from this message"
+                                : "Rewind here — re-run this turn"
+                        }
+                        icon={<Undo2 className="size-3.5" />}
+                        onClick={() => onRewind(turn)}
+                    />
+                ) : null}
                 {traceId ? (
                     <ChatActionIconButton
                         label="View trace"

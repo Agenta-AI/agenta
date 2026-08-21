@@ -1,4 +1,4 @@
-import {useRef} from "react"
+import {useRef, type MutableRefObject} from "react"
 
 import {
     ChatComposer,
@@ -32,6 +32,7 @@ export const Composer = ({
     waitingOnUser = false,
     streaming = false,
     onStop,
+    inputRef,
 }: {
     sessionId: string
     onSend: (input: {text: string; parts?: FileUIPart[]}) => void | Promise<void>
@@ -42,9 +43,12 @@ export const Composer = ({
     /** A run is streaming from this device — the send button becomes Stop. */
     streaming?: boolean
     onStop?: () => void
+    /** Lets the host write into the input — a rewind puts the rewound message back to edit. */
+    inputRef?: MutableRefObject<RichChatInputHandle | null>
 }) => {
     const attachments = useComposerAttachments({sessionId})
-    const richInputRef = useRef<RichChatInputHandle | null>(null)
+    const ownInputRef = useRef<RichChatInputHandle | null>(null)
+    const richInputRef = inputRef ?? ownInputRef
     const sending = useRef(false)
     const presets = useMotionPresets()
 

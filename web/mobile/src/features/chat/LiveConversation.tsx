@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     BOTTOM_FADE_HOVER_HIDE,
@@ -6,9 +6,11 @@ import {
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
 import {useAgentConversation} from "@agenta/chat/hooks"
-import {getPendingApprovals} from "@agenta/chat/model"
+import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
+import {modal} from "@agenta/ui/app-message"
 import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
+import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
@@ -132,6 +134,37 @@ export const LiveConversation = ({
 
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
 
+    // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
+    // so the warning about tools that already ran, and putting a rewound user message back into
+    // the composer, are this surface's job — same division the desktop uses.
+    const composerRef = useRef<RichChatInputHandle | null>(null)
+    const handleRewind = useCallback(
+        (turn: TurnViewModel) => {
+            const plan = conversation.rewind(turn.message)
+            if (!plan) return
+            const run = () => {
+                plan.confirm()
+                if (plan.restoreText === undefined) return
+                composerRef.current?.setMarkdown(plan.restoreText)
+                requestAnimationFrame(() => composerRef.current?.focus())
+            }
+            if (plan.sideEffects.length === 0) {
+                run()
+                return
+            }
+            modal.confirm({
+                title: "Rewind past a tool that already ran?",
+                content: `${plan.sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
+                okText: "Rewind anyway",
+                okButtonProps: {danger: true},
+                cancelText: "Cancel",
+                centered: true,
+                onOk: run,
+            })
+        },
+        [conversation],
+    )
+
     let body
     if (conversation.isHydrating) {
         body = <ChatLoading />
@@ -158,6 +191,7 @@ export const LiveConversation = ({
                         key={turn.message.id}
                         turn={turn}
                         onClientToolOutput={conversation.sendToolOutput}
+                        onRewind={handleRewind}
                     />
                 ))}
                 <TurnStatusLine
@@ -229,6 +263,7 @@ export const LiveConversation = ({
                         waitingOnUser={conversation.hitlPending}
                         streaming={streamingHere}
                         onStop={conversation.stop}
+                        inputRef={composerRef}
                     />
                 </div>
             }
