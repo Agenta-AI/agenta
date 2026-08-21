@@ -8,7 +8,6 @@ credential or config — adding a key to the resolver without classifying it fai
 from agenta.sdk.agents.connections.credentials import (
     CONFIG_EXTRAS_KEYS,
     CREDENTIAL_EXTRAS_KEYS,
-    PRIMARY_CREDENTIAL_FIELDS,
     credential_extras,
 )
 from agenta.sdk.agents.platform.connections import (
@@ -29,16 +28,6 @@ def test_every_resolver_extras_key_is_classified():
 
 def test_credential_and_config_classifications_are_disjoint():
     assert not (CREDENTIAL_EXTRAS_KEYS & CONFIG_EXTRAS_KEYS)
-
-
-def test_primary_fields_cover_every_secret_kind():
-    assert set(PRIMARY_CREDENTIAL_FIELDS) == {
-        "provider_key",
-        "custom_provider",
-        "webhook_provider",
-        "sso_provider",
-        "custom_secret",
-    }
 
 
 def test_credential_extras_keeps_only_non_empty_credential_material():

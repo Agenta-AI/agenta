@@ -7,19 +7,31 @@ verified Secret token carries the ``secret-resolve`` grant — receives the plai
 because the workload it runs needs the real key. In-process readers (`VaultService` and
 below) are untouched: redaction happens strictly at the response boundary.
 
-WHAT counts as credential material is not decided here: the canonical classifier lives in
-the SDK (``agenta.sdk.agents.connections.credentials``) and is imported, so the fields the
-SDK resolver consumes as credentials and the fields this module strips can never drift.
+WHAT counts as credential material inside a connection is not decided here: that
+vocabulary lives in the SDK (``agenta.sdk.agents.connections.credentials``) and is
+imported, so the extras the SDK resolver consumes as credentials and the extras this
+module strips can never drift. The per-kind primary field below is this side's own,
+because it covers kinds the SDK never resolves.
 """
 
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Tuple
 
-from agenta.sdk.agents.connections.credentials import (
-    CREDENTIAL_EXTRAS_KEYS,
-    PRIMARY_CREDENTIAL_FIELDS,
-)
+from agenta.sdk.agents.connections.credentials import CREDENTIAL_EXTRAS_KEYS
 
 from oss.src.core.secrets.dtos import SecretResponseDTO
+
+
+# The primary value field per secret kind, as (container attribute, field name). Lives
+# here rather than in the SDK classifier because it spans kinds the SDK never resolves —
+# SSO providers, webhook signing secrets — and no SDK code reads it. The extras
+# vocabulary beside it IS shared, and stays imported.
+PRIMARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, str]] = {
+    "provider_key": ("provider", "key"),
+    "custom_provider": ("provider", "key"),
+    "webhook_provider": ("provider", "key"),
+    "sso_provider": ("provider", "client_secret"),
+    "custom_secret": ("secret", "content"),
+}
 
 
 def mask_secret_value(value: str) -> str:

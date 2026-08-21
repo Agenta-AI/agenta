@@ -2,6 +2,8 @@ from typing import Any, Optional
 from functools import partial
 from uuid import UUID, uuid4
 
+from pydantic import ValidationError
+
 from oss.src.utils.env import env
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.secrets.enums import (
@@ -54,6 +56,20 @@ def _provider_family(data: Any) -> Optional[str]:
     return str(getattr(kind, "value", kind))
 
 
+def _secret_format(data: Any) -> Optional[str]:
+    """A custom secret's stored format (`data.secret.format`); None for other kinds.
+
+    Part of a secret's identity for the same reason the provider family is: the format
+    decides how the value is validated and read back, so text and json are two different
+    credentials, not two spellings of one.
+    """
+    container = getattr(data, "secret", None)
+    fmt = getattr(container, "format", None) if container is not None else None
+    if fmt is None:
+        return None
+    return str(getattr(fmt, "value", fmt))
+
+
 def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) -> None:
     """Fill an update payload's omitted value field from the stored record.
 
@@ -83,6 +99,25 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
                     setattr(update_container, field, stored_value)
 
     _carry_over_saved_extras(stored_data=stored_data, update_data=update_data)
+
+
+def _revalidate_merged_secret(*, secret: Any) -> None:
+    """Re-run the payload validators over the update as it will be stored.
+
+    Validation runs at construction, before keep-on-omit fills the value in, so a merged
+    payload can be a shape no create would have accepted. Re-validating here — inside the
+    write lock, against the merged result — is what keeps an invalid row from being
+    committed.
+    """
+    try:
+        type(secret).model_validate(secret.model_dump())
+    except ValidationError as exc:
+        raise SecretValueRequiredError(
+            message=(
+                "the stored value does not fit this update's shape; "
+                "provide the value explicitly"
+            )
+        ) from exc
 
 
 def _require_explicit_value(*, secret: Any) -> None:
@@ -151,10 +186,15 @@ def _resolve_credential_carry_over(
     if update_secret_dto.secret is None:
         return
 
-    same_identity = stored_secret_dto.kind == (
-        update_secret_dto.secret.kind
-    ) and _provider_family(stored_secret_dto.data) == _provider_family(
-        update_secret_dto.secret.data
+    same_identity = (
+        stored_secret_dto.kind == update_secret_dto.secret.kind
+        and _provider_family(stored_secret_dto.data)
+        == _provider_family(update_secret_dto.secret.data)
+        # A custom secret's format is identity too: carrying a stored text value into a
+        # json update would store a string where the shape says object, and the payload
+        # validators never see it because they ran before the value was filled in.
+        and _secret_format(stored_secret_dto.data)
+        == _secret_format(update_secret_dto.secret.data)
     )
 
     if same_identity:
@@ -167,6 +207,10 @@ def _resolve_credential_carry_over(
             stored_data=stored_secret_dto.data,
             update_data=update_secret_dto.secret.data,
         )
+        # The payload was validated before the carry-over filled it in, so what the
+        # validators actually saw was a value-less shape. Re-validate the merged result:
+        # nothing reaches the row that a create of the same shape would have refused.
+        _revalidate_merged_secret(secret=update_secret_dto.secret)
     else:
         _require_explicit_value(secret=update_secret_dto.secret)
 
