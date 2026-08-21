@@ -10,7 +10,12 @@ from oss.src.core.secrets.enums import (
 )
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
 from oss.src.core.secrets.context import set_data_encryption_key
-from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
+from oss.src.core.secrets.redaction import CREDENTIAL_EXTRAS_KEYS
+from oss.src.core.secrets.dtos import (
+    CreateSecretDTO,
+    UpdateSecretDTO,
+    WriteOnlyCannotBeDisabledError,
+)
 
 
 def next_provider_key_name(
@@ -33,6 +38,70 @@ def next_provider_key_name(
         index += 1
 
     return f"{title} {index}"
+
+
+# The value-bearing (credential) field of each payload shape, as (container, field) pairs.
+# `provider.key` covers standard providers, custom providers, and webhooks; the other two
+# cover SSO and custom secrets. `_carry_over_saved_value` probes with hasattr, so pairs a
+# given kind does not have are simply skipped.
+_VALUE_FIELDS = (
+    ("provider", "key"),
+    ("provider", "client_secret"),
+    ("secret", "content"),
+)
+
+
+def _carry_over_saved_value(*, stored_data: Any, update_data: Any) -> None:
+    """Fill an update payload's omitted value field from the stored record.
+
+    An update that omits the value means "keep the stored one" — the contract replace-only
+    forms rely on for write-only secrets, applied uniformly so update semantics do not fork
+    on the flag. An empty string counts as omitted: an empty credential is never a
+    meaningful value, and replace-only forms submit empty for "unchanged".
+    """
+    for container_name, field in _VALUE_FIELDS:
+        update_container = getattr(update_data, container_name, None)
+        stored_container = getattr(stored_data, container_name, None)
+
+        if update_container is None or stored_container is None:
+            continue
+        if not hasattr(update_container, field):
+            continue
+
+        current_value = getattr(update_container, field)
+        if current_value is not None and current_value != "":
+            continue
+
+        stored_value = getattr(stored_container, field, None)
+        if stored_value is not None:
+            setattr(update_container, field, stored_value)
+
+    _carry_over_saved_extras(stored_data=stored_data, update_data=update_data)
+
+
+def _carry_over_saved_extras(*, stored_data: Any, update_data: Any) -> None:
+    """Same keep-on-omit contract for the credential keys of a custom provider's extras."""
+    update_container = getattr(update_data, "provider", None)
+    stored_container = getattr(stored_data, "provider", None)
+
+    if update_container is None or stored_container is None:
+        return
+    if not hasattr(update_container, "extras"):
+        return
+
+    stored_extras = getattr(stored_container, "extras", None) or {}
+    if not stored_extras:
+        return
+
+    update_extras = update_container.extras
+    if update_extras is None:
+        update_container.extras = dict(stored_extras)
+        return
+
+    for extras_key in CREDENTIAL_EXTRAS_KEYS:
+        stored_value = stored_extras.get(extras_key)
+        if stored_value is not None and not update_extras.get(extras_key):
+            update_extras[extras_key] = stored_value
 
 
 def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
@@ -77,6 +146,11 @@ class VaultService:
                 create_secret_dto.header.name,
                 uuid4(),
             )
+
+        # Write-only is the platform default for NEW secrets; an explicit False is the
+        # compatibility escape hatch. Existing rows are untouched (they carry no flag).
+        if create_secret_dto.write_only is None:
+            create_secret_dto.write_only = True
 
         if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
             await self._name_and_slug_provider_key(
@@ -192,17 +266,31 @@ class VaultService:
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            if update_secret_dto.secret is not None:
+            if (
+                update_secret_dto.secret is not None
+                or update_secret_dto.write_only is not None
+            ):
                 stored_secret_dto = await self.secrets_dao.get_by_id(
                     secret_id=secret_id,
                     project_id=project_id,
                     organization_id=organization_id,
                 )
                 if stored_secret_dto is not None:
-                    _carry_over_saved_policy(
-                        stored_data=stored_secret_dto.data,
-                        update_data=update_secret_dto.secret.data,
-                    )
+                    if (
+                        stored_secret_dto.write_only
+                        and update_secret_dto.write_only is False
+                    ):
+                        raise WriteOnlyCannotBeDisabledError()
+
+                    if update_secret_dto.secret is not None:
+                        _carry_over_saved_policy(
+                            stored_data=stored_secret_dto.data,
+                            update_data=update_secret_dto.secret.data,
+                        )
+                        _carry_over_saved_value(
+                            stored_data=stored_secret_dto.data,
+                            update_data=update_secret_dto.secret.data,
+                        )
 
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,

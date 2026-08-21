@@ -1,4 +1,4 @@
-from typing import Optional, Union, List, Dict, Any
+from typing import ClassVar, Optional, Union, List, Dict, Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -17,8 +17,29 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 
 
+class WriteOnlyCannotBeDisabledError(Exception):
+    """Raised when an update tries to turn `write_only` off.
+
+    Turning it off would make the stored value readable again, defeating the flag's whole
+    guarantee. The transition is one-way: off -> on only.
+    """
+
+    def __init__(
+        self,
+        message: str = "A write-only secret cannot be made readable again. "
+        "Delete it and create a new secret instead.",
+    ):
+        self.message = message
+        super().__init__(message)
+
+
+# The value-bearing fields below are Optional so that read models can carry a redacted
+# (value-less) shape and updates can omit a value to mean "keep the stored one". Presence
+# at CREATE time is still enforced, by `SecretDTO.validate_secret_data_based_on_kind`.
+
+
 class StandardProviderSettingsDTO(BaseModel):
-    key: str
+    key: Optional[str] = None
 
 
 class CustomModelSettingsDTO(BaseModel):
@@ -55,7 +76,7 @@ class CustomProviderDTO(BaseModel):
 
 class SSOProviderSettingsDTO(BaseModel):
     client_id: str
-    client_secret: str
+    client_secret: Optional[str] = None
     issuer_url: str
     scopes: List[str]
     extra: Dict[str, Any] = Field(default_factory=dict)
@@ -66,7 +87,7 @@ class SSOProviderDTO(BaseModel):
 
 
 class WebhookProviderSettingsDTO(BaseModel):
-    key: str
+    key: Optional[str] = None
 
 
 class WebhookProviderDTO(BaseModel):
@@ -75,7 +96,7 @@ class WebhookProviderDTO(BaseModel):
 
 class CustomSecretSettingsDTO(BaseModel):
     format: CustomSecretFormat
-    content: Union[str, Dict[str, Union[str, int, float, bool, None]]]
+    content: Optional[Union[str, Dict[str, Union[str, int, float, bool, None]]]] = None
     # text -> content is a str (stored verbatim); json -> a flat {str: primitive} map.
 
 
@@ -92,6 +113,11 @@ class SecretDTO(BaseModel):
         WebhookProviderDTO,
         CustomSecretDTO,
     ]
+
+    # Whether the kind's value field (provider key, custom-secret content, ...) must be
+    # present. True on the create path; the update payload and the response model turn it
+    # off so a value-less shape (keep-stored-on-omit, write-only redaction) validates.
+    VALUE_REQUIRED: ClassVar[bool] = True
 
     @model_validator(mode="before")
     def validate_secret_data_based_on_kind(cls, values: Dict[str, Any]):
@@ -112,7 +138,9 @@ class SecretDTO(BaseModel):
                     "The provided request secret dto is not a valid type for StandardProviderDTO"
                 )
             provider = data.get("provider")
-            if not isinstance(provider, dict) or "key" not in provider:
+            if not isinstance(provider, dict) or (
+                cls.VALUE_REQUIRED and provider.get("key") is None
+            ):
                 raise ValueError(
                     "The provided request secret dto is missing required fields for StandardProviderSettingsDTO"
                 )
@@ -160,7 +188,9 @@ class SecretDTO(BaseModel):
                 raise ValueError(
                     "The provided request secret dto is missing required fields for SSOProviderSettingsDTO"
                 )
-            required_fields = {"client_id", "client_secret", "issuer_url", "scopes"}
+            required_fields = {"client_id", "issuer_url", "scopes"}
+            if cls.VALUE_REQUIRED:
+                required_fields.add("client_secret")
             if not required_fields.issubset(provider.keys()):
                 raise ValueError(
                     "The provided request secret dto is missing required fields for SSOProviderSettingsDTO"
@@ -171,7 +201,9 @@ class SecretDTO(BaseModel):
                     "The provided request secret dto is not a valid type for WebhookProviderDTO"
                 )
             provider = data.get("provider")
-            if not isinstance(provider, dict) or "key" not in provider:
+            if not isinstance(provider, dict) or (
+                cls.VALUE_REQUIRED and provider.get("key") is None
+            ):
                 raise ValueError(
                     "The provided request secret dto is missing required fields for WebhookProviderSettingsDTO"
                 )
@@ -184,13 +216,15 @@ class SecretDTO(BaseModel):
             if (
                 not isinstance(secret, dict)
                 or "format" not in secret
-                or "content" not in secret
+                or (cls.VALUE_REQUIRED and secret.get("content") is None)
             ):
                 raise ValueError(
                     "The provided request secret dto requires data.secret.{format, content} for CustomSecretDTO"
                 )
-            fmt, content = secret["format"], secret["content"]
-            if fmt == CustomSecretFormat.TEXT.value:
+            fmt, content = secret["format"], secret.get("content")
+            if content is None:
+                pass  # Value-less shape allowed when VALUE_REQUIRED is off; nothing to type-check.
+            elif fmt == CustomSecretFormat.TEXT.value:
                 if not isinstance(content, str):
                     raise ValueError("A text custom_secret requires a string content")
                 # Stored verbatim; do NOT re-serialize a JSON-looking string.
@@ -213,6 +247,9 @@ class SecretDTO(BaseModel):
 class CreateSecretDTO(Slug, BaseModel):
     header: Header
     secret: SecretDTO
+    # None means "platform default", which is write-only. An explicit False is the
+    # compatibility escape hatch for callers that still need to read the value back.
+    write_only: Optional[bool] = None
 
     @model_validator(mode="before")
     def ensure_header_exists(cls, values):
@@ -258,9 +295,19 @@ class CreateSecretDTO(Slug, BaseModel):
         return values
 
 
+class UpdateSecretPayloadDTO(SecretDTO):
+    """The update-path secret payload: same shape as `SecretDTO`, but a value field may be
+    omitted to mean "keep the stored value" (see `VaultService.update_secret`)."""
+
+    VALUE_REQUIRED: ClassVar[bool] = False
+
+
 class UpdateSecretDTO(BaseModel):
     header: Optional[Header] = None
-    secret: Optional[SecretDTO] = None
+    secret: Optional[UpdateSecretPayloadDTO] = None
+    # None keeps the stored flag. True tightens a readable secret to write-only.
+    # False on a write-only secret is rejected (`WriteOnlyCannotBeDisabledError`).
+    write_only: Optional[bool] = None
 
     @model_validator(mode="before")
     def update_provider_slug_with_header_name(cls, values):
@@ -278,6 +325,15 @@ class UpdateSecretDTO(BaseModel):
 class SecretResponseDTO(Identifier, Slug, SecretDTO):
     header: Header
     lifecycle: Optional[LegacyLifecycleDTO] = None
+
+    write_only: bool = False
+    # Server-computed, set only on redacted (write-only) user-facing responses so a client
+    # can show that a value exists, and which one, without ever receiving it.
+    has_key: Optional[bool] = None
+    key_preview: Optional[str] = None
+
+    # A read model may carry a redacted, value-less payload.
+    VALUE_REQUIRED: ClassVar[bool] = False
 
     @model_validator(mode="before")
     def build_up_model_keys(cls, values: Dict[str, Any]) -> Dict[str, Any]:

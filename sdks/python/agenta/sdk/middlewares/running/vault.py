@@ -362,6 +362,18 @@ async def get_secrets(
     except Exception:  # pylint: disable=bare-except
         display_exception("Vault: Vault Secrets Exception")
 
+    vault_secrets, redacted_names = _split_write_only_redacted(vault_secrets)
+    if redacted_names:
+        # Engineering copy; adjust freely.
+        log.error(
+            "Vault: %d secret(s) are write-only and were returned without their values "
+            "(%s). Their values cannot be read back outside the platform runtime; for "
+            "standalone runs, provide the provider key via its environment variable "
+            "(for example OPENAI_API_KEY) instead.",
+            len(redacted_names),
+            ", ".join(redacted_names),
+        )
+
     local_standard = {}
     # A project may hold several connections per provider family, so vault provider_key records
     # are kept as a list. Keying them by family (as the locals still are) would drop every
@@ -406,6 +418,45 @@ async def get_secrets(
     set_secrets_cache(credentials, secrets_cache)
 
     return secrets, combined_vault, local_secrets
+
+
+def _split_write_only_redacted(
+    vault_secrets: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[str]]:
+    """Drop entries whose value the vault redacted (write-only secret, non-granted caller).
+
+    A redacted entry has no usable credential, so keeping it would either pass an empty key
+    to a provider or shadow a working env-var key of the same provider family. Returns the
+    usable entries and the display names of the dropped ones.
+    """
+    usable: List[Dict[str, Any]] = []
+    redacted_names: List[str] = []
+
+    for secret in vault_secrets or []:
+        if (
+            isinstance(secret, dict)
+            and secret.get("write_only")
+            and secret.get("has_key")
+        ):
+            data = secret.get("data") or {}
+            kind = secret.get("kind")
+            value = None
+            if kind in ("provider_key", "custom_provider"):
+                provider = data.get("provider") or {}
+                value = provider.get("key") or (provider.get("extras") or {}).get(
+                    "api_key"
+                )
+            elif kind == "custom_secret":
+                value = (data.get("secret") or {}).get("content")
+
+            if not value:
+                header = secret.get("header") or {}
+                redacted_names.append(header.get("name") or secret.get("slug") or kind)
+                continue
+
+        usable.append(secret)
+
+    return usable, redacted_names
 
 
 def _has_invalid_secrets_error(response: Any) -> bool:
