@@ -429,7 +429,9 @@ def authed(monkeypatch):
     """Let the SDK auth middleware through, as a verified Agenta user would."""
 
     async def _allow(*_args, **_kwargs):
-        return "ApiKey test-credentials"
+        # `get_credentials` returns the caller's credential and a separate trace-ingest
+        # one; a single value here unpacks as two characters in the middleware.
+        return "ApiKey test-credentials", None
 
     monkeypatch.setattr(auth_middleware, "get_credentials", _allow)
     return TestClient(agent_v0_app)
