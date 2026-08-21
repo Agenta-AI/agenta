@@ -287,6 +287,13 @@ async def _create_row(
             key=virtual_key,
         ),
         models=[CustomModelSettingsDTO(slug=config.model_id)],
+        # The namespace half of every model key this connection publishes
+        # (`<provider_slug>/<kind>/<model>`), and it must equal the display name:
+        # that is the namespace the resolver rebuilds keys under, and a model key is
+        # permanent once a config references it. `CreateSecretDTO` fills this in from
+        # the header only when the payload arrives as plain dicts, which is not how
+        # this call builds it, so it is set here explicitly.
+        provider_slug=STARTER_CREDITS_NAME,
     ).model_dump()
 
     created = await vault_service.create_secret(

@@ -11,6 +11,7 @@ from uuid import uuid4
 import pytest
 
 from oss.src.utils.env import env, StarterCreditsBridgeConfig
+from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.enums import CustomProviderKind
 
 from ee.src.core.starter_credits_bridge import service
@@ -286,6 +287,62 @@ class TestSeeding:
         assert row.header.name == service.STARTER_CREDITS_NAME
         assert seeding_env.invalidated == [{"project_id": str(seeding_env.project.id)}]
         assert seeding_env.released == []
+
+    async def test_the_seeded_row_keys_its_models_under_the_display_name(
+        self, seeding_env
+    ):
+        # The display name is the namespace half of every model key this connection
+        # publishes, and a key is permanent once a config references it: a row seeded
+        # with no `provider_slug` published "None/custom/<model>" forever.
+        await _seed()
+
+        created = seeding_env.vault.create_dto
+        # `mode="json"` is the shape the row is stored and read back in.
+        response = SecretResponseDTO(
+            id=uuid4(),
+            slug=service.STARTER_CREDITS_SLUG,
+            kind=created.secret.kind,
+            data=created.secret.data.model_dump(mode="json"),
+            header=created.header,
+        )
+
+        assert response.data.model_keys == [
+            f"{service.STARTER_CREDITS_NAME}/custom/vertex_ai/some-model"
+        ]
+
+    async def test_the_resolver_reads_the_seeded_keys_and_strips_the_namespace(
+        self, seeding_env
+    ):
+        # The resolver takes the STORED keys as they are (it only rebuilds when a row
+        # has none), and strips the namespace off the chosen one to get the model id
+        # the harness runs. So the namespace the row was seeded with is the namespace
+        # the runtime sees, and it has to be the display name.
+        from agenta.sdk.agents.connections import ModelRef
+        from agenta.sdk.agents.platform import connections
+
+        await _seed()
+
+        created = seeding_env.vault.create_dto
+        stored = SecretResponseDTO(
+            id=uuid4(),
+            slug=service.STARTER_CREDITS_SLUG,
+            kind=created.secret.kind,
+            data=created.secret.data.model_dump(mode="json"),
+            header=created.header,
+        )
+        # The row as the vault routes return it, model keys included.
+        (candidate,) = connections._catalog([stored.model_dump(mode="json")])
+
+        assert candidate.model_keys == {
+            f"{service.STARTER_CREDITS_NAME}/custom/vertex_ai/some-model"
+        }
+
+        model = ModelRef(
+            model=f"{service.STARTER_CREDITS_NAME}/custom/vertex_ai/some-model",
+            connection={"mode": "agenta", "slug": service.STARTER_CREDITS_SLUG},
+        )
+        assert candidate.matches_model(model) is True
+        assert candidate.selected_model_id(model) == "vertex_ai/some-model"
 
     async def test_a_deployment_without_posthog_still_seeds(self, seeding_env):
         # The development-policy path end to end: a local stack has no way to publish
