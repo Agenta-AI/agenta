@@ -571,6 +571,22 @@ class SessionsConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# agenta.vault — vault (secrets) behavior.
+# ---------------------------------------------------------------------------
+
+
+class VaultConfig(BaseModel):
+    """Vault (secrets) behavior."""
+
+    # Whether NEW secrets default to write-only (value never readable back by users).
+    # Off until the web UI ships replace-only secret forms; an explicit `write_only`
+    # on the create request always wins over this default.
+    write_only_default: bool = _parse_bool_env("AGENTA_VAULT_WRITE_ONLY_DEFAULT", False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # agenta — top-level Agenta core config.
 # ---------------------------------------------------------------------------
 
@@ -598,6 +614,7 @@ class AgentaConfig(BaseModel):
     redaction: RedactionConfig = RedactionConfig()
     services: ServicesConfig = ServicesConfig()
     sessions: SessionsConfig = SessionsConfig()
+    vault: VaultConfig = VaultConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
     workers: WorkersConfig = WorkersConfig()
 

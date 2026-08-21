@@ -4,15 +4,24 @@ A vault secret's value can be created, replaced, and deleted — but never read 
 user. The platform runtime keeps reading it through a granted internal path so runs still
 work. This is the GitHub-secrets model.
 
-Status: backend landed (API + Python SDK). Frontend and Fern client regeneration follow in
-a second PR.
+Status: backend landed (API + Python SDK), inert by default behind
+`AGENTA_VAULT_WRITE_ONLY_DEFAULT=false`. The web half is deferred until the frontend
+refactor (PR #6065) lands; frontend and Fern client regeneration follow in a second PR,
+after which the gate flips on. Until then, an explicitly created `write_only: true` secret
+shows cosmetically as "not configured" in today's Settings (the UI does not read `has_key`
+yet) — accepted; the run path is unaffected either way.
 
 ## The contract
 
 ### The flag
 
-- `write_only: bool` on every secret. **New secrets default to `true`.** An explicit
-  `write_only: false` at creation is the compatibility escape hatch.
+- `write_only: bool` on every secret. The default for NEW secrets is env-gated:
+  **`AGENTA_VAULT_WRITE_ONLY_DEFAULT` (bool, default `false`)**. While off, flag-less
+  creates behave exactly as today (`write_only: false`); once the web UI ships
+  replace-only forms, the gate flips to `true` and new secrets default to write-only.
+  An explicit `write_only` on the create request always wins over the gate, in both
+  directions — so a caller can opt in to write-only immediately regardless of the
+  default, and `write_only: false` remains the escape hatch after the flip.
 - Existing rows carry no flag and read as `write_only: false`; their behavior is unchanged.
 - The flag is **one-way**: an update may tighten `false → true`, but `true → false` is
   rejected with HTTP 400 (`WriteOnlyCannotBeDisabledError`). Making a value readable again
@@ -48,8 +57,10 @@ plaintext-at-rest in Redis for write-only secrets.
 On update, an omitted value field means "keep the stored value" (extends the existing
 `_carry_over_saved_policy` pattern for `models`/`harnesses`). This covers the standard
 provider key, the custom provider key and its credential `extras`, and custom secret
-content. **An empty string counts as omitted**: an empty credential is never a meaningful
-value, and replace-only forms submit empty for "unchanged". Values are therefore
+content. **An empty string counts as omitted — this is mandatory, not a convenience**: the
+CURRENT frontend's edit form re-sends `key: ""` when it cannot prefill a value, so if `""`
+cleared the credential, every edit of a write-only secret through today's UI would wipe
+it. An empty credential is never a meaningful value anyway. Values are therefore
 replace-only — they cannot be cleared in place.
 
 This applies to all secrets, not only write-only ones, so update semantics do not fork on

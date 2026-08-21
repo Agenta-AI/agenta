@@ -17,6 +17,7 @@ from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+from oss.src.utils.env import env
 
 
 PROJECT_ID = str(uuid4())
@@ -141,16 +142,41 @@ def _create(client, write_only=None, key=KEY):
     return response.json()
 
 
-def test_create_echo_is_redacted_and_write_only_by_default(harness):
+def test_create_echo_is_redacted_for_a_write_only_secret(harness):
     client, _ = harness
 
-    created = _create(client)
+    created = _create(client, write_only=True)
 
     assert created["write_only"] is True
     assert "key" not in created["data"]["provider"]
     assert created["has_key"] is True
     assert created["key_preview"] == "sk-****abc"
     assert KEY not in str(created)
+
+
+def test_create_without_the_flag_keeps_todays_response_while_the_gate_is_off(harness):
+    # The current frontend sends no flag; until AGENTA_VAULT_WRITE_ONLY_DEFAULT flips on,
+    # its creates must behave exactly as today.
+    client, _ = harness
+
+    created = _create(client)
+
+    assert created["write_only"] is False
+    assert created["data"]["provider"]["key"] == KEY
+    assert "has_key" not in created
+    assert "key_preview" not in created
+
+
+def test_create_without_the_flag_is_write_only_once_the_gate_is_on(
+    harness, monkeypatch
+):
+    monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
+    client, _ = harness
+
+    created = _create(client)
+
+    assert created["write_only"] is True
+    assert "key" not in created["data"]["provider"]
 
 
 def test_create_with_explicit_false_keeps_todays_response(harness):
@@ -166,7 +192,7 @@ def test_create_with_explicit_false_keeps_todays_response(harness):
 
 def test_read_is_redacted_for_users_and_plaintext_for_the_grant(harness):
     client, _ = harness
-    created = _create(client)
+    created = _create(client, write_only=True)
 
     user_read = client.get(f"/secrets/{created['id']}")
     assert user_read.status_code == 200
@@ -179,7 +205,7 @@ def test_read_is_redacted_for_users_and_plaintext_for_the_grant(harness):
 
 def test_list_is_redacted_and_the_cache_stores_the_redacted_shape(harness):
     client, cache = harness
-    _create(client)
+    _create(client, write_only=True)
 
     listed = client.get("/secrets/")
     assert listed.status_code == 200
@@ -195,7 +221,7 @@ def test_list_is_redacted_and_the_cache_stores_the_redacted_shape(harness):
 
 def test_grant_list_bypasses_the_redacted_cache_and_gets_plaintext(harness):
     client, _ = harness
-    _create(client)
+    _create(client, write_only=True)
 
     # A user listing first populates the cache with the redacted shape.
     client.get("/secrets/")
@@ -208,7 +234,7 @@ def test_grant_list_bypasses_the_redacted_cache_and_gets_plaintext(harness):
 
 def test_update_echo_is_redacted_and_omitted_key_keeps_the_stored_value(harness):
     client, _ = harness
-    created = _create(client)
+    created = _create(client, write_only=True)
 
     updated = client.put(
         f"/secrets/{created['id']}",
@@ -229,9 +255,32 @@ def test_update_echo_is_redacted_and_omitted_key_keeps_the_stored_value(harness)
     assert runtime_read.json()["data"]["provider"]["key"] == KEY
 
 
+def test_todays_edit_form_shape_empty_string_key_keeps_the_stored_value(harness):
+    # The CURRENT frontend cannot prefill a redacted value, so its edit form re-sends
+    # `key: ""`. If "" cleared the credential, every edit through today's UI would wipe a
+    # write-only secret — so empty string must mean "keep the stored value".
+    client, _ = harness
+    created = _create(client, write_only=True)
+
+    updated = client.put(
+        f"/secrets/{created['id']}",
+        json={
+            "header": {"name": "OpenAI (edited in today's UI)"},
+            "secret": {
+                "kind": "provider_key",
+                "data": {"kind": "openai", "provider": {"key": ""}},
+            },
+        },
+    )
+    assert updated.status_code == 200, updated.text
+
+    runtime_read = client.get(f"/secrets/{created['id']}", headers=GRANT)
+    assert runtime_read.json()["data"]["provider"]["key"] == KEY
+
+
 def test_write_only_cannot_be_disabled_over_the_api(harness):
     client, _ = harness
-    created = _create(client)
+    created = _create(client, write_only=True)
 
     response = client.put(f"/secrets/{created['id']}", json={"write_only": False})
 
@@ -251,7 +300,7 @@ def test_readable_secret_lists_with_its_value_as_today(harness):
 
 def test_delete_still_works(harness):
     client, _ = harness
-    created = _create(client)
+    created = _create(client, write_only=True)
 
     assert client.delete(f"/secrets/{created['id']}").status_code == 204
     assert client.get(f"/secrets/{created['id']}").status_code == 404

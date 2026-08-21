@@ -21,6 +21,7 @@ from oss.src.core.secrets.redaction import (
     redact_secret_response,
 )
 from oss.src.core.secrets.services import VaultService
+from oss.src.utils.env import env
 from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe,
@@ -99,8 +100,32 @@ def _provider_key_create(key="sk-test-openai-key-bc", write_only=None):
 # --- service: create ------------------------------------------------------------------
 
 
+@pytest.fixture(name="write_only_gate")
+def _write_only_gate(monkeypatch):
+    def set_gate(value: bool):
+        monkeypatch.setattr(env.agenta.vault, "write_only_default", value)
+
+    return set_gate
+
+
 @pytest.mark.asyncio
-async def test_create_defaults_to_write_only(service):
+async def test_create_defaults_off_while_the_gate_is_off(service, write_only_gate):
+    # Today's behavior until the web UI ships replace-only forms.
+    write_only_gate(False)
+
+    created = await service.create_secret(
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
+    )
+
+    assert created.write_only is False
+
+
+@pytest.mark.asyncio
+async def test_create_defaults_to_write_only_when_the_gate_is_on(
+    service, write_only_gate
+):
+    write_only_gate(True)
+
     created = await service.create_secret(
         project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
     )
@@ -109,13 +134,19 @@ async def test_create_defaults_to_write_only(service):
 
 
 @pytest.mark.asyncio
-async def test_create_accepts_explicit_false_as_escape_hatch(service):
+@pytest.mark.parametrize("gate", [False, True])
+@pytest.mark.parametrize("explicit", [False, True])
+async def test_an_explicit_request_value_always_wins_over_the_gate(
+    service, write_only_gate, gate, explicit
+):
+    write_only_gate(gate)
+
     created = await service.create_secret(
         project_id=PROJECT_ID,
-        create_secret_dto=_provider_key_create(write_only=False),
+        create_secret_dto=_provider_key_create(write_only=explicit),
     )
 
-    assert created.write_only is False
+    assert created.write_only is explicit
 
 
 # --- service: keep-stored-on-omit ------------------------------------------------------
@@ -290,7 +321,7 @@ async def test_update_without_custom_secret_content_keeps_the_stored_one(service
 @pytest.mark.asyncio
 async def test_write_only_cannot_be_turned_off(service):
     created = await service.create_secret(
-        project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_create(write_only=True)
     )
 
     with pytest.raises(WriteOnlyCannotBeDisabledError):
