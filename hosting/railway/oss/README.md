@@ -21,6 +21,7 @@ baseline.
 - Keep deployment scriptable and repeatable.
 - Use a single public gateway domain with path routing:
   - `/` -> web
+  - `/m`, `/m/*` -> web-mobile (no prefix strip: the app is built with basePath `/m`)
   - `/api/` -> api
   - `/services/` -> services
 
@@ -42,7 +43,7 @@ baseline.
 - `scripts/deploy-gateway.sh` - deploy gateway image from local Dockerfile
 - `scripts/smoke.sh` - quick health checks
 - `scripts/upgrade.sh` - run full in-place upgrade flow
-- `scripts/build-and-push-images.sh` - build local `api/web/services/runner` images and push tags
+- `scripts/build-and-push-images.sh` - build local `api/web/web-mobile/services/runner` images and push tags
 - `scripts/deploy-from-images.sh` - deploy Railway services from explicit image tags
 - `scripts/preview-clone-create.sh` - create or update a PR preview environment (issue #5650)
 - `scripts/preview-clone-destroy.sh` - delete a PR preview environment (plus `--stale-hours` sweep)
@@ -206,6 +207,26 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 ./hosting/railway/oss/scripts/deploy-services.sh
 ./hosting/railway/oss/scripts/smoke.sh
 ```
+
+#### The mobile app (`/m`)
+
+The mobile web app is **opt-in** while it is pre-GA, the same way the compose
+stack keeps it behind the `with-web-mobile` profile (`run.sh --with-mobile`).
+Set the flag before `bootstrap.sh` and it creates a `web-mobile` service; the
+gateway already routes `/m` and `/m/*` to it:
+
+```bash
+export AGENTA_RAILWAY_WITH_MOBILE=true
+# Turn the device gate on so phones landing on a desktop route go to /m:
+export AGENTA_MOBILE_GATE=true
+# Let desktop browsers open /m directly instead of being bounced back:
+export AGENTA_MOBILE_REVERSE_GATE=false
+```
+
+`bootstrap.sh` is the only place the flag is read. `configure.sh` and
+`deploy-from-images.sh` configure and deploy the service whenever it exists,
+so an existing deployment picks it up by re-running bootstrap with the flag.
+`ghcr.io/agenta-ai/agenta-web-mobile` must be readable by Railway.
 
 ### Upgrade Existing Deployment
 

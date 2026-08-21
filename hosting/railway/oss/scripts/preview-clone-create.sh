@@ -13,7 +13,7 @@
 #      template with skipInitialDeploys. environmentCreate can 504 while the
 #      environment is still created in the background, so an ambiguous failure
 #      is reconciled by polling environments-by-name, never by re-creating.
-#   2. Patches the eight app-service images to the run's pinned tag with ONE
+#   2. Patches the nine app-service images to the run's pinned tag with ONE
 #      environmentPatchCommit; Railway auto-deploys every service whose config
 #      actually CHANGED. Services whose image already equals the target are
 #      deployed explicitly instead, because environmentPatchCommit silently
@@ -62,8 +62,8 @@
 #                             RAILWAY_TOKEN, the CLI treats that name as
 #                             project-scoped).
 #   AGENTA_API_IMAGE_REPO / AGENTA_WEB_IMAGE_REPO /
-#   AGENTA_SERVICES_IMAGE_REPO / AGENTA_RUNNER_IMAGE_REPO
-#                             Image repository overrides.
+#   AGENTA_WEB_MOBILE_IMAGE_REPO / AGENTA_SERVICES_IMAGE_REPO /
+#   AGENTA_RUNNER_IMAGE_REPO  Image repository overrides.
 #   RW_INFRA_WAIT_SECONDS     Postgres wait per attempt (default 420).
 #   RW_ALEMBIC_WAIT_SECONDS   Alembic wait (default 420).
 #   RW_DEPLOY_WAIT_SECONDS    Late-services wait (default 900).
@@ -118,16 +118,28 @@ fi
 
 API_REPO="${AGENTA_API_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-api}"
 WEB_REPO="${AGENTA_WEB_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-web}"
+WEB_MOBILE_REPO="${AGENTA_WEB_MOBILE_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-web-mobile}"
 SERVICES_REPO="${AGENTA_SERVICES_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-services}"
 RUNNER_REPO="${AGENTA_RUNNER_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-runner}"
 
-# The eight image-patched app services; the api image backs five of them.
-APP_SERVICES=(api worker-streams worker-queues cron alembic web services runner)
+# The nine image-patched app services; the api image backs five of them.
+APP_SERVICES=(api worker-streams worker-queues cron alembic web web-mobile services runner)
 # supertokens must deploy AFTER alembic: it needs the agenta_oss_supertokens
 # database that alembic's startCommand creates (spike finding Q12).
 INFRA_SERVICES=(Postgres redis seaweedfs)
-LATE_SERVICES=(supertokens api worker-streams worker-queues runner services cron web gateway)
+LATE_SERVICES=(supertokens api worker-streams worker-queues runner services cron web web-mobile gateway)
 ALL_SERVICES=("${INFRA_SERVICES[@]}" alembic "${LATE_SERVICES[@]}")
+
+# Services a clone may legitimately not have yet. Adding a service to the
+# template only reaches clones once apply.sh has converged the template
+# environment (template/README.md step 4, "Apply on merge"), so during that
+# window a clone of the OLD template has no such service. A preview must
+# deploy anyway instead of dying on a missing serviceId; every other service
+# staying absent is still fatal.
+OPTIONAL_SERVICES=(web-mobile)
+REQUIRED_SERVICE_COUNT=$(( ${#ALL_SERVICES[@]} - ${#OPTIONAL_SERVICES[@]} ))
+# Filled in by patch_commit_images / deploy_all for the run summary.
+MISSING_SERVICES=""
 
 Q_ENV_SERVICES='query($id: String!) { environment(id: $id) { serviceInstances { edges { node { serviceId serviceName source { image } latestDeployment { status } domains { serviceDomains { domain } } } } } } }'
 Q_ENVS='query($p: String!) { environments(projectId: $p, first: 100) { edges { node { id name } } } }'
@@ -148,6 +160,7 @@ image_for() {
     case "$1" in
         api | worker-streams | worker-queues | cron | alembic) printf '%s:%s' "$API_REPO" "$IMAGE_TAG" ;;
         web) printf '%s:%s' "$WEB_REPO" "$IMAGE_TAG" ;;
+        web-mobile) printf '%s:%s' "$WEB_MOBILE_REPO" "$IMAGE_TAG" ;;
         services) printf '%s:%s' "$SERVICES_REPO" "$IMAGE_TAG" ;;
         runner) printf '%s:%s' "$RUNNER_REPO" "$IMAGE_TAG" ;;
         *) return 1 ;;
@@ -249,6 +262,25 @@ clone_service_image() {
         <<<"$CLONE_SERVICES_JSON" | head -n1
 }
 
+clone_has_service() {
+    [ -n "$(clone_service_id "$1")" ]
+}
+
+# skip_absent_service <service>: 0 when the service may be missing (recorded
+# and skipped), 1 when its absence is fatal.
+skip_absent_service() {
+    local svc="$1"
+    if contains_word "${OPTIONAL_SERVICES[*]}" "$svc"; then
+        contains_word "$MISSING_SERVICES" "$svc" || {
+            MISSING_SERVICES="$MISSING_SERVICES $svc"
+            printf "Service '%s' is not in this clone; skipping it. The template environment has not been converged yet (template/README.md 'Apply on merge').\n" "$svc" >&2
+        }
+        return 0
+    fi
+    printf "No serviceId for '%s'.\n" "$svc" >&2
+    return 1
+}
+
 # Wait until the clone's serviceInstances are fully materialized (reads can
 # lag writes right after environmentCreate).
 wait_clone_populated() {
@@ -256,10 +288,10 @@ wait_clone_populated() {
     while :; do
         refresh_clone_services || return 1
         count="$(jq -r '[.data.environment.serviceInstances.edges[].node] | length' <<<"$CLONE_SERVICES_JSON")"
-        [ "$count" -ge "${#ALL_SERVICES[@]}" ] && return 0
+        [ "$count" -ge "$REQUIRED_SERVICE_COUNT" ] && return 0
         waited=$((waited + interval))
         if [ "$waited" -ge "$max" ]; then
-            printf 'Environment has %s/%s service instances after %ss.\n' "$count" "${#ALL_SERVICES[@]}" "$max" >&2
+            printf 'Environment has %s/%s service instances after %ss.\n' "$count" "$REQUIRED_SERVICE_COUNT" "$max" >&2
             return 1
         fi
         sleep "$interval"
@@ -362,7 +394,10 @@ patch_commit_images() {
     UNCHANGED_SERVICES=""
     for svc in "${APP_SERVICES[@]}"; do
         svc_id="$(clone_service_id "$svc")"
-        [ -n "$svc_id" ] || { printf "No serviceId for '%s'.\n" "$svc" >&2; return 1; }
+        if [ -z "$svc_id" ]; then
+            skip_absent_service "$svc" || return 1
+            continue
+        fi
         img="$(image_for "$svc")"
         live="$(clone_service_image "$svc")"
         if [ "$live" = "$img" ]; then
@@ -409,6 +444,7 @@ deploy_all() {
     # Infra first. In an existing environment green services are left alone.
     refresh_clone_services || return 1
     for svc in "${INFRA_SERVICES[@]}"; do
+        clone_has_service "$svc" || { skip_absent_service "$svc" || return 1; continue; }
         if needs_explicit_deploy "$svc"; then
             deploy_service "$svc" || return 1
         fi
@@ -432,6 +468,7 @@ deploy_all() {
 
     # alembic must be green before supertokens deploys.
     refresh_clone_services || return 1
+    clone_has_service alembic || { skip_absent_service alembic || return 1; }
     if needs_explicit_deploy alembic; then
         deploy_service alembic || return 1
     fi
@@ -443,12 +480,15 @@ deploy_all() {
     # deploying; deploy the rest that are not green (supertokens, gateway, and
     # any app service the patch skipped because its image was unchanged).
     refresh_clone_services || return 1
+    local present_late=()
     for svc in "${LATE_SERVICES[@]}"; do
+        clone_has_service "$svc" || { skip_absent_service "$svc" || return 1; continue; }
         if needs_explicit_deploy "$svc"; then
             deploy_service "$svc" || return 1
         fi
+        present_late+=("$svc")
     done
-    wait_services_success "${RW_DEPLOY_WAIT_SECONDS:-900}" "${LATE_SERVICES[@]}"
+    wait_services_success "${RW_DEPLOY_WAIT_SECONDS:-900}" "${present_late[@]}"
 }
 
 check_endpoint() {
@@ -524,6 +564,9 @@ main() {
     local preview_url="https://${GATEWAY_DOMAIN}/w"
     local logs_url="https://railway.com/project/${PROJECT_ID}/logs?environmentId=${CLONE_ENV_ID}"
     printf 'Preview ready (%s): %s\n' "$clone_mode" "$preview_url"
+    if [ -n "$MISSING_SERVICES" ]; then
+        printf 'Skipped (not in this clone):%s\n' "$MISSING_SERVICES"
+    fi
     printf 'Timings: created=%ss deployed=%ss smoked=%ss total=%ss api_calls=%s\n' \
         "$t_created" "$t_deployed" "$t_smoked" "$total_s" "$calls"
     rw_report_calls "preview-clone-create ($clone_mode)"
