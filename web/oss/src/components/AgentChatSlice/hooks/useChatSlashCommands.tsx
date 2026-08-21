@@ -21,7 +21,7 @@ import {
     describeSkill,
     describeTool,
     harnessMetaFor,
-    modelLabel,
+    modelDisplayName,
     permissionPolicyLabel,
     permissionPolicyOptionsForSchema,
     permissionPolicySchema,
@@ -120,7 +120,7 @@ export function useChatSlashCommands({
     const currentPermission = readRunnerPermission(config)
     const currentPermissionLabel =
         permissionPolicyLabel(currentPermission ?? DEFAULT_PERMISSION_POLICY) ?? "Allow reads"
-    const currentModelLabel = modelLabel(capabilities, currentHarness, currentModel) ?? currentModel
+    const currentModelLabel = modelDisplayName(capabilities, currentHarness, currentModel)
 
     /**
      * Policies this agent's schema permits, and whether it declares the field at all — the drawer
@@ -230,7 +230,7 @@ export function useChatSlashCommands({
                     ? vaultPickedProviderFamily(modelId, selection.provider, capabilities, harness)
                     : null
                 : (selection.provider ?? providerForModel(capabilities, harness, modelId))
-            const label = modelLabel(capabilities, harness, modelId) ?? modelId
+            const label = modelDisplayName(capabilities, harness, modelId)
             const base =
                 selection.harness && selection.harness !== currentHarness
                     ? (withHarnessKind(config, selection.harness) ?? config)

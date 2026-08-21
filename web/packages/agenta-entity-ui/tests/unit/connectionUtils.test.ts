@@ -16,11 +16,13 @@ import {
     buildModelOptionGroups,
     composeModelValue,
     connectionFromConfig,
+    bareConnectionModelId,
     harnessAllowsModel,
     harnessAllowsProvider,
     harnessSupportsUserMcp,
     isDeploymentProviderKind,
     modelIdFromConfig,
+    modelDisplayName,
     modelLabel,
     modelSelectionMode,
     providerForModel,
@@ -488,6 +490,50 @@ describe("connectionUtils: model_catalog is preferred when published", () => {
             // The uncataloged case the picker labels with the user's own saved spelling.
             expect(modelLabel(WITH_CATALOG, "pi_core", "deepseek/deepseek-v4:nitro")).toBeNull()
             expect(modelLabel(WITH_CATALOG, "pi_core", null)).toBeNull()
+        })
+    })
+
+    describe("bareConnectionModelId / modelDisplayName", () => {
+        it("strips a connection model key down to the model's own id", () => {
+            // What a credential-set connection stores: "<connection>/<deployment>/<id>", and the
+            // id can carry the deployment's own prefix too.
+            expect(bareConnectionModelId("Agenta/custom/vertex_ai/gemini-3.6-flash")).toBe(
+                "gemini-3.6-flash",
+            )
+            expect(bareConnectionModelId("Starter credits/custom/gpt-oss")).toBe("gpt-oss")
+        })
+
+        it("leaves anything that is not a connection model key alone", () => {
+            // A family-prefixed id is two segments and must survive: stripping it would break
+            // every catalog lookup that matches on the family prefix.
+            expect(bareConnectionModelId("anthropic/claude-fable-5")).toBe("anthropic/claude-fable-5")
+            expect(bareConnectionModelId("gpt-5.5")).toBe("gpt-5.5")
+            expect(bareConnectionModelId("eu.anthropic.claude-haiku-4-5")).toBe(
+                "eu.anthropic.claude-haiku-4-5",
+            )
+            // Second segment is a provider family, not a deployment — not a key.
+            expect(bareConnectionModelId("some/openai/thing")).toBe("some/openai/thing")
+        })
+
+        it("names a connection model key by the catalog's curated name", () => {
+            // The user-visible fix: the Model row and the picker read "GPT-5.5", never the key.
+            expect(
+                modelDisplayName(WITH_CATALOG, "pi_core", "Agenta/custom/openai/gpt-5.5"),
+            ).toBe("GPT-5.5")
+        })
+
+        it("falls back to the bare id, never to a guessed prettification", () => {
+            expect(
+                modelDisplayName(WITH_CATALOG, "pi_core", "Agenta/custom/vertex_ai/gemini-3.6-flash"),
+            ).toBe("gemini-3.6-flash")
+        })
+
+        it("still names an ordinary catalogued id, and returns the id for an unknown one", () => {
+            expect(modelDisplayName(WITH_CATALOG, "pi_core", "claude-fable-5")).toBe("Fable")
+            expect(modelDisplayName(WITH_CATALOG, "pi_core", "deepseek/deepseek-v4:nitro")).toBe(
+                "deepseek/deepseek-v4:nitro",
+            )
+            expect(modelDisplayName(WITH_CATALOG, "pi_core", null)).toBe("")
         })
     })
 

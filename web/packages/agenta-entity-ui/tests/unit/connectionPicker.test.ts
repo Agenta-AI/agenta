@@ -667,3 +667,31 @@ describe("a deployment-hosted connection's provider family", () => {
         ).not.toHaveProperty("provider")
     })
 })
+
+describe("buildConnectionPickerRows: a provisioned connection wears Agenta's mark", () => {
+    // The deployment behind a provisioned connection is an implementation detail of the offer, so
+    // its vendor mark would credit a vendor the user never chose. The row's NAME is untouched:
+    // what the connection is called stays the record's to decide.
+    const args = (connection: ProviderConnection) => ({
+        connections: [connection],
+        capabilities: CAPABILITIES,
+        harnessIds: HARNESS_IDS,
+        showSubscriptions: false,
+    })
+
+    it("keys the icon on managedBy, not on the deployment kind", () => {
+        const managed = custom("m1", "bedrock", ["Agenta/custom/anthropic/claude-fable-5"], {
+            name: "Agenta",
+            managedBy: "starter-credits-bridge",
+        })
+        const [row] = buildConnectionPickerRows(args(managed))
+        expect(row.iconKey).toBe("agenta")
+        expect(row.name).toBe("Agenta")
+    })
+
+    it("leaves an ordinary custom connection on its own provider mark", () => {
+        const own = custom("c1", "bedrock", ["my-bedrock/custom/anthropic/claude-fable-5"])
+        const [row] = buildConnectionPickerRows(args(own))
+        expect(row.iconKey).toBe("bedrock")
+    })
+})
