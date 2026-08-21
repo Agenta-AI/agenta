@@ -241,6 +241,10 @@ async def _capture_created_flags(
             return _Adapter()
 
     class _Dao:
+        # initiate_connection reads before it writes, to resume an unfinished row.
+        async def query_connections(self, **_kwargs):
+            return []
+
         async def create_connection(self, *, project_id, user_id, connection_create):
             captured["flags"] = dict(connection_create.flags or {})
             captured["data"] = dict(connection_create.data or {})

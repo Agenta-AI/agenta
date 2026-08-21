@@ -8,10 +8,12 @@
  * error surfaced anywhere — see the ConnectToolWidget KNOWN_CONNECT_REASONS branch this
  * message feeds).
  */
+import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {describe, expect, it} from "vitest"
 
 import {
     extractConnectErrorMessage,
+    findReusableConnection,
     isConnectModeResolving,
     resolveConnectMode,
 } from "./useConnectFlow"
@@ -100,5 +102,43 @@ describe("extractConnectErrorMessage", () => {
             "Connection failed. Please try again.",
         )
         expect(extractConnectErrorMessage(null)).toBe("Connection failed. Please try again.")
+    })
+})
+
+describe("findReusableConnection", () => {
+    const conn = (slug: string, flags: Record<string, boolean>) =>
+        ({slug, flags}) as unknown as ToolConnection
+
+    it("issue #5911: picks the project's usable connection so the agent stops asking for one it has", () => {
+        expect(
+            findReusableConnection([conn("telegram-main", {is_active: true, is_valid: true})])
+                ?.slug,
+        ).toBe("telegram-main")
+    })
+
+    it("skips a stranded row — active but never finished its handshake, so the server would reject it at invoke time", () => {
+        expect(
+            findReusableConnection([conn("telegram-main", {is_active: true, is_valid: false})]),
+        ).toBeNull()
+    })
+
+    it("skips a row switched off, even a valid one", () => {
+        expect(
+            findReusableConnection([conn("telegram-main", {is_active: false, is_valid: true})]),
+        ).toBeNull()
+    })
+
+    it("picks the usable row out of a mixed list rather than the first one", () => {
+        expect(
+            findReusableConnection([
+                conn("telegram-main", {is_active: true, is_valid: false}),
+                conn("telegram-main-2", {is_active: true, is_valid: true}),
+            ])?.slug,
+        ).toBe("telegram-main-2")
+    })
+
+    it("reports nothing for an empty or missing list", () => {
+        expect(findReusableConnection([])).toBeNull()
+        expect(findReusableConnection(undefined)).toBeNull()
     })
 })

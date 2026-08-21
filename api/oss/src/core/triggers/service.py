@@ -691,8 +691,13 @@ class TriggersService:
             provider_key=provider_key,
             integration_key=integration_key,
         )
+        # Skip slugs the unique constraint would reject; an active-but-invalid row is the
+        # exception, since initiate_connection re-drives that one instead of duplicating it.
         existing_slugs = {
-            connection.slug for connection in connections if connection.slug
+            connection.slug
+            for connection in connections
+            if connection.slug
+            and not (connection.is_active and not connection.is_valid)
         }
         connect_slug = f"{integration_key}-main"
         suffix = 2

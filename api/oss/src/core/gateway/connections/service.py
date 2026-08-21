@@ -142,6 +142,40 @@ class ConnectionsService:
     # Writes
     # -----------------------------------------------------------------------
 
+    async def _find_resumable_connection(
+        self,
+        *,
+        project_id: UUID,
+        provider_key: str,
+        integration_key: str,
+        slug: Optional[str],
+    ) -> Optional[Connection]:
+        """The row this slug should re-drive, if any.
+
+        Only an active row whose handshake never completed resumes. A valid row is a real
+        connection and an inactive one was switched off deliberately, so both keep raising
+        the DAO's slug conflict.
+        """
+        if not slug:
+            return None
+
+        connections = await self.query_connections(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=integration_key,
+            is_active=None,
+        )
+
+        connection = next((c for c in connections if c.slug == slug), None)
+
+        if connection is None or connection.id is None:
+            return None
+
+        if connection.is_valid or not connection.is_active:
+            return None
+
+        return connection
+
     async def initiate_connection(
         self,
         *,
@@ -150,9 +184,24 @@ class ConnectionsService:
         #
         connection_create: ConnectionCreate,
     ) -> Connection:
-        """Initiate a provider connection and persist it locally in pending state."""
+        """Initiate a provider connection and persist it locally in pending state.
+
+        A row whose handshake never completed is re-driven in place. Without that, a
+        half-finished connection can only ever be duplicated under a fresh slug, and the
+        stranded row stays unusable forever.
+        """
         provider_key = connection_create.provider_key.value
         integration_key = connection_create.integration_key
+
+        # Resolve locally BEFORE touching the provider: a duplicate would otherwise mint a
+        # real auth config and connected account and only then hit the DAO's slug conflict,
+        # stranding that provider-side state.
+        resumable = await self._find_resumable_connection(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=integration_key,
+            slug=connection_create.slug,
+        )
 
         adapter = self.adapter_registry.get(provider_key)
 
@@ -192,16 +241,38 @@ class ConnectionsService:
         data: Dict[str, Any] = dict(provider_result.connection_data)
         data["project_id"] = str(project_id)
         data["auth_scheme"] = auth_scheme
-        connection_create.data = data
 
         # Validity is server-owned, never client-supplied. An auth-backed connection is
         # not valid until its OAuth callback flips is_valid; a no-auth toolkit has no
         # flow, so the server marks it valid up front (only after the adapter confirmed
         # no-auth via connection_data). Drop client flags so a caller can't mark a
         # pending OAuth connection valid.
+        is_valid = bool(data.get("no_auth"))
+
+        if resumable is not None:
+            # Resume in place. data_update merges, so redirect_url is written explicitly
+            # (the adapter omits it when there is no flow) rather than leaving the previous
+            # attempt's dead link behind — same reason refresh_connection overwrites it.
+            updated = await self.connections_dao.update_connection(
+                project_id=project_id,
+                connection_id=resumable.id,
+                #
+                is_active=True,
+                is_valid=is_valid,
+                data_update={**data, "redirect_url": provider_result.redirect_url},
+            )
+
+            if updated is None:
+                raise ConnectionNotFoundError(
+                    connection_id=str(resumable.id),
+                )
+
+            return updated
+
+        connection_create.data = data
         connection_create.flags = {
             "is_active": True,
-            "is_valid": bool(data.get("no_auth")),
+            "is_valid": is_valid,
         }
 
         # Persist locally

@@ -39,7 +39,9 @@ const KNOWN_CONNECT_REASONS = new Set(["declined", "cancelled", "timeout"])
 
 const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     const {label, phase, errorText, outcome, manuallyConnected, modeResolving, runConnect, cancel} =
-        useConnectFlow(meta, settle)
+        // `active: false` — this row is a passive marker; the InteractionDock owns the live
+        // parked call, so only that instance may settle it (including the reuse auto-settle).
+        useConnectFlow(meta, settle, false)
 
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
     // connection failure); see DEFERRED_SENTINEL.
