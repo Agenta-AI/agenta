@@ -139,11 +139,20 @@ class AccessRouter:
         # returned credential is uniformly short-lived and renewable — never echoing an
         # ApiKey/Bearer. Callers (services, the runner) re-check periodically to refresh.
         #
-        # A run_service exchange is "I am about to execute a workload that needs the stored
-        # keys", so that credential — and only that one — carries the secret-resolve grant
-        # letting the vault return write-only secret values in plaintext. This is the
-        # GitHub-secrets line: a member who can run workloads can reach the values through
-        # a run either way; direct reads with a session/ApiKey stay redacted.
+        # This exchange NEVER creates the secret-resolve grant; it only carries forward one
+        # the caller already holds on a verified Secret token. Minting on `action` alone
+        # made the grant self-serve: any member who may run a service could ask for it with
+        # their own session or ApiKey and then spend it on the vault routes, which is the
+        # write-only guarantee gone. The grant is created in-process where a run actually
+        # starts (`WorkflowsService._prepare_invoke` / `inspect_workflow`) and then travels
+        # with the run — the workflow service and the runner both re-exchange the granted
+        # credential they were handed, so refresh keeps working and nothing else can bootstrap
+        # a grant it was not given.
+        carried_grants = [
+            grant
+            for grant in getattr(request.state, "token_grants", ()) or ()
+            if grant == SECRET_RESOLVE_GRANT
+        ]
         secret_token = await sign_secret_token(
             user_id=user_id,
             user_email=getattr(request.state, "user_email", None),
@@ -151,7 +160,7 @@ class AccessRouter:
             workspace_id=str(ctx.scope.workspace_id),
             organization_id=str(ctx.scope.organization_id),
             organization_name=getattr(request.state, "organization_name", None),
-            grants=[SECRET_RESOLVE_GRANT] if action == "run_service" else None,
+            grants=carried_grants or None,
         )
         credentials_header = f"Secret {secret_token}"
 
