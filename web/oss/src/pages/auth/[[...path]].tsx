@@ -154,10 +154,14 @@ const Auth = () => {
     )
 
     // The package lists the providers a deployment configured; the icons are this app's.
-    const promotedProvider = entry.promotedProvider
-        ? withProviderIcon(entry.promotedProvider)
-        : undefined
-    const otherProviders = entry.otherProviders.map(withProviderIcon)
+    const promotedProvider = useMemo(
+        () => (entry.promotedProvider ? withProviderIcon(entry.promotedProvider) : undefined),
+        [entry.promotedProvider],
+    )
+    const otherProviders = useMemo(
+        () => entry.otherProviders.map(withProviderIcon),
+        [entry.otherProviders],
+    )
     const socialAvailable = entry.providers.length > 0
     const showEmailEntry = entry.showEmailEntry
     const isReturningEmail = entry.promotedEmail
@@ -395,10 +399,10 @@ const Auth = () => {
 
                 {/* Auth upgrade: show organization switch and sign out options */}
                 {isAuthUpgradeRequired && isAuthenticated && !hasInviteEmailMismatch && (
-                    <div className="flex flex-col gap-3 pt-2 border-t border-[var(--ag-c-E5E7EB)]">
+                    <div className="flex flex-col gap-3 pt-2 border-t border-[var(--ag-colorBorderSecondary)]">
                         {otherOrgs.length > 0 && (
                             <div className="flex flex-col gap-2">
-                                <Text className="text-sm text-[var(--ag-c-586673)]">
+                                <Text className="text-sm text-[var(--ag-colorTextSecondary)]">
                                     Or switch to a different organization:
                                 </Text>
                                 <Select
