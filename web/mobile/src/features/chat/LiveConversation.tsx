@@ -8,6 +8,7 @@ import {
 import {useAgentConversation} from "@agenta/chat/hooks"
 import {getPendingApprovals} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
+import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
@@ -171,6 +172,9 @@ export const LiveConversation = ({
         <ScreenScaffold
             scrollRef={autoScroll.ref}
             onScroll={autoScroll.onScroll}
+            scrollOverlay={
+                <ChatJumpToLatest show={autoScroll.showJump} onClick={autoScroll.jumpToLatest} />
+            }
             embedded={embedded}
             // The top edge fades as a MASK, exactly as the desktop transcript does — content
             // dissolves under the tab bar instead of being cut by a hard line.

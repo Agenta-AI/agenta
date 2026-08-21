@@ -13,6 +13,10 @@ interface ScreenScaffoldProps {
      * Tailwind class. */
     scrollStyle?: CSSProperties
     onScroll?: UIEventHandler<HTMLDivElement>
+    /** Floats over the foot of the SCROLLER (the chat's jump-to-latest pill). It cannot live inside
+     * the scroller — an absolutely positioned child of a scrolling box scrolls away with the
+     * content — so providing this wraps the scroller in a positioned frame. */
+    scrollOverlay?: ReactNode
     /** Inside a pane that already owns the viewport height and the top inset — fill it instead. */
     embedded?: boolean
     /**
@@ -27,6 +31,17 @@ interface ScreenScaffoldProps {
     fill?: boolean
     children: ReactNode
 }
+
+/** Positioned frame for `scrollOverlay`; a pass-through when there is nothing to float. */
+const ScrollFrame = ({overlay, children}: {overlay?: ReactNode; children: ReactNode}) =>
+    overlay ? (
+        <div className="relative flex min-h-0 flex-1 flex-col">
+            {children}
+            {overlay}
+        </div>
+    ) : (
+        <>{children}</>
+    )
 
 /**
  * The one mobile screen shape: a viewport-height column whose header and footer are pinned and
@@ -46,6 +61,7 @@ export const ScreenScaffold = ({
     scrollClassName,
     scrollStyle,
     onScroll,
+    scrollOverlay,
     embedded = false,
     fill = false,
     children,
@@ -56,18 +72,21 @@ export const ScreenScaffold = ({
         }`}
     >
         {header}
-        <div
-            ref={scrollRef}
-            onScroll={onScroll}
-            style={scrollStyle}
-            className={`flex min-h-0 flex-1 flex-col ${
-                fill ? "" : "overflow-y-auto overscroll-contain"
-            }${footer ? "" : " pb-[env(safe-area-inset-bottom)]"}${
-                scrollClassName ? ` ${scrollClassName}` : ""
-            }`}
-        >
-            {children}
-        </div>
+        {/* Only wrapped when there IS an overlay: every other screen keeps the exact box it had. */}
+        <ScrollFrame overlay={scrollOverlay}>
+            <div
+                ref={scrollRef}
+                onScroll={onScroll}
+                style={scrollStyle}
+                className={`flex min-h-0 flex-1 flex-col ${
+                    fill ? "" : "overflow-y-auto overscroll-contain"
+                }${footer ? "" : " pb-[env(safe-area-inset-bottom)]"}${
+                    scrollClassName ? ` ${scrollClassName}` : ""
+                }`}
+            >
+                {children}
+            </div>
+        </ScrollFrame>
         {footer}
     </div>
 )

@@ -8,9 +8,10 @@
  */
 import {type ReactNode} from "react"
 
-import {FileText, FilmStrip, Image as ImageIcon} from "@phosphor-icons/react"
+import {ArrowDown, FileText, FilmStrip, Image as ImageIcon} from "@phosphor-icons/react"
 
 import {cn} from "../../../utils/styles"
+import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 /** The antd-x loading dots: three 4px primary dots on a gentle bounce. */
@@ -247,3 +248,42 @@ export const ChatAttachmentCard = ({
         </div>
     )
 }
+
+/**
+ * The "Jump to latest" pill that floats over the foot of a transcript once you have scrolled away
+ * from the newest turn.
+ *
+ * ALWAYS mounted so it can fade and slide rather than pop; the hidden state is non-interactive and
+ * keeps its own `-translate-x-1/2` (Tailwind composes the x and y translate into one transform, so
+ * dropping it while hidden would slide the pill off-centre).
+ *
+ * Solid elevated surface, border and shadow: a transparent pill let streamed text bleed through it.
+ * `z-10` puts it above a transcript's bottom fade — source order alone left the gradient painting
+ * over the pill whenever no turn was hovered to suppress the fade.
+ */
+export const ChatJumpToLatest = ({
+    show,
+    onClick,
+    className,
+}: {
+    show: boolean
+    onClick: () => void
+    className?: string
+}) => (
+    <Button
+        variant="outline"
+        size="sm"
+        onClick={onClick}
+        tabIndex={show ? 0 : -1}
+        aria-hidden={!show}
+        aria-label="Jump to latest message"
+        className={cn(
+            "border-colorBorderSecondary bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md transition-[opacity,transform] duration-200 ease-out",
+            show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
+            className,
+        )}
+    >
+        <ArrowDown size={14} />
+        Jump to latest
+    </Button>
+)
