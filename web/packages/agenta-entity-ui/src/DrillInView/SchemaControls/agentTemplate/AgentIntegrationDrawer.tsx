@@ -66,6 +66,12 @@ interface ToolkitDraft {
 
 const DEFAULT_TOOLKIT_PERMISSION: ToolPermission = "ask"
 
+const newToolkitDraft = (): ToolkitDraft => ({
+    scope: "all",
+    actions: new Set<string>(),
+    permission: DEFAULT_TOOLKIT_PERMISSION,
+})
+
 const TOOLKIT_PERMISSION_OPTIONS = [
     {value: "allow", title: "Allow", help: "Every action runs without asking"},
     {value: "ask", title: "Ask", help: "A human approves each action call"},
@@ -256,25 +262,13 @@ function ToolCatalogContent({
         [],
     )
     const draftFor = useCallback(
-        (conn: ToolConnection): ToolkitDraft =>
-            drafts[connKey(conn)] ?? {
-                scope: "all",
-                actions: new Set<string>(),
-                permission: DEFAULT_TOOLKIT_PERMISSION,
-            },
+        (conn: ToolConnection): ToolkitDraft => drafts[connKey(conn)] ?? newToolkitDraft(),
         [drafts, connKey],
     )
     const updateDraft = useCallback(
         (conn: ToolConnection, patch: (draft: ToolkitDraft) => ToolkitDraft) => {
             const key = connKey(conn)
-            setDrafts((prev) => {
-                const current = prev[key] ?? {
-                    scope: "all" as ToolkitScope,
-                    actions: new Set<string>(),
-                    permission: DEFAULT_TOOLKIT_PERMISSION,
-                }
-                return {...prev, [key]: patch(current)}
-            })
+            setDrafts((prev) => ({...prev, [key]: patch(prev[key] ?? newToolkitDraft())}))
         },
         [connKey],
     )
