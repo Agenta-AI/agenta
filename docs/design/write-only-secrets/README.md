@@ -70,14 +70,12 @@ Redaction happens at the response boundary, in every outward surface:
 
 In-process runtime readers (`VaultService` and below) are untouched.
 
-**Cache.** The Redis list cache stores the **redacted** shape (which also removes the
-previous plaintext-at-rest in Redis). The list cache key carries a per-project
-**generation** that every secret write bumps, so a reader holding a pre-write DB snapshot
-can only write its entry under a dead generation no later reader consults — a stale
-reader can never repopulate the cache with plaintext after a tighten. Both the list and
-generation keys use the **full project id** (`full_project_id=True` in the cache helper);
-the default 12-character-suffix key would let two projects with the same suffix share a
-security-sensitive entry.
+**No cache.** The list route reads the database on every request. The list is small and
+only the settings page reads it, and the runtime path already bypassed the cache, so
+caching bought little while making the redaction guarantee depend on what a shared Redis
+entry holds and on how a stale reader is kept from repopulating it. Removing the cache
+removes that whole class of question: what a caller sees is what the row says, redacted
+at the response boundary for every principal without the grant.
 
 ### Updates: keep-stored-on-omit
 
@@ -146,15 +144,11 @@ read: no session, ApiKey, or list/get call ever returns the value.
   wants the escape hatch exposed.
 - Regenerate the Fern client for the new `write_only`, `has_key`, `key_preview` fields.
 
-## Known gap: cache-key tenancy
+## Known gap: cache-key tenancy (elsewhere)
 
-Both vault namespaces (`list_secrets`, `list_secrets_generation`) pack their Redis keys
-with the FULL project id, because they cache secret payloads. The platform default still
-truncates a project id to its last 12 characters, so every other namespace, including
-`check_permissions` and `check_action_access`, would share an entry between two projects
-whose UUIDs end the same way. Server-generated UUID4s make that remote, and unreachable by
-a caller who cannot pick their own project id, but it is a default worth removing.
-
-Not fixed here: flipping it needs `invalidate_cache` to carry the same flag (its scan
-pattern is packed short today) and a deploy plan for the evaluation lock keys, whose shape
-must not change under a rolling deploy. Tracked in issue #6166.
+The platform cache truncates a project id to its last 12 characters, so two projects whose
+UUIDs end the same way share an entry in every namespace that caches per project,
+including `check_permissions` and `check_action_access`. Server-generated UUID4s make that
+remote, and unreachable by a caller who cannot pick their own project id, but it is a
+default worth removing. Nothing here depends on it — the vault caches nothing — and the
+platform-wide fix is tracked in issue #6166.

@@ -1,7 +1,7 @@
 """Every vault route redacts write-only values for users; only the runtime grant reads them.
 
 Drives the real `VaultRouter` + `VaultService` over an in-memory DAO, with the permission
-check and the Redis cache monkeypatched. The caller's principal is simulated by a test
+check monkeypatched. The caller's principal is simulated by a test
 middleware: requests with the `x-test-grant` header carry the secret-resolve grant (the
 platform runtime); requests without it are ordinary user principals (session/ApiKey).
 """
@@ -86,73 +86,14 @@ class _FakeSecretsDAO:
         self.records.pop(str(secret_id), None)
 
 
-class _FakeCache:
-    """Keyed like the real cache: (namespace, project, logical key) -> value."""
-
-    def __init__(self):
-        self.store = {}
-
-    @staticmethod
-    def _name(project_id, namespace, key):
-        return (namespace, str(project_id), str(sorted((key or {}).items())))
-
-    async def get_cache(
-        self,
-        *,
-        project_id,
-        namespace,
-        key,
-        model=None,
-        is_list=False,
-        retry=True,
-        full_project_id=False,
-    ):
-        return self.store.get(self._name(project_id, namespace, key))
-
-    async def set_cache(
-        self, *, project_id, namespace, key, value, full_project_id=False
-    ):
-        self.store[self._name(project_id, namespace, key)] = value
-
-    # Both vault namespaces are packed with the FULL project id, while the router's
-    # blanket `invalidate_cache(project_id=...)` scans the TRUNCATED-id pattern — so
-    # production invalidation reaches neither of them. Modelling that here is what keeps
-    # the stale-snapshot test honest: it must pass because the generation is dead, not
-    # because a fake wiped the entry. Anything else the project caches is still swept.
-    _FULL_ID_NAMESPACES = ("list_secrets", "list_secrets_generation")
-
-    async def invalidate_cache(self, *, project_id):
-        self.store = {
-            name: value
-            for name, value in self.store.items()
-            if name[0] in self._FULL_ID_NAMESPACES
-        }
-
-    def entries(self, namespace):
-        return [value for name, value in self.store.items() if name[0] == namespace]
-
-    def generation(self, project_id):
-        return self.store.get(self._name(project_id, "list_secrets_generation", {}))
-
-    def poison(self, project_id, generation, value):
-        """Simulate a stale reader writing its snapshot under an old generation."""
-        self.store[
-            self._name(project_id, "list_secrets", {"generation": generation})
-        ] = value
-
-
 @pytest.fixture(name="harness")
 def _harness(monkeypatch):
-    cache = _FakeCache()
     dao = _FakeSecretsDAO()
 
     async def _allow(**kwargs):
         return True
 
     monkeypatch.setattr(vault_router_module, "check_action_access", _allow)
-    monkeypatch.setattr(vault_router_module, "get_cache", cache.get_cache)
-    monkeypatch.setattr(vault_router_module, "set_cache", cache.set_cache)
-    monkeypatch.setattr(vault_router_module, "invalidate_cache", cache.invalidate_cache)
 
     app = FastAPI()
 
@@ -166,7 +107,7 @@ def _harness(monkeypatch):
 
     app.include_router(VaultRouter(vault_service=VaultService(dao)).router)
 
-    return TestClient(app), cache
+    return TestClient(app)
 
 
 GRANT = {"x-test-grant": "1"}
@@ -188,7 +129,7 @@ def _create(client, write_only=None, key=KEY):
 
 
 def test_create_echo_is_redacted_for_a_write_only_secret(harness):
-    client, _ = harness
+    client = harness
 
     created = _create(client, write_only=True)
 
@@ -202,7 +143,7 @@ def test_create_echo_is_redacted_for_a_write_only_secret(harness):
 def test_create_without_the_flag_keeps_todays_response_while_the_gate_is_off(harness):
     # The current frontend sends no flag; until AGENTA_VAULT_WRITE_ONLY_DEFAULT flips on,
     # its creates must behave exactly as today.
-    client, _ = harness
+    client = harness
 
     created = _create(client)
 
@@ -216,7 +157,7 @@ def test_create_without_the_flag_is_write_only_once_the_gate_is_on(
     harness, monkeypatch
 ):
     monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
-    client, _ = harness
+    client = harness
 
     created = _create(client)
 
@@ -225,7 +166,7 @@ def test_create_without_the_flag_is_write_only_once_the_gate_is_on(
 
 
 def test_create_with_explicit_false_keeps_todays_response(harness):
-    client, _ = harness
+    client = harness
 
     created = _create(client, write_only=False)
 
@@ -236,7 +177,7 @@ def test_create_with_explicit_false_keeps_todays_response(harness):
 
 
 def test_read_is_redacted_for_users_and_plaintext_for_the_grant(harness):
-    client, _ = harness
+    client = harness
     created = _create(client, write_only=True)
 
     user_read = client.get(f"/secrets/{created['id']}")
@@ -248,8 +189,8 @@ def test_read_is_redacted_for_users_and_plaintext_for_the_grant(harness):
     assert runtime_read.json()["data"]["provider"]["key"] == KEY
 
 
-def test_list_is_redacted_and_the_cache_stores_the_redacted_shape(harness):
-    client, cache = harness
+def test_list_is_redacted_for_users(harness):
+    client = harness
     _create(client, write_only=True)
 
     listed = client.get("/secrets/")
@@ -257,19 +198,12 @@ def test_list_is_redacted_and_the_cache_stores_the_redacted_shape(harness):
     (secret,) = listed.json()
     assert "key" not in secret["data"]["provider"]
     assert secret["has_key"] is True
-
-    # What went into Redis is the redacted DTO: no plaintext at rest in the cache.
-    ((cached,),) = cache.entries("list_secrets")
-    assert cached.data.provider.key is None
-    assert cached.has_key is True
+    assert KEY not in listed.text
 
 
-def test_grant_list_bypasses_the_redacted_cache_and_gets_plaintext(harness):
-    client, _ = harness
+def test_grant_list_gets_plaintext(harness):
+    client = harness
     _create(client, write_only=True)
-
-    # A user listing first populates the cache with the redacted shape.
-    client.get("/secrets/")
 
     runtime_list = client.get("/secrets/", headers=GRANT)
     assert runtime_list.status_code == 200
@@ -278,7 +212,7 @@ def test_grant_list_bypasses_the_redacted_cache_and_gets_plaintext(harness):
 
 
 def test_update_echo_is_redacted_and_omitted_key_keeps_the_stored_value(harness):
-    client, _ = harness
+    client = harness
     created = _create(client, write_only=True)
 
     updated = client.put(
@@ -304,7 +238,7 @@ def test_todays_edit_form_shape_empty_string_key_keeps_the_stored_value(harness)
     # The CURRENT frontend cannot prefill a redacted value, so its edit form re-sends
     # `key: ""`. If "" cleared the credential, every edit through today's UI would wipe a
     # write-only secret — so empty string must mean "keep the stored value".
-    client, _ = harness
+    client = harness
     created = _create(client, write_only=True)
 
     updated = client.put(
@@ -324,7 +258,7 @@ def test_todays_edit_form_shape_empty_string_key_keeps_the_stored_value(harness)
 
 
 def test_write_only_cannot_be_disabled_over_the_api(harness):
-    client, _ = harness
+    client = harness
     created = _create(client, write_only=True)
 
     response = client.put(f"/secrets/{created['id']}", json={"write_only": False})
@@ -334,7 +268,7 @@ def test_write_only_cannot_be_disabled_over_the_api(harness):
 
 
 def test_readable_secret_lists_with_its_value_as_today(harness):
-    client, _ = harness
+    client = harness
     _create(client, write_only=False)
 
     (secret,) = client.get("/secrets/").json()
@@ -344,7 +278,7 @@ def test_readable_secret_lists_with_its_value_as_today(harness):
 
 
 def test_delete_still_works(harness):
-    client, _ = harness
+    client = harness
     created = _create(client, write_only=True)
 
     assert client.delete(f"/secrets/{created['id']}").status_code == 204
@@ -352,7 +286,7 @@ def test_delete_still_works(harness):
 
 
 def test_kind_or_family_change_without_a_new_value_is_400(harness):
-    client, _ = harness
+    client = harness
     created = _create(client, write_only=True)
 
     response = client.put(
@@ -369,42 +303,6 @@ def test_kind_or_family_change_without_a_new_value_is_400(harness):
     assert "credential value" in response.json()["detail"]
 
 
-# --- the cache generation prevents stale plaintext repopulation ------------------------
-
-
-def test_stale_snapshot_cannot_repopulate_the_cache_after_tightening(harness):
-    client, cache = harness
-    created = _create(client, write_only=False)
-
-    # A first list materializes the generation and a readable cache entry.
-    client.get("/secrets/")
-    stale_generation = cache.generation(PROJECT_ID)
-    assert stale_generation
-
-    # Tightening the secret bumps the generation.
-    tightened = client.put(f"/secrets/{created['id']}", json={"write_only": True})
-    assert tightened.status_code == 200
-    assert cache.generation(PROJECT_ID) != stale_generation
-
-    # A stale reader (whose DB snapshot predates the tightening) now writes its
-    # plaintext list — it can only land under the DEAD generation.
-    plaintext_snapshot = [
-        SecretResponseDTO(
-            id=created["id"],
-            slug=created["slug"],
-            kind="provider_key",
-            data={"kind": "openai", "provider": {"key": KEY}},
-            header={"name": "OpenAI"},
-            write_only=False,
-        )
-    ]
-    cache.poison(PROJECT_ID, stale_generation, plaintext_snapshot)
-
-    # No later reader consults the dead generation: the list stays redacted.
-    (secret,) = client.get("/secrets/").json()
-    assert "key" not in secret["data"]["provider"]
-
-
 # --- real signed tokens through the real verifier --------------------------------------
 
 SECRET_KEY = "unit-test-secret-key-with-32-bytes"
@@ -416,16 +314,12 @@ def _token_client(monkeypatch):
     through the real `verify_secret_token` — nothing injects `token_grants` directly."""
     monkeypatch.setattr(auth_module, "_SECRET_KEY", SECRET_KEY)
 
-    cache = _FakeCache()
     dao = _FakeSecretsDAO()
 
     async def _allow(**kwargs):
         return True
 
     monkeypatch.setattr(vault_router_module, "check_action_access", _allow)
-    monkeypatch.setattr(vault_router_module, "get_cache", cache.get_cache)
-    monkeypatch.setattr(vault_router_module, "set_cache", cache.set_cache)
-    monkeypatch.setattr(vault_router_module, "invalidate_cache", cache.invalidate_cache)
 
     app = FastAPI()
 
@@ -513,7 +407,7 @@ async def test_expired_granted_token_is_rejected(token_client):
 
 
 def test_openapi_documents_the_write_only_contract(harness):
-    client, _ = harness
+    client = harness
 
     schemas = client.app.openapi()["components"]["schemas"]
 
@@ -527,7 +421,7 @@ CANARY = "sk-CANARY-DO-NOT-ECHO-abc123"
 
 
 def test_malformed_create_never_echoes_the_submitted_key(harness):
-    client, _ = harness
+    client = harness
 
     response = client.post(
         "/secrets/",
