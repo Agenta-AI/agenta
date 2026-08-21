@@ -10,10 +10,10 @@ import type {RenderHintLike} from "@agenta/playground"
 import type {ToolUIPart} from "ai"
 import {describe, expect, it} from "vitest"
 
-import ConnectToolWidget from "./ConnectToolWidget"
-import ElicitationWidget from "./ElicitationWidget"
-import {clientToolMeta, isClientToolPart} from "./meta"
-import {resolveClientToolHandler} from "./registry"
+import {ConnectToolWidget, ElicitationWidget} from "@agenta/entity-ui/clientTools"
+
+import {clientToolMeta, isClientToolPart} from "../../src/clientTools/meta"
+import {resolveClientToolWidget as resolveClientToolHandler} from "../../src/skin"
 
 const settledCtx = {isStreaming: false, isLastMessage: true}
 
@@ -93,7 +93,7 @@ describe("resolveClientToolHandler", () => {
 
     it("leaves an unknown client tool to the fallback", () => {
         const part = toolPart({type: "tool-mysteryTool", state: "input-available"})
-        expect(resolveClientToolHandler(clientToolMeta(part))).toBeNull()
+        expect(resolveClientToolHandler(clientToolMeta(part))).toBeUndefined()
     })
 
     it("claims a parked request_input while the turn is still streaming (known tool)", () => {

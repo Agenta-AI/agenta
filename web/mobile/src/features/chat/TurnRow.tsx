@@ -1,10 +1,13 @@
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
+import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
+import {buildRenderMap} from "@agenta/playground"
+import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
     ChatActionIconButton,
     ChatBubble,
@@ -160,10 +163,28 @@ const RunErrorCallout = ({text}: {text: string}) => {
  * canvas, both with the 24px icon avatar; reasoning folds, tool lines with status glyphs, and
  * the red run-failure callout.
  */
-export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
+export const TurnRow = ({
+    turn,
+    onClientToolOutput,
+}: {
+    turn: TurnViewModel
+    /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
+     * the read-only transcript screen has no engine to settle into — and it passes no client-tool
+     * predicate either, so it never produces one of these items to begin with. */
+    onClientToolOutput?: ClientToolOutputHandler
+}) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const [copied, setCopied] = useState(false)
     const traceId = getMessageTraceId(turn.message)
+    // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
+    const renderMap = useMemo(
+        () => buildRenderMap(turn.message.parts as {type?: string; data?: unknown}[]),
+        [turn.message.parts],
+    )
+    // The elicitation retry cap: did an elicitation already degrade earlier this turn?
+    const degradedEarlierInTurn = hasPriorElicitationDegradation(
+        turn.message.parts as {state?: string; errorText?: string}[],
+    )
     const usage = getMessageUsage(turn.message)
 
     // The turn's text, which is what a reader wants on the clipboard — not its tool rows.
@@ -225,7 +246,17 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
                 if (item.kind === "tools") {
                     return <ToolLines key={item.index} item={item} />
                 }
-                // clientTool never occurs — the predicate defaults to false on mobile.
+                if (item.kind === "clientTool" && onClientToolOutput) {
+                    return (
+                        <ClientToolPart
+                            key={`clienttool-${item.part.toolCallId || item.index}`}
+                            part={item.part}
+                            onOutput={onClientToolOutput}
+                            renderMap={renderMap}
+                            degradedEarlierInTurn={degradedEarlierInTurn}
+                        />
+                    )
+                }
                 return null
             })}
             {turn.status.showError ? (

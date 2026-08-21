@@ -9,12 +9,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/chat/skin"
-import {
-    SchemaForm,
-    type SchemaFormHandle,
-    type StepInfo,
-    formatReviewValue,
-} from "@agenta/entity-ui/gatewayTool"
+import {canonicalToolName, resolveToolDisplay} from "@agenta/chat/skin"
 import {CLIENT_TOOL_NAMES, isInteractionEndedOutput} from "@agenta/shared/clientTools"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {
@@ -38,7 +33,12 @@ import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@ph
 import {Form} from "antd"
 import dayjs from "dayjs"
 
-import {canonicalToolName, resolveToolDisplay} from "../../assets/toolDisplay"
+import {
+    SchemaForm,
+    type SchemaFormHandle,
+    type StepInfo,
+    formatReviewValue,
+} from "@agenta/entity-ui/gatewayTool"
 
 /** ElicitationResult → the settle channel's Record shape (interfaces carry no index signature). */
 const toOutput = (result: ElicitationResult) => ({...result}) as Record<string, unknown>

@@ -9,7 +9,7 @@
  * before the replay path carried the sibling part has none. Each later kind is one added entry,
  * not a protocol change. Contract: docs/design/agent-chat-interaction-kinds/decisions.md
  *
- * The store itself lives in @agenta/chat/skin (`registerChatSkin`); this module registers the
+ * The store itself lives in ../skin (`registerChatSkin`); this module registers the
  * DESKTOP skin's widgets at import time and re-exports the shared resolvers under the names the
  * slice always used. A streamed client tool with no entry is NOT an error — `ClientToolPart`
  * renders the neutral "not handled by this client" surface, which settles a non-error output so
@@ -21,23 +21,31 @@ import type {ClientToolMeta, ClientToolWidgetProps} from "@agenta/chat/skin"
 import ConnectToolWidget from "./ConnectToolWidget"
 import ElicitationWidget from "./ElicitationWidget"
 
-registerChatSkin({
-    clientTools: {
-        // Keyed by `render.kind` (checked first — the finer dispatch axis).
-        byRenderKind: {
-            connect: ConnectToolWidget,
-            elicitation: ElicitationWidget,
-        },
-        // Keyed by `toolName` (checked when no render hint matched). Both entries are
-        // platform-reserved static tools, so the name is a safe second axis when the hint is
-        // missing — an old persisted transcript, or any replay path that didn't carry the
-        // sibling part.
-        byToolName: {
-            request_connection: ConnectToolWidget,
-            request_input: ElicitationWidget,
-        },
+/** The built-in client-tool widgets, as a plain value.
+ *
+ * Exported rather than only registered because registration is a module SIDE EFFECT, and both this
+ * package and @agenta/chat declare `sideEffects: false` — a bare `import "…/clientTools"` from the
+ * dispatcher was tree-shaken away, the registry stayed empty, and every elicitation silently
+ * auto-settled as "not handled by this client". A value import cannot be shaken.
+ */
+export const clientToolWidgets = {
+    // Keyed by `render.kind` (checked first — the finer dispatch axis).
+    byRenderKind: {
+        connect: ConnectToolWidget,
+        elicitation: ElicitationWidget,
     },
-})
+    // Keyed by `toolName` (checked when no render hint matched). Both entries are
+    // platform-reserved static tools, so the name is a safe second axis when the hint is
+    // missing — an old persisted transcript, or any replay path that didn't carry the
+    // sibling part.
+    byToolName: {
+        request_connection: ConnectToolWidget,
+        request_input: ElicitationWidget,
+    },
+}
+
+// Registering as well keeps the shared store the single lookup a HOST overrides through.
+registerChatSkin({clientTools: clientToolWidgets})
 
 type ClientToolHandler = React.ComponentType<ClientToolWidgetProps>
 

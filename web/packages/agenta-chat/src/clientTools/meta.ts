@@ -3,11 +3,11 @@
  * a part is a client tool the playground must fulfill (vs an ordinary server tool or an approval
  * gate, which `ToolActivity` owns).
  */
-import type {ClientToolMeta} from "@agenta/chat/skin"
+import {clientToolWidgets} from "@agenta/entity-ui/clientTools"
 import {renderKindFor, type RenderHintLike} from "@agenta/playground"
 import type {ToolUIPart} from "ai"
 
-import {hasClientToolHandler} from "./registry"
+import {hasClientToolWidget, type ClientToolMeta} from "../skin"
 
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 const APPROVAL = new Set(["approval-requested", "approval-responded"])
@@ -64,7 +64,7 @@ export const isClientToolPart = (
     if ((part as {providerExecuted?: boolean}).providerExecuted === true) return false
 
     const meta = clientToolMeta(part, renderMap)
-    if (hasClientToolHandler(meta)) return true
+    if (hasClientToolWidget(meta, clientToolWidgets)) return true
 
     // Keep this last-message-only so old parked parts are not auto-settled.
     const parkedUnsettled = !ctx.isStreaming && ctx.isLastMessage && !meta.settled

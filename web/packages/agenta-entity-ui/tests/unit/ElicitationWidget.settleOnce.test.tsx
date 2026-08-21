@@ -91,7 +91,7 @@ vi.mock("../../assets/toolDisplay", () => ({
     canonicalToolName: (raw: string) => raw,
 }))
 
-import ElicitationWidget from "./ElicitationWidget"
+import ElicitationWidget from "../../src/clientTools/ElicitationWidget"
 
 const META = {
     toolCallId: "call-1",

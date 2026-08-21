@@ -153,11 +153,15 @@ export const LiveConversation = ({
                     </div>
                 ) : null}
                 {visibleTurns.map((turn) => (
-                    <TurnRow key={turn.message.id} turn={turn} />
+                    <TurnRow
+                        key={turn.message.id}
+                        turn={turn}
+                        onClientToolOutput={conversation.sendToolOutput}
+                    />
                 ))}
                 <TurnStatusLine
                     working={streamingHere || running}
-                    waitingForInput={pendingApprovals.length > 0}
+                    waitingForInput={conversation.hitlPending}
                 />
             </ContentRail>
         )
@@ -218,7 +222,7 @@ export const LiveConversation = ({
                         sessionId={sessionId}
                         onSend={({text, parts}) => conversation.send({text, parts})}
                         disabled={conversation.isHydrating}
-                        waitingOnUser={pendingApprovals.length > 0}
+                        waitingOnUser={conversation.hitlPending}
                         streaming={streamingHere}
                         onStop={conversation.stop}
                     />

@@ -5,8 +5,9 @@
  */
 import {useEffect, useRef} from "react"
 
-import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/chat/skin"
 import {Info} from "@phosphor-icons/react"
+
+import type {ClientToolWidgetProps as ClientToolHandlerProps} from "../skin"
 const UnhandledClientTool = ({meta, settle}: ClientToolHandlerProps) => {
     const settledRef = useRef(false)
     useEffect(() => {
