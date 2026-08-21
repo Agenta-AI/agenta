@@ -13,6 +13,7 @@ import {
     ChatBubble,
     ChatBubbleAvatar,
     turnRowClass,
+    turnToolbarClass,
     turnToolbarRevealClass,
 } from "@agenta/ui/components/presentational"
 import {useSetAtom} from "jotai"
@@ -288,8 +289,8 @@ export const TurnRow = ({
                 lane the desktop transcript reserves, so a settled turn reads quietly until you
                 reach for it. */}
             <div
-                className={`${turnToolbarRevealClass} absolute bottom-1 flex items-center gap-1 ${
-                    turn.isUser ? "right-10" : "left-10"
+                className={`${turnToolbarClass} ${turnToolbarRevealClass} ${
+                    turn.isUser ? "right-2" : "left-10"
                 }`}
             >
                 <TurnTimestamp
