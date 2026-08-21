@@ -18,7 +18,7 @@ import {
 import {type getPendingApprovals} from "@agenta/chat/model"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
-import {hasCoarsePointer} from "@agenta/ui/hooks"
+import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {Button, LoadingButton} from "@agenta/ui/ui"
@@ -163,12 +163,17 @@ const AgentComposerDock = ({
     })
     // Sending on a touch device dismisses the on-screen keyboard, which returns the page to its
     // full height and puts the transcript back in view — the message you just sent is the thing
-    // you want to read next. Guarded by the pointer type: on desktop the editor keeps focus after
-    // Enter so the next message can be typed straight away.
+    // you want to read next. On desktop the editor keeps focus after Enter so the next message can
+    // be typed straight away, so the helper checks the pointer type.
+    //
+    // It also DEFERS the blur, which is the part that matters: `submitEditorAsMarkdown` clears the
+    // editor on the statement after this handler returns, and that reconcile writes a fresh DOM
+    // selection, which re-focuses the editor and pops the keyboard straight back up. A blur called
+    // inline here is undone before the user sees it.
     const submitMessage = useCallback(
         (text: string) => {
             const result = onSubmit(text)
-            if (hasCoarsePointer()) richInputRef.current?.blur()
+            dismissSoftKeyboardAfterSend(() => richInputRef.current?.blur())
             return result
         },
         [onSubmit, richInputRef],

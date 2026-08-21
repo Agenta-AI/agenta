@@ -3,6 +3,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode}
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
 import AppMessageContext from "@agenta/ui/app-message"
+import {useVisualViewportHeight} from "@agenta/ui/hooks"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
@@ -400,7 +401,7 @@ const AppWithVariants = memo(
                                             <ConfigProvider theme={contentThemeConfig}>
                                                 <div
                                                     className={clsx("w-full", {
-                                                        "flex min-h-0 flex-col gap-6 h-[calc(100dvh-29px)] overflow-hidden":
+                                                        "flex min-h-0 flex-col gap-6 h-[calc(var(--ag-viewport-height,100dvh)-29px)] overflow-hidden":
                                                             isFullHeight,
                                                         "flex flex-col":
                                                             !isFullHeight && !isAppRoute,
@@ -426,6 +427,13 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const classes = useStyles({themeMode: appTheme})
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
         useCommittedLayoutFlags()
+
+    // One owner for the whole app. A phone keyboard opens over the page, so every frame sized
+    // against the layout viewport hides its bottom edge behind it. This publishes the visible
+    // height as `--ag-viewport-height`, and each full-height frame reads it with a `100dvh`
+    // fallback. Mounting it here rather than per page means the playground, the agent overview,
+    // sessions, annotations and the auth screens are all covered by one call. Idle on desktop.
+    useVisualViewportHeight()
 
     const [, contextHolder] = Modal.useModal()
 
