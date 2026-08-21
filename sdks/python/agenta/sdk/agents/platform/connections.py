@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import httpx
 
@@ -179,32 +179,49 @@ def _provider_env_var(provider: Optional[str]) -> Optional[str]:
     return _PROVIDER_ENV_VARS.get(provider.lower()) if provider else None
 
 
-def _credential_env_var(
+def _credential_channels(
     provider: str, candidate: "_ConnectionCandidate"
-) -> Optional[str]:
-    """The environment variable this candidate's credential would ride.
+) -> List[Tuple[str, ...]]:
+    """The environment variables this candidate's credential could ride, best first.
 
-    Deliberately the variable the harness itself would read, not merely the provider
-    family's: a Bedrock or Azure candidate authenticates through its own channel, and
-    reading a family key (say ``OPENAI_API_KEY``) for it would send one service's
-    credential to another.
+    Each entry is one COMPLETE channel: every variable in it must be present for that
+    channel to authenticate. Deliberately the variables the harness itself would read for
+    this candidate, never merely the provider family's — a Bedrock or Azure candidate
+    authenticates through its own channel, and reading a family key (say
+    ``OPENAI_API_KEY``) for it would send one service's credential to another. The set
+    mirrors the credential material the plaintext path accepts for the same connection
+    (``CREDENTIAL_EXTRAS_KEYS``), so a standalone run can supply from the environment
+    exactly what the vault would have supplied.
     """
     if candidate.deployment == "bedrock":
-        return "AWS_BEARER_TOKEN_BEDROCK"
+        return [
+            ("AWS_BEARER_TOKEN_BEDROCK",),
+            ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"),
+        ]
+    if candidate.deployment in ("vertex_ai", "vertex"):
+        return [("GOOGLE_APPLICATION_CREDENTIALS",)]
     if candidate.deployment == "azure":
-        return "AZURE_OPENAI_API_KEY"
-    return _provider_env_var(provider) or _provider_env_var(candidate.provider)
+        return [("AZURE_OPENAI_API_KEY",)]
+
+    env_var = _provider_env_var(provider) or _provider_env_var(candidate.provider)
+    return [(env_var,)] if env_var else []
 
 
 def _environment_credential(
     provider: str, candidate: "_ConnectionCandidate"
 ) -> Optional[Dict[str, str]]:
-    """This run's own credential for the candidate, or ``None`` when it has none."""
-    env_var = _credential_env_var(provider, candidate)
-    if not env_var:
-        return None
-    value = (os.environ.get(env_var) or "").strip()
-    return {env_var: value} if value else None
+    """This run's own credential for the candidate, or ``None`` when it has none.
+
+    A channel counts only when EVERY variable in it is set: half an AWS key pair
+    authenticates nothing, and passing it on would fail at the provider with a
+    misleading error instead of here with an actionable one.
+    """
+    for channel in _credential_channels(provider, candidate):
+        values = {name: (os.environ.get(name) or "").strip() for name in channel}
+        if all(values.values()):
+            return values
+
+    return None
 
 
 def _header_name(secret: Dict[str, Any]) -> Optional[str]:
