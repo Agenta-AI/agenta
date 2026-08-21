@@ -20,7 +20,6 @@ import {
     dismissSoftKeyboardAfterSend,
     useVisualViewportHeight,
 } from "../../src/hooks/useVisualViewport"
-
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 /** A stand-in for `window.visualViewport` whose numbers the test drives. */
@@ -59,8 +58,9 @@ const emit = (event: "resize" | "scroll") => {
 beforeEach(() => {
     vi.useFakeTimers()
     // jsdom has no rAF tied to fake timers; a timeout keeps the coalescing path real.
-    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) =>
-        setTimeout(() => cb(0), 16) as unknown as number,
+    vi.stubGlobal(
+        "requestAnimationFrame",
+        (cb: FrameRequestCallback) => setTimeout(() => cb(0), 16) as unknown as number,
     )
     vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id))
     viewport = new FakeViewport()
