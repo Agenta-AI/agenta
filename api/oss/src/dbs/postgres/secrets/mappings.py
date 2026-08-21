@@ -64,11 +64,13 @@ def map_secrets_dto_to_dbe_update(
             if hasattr(secrets_dbe, key):
                 setattr(secrets_dbe, key, value)
 
-    # Resolve the effective flag BEFORE overwriting data: a None on the update DTO means
-    # "keep the stored flag" (the service only sets it for explicit transitions).
-    write_only = update_secret_dto.write_only
-    if write_only is None:
-        write_only = bool(json.loads(secrets_dbe.data).get(_WRITE_ONLY_KEY))
+    # Resolve the effective flag BEFORE overwriting data. The transition is one-way, so
+    # the mapper NEVER clears a stored flag: an explicit False can only reach it stale
+    # (the DAO rejects true->false under the row lock), and trusting it would resurrect
+    # readability.
+    write_only = bool(update_secret_dto.write_only) or bool(
+        json.loads(secrets_dbe.data).get(_WRITE_ONLY_KEY)
+    )
 
     if update_secret_dto.secret:
         for key, value in update_secret_dto.secret.model_dump(

@@ -24,6 +24,7 @@ from ..capabilities import (
     HARNESS_CONNECTION_CAPABILITIES,
     PROVIDER_ENV_VARS,
 )
+from ..connections.credentials import credential_extras
 from ..connections.endpoints import build_resolved_connection
 from ..connections import (
     AmbiguousConnectionError,
@@ -367,9 +368,18 @@ def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
     return {value for value in values if value}
 
 
-def _write_only_redacted(secret: Dict[str, Any], value: Optional[str]) -> bool:
-    """Whether the vault redacted this record's value for the current caller."""
-    return bool(secret.get("write_only")) and bool(secret.get("has_key")) and not value
+def _write_only_redacted(secret: Dict[str, Any], has_credential: bool) -> bool:
+    """Whether the vault redacted this record's value for the current caller.
+
+    ``has_credential`` must consider EVERY credential channel the candidate could use (the
+    primary key and the credential extras): a surviving config extra like ``AWS_REGION``
+    must not read as "credentialed".
+    """
+    return (
+        bool(secret.get("write_only"))
+        and bool(secret.get("has_key"))
+        and not has_credential
+    )
 
 
 def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandidate]:
@@ -389,7 +399,7 @@ def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandi
         api_key=key,
         models=_saved_models(data),
         harnesses=_saved_harnesses(data),
-        write_only_redacted=_write_only_redacted(secret, key),
+        write_only_redacted=_write_only_redacted(secret, bool(key)),
     )
 
 
@@ -455,7 +465,9 @@ def _custom_provider_candidate(
         ),
         models=_saved_models(data),
         harnesses=_saved_harnesses(data),
-        write_only_redacted=_write_only_redacted(secret, api_key),
+        write_only_redacted=_write_only_redacted(
+            secret, bool(api_key) or bool(credential_extras(extras))
+        ),
     )
 
 
@@ -598,6 +610,11 @@ def _resolve_from_secrets(
         else _choose_default(candidates, model, harness)
     )
     provider = chosen.resolved_provider(model)
+    # Checked BEFORE the endpoint and env checks: a redacted write-only key is the deeper
+    # cause, and surviving config extras (AWS_REGION) can make `env` non-empty, which would
+    # otherwise let the run proceed mis-credentialed.
+    if chosen.write_only_redacted:
+        raise WriteOnlySecretError(slug=chosen.slug, provider=provider)
     # A chosen custom connection must carry a usable base URL. Failing here (rather than
     # returning endpoint=None) keeps the harness from falling back to a provider default and
     # silently ignoring the user's routing choice (design Decision 4). The error names the slug
@@ -609,10 +626,6 @@ def _resolve_from_secrets(
     env = chosen.resolved_env(provider)
     resolved_model = chosen.selected_model_id(model)
     if not env:
-        # A key that EXISTS but was redacted must not surface as "add your key" — the key
-        # is already in the vault; this caller's credential just may not read it.
-        if chosen.write_only_redacted:
-            raise WriteOnlySecretError(slug=chosen.slug, provider=provider)
         raise MissingCredentialError(provider=provider, slug=chosen.slug)
     return build_resolved_connection(
         provider=provider,

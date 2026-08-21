@@ -25,7 +25,10 @@ yet) — accepted; the run path is unaffected either way.
 - Existing rows carry no flag and read as `write_only: false`; their behavior is unchanged.
 - The flag is **one-way**: an update may tighten `false → true`, but `true → false` is
   rejected with HTTP 400 (`WriteOnlyCannotBeDisabledError`). Making a value readable again
-  would defeat the guarantee; delete and recreate instead.
+  would defeat the guarantee; delete and recreate instead. The transition is enforced
+  atomically: the DAO checks under a `SELECT ... FOR UPDATE` row lock, and the mapper
+  never clears a stored flag even when handed a stale explicit `false` — concurrent
+  updates cannot resurrect readability.
 - Storage: the flag rides inside the existing encrypted `data` JSON as a sibling key
   (`"write_only": true`), popped out at the mapping layer. **No schema migration.**
 
@@ -34,23 +37,43 @@ yet) — accepted; the run path is unaffected either way.
 For `write_only: true`, every user-facing vault response (create echo, list, get, update
 echo) strips the value and adds:
 
-- `has_key: bool` — whether a value is stored.
-- `key_preview: str | null` — masked preview like `sk-****9Qa` (first 3 + last 3 characters,
-  only for string values of 12+ characters; shorter values and JSON content show no
-  preview). One helper: `oss/src/core/secrets/redaction.py`.
+- `has_key: bool` — whether any credential material is stored (the primary value OR a
+  credential extra: an AWS-only secret reports `true`).
+- `key_preview: str | null` — masked preview of the PRIMARY value only. Policy: values
+  under 20 characters mask entirely (`****`); from 20 on, at most first 3 + last 3
+  characters and never more than 25% of the value (a 20-character value shows 5).
+  Extras credentials and JSON content never get a preview. One helper:
+  `oss/src/core/secrets/redaction.py`.
 
-Stripped fields per kind: `provider.key` (provider_key, custom_provider, webhook_provider),
-`provider.client_secret` (sso_provider), `secret.content` (custom_secret), plus the
-credential keys of a custom provider's `extras` (`api_key`, `aws_access_key_id`,
-`aws_secret_access_key`, `aws_session_token`). Non-credential config (URL, region,
-api_version, models, harnesses) stays readable.
+**One credential classifier.** What counts as credential material is defined once, in the
+SDK (`agenta.sdk.agents.connections.credentials`): the primary value field per kind
+(`provider.key`; `provider.client_secret` for sso_provider; `secret.content` for
+custom_secret) plus the full credential-extras set the SDK resolver consumes (`api_key`,
+the `aws_*`/`AWS_*` credential trio and bearer tokens, `ANTHROPIC_AUTH_TOKEN` and the
+other provider tokens, `AZURE_OPENAI_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, ...).
+The API imports that module for redaction, `has_key`, and update carry-over; a parity
+test fails if a resolver-accepted extras key is ever left unclassified. Non-credential
+config (URL, region, api_version, project, models, harnesses) stays readable.
 
-Redaction happens once, at the API response boundary (`VaultRouter`). In-process readers
-(`VaultService` and below: webhooks, SSO overrides, EE organizations) are untouched and
-keep plaintext.
+Redaction happens at the response boundary, in every outward surface:
 
-The Redis list cache stores the **redacted** shape — which also removes the previous
-plaintext-at-rest in Redis for write-only secrets.
+- the vault routes (`VaultRouter`), for all five endpoints;
+- webhook subscription responses (create echo, fetch, edit echo) — the signing value
+  disappears from responses once its vault record is write-only, while the delivery
+  signers (the service-internal resolver and the dispatcher's own) keep plaintext;
+- the EE organization-provider serialization drops `client_secret`; the SuperTokens
+  login-time reader keeps plaintext.
+
+In-process runtime readers (`VaultService` and below) are untouched.
+
+**Cache.** The Redis list cache stores the **redacted** shape (which also removes the
+previous plaintext-at-rest in Redis). The list cache key carries a per-project
+**generation** that every secret write bumps, so a reader holding a pre-write DB snapshot
+can only write its entry under a dead generation no later reader consults — a stale
+reader can never repopulate the cache with plaintext after a tighten. Both the list and
+generation keys use the **full project id** (`full_project_id=True` in the cache helper);
+the default 12-character-suffix key would let two projects with the same suffix share a
+security-sensitive entry.
 
 ### Updates: keep-stored-on-omit
 
@@ -65,6 +88,14 @@ replace-only — they cannot be cleared in place.
 
 This applies to all secrets, not only write-only ones, so update semantics do not fork on
 the flag.
+
+**Keep-on-omit is identity-local.** An update that changes the secret's kind or its
+provider family (`data.kind`) must carry an explicit new credential value; omitted or
+empty values are rejected with HTTP 400 (`SecretValueRequiredError`), and the old
+identity's credential extras never carry over. A stored OpenAI key can never silently
+become an Anthropic key, and a kind change can never silently erase the stored value.
+(Consequence: a credential-less record — for example an endpoint-only custom provider —
+cannot be the target of a kind/family change; delete and recreate it.)
 
 ### The runtime plaintext path: the `secret-resolve` grant
 
@@ -95,10 +126,12 @@ read: no session, ApiKey, or list/get call ever returns the value.
 | Frontend forms | vault routes, session auth | Redacted for write-only secrets; needs replace-only forms (follow-up) |
 | Direct API users (ApiKey) | vault routes | Redacted for write-only secrets; no escape hatch besides `write_only: false` at creation |
 | Platform runs (playground, deployments, agents) | granted credential via `permissions/check` | Unchanged — plaintext |
-| Standalone SDK runs (ApiKey) | `VaultConnectionResolver` | Fail loud: `WriteOnlySecretError` with instructions to use env vars |
+| Standalone SDK runs (ApiKey) | `VaultConnectionResolver` | Fail loud: `WriteOnlySecretError`, raised even when config extras survive; remediation = switch the connection to `self_managed` AND set the env variable |
 | Standalone SDK legacy services | `VaultMiddleware.get_secrets` | Redacted entries dropped with a clear `log.error`; env-var keys are not shadowed by them |
-| Named tool secrets | `resolve_named_secrets` | Redacted entries skipped with a clear `log.error` (best-effort contract kept) |
-| In-process readers (webhooks, SSO, EE orgs) | `VaultService` direct | Unchanged — plaintext |
+| Named tool secrets | `resolve_named_secrets` | Redacted entries skipped with a clear `log.error` (no secret names in logs) |
+| Webhook subscribers (UI/API responses) | webhook routes | Signing secret disappears from create/fetch/edit responses once its record is write-only; deliveries keep signing |
+| EE SSO provider settings | organization-provider routes | `client_secret` dropped once write-only; login flow unaffected |
+| In-process runtime readers (SuperTokens login, delivery signing, EE orgs internals) | `VaultService` direct | Unchanged — plaintext |
 
 ## Frontend follow-up (second PR)
 
