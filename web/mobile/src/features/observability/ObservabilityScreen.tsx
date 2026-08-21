@@ -4,12 +4,10 @@ import {useCallback, useRef, useState} from "react"
 import {useObservability, useSessions} from "@agenta/observability"
 import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
 import {AddActionsDropdown, DeleteTraceModal, deleteTraceModalAtom} from "@agenta/observability-ui"
-import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
 import {useSetAtom} from "jotai"
 import {MessagesSquare, Network} from "lucide-react"
-import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -18,7 +16,6 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {bindTraceDrawerSeams} from "./bindTraceDrawerSeams"
 import {SessionsList} from "./SessionsList"
 import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
@@ -78,9 +75,6 @@ export const ObservabilityScreen = ({
     const isNarrow = useIsNarrowScreen()
     // Selection lives in the table; the narrow card list has none. Anything that acts on a
     // selection is only meaningful when the table is what is on screen.
-    const router = useRouter()
-    // The drawer keeps its trace in the URL and links out; both need this host's router.
-    bindTraceDrawerSeams(router)
 
     const showsTable = !isNarrow
     const bodyRef = useRef<HTMLDivElement | null>(null)
@@ -179,7 +173,6 @@ export const ObservabilityScreen = ({
                         </div>
                         <DeleteTraceModal />
                         {/* Same drawer web/oss renders — a tapped trace opens here too now. */}
-                        <TraceDrawer />
                     </PageLayout>
                 </ScreenScaffold>
             </AppShell>
