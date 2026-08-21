@@ -260,7 +260,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     version: 1,
                     harness: typeof harnessKind === "string" ? harnessKind : prev.harness,
                     model: modelId ?? prev.model,
-                    provider: connection.provider ?? prev.provider,
+                    // Not `?? prev.provider`: a custom-connection pick deliberately stores none,
+                    // and inheriting the last family would seed the next agent with a provider its
+                    // model contradicts.
+                    provider: connection.provider ?? undefined,
                     connectionMode: connection.mode ?? prev.connectionMode,
                 }))
             }
