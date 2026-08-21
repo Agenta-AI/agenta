@@ -83,6 +83,60 @@ def test_ordinary_keyless_secret_still_reports_missing_credential():
         )
 
 
+def test_redacted_aws_only_secret_fails_loud_despite_surviving_config_extras():
+    # After redaction an AWS-credentialed secret keeps only config extras (region). The
+    # resulting env is NON-empty, so an env-emptiness check alone would let the run
+    # proceed mis-credentialed; the write-only check must fire first.
+    redacted = {
+        "kind": "custom_provider",
+        "slug": "bedrock-conn",
+        "header": {"name": "bedrock-conn"},
+        "data": {
+            "kind": "bedrock",
+            "provider": {"extras": {"aws_region_name": "eu-west-1"}},
+            "models": [{"slug": "claude-opus-5"}],
+            "provider_slug": "bedrock-conn",
+        },
+        "write_only": True,
+        "has_key": True,
+    }
+
+    with pytest.raises(WriteOnlySecretError):
+        connections._resolve_from_secrets(
+            secrets=[redacted],
+            model=ModelRef(
+                provider="anthropic",
+                model="claude-opus-5",
+                connection={"mode": "agenta", "slug": "bedrock-conn"},
+            ),
+            harness="claude_code",
+        )
+
+
+def test_plaintext_aws_only_secret_is_not_treated_as_redacted():
+    plaintext = {
+        "kind": "custom_provider",
+        "slug": "bedrock-conn",
+        "header": {"name": "bedrock-conn"},
+        "data": {
+            "kind": "bedrock",
+            "provider": {
+                "extras": {
+                    "aws_access_key_id": "AKIA123",
+                    "aws_secret_access_key": "shhh",
+                    "aws_region_name": "eu-west-1",
+                }
+            },
+            "models": [{"slug": "claude-opus-5"}],
+            "provider_slug": "bedrock-conn",
+        },
+        "write_only": True,
+    }
+
+    candidates = connections._catalog([plaintext])
+    assert candidates[0].write_only_redacted is False
+
+
 def test_redacted_custom_provider_fails_loud_too():
     redacted = {
         "kind": "custom_provider",

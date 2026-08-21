@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 from oss.src.utils.env import env
@@ -10,9 +10,13 @@ from oss.src.core.secrets.enums import (
 )
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
 from oss.src.core.secrets.context import set_data_encryption_key
-from oss.src.core.secrets.redaction import CREDENTIAL_EXTRAS_KEYS
+from oss.src.core.secrets.redaction import (
+    CREDENTIAL_EXTRAS_KEYS,
+    PRIMARY_CREDENTIAL_FIELDS,
+)
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
+    SecretValueRequiredError,
     UpdateSecretDTO,
     WriteOnlyCannotBeDisabledError,
 )
@@ -40,43 +44,65 @@ def next_provider_key_name(
     return f"{title} {index}"
 
 
-# The value-bearing (credential) field of each payload shape, as (container, field) pairs.
-# `provider.key` covers standard providers, custom providers, and webhooks; the other two
-# cover SSO and custom secrets. `_carry_over_saved_value` probes with hasattr, so pairs a
-# given kind does not have are simply skipped.
-_VALUE_FIELDS = (
-    ("provider", "key"),
-    ("provider", "client_secret"),
-    ("secret", "content"),
-)
+def _provider_family(data: Any) -> Optional[str]:
+    """The provider family (`data.kind`) as a canonical string; None for family-less kinds."""
+    kind = getattr(data, "kind", None)
+    if kind is None:
+        return None
+    return str(getattr(kind, "value", kind))
 
 
-def _carry_over_saved_value(*, stored_data: Any, update_data: Any) -> None:
+def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) -> None:
     """Fill an update payload's omitted value field from the stored record.
 
     An update that omits the value means "keep the stored one" — the contract replace-only
     forms rely on for write-only secrets, applied uniformly so update semantics do not fork
     on the flag. An empty string counts as omitted: an empty credential is never a
     meaningful value, and replace-only forms submit empty for "unchanged".
+
+    Only called when the update keeps the stored kind AND provider family — a credential
+    must never silently cross identities (see `update_secret`).
     """
-    for container_name, field in _VALUE_FIELDS:
+    container_name, field = PRIMARY_CREDENTIAL_FIELDS.get(kind, (None, None))
+
+    if container_name is not None:
         update_container = getattr(update_data, container_name, None)
         stored_container = getattr(stored_data, container_name, None)
 
-        if update_container is None or stored_container is None:
-            continue
-        if not hasattr(update_container, field):
-            continue
-
-        current_value = getattr(update_container, field)
-        if current_value is not None and current_value != "":
-            continue
-
-        stored_value = getattr(stored_container, field, None)
-        if stored_value is not None:
-            setattr(update_container, field, stored_value)
+        if (
+            update_container is not None
+            and stored_container is not None
+            and hasattr(update_container, field)
+        ):
+            current_value = getattr(update_container, field)
+            if current_value is None or current_value == "":
+                stored_value = getattr(stored_container, field, None)
+                if stored_value is not None:
+                    setattr(update_container, field, stored_value)
 
     _carry_over_saved_extras(stored_data=stored_data, update_data=update_data)
+
+
+def _require_explicit_value(*, secret: Any) -> None:
+    """Reject a kind/family-changing update that carries no new credential value."""
+    kind = str(secret.kind.value)
+    container_name, field = PRIMARY_CREDENTIAL_FIELDS.get(kind, (None, None))
+    if container_name is None:
+        return
+
+    container = getattr(secret.data, container_name, None)
+    value = getattr(container, field, None) if container is not None else None
+    has_value = value is not None and value != ""
+
+    if not has_value and container is not None:
+        extras = getattr(container, "extras", None) or {}
+        has_value = any(
+            extras.get(extras_key) not in (None, "")
+            for extras_key in CREDENTIAL_EXTRAS_KEYS
+        )
+
+    if not has_value:
+        raise SecretValueRequiredError()
 
 
 def _carry_over_saved_extras(*, stored_data: Any, update_data: Any) -> None:
@@ -284,14 +310,27 @@ class VaultService:
                         raise WriteOnlyCannotBeDisabledError()
 
                     if update_secret_dto.secret is not None:
-                        _carry_over_saved_policy(
-                            stored_data=stored_secret_dto.data,
-                            update_data=update_secret_dto.secret.data,
-                        )
-                        _carry_over_saved_value(
-                            stored_data=stored_secret_dto.data,
-                            update_data=update_secret_dto.secret.data,
-                        )
+                        # Keep-on-omit is an identity-local contract: a stored credential
+                        # never silently becomes another kind's or another provider's
+                        # credential. Changing either requires an explicit new value.
+                        same_identity = stored_secret_dto.kind == (
+                            update_secret_dto.secret.kind
+                        ) and _provider_family(
+                            stored_secret_dto.data
+                        ) == _provider_family(update_secret_dto.secret.data)
+
+                        if same_identity:
+                            _carry_over_saved_policy(
+                                stored_data=stored_secret_dto.data,
+                                update_data=update_secret_dto.secret.data,
+                            )
+                            _carry_over_saved_value(
+                                kind=str(stored_secret_dto.kind.value),
+                                stored_data=stored_secret_dto.data,
+                                update_data=update_secret_dto.secret.data,
+                            )
+                        else:
+                            _require_explicit_value(secret=update_secret_dto.secret)
 
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,

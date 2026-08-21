@@ -1,6 +1,8 @@
+import json
 from uuid import UUID
 
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
+from oss.src.core.secrets.dtos import WriteOnlyCannotBeDisabledError
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
 
 from oss.src.dbs.postgres.shared.engine import (
@@ -123,15 +125,27 @@ class SecretsDAO(SecretsDAOInterface):
     ):
         async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
-            stmt = select(SecretsDBE).filter_by(
-                id=secret_id,
-                **scope_filter,
+            # FOR UPDATE serializes concurrent updates so the one-way write_only check
+            # below always sees the latest committed flag — two racing updates cannot
+            # both observe False and let a stale explicit False win.
+            stmt = (
+                select(SecretsDBE)
+                .filter_by(
+                    id=secret_id,
+                    **scope_filter,
+                )
+                .with_for_update()
             )
             result = await session.execute(stmt)
             secrets_dbe = result.scalar()
 
             if secrets_dbe is None:
                 return None
+
+            if update_secret_dto.write_only is False and bool(
+                json.loads(secrets_dbe.data).get("write_only")
+            ):
+                raise WriteOnlyCannotBeDisabledError()
 
             map_secrets_dto_to_dbe_update(
                 secrets_dbe=secrets_dbe,

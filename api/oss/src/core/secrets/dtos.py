@@ -17,6 +17,22 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 
 
+class SecretValueRequiredError(Exception):
+    """Raised when an update changes a secret's kind or provider family without a new value.
+
+    Keep-on-omit is identity-local: carrying a stored credential across a kind or provider
+    change would silently hand one provider's key to another.
+    """
+
+    def __init__(
+        self,
+        message: str = "Changing a secret's kind or provider requires a new "
+        "credential value; the stored value is never carried across identities.",
+    ):
+        self.message = message
+        super().__init__(message)
+
+
 class WriteOnlyCannotBeDisabledError(Exception):
     """Raised when an update tries to turn `write_only` off.
 
@@ -247,8 +263,8 @@ class SecretDTO(BaseModel):
 class CreateSecretDTO(Slug, BaseModel):
     header: Header
     secret: SecretDTO
-    # None means "platform default", which is write-only. An explicit False is the
-    # compatibility escape hatch for callers that still need to read the value back.
+    # None means "platform default": env-gated via AGENTA_VAULT_WRITE_ONLY_DEFAULT
+    # (currently False). An explicit value always wins over the gate, in both directions.
     write_only: Optional[bool] = None
 
     @model_validator(mode="before")

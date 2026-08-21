@@ -15,6 +15,7 @@ from oss.src.core.secrets.dtos import (
     WebhookProviderSettingsDTO,
 )
 from oss.src.core.secrets.enums import SecretKind
+from oss.src.core.secrets.redaction import redact_secret_response
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.webhooks.delivery import (
@@ -58,6 +59,34 @@ class WebhooksService:
         alphabet = string.ascii_letters + string.digits
 
         return "".join(secrets.choice(alphabet) for _ in range(32))
+
+    async def _resolve_outward_secret(
+        self,
+        *,
+        project_id: UUID,
+        #
+        secret_id: UUID,
+    ) -> Optional[str]:
+        """The signing secret as a USER response may carry it: None once write-only.
+
+        Only for response shaping. Internal signing paths (`_resolve_secret` here, the
+        dispatcher's own resolver) stay plaintext regardless of the flag.
+        """
+        try:
+            secret_dto = await self.vault_service.get_secret_by_id(
+                secret_id=secret_id,
+                project_id=project_id,
+            )
+
+            if secret_dto is None:
+                return None
+
+            return redact_secret_response(secret_dto).data.provider.key
+
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.warning(f"Failed to resolve webhook secret {secret_id}: {e}")
+
+            return None
 
     async def _resolve_secret(
         self,
@@ -147,9 +176,11 @@ class WebhooksService:
             secret_id=secret_dto.id,
         )
 
+        # The create echo respects write-only: once the stored secret is write-only, no
+        # response carries the value again — not even the creating one.
         return self._with_secret(
             subscription=result,
-            secret=secret_value,
+            secret=redact_secret_response(secret_dto).data.provider.key,
         )
 
     async def test_subscription(
@@ -325,7 +356,7 @@ class WebhooksService:
             return None
 
         if result.secret_id:
-            secret_value = await self._resolve_secret(
+            secret_value = await self._resolve_outward_secret(
                 project_id=project_id,
                 secret_id=result.secret_id,
             )
@@ -418,18 +449,12 @@ class WebhooksService:
         if result is None:
             return None
 
-        if subscription.secret is not None:
-            result = self._with_secret(
-                subscription=result,
-                secret=subscription.secret,
-            )
-
-            return result
-
-        if result.secret_id:
-            secret_value = await self._resolve_secret(
+        # Even a just-provided secret echoes through the outward resolver, so a
+        # write-only record never comes back — the caller already knows what it sent.
+        if result.secret_id or secret_id:
+            secret_value = await self._resolve_outward_secret(
                 project_id=project_id,
-                secret_id=result.secret_id,
+                secret_id=result.secret_id or secret_id,
             )
             result = self._with_secret(
                 subscription=result,
@@ -489,7 +514,7 @@ class WebhooksService:
             return None
 
         if result.secret_id:
-            secret_value = await self._resolve_secret(
+            secret_value = await self._resolve_outward_secret(
                 project_id=project_id,
                 secret_id=result.secret_id,
             )

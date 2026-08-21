@@ -8,11 +8,12 @@ from fastapi.routing import APIRoute
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
+    SecretValueRequiredError,
     UpdateSecretDTO,
     SecretResponseDTO,
     WriteOnlyCannotBeDisabledError,
@@ -162,42 +163,11 @@ class VaultRouter:
                 status_code=403,
             )
 
-        # The runtime (secret-resolve grant) needs plaintext, and the shared cache only
-        # ever stores the redacted shape, so grant-bearing reads go straight to the DB.
-        if request_has_grant(request, SECRET_RESOLVE_GRANT):
-            return await self.service.list_secrets(
-                project_id=UUID(request.state.project_id),
-            )
-
-        cache_key = {}
-
-        secrets_dtos = await get_cache(
-            project_id=request.state.project_id,
-            namespace="list_secrets",
-            key=cache_key,
-            model=SecretResponseDTO,
-            is_list=True,
-        )
-
-        if secrets_dtos is not None:
-            # Entries are stored redacted; re-redacting is idempotent and shields against
-            # entries written before write-only secrets existed.
-            return [redact_secret_response(dto) for dto in secrets_dtos]
-
         secrets_dtos = await self.service.list_secrets(
             project_id=UUID(request.state.project_id),
         )
 
-        secrets_dtos = [redact_secret_response(dto) for dto in secrets_dtos]
-
-        await set_cache(
-            project_id=request.state.project_id,
-            namespace="list_secrets",
-            key=cache_key,
-            value=secrets_dtos,
-        )
-
-        return secrets_dtos
+        return [self._for_caller(request, secret_dto) for secret_dto in secrets_dtos]
 
     @intercept_exceptions()
     async def read_secret(self, request: Request, secret_id_or_slug: str):
@@ -263,7 +233,7 @@ class VaultRouter:
                 update_secret_dto=body,
                 user_id=UUID(request.state.user_id),
             )
-        except WriteOnlyCannotBeDisabledError as e:
+        except (SecretValueRequiredError, WriteOnlyCannotBeDisabledError) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=e.message
             ) from e

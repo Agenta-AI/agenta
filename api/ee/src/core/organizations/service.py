@@ -28,6 +28,7 @@ from oss.src.core.secrets.dtos import (
     SSOProviderDTO,
     SSOProviderSettingsDTO,
 )
+from oss.src.core.secrets.redaction import redact_secret_response
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
@@ -879,12 +880,23 @@ class OrganizationProvidersService:
         if not secret:
             raise HTTPException(status_code=404, detail="Provider secret not found")
 
+        # This feeds USER-facing provider responses, so a write-only secret loses its
+        # client_secret here. The login-time reader (the SuperTokens overrides) resolves
+        # the secret through VaultService directly and keeps plaintext.
+        secret = redact_secret_response(secret)
+
         data = secret.data
         if hasattr(data, "provider"):
             return data.provider.model_dump()
         if isinstance(data, dict):
             provider = data.get("provider") or {}
             if isinstance(provider, dict):
+                if getattr(secret, "write_only", False):
+                    provider = {
+                        key: value
+                        for key, value in provider.items()
+                        if key != "client_secret"
+                    }
                 return provider
         raise HTTPException(status_code=500, detail="Invalid provider secret format")
 
