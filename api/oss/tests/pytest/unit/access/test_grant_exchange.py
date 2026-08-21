@@ -173,6 +173,18 @@ async def test_the_runtime_key_only_grants_a_run_exchange(exchange):
 
 
 @pytest.mark.asyncio
+async def test_an_unconfigured_deployment_grants_nobody(exchange, monkeypatch):
+    # The placeholder is in the repo, so anyone could send it. A deployment that
+    # configured no runtime key must issue no grant rather than accept a known string.
+    monkeypatch.setattr(env.agenta, "services_internal_key", "replace-me")
+    run, _ = exchange
+
+    body = _body(await run("run_service", runtime_key="replace-me"))
+
+    assert "grants" not in _claims(body["credentials"])
+
+
+@pytest.mark.asyncio
 async def test_a_plain_caller_cannot_mint_the_grant_by_asking_for_it(exchange):
     # The escalation this closes: a member who may run a service could call the exchange
     # with their own session or ApiKey — neither of which carries a grant — and spend the
