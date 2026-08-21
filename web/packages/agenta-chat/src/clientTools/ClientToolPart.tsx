@@ -48,7 +48,7 @@ const ClientToolPart = ({
     // already says who asks.
     const askerLabel = CLIENT_TOOL_NAMES.has(canonicalToolName(meta.toolName))
         ? null
-        : resolveToolDisplay(meta.toolName).label
+        : resolveToolDisplay(meta.toolName, meta.input).label
 
     const settle = useCallback(
         (args: {output: Record<string, unknown>} | {errorText: string}) => {

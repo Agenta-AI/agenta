@@ -85,7 +85,14 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         // Declined / cancelled / timeout: quiet generic wording — these are expected, not
         // errors. Any other reason is the create call's own failure message and must be
         // shown, not swallowed behind the same generic text (it previously was).
-        const reason = outcome?.reason ?? output.reason
+        // A remounted part (after a reload) has no local `outcome` and usually no `meta.output`;
+        // its failure text survives only on the part itself.
+        const reason =
+            outcome?.reason ??
+            output.reason ??
+            (typeof partErrorText === "string" && !partErrorText.startsWith(DEFERRED_SENTINEL)
+                ? partErrorText
+                : undefined)
         const failureDetail =
             typeof reason === "string" && reason && !KNOWN_CONNECT_REASONS.has(reason)
                 ? reason

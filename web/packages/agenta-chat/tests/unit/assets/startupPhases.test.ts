@@ -30,4 +30,10 @@ describe("observed startup labels", () => {
         ).toBeNull()
         expect(startupLabelFromDataPart(null)).toBeNull()
     })
+
+    it("rejects keys inherited from Object.prototype", () => {
+        for (const phase of ["toString", "constructor", "hasOwnProperty", "__proto__"]) {
+            expect(startupLabelFromDataPart({type: "data-agent-status", data: {phase}})).toBeNull()
+        }
+    })
 })
