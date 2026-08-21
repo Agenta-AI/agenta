@@ -29,7 +29,10 @@ def _no_ambient_provider_keys(monkeypatch):
     """
     for name in set(PROVIDER_ENV_VARS.values()) | {
         "AWS_BEARER_TOKEN_BEDROCK",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
         "AZURE_OPENAI_API_KEY",
+        "GOOGLE_APPLICATION_CREDENTIALS",
     }:
         monkeypatch.delenv(name, raising=False)
 
@@ -185,6 +188,75 @@ def test_a_bedrock_connection_never_falls_back_to_the_family_api_key(monkeypatch
     )
     env = {item.binding.name: item.value for item in resolved.credentials}
     assert env["AWS_BEARER_TOKEN_BEDROCK"] == "aws-bearer-env"
+
+
+def _redacted_custom(kind: str, slug: str, extras: dict | None = None) -> dict:
+    return {
+        "kind": "custom_provider",
+        "slug": slug,
+        "header": {"name": slug},
+        "data": {
+            "kind": kind,
+            "provider": {"extras": extras or {}},
+            "models": [{"slug": "claude-opus-5"}],
+            "provider_slug": slug,
+        },
+        "write_only": True,
+        "has_key": True,
+    }
+
+
+def _claude_model(slug: str) -> ModelRef:
+    return ModelRef(
+        provider="anthropic",
+        model="claude-opus-5",
+        connection={"mode": "agenta", "slug": slug},
+    )
+
+
+def test_a_bedrock_connection_accepts_an_aws_key_pair_from_the_environment(monkeypatch):
+    # The same credential material the plaintext path takes from the vault's extras.
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "aws-secret-from-env")
+    redacted = _redacted_custom(
+        "bedrock", "bedrock-conn", {"aws_region_name": "eu-west-1"}
+    )
+
+    resolved = connections._resolve_from_secrets(
+        secrets=[redacted], model=_claude_model("bedrock-conn"), harness="claude_code"
+    )
+
+    env = {item.binding.name: item.value for item in resolved.credentials}
+    assert env["AWS_ACCESS_KEY_ID"] == "AKIAEXAMPLE"
+    assert env["AWS_SECRET_ACCESS_KEY"] == "aws-secret-from-env"
+
+
+def test_half_an_aws_key_pair_is_not_a_credential(monkeypatch):
+    # An access key id with no secret authenticates nothing; failing here names the
+    # problem, where passing it on would fail at the provider with an auth error.
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE")
+    redacted = _redacted_custom("bedrock", "bedrock-conn")
+
+    with pytest.raises(WriteOnlySecretError):
+        connections._resolve_from_secrets(
+            secrets=[redacted],
+            model=_claude_model("bedrock-conn"),
+            harness="claude_code",
+        )
+
+
+def test_a_vertex_connection_accepts_google_application_credentials(monkeypatch):
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/run/secrets/service-account")
+    redacted = _redacted_custom(
+        "vertex_ai", "vertex-conn", {"vertex_ai_location": "europe-west1"}
+    )
+
+    resolved = connections._resolve_from_secrets(
+        secrets=[redacted], model=_claude_model("vertex-conn"), harness="claude_code"
+    )
+
+    env = {item.binding.name: item.value for item in resolved.credentials}
+    assert env["GOOGLE_APPLICATION_CREDENTIALS"] == "/run/secrets/service-account"
 
 
 def test_plaintext_aws_only_secret_is_not_treated_as_redacted():
