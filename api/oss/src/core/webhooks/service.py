@@ -165,6 +165,12 @@ class WebhooksService:
                         ),
                     ),
                 ),
+                # Opted out of the write-only default on purpose. A signing secret is a
+                # SHARED secret: the subscriber verifies our signature with the same
+                # value, and when we generated it here that response is the only place
+                # they can ever read it. Redacting it would ship a subscription nobody
+                # can verify.
+                write_only=False,
             ),
         )
 
@@ -177,8 +183,9 @@ class WebhooksService:
             secret_id=secret_dto.id,
         )
 
-        # The create echo respects write-only: once the stored secret is write-only, no
-        # response carries the value again — not even the creating one.
+        # The create echo goes through redaction anyway: the row is created readable, so
+        # the value comes back here, and if a user later tightens it by hand every later
+        # response — this one included, on a re-create — redacts.
         return self._with_secret(
             subscription=result,
             secret=redact_secret_response(secret_dto).data.provider.key,
@@ -436,6 +443,9 @@ class WebhooksService:
                                 ),
                             ),
                         ),
+                        # Same shared-secret reasoning as the create path: a subscription
+                        # that first gets a secret on edit must stay verifiable.
+                        write_only=False,
                     ),
                 )
                 secret_id = secret_dto.id
