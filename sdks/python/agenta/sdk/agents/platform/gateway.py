@@ -13,13 +13,15 @@ hint the backend forwards, not a choice the backend makes.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Sequence
+import re
+from typing import Any, Dict, List, Optional, Sequence
 
 import httpx
 
 from agenta.sdk.agents.tools import (
     CallbackToolSpec,
     GatewayToolConfig,
+    GatewayToolkitConfig,
     GatewayToolResolution,
     GatewayToolResolutionError,
     ToolCallback,
@@ -91,6 +93,88 @@ def _format_resolution_failure(status_code: int, detail: Optional[str]) -> str:
     return message
 
 
+def _sanitize_tool_name(value: str) -> str:
+    """Make a model-facing tool name from a slug, keeping only ``[A-Za-z0-9_]``."""
+    return re.sub(r"[^A-Za-z0-9_]", "_", value)
+
+
+def _build_toolkit_specs(tool_config: GatewayToolkitConfig) -> List[CallbackToolSpec]:
+    """Turn one ``gateway_toolkit`` config into a search spec and a run spec.
+
+    Both are fixed callback specs; the per-action provider calls happen only when the
+    model calls the run tool. The names include the integration and the connection so two
+    connections never collide; the ``call_ref`` values carry the routing and (for run) the
+    policy the server enforces.
+    """
+    integration = tool_config.integration
+    base_name = _sanitize_tool_name(f"{integration}_{tool_config.connection}")
+
+    search_spec = CallbackToolSpec(
+        name=f"{base_name}_search",
+        description=(
+            f"Search the available {integration} actions. Give a short description of "
+            "what you want to do (for example 'create an issue'). Returns the matching "
+            f"action slugs and the input schema for each. Then call {base_name}_run with "
+            "one of the slugs."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "A short description of what you want to do, "
+                        "for example 'create an issue'."
+                    ),
+                }
+            },
+            "required": ["query"],
+        },
+        call_ref=tool_config.search_call_ref,
+        render=tool_config.render,
+        permission=tool_config.permission,
+    )
+
+    action_schema: Dict[str, Any] = {
+        "type": "string",
+        "description": (
+            f"The {integration} action slug to run, from the search tool "
+            "(for example GITHUB_CREATE_AN_ISSUE)."
+        ),
+    }
+    run_description = (
+        f"Run one {integration} action. Pass 'action' (an action slug from the "
+        f"{base_name}_search tool) and 'arguments' (the inputs for that action, matching "
+        "its input schema). Returns the action result."
+    )
+    if tool_config.tools.mode == "include" and tool_config.tools.actions:
+        action_schema["enum"] = list(tool_config.tools.actions)
+        run_description += (
+            " Allowed actions: " + ", ".join(tool_config.tools.actions) + "."
+        )
+
+    run_spec = CallbackToolSpec(
+        name=f"{base_name}_run",
+        description=run_description,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "action": action_schema,
+                "arguments": {
+                    "type": "object",
+                    "description": "The inputs for the action.",
+                },
+            },
+            "required": ["action"],
+        },
+        call_ref=tool_config.run_call_ref,
+        render=tool_config.render,
+        permission=tool_config.permission,
+    )
+
+    return [search_spec, run_spec]
+
+
 def _to_gateway_reference(tool_config: GatewayToolConfig) -> Dict[str, Any]:
     reference: Dict[str, Any] = {
         "type": "gateway",
@@ -109,6 +193,47 @@ class AgentaGatewayToolResolver:
 
     def __init__(self, connection: Optional[PlatformConnection] = None) -> None:
         self._connection = connection or PlatformConnection()
+
+    def _tool_callback(self) -> tuple[str, ToolCallback]:
+        """Resolve the API base and the shared callback, or raise a typed error."""
+        api_base = self._connection.base_url()
+        if not api_base:
+            error = GatewayToolResolutionError(
+                "Agent has gateway tools configured but the Agenta API base URL "
+                "is unknown. Set AGENTA_API_URL."
+            )
+            log.warning("agent: gateway tool resolution failed: %s", error)
+            raise error
+        authorization = self._connection.authorization()
+        return api_base, ToolCallback(
+            endpoint=f"{api_base}/tools/call",
+            authorization=authorization,
+        )
+
+    async def resolve_toolkit(
+        self,
+        tools: Sequence[GatewayToolkitConfig],
+    ) -> GatewayToolResolution:
+        """Synthesize a search spec and a run spec per ``gateway_toolkit`` config.
+
+        No provider call happens here; the specs are fixed and the connection is validated
+        server-side at ``/tools/call``. Only the API base and the caller credential are read,
+        for the single shared :class:`ToolCallback`.
+        """
+        for tool_config in tools:
+            if tool_config.provider != "composio":
+                raise UnsupportedToolProviderError(tool_config.provider)
+
+        _, tool_callback = self._tool_callback()
+
+        tool_specs: list[CallbackToolSpec] = []
+        for tool_config in tools:
+            tool_specs.extend(_build_toolkit_specs(tool_config))
+
+        return GatewayToolResolution(
+            tool_specs=tool_specs,
+            tool_callback=tool_callback,
+        )
 
     async def resolve(
         self,

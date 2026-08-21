@@ -172,19 +172,53 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             integration_key=request.integration_key,
             action_key=request.action_key,
         )
+        return await self._execute_slug(
+            composio_slug=composio_slug,
+            provider_connection_id=request.provider_connection_id,
+            user_id=request.user_id,
+            arguments=request.arguments,
+        )
 
-        payload: Dict[str, Any] = {"arguments": request.arguments}
+    async def execute_action_slug(
+        self,
+        *,
+        tool_slug: str,
+        provider_connection_id: Optional[str],
+        user_id: Optional[str],
+        arguments: Dict[str, Any],
+    ) -> ToolExecutionResponse:
+        """Execute a full Composio tool slug directly (used by the toolkit run tool).
+
+        The slug comes from the search tool, so it is already the exact Composio slug and
+        needs no integration/action mapping.
+        """
+        return await self._execute_slug(
+            composio_slug=tool_slug,
+            provider_connection_id=provider_connection_id,
+            user_id=user_id,
+            arguments=arguments,
+        )
+
+    async def _execute_slug(
+        self,
+        *,
+        composio_slug: str,
+        provider_connection_id: Optional[str],
+        user_id: Optional[str],
+        arguments: Dict[str, Any],
+    ) -> ToolExecutionResponse:
+        payload: Dict[str, Any] = {"arguments": arguments}
         # No-auth toolkits run without a connected account; only send the id when set.
-        if request.provider_connection_id:
-            payload["connected_account_id"] = request.provider_connection_id
-        if request.user_id:
-            payload["user_id"] = request.user_id
+        if provider_connection_id:
+            payload["connected_account_id"] = provider_connection_id
+        if user_id:
+            payload["user_id"] = user_id
 
         log.debug(
             "[composio.execute] slug=%s connected_account=%s user_id=%s",
             composio_slug,
-            request.provider_connection_id or "(none)",
-            request.user_id or "(none)",
+            provider_connection_id or "(none)",
+            user_id or "(none)",
         )
 
         try:

@@ -6,6 +6,7 @@ from typing import Mapping, Protocol, Sequence
 
 from .models import (
     GatewayToolConfig,
+    GatewayToolkitConfig,
     GatewayToolResolution,
     PlatformToolConfig,
     ReferenceToolConfig,
@@ -22,7 +23,17 @@ class GatewayToolResolver(Protocol):
         self,
         tools: Sequence[GatewayToolConfig],
     ) -> GatewayToolResolution:
-        """Resolve gateway declarations into callback specifications."""
+        """Resolve per-action gateway declarations into callback specifications."""
+
+    async def resolve_toolkit(
+        self,
+        tools: Sequence[GatewayToolkitConfig],
+    ) -> GatewayToolResolution:
+        """Resolve per-connection ``gateway_toolkit`` declarations.
+
+        Each config yields TWO callback specs — a search tool and a run tool — plus the
+        single shared :class:`ToolCallback` to the server-side execute endpoint. The specs
+        are synthesized locally; no per-action provider call happens at resolve time."""
 
 
 class WorkflowToolResolver(Protocol):

@@ -32,6 +32,7 @@ from .models import (
     CodeToolConfig,
     CodeToolSpec,
     GatewayToolConfig,
+    GatewayToolkitConfig,
     GatewayToolResolution,
     MissingSecretPolicy,
     PlatformToolConfig,
@@ -41,6 +42,7 @@ from .models import (
     ToolCallback,
     ToolConfig,
     ToolConfigBase,
+    ToolkitPolicy,
     ToolSpec,
 )
 from .parsing import parse_tool_config
@@ -51,6 +53,8 @@ __all__ = [
     "ToolConfig",
     "BuiltinToolConfig",
     "GatewayToolConfig",
+    "GatewayToolkitConfig",
+    "ToolkitPolicy",
     "CodeToolConfig",
     "ClientToolConfig",
     "ReferenceToolConfig",
