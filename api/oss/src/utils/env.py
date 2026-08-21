@@ -1566,6 +1566,12 @@ class StarterCreditsBridgeConfig(BaseModel):
     # money value can be changed one field at a time on a single deployment.
     # Without a resolvable payload the policy is unresolved and seeding fails
     # closed. Only the flag's NAME is configurable here.
+    #
+    # One exception, for developer convenience: a deployment with NO PostHog
+    # configured at all (local dev, a QA stack) runs on the built-in development
+    # policy in `starter_credits_bridge/types.py` instead of being blocked, since
+    # it has no way to publish a payload. Cloud always has PostHog, so it always
+    # takes the payload path and still fails closed on a missing or bad one.
     policy_flag: str = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_POLICY_FLAG")
         or "starter-credits-bridge-policy"

@@ -92,10 +92,11 @@ DEFAULT_FREEMAIL_DOMAINS: tuple[str, ...] = (
 class MintPolicy(BaseModel):
     """Mint policy: velocity caps, domain classification, eligibility rules, and
     the money values (grant, per-key limits). Everything ships via the PostHog
-    policy flag payload (env fields can override single fields) so no real value
-    lives in source; an unresolved or invalid policy means no seeding. Unknown
-    payload fields are rejected so a malformed rollout fails closed instead of
-    half-applying."""
+    policy flag payload so no real value lives in source; an unresolved or invalid
+    policy means no seeding. Unknown payload fields are rejected so a malformed
+    rollout fails closed instead of half-applying. The one exception is a
+    deployment with no PostHog at all, which gets DEVELOPMENT_POLICY_VALUES
+    below."""
 
     # `validate_default` so an absent `freemail_domains` still picks up the built-in
     # defaults through the validator below.
@@ -172,3 +173,22 @@ class KeyAliasExistsError(ProxyRequestError):
 class MintedKey(BaseModel):
     key: str
     key_alias: str
+
+
+# What a deployment with no PostHog runs on: local development and live QA, which
+# would otherwise be blocked by the fail-closed rule with no way to unblock them.
+# The numbers are deliberately generic — a small grant and caps loose enough not to
+# get in the way of testing — so they say nothing about the real program, whose
+# values live only in the PostHog payload. A deployment that HAS PostHog never
+# reaches these: a missing or malformed payload there still fails closed.
+DEVELOPMENT_POLICY_VALUES: dict = {
+    "global_daily": 1000,
+    "global_hourly": 1000,
+    "work_domain_daily": 1000,
+    "freemail_domains": [],
+    "block_digit_locals": False,
+    "grant_usd": 5.0,
+    "key_max_parallel_requests": 2,
+    "key_rpm_limit": 30,
+    "key_tpm_limit": 200_000,
+}

@@ -29,6 +29,7 @@ from oss.src.core.shared.dtos import Header
 
 from ee.src.core.starter_credits_bridge.client import StarterCreditsProxyClient
 from ee.src.core.starter_credits_bridge.types import (
+    DEVELOPMENT_POLICY_VALUES,
     KeyAliasExistsError,
     MintedKey,
     MintPolicy,
@@ -399,12 +400,31 @@ def _monotonic() -> float:
     return time.monotonic()
 
 
+# The development-policy notice is worth seeing, and worth seeing once: it would
+# otherwise repeat on every signup for the whole life of a dev process.
+_development_policy_announced = False
+
+
+def _development_policy() -> MintPolicy:
+    """The policy a deployment without PostHog runs on. Values live in `types.py`."""
+    global _development_policy_announced
+
+    if not _development_policy_announced:
+        _development_policy_announced = True
+        log.warning(
+            "starter credits: PostHog not configured, using the built-in development policy"
+        )
+
+    return MintPolicy(**DEVELOPMENT_POLICY_VALUES)
+
+
 async def _resolve_mint_policy() -> Optional[MintPolicy]:
     """Resolve the mint policy. Live-first; a MALFORMED live payload fails
     closed with an alert (a bad rollout must never silently keep old caps via
     the cache) — only a transport failure may fall back to the Redis-cached
-    payload. The payload is the only source of policy values. No resolvable
-    policy means no seeding."""
+    payload. The payload is the only source of policy values, except on a
+    deployment with no PostHog at all, which runs on the built-in development
+    policy. No resolvable policy means no seeding."""
     flag = env.starter_credits_bridge.policy_flag
     # Deliberately global: the mint policy is one program-wide payload (caps, domain
     # rules), identical for every organization.
@@ -413,25 +433,31 @@ async def _resolve_mint_policy() -> Optional[MintPolicy]:
     payload: Optional[dict] = None
     live_malformed = False
     posthog = _load_posthog()
-    if posthog is not None:
-        try:
-            raw = await asyncio.to_thread(
-                posthog.get_feature_flag_payload, flag, "starter-credits-bridge"
-            )
-        except Exception as exc:
-            log.warning(
-                "[starter_credits_bridge] live policy lookup failed; using cached value",
-                reason=str(exc),
-            )
+    if posthog is None:
+        # No PostHog at all means local development or a QA stack: there is no way
+        # to publish a policy there, so failing closed would simply block them.
+        # A deployment that HAS PostHog never lands here — a missing or malformed
+        # payload keeps failing closed below, which is what protects production.
+        return _development_policy()
+
+    try:
+        raw = await asyncio.to_thread(
+            posthog.get_feature_flag_payload, flag, "starter-credits-bridge"
+        )
+    except Exception as exc:
+        log.warning(
+            "[starter_credits_bridge] live policy lookup failed; using cached value",
+            reason=str(exc),
+        )
+    else:
+        if raw is None:
+            # A reachable PostHog with no payload is a real "no policy" signal:
+            # nothing else can supply one, so the resolve below fails closed.
+            payload = None
         else:
-            if raw is None:
-                # A reachable PostHog with no payload is a real "no policy" signal:
-                # nothing else can supply one, so the resolve below fails closed.
-                payload = None
-            else:
-                payload = _parse_policy_payload(raw)
-                if payload is None:
-                    live_malformed = True
+            payload = _parse_policy_payload(raw)
+            if payload is None:
+                live_malformed = True
 
     if payload is None and not live_malformed:
         cached = await get_cache(

@@ -22,6 +22,10 @@ from ee.src.core.starter_credits_bridge.types import (
 )
 
 
+# Captured before any fixture replaces it, so the one end-to-end policy test below
+# can run the real resolver.
+_REAL_RESOLVE_MINT_POLICY = service._resolve_mint_policy
+
 ORGANIZATION_ID = "9f0e0f39-0000-4000-8000-000000000001"
 ORGANIZATION_EMAIL = "someone@example.com"
 
@@ -282,6 +286,23 @@ class TestSeeding:
         assert row.header.name == service.STARTER_CREDITS_NAME
         assert seeding_env.invalidated == [{"project_id": str(seeding_env.project.id)}]
         assert seeding_env.released == []
+
+    async def test_a_deployment_without_posthog_still_seeds(self, seeding_env):
+        # The development-policy path end to end: a local stack has no way to publish
+        # a payload, and a signup there must still get its funded connection.
+        seeding_env.monkeypatch.setattr(
+            service, "_resolve_mint_policy", _REAL_RESOLVE_MINT_POLICY
+        )
+        seeding_env.monkeypatch.setattr(service, "_load_posthog", lambda: None)
+        seeding_env.monkeypatch.setattr(service, "_development_policy_announced", False)
+
+        await _seed()
+
+        assert seeding_env.vault.row is not None
+        (client,) = FakeProxyClient.instances
+        (call,) = client.generate_calls
+        assert call["max_budget"] == 5.0
+        assert call["rpm_limit"] == 30
 
     async def test_disarmed_config_is_a_noop(self, seeding_env):
         seeding_env.monkeypatch.setattr(
@@ -693,8 +714,45 @@ class TestMintPolicyResolution:
         assert policy.is_freemail("freemail.test") is True
         assert policy.is_freemail("gmail.com") is True
 
-    async def test_no_signal_anywhere_fails_closed(self):
+    async def test_unconfigured_posthog_uses_the_development_policy(self):
+        # Local dev and QA stacks cannot publish a payload, so they run on the
+        # built-in one instead of being blocked by the fail-closed rule.
         self.monkeypatch.setattr(service, "_load_posthog", lambda: None)
+        self.monkeypatch.setattr(service, "_development_policy_announced", False)
+
+        policy = await service._resolve_mint_policy()
+
+        assert policy is not None
+        assert policy.grant_usd == 5.0
+        assert policy.global_daily == 1000
+        assert policy.key_tpm_limit == 200_000
+        assert policy.block_digit_locals is False
+        # The built-in domain list still applies through the union.
+        assert policy.is_freemail("gmail.com") is True
+        # Nothing was cached: the development policy never becomes a stored payload.
+        assert self.cache == {}
+
+    async def test_the_development_policy_announces_itself_once(self, caplog):
+        self.monkeypatch.setattr(service, "_load_posthog", lambda: None)
+        self.monkeypatch.setattr(service, "_development_policy_announced", False)
+
+        with caplog.at_level("WARNING"):
+            await service._resolve_mint_policy()
+            await service._resolve_mint_policy()
+
+        notices = [
+            record
+            for record in caplog.records
+            if "built-in development policy" in record.getMessage()
+        ]
+        assert len(notices) == 1
+
+    async def test_configured_posthog_without_a_payload_still_fails_closed(self):
+        # The fallback is for deployments with NO PostHog. Here there is one, and a
+        # missing payload is a real "no policy" signal — production's protection.
+        self.monkeypatch.setattr(
+            service, "_load_posthog", lambda: self._posthog_with(None)
+        )
 
         assert await service._resolve_mint_policy() is None
 
