@@ -205,9 +205,13 @@ class SecretDTO(BaseModel):
                     "The provided request secret dto is missing required fields for SSOProviderSettingsDTO"
                 )
             required_fields = {"client_id", "issuer_url", "scopes"}
-            if cls.VALUE_REQUIRED:
-                required_fields.add("client_secret")
-            if not required_fields.issubset(provider.keys()):
+            # `client_secret` is checked by VALUE, not by presence: a create carrying an
+            # explicit null would otherwise store a credential-less SSO record, and a
+            # value is optional only on the update path (omission means "keep the stored
+            # one") and in redacted responses.
+            if not required_fields.issubset(provider.keys()) or (
+                cls.VALUE_REQUIRED and provider.get("client_secret") is None
+            ):
                 raise ValueError(
                     "The provided request secret dto is missing required fields for SSOProviderSettingsDTO"
                 )

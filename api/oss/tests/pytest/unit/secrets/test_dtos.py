@@ -344,6 +344,74 @@ def test_create_secret_rejects_an_empty_header(kind):
         CreateSecretDTO.model_validate(_payload_without_a_header(kind))
 
 
+def _sso_payload(client_secret):
+    return {
+        "header": {"name": "Okta"},
+        "secret": {
+            "kind": "sso_provider",
+            "data": {
+                "provider": {
+                    "client_id": "id",
+                    "client_secret": client_secret,
+                    "issuer_url": "https://issuer.example",
+                    "scopes": ["openid"],
+                }
+            },
+        },
+    }
+
+
+def test_create_sso_secret_rejects_a_null_client_secret():
+    # Presence is not a value: an explicit null would store an SSO record with no
+    # credential. A value may be omitted only on the update path, where omission means
+    # "keep the stored one".
+    with pytest.raises(ValidationError, match="SSOProviderSettingsDTO"):
+        CreateSecretDTO.model_validate(_sso_payload(None))
+
+    with pytest.raises(ValidationError, match="SSOProviderSettingsDTO"):
+        CreateSecretDTO.model_validate(
+            {
+                "header": {"name": "Okta"},
+                "secret": {
+                    "kind": "sso_provider",
+                    "data": {
+                        "provider": {
+                            "client_id": "id",
+                            "issuer_url": "https://issuer.example",
+                            "scopes": ["openid"],
+                        }
+                    },
+                },
+            }
+        )
+
+
+def test_create_sso_secret_accepts_a_real_client_secret():
+    secret = CreateSecretDTO.model_validate(_sso_payload("sso-client-secret"))
+
+    assert secret.secret.kind.value == "sso_provider"
+
+
+def test_update_sso_secret_may_omit_the_client_secret():
+    # Keep-on-omit: an update without a value keeps the stored one.
+    update = UpdateSecretDTO.model_validate(
+        {
+            "secret": {
+                "kind": "sso_provider",
+                "data": {
+                    "provider": {
+                        "client_id": "id",
+                        "issuer_url": "https://issuer.example",
+                        "scopes": ["openid"],
+                    }
+                },
+            }
+        }
+    )
+
+    assert update.secret is not None
+
+
 def test_create_secret_allows_an_empty_header_for_a_provider_key():
     # The one kind that may arrive unnamed: the service names it after its provider on create.
     secret = CreateSecretDTO.model_validate(
