@@ -3,7 +3,8 @@ import {useMemo, useState} from "react"
 import {fetchAllProjects} from "@agenta/entities/project"
 import {createApiKey} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
-import {Button, Input, Space, Typography} from "antd"
+import {LoadingButton} from "@agenta/ui/ui"
+import {Input, Space, Typography} from "antd"
 
 import {useOrgData} from "@/oss/state/org"
 import {getProjectValues} from "@/oss/state/project"
@@ -121,9 +122,9 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
                     onChange={(e) => onApiKeyChange(e.target.value)}
                 />
 
-                <Button type="primary" loading={isLoadingApiKey} onClick={handleGenerateApiKey}>
+                <LoadingButton loading={isLoadingApiKey} onClick={handleGenerateApiKey}>
                     Generate API Key
-                </Button>
+                </LoadingButton>
             </Space>
         </Space>
     )
