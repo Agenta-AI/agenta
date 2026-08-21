@@ -5,7 +5,7 @@
 // rows. Pure so the conversation hook can memoize the whole list per commit.
 import type {ToolUIPart, UIMessage} from "ai"
 
-import {getMessageRunError, getMessageTraceId} from "../assets/trace"
+import {getMessageRunError, getMessageRunErrorCode, getMessageTraceId} from "../assets/trace"
 
 import {getTurnGrouping} from "./grouping"
 import {isEmptyAssistantTurn, isToolPart} from "./parts"
@@ -95,6 +95,7 @@ export const buildTurnViewModels = (
             isUser,
             isStreaming: isStreamingTurn,
             runError: getMessageRunError(message) ?? null,
+            errorCode: getMessageRunErrorCode(message) ?? null,
             traceError: null,
         })
         const precededByEmptyAssistant = index > 0 && isEmptyAssistantTurn(messages[index - 1])

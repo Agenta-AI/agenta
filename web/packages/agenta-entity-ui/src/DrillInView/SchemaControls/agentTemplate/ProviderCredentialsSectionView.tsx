@@ -26,6 +26,7 @@ import {useEffect, useMemo, useState, type ReactNode} from "react"
 import {
     CUSTOM_PROVIDER_KIND_FAMILIES,
     CustomProviderKind,
+    hasStoredKey,
     PROVIDER_LABELS,
 } from "@agenta/entities/secret"
 import type {SubscriptionStatusDisplay, SubscriptionStatusTone} from "@agenta/entities/workflow"
@@ -558,7 +559,7 @@ export function ProviderCredentialsSectionView({
                         }
                         label={secret.title ?? secret.name ?? "Provider"}
                         trailing={
-                            secret.key ? (
+                            hasStoredKey(secret) ? (
                                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
                             ) : undefined
                         }
@@ -617,7 +618,7 @@ export function ProviderCredentialsSectionView({
                         }
                         label={secret.title ?? secret.name ?? "Provider"}
                         trailing={
-                            secret.key ? (
+                            hasStoredKey(secret) ? (
                                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
                             ) : undefined
                         }

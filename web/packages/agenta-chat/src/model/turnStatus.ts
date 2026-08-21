@@ -7,6 +7,8 @@ export interface TurnStatusContext {
     isStreaming: boolean
     traceError?: string | null
     runError?: string | null
+    /** Stable failure class from the runner (`data-agent-error`'s `code`), never a display string. */
+    errorCode?: string | null
 }
 
 export interface TurnStatus {
@@ -15,6 +17,8 @@ export interface TurnStatus {
     hasContent: boolean
     noResponse: boolean
     errorText: string | null
+    /** The failure class, only while an error is actually shown. */
+    errorCode: string | null
     showError: boolean
     isError: boolean
 }
@@ -29,7 +33,7 @@ export interface TurnStatus {
  */
 export const deriveTurnStatus = (
     message: UIMessage,
-    {isUser, isStreaming, traceError, runError}: TurnStatusContext,
+    {isUser, isStreaming, traceError, runError, errorCode}: TurnStatusContext,
 ): TurnStatus => {
     // "Answer" = anything the user is meant to read as a reply (text / tool / file / source).
     // Reasoning alone is NOT an answer — a turn that only thought hasn't responded.
@@ -64,6 +68,17 @@ export const deriveTurnStatus = (
     // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
     // failure (red), with the message inline — not a nested alert box.
     const isError = noResponse && showError
+    // A failure class with no surfaced failure is meaningless — a consumer keys UI off it.
+    const shownErrorCode = showError ? (errorCode ?? null) : null
 
-    return {hasAnswer, hasReasoning, hasContent, noResponse, errorText, showError, isError}
+    return {
+        hasAnswer,
+        hasReasoning,
+        hasContent,
+        noResponse,
+        errorText,
+        errorCode: shownErrorCode,
+        showError,
+        isError,
+    }
 }

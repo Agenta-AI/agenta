@@ -1,6 +1,11 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {getMessageRunError, getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
+import {
+    getMessageRunError,
+    getMessageRunErrorCode,
+    getMessageTraceId,
+    getMessageUsage,
+} from "@agenta/chat/assets"
 import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
 import {
     ClientToolPart,
@@ -20,6 +25,7 @@ import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
+import {openProviderDrawerRequestAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
     ChatActionIconButton,
@@ -30,6 +36,7 @@ import {
     turnToolbarClass,
     turnToolbarRevealClass,
 } from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowUUpLeft,
     Brain,
@@ -126,6 +133,12 @@ const ReasoningPart = ({
     )
 }
 
+/** Failure classes the user can clear themselves by adding their own provider key. */
+const STARTER_CREDIT_CODES = new Set([
+    "starter_credits_exhausted",
+    "starter_credits_program_paused",
+])
+
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
 const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
 
@@ -134,11 +147,22 @@ const isBigError = (text: string) => text.length > 240 || text.split("\n").lengt
  * full; a big one (stacktrace) clamps behind a "Show more" that opens a scrollable block, so it
  * can't drown the chat.
  */
-const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
+const RunErrorBody = ({
+    text,
+    stateKey,
+    code,
+}: {
+    text: string
+    stateKey: string
+    /** The runner's failure class, when the turn carried one (`data-agent-error`'s `code`). */
+    code?: string
+}) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
+    const requestProviderDrawer = useSetAtom(openProviderDrawerRequestAtom)
     const expanded = stored ?? false
     const big = isBigError(text)
+    const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
@@ -168,6 +192,17 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
                     >
                         {expanded ? "Show less" : "Show more"}
                     </button>
+                )}
+                {offerOwnKey && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1"
+                        onClick={() => requestProviderDrawer(true)}
+                    >
+                        {/* TODO(copy: owner) */}
+                        Add your key
+                    </Button>
                 )}
             </div>
         </div>
@@ -314,6 +349,7 @@ const AgentMessage = ({
     // FE-side from the useChat stream error (AgentChatPanel). `errorText` is derived below, once
     // we know whether the turn produced an answer.
     const runError = getMessageRunError(message)
+    const runErrorCode = getMessageRunErrorCode(message)
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -555,7 +591,11 @@ const AgentMessage = ({
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
     // RunErrorBody shows an everyday reason in full; only a big one collapses behind "Show more".
     const errorBody = (
-        <RunErrorBody text={errorText || "The agent run failed."} stateKey={errorKey(message.id)} />
+        <RunErrorBody
+            text={errorText || "The agent run failed."}
+            stateKey={errorKey(message.id)}
+            code={runErrorCode}
+        />
     )
 
     // Partial output then failure: show the content AND the error. Answer-less failure: the

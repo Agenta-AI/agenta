@@ -16,7 +16,7 @@
  *
  * Design: providers-drawer-final/README.md
  */
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import type {
     ProviderCatalogEntry,
@@ -130,6 +130,11 @@ const ProviderDrawer = ({
     width = DRAWER_WIDTH,
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
+    // A connection Agenta provisioned is not one the user connected, so it is not counted here.
+    const visibleCount = useMemo(
+        () => connections.filter((candidate) => !candidate.managedBy).length,
+        [connections],
+    )
     const settingsHref = useSettingsHref()
     // The card owns the save; the footer that triggers it lives out here, so the card publishes
     // what it needs. Cleared on every level change — the next card publishes its own.
@@ -280,7 +285,7 @@ const ProviderDrawer = ({
         ) : (
             <p className="m-0 flex w-full items-center justify-between gap-4 text-field-sm text-colorTextSecondary">
                 {/* A count over an empty list says nothing; the link is the whole footer then. */}
-                <span>{connections.length ? `${connections.length} connected` : ""}</span>
+                <span>{visibleCount ? `${visibleCount} connected` : ""}</span>
                 {settingsHref ? (
                     // In-app navigation, so `Link` rather than a bare anchor: it prefixes the
                     // host's basePath and skips the full reload. The drawer closes behind it.

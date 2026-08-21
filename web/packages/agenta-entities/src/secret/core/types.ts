@@ -27,7 +27,24 @@ export type Header = AgentaApi.Header
 export type LegacyLifecycleDto = AgentaApi.LegacyLifecycleDto
 
 export type SecretDto = AgentaApi.SecretDto
-export type SecretResponseDto = AgentaApi.SecretResponseDto
+
+/**
+ * A stored record as the vault returns it, plus the write-only fields.
+ *
+ * A write-only row is created, replaced, and deleted like any other, but its value never comes
+ * back: the response nulls the credential and answers `has_key` / `key_preview` instead.
+ * `managed_by` names the platform component that provisioned the row, if any.
+ *
+ * Layered onto the Fern types until the client is regenerated from the OpenAPI spec; dropping the
+ * intersection once Fern declares the fields is a no-op for callers.
+ */
+export type SecretResponseDto = AgentaApi.SecretResponseDto & {
+    write_only?: boolean | null
+    managed_by?: string | null
+    has_key?: boolean | null
+    key_preview?: string | null
+}
+
 export type CreateSecretDto = AgentaApi.CreateSecretDto
 export type UpdateSecretDto = AgentaApi.UpdateSecretDto
 
@@ -45,7 +62,12 @@ export type CustomModelSettingsDto = AgentaApi.CustomModelSettingsDto
  * Layered onto the Fern types until the client is regenerated from the OpenAPI spec; dropping
  * the intersections once Fern declares the fields is a no-op for callers.
  */
-export type StandardProviderDto = AgentaApi.StandardProviderDto & {
+export type StandardProviderDto = Omit<AgentaApi.StandardProviderDto, "provider"> & {
+    /**
+     * `key` is optional in both directions: a write-only response nulls it, and an update omits it
+     * to mean "keep the stored value". Fern still declares it required.
+     */
+    provider: {key?: string | null}
     models?: CustomModelSettingsDto[] | null
     harnesses?: string[] | null
 }
@@ -74,7 +96,8 @@ export type CustomSecretContent = CustomSecretSettingsDto["content"]
 export interface NamedSecretRow extends LlmProvider {
     slug?: string
     format: CustomSecretFormat
-    content: CustomSecretContent
+    /** Absent on a write-only record (the value never comes back) and on an update that keeps it. */
+    content?: CustomSecretContent
 }
 
 // `SecretKind` / `StandardProviderKind` / `CustomProviderKind` are Fern
@@ -147,6 +170,21 @@ export const STANDARD_PROVIDER_KINDS: StandardProviderKind[] = (
  * connection card seeds its credential fields from one — must recognise it as "no value yet".
  */
 export const VAULT_PERSIST_REDACTED = "[redacted]"
+
+/**
+ * Every `LlmProvider` field that can carry actual secret material — the fields the vault strips
+ * from a write-only response, and the fields the IndexedDB persister replaces with a sentinel.
+ * One list so the two can never disagree about what counts as a secret.
+ */
+export const SECRET_VALUE_FIELDS = [
+    "key",
+    "apiKey",
+    "accessKeyId",
+    "accessKey",
+    "sessionToken",
+    "bearerToken",
+    "vertexCredentials",
+] as const
 
 // ---------------------------------------------------------------------------
 // Migration status (UI state, not wire)

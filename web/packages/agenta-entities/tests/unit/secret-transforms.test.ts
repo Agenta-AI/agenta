@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    hasStoredKey,
     transformCustomProviderPayloadData,
     transformSecret,
     transformStandardProviderPayloadData,
@@ -153,5 +154,63 @@ describe("transformCustomProviderPayloadData", () => {
         expect(
             transformCustomProviderPayloadData({...values, harnesses: ["claude"]}).secret.data,
         ).toMatchObject({harnesses: ["claude"]})
+    })
+})
+
+describe("write-only records", () => {
+    const writeOnly = (over: Record<string, unknown> = {}): SecretResponseDto =>
+        ({
+            id: "id-2",
+            kind: SecretKind.ProviderKey,
+            header: {name: "OpenAI"},
+            data: {kind: StandardProviderKind.Openai, provider: {key: null}},
+            write_only: true,
+            has_key: true,
+            key_preview: "sk-****9Qa",
+            ...over,
+        }) as unknown as SecretResponseDto
+
+    it("carries the presence answer a redacted record gives in place of its value", () => {
+        const [row] = transformSecret([writeOnly()])
+
+        expect(row.key).toBeUndefined()
+        expect(row.writeOnly).toBe(true)
+        expect(row.hasKey).toBe(true)
+        expect(row.keyPreview).toBe("sk-****9Qa")
+    })
+
+    it("carries the owner marker of a platform-provisioned record", () => {
+        const [row] = transformSecret([writeOnly({managed_by: "starter-credits-bridge"})])
+
+        expect(row.managedBy).toBe("starter-credits-bridge")
+    })
+
+    it("leaves every write-only field undefined on a legacy readable record", () => {
+        const [row] = transformSecret([standardSecret({})])
+
+        expect(row.writeOnly).toBeUndefined()
+        expect(row.hasKey).toBeUndefined()
+        expect(row.managedBy).toBeUndefined()
+    })
+})
+
+describe("hasStoredKey", () => {
+    it("trusts `hasKey` when the record has one, because the value never arrives", () => {
+        expect(hasStoredKey({hasKey: true})).toBe(true)
+        expect(hasStoredKey({hasKey: false, key: "sk-stale"})).toBe(false)
+    })
+
+    it("falls back to the value for a readable record", () => {
+        expect(hasStoredKey({key: "sk-live"})).toBe(true)
+        expect(hasStoredKey({})).toBe(false)
+        expect(hasStoredKey(null)).toBe(false)
+    })
+})
+
+describe("update payloads", () => {
+    it("omits the key when the caller has none, so the stored value survives", () => {
+        const payload = transformStandardProviderPayloadData({}, StandardProviderKind.Openai)
+
+        expect((payload.secret.data as {provider: {key?: string}}).provider).toEqual({})
     })
 })

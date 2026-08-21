@@ -38,6 +38,14 @@ export interface LlmProvider {
     displayName?: string
     /** Harnesses this connection may drive; absent means any harness Agenta supports. */
     harnesses?: string[]
+    /** The row is write-only: the vault stores its value but never returns it. */
+    writeOnly?: boolean
+    /** Whether the vault holds a credential for this row. The only presence check a write-only row has. */
+    hasKey?: boolean
+    /** Masked credential (`sk-****9Qa`) a write-only row carries in place of its value. */
+    keyPreview?: string
+    /** The platform component that provisioned this row; user edits and deletes are refused for it. */
+    managedBy?: string
     id?: string
     type?: string
     created_at?: string
