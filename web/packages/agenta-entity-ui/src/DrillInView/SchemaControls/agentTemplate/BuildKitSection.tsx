@@ -27,12 +27,23 @@ export function formatPermissionValue(value: unknown): string {
     }
 }
 
+/** One togglable platform tool: its `op` key, its current state, and how the row presents. */
+export interface BuildKitPlatformTool {
+    op: string
+    enabled: boolean
+    descriptor: ItemDescriptor
+}
+
 export interface BuildKitSectionProps {
-    /** Build-kit on/off (the persisted atom, or a drawer's draft buffer). */
+    /** Build-kit master on/off (the persisted atom, or a drawer's draft buffer). */
     enabled: boolean
     onEnabledChange: (value: boolean) => void
     disabled?: boolean
-    platformTools: ItemDescriptor[]
+    platformTools: BuildKitPlatformTool[]
+    /** Switch one platform tool on or off. */
+    onToggleTool: (op: string, next: boolean) => void
+    /** Switch every platform tool on or off at once. */
+    onSetAllTools: (next: boolean) => void
     embeddedTools: ItemDescriptor[]
     embeddedSkills: ItemDescriptor[]
     /** Sandbox permission overlay, rendered read-only as `key → value` rows. */
@@ -41,17 +52,23 @@ export interface BuildKitSectionProps {
     defaultOpen?: boolean
 }
 
-/** The read-only build-kit block: enable switch, caption, and the overlay's items/permissions. */
+/** The build-kit block. Platform tools get a switch each; embeds and permissions stay read-only. */
 export function BuildKitSection({
     enabled,
     onEnabledChange,
     disabled,
     platformTools,
+    onToggleTool,
+    onSetAllTools,
     embeddedTools,
     embeddedSkills,
     permissions,
     defaultOpen = false,
 }: BuildKitSectionProps) {
+    // Per-tool switches only mean anything while the kit as a whole is on.
+    const toolsDisabled = Boolean(disabled) || !enabled
+    const enabledCount = platformTools.filter((tool) => tool.enabled).length
+    const allEnabled = enabledCount === platformTools.length
     return (
         <ConfigAccordionSection
             size="compact"
@@ -83,18 +100,45 @@ export function BuildKitSection({
                 </div>
             ) : null}
             {platformTools.length > 0 ? (
-                <RailField label="Platform tools">
-                    {platformTools.map((descriptor, index) => (
+                <RailField
+                    wide
+                    label={
+                        <span className="flex flex-col items-start gap-1">
+                            <span>Platform tools</span>
+                            <span className="text-[11px] leading-tight text-colorTextDescription">
+                                {enabledCount} of {platformTools.length} enabled
+                            </span>
+                            <button
+                                type="button"
+                                disabled={toolsDisabled}
+                                onClick={() => onSetAllTools(!allEnabled)}
+                                className="cursor-pointer border-0 bg-transparent p-0 text-[11px] underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {allEnabled ? "Disable all" : "Enable all"}
+                            </button>
+                        </span>
+                    }
+                >
+                    {platformTools.map((tool) => (
                         <ItemRow
-                            key={`build-kit-platform-tool-${index}`}
-                            descriptor={descriptor}
-                            locked
+                            key={`build-kit-platform-tool-${tool.op}`}
+                            descriptor={tool.descriptor}
+                            inactive={!tool.enabled || !enabled}
+                            extra={
+                                <Switch
+                                    size="sm"
+                                    checked={tool.enabled}
+                                    disabled={toolsDisabled}
+                                    onCheckedChange={(next) => onToggleTool(tool.op, next)}
+                                    aria-label={`Enable the ${tool.op} playground tool`}
+                                />
+                            }
                         />
                     ))}
                 </RailField>
             ) : null}
             {embeddedTools.length > 0 ? (
-                <RailField label="Embedded tools">
+                <RailField wide label="Embedded tools">
                     {embeddedTools.map((descriptor, index) => (
                         <ItemRow
                             key={`build-kit-embedded-tool-${index}`}
@@ -105,7 +149,7 @@ export function BuildKitSection({
                 </RailField>
             ) : null}
             {embeddedSkills.length > 0 ? (
-                <RailField label="Embedded skills">
+                <RailField wide label="Embedded skills">
                     {embeddedSkills.map((descriptor, index) => (
                         <ItemRow
                             key={`build-kit-embedded-skill-${index}`}
@@ -116,7 +160,7 @@ export function BuildKitSection({
                 </RailField>
             ) : null}
             {permissions && Object.keys(permissions).length > 0 ? (
-                <RailField label="Sandbox permissions">
+                <RailField wide label="Sandbox permissions">
                     <div className="flex flex-col gap-1.5 opacity-70">
                         {Object.entries(permissions).map(([key, value]) => (
                             <div
