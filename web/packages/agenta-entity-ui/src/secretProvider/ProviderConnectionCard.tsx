@@ -37,6 +37,7 @@ import {
     secretKindForProviderKind,
     secretNoteForKind,
     SecretKind,
+    storedCredentialFields,
     toProviderCredentials,
     type CredentialValues,
     type ProbeProviderResponse,
@@ -162,7 +163,13 @@ const ProviderConnectionCard = ({
         setHarnesses(connection?.harnesses ?? null)
     }, [connection, storedCredential])
 
-    const credentialFilled = hasRequiredCredential(kind, credential)
+    // A saved write-only record returns no values, so its secret fields arrive empty every time.
+    // They still count as filled — otherwise editing only the model list would demand the key again.
+    const storedFields = useMemo(() => storedCredentialFields(connection), [connection])
+    const credentialFilled = hasRequiredCredential(kind, credential, storedFields)
+    // What the user actually typed. Test spends a credential on a live call, so it must never fire
+    // on an empty form just because the vault holds a key it cannot read back.
+    const typedCredentialFilled = hasRequiredCredential(kind, credential)
     const storedCredentialUnchanged = useMemo(
         () =>
             !!connection &&
@@ -355,7 +362,7 @@ const ProviderConnectionCard = ({
             variant="outline"
             className="shrink-0"
             loading={probeMutation.isPending}
-            disabled={!credentialFilled || !projectId}
+            disabled={!typedCredentialFilled || !projectId}
             onClick={() => void runProbe()}
         >
             {credentialFailed ? "Retry" : "Test"}
@@ -376,10 +383,27 @@ const ProviderConnectionCard = ({
                     // Test belongs beside the credential it spends. A JSON credential is a block,
                     // not a line, so it gets the button underneath instead.
                     const inlineTest = field.key === testedField && !block
+                    // Stored but unreadable: the field is a replace box, never a prefilled value.
+                    const replaceOnly = storedFields.includes(field.key)
 
                     return (
                         <div key={field.key} className="flex flex-col gap-1">
-                            <span className="font-medium text-colorText">{field.label}</span>
+                            <span className="font-medium text-colorText">
+                                {/* TODO(copy: owner) */}
+                                {replaceOnly
+                                    ? field.key === "apiKey"
+                                        ? "Replace key"
+                                        : `Replace ${field.label}`
+                                    : field.label}
+                            </span>
+                            {replaceOnly ? (
+                                <span className="text-[11px] text-colorTextTertiary">
+                                    {/* TODO(copy: owner) */}
+                                    {connection?.keyPreview
+                                        ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
+                                        : "Key configured. Leave blank to keep it."}
+                                </span>
+                            ) : null}
                             <div className="flex items-start gap-2">
                                 <div className="min-w-0 flex-1">
                                     {block ? (

@@ -14,6 +14,7 @@ import {
     modelDisplayOrder,
     nextConnectionName,
     providerModelCatalog,
+    storedCredentialFields,
     toProviderConnections,
     type HarnessCapabilityMap,
     type ProviderConnection,
@@ -43,6 +44,7 @@ const connection = (overrides: Partial<ProviderConnection> = {}): ProviderConnec
     kind: "openai",
     title: "OpenAI",
     secretKind: SecretKind.ProviderKey,
+    hasStoredCredential: false,
     source: {},
     ...overrides,
 })
@@ -778,5 +780,98 @@ describe("probeProvider", () => {
         const result = await probeProvider({projectId: "p", kind: "openai", provider: {key: "k"}})
 
         expect(result).toBeNull()
+    })
+})
+
+describe("write-only records", () => {
+    const writeOnlyRow = {
+        id: "sec-1",
+        type: SecretKind.ProviderKey,
+        title: "openai",
+        name: "OPENAI_API_KEY",
+        writeOnly: true,
+        hasKey: true,
+        keyPreview: "sk-****9Qa",
+    }
+
+    it("reports a stored credential from `hasKey`, with no value to read", () => {
+        const [connected] = toProviderConnections([writeOnlyRow])
+
+        expect(connected.hasStoredCredential).toBe(true)
+        expect(connected.keyPreview).toBe("sk-****9Qa")
+        expect(credentialValuesFor(connected).apiKey).toBe("")
+    })
+
+    it("falls back to the value itself for a readable record", () => {
+        const [readable] = toProviderConnections([
+            {id: "sec-2", type: SecretKind.ProviderKey, title: "openai", key: "sk-live"},
+        ])
+
+        expect(readable.hasStoredCredential).toBe(true)
+    })
+
+    it("calls a record with neither value nor `hasKey` unconfigured", () => {
+        const [empty] = toProviderConnections([
+            {id: "sec-3", type: SecretKind.ProviderKey, title: "openai"},
+        ])
+
+        expect(empty.hasStoredCredential).toBe(false)
+    })
+
+    it("carries the managed marker through, so a surface can choose not to list the row", () => {
+        const [managed] = toProviderConnections([
+            {...writeOnlyRow, managedBy: "starter-credits-bridge"},
+        ])
+
+        expect(managed.managedBy).toBe("starter-credits-bridge")
+    })
+
+    it("shows the server's preview as the credential summary", () => {
+        const [connected] = toProviderConnections([writeOnlyRow])
+
+        expect(credentialSummary(connected)).toBe("sk-****9Qa")
+    })
+
+    it("says a value exists when the record has one but no preview to show", () => {
+        const [connected] = toProviderConnections([{...writeOnlyRow, keyPreview: undefined}])
+
+        expect(credentialSummary(connected)).toBe("Key configured")
+    })
+
+    it("exempts only the SECRET fields of a record that holds a credential", () => {
+        const [connected] = toProviderConnections([writeOnlyRow])
+
+        expect(storedCredentialFields(connected)).toContain("apiKey")
+        expect(storedCredentialFields(connected)).not.toContain("apiBaseUrl")
+        expect(storedCredentialFields(connection())).toEqual([])
+    })
+
+    it("lets an untouched card save: the stored key counts as filled", () => {
+        const [connected] = toProviderConnections([writeOnlyRow])
+
+        expect(hasRequiredCredential("openai", {apiKey: ""})).toBe(false)
+        expect(
+            hasRequiredCredential("openai", {apiKey: ""}, storedCredentialFields(connected)),
+        ).toBe(true)
+    })
+
+    it("omits the key entirely when nothing was typed, rather than blanking the stored one", () => {
+        const payload = buildConnectionPayload(
+            {kind: "openai", name: "", credential: {apiKey: "  "}},
+            "OpenAI",
+        )
+
+        expect((payload.secret.data as {provider: {key?: string}}).provider).toEqual({})
+    })
+
+    it("still sends a key the user did type", () => {
+        const payload = buildConnectionPayload(
+            {kind: "openai", name: "", credential: {apiKey: " sk-new "}},
+            "OpenAI",
+        )
+
+        expect((payload.secret.data as {provider: {key?: string}}).provider).toEqual({
+            key: "sk-new",
+        })
     })
 })

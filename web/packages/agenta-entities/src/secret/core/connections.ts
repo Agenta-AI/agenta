@@ -22,7 +22,13 @@ import {
     type CredentialValues,
 } from "./providerCatalog"
 import {PROVIDER_AUTH_REQUIREMENTS} from "./providerFields"
-import {PROVIDER_KINDS, SecretKind, VAULT_PERSIST_REDACTED, type CreateSecretDto} from "./types"
+import {
+    PROVIDER_KINDS,
+    SECRET_VALUE_FIELDS,
+    SecretKind,
+    VAULT_PERSIST_REDACTED,
+    type CreateSecretDto,
+} from "./types"
 
 // ---------------------------------------------------------------------------
 // The connection model
@@ -45,6 +51,16 @@ export interface ProviderConnection {
     /** Saved harness policy. `undefined` means "any harness Agenta supports". */
     harnesses?: string[]
     createdAt?: string
+    /**
+     * The vault holds a credential for this connection. On a write-only record this is the ONLY
+     * presence signal there is — the value never comes back — so every "is it configured" check
+     * reads this rather than the credential fields.
+     */
+    hasStoredCredential: boolean
+    /** Masked credential (`sk-****9Qa`), when the record carries one. */
+    keyPreview?: string
+    /** Set when Agenta provisioned and owns this connection; the user may not edit or delete it. */
+    managedBy?: string
     /** The row this was derived from — the mutations round-trip it. */
     source: LlmProvider
 }
@@ -89,6 +105,11 @@ export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[]
             models: row.models,
             harnesses: row.harnesses,
             createdAt: row.created_at,
+            // A readable record proves it by carrying the value; a write-only one only says so.
+            hasStoredCredential:
+                row.hasKey ?? SECRET_VALUE_FIELDS.some((field) => !!(row[field] ?? "").trim()),
+            keyPreview: row.keyPreview,
+            managedBy: row.managedBy,
             source: row,
         })
         return acc
@@ -128,15 +149,40 @@ export const credentialValuesFor = (connection: ProviderConnection): CredentialV
 }
 
 /**
+ * The credential fields a saved connection already satisfies without the user retyping them.
+ *
+ * A write-only record returns no values, so its secret fields arrive empty on every edit. Treating
+ * them as unfilled would lock the card: changing only the model list would demand the key again.
+ * Non-secret fields (endpoint, region) still come back and need no exemption.
+ */
+export const storedCredentialFields = (
+    connection: ProviderConnection | null | undefined,
+): string[] => {
+    if (!connection?.hasStoredCredential) return []
+    const keys = [
+        ...credentialFieldsForKind(connection.kind).map((field) => field.key),
+        ...carriedCredentialKeys(connection.kind),
+    ]
+    return keys.filter((key) => (SECRET_VALUE_FIELDS as readonly string[]).includes(key))
+}
+
+/**
  * Whether this kind has enough credential to be worth testing or saving.
  *
  * Two rules, because providers state their requirement two ways: every field marked required must
  * be filled, and a provider with alternative auth sets (Bedrock: a bearer token OR an access-key
  * pair) must satisfy one of them. A kind that declares neither still needs something typed —
  * otherwise Done would happily store an empty connection.
+ *
+ * `stored` names the fields the vault already holds (see `storedCredentialFields`); they count as
+ * filled even though the card shows them empty.
  */
-export const hasRequiredCredential = (kind: string, values: CredentialValues): boolean => {
-    const filled = (key: string) => !!(values[key] ?? "").trim()
+export const hasRequiredCredential = (
+    kind: string,
+    values: CredentialValues,
+    stored: readonly string[] = [],
+): boolean => {
+    const filled = (key: string) => !!(values[key] ?? "").trim() || stored.includes(key)
     const fields = credentialFieldsForKind(kind)
 
     if (!fields.every((field) => !field.required || filled(field.key))) return false
@@ -160,8 +206,12 @@ export const maskSecret = (value: string): string =>
  */
 export const credentialSummary = (connection: ProviderConnection): string => {
     const {source} = connection
+    // A write-only record masks its own key server-side; only a readable one is masked here.
+    if (connection.keyPreview) return connection.keyPreview
     const key = source.key || source.apiKey || source.bearerToken || source.accessKeyId
     if (key) return maskSecret(key)
+    // TODO(copy: owner)
+    if (connection.hasStoredCredential) return "Key configured"
 
     if (source.apiBaseUrl) {
         try {
@@ -519,6 +569,7 @@ export const buildConnectionPayload = (
     fallbackName: string,
 ): CreateSecretDto => {
     const name = draft.name.trim()
+    const key = (draft.credential.apiKey ?? "").trim()
     const policy = {
         ...(draft.models ? {models: draft.models.map((slug) => ({slug}))} : {}),
         ...(draft.harnesses ? {harnesses: draft.harnesses} : {}),
@@ -531,7 +582,8 @@ export const buildConnectionPayload = (
                 kind: SecretKind.ProviderKey,
                 data: {
                     kind: draft.kind,
-                    provider: {key: (draft.credential.apiKey ?? "").trim()},
+                    // An omitted key means "keep the stored value"; `""` would blank it.
+                    provider: key ? {key} : {},
                     ...policy,
                 },
             },
@@ -553,9 +605,7 @@ export const buildConnectionPayload = (
                     // request, where each adapter reads it where its provider expects it.
                     extras: {
                         ...(provider.extras ?? {}),
-                        ...(draft.credential.apiKey?.trim()
-                            ? {api_key: draft.credential.apiKey.trim()}
-                            : {}),
+                        ...(key ? {api_key: key} : {}),
                     },
                 },
                 // A `custom_provider` record always declares `models`; an untouched card sends the

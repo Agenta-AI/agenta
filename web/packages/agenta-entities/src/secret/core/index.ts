@@ -29,6 +29,7 @@ export {
 } from "./types"
 
 export {
+    hasStoredKey,
     transformSecret,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
@@ -83,6 +84,7 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    storedCredentialFields,
     maskSecret,
     nextConnectionName,
     providerModelCatalog,
