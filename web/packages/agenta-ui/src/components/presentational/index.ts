@@ -282,6 +282,7 @@ export {
     ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
+    ChatJumpToLatest,
     ChatTypingDots,
     turnRowClass,
     turnToolbarRevealClass,
