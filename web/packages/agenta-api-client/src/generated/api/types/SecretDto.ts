@@ -13,5 +13,6 @@ export namespace SecretDto {
         | AgentaApi.CustomProviderDto
         | AgentaApi.SsoProviderDto
         | AgentaApi.WebhookProviderDto
-        | AgentaApi.CustomSecretDto;
+        | AgentaApi.CustomSecretDto
+        | AgentaApi.ChannelSecretDto;
 }

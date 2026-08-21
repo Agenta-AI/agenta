@@ -76,6 +76,25 @@ _PUBLIC_ENDPOINTS = (
     "/api/triggers/composio/events/",
     "/preview/triggers/composio/events/",
     "/api/preview/triggers/composio/events/",
+    # CHANNELS — inbound platform events arrive with no Agenta auth token
+    "/channels/slack/events/",
+    "/api/channels/slack/events/",
+    "/preview/channels/slack/events/",
+    "/api/preview/channels/slack/events/",
+    "/channels/bridge/events/",
+    "/api/channels/bridge/events/",
+    "/preview/channels/bridge/events/",
+    "/api/preview/channels/bridge/events/",
+    "/channels/agenta/events/",
+    "/api/channels/agenta/events/",
+    "/preview/channels/agenta/events/",
+    "/api/preview/channels/agenta/events/",
+    # CHANNELS — Slack redirects the browser here with no Agenta session; the
+    # signed OAuth state is the whole of the authorisation on this route
+    "/channels/catalog/channels/slack/callback/",
+    "/api/channels/catalog/channels/slack/callback/",
+    "/preview/channels/catalog/channels/slack/callback/",
+    "/api/preview/channels/catalog/channels/slack/callback/",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"

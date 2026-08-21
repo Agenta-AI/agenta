@@ -2004,6 +2004,12 @@ class WorkflowsRouter:
             workflow_revision_ref=workflow_revision_ref,
             #
             resolve=workflow_revision_retrieve_request.resolve or False,
+            #
+            include_archived=(
+                workflow_revision_retrieve_request.include_archived
+                if workflow_revision_retrieve_request.include_archived is not None
+                else True
+            ),
         )
 
         if environment_lookup_requested and not workflow_revision:

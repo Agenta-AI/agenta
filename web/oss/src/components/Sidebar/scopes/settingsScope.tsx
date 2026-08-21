@@ -2,6 +2,7 @@ import {useEffect, useMemo} from "react"
 
 import {
     Buildings,
+    ChatCircleDots,
     ClockCounterClockwise,
     FolderSimple,
     Key,
@@ -60,6 +61,8 @@ const getSettingsSidebarIcon = (key: SettingsTabKey) => {
             return <Wrench size={14} />
         case "triggers":
             return <Lightning size={14} />
+        case "channels":
+            return <ChatCircleDots size={14} />
         case "webhooks":
             return <Link size={14} />
         case "workspace":
