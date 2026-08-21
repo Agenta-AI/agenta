@@ -6,15 +6,18 @@ import {
     invalidateWorkflowsListCache,
 } from "@agenta/entities/workflow"
 import {useCreateAgent} from "@agenta/home-ui"
+import type {FileUIPart} from "ai"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
+import {agentHandoffPath} from "./agentHandoff"
+
 /**
- * Create an agent from this app, over the SHARED mint+commit core — blank, or seeded from a
- * starter template. One hook so the hero button and the roster's "New agent" run the same create
- * rather than two copies of it.
+ * Create an agent from this app, over the SHARED mint+commit core — blank, seeded from a starter
+ * template, or seeded from what the user typed on the first-run hero. One hook so every entry runs
+ * the same create rather than three copies of it.
  *
  * A template pick means what it means everywhere (`agentTemplateSeed`: the template's name, its
  * builder instruction). Only the DELIVERY is this app's: the desktop stashes a first-run seed and
@@ -30,40 +33,50 @@ export const useNewAgentAction = (base: string) => {
     const dropTask = useSetAtom(takePendingTaskAtom)
 
     const run = useCallback(
-        async (params?: {name?: string; seedMessage?: string}) => {
-            if (creating) return
+        async (params?: {
+            name?: string
+            seedMessage?: string
+            /**
+             * A session id the caller already minted, because it needed a stable scope to stage
+             * attachments against before the agent existed. Without one, a seed mints its own.
+             */
+            sessionId?: string
+            seedParts?: FileUIPart[]
+        }): Promise<boolean> => {
+            if (creating) return false
             setCreating(true)
             setError(null)
             const created = await createAgent({name: params?.name})
             if (!created) {
                 setCreating(false)
-                return
+                return false
             }
             // The agents list is a filtered view over the workflows list query; invalidate it or the
             // new agent is missing from the roster until something else refetches.
             void invalidateWorkflowsListCache()
 
             const seed = params?.seedMessage?.trim()
-            const sessionId = seed ? crypto.randomUUID() : null
+            const sessionId = seed ? (params?.sessionId ?? crypto.randomUUID()) : null
             if (sessionId) {
                 // The session does not exist server-side until its first turn — mint the id, stash
                 // the instruction, and let the chat screen's engine send it once.
-                stashTask({sessionId, task: {agentId: created.appId, text: seed as string}})
+                stashTask({
+                    sessionId,
+                    task: {agentId: created.appId, text: seed as string, parts: params?.seedParts},
+                })
             }
 
             try {
-                await router.push(
-                    sessionId
-                        ? `${base}/sessions/${sessionId}?agent=${created.appId}`
-                        : `${base}/agents/${created.appId}`,
-                )
+                await router.push(agentHandoffPath({base, appId: created.appId, sessionId}))
             } catch {
                 // The agent exists; only the navigation failed. Release the latch, or the button
                 // stays dead for the rest of the mount.
                 if (sessionId) dropTask(sessionId)
                 setError("Agent created, but couldn't open it — find it under Agents")
                 setCreating(false)
+                return false
             }
+            return true
         },
         [base, createAgent, creating, dropTask, router, stashTask],
     )
@@ -79,5 +92,16 @@ export const useNewAgentAction = (base: string) => {
         [run],
     )
 
-    return {create, createFromTemplate, creating, error}
+    /**
+     * The first-run hero's submit: what the user typed IS the agent's first instruction. The name
+     * is left to the create core's own default ("New agent"), the same default desktop onboarding
+     * mints its ephemeral with — naming from the prompt is the agent's job, not the composer's.
+     */
+    const createFromPrompt = useCallback(
+        (input: {text: string; sessionId?: string; parts?: FileUIPart[]}) =>
+            run({seedMessage: input.text, sessionId: input.sessionId, seedParts: input.parts}),
+        [run],
+    )
+
+    return {create, createFromTemplate, createFromPrompt, creating, error}
 }
