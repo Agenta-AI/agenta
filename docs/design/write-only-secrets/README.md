@@ -170,6 +170,12 @@ middleware therefore warns once, at the point of use, naming the variable to set
 placeholder is the shipped default in the example env files, so this is the common case,
 not an edge one.
 
+**Deployment.** Set `AGENTA_SERVICES_INTERNAL_KEY` to the same value on the API and the
+services container before turning write-only on (`AGENTA_AUTH_KEY` serves if it is a real
+value). The API warns at startup when a deployment uses write-only secrets without one,
+and a component that seeds write-only rows refuses to seed rather than store a credential
+no run can read.
+
 The exchange never mints the grant from the requested `action` alone. It did once, and
 that made the grant self-serve: `VIEWER_PERMISSIONS` includes both `run_service` and
 `view_secret`, so any member could ask for a credential and spend it on the vault routes.
