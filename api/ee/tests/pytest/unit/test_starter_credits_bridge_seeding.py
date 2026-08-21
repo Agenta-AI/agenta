@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from oss.src.utils.env import env, StarterCreditsBridgeConfig
+from oss.src.utils.env import env, PostHogConfig, StarterCreditsBridgeConfig
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.enums import CustomProviderKind
 
@@ -350,7 +350,9 @@ class TestSeeding:
         seeding_env.monkeypatch.setattr(
             service, "_resolve_mint_policy", _REAL_RESOLVE_MINT_POLICY
         )
-        seeding_env.monkeypatch.setattr(service, "_load_posthog", lambda: None)
+        seeding_env.monkeypatch.setattr(
+            env, "posthog", PostHogConfig(api_key_configured=False)
+        )
         seeding_env.monkeypatch.setattr(service, "_development_policy_announced", False)
 
         await _seed()
@@ -702,6 +704,9 @@ class TestMintPolicyResolution:
     @pytest.fixture(autouse=True)
     def armed(self, monkeypatch):
         monkeypatch.setattr(env, "starter_credits_bridge", _armed_config())
+        # These cases are about a deployment that runs its own PostHog; the
+        # development-policy cases below say so explicitly.
+        monkeypatch.setattr(env, "posthog", PostHogConfig(api_key_configured=True))
         self.cache: dict = {}
         self.alerts = []
 
@@ -771,10 +776,37 @@ class TestMintPolicyResolution:
         assert policy.is_freemail("freemail.test") is True
         assert policy.is_freemail("gmail.com") is True
 
+    def _unconfigured_posthog(self):
+        """A deployment that supplied no PostHog key of its own.
+
+        Driven through the config the bridge actually reads, not by stubbing the
+        loader: `PostHogConfig` falls back to a built-in project key, so a stubbed
+        loader would hide the very case this branch exists for.
+        """
+        self.monkeypatch.setattr(
+            env, "posthog", PostHogConfig(api_key_configured=False)
+        )
+
+        def _must_not_be_consulted():
+            raise AssertionError(
+                "PostHog must not be consulted when the deployment configured none"
+            )
+
+        self.monkeypatch.setattr(service, "_load_posthog", _must_not_be_consulted)
+
+    def test_enabled_cannot_tell_a_stock_checkout_from_a_configured_one(self):
+        # The trap that made an earlier version of this fallback unreachable: the
+        # PostHog config falls back to a built-in project key, so `enabled` is true
+        # even where no operator ever configured PostHog.
+        unconfigured = PostHogConfig(api_key_configured=False)
+
+        assert unconfigured.enabled is True
+        assert unconfigured.api_key_configured is False
+
     async def test_unconfigured_posthog_uses_the_development_policy(self):
         # Local dev and QA stacks cannot publish a payload, so they run on the
         # built-in one instead of being blocked by the fail-closed rule.
-        self.monkeypatch.setattr(service, "_load_posthog", lambda: None)
+        self._unconfigured_posthog()
         self.monkeypatch.setattr(service, "_development_policy_announced", False)
 
         policy = await service._resolve_mint_policy()
@@ -790,7 +822,7 @@ class TestMintPolicyResolution:
         assert self.cache == {}
 
     async def test_the_development_policy_announces_itself_once(self, caplog):
-        self.monkeypatch.setattr(service, "_load_posthog", lambda: None)
+        self._unconfigured_posthog()
         self.monkeypatch.setattr(service, "_development_policy_announced", False)
 
         with caplog.at_level("WARNING"):
@@ -805,11 +837,18 @@ class TestMintPolicyResolution:
         assert len(notices) == 1
 
     async def test_configured_posthog_without_a_payload_still_fails_closed(self):
-        # The fallback is for deployments with NO PostHog. Here there is one, and a
-        # missing payload is a real "no policy" signal — production's protection.
+        # The fallback is only for a deployment that configured no PostHog. Here one
+        # is configured, and a missing payload is a real "no policy" signal.
         self.monkeypatch.setattr(
             service, "_load_posthog", lambda: self._posthog_with(None)
         )
+
+        assert await service._resolve_mint_policy() is None
+
+    async def test_a_configured_posthog_that_will_not_load_still_fails_closed(self):
+        # Configured, but the client cannot be built: on such a deployment that is a
+        # fault to fail closed on, never a reason to grant credits on dev values.
+        self.monkeypatch.setattr(service, "_load_posthog", lambda: None)
 
         assert await service._resolve_mint_policy() is None
 

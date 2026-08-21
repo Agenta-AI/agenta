@@ -1356,6 +1356,11 @@ class PostHogConfig(BaseModel):
         os.getenv("POSTHOG_API_KEY")
         or "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
     )
+    # Whether THIS deployment supplied the key, as opposed to falling back to the
+    # built-in project key above. `enabled` cannot answer that — the fallback makes it
+    # true in every checkout — and a consumer that must tell "this operator runs
+    # PostHog" from "this is a stock local stack" needs the difference.
+    api_key_configured: bool = bool(os.getenv("POSTHOG_API_KEY"))
 
     model_config = ConfigDict(extra="ignore")
 

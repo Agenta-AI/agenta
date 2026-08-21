@@ -430,41 +430,44 @@ async def _resolve_mint_policy() -> Optional[MintPolicy]:
     closed with an alert (a bad rollout must never silently keep old caps via
     the cache) — only a transport failure may fall back to the Redis-cached
     payload. The payload is the only source of policy values, except on a
-    deployment with no PostHog at all, which runs on the built-in development
-    policy. No resolvable policy means no seeding."""
+    deployment that configured no PostHog of its own, which runs on the built-in
+    development policy. No resolvable policy means no seeding."""
     flag = env.starter_credits_bridge.policy_flag
     # Deliberately global: the mint policy is one program-wide payload (caps, domain
     # rules), identical for every organization.
     cache_key = {"ff": flag}
 
+    # Deliberately NOT `env.posthog.enabled`: the PostHog config falls back to a
+    # built-in project key, so `enabled` is true in every checkout and could never
+    # tell a local stack from a deployment that runs its own PostHog. A deployment
+    # that supplied no key of its own has no way to publish a policy, so failing
+    # closed would simply block it; one that did keeps failing closed below on a
+    # missing or malformed payload, which is what protects production.
+    if not env.posthog.api_key_configured:
+        return _development_policy()
+
     payload: Optional[dict] = None
     live_malformed = False
     posthog = _load_posthog()
-    if posthog is None:
-        # No PostHog at all means local development or a QA stack: there is no way
-        # to publish a policy there, so failing closed would simply block them.
-        # A deployment that HAS PostHog never lands here — a missing or malformed
-        # payload keeps failing closed below, which is what protects production.
-        return _development_policy()
-
-    try:
-        raw = await asyncio.to_thread(
-            posthog.get_feature_flag_payload, flag, "starter-credits-bridge"
-        )
-    except Exception as exc:
-        log.warning(
-            "[starter_credits_bridge] live policy lookup failed; using cached value",
-            reason=str(exc),
-        )
-    else:
-        if raw is None:
-            # A reachable PostHog with no payload is a real "no policy" signal:
-            # nothing else can supply one, so the resolve below fails closed.
-            payload = None
+    if posthog is not None:
+        try:
+            raw = await asyncio.to_thread(
+                posthog.get_feature_flag_payload, flag, "starter-credits-bridge"
+            )
+        except Exception as exc:
+            log.warning(
+                "[starter_credits_bridge] live policy lookup failed; using cached value",
+                reason=str(exc),
+            )
         else:
-            payload = _parse_policy_payload(raw)
-            if payload is None:
-                live_malformed = True
+            if raw is None:
+                # A reachable PostHog with no payload is a real "no policy" signal:
+                # nothing else can supply one, so the resolve below fails closed.
+                payload = None
+            else:
+                payload = _parse_policy_payload(raw)
+                if payload is None:
+                    live_malformed = True
 
     if payload is None and not live_malformed:
         cached = await get_cache(
