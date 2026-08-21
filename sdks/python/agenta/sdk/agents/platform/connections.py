@@ -11,7 +11,8 @@ There is deliberately no ``/vault/connections`` route here. The vault remains th
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import os
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
 import httpx
@@ -176,6 +177,34 @@ def _stripped(value: Any) -> Optional[str]:
 
 def _provider_env_var(provider: Optional[str]) -> Optional[str]:
     return _PROVIDER_ENV_VARS.get(provider.lower()) if provider else None
+
+
+def _credential_env_var(
+    provider: str, candidate: "_ConnectionCandidate"
+) -> Optional[str]:
+    """The environment variable this candidate's credential would ride.
+
+    Deliberately the variable the harness itself would read, not merely the provider
+    family's: a Bedrock or Azure candidate authenticates through its own channel, and
+    reading a family key (say ``OPENAI_API_KEY``) for it would send one service's
+    credential to another.
+    """
+    if candidate.deployment == "bedrock":
+        return "AWS_BEARER_TOKEN_BEDROCK"
+    if candidate.deployment == "azure":
+        return "AZURE_OPENAI_API_KEY"
+    return _provider_env_var(provider) or _provider_env_var(candidate.provider)
+
+
+def _environment_credential(
+    provider: str, candidate: "_ConnectionCandidate"
+) -> Optional[Dict[str, str]]:
+    """This run's own credential for the candidate, or ``None`` when it has none."""
+    env_var = _credential_env_var(provider, candidate)
+    if not env_var:
+        return None
+    value = (os.environ.get(env_var) or "").strip()
+    return {env_var: value} if value else None
 
 
 def _header_name(secret: Dict[str, Any]) -> Optional[str]:
@@ -614,7 +643,20 @@ def _resolve_from_secrets(
     # cause, and surviving config extras (AWS_REGION) can make `env` non-empty, which would
     # otherwise let the run proceed mis-credentialed.
     if chosen.write_only_redacted:
-        raise WriteOnlySecretError(slug=chosen.slug, provider=provider)
+        # The vault will never hand this caller the value, so the connection cannot supply
+        # the credential here. A provider key in this run's own environment is the
+        # documented way to run outside the platform, and it is what the error tells the
+        # user to do — so use it when it is there, and fail loud only when it is not. The
+        # key rides the variable it was read from, never a different channel.
+        fallback = _environment_credential(provider, chosen)
+        if fallback is None:
+            raise WriteOnlySecretError(slug=chosen.slug, provider=provider)
+        chosen = replace(
+            chosen,
+            api_key=None,
+            write_only_redacted=False,
+            env={**chosen.env, **fallback},
+        )
     # A chosen custom connection must carry a usable base URL. Failing here (rather than
     # returning endpoint=None) keeps the harness from falling back to a provider default and
     # silently ignoring the user's routing choice (design Decision 4). The error names the slug
