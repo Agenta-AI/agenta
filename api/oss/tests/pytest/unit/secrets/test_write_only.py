@@ -58,11 +58,22 @@ class _FakeSecretsDAO:
         return self.records.get(secret_id)
 
     async def update(
-        self, secret_id, update_secret_dto, project_id, organization_id, user_id=None
+        self,
+        secret_id,
+        update_secret_dto,
+        project_id,
+        organization_id,
+        user_id=None,
+        resolve_update=None,
     ):
         stored = self.records.get(secret_id)
         if stored is None:
             return None
+
+        # Production resolves the update against the row under the write lock; the fake
+        # does the same at the same point, so keep-on-omit is exercised, not skipped.
+        if resolve_update is not None:
+            resolve_update(stored)
 
         write_only = update_secret_dto.write_only
         if write_only is None:
@@ -151,6 +162,70 @@ async def test_an_explicit_request_value_always_wins_over_the_gate(
 
 
 # --- service: keep-stored-on-omit ------------------------------------------------------
+
+
+class _RotatingDAO(_FakeSecretsDAO):
+    """A DAO where another writer commits a rotation while this update waits for the lock.
+
+    The real DAO takes ``SELECT ... FOR UPDATE`` and only then resolves the update, so a
+    writer that committed while we waited is visible. This fake reproduces that window by
+    rotating the stored row immediately before it resolves.
+    """
+
+    def __init__(self, rotated_key: str):
+        super().__init__()
+        self.rotated_key = rotated_key
+
+    async def update(
+        self,
+        secret_id,
+        update_secret_dto,
+        project_id,
+        organization_id,
+        user_id=None,
+        resolve_update=None,
+    ):
+        stored = self.records.get(secret_id)
+        if stored is not None:
+            rotated = stored.model_dump()
+            rotated["data"]["provider"]["key"] = self.rotated_key
+            self.records[secret_id] = SecretResponseDTO(**rotated)
+
+        return await super().update(
+            secret_id=secret_id,
+            update_secret_dto=update_secret_dto,
+            project_id=project_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            resolve_update=resolve_update,
+        )
+
+
+@pytest.mark.asyncio
+async def test_an_omitted_key_keeps_the_value_a_racing_rotation_just_stored():
+    # A rotation that lands between "read the row" and "write the row" must not be undone.
+    # Resolving the omitted credential against a snapshot taken before the lock wrote the
+    # OLD key back over the new one, silently reverting the rotation.
+    dao = _RotatingDAO(rotated_key="sk-test-rotated")
+    service = VaultService(dao)
+
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_provider_key_create(write_only=True),
+    )
+
+    updated = await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(
+            secret={
+                "kind": "provider_key",
+                "data": {"kind": "openai", "provider": {"key": ""}},
+            }
+        ),
+    )
+
+    assert updated.data.provider.key == "sk-test-rotated"
 
 
 @pytest.mark.asyncio
@@ -733,7 +808,7 @@ def test_update_mapping_applies_a_tightening_flag():
 
     stored = json.loads(dbe.data)
     assert stored["write_only"] is True
-    assert stored["provider"]["key"] == "sk-live-1234567890abc"
+    assert stored["provider"]["key"] == "sk-test-openai-key-bc"
 
 
 def test_update_mapping_never_clears_the_flag_on_a_stale_explicit_false():
@@ -763,7 +838,7 @@ def test_update_mapping_never_clears_the_flag_on_a_stale_explicit_false():
 
     stored = json.loads(dbe.data)
     assert stored["write_only"] is True
-    assert stored["provider"]["key"] == "sk-rotated-9876543210xyz"
+    assert stored["provider"]["key"] == "sk-test-rotated"
 
 
 # --- the update-path payload type, at every call site ----------------------------------
