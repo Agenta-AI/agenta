@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from contextvars import copy_context
 from json import dumps
 from typing import Any, AsyncGenerator
 
@@ -53,11 +54,27 @@ def vercel_sse_stream(aiter: AsyncGenerator[Any, None]):
         # pull times out, we emit a comment, and re-await the SAME pending pull (never dropping or
         # reordering a real part).
         iterator = aiter.__aiter__()
+
+        async def pull():
+            return await iterator.__anext__()
+
+        # INVARIANT: every pull runs in ONE context, captured when this generator is first
+        # driven — the same context the pre-keepalive `async for` ran the upstream in. A task
+        # otherwise starts on a fresh COPY of that context per pull, so whatever the upstream
+        # attaches while producing a chunk (above all the OpenTelemetry activation of the
+        # workflow span, which the instrumentation installs INSIDE the streamed generator's
+        # body) dies with the copy: every later chunk, and the upstream's `finally` where the
+        # run's token/cost usage is stamped, would then run with no workflow span current and
+        # write to a NonRecordingSpan. Pulls are strictly sequential — the next task is created
+        # only after the previous one produced its chunk — so one context is never entered
+        # concurrently.
+        context = copy_context()
+        loop = asyncio.get_running_loop()
         pending: asyncio.Task | None = None
         try:
             while True:
                 if pending is None:
-                    pending = asyncio.ensure_future(iterator.__anext__())
+                    pending = loop.create_task(pull(), context=context)
                 try:
                     chunk = await asyncio.wait_for(
                         asyncio.shield(pending), timeout=interval

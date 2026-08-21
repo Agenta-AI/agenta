@@ -11,7 +11,10 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from inspect import signature
 from typing import Any, Awaitable, Callable, Dict, List, Optional
+
+from opentelemetry import trace as otel_trace
 
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
 from agenta.sdk.agents.interfaces import Backend, Environment
@@ -209,6 +212,35 @@ def _agent_model_ref(agent_template: AgentTemplate) -> Optional[ModelRef]:
     return None
 
 
+def _bind_workflow_span(record_usage: RecordUsageFn, span: Any) -> RecordUsageFn:
+    """Pin the run's workflow span onto the usage recorder.
+
+    INVARIANT: usage lands on the span that was current where the run BEGAN, not on whatever is
+    current when the totals are known. The write happens from the run's teardown — after the
+    stream has been driven, possibly by another task holding only a copy of this context — so
+    reading the ambient span there is not sound. A recorder that takes a ``span`` gets the
+    captured reference; a composition-supplied recorder with the plain ``(usage)`` signature
+    keeps working, with the span re-activated around the call instead.
+    """
+    try:
+        accepts_span = "span" in signature(record_usage).parameters
+    except (TypeError, ValueError):  # builtins / C callables expose no signature
+        accepts_span = False
+
+    if accepts_span:
+
+        def _record_with_span(usage: Optional[Dict[str, Any]]) -> None:
+            record_usage(usage, span=span)  # type: ignore[call-arg]
+
+        return _record_with_span
+
+    def _record_under_span(usage: Optional[Dict[str, Any]]) -> None:
+        with otel_trace.use_span(span, end_on_exit=False):
+            record_usage(usage)
+
+    return _record_under_span
+
+
 def make_agent_handler(composition: Optional[AgentComposition] = None):
     """Build the `agent_v0`-shaped handler bound to `composition` (defaults if omitted)."""
 
@@ -225,6 +257,13 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             raise ForceNotSupportedV0Error()
         stream = flags.stream
         session_id = request.session_id
+
+        # Captured HERE, in the handler frame the instrumentation runs with the workflow span
+        # current — the streaming teardown that reports usage no longer can (see
+        # `_bind_workflow_span`).
+        record_usage = _bind_workflow_span(
+            comp.record_usage, otel_trace.get_current_span()
+        )
 
         params = parameters or {}
         agent_template = AgentTemplate.from_params(
@@ -310,7 +349,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             return _stream_in_redaction_scope(
                 redactor,
                 agent_event_stream(
-                    harness, session_config, msgs, record_usage=comp.record_usage
+                    harness, session_config, msgs, record_usage=record_usage
                 ),
             )
         with redaction_context(redactor):
@@ -319,7 +358,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                 session_config,
                 msgs,
                 trim=flags.trim,
-                record_usage=comp.record_usage,
+                record_usage=record_usage,
             )
 
     return _agent
