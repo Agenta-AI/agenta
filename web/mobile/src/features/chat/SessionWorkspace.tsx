@@ -9,6 +9,7 @@ import dynamic from "next/dynamic"
 
 import {AppShell} from "../nav/AppShell"
 
+import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
@@ -57,11 +58,6 @@ export const SessionWorkspace = ({
     // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
     // Build with the panel out of the way, and the top bar's "»" brings it back.
     const configCollapsed = useAtomValue(configPanelCollapsedAtom)
-    const showConfig = !chatMaximized && !configCollapsed && Boolean(entityId)
-    // The sessions rail stands in for the config panel ONLY in maximized mode, as on the desktop.
-    // Collapsing config collapses the PANE and gives the width to the conversation; swapping the
-    // rail in instead means the collapse never actually frees any space.
-    const showPane = showConfig || chatMaximized
     // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
     // must not snap the pane shut.
@@ -69,6 +65,14 @@ export const SessionWorkspace = ({
     const {open: filesOpen} = useSessionFilesPane(filesScope, sessionId)
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
     const twoPane = useMediaQuery("(min-width: 768px)")
+    // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
+    // pane replaces the conversation, so getting it wrong puts the composer out of reach.
+    const {showConfig, showPane} = resolveSessionPanes({
+        chatMaximized,
+        configCollapsed,
+        twoPane,
+        hasEntity: Boolean(entityId),
+    })
     // Controlled px, as on the desktop: the dragged width persists for the mount; 440 is the
     // config panel's cap and its default.
     const [paneSize, setPaneSize] = useState(440)
