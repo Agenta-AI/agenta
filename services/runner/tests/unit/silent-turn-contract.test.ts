@@ -206,9 +206,10 @@ describe("empty turns that still pass silently", () => {
   });
 
   it.fails(
-    "must fail loud on Daytona, where the transcript reader is switched off [awaiting fix: fail-loud empty turn]",
+    "must fail loud on Daytona when the transcript holds no error [awaiting fix: fail-loud empty turn]",
     async () => {
-      // Cloud runs on Daytona, so this is the one placement where the safety net does not exist.
+      // The transcript reader runs on Daytona too now, but it can only recover an error Pi
+      // actually wrote: a harness that dies without one still ends as a silent success.
       const { result } = await runSilentTurn({
         harness: "pi_core",
         sandbox: "daytona",
