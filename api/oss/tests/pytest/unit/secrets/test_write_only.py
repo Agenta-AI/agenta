@@ -13,6 +13,7 @@ import pytest
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretResponseDTO,
+    SecretValueRequiredError,
     UpdateSecretDTO,
     WriteOnlyCannotBeDisabledError,
 )
@@ -348,6 +349,112 @@ async def test_readable_secret_can_be_tightened_to_write_only(service):
     assert updated.write_only is True
 
 
+# --- service: keep-on-omit is identity-local -------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_provider_family_change_with_omitted_key_is_rejected(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
+    )
+
+    # OpenAI -> Anthropic without a new key must never reuse the OpenAI credential.
+    update = UpdateSecretDTO(
+        secret={
+            "kind": "provider_key",
+            "data": {"kind": "anthropic", "provider": {"key": ""}},
+        },
+    )
+
+    with pytest.raises(SecretValueRequiredError):
+        await service.update_secret(
+            secret_id=created.id, project_id=PROJECT_ID, update_secret_dto=update
+        )
+
+
+@pytest.mark.asyncio
+async def test_provider_family_change_with_a_new_key_is_allowed(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
+    )
+
+    update = UpdateSecretDTO(
+        secret={
+            "kind": "provider_key",
+            "data": {"kind": "anthropic", "provider": {"key": "sk-ant-new-key-123"}},
+        },
+    )
+    updated = await service.update_secret(
+        secret_id=created.id, project_id=PROJECT_ID, update_secret_dto=update
+    )
+
+    assert updated.data.provider.key == "sk-ant-new-key-123"
+
+
+@pytest.mark.asyncio
+async def test_kind_change_with_omitted_content_is_rejected(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
+    )
+
+    # provider_key -> custom_secret with no content would irreversibly replace the
+    # stored credential with nothing.
+    update = UpdateSecretDTO(
+        secret={
+            "kind": "custom_secret",
+            "data": {"secret": {"format": "text"}},
+        },
+    )
+
+    with pytest.raises(SecretValueRequiredError):
+        await service.update_secret(
+            secret_id=created.id, project_id=PROJECT_ID, update_secret_dto=update
+        )
+
+
+@pytest.mark.asyncio
+async def test_family_change_does_not_carry_credential_extras(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "my-gateway"},
+            secret={
+                "kind": "custom_provider",
+                "data": {
+                    "kind": "openai",
+                    "provider": {
+                        "url": "https://gateway.example.com/v1",
+                        "extras": {"api_key": "extra-key-123456"},
+                    },
+                    "models": [{"slug": "gpt-5"}],
+                },
+            },
+        ),
+    )
+
+    # Family change WITH an explicit new key: allowed, but the old family's extras
+    # credentials must not ride along.
+    update = UpdateSecretDTO(
+        secret={
+            "kind": "custom_provider",
+            "data": {
+                "kind": "anthropic",
+                "provider": {
+                    "url": "https://gateway.example.com/v1",
+                    "key": "sk-ant-new-key-123",
+                },
+                "models": [{"slug": "claude"}],
+            },
+        },
+    )
+    updated = await service.update_secret(
+        secret_id=created.id, project_id=PROJECT_ID, update_secret_dto=update
+    )
+
+    assert updated.data.provider.key == "sk-ant-new-key-123"
+    assert not (updated.data.provider.extras or {}).get("api_key")
+
+
 # --- redaction -------------------------------------------------------------------------
 
 
@@ -362,23 +469,27 @@ def _response(kind, data, write_only=True):
     )
 
 
-def test_mask_hides_short_values_entirely_and_previews_long_ones():
-    assert mask_secret_value("short") == "****"
-    assert mask_secret_value("elevenchars") == "****"
-    assert mask_secret_value("sk-live-1234567890abc9Qa") == "sk-****9Qa"
+def test_mask_boundaries_pin_the_preview_policy():
+    # Under 20 characters: fully masked. From 20: at most 3+3, never more than 25%.
+    assert mask_secret_value("x" * 11) == "****"
+    assert mask_secret_value("x" * 12) == "****"
+    assert mask_secret_value("x" * 19) == "****"
+    assert mask_secret_value("abcdefghijklmnopqrst") == "abc****st"  # 20 chars -> 5
+    assert mask_secret_value("sk-example-credential9Qa") == "sk-****9Qa"  # 24 -> 3+3
+    assert mask_secret_value("x" * 400) == "xxx****xxx"  # cap stays 3+3
 
 
 def test_redacts_provider_key_and_reports_presence():
     secret = _response(
         "provider_key",
-        {"kind": "openai", "provider": {"key": "sk-live-1234567890abc"}},
+        {"kind": "openai", "provider": {"key": "sk-test-openai-key-bc"}},
     )
 
     redacted = redact_secret_response(secret)
 
     assert redacted.data.provider.key is None
     assert redacted.has_key is True
-    assert redacted.key_preview == "sk-****abc"
+    assert redacted.key_preview == "sk-****bc"
     # The input is never mutated: internal readers keep their plaintext DTO.
     assert secret.data.provider.key == "sk-test-openai-key-bc"
 
@@ -404,20 +515,98 @@ def test_redacts_custom_provider_key_and_credential_extras():
     assert redacted.data.provider.extras["region"] == "eu-west-1"
     assert redacted.data.provider.url == "https://gateway.example.com/v1"
     assert redacted.has_key is True
-    assert redacted.key_preview == "ext****456"
+    # Only the primary value field gets a preview; extras credentials never do.
+    assert redacted.key_preview is None
+
+
+def test_redacts_every_sdk_credential_extras_key():
+    # The classifier is shared with the SDK resolver, so everything the resolver would
+    # inject as a credential must come back stripped — including uppercase env-style
+    # keys and the bedrock/azure/anthropic tokens the first pass missed.
+    extras = {
+        "ANTHROPIC_AUTH_TOKEN": "tok-a",
+        "AWS_BEARER_TOKEN_BEDROCK": "tok-b",
+        "AWS_SECRET_ACCESS_KEY": "tok-c",
+        "AZURE_OPENAI_API_KEY": "tok-d",
+        "aws_bearer_token_bedrock": "tok-e",
+        "vertex_ai_credentials": '{"type": "service_account"}',
+        # Config survives.
+        "AWS_REGION": "eu-west-1",
+        "vertex_ai_project": "my-project",
+    }
+    secret = _response(
+        "custom_provider",
+        {
+            "kind": "bedrock",
+            "provider": {"url": None, "extras": dict(extras)},
+            "models": [{"slug": "claude"}],
+        },
+    )
+
+    redacted = redact_secret_response(secret)
+
+    assert redacted.data.provider.extras == {
+        "AWS_REGION": "eu-west-1",
+        "vertex_ai_project": "my-project",
+    }
+    assert redacted.has_key is True
+    assert redacted.key_preview is None
+
+
+def test_aws_only_secret_reports_has_key_true():
+    secret = _response(
+        "custom_provider",
+        {
+            "kind": "bedrock",
+            "provider": {
+                "extras": {
+                    "aws_access_key_id": "AKIA123",
+                    "aws_secret_access_key": "shhh",
+                    "aws_region_name": "eu-west-1",
+                }
+            },
+            "models": [],
+        },
+    )
+
+    redacted = redact_secret_response(secret)
+
+    assert redacted.has_key is True
+    assert "aws_secret_access_key" not in redacted.data.provider.extras
+    assert redacted.data.provider.extras["aws_region_name"] == "eu-west-1"
+
+
+def test_redacts_sso_client_secret():
+    secret = _response(
+        "sso_provider",
+        {
+            "provider": {
+                "client_id": "client-1",
+                "client_secret": "super-secret-value-123",
+                "issuer_url": "https://issuer.example.com",
+                "scopes": ["openid"],
+            }
+        },
+    )
+
+    redacted = redact_secret_response(secret)
+
+    assert redacted.data.provider.client_secret is None
+    assert redacted.data.provider.client_id == "client-1"
+    assert redacted.has_key is True
 
 
 def test_redacts_text_custom_secret_content():
     secret = _response(
         "custom_secret",
-        {"secret": {"format": "text", "content": "ghp_abcdef1234567890"}},
+        {"secret": {"format": "text", "content": "ghp_example_token_xyz"}},
     )
 
     redacted = redact_secret_response(secret)
 
     assert redacted.data.secret.content is None
     assert redacted.has_key is True
-    assert redacted.key_preview == "ghp****890"
+    assert redacted.key_preview == "ghp****yz"
 
 
 def test_redacts_json_custom_secret_without_a_preview():
@@ -528,7 +717,7 @@ def test_update_mapping_preserves_the_stored_flag_when_unspecified():
     assert stored["provider"]["key"] == "sk-test-rotated"
 
 
-def test_update_mapping_applies_a_tightening_flag(monkeypatch):
+def test_update_mapping_applies_a_tightening_flag():
     import json
 
     dbe = map_secrets_dto_to_dbe(
@@ -545,3 +734,33 @@ def test_update_mapping_applies_a_tightening_flag(monkeypatch):
     stored = json.loads(dbe.data)
     assert stored["write_only"] is True
     assert stored["provider"]["key"] == "sk-live-1234567890abc"
+
+
+def test_update_mapping_never_clears_the_flag_on_a_stale_explicit_false():
+    # Concurrency guard: a racing update that read write_only=False before another
+    # request tightened the secret must not resurrect readability at the mapper.
+    import json
+
+    dbe = map_secrets_dto_to_dbe(
+        project_id=PROJECT_ID,
+        organization_id=None,
+        secret_dto=_provider_key_create(write_only=True),
+    )
+
+    map_secrets_dto_to_dbe_update(
+        secrets_dbe=dbe,
+        update_secret_dto=UpdateSecretDTO(
+            write_only=False,
+            secret={
+                "kind": "provider_key",
+                "data": {
+                    "kind": "openai",
+                    "provider": {"key": "sk-test-rotated"},
+                },
+            },
+        ),
+    )
+
+    stored = json.loads(dbe.data)
+    assert stored["write_only"] is True
+    assert stored["provider"]["key"] == "sk-rotated-9876543210xyz"

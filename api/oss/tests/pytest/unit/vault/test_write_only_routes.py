@@ -6,12 +6,16 @@ middleware: requests with the `x-test-grant` header carry the secret-resolve gra
 platform runtime); requests without it are ordinary user principals (session/ApiKey).
 """
 
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
+from jwt import encode
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+import oss.src.middlewares.auth as auth_module
 from oss.src.apis.fastapi.vault import router as vault_router_module
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.secrets.dtos import SecretResponseDTO
@@ -83,17 +87,52 @@ class _FakeSecretsDAO:
 
 
 class _FakeCache:
+    """Keyed like the real cache: (namespace, project, logical key) -> value."""
+
     def __init__(self):
         self.store = {}
 
-    async def get_cache(self, *, project_id, namespace, key, model=None, is_list=False):
-        return self.store.get(namespace)
+    @staticmethod
+    def _name(project_id, namespace, key):
+        return (namespace, str(project_id), str(sorted((key or {}).items())))
 
-    async def set_cache(self, *, project_id, namespace, key, value):
-        self.store[namespace] = value
+    async def get_cache(
+        self,
+        *,
+        project_id,
+        namespace,
+        key,
+        model=None,
+        is_list=False,
+        retry=True,
+        full_project_id=False,
+    ):
+        return self.store.get(self._name(project_id, namespace, key))
+
+    async def set_cache(
+        self, *, project_id, namespace, key, value, full_project_id=False
+    ):
+        self.store[self._name(project_id, namespace, key)] = value
 
     async def invalidate_cache(self, *, project_id):
-        self.store.clear()
+        # The real pattern invalidation does not reach the full-id generation keys.
+        self.store = {
+            name: value
+            for name, value in self.store.items()
+            if name[0] == "list_secrets_generation"
+        }
+
+    def entries(self, namespace):
+        return [value for name, value in self.store.items() if name[0] == namespace]
+
+    def generation(self, project_id):
+        return self.store.get(self._name(project_id, "list_secrets_generation", {}))
+
+    def poison(self, project_id, generation, value):
+        """Simulate a stale reader writing its snapshot under an old generation."""
+        self.store[
+            self._name(project_id, "list_secrets", {"generation": generation})
+        ] = value
 
 
 @pytest.fixture(name="harness")
@@ -150,7 +189,7 @@ def test_create_echo_is_redacted_for_a_write_only_secret(harness):
     assert created["write_only"] is True
     assert "key" not in created["data"]["provider"]
     assert created["has_key"] is True
-    assert created["key_preview"] == "sk-****abc"
+    assert created["key_preview"] == "sk-****et"
     assert KEY not in str(created)
 
 
@@ -214,7 +253,7 @@ def test_list_is_redacted_and_the_cache_stores_the_redacted_shape(harness):
     assert secret["has_key"] is True
 
     # What went into Redis is the redacted DTO: no plaintext at rest in the cache.
-    (cached,) = cache.store["list_secrets"]
+    ((cached,),) = cache.entries("list_secrets")
     assert cached.data.provider.key is None
     assert cached.has_key is True
 
@@ -304,3 +343,196 @@ def test_delete_still_works(harness):
 
     assert client.delete(f"/secrets/{created['id']}").status_code == 204
     assert client.get(f"/secrets/{created['id']}").status_code == 404
+
+
+def test_kind_or_family_change_without_a_new_value_is_400(harness):
+    client, _ = harness
+    created = _create(client, write_only=True)
+
+    response = client.put(
+        f"/secrets/{created['id']}",
+        json={
+            "secret": {
+                "kind": "provider_key",
+                "data": {"kind": "anthropic", "provider": {}},
+            }
+        },
+    )
+
+    assert response.status_code == 400
+    assert "credential value" in response.json()["detail"]
+
+
+# --- the cache generation prevents stale plaintext repopulation ------------------------
+
+
+def test_stale_snapshot_cannot_repopulate_the_cache_after_tightening(harness):
+    client, cache = harness
+    created = _create(client, write_only=False)
+
+    # A first list materializes the generation and a readable cache entry.
+    client.get("/secrets/")
+    stale_generation = cache.generation(PROJECT_ID)
+    assert stale_generation
+
+    # Tightening the secret bumps the generation.
+    tightened = client.put(f"/secrets/{created['id']}", json={"write_only": True})
+    assert tightened.status_code == 200
+    assert cache.generation(PROJECT_ID) != stale_generation
+
+    # A stale reader (whose DB snapshot predates the tightening) now writes its
+    # plaintext list — it can only land under the DEAD generation.
+    plaintext_snapshot = [
+        SecretResponseDTO(
+            id=created["id"],
+            slug=created["slug"],
+            kind="provider_key",
+            data={"kind": "openai", "provider": {"key": KEY}},
+            header={"name": "OpenAI"},
+            write_only=False,
+        )
+    ]
+    cache.poison(PROJECT_ID, stale_generation, plaintext_snapshot)
+
+    # No later reader consults the dead generation: the list stays redacted.
+    (secret,) = client.get("/secrets/").json()
+    assert "key" not in secret["data"]["provider"]
+
+
+# --- real signed tokens through the real verifier --------------------------------------
+
+SECRET_KEY = "unit-test-secret-key-with-32-bytes"
+
+
+@pytest.fixture(name="token_client")
+def _token_client(monkeypatch):
+    """Same router harness, but the principal comes from a REAL `Secret` token run
+    through the real `verify_secret_token` — nothing injects `token_grants` directly."""
+    monkeypatch.setattr(auth_module, "_SECRET_KEY", SECRET_KEY)
+
+    cache = _FakeCache()
+    dao = _FakeSecretsDAO()
+
+    async def _allow(**kwargs):
+        return True
+
+    monkeypatch.setattr(vault_router_module, "check_action_access", _allow)
+    monkeypatch.setattr(vault_router_module, "get_cache", cache.get_cache)
+    monkeypatch.setattr(vault_router_module, "set_cache", cache.set_cache)
+    monkeypatch.setattr(vault_router_module, "invalidate_cache", cache.invalidate_cache)
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def _authenticate(request, call_next):
+        header = request.headers.get("authorization", "")
+        if not header.startswith("Secret "):
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+        try:
+            await auth_module.verify_secret_token(request, header[len("Secret ") :])
+        except HTTPException as exc:
+            return JSONResponse({"detail": "Unauthorized"}, status_code=exc.status_code)
+        return await call_next(request)
+
+    app.include_router(VaultRouter(vault_service=VaultService(dao)).router)
+
+    return TestClient(app)
+
+
+def _auth(token):
+    return {"Authorization": f"Secret {token}"}
+
+
+@pytest.mark.asyncio
+async def test_real_tokens_grant_and_deny_plaintext(token_client):
+    plain = await auth_module.sign_secret_token(user_id=USER_ID, project_id=PROJECT_ID)
+    granted = await auth_module.sign_secret_token(
+        user_id=USER_ID,
+        project_id=PROJECT_ID,
+        grants=[SECRET_RESOLVE_GRANT],
+    )
+
+    created = token_client.post(
+        "/secrets/",
+        json={
+            "header": {"name": "OpenAI"},
+            "secret": {
+                "kind": "provider_key",
+                "data": {"kind": "openai", "provider": {"key": KEY}},
+            },
+            "write_only": True,
+        },
+        headers=_auth(plain),
+    )
+    assert created.status_code == 200, created.text
+    assert "key" not in created.json()["data"]["provider"]
+    secret_id = created.json()["id"]
+
+    ungranted_read = token_client.get(f"/secrets/{secret_id}", headers=_auth(plain))
+    assert ungranted_read.status_code == 200
+    assert "key" not in ungranted_read.json()["data"]["provider"]
+
+    granted_read = token_client.get(f"/secrets/{secret_id}", headers=_auth(granted))
+    assert granted_read.status_code == 200
+    assert granted_read.json()["data"]["provider"]["key"] == KEY
+
+    granted_list = token_client.get("/secrets/", headers=_auth(granted))
+    (listed,) = granted_list.json()
+    assert listed["data"]["provider"]["key"] == KEY
+
+
+@pytest.mark.asyncio
+async def test_expired_granted_token_is_rejected(token_client):
+    # Encoded here rather than through `sign_secret_token`, which only ever issues a live
+    # token; what is under test is the middleware refusing an expired one, grant or not.
+    expired = encode(
+        payload={
+            "user_id": USER_ID,
+            "project_id": PROJECT_ID,
+            "grants": [SECRET_RESOLVE_GRANT],
+            "exp": int(
+                (datetime.now(timezone.utc) - timedelta(seconds=60)).timestamp()
+            ),
+        },
+        key=auth_module._SECRET_KEY,
+        algorithm="HS256",
+    )
+
+    response = token_client.get("/secrets/", headers=_auth(expired))
+
+    assert response.status_code == 401
+
+
+# --- schema + never-echo ---------------------------------------------------------------
+
+
+def test_openapi_documents_the_write_only_contract(harness):
+    client, _ = harness
+
+    schemas = client.app.openapi()["components"]["schemas"]
+
+    for field in ("write_only", "has_key", "key_preview"):
+        assert field in schemas["SecretResponseDTO"]["properties"]
+    assert "write_only" in schemas["CreateSecretDTO"]["properties"]
+    assert "write_only" in schemas["UpdateSecretDTO"]["properties"]
+
+
+CANARY = "sk-CANARY-DO-NOT-ECHO-abc123"
+
+
+def test_malformed_create_never_echoes_the_submitted_key(harness):
+    client, _ = harness
+
+    response = client.post(
+        "/secrets/",
+        json={
+            "header": {"name": "x"},
+            "secret": {
+                "kind": "invalid_kind",
+                "data": {"kind": "openai", "provider": {"key": CANARY}},
+            },
+        },
+    )
+
+    assert response.status_code == 422
+    assert CANARY not in response.text

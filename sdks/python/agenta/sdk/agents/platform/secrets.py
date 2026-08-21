@@ -65,12 +65,13 @@ async def resolve_named_secrets(
                 if value is not None:
                     resolved[name] = value
                 elif _is_write_only_redacted(payload):
-                    # Engineering copy; adjust freely.
+                    # Engineering copy; adjust freely. No secret name in the log (module
+                    # policy above); the caller knows which names it requested.
                     log.error(
-                        "agent: secret %r is write-only: its value cannot be read back "
-                        "outside the platform runtime. For standalone runs, provide it "
-                        "via the tool's environment instead.",
-                        name,
+                        "agent: a requested named secret is write-only: its value "
+                        "cannot be read back outside the platform runtime. For "
+                        "standalone runs, set the value directly in the tool's "
+                        "environment configuration instead."
                     )
             except Exception:  # pylint: disable=broad-except
                 log.warning("agent: named-secret read failed", exc_info=True)

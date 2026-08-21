@@ -71,11 +71,14 @@ class WriteOnlySecretError(ConnectionResolutionError):
         subject = (
             f"connection '{slug}'" if slug else f"provider '{provider}' connection"
         )
-        # Engineering copy; adjust freely.
+        # Engineering copy; adjust freely. The remediation must change the connection
+        # MODE, not only the environment: an `agenta`-mode connection never reads env
+        # keys, so "set the env var" alone loops the user straight back to this error.
         super().__init__(
             f"{subject} uses a write-only secret: its value cannot be read back "
-            "outside the platform runtime. For standalone runs, provide the provider "
-            "key via its environment variable (for example OPENAI_API_KEY) instead."
+            "outside the platform runtime. For standalone runs, switch this "
+            "connection's authentication to self_managed and provide the provider "
+            "key via its environment variable (for example OPENAI_API_KEY)."
         )
         self.slug = slug
         self.provider = provider

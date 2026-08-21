@@ -10,6 +10,7 @@ from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.providers import normalize_provider_kind
 
+from agenta.sdk.agents.connections.credentials import credential_extras
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 from agenta.sdk.contexts.running import RunningContext
 
@@ -443,8 +444,8 @@ def _split_write_only_redacted(
             value = None
             if kind in ("provider_key", "custom_provider"):
                 provider = data.get("provider") or {}
-                value = provider.get("key") or (provider.get("extras") or {}).get(
-                    "api_key"
+                value = provider.get("key") or credential_extras(
+                    provider.get("extras") or {}
                 )
             elif kind == "custom_secret":
                 value = (data.get("secret") or {}).get("content")
