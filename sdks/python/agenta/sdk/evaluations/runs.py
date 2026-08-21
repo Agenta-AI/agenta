@@ -4,9 +4,12 @@ from pydantic import BaseModel
 from uuid import UUID
 
 from agenta.sdk.utils.client import authed_async_api
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.evaluations import EvaluationRun, Origin, Target
 
 import agenta as ag
+
+log = get_module_logger(__file__)
 
 
 class RunData(BaseModel):
@@ -53,7 +56,11 @@ async def afetch(
     try:
         response.raise_for_status()
     except Exception:
-        print(response.text)
+        log.error(
+            "API request failed",
+            endpoint=f"/evaluations/runs/{run_id}",
+            response_text=response.text,
+        )
         raise
 
     response = response.json()
@@ -111,7 +118,11 @@ async def acreate(
     try:
         response.raise_for_status()
     except Exception:
-        print(response.text)
+        log.error(
+            "API request failed",
+            endpoint="/simple/evaluations/",
+            response_text=response.text,
+        )
         raise
 
     response = response.json()
@@ -139,7 +150,11 @@ async def aclose(
     try:
         response.raise_for_status()
     except Exception:
-        print(response.text)
+        log.error(
+            "API request failed",
+            endpoint=f"/evaluations/runs/{run_id}/close",
+            response_text=response.text,
+        )
         raise
 
     response = response.json()
@@ -164,7 +179,11 @@ async def aurl(
     try:
         response.raise_for_status()
     except Exception:
-        print(response.text)
+        log.error(
+            "API request failed",
+            endpoint="/projects/current",
+            response_text=response.text,
+        )
         raise
 
     project_info = response.json()

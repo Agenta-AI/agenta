@@ -35,6 +35,7 @@ import {
   type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
 import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import { buildRunPlan } from "./run-plan.ts";
 import { configFingerprint } from "./session-identity.ts";
 import type {
@@ -196,7 +197,7 @@ export async function prepareEnvironmentSetup(
   const strictModel = modelResolutionStrict();
   logger(
     `tools=${plan.tools.toolSpecs.length} executableTools=${plan.tools.executableToolSpecs.length} ` +
-      `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
+      `piPublicTools=${piExtEnv[PUBLIC_SPECS_FILE_ENV] ? "yes" : "no"}`,
   );
   if (!plan.isPi && plan.isDaytona) {
     const clientTools = plan.tools.toolSpecs
@@ -302,6 +303,12 @@ export async function prepareEnvironmentSetup(
     !plan.isDaytona &&
     piExtEnv[PI_MODEL_PROVIDER_OVERRIDE_ENV] !== undefined &&
     !localPiAssets.extensionInstalled;
+  // Fail closed: a subscription run whose operator-mounted Pi agent dir failed the write probe
+  // cannot start — Pi dies at startup on the unwritable dir with zero output, which the user sees
+  // as a session that silently hangs. Recorded here (the probe ran above) and thrown inside the
+  // engine try, like the three gates above, so it becomes a visible error frame.
+  const localPiAgentDirUnwritable =
+    plan.isPi && !plan.isDaytona && !localPiAssets.agentDirWritable;
 
   // A local Claude subscription run reads and writes the operator's read-write mounted login
   // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
@@ -431,6 +438,7 @@ export async function prepareEnvironmentSetup(
     logger,
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
+    localPiAgentDirUnwritable,
     mcpAbort,
     piExtEnv,
     piModelConfig,

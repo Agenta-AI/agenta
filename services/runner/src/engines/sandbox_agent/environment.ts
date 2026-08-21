@@ -81,6 +81,7 @@ import {
   type MountCredentials,
 } from "./mount.ts";
 import {
+  PI_AGENT_DIR_UNWRITABLE_MESSAGE,
   PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
   PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
@@ -319,6 +320,7 @@ export async function acquireEnvironment(
     localBuiltinGatingUnenforceable,
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
+    localPiAgentDirUnwritable,
     logger,
     mcpAbort,
     piExtEnv,
@@ -466,6 +468,11 @@ export async function acquireEnvironment(
     // OpenAI-compatible custom request is a hard error, never a silent fall-back (Decision 5).
     if (piModelConfigError) {
       throw piModelConfigError;
+    }
+    // Surface the root cause before extension-derived gates: an unwritable subscription mount can
+    // also prevent extension installation, but rebuilding the image cannot repair mount ownership.
+    if (localPiAgentDirUnwritable) {
+      throw new Error(PI_AGENT_DIR_UNWRITABLE_MESSAGE);
     }
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).

@@ -434,6 +434,27 @@ if [[ "$WEB_MODE" == "docker" ]]; then
     COMPOSE_CMD+=" --profile with-web"
 fi
 
+# The dev web container runs as uid 10001 and writes generated files into the public/ directories
+# that compose bind-mounts from this checkout: entrypoint.sh writes __env.js, and the OSS and EE
+# dev scripts write the pdfjs worker. A fresh clone leaves those directories mode 755 owned by the
+# host user, so uid 10001 cannot write and the container crash-loops in the entrypoint before
+# Next.js ever starts. Widen them here instead of making every contributor rediscover that. They
+# hold public static assets only, and the gh images bind-mount no source, so this is dev-only.
+if [[ "$IMAGE_MODE" == "dev" && "$WEB_MODE" == "docker" ]]; then
+    for _public_dir in ./web/oss/public ./web/ee/public ./web/mobile/public; do
+        [[ -d "$_public_dir" ]] || continue
+        chmod o+rwx "$_public_dir" 2>/dev/null ||
+            echo "Warning: could not make $_public_dir writable by the web container (uid 10001)." >&2
+        # An __env.js or worker left behind by a host-side `pnpm dev` is owned by the host user,
+        # and the container overwrites the file in place, so widen those two as well.
+        for _generated in "$_public_dir/__env.js" "$_public_dir/pdf.worker.min.mjs"; do
+            if [[ -f "$_generated" ]]; then
+                chmod o+rw "$_generated" 2>/dev/null || true
+            fi
+        done
+    done
+fi
+
 if $WITH_NGINX; then
     COMPOSE_CMD+=" --profile with-nginx"
 else
