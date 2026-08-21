@@ -234,14 +234,29 @@ export async function getAccessToken(): Promise<string | null> {
     }
 }
 
-export async function tryRefreshSession(): Promise<boolean> {
-    if (typeof window === "undefined") return false
+/** What a refresh attempt actually established. */
+export type RefreshOutcome = "refreshed" | "signed-out" | "unreachable"
+
+/**
+ * Refresh the session and report WHICH of the three things happened.
+ *
+ * The distinction matters because "we could not reach the backend" is not a verdict about the
+ * user. Collapsing it into a plain false made a momentarily unavailable API look exactly like a
+ * revoked session, and a caller that signs out on false then strands a perfectly valid session.
+ */
+export async function refreshSessionOutcome(): Promise<RefreshOutcome> {
+    if (typeof window === "undefined") return "unreachable"
     ensureAuthInit()
     try {
-        return await Session.attemptRefreshingSession()
+        // Resolves false only when the session is genuinely gone; a transport failure THROWS.
+        return (await Session.attemptRefreshingSession()) ? "refreshed" : "signed-out"
     } catch {
-        return false
+        return "unreachable"
     }
+}
+
+export async function tryRefreshSession(): Promise<boolean> {
+    return (await refreshSessionOutcome()) === "refreshed"
 }
 
 /* ── detailed email/password outcomes (the desktop sign-in-or-up tree needs the branches) ── */

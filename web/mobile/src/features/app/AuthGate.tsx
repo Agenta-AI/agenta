@@ -5,29 +5,48 @@ import {useRouter} from "next/router"
 
 import {fetchProjects} from "@/lib/context"
 
+import {authRedirectTarget, shouldCheckSession, type SessionVerdict} from "./authRoute"
+
 /**
- * Null-rendering: routes a signed-out session to the sign-in page from ANY screen. The root
- * resolver cannot be that gate — a remembered pair forwards it away before the verdict lands.
+ * Null-rendering: routes a signed-out session to the sign-in page from ANY screen, and a session
+ * that turns out to be valid back OUT of it. The root resolver cannot be that gate — a remembered
+ * pair forwards it away before the verdict lands.
  *
  * It reuses the projects query (same key and staleTime as `useCurrentProject` and the root
- * resolver), so the verdict costs no request of its own. Off on `/auth*` — that is where a
- * signed-out user belongs, and redirecting to it from itself would loop.
+ * resolver), so the verdict costs no request of its own.
+ *
+ * It keeps asking on /auth. It used to stop there, which sounds harmless — that is where a
+ * signed-out user belongs — but it made a wrong verdict permanent: one transient 401 (a backend
+ * that is up but not yet serving) bounced you to the sign-in page, and nothing ever re-checked, so
+ * a session that was fine the whole time stayed stranded until a hard reload. The redirect guards
+ * live in `authRedirectTarget`, so re-checking cannot loop.
  */
 export const AuthGate = () => {
     const router = useRouter()
-    const onAuthRoute = router.pathname.startsWith("/auth")
+    const enabled = shouldCheckSession(router.pathname)
 
     const {data} = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
-        enabled: !onAuthRoute,
+        enabled,
         staleTime: 30_000,
+        // Overrides this app's `refetchOnWindowFocus: false` default, for this query only. It is
+        // the gate's ONLY re-check trigger: staleTime does not schedule anything, and with the
+        // default off a wrong verdict had no way at all to be revisited — a hard reload was the
+        // only escape. Coming back to the tab now re-asks.
+        refetchOnWindowFocus: true,
     })
 
-    const signedOut = data?.kind === "unauthenticated"
+    const verdict: SessionVerdict =
+        data?.kind === "unauthenticated"
+            ? "unauthenticated"
+            : data?.kind === "ok"
+              ? "ok"
+              : "unknown"
+    const target = authRedirectTarget(verdict, router.pathname)
     useEffect(() => {
-        if (signedOut && !onAuthRoute) void router.replace("/auth")
-    }, [signedOut, onAuthRoute])
+        if (target) void router.replace(target)
+    }, [target])
 
     return null
 }

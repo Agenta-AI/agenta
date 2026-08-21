@@ -2,7 +2,7 @@ import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getProjectsClient} from "@agenta/sdk/resources"
 import {z} from "zod"
 
-import {tryRefreshSession} from "./auth"
+import {refreshSessionOutcome} from "./auth"
 
 /** Mobile's own last-visited workspace/project, for `/m/` root resolution. */
 export const LAST_CONTEXT_KEY = "agenta:mobile:last-context"
@@ -117,8 +117,14 @@ async function fetchProjectsOnce(): Promise<ProjectsResult> {
 export async function fetchProjects(): Promise<ProjectsResult> {
     const first = await fetchProjectsOnce()
     if (first.kind !== "unauthenticated") return first
-    // An expired access token is not signed-out: try one cookie refresh, then
-    // retry once before letting the unauthenticated verdict stand.
-    if (!(await tryRefreshSession())) return first
+    // An expired access token is not signed-out: try one cookie refresh, then retry once before
+    // letting the unauthenticated verdict stand.
+    const outcome = await refreshSessionOutcome()
+    // A refresh we could not even REACH is not a verdict about the user. A backend that is up but
+    // not yet serving answers 401, and the refresh that follows fails for the same reason — read
+    // together that used to look exactly like a sign-out, which bounced a valid session to the
+    // sign-in page. Report it as the transient error it is; the query layer retries.
+    if (outcome === "unreachable") return {kind: "error"}
+    if (outcome === "signed-out") return first
     return fetchProjectsOnce()
 }
