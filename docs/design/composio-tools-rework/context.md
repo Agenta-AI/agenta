@@ -10,9 +10,10 @@ hurts today and what we want instead.
 ## How it works today
 
 The user picks actions one at a time in the drawer. Each pick adds one entry to the
-agent's setup, for example "Composio, GitHub, GET_AN_ISSUE, github-main". When the agent
-runs, our backend asks Composio to look up every action, one call each, with no reuse.
-Then it sends every action's full description to the model, on every turn.
+agent's setup, for example "Composio, GitHub, GET_AN_ISSUE, github-main". Our backend
+(the Agenta API, not the runner) does the next part. At the start of every run, before
+the model produces a word, it asks Composio to look up every action, one call each, with
+no reuse. Then it sends every action's full description to the model, on every turn.
 
 ## The problems this causes
 
@@ -31,6 +32,12 @@ Then it sends every action's full description to the model, on every turn.
 
 These are not five separate bugs. They come from one choice: we treat each action as a
 fixed tool that we look up one by one.
+
+The first four bugs are now fixed and shipped, as small separate changes to the current
+system: the result cap (#5341, PR #5811), the clear "not set up" error (#5407, PR #5812),
+the broken-tool fix (#5173, PR #5813), and the version pin (#5174, PR #5814). Those fixes
+patch today's system. The redesign below removes the root cause, so the last problem (a
+hundred entries) also goes away.
 
 ## What we want instead
 

@@ -4,18 +4,19 @@ We build this in three parts. Each part ships and can be tested on its own. Toge
 they build the design in `design.md`: one setup entry becomes a search tool and a run
 tool.
 
-## Part 1: three quick fixes (ship first)
+## Part 1: quick fixes (done and shipped)
 
-These do not need the redesign. The first two remove pain we have today. The third is
-needed before Part 2 can work.
+These did not need the redesign. They removed pain in today's system, and the version pin
+is also needed before Part 2. All four are merged into release/v0.112.0.
 
-- **Cap big results (#5341).** Cut a tool result down to a safe size before it reaches
-  the model, and add a note telling the model to ask for less. This also helps the
-  current setup.
-- **Clear "not set up" error (#5407).** When Composio has no key, return a clear "not
-  configured" message instead of a bare "not found".
+- **Cap big results (#5341).** Cut a tool result down to a safe size, and tell the model
+  to ask for less. Shipped, PR #5811.
+- **Clear "not set up" error (#5407).** Return a clear "not configured" message instead
+  of a bare "not found". Shipped, PR #5812.
+- **Broken tool no longer kills the agent (#5173).** Drop the one dead tool, keep the
+  rest. Shipped, PR #5813.
 - **Pin the version (#5174).** Always call Composio's newest version, so search and run
-  use the same action list. Part 2 depends on this.
+  use the same action list. Shipped, PR #5814.
 
 ## Part 2: one app working end to end (backend)
 
@@ -39,12 +40,19 @@ breaks for current users.
 - The drawer lets the user add one connection entry (app, connection, allowed actions)
   instead of one row per action. The backend from Part 2 already accepts it.
 
+## Possible follow-up (separate, maybe its own PR)
+
+- **Let the agent set up its own tools.** A default that lets the agent find an
+  integration, check which ones already have a connection, and add and commit a connected
+  one without asking the user. This is a build-time choice, separate from the run-time
+  design above. See `design.md`, "Side idea".
+
 ## Not in this plan
 
 - Composio sessions and their MCP server. Dropped; see `design.md`.
 - Special work for Pi. The two tools already reach Pi the normal way.
-- Composio's code sandbox, and saving big results to a file for the model to read. The
-  size cap is the first answer.
+- Composio's code sandbox. The size cap, and the existing option to save a big result to
+  a file in the sandbox, are enough for now.
 - Asking before one specific action.
 - Limiting call rate per customer.
 - A second tool provider.

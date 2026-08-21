@@ -84,20 +84,28 @@ tools and their results.
   as today.
 - **One broken action no longer kills the agent.** If an action cannot run, only that
   one call fails. The model reads the error and tries another action. This fixes #5173,
-  because nothing has to resolve up front any more.
+  because nothing has to resolve up front any more. The current system already got this
+  fix (PR #5813).
 
 ## Big results
 
 Some actions return a huge amount of text. Today that can flood the model and break the
 chat. We cut the result down before it reaches the model, and we add a short note that
-tells the model to ask for less (filter, or fetch fewer items). This fixes #5341.
+tells the model to ask for less (filter, or fetch fewer items). This fixes #5341, and it
+is already shipped (PR #5811).
+
+There is a second path that already happens sometimes: a large result is saved to a file
+in the sandbox, and the model reads the file instead of getting the whole thing in the
+chat. We keep both. The cut-down note is the simple default; the file in the sandbox
+handles the cases where the model still needs the full data.
 
 ## Versions: why one setting matters
 
 Search and run must use the same version of the app's action list. If they differ,
 search can offer an action that run then cannot find, and the user gets a "not found"
 error. We fix this by always using Composio's newest version (their v3.1 endpoints).
-Then whatever search offers, run can use. This fixes #5174.
+Then whatever search offers, run can use. This fixes #5174, and it is already shipped
+(PR #5814).
 
 ## One decision for you
 
@@ -105,6 +113,24 @@ Permissions. We can make the agent ask the user before any action on a connectio
 is easy. Asking before one specific action, like "ask before delete but not before
 read", is harder and needs more work, because of how the model calls the run tool. We
 suggest shipping the simple version first and adding the specific one later.
+
+## Side idea: let the agent set up its own tools
+
+This is a separate change from the design above, and it could be its own PR. Note it here
+so we do not lose it.
+
+When the user builds an agent by talking to it, the agent can set itself up. Today it may
+stop and ask the user at each step. We could add a default that lets the agent do this on
+its own, with no question to the user:
+
+1. Find an integration, like GitHub.
+2. Check which integrations already have a connection (a saved login).
+3. If one is connected, add it to the agent and commit.
+
+This is a build-time choice (the agent editing its own setup), not the run-time choice
+above (the agent using a tool). We would keep it safe by limiting it: the agent only adds
+an integration that is already connected, so it never starts a login flow on its own. We
+can decide later whether this is on by default or an opt-in.
 
 ## Keeping the key safe
 
