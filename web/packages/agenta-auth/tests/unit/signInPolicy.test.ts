@@ -4,12 +4,7 @@ import {readAuthConfig, type AuthConfig, type EnvReader} from "../../src/config"
 import {parseDiscoveredMethods, type DiscoveredMethods} from "../../src/discovery"
 import {mapAuthError} from "../../src/authError"
 import {readInviteParams} from "../../src/invite"
-import {
-    deriveEntry,
-    deriveMethods,
-    parseSsoOrgSlug,
-    soleSsoRedirect,
-} from "../../src/signInPolicy"
+import {deriveEntry, deriveMethods, parseSsoOrgSlug, soleSsoRedirect} from "../../src/signInPolicy"
 
 const env =
     (values: Record<string, string>): EnvReader =>
