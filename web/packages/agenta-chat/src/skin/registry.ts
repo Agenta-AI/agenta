@@ -67,18 +67,27 @@ export const registerChatSkin = (skin: ChatSkinRegistration): void => {
  */
 export const resolveClientToolWidget = (
     meta: Pick<ClientToolMeta, "toolName" | "renderKind">,
+    /** Built-ins to fall back on, passed as a VALUE by the dispatcher. See the note on
+     * `clientToolWidgets` in @agenta/entity-ui: registration alone is a side effect and gets
+     * tree-shaken across a `sideEffects: false` package boundary. */
+    fallback?: ChatSkinRegistration["clientTools"],
 ): ClientToolWidget | undefined => {
     // An explicit `render.kind` is answered on that axis or not at all: reinterpreting an unknown
     // kind by tool name renders the wrong widget for a payload that deliberately asked for another.
-    if (meta.renderKind !== undefined) return store.clientTools.byRenderKind[meta.renderKind]
-    return store.clientTools.byToolName[meta.toolName]
+    if (meta.renderKind !== undefined)
+        return (
+            store.clientTools.byRenderKind[meta.renderKind] ??
+            fallback?.byRenderKind?.[meta.renderKind]
+        )
+    return store.clientTools.byToolName[meta.toolName] ?? fallback?.byToolName?.[meta.toolName]
 }
 
 /** Whether this client tool has a dedicated widget registered (used to route known tools in every
  * state, mirroring OSS `hasClientToolWidget`). */
 export const hasClientToolWidget = (
     meta: Pick<ClientToolMeta, "toolName" | "renderKind">,
-): boolean => resolveClientToolWidget(meta) !== undefined
+    fallback?: ChatSkinRegistration["clientTools"],
+): boolean => resolveClientToolWidget(meta, fallback) !== undefined
 
 /** Resolve the renderer for an approval, or `undefined` for the generic card (mirrors OSS
  * `resolveApprovalRenderer`, which returns `null` for the same miss). */

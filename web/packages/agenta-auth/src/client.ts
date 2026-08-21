@@ -215,14 +215,48 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
  * refresh token or the backend rejects it — the caller's signed-out verdict
  * stands. Never throws (network failure counts as "not refreshed").
  */
-export async function tryRefreshSession(): Promise<boolean> {
-    if (typeof window === "undefined") return false
+/**
+ * The signed-in session's access token, or `null` when there is no session.
+ *
+ * Callers that need to send an explicit `Authorization` header rather than rely on the cookie —
+ * the playground's run requests are the case that matters, because the backend only honours the
+ * `project_id` query param alongside an Authorization header, and without it a run resolves
+ * against the caller's DEFAULT project instead of the one it belongs to.
+ */
+export async function getAccessToken(): Promise<string | null> {
+    if (typeof window === "undefined") return null
     ensureAuthInit()
     try {
-        return await Session.attemptRefreshingSession()
+        if (!(await Session.doesSessionExist())) return null
+        return (await Session.getAccessToken()) ?? null
     } catch {
-        return false
+        return null
     }
+}
+
+/** What a refresh attempt actually established. */
+export type RefreshOutcome = "refreshed" | "signed-out" | "unreachable"
+
+/**
+ * Refresh the session and report WHICH of the three things happened.
+ *
+ * The distinction matters because "we could not reach the backend" is not a verdict about the
+ * user. Collapsing it into a plain false made a momentarily unavailable API look exactly like a
+ * revoked session, and a caller that signs out on false then strands a perfectly valid session.
+ */
+export async function refreshSessionOutcome(): Promise<RefreshOutcome> {
+    if (typeof window === "undefined") return "unreachable"
+    ensureAuthInit()
+    try {
+        // Resolves false only when the session is genuinely gone; a transport failure THROWS.
+        return (await Session.attemptRefreshingSession()) ? "refreshed" : "signed-out"
+    } catch {
+        return "unreachable"
+    }
+}
+
+export async function tryRefreshSession(): Promise<boolean> {
+    return (await refreshSessionOutcome()) === "refreshed"
 }
 
 /* ── detailed email/password outcomes (the desktop sign-in-or-up tree needs the branches) ── */

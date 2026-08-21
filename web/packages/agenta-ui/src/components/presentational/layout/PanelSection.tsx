@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import {useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode} from "react"
 
 /**
  * The section language for rail/page surfaces (`/apps`, `/overview`, `/agents`, `/sessions`).
@@ -78,8 +78,28 @@ export const PanelSection = ({
     children,
 }: PanelSectionProps) => {
     const isRail = variant === "rail"
+    // Publish this header's own height so a sticky element INSIDE the body can pin below it
+    // instead of on top of it — a nested list's group headings are the case. MEASURED, not a
+    // constant: the two variants are different heights (40px page, 48px rail) and the header
+    // wraps on a narrow viewport, so any hardcoded offset is wrong somewhere.
+    const headerRef = useRef<HTMLDivElement | null>(null)
+    const [headerHeight, setHeaderHeight] = useState(0)
+    useLayoutEffect(() => {
+        const el = headerRef.current
+        if (!el || !sticky) return
+        const measure = () => setHeaderHeight(el.getBoundingClientRect().height)
+        measure()
+        const observer = new ResizeObserver(measure)
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [sticky])
     return (
         <section
+            style={
+                sticky && headerHeight
+                    ? ({"--ag-panel-header-h": `${headerHeight}px`} as CSSProperties)
+                    : undefined
+            }
             className={`ag-panel-section flex flex-col ${
                 isRail
                     ? // Each section is its own card. Stacked inside one, they read as a single
@@ -95,6 +115,7 @@ export const PanelSection = ({
             } ${minHeightClassName ?? ""}`}
         >
             <div
+                ref={headerRef}
                 className={`ag-panel-section-header flex shrink-0 items-center justify-between gap-2 ${
                     isRail
                         ? `bg-colorBgElevated px-4 pb-2 pt-4 ${sticky ? "sticky top-0 z-10" : ""}`
@@ -119,7 +140,16 @@ export const PanelSection = ({
             </div>
             {/* Rows inside a rail section separate by spacing, never by a rule — a rule inside a
                 section competes with the rule that ends it. Lines mean "new section", nothing else. */}
-            <div className={bodyClassName ?? "flex flex-col gap-0.5 px-2 pb-3"}>{children}</div>
+            {/* The body states the section's surface so a `bg-inherit` descendant — a nested
+                list's own sticky heading — resolves to something opaque. Without it those
+                headings are transparent and rows scroll visibly THROUGH them. */}
+            <div
+                className={`${isRail ? "bg-colorBgElevated" : "bg-colorBgContainer"} ${
+                    bodyClassName ?? "flex flex-col gap-0.5 px-2 pb-3"
+                }`}
+            >
+                {children}
+            </div>
         </section>
     )
 }

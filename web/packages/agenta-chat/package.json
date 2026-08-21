@@ -24,7 +24,8 @@
         "./state": "./src/state/index.ts",
         "./hooks": "./src/hooks/index.ts",
         "./skin": "./src/skin/index.ts",
-        "./tests/goldenSessions": "./tests/unit/assets/__fixtures__/goldenSessions.ts"
+        "./tests/goldenSessions": "./tests/unit/assets/__fixtures__/goldenSessions.ts",
+        "./clientTools": "./src/clientTools/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
@@ -49,6 +50,7 @@
         "@testing-library/react": "^16.3.0",
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
+        "@vitejs/plugin-react-swc": "^4.3.2",
         "@vitest/coverage-v8": "^4.1.4",
         "ai": "6.0.0-beta.150",
         "jotai": "^2.15.0",

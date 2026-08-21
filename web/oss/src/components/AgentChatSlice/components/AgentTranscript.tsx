@@ -5,8 +5,7 @@ import {
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
-import {Button} from "@agenta/ui/ui"
-import {ArrowDown} from "@phosphor-icons/react"
+import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import {type UIMessage} from "ai"
 import {Virtuoso} from "react-virtuoso"
 
@@ -161,29 +160,10 @@ const AgentTranscript = ({
                 style={BOTTOM_FADE_OVERLAY_STYLE}
             />
 
-            {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
-                keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
-            <Button
-                variant="outline"
-                size="sm"
+            <ChatJumpToLatest
+                show={showJump}
                 onClick={useVirtuoso ? virt.jumpToLatest : scroll.jumpToLatest}
-                tabIndex={showJump ? 0 : -1}
-                aria-hidden={!showJump}
-                // Solid elevated surface + border + shadow so the pill reads clearly when it
-                // floats over streamed text (a transparent pill let the text bleed through).
-                // `z-10` puts it above the bottom fade (z-[5]): the pill sits 8px from the bottom,
-                // inside the 28px band, and source order alone left the gradient painting over it
-                // whenever no turn was hovered to suppress the fade.
-                className={`absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full border-colorBorderSecondary bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
-                    showJump
-                        ? "translate-y-0 opacity-100"
-                        : "pointer-events-none translate-y-3 opacity-0"
-                }`}
-                aria-label="Jump to latest message"
-            >
-                <ArrowDown size={14} />
-                Jump to latest
-            </Button>
+            />
         </div>
     )
 }

@@ -22,6 +22,7 @@ import {
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
+import {buildRenderMap} from "@agenta/playground"
 import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
@@ -35,7 +36,9 @@ import {useSetAtom, useStore} from "jotai"
 import {filesToParts} from "../assets/files"
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
+import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
+import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
 import {parseAgentRunError, type ParsedRunError} from "../model/error"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
@@ -45,6 +48,7 @@ import {
     type TurnViewModel,
 } from "../model/turnViewModel"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
+import {stampMessagesCreatedAtAtom} from "../state/messageStamps"
 import {clearSessionFresh, composerDraftBySession, isSessionFresh} from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
@@ -52,6 +56,7 @@ import {
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
 } from "../state/sessionMessages"
+import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 import {AgentChatTransport} from "../transport/AgentChatTransport"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
@@ -93,8 +98,10 @@ export interface ToolOutputSettleInput {
 export interface UseAgentConversationArgs {
     entityId: string
     sessionId: string
-    /** Registry-backed client-tool predicate for the turn render model; without it no part is
-     * treated as a client tool (they fold into the regular tool groups). */
+    /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
+     * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
+     * silently folded every client tool into the plain "used N tools" group, leaving the run
+     * parked with nothing on screen to answer. */
     isClientToolPart?: ClientToolPartPredicate
 }
 
@@ -128,6 +135,9 @@ export interface AgentConversation {
     stopped: boolean
     /** Messages held while a turn is in flight, in FIFO order. */
     queued: QueuedMessage[]
+    /** The run is parked on the USER — an approval gate or an unanswered client tool (elicitation,
+     * connect). Typed messages queue rather than send while this holds. */
+    hitlPending: boolean
     removeQueued: (id: string) => void
     clearQueue: () => void
     /** Headless approval-dock state wired to the live-gate-aware response path. */
@@ -159,6 +169,9 @@ export const useAgentConversation = ({
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const pruneExpanded = useSetAtom(pruneExpandedAtom)
+    const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
+    const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
+    const clearTurnClock = useSetAtom(clearTurnClockAtom)
 
     // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last)
     // turn, so this is a single boolean gated on position at render time. Cleared on the next
@@ -241,6 +254,12 @@ export const useAgentConversation = ({
         // The turn's trace may not be ingested yet when a row asks for its summary — marking it
         // fresh lets the trace queries retry through the ingestion lag. A finished turn may also
         // have written files: mark the session's drive data stale so every mount surface refetches.
+        // #6047 startup states: the runner narrates what it is doing while the environment boots,
+        // so a 15s cold start reads as progress instead of a stalled session.
+        onData: (part) => {
+            const label = startupLabelFromDataPart(part)
+            if (label) setTurnStartupLabel(sessionId, label)
+        },
         onFinish: ({message}) => {
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
@@ -433,6 +452,15 @@ export const useAgentConversation = ({
         [addToolApprovalResponse],
     )
 
+    // `render.kind` rides as a sibling `data-render` part (AI SDK tool chunks are strict), so the
+    // widget dispatch needs a toolCallId → hint map. Built across the WHOLE conversation rather
+    // than per message: toolCallIds are unique, and the predicate below sees parts without knowing
+    // which message they came from.
+    const renderMap = useMemo(
+        () => buildRenderMap(messages.flatMap((m) => m.parts) as {type?: string; data?: unknown}[]),
+        [messages],
+    )
+
     const approvals = useApprovalDock({messages, respond: handleApprovalResponse})
 
     // Settle a parked client tool (#4920). A widget calls this with the structured reference;
@@ -519,6 +547,24 @@ export const useAgentConversation = ({
         if (status === "streaming") return
         persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
     }, [messages, status, sessionId, persistMessages])
+
+    // One startup label per in-flight turn. `submitted` opens a NEW turn, so a label the previous
+    // one left behind must go; `streaming` is the same turn continuing, so its clock is left alone;
+    // every other status is terminal (answered, errored, stopped) and must not strand a label.
+    useEffect(() => {
+        if (status === "streaming") return
+        clearTurnClock(sessionId)
+    }, [status, sessionId, clearTurnClock])
+
+    // Stamp a first-seen timestamp on any newly-appeared LIVE message (user + assistant) — the
+    // fallback the timestamp uses until the turn's trace arrives. Restored rows are excluded: their
+    // first-seen is the reload moment, not the turn's time, and stamping them makes day-old turns
+    // read "just now" forever.
+    useEffect(() => {
+        stampMessagesCreatedAt(
+            messages.filter((m) => !restoredIdsRef.current.has(m.id)).map((m) => m.id),
+        )
+    }, [messages, stampMessagesCreatedAt])
 
     // Bound the in-message expand-state store: on settle, drop entries whose owning message is
     // gone (rewound / evicted / closed). Live = every persisted session's messages ∪ this active
@@ -623,8 +669,14 @@ export const useAgentConversation = ({
     // recreated hook-side so the identity JSON.stringify doesn't re-run per streamed token.
     const [executedFor] = useState(() => createExecutedToolIdentityCache())
     const turns = useMemo(
-        () => buildTurnViewModels(messages, {busy, executedFor, isClientToolPart}),
-        [messages, busy, executedFor, isClientToolPart],
+        () =>
+            buildTurnViewModels(messages, {
+                busy,
+                executedFor,
+                isClientToolPart: (part, ctx) =>
+                    (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
+            }),
+        [messages, busy, executedFor, isClientToolPart, renderMap],
     )
 
     const parsedError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
@@ -644,6 +696,7 @@ export const useAgentConversation = ({
         historyUnavailable,
         stopped,
         queued,
+        hitlPending,
         removeQueued,
         clearQueue,
         approvals,

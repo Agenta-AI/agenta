@@ -12,6 +12,7 @@
  * `transcriptBuilderParity.test.ts`; this file reuses its golden set.
  */
 import {transcriptToMessages} from "@agenta/chat/assets"
+import {clientToolMeta, isClientToolPart} from "@agenta/chat/clientTools"
 import {getPendingApprovals} from "@agenta/chat/model"
 import {partToolName} from "@agenta/chat/model"
 import {canonicalToolName} from "@agenta/chat/skin"
@@ -24,8 +25,6 @@ import {
 import {parseElicitationPayload} from "@agenta/shared/utils"
 import type {ToolUIPart, UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
-
-import {clientToolMeta, isClientToolPart} from "../components/clientTools/meta"
 
 type AnyPart = Record<string, unknown>
 

@@ -1,15 +1,21 @@
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
+import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
+import {StartupActivity, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
+import {useStartupPhase} from "@agenta/chat/state"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
+import {buildRenderMap} from "@agenta/playground"
+import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
     ChatActionIconButton,
     ChatBubble,
     ChatBubbleAvatar,
-    ExecutionMetricsDisplay,
+    ChatTypingDots,
     turnRowClass,
+    turnToolbarClass,
     turnToolbarRevealClass,
 } from "@agenta/ui/components/presentational"
 import {useSetAtom} from "jotai"
@@ -23,6 +29,7 @@ import {
     CircleDashed,
     Copy,
     Network,
+    Undo2,
     User,
     Wrench,
     XCircle,
@@ -155,15 +162,64 @@ const RunErrorCallout = ({text}: {text: string}) => {
 }
 
 /**
+ * The started-but-empty assistant turn: what the agent is DOING, in words, beside its avatar.
+ *
+ * The indicator belongs to the turn, not to the transcript. /m rendered it as a status line after
+ * the whole list, so on a tall pane it floated far below the avatar it belonged to, detached from
+ * anything. And it was wordless — the runner narrates its startup (#6047) so a cold boot reads as
+ * progress rather than a stall, and /m dropped that narration entirely.
+ */
+const PendingTurn = ({sessionId}: {sessionId: string}) => {
+    const startupPhase = useStartupPhase(sessionId)
+    return (
+        <div className={`${turnRowClass} justify-start`}>
+            <ChatBubble
+                placement="start"
+                variant="borderless"
+                avatar={<ChatBubbleAvatar icon={<Bot className="size-4" />} />}
+                className="min-w-0 max-w-[85%]"
+                content={
+                    startupPhase ? <StartupActivity label={startupPhase} /> : <ChatTypingDots />
+                }
+            />
+        </div>
+    )
+}
+
+/**
  * One transcript turn on the shared bubble chrome — the mobile face of the desktop
  * AgentMessage: user turns as filled bubbles hugging the right, assistant turns flush on the
  * canvas, both with the 24px icon avatar; reasoning folds, tool lines with status glyphs, and
  * the red run-failure callout.
  */
-export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
+export const TurnRow = ({
+    turn,
+    onClientToolOutput,
+    onRewind,
+    sessionId,
+}: {
+    turn: TurnViewModel
+    /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
+     * the read-only transcript screen has no engine to settle into — and it passes no client-tool
+     * predicate either, so it never produces one of these items to begin with. */
+    onClientToolOutput?: ClientToolOutputHandler
+    /** Re-run the conversation from this turn. Absent on the read-only transcript screen. */
+    onRewind?: (turn: TurnViewModel) => void
+    /** Scopes the startup narration to this conversation. */
+    sessionId: string
+}) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const [copied, setCopied] = useState(false)
     const traceId = getMessageTraceId(turn.message)
+    // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
+    const renderMap = useMemo(
+        () => buildRenderMap(turn.message.parts as {type?: string; data?: unknown}[]),
+        [turn.message.parts],
+    )
+    // The elicitation retry cap: did an elicitation already degrade earlier this turn?
+    const degradedEarlierInTurn = hasPriorElicitationDegradation(
+        turn.message.parts as {state?: string; errorText?: string}[],
+    )
     const usage = getMessageUsage(turn.message)
 
     // The turn's text, which is what a reader wants on the clipboard — not its tool rows.
@@ -181,6 +237,12 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
         } catch {
             // Clipboard denied (insecure origin, or the user said no) — nothing to recover.
         }
+    }
+
+    // Only the turn being generated shows the loading state, and only until it has content —
+    // the same gate the desktop uses.
+    if (!turn.isUser && turn.isStreamingTurn && !turn.status.hasContent) {
+        return <PendingTurn sessionId={sessionId} />
     }
 
     const body = (
@@ -225,7 +287,17 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
                 if (item.kind === "tools") {
                     return <ToolLines key={item.index} item={item} />
                 }
-                // clientTool never occurs — the predicate defaults to false on mobile.
+                if (item.kind === "clientTool" && onClientToolOutput) {
+                    return (
+                        <ClientToolPart
+                            key={`clienttool-${item.part.toolCallId || item.index}`}
+                            part={item.part}
+                            onOutput={onClientToolOutput}
+                            renderMap={renderMap}
+                            degradedEarlierInTurn={degradedEarlierInTurn}
+                        />
+                    )
+                }
                 return null
             })}
             {turn.status.showError ? (
@@ -257,16 +329,34 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => {
                 lane the desktop transcript reserves, so a settled turn reads quietly until you
                 reach for it. */}
             <div
-                className={`${turnToolbarRevealClass} absolute bottom-1 flex items-center gap-1 ${
-                    turn.isUser ? "right-10" : "left-10"
+                className={`${turnToolbarClass} ${turnToolbarRevealClass} ${
+                    turn.isUser ? "right-2" : "left-10"
                 }`}
             >
-                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
+                <TurnTimestamp
+                    messageId={turn.message.id}
+                    traceId={traceId}
+                    turnTraceId={turn.turnTraceId}
+                />
+                <TurnMetrics traceId={traceId} usage={usage} />
                 <ChatActionIconButton
                     label={copied ? "Copied" : "Copy"}
                     icon={copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                     onClick={handleCopy}
                 />
+                {/* Rewinding the LAST turn just re-runs the turn that is already current, so the
+                    desktop hides it there and so do we. */}
+                {onRewind && !turn.isLast ? (
+                    <ChatActionIconButton
+                        label={
+                            turn.isUser
+                                ? "Rewind here — edit and re-run the conversation from this message"
+                                : "Rewind here — re-run this turn"
+                        }
+                        icon={<Undo2 className="size-3.5" />}
+                        onClick={() => onRewind(turn)}
+                    />
+                ) : null}
                 {traceId ? (
                     <ChatActionIconButton
                         label="View trace"

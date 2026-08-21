@@ -116,7 +116,9 @@ export {
     useToolExecution,
     useToolIntegrationConnections,
     useToolIntegrationDetail,
+    useToolsConnections,
 } from "./hooks"
+export type {CreateConnectionInput} from "./hooks"
 
 // ---------------------------------------------------------------------------
 // PROMPT — cross-entity bridge (workflow-aware tool removal)

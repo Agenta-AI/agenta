@@ -42,7 +42,9 @@ export function formatSsoLabel(slug: string, thirdPartyId: string): string {
  */
 const ssoDiscoverySchema = z.object({
     methods: z
-        .object({
+        .looseObject({
+            "email:password": z.boolean().nullish(),
+            "email:otp": z.boolean().nullish(),
             sso: z
                 .object({
                     providers: z
@@ -77,24 +79,81 @@ export function parseDiscoveredSso(payload: unknown): DiscoveredSsoProvider[] {
     })
 }
 
-export type SsoDiscoveryResult =
-    | {kind: "ok"; providers: DiscoveredSsoProvider[]}
-    | {kind: "failed"; message: string}
+/** Everything `/auth/discover` says about one email address. */
+export interface DiscoveredMethods {
+    emailPassword: boolean
+    emailOtp: boolean
+    /** Configured social providers the backend accepts for this email, by SuperTokens id. */
+    social: string[]
+    sso: DiscoveredSsoProvider[]
+}
 
-/** Ask the backend which org SSO connections accept `email`. */
-export async function discoverSsoProviders(email: string): Promise<SsoDiscoveryResult> {
+export type MethodDiscoveryResult =
+    | {kind: "ok"; methods: DiscoveredMethods}
+    | {kind: "failed"; error: unknown}
+    | {kind: "aborted"}
+
+/** Read the `social:<id>: true` keys the backend returns alongside the email flags. */
+function parseSocialIds(methods: Record<string, unknown>): string[] {
+    return Object.keys(methods)
+        .filter((key) => key.startsWith("social:") && methods[key] === true)
+        .map((key) => key.slice("social:".length))
+}
+
+/** Pull every method out of a /auth/discover payload. */
+export function parseDiscoveredMethods(payload: unknown): DiscoveredMethods {
+    const parsed = parseWithLogging(ssoDiscoverySchema, payload, "[discoverAuthMethods]")
+    const methods = parsed?.methods
+    return {
+        emailPassword: methods?.["email:password"] === true,
+        emailOtp: methods?.["email:otp"] === true,
+        social: methods ? parseSocialIds(methods as Record<string, unknown>) : [],
+        sso: parseDiscoveredSso(payload),
+    }
+}
+
+/**
+ * Ask the backend which methods accept `email`.
+ *
+ * Aborting is a first-class outcome, not an error: the sign-in page cancels an in-flight probe
+ * whenever the user edits the address, and reporting that as a failure would flash an error the
+ * user never caused.
+ */
+export async function discoverAuthMethods(
+    email: string,
+    signal?: AbortSignal,
+): Promise<MethodDiscoveryResult> {
     try {
         const response = await fetch(`${authApiUrl()}/auth/discover`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             credentials: "include",
             body: JSON.stringify({email}),
+            signal,
         })
-        // 404 on OSS (the endpoint is EE-only) reads as "no SSO", not an error.
-        if (response.status === 404) return {kind: "ok", providers: []}
-        if (!response.ok) return {kind: "failed", message: "Could not check SSO. Try again."}
-        return {kind: "ok", providers: parseDiscoveredSso(await response.json())}
-    } catch {
-        return {kind: "failed", message: "Could not check SSO. Try again."}
+        // 404 on OSS (the endpoint is EE-only) reads as "nothing extra to offer", not an error.
+        if (response.status === 404) {
+            return {
+                kind: "ok",
+                methods: {emailPassword: false, emailOtp: false, social: [], sso: []},
+            }
+        }
+        if (!response.ok) return {kind: "failed", error: new Error(`discover ${response.status}`)}
+        return {kind: "ok", methods: parseDiscoveredMethods(await response.json())}
+    } catch (error) {
+        if (isAbort(error)) return {kind: "aborted"}
+        return {kind: "failed", error}
     }
+}
+
+/** Abort surfaces under three different names across fetch, axios and the DOM. */
+export function isAbort(error: unknown): boolean {
+    if (typeof error !== "object" || error === null) return false
+    const {name, code, message} = error as {name?: string; code?: string; message?: string}
+    return (
+        name === "AbortError" ||
+        name === "CanceledError" ||
+        code === "ERR_CANCELED" ||
+        message === "canceled"
+    )
 }

@@ -85,4 +85,8 @@ export {
 } from "./tools/GatewayToolsSection"
 export {default as IntegrationGrid} from "./tools/IntegrationGrid"
 export {default as IntegrationDetail} from "./tools/IntegrationDetail"
-export {useToolsConnections, type CreateConnectionInput} from "./tools/hooks/useToolsConnections"
+// Re-exported, not owned: the hook moved down to the entity layer so the client-tool connect flow
+// in @agenta/entity-ui can run it without depending on this package (that direction is a cycle —
+// see `web/packages/agenta-shared/tests/unit/workspaceGraph.test.ts`). Kept here so this package's
+// public API is unchanged for existing importers.
+export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/gatewayTool"

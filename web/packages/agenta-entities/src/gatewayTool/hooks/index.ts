@@ -32,3 +32,4 @@ export {
     useToolIntegrationDetail,
 } from "./useToolIntegrationDetail"
 export {buildToolSlug, useToolExecution} from "./useToolExecution"
+export {useToolsConnections, type CreateConnectionInput} from "./useToolsConnections"

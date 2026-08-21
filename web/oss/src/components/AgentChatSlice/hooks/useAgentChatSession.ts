@@ -1,7 +1,13 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {getMessageTraceId} from "@agenta/chat/assets"
+import {getMessageTraceId, startupLabelFromDataPart} from "@agenta/chat/assets"
+import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {ignoreStreamRejection, parseAgentRunError} from "@agenta/chat/model"
+import {
+    clearTurnClockAtom,
+    stampMessagesCreatedAtAtom,
+    startTurnClockAtom,
+} from "@agenta/chat/state"
 import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
 import {
     persistSessionMessagesAtom,
@@ -38,12 +44,8 @@ import {projectIdAtom} from "@/oss/state/project"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
-import {startupLabelFromDataPart} from "../assets/startupPhases"
-import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
-import {stampMessagesCreatedAtAtom} from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
-import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"

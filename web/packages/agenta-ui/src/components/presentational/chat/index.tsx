@@ -6,11 +6,12 @@
  * typing loader.
  * Bodies stay caller-owned ReactNodes; nothing here knows about messages or parts.
  */
-import {type ReactNode} from "react"
+import {useEffect, useRef, type ReactNode} from "react"
 
-import {FileText, FilmStrip, Image as ImageIcon} from "@phosphor-icons/react"
+import {ArrowDown, FileText, FilmStrip, Image as ImageIcon} from "@phosphor-icons/react"
 
 import {cn} from "../../../utils/styles"
+import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 /** The antd-x loading dots: three 4px primary dots on a gentle bounce. */
@@ -120,6 +121,22 @@ export const turnToolbarRevealClass =
     "opacity-0 transition-opacity duration-150 pointer-events-none " +
     "group-hover:opacity-100 group-hover:pointer-events-auto " +
     "focus-within:opacity-100 focus-within:pointer-events-auto"
+
+/**
+ * The toolbar's own chrome: an elevated bordered card, so the revealed row reads as a control
+ * surface rather than as loose text floating over the transcript (and over streamed text it would
+ * otherwise sit transparently on top of). `z-10` puts it above a transcript's bottom fade.
+ *
+ * Combine with `turnToolbarRevealClass` and a side (`left-10` beside an assistant avatar,
+ * `right-2` under a user bubble).
+ */
+export const turnToolbarClass =
+    "absolute bottom-0 z-10 flex items-center gap-1 rounded-md border border-solid " +
+    // The shadow is spelled out rather than `shadow-sm`, because this string is shipped to two apps
+    // on DIFFERENT Tailwind majors: v4 renamed the scale, so `shadow-sm` there is v3's `shadow` and
+    // /m rendered the toolbar with a visibly heavier drop than the desktop. Arbitrary values mean
+    // the same thing in both.
+    "border-colorBorderSecondary bg-colorBgElevated px-1 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]"
 
 /** The turn row the reveal above hangs off. `pb-10` reserves the toolbar's lane so revealing it
  * never reflows the transcript — the scroll engineering is sensitive to hover-driven layout. */
@@ -245,5 +262,56 @@ export const ChatAttachmentCard = ({
                 {description}
             </div>
         </div>
+    )
+}
+
+/**
+ * The "Jump to latest" pill that floats over the foot of a transcript once you have scrolled away
+ * from the newest turn.
+ *
+ * ALWAYS mounted so it can fade and slide rather than pop; the hidden state is non-interactive and
+ * keeps its own `-translate-x-1/2` (Tailwind composes the x and y translate into one transform, so
+ * dropping it while hidden would slide the pill off-centre).
+ *
+ * Solid elevated surface, border and shadow: a transparent pill let streamed text bleed through it.
+ * `z-10` puts it above a transcript's bottom fade — source order alone left the gradient painting
+ * over the pill whenever no turn was hovered to suppress the fade.
+ */
+export const ChatJumpToLatest = ({
+    show,
+    onClick,
+    className,
+}: {
+    show: boolean
+    onClick: () => void
+    className?: string
+}) => {
+    const ref = useRef<HTMLButtonElement>(null)
+    // `tabIndex={-1}` does not drop focus the element already has, so a button hidden while
+    // focused would stay keyboard-reachable while `aria-hidden` — and Enter would still fire it.
+    useEffect(() => {
+        if (show) return
+        const node = ref.current
+        if (node && node === document.activeElement) node.blur()
+    }, [show])
+
+    return (
+        <Button
+            ref={ref}
+            variant="outline"
+            size="sm"
+            onClick={onClick}
+            tabIndex={show ? 0 : -1}
+            aria-hidden={!show}
+            aria-label="Jump to latest message"
+            className={cn(
+                "border-colorBorderSecondary bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md transition-[opacity,transform] duration-200 ease-out",
+                show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
+                className,
+            )}
+        >
+            <ArrowDown size={14} />
+            Jump to latest
+        </Button>
     )
 }

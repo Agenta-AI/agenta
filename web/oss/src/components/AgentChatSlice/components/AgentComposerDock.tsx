@@ -1,11 +1,13 @@
 import {useCallback, useEffect, useRef, type RefObject} from "react"
 
 import {CHAT_COLUMN} from "@agenta/chat/assets"
+import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     ChatComposer,
     MicPermissionNotice,
     RecordingBar,
     RevealCollapse,
+    RunningElsewhereStrip,
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
@@ -37,12 +39,10 @@ import {type useOnboardingChat} from "../hooks/useOnboardingChat"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
-import type {ClientToolOutputHandler} from "./clientTools"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
 import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"
 import QueuedMessages from "./QueuedMessages"
-import RunningElsewhereStrip from "./RunningElsewhereStrip"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
 /**

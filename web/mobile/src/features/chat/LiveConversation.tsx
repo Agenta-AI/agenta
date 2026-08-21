@@ -1,19 +1,21 @@
-import {useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     BOTTOM_FADE_HOVER_HIDE,
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
+import {RunningElsewhereStrip} from "@agenta/chat/components"
 import {useAgentConversation} from "@agenta/chat/hooks"
-import {getPendingApprovals} from "@agenta/chat/model"
+import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
-import {Button} from "@agenta/ui/ui"
+import {modal} from "@agenta/ui/app-message"
+import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
+import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {StatusTag} from "@/components/StatusTag"
 
 import {takePendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
@@ -23,6 +25,7 @@ import {Composer} from "./Composer"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
+import {showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -131,6 +134,37 @@ export const LiveConversation = ({
 
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
 
+    // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
+    // so the warning about tools that already ran, and putting a rewound user message back into
+    // the composer, are this surface's job — same division the desktop uses.
+    const composerRef = useRef<RichChatInputHandle | null>(null)
+    const handleRewind = useCallback(
+        (turn: TurnViewModel) => {
+            const plan = conversation.rewind(turn.message)
+            if (!plan) return
+            const run = () => {
+                plan.confirm()
+                if (plan.restoreText === undefined) return
+                composerRef.current?.setMarkdown(plan.restoreText)
+                requestAnimationFrame(() => composerRef.current?.focus())
+            }
+            if (plan.sideEffects.length === 0) {
+                run()
+                return
+            }
+            modal.confirm({
+                title: "Rewind past a tool that already ran?",
+                content: `${plan.sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
+                okText: "Rewind anyway",
+                okButtonProps: {danger: true},
+                cancelText: "Cancel",
+                centered: true,
+                onOk: run,
+            })
+        },
+        [conversation],
+    )
+
     let body
     if (conversation.isHydrating) {
         body = <ChatLoading />
@@ -153,11 +187,21 @@ export const LiveConversation = ({
                     </div>
                 ) : null}
                 {visibleTurns.map((turn) => (
-                    <TurnRow key={turn.message.id} turn={turn} />
+                    <TurnRow
+                        key={turn.message.id}
+                        turn={turn}
+                        onClientToolOutput={conversation.sendToolOutput}
+                        onRewind={handleRewind}
+                        sessionId={sessionId}
+                    />
                 ))}
+                {/* The working indicator moved into the streaming turn itself, beside its avatar,
+                    where the desktop has always had it — as a line after the whole list it floated
+                    far below the turn it described. It falls back to here for the one case that
+                    turn cannot cover: the request is submitted and no assistant turn exists yet. */}
                 <TurnStatusLine
-                    working={streamingHere || running}
-                    waitingForInput={pendingApprovals.length > 0}
+                    working={showTrailingWorkingPulse(streamingHere, visibleTurns)}
+                    waitingForInput={conversation.hitlPending}
                 />
             </ContentRail>
         )
@@ -167,34 +211,13 @@ export const LiveConversation = ({
         <ScreenScaffold
             scrollRef={autoScroll.ref}
             onScroll={autoScroll.onScroll}
+            scrollOverlay={
+                <ChatJumpToLatest show={autoScroll.showJump} onClick={autoScroll.jumpToLatest} />
+            }
             embedded={embedded}
             // The top edge fades as a MASK, exactly as the desktop transcript does — content
             // dissolves under the tab bar instead of being cut by a hard line.
             scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
-            header={
-                <>
-                    {running || streamingHere ? (
-                        <div className="border-border shrink-0 border-b px-4 py-2">
-                            <ContentRail className="flex items-center justify-between">
-                                <StatusTag tone="running" dot>
-                                    running
-                                </StatusTag>
-                                {streamingHere ? (
-                                    <Button
-                                        variant="outline"
-                                        className="min-h-8"
-                                        onClick={conversation.stop}
-                                    >
-                                        Stop
-                                    </Button>
-                                ) : (
-                                    <StopButton sessionId={sessionId} projectId={projectId} />
-                                )}
-                            </ContentRail>
-                        </div>
-                    ) : null}
-                </>
-            }
             footer={
                 <div className="relative">
                     {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
@@ -206,6 +229,17 @@ export const LiveConversation = ({
                         className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
                         style={BOTTOM_FADE_OVERLAY_STYLE}
                     />
+                    {/* A run this device is not driving. Docked with the other strips above the
+                        composer, as on the desktop — it used to be a top bar that also appeared for
+                        THIS device's own turns, duplicating the composer's Stop and shifting the
+                        transcript twice per run. */}
+                    {running && !streamingHere ? (
+                        <ContentRail>
+                            <RunningElsewhereStrip
+                                action={<StopButton sessionId={sessionId} projectId={projectId} />}
+                            />
+                        </ContentRail>
+                    ) : null}
                     {pendingApprovals.length > 0 ? (
                         <ApprovalDock
                             approvals={pendingApprovals}
@@ -218,9 +252,10 @@ export const LiveConversation = ({
                         sessionId={sessionId}
                         onSend={({text, parts}) => conversation.send({text, parts})}
                         disabled={conversation.isHydrating}
-                        waitingOnUser={pendingApprovals.length > 0}
+                        waitingOnUser={conversation.hitlPending}
                         streaming={streamingHere}
                         onStop={conversation.stop}
+                        inputRef={composerRef}
                     />
                 </div>
             }

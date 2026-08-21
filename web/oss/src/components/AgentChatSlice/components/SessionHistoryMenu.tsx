@@ -2,6 +2,7 @@ import {useState} from "react"
 
 import {sessionMessagesAtom} from "@agenta/chat/state"
 import {killSession} from "@agenta/entities/session"
+import {timeAgo} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {
     Button,
@@ -35,7 +36,6 @@ import {
     firstUserText,
     openSessionAtomFamily,
     sessionHistoryAtomFamily,
-    timeAgo,
     unarchiveSessionAtomFamily,
 } from "../state/sessions"
 

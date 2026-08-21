@@ -5,6 +5,7 @@ import {
     createExecutedToolIdentityCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
+import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -185,7 +186,7 @@ const ReplayScreen = ({
                 {turns
                     .filter((turn) => !turn.hidden)
                     .map((turn) => (
-                        <TurnRow key={turn.message.id} turn={turn} />
+                        <TurnRow key={turn.message.id} turn={turn} sessionId={sessionId} />
                     ))}
                 <TurnStatusLine working={running} waitingForInput={pendingCount > 0} />
             </ContentRail>
@@ -196,6 +197,9 @@ const ReplayScreen = ({
         <ScreenScaffold
             scrollRef={autoScroll.ref}
             onScroll={autoScroll.onScroll}
+            scrollOverlay={
+                <ChatJumpToLatest show={autoScroll.showJump} onClick={autoScroll.jumpToLatest} />
+            }
             embedded={embedded}
             header={
                 <>

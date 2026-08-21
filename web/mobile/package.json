@@ -6,7 +6,7 @@
         "node": "24.x"
     },
     "scripts": {
-        "dev": "next dev --turbopack",
+        "dev": "next dev",
         "build": "next build && cp -r public/. .next/standalone/mobile/public && cp -r .next/static .next/standalone/mobile/.next",
         "start": "next start",
         "lint": "eslint src tests && pnpm run tokens:check",
@@ -49,7 +49,7 @@
         "jotai-tanstack-query": "^0.11.0",
         "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
-        "next": "15.5.18",
+        "next": "16.3.0",
         "radix-ui": "^1.6.2",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
