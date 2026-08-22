@@ -11,6 +11,7 @@
  */
 
 import type {LlmProvider} from "@agenta/shared/types"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 
 import {
     carriedCredentialKeys,
@@ -168,7 +169,8 @@ export const storedCredentialFields = (
 
 /** The probe request body: a credential to spend, or the vault row to spend one from. */
 export interface ProbeRequestBody {
-    kind: string
+    /** Omitted alongside `secret_id`: the stored row names its own kind. */
+    kind?: string
     provider: ReturnType<typeof toProviderCredentials>
     /** Vault row whose stored credentials the server resolves for this probe. */
     secret_id?: string
@@ -203,10 +205,15 @@ const withoutBlanks = (
  * material and the vault holds some, the request names the row (`secret_id`) and the server
  * resolves the credential itself.
  *
- * Typed fields still ride along, and the server lets them override what it resolved, so an edited
- * base URL can be tested against the saved key. Blank fields are dropped rather than sent empty:
- * an empty `key` alongside a `secret_id` would read as "test with no credential", which is a
- * different question and, for an OpenAI-compatible endpoint, a legitimate one.
+ * Typed fields still ride along, and the server overrides the resolved value field by field, so an
+ * edited base URL can be tested against the saved key. Blank fields are dropped rather than sent
+ * empty: an empty `key` alongside a `secret_id` would read as "test with no credential", which is
+ * a different question and, for an OpenAI-compatible endpoint, a legitimate one.
+ *
+ * `kind` is omitted whenever the row is named. The stored kind is authoritative, and the server
+ * rejects (422) a `kind` that disagrees with it unless a key rides along — which is exactly the
+ * request this builds. Sending the card's own kind would put the FE's canonical spelling in a
+ * position to contradict the vault's over nothing.
  */
 export const probeRequestFor = (
     kind: string,
@@ -218,7 +225,33 @@ export const probeRequestFor = (
     if (typedSecret || !connection?.hasStoredCredential || !connection.id) {
         return {kind, provider}
     }
-    return {kind, provider: withoutBlanks(provider), secret_id: connection.id}
+    return {provider: withoutBlanks(provider), secret_id: connection.id}
+}
+
+/** The HTTP status of a failed request, when it carried one. */
+const statusOf = (error: unknown): number | null => {
+    const response = (error as {response?: {status?: unknown}})?.response
+    return typeof response?.status === "number" ? response.status : null
+}
+
+/**
+ * Why a Test never produced a verdict.
+ *
+ * A probe OUTCOME is an HTTP 200 with a status inside, so anything that throws here is the request
+ * itself failing. The default reads as "we could not reach the provider", which is true of a
+ * transport failure and false of everything the API rejects on its own — a 404 means the stored
+ * connection is gone, not that the provider is down. So a 4xx speaks with the server's own words
+ * where it gave any, and only a 5xx or a dead connection falls back to the reach-the-provider line.
+ */
+// TODO(copy: owner)
+export const probeFailureMessage = (error: unknown, title: string): string => {
+    const status = statusOf(error)
+    if (status === 404) return "This connection no longer exists. Reload and try again."
+    if (status && status >= 400 && status < 500) {
+        const message = extractApiErrorMessage(error)
+        if (message && message !== String(error)) return message
+    }
+    return `Agenta could not reach ${title} to test this credential.`
 }
 
 /**

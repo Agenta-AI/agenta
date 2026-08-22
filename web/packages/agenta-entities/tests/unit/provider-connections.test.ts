@@ -13,6 +13,7 @@ import {
     hasRequiredCredential,
     modelDisplayOrder,
     nextConnectionName,
+    probeFailureMessage,
     probeRequestFor,
     providerModelCatalog,
     storedCredentialFields,
@@ -773,19 +774,16 @@ describe("probeProvider", () => {
         axiosPost.mockResolvedValueOnce(answer)
         await probeProvider({
             projectId: "proj-1",
-            kind: "custom",
             provider: {url: "https://llm.example.com/v1"},
             secretId: "sec-1",
         })
         expect(axiosPost).toHaveBeenLastCalledWith(
             "https://agenta.test/api/providers/probe",
-            {
-                kind: "custom",
-                provider: {url: "https://llm.example.com/v1"},
-                secret_id: "sec-1",
-            },
+            {provider: {url: "https://llm.example.com/v1"}, secret_id: "sec-1"},
             {params: {project_id: "proj-1"}},
         )
+        // Absent, not empty: the stored row names its own kind, and a disagreeing one is a 422.
+        expect(axiosPost.mock.lastCall?.[1]).not.toHaveProperty("kind")
 
         // Absent, not null: the server reads a present `secret_id` as "resolve the stored row".
         axiosPost.mockResolvedValueOnce(answer)
@@ -941,11 +939,39 @@ describe("Test on a write-only connection: the enable rule and the request shape
         })
     })
 
+    describe("why a Test produced no verdict", () => {
+        // A probe OUTCOME is a 200 with a status inside, so anything that throws is the request
+        // failing — and "could not reach the provider" is false for everything the API rejects
+        // on its own.
+        const httpError = (status: number, detail?: string) => ({
+            response: {status, data: detail ? {detail} : undefined},
+        })
+
+        it("says the connection is gone on a 404, not that the provider is unreachable", () => {
+            expect(probeFailureMessage(httpError(404), "OpenAI")).toContain("no longer exists")
+        })
+
+        it("speaks the server's own words for a 4xx that carried a message", () => {
+            expect(probeFailureMessage(httpError(422, "Stored key is for another provider."))).toBe(
+                "Stored key is for another provider.",
+            )
+        })
+
+        it("falls back to the reach-the-provider line for a transport failure or a 5xx", () => {
+            expect(probeFailureMessage(new Error("network down"), "OpenAI")).toBe(
+                "Agenta could not reach OpenAI to test this credential.",
+            )
+            expect(probeFailureMessage(httpError(500), "OpenAI")).toBe(
+                "Agenta could not reach OpenAI to test this credential.",
+            )
+        })
+    })
+
     describe("the request shape", () => {
         it("names the stored row instead of sending an empty credential", () => {
             const request = probeRequestFor("openai", {apiKey: ""}, stored())
 
-            expect(request).toEqual({kind: "openai", provider: {}, secret_id: "sec-1"})
+            expect(request).toEqual({provider: {}, secret_id: "sec-1"})
         })
 
         it("sends typed non-secret fields alongside the stored row, for the server to override", () => {
@@ -956,10 +982,19 @@ describe("Test on a write-only connection: the enable rule and the request shape
             )
 
             expect(request).toEqual({
-                kind: "custom",
                 provider: {url: "https://edited.example.com/v1"},
                 secret_id: "sec-1",
             })
+        })
+
+        it("omits `kind` whenever it names a row, so it cannot contradict the stored one", () => {
+            // The server rejects (422) a kind that disagrees with the stored one unless a key
+            // rides along — and this request deliberately carries none. The stored kind is
+            // authoritative, so the card's own canonical spelling is simply not sent.
+            expect(probeRequestFor("openai", {apiKey: ""}, stored())).not.toHaveProperty("kind")
+            // Without a row to name, the kind is the only thing that says what to probe.
+            expect(probeRequestFor("openai", {apiKey: "sk-typed"}, stored()).kind).toBe("openai")
+            expect(probeRequestFor("openai", {apiKey: ""}, connection()).kind).toBe("openai")
         })
 
         it("spends the typed credential and names no row once the user types one", () => {
@@ -982,7 +1017,6 @@ describe("Test on a write-only connection: the enable rule and the request shape
             )
 
             expect(request).toEqual({
-                kind: "bedrock",
                 provider: {extras: {aws_region_name: "eu-central-1"}},
                 secret_id: "sec-1",
             })

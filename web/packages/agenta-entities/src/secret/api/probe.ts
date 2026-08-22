@@ -66,13 +66,18 @@ export const probeProvider = async ({
     secretId,
 }: {
     projectId: string
-    kind: string
+    /** Omitted when `secretId` is given: the stored row names its own kind. */
+    kind?: string
     provider: ProbeProviderCredentials
     secretId?: string
 }): Promise<ProbeProviderResponse | null> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}/providers/probe`,
-        {kind, provider, ...(secretId ? {secret_id: secretId} : {})},
+        {
+            ...(kind ? {kind} : {}),
+            provider,
+            ...(secretId ? {secret_id: secretId} : {}),
+        },
         {params: {project_id: projectId}},
     )
 

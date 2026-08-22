@@ -31,6 +31,8 @@ import {
     manualModelPlaceholderForKind,
     modelDisplayOrder,
     probeProviderMutationAtom,
+    probeFailureMessage,
+    probeRequestFor,
     providerModelCatalog,
     providerTitleForKind,
     saveProviderConnectionAtom,
@@ -38,7 +40,6 @@ import {
     secretNoteForKind,
     SecretKind,
     storedCredentialFields,
-    probeRequestFor,
     type CredentialValues,
     type ProbeProviderResponse,
     type ProviderConnection,
@@ -287,9 +288,9 @@ const ProviderConnectionCard = ({
             })
             setProbe(result)
             if (!result) setProbeFailure(`Agenta could not read ${title}'s answer.`)
-        } catch {
+        } catch (error) {
             setProbe(null)
-            setProbeFailure(`Agenta could not reach ${title} to test this credential.`)
+            setProbeFailure(probeFailureMessage(error, title))
         }
     }, [projectId, probeMutation, kind, credential, connection, title])
 
