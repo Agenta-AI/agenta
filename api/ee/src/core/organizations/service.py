@@ -963,6 +963,9 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
     scope_from,
     Gauge,
 )
+from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
+    seed_starter_credits_bridge_safely,
+)
 
 
 _subscription_service = SubscriptionsService(
@@ -999,6 +1002,14 @@ async def provision_signup_subscription(
         key=Gauge.USERS,
         delta=1,
         scope=scope_from(organization_id=organization.id),
+    )
+
+    # Bounded (10s) and swallow-all: a failure degrades to "no starter credits"
+    # and must never raise here — the signup path deletes the new user when
+    # setup fails. Nothing retries a failed seed.
+    await seed_starter_credits_bridge_safely(
+        organization_id=str(organization.id),
+        organization_email=organization_email,
     )
 
 
