@@ -94,11 +94,12 @@ def project_secret_response(
     reveal_write_only: bool,
 ) -> PublicSecretResponseDTO:
     """Build the public response, optionally retaining a write-only value for runtime."""
+    public_data = secret.model_dump(mode="python", exclude={"management"})
+    if secret.management is not None:
+        public_data["management"] = {"policy": secret.management.policy}
+
     projected = PublicSecretResponseDTO.model_validate(
-        {
-            **secret.model_dump(mode="python"),
-            "value_status": _value_status(secret),
-        }
+        {**public_data, "value_status": _value_status(secret)}
     )
 
     if not secret.write_only or reveal_write_only:
