@@ -17,10 +17,6 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     PublicSecretResponseDTO,
 )
-from oss.src.core.secrets.managed import (
-    ManagedByIsServerControlledError,
-    ManagedSecretReadOnlyError,
-)
 from oss.src.core.secrets.redaction import project_secret_response
 
 from oss.src.core.access.permissions.types import Permission
@@ -127,27 +123,8 @@ class VaultRouter:
             reveal_write_only=request_has_grant(request, SECRET_RESOLVE_GRANT),
         )
 
-    @staticmethod
-    def _refuse_client_managed_by(body) -> None:
-        """`managed_by` states that Agenta provisioned the row; a client may not claim it.
-
-        Rejected rather than ignored: a caller that sent it believes the row will be
-        managed (or un-managed), and silently dropping the field would leave it wrong
-        about what the vault now holds.
-        """
-        if body.managed_by is None:
-            return
-
-        error = ManagedByIsServerControlledError()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error.message,
-        )
-
     @intercept_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
-        self._refuse_client_managed_by(body)
-
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -232,8 +209,6 @@ class VaultRouter:
     async def update_secret(
         self, request: Request, secret_id: str, body: UpdateSecretDTO
     ):
-        self._refuse_client_managed_by(body)
-
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -258,12 +233,6 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=e.message
             ) from e
-        except ManagedSecretReadOnlyError as e:
-            # 409, not 400: the payload is well-formed; the stored row's managed state is
-            # what forbids the change.
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=e.message
-            ) from e
         if secrets_dto is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
@@ -285,13 +254,8 @@ class VaultRouter:
                 status_code=403,
             )
 
-        try:
-            await self.service.delete_secret(
-                project_id=UUID(request.state.project_id),
-                secret_id=UUID(secret_id),
-            )
-        except ManagedSecretReadOnlyError as e:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=e.message
-            ) from e
+        await self.service.delete_secret(
+            project_id=UUID(request.state.project_id),
+            secret_id=UUID(secret_id),
+        )
         return status.HTTP_204_NO_CONTENT

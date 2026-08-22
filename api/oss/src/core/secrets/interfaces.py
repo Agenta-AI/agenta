@@ -64,6 +64,5 @@ class SecretsDAOInterface:
         secret_id: UUID,
         project_id: Optional[UUID] = None,
         organization_id: Optional[UUID] = None,
-        authorize_delete: Optional[Callable[[SecretResponseDTO], None]] = None,
     ) -> None:
         raise NotImplementedError

@@ -1,5 +1,4 @@
 from typing import Any, Optional
-from functools import partial
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
@@ -25,11 +24,6 @@ from oss.src.core.secrets.dtos import (
     UpdateSecretPayloadDTO,
     SecretValueRequiredError,
     UpdateSecretDTO,
-)
-
-from oss.src.core.secrets.managed import (
-    ManagedByIsServerControlledError,
-    ManagedSecretReadOnlyError,
 )
 
 
@@ -185,8 +179,6 @@ def _carry_over_saved_extras(*, stored_data: Any, update_data: Any) -> None:
 def _resolve_update(
     stored_secret_dto: SecretResponseDTO,
     requested_update: UpdateSecretDTO,
-    *,
-    allow_managed: bool,
 ) -> UpdateSecretDTO:
     """Fill this update's omitted credential from the row UNDER THE WRITE LOCK.
 
@@ -199,9 +191,6 @@ def _resolve_update(
     another kind's or another provider's credential — and that decision reads the same
     stored row, so it belongs under the same lock.
     """
-    if not allow_managed and stored_secret_dto.managed_by:
-        raise ManagedSecretReadOnlyError(managed_by=stored_secret_dto.managed_by)
-
     resolved_update = requested_update.model_copy(deep=True)
     if resolved_update.secret is None:
         return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
@@ -237,13 +226,6 @@ def _resolve_update(
         _require_explicit_value(secret=resolved_update.secret)
 
     return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
-
-
-def _authorize_delete(
-    stored_secret_dto: SecretResponseDTO, *, allow_managed: bool
-) -> None:
-    if not allow_managed and stored_secret_dto.managed_by:
-        raise ManagedSecretReadOnlyError(managed_by=stored_secret_dto.managed_by)
 
 
 def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
@@ -295,14 +277,6 @@ class VaultService:
                 organization_id=organization_id,
                 create_secret_dto=create_secret_dto,
             )
-
-        # Managed implies write-only, over both the request and the env default: a managed
-        # row's credential is one Agenta provisioned and the organization never supplied,
-        # so there is no state in which handing it back to a user is right. Forced here
-        # because `write_only` is pinned once stored — a readable managed row could never
-        # be tightened afterwards.
-        if create_secret_dto.managed_by:
-            create_secret_dto.write_only = True
 
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
@@ -426,17 +400,7 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
         user_id: UUID | None = None,
-        allow_managed: bool = False,
     ):
-        """Update a secret. `allow_managed` is the in-process owner's key to a managed row.
-
-        It defaults to off so that every caller reached from a user-facing route — today's
-        and tomorrow's — gets the managed guard without opting in. The component that
-        provisioned a managed row passes True to run its own reconcile or teardown.
-        """
-        if not allow_managed and update_secret_dto.managed_by is not None:
-            raise ManagedByIsServerControlledError()
-
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -446,10 +410,7 @@ class VaultService:
                 project_id=project_id,
                 organization_id=organization_id,
                 user_id=user_id,
-                resolve_update=partial(
-                    _resolve_update,
-                    allow_managed=allow_managed,
-                ),
+                resolve_update=_resolve_update,
             )
 
         if project_id is not None:
@@ -461,9 +422,7 @@ class VaultService:
         secret_id: UUID,
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
-        allow_managed: bool = False,
     ) -> None:
-        """Delete a secret. A managed row refuses unless the owner passes `allow_managed`."""
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -471,10 +430,6 @@ class VaultService:
                 secret_id=secret_id,
                 project_id=project_id,
                 organization_id=organization_id,
-                authorize_delete=partial(
-                    _authorize_delete,
-                    allow_managed=allow_managed,
-                ),
             )
 
         if project_id is not None:

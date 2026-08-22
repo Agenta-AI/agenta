@@ -175,25 +175,17 @@ class SecretsDAO(SecretsDAOInterface):
         secret_id: UUID,
         project_id: UUID | None,
         organization_id: UUID | None,
-        authorize_delete: Optional[Callable[[SecretResponseDTO], None]] = None,
     ):
         async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
-            stmt = (
-                select(SecretsDBE)
-                .filter_by(
-                    id=secret_id,
-                    **scope_filter,
-                )
-                .with_for_update()
+            stmt = select(SecretsDBE).filter_by(
+                id=secret_id,
+                **scope_filter,
             )
             result = await session.execute(stmt)  # type: ignore
             vault_secret_dbe = result.scalar()
             if vault_secret_dbe is None:
                 return
-
-            if authorize_delete is not None:
-                authorize_delete(map_secrets_dbe_to_dto(secrets_dbe=vault_secret_dbe))
 
             await session.delete(vault_secret_dbe)
             await session.commit()
