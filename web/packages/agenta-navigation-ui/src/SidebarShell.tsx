@@ -102,6 +102,23 @@ const findAncestorKeys = (items: SidebarConfig[], selectedKey?: string) => {
     return visit(items, []) ?? []
 }
 
+/** Groups that render no collapse control — their key must stay in the open set, or a gated
+ * dynamic source would never subscribe and the group would sit empty with no way to expand it. */
+const findAlwaysOpenKeys = (items: SidebarConfig[]) => {
+    const keys: string[] = []
+
+    const visit = (nodes: SidebarConfig[]) => {
+        nodes.forEach((item) => {
+            if (!item.submenu?.length) return
+            if (item.alwaysOpen) keys.push(item.key)
+            visit(item.submenu)
+        })
+    }
+
+    visit(items)
+    return keys
+}
+
 const findDefaultOpenKeys = (items: SidebarConfig[]) => {
     const keys: string[] = []
 
@@ -178,6 +195,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
 
     const selectedKeys = useMemo(() => (selectedKey ? [selectedKey] : []), [selectedKey])
     const defaultOpenKeys = useMemo(() => findDefaultOpenKeys(allItems), [allItems])
+    const alwaysOpenKeys = useMemo(() => findAlwaysOpenKeys(allItems), [allItems])
     const activeAncestorKeys = useMemo(
         () =>
             selection.mode === "controlled"
@@ -187,8 +205,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     )
     const persistedOrDefaultOpenGroups = persistedOpenGroups ?? defaultOpenKeys
     const openKeys = useMemo(
-        () => uniqueKeys(persistedOrDefaultOpenGroups),
-        [persistedOrDefaultOpenGroups],
+        () => uniqueKeys([...persistedOrDefaultOpenGroups, ...alwaysOpenKeys]),
+        [alwaysOpenKeys, persistedOrDefaultOpenGroups],
     )
 
     // A `defaultOpen` group renders expanded off `defaultOpenKeys` alone, but the gated entity

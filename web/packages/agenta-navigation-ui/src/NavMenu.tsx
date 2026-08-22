@@ -131,7 +131,7 @@ const RowLabel = ({
                 {content}
             </span>
         )
-    return (
+    const label = (
         <Link
             className={LINK_CLASS}
             data-tour={item.dataTour}
@@ -143,14 +143,48 @@ const RowLabel = ({
             {content}
         </Link>
     )
+    // Per-row chrome (a kebab, a right-click menu) owns its own hooks — this only mounts it.
+    return item.wrapRow ? item.wrapRow(label) : label
 }
 
-/** A group heading inside a submenu — a label over the rows below it, never a row itself. */
-const GroupLabelRow = ({title}: {title: ReactNode}) => (
-    <p className="m-0 mx-auto w-[calc(100%-16px)] px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none">
-        {title}
-    </p>
-)
+/** A group heading inside a submenu — a label over the rows below it, never a row itself.
+ * With `onClick` it folds the rows under it away, and grows a caret to say so. */
+const GroupLabelRow = ({item}: {item: NavItem}) => {
+    const toggle = item.onClick
+    if (!toggle)
+        return (
+            <p className="m-0 mx-auto w-[calc(100%-16px)] px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none">
+                {item.title}
+            </p>
+        )
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={!item.isCollapsed}
+            // Not uppercase, unlike the static heading above: a collapsible heading labels an
+            // ENTITY (an agent), and shouting a proper noun misspells it.
+            className="mx-auto flex w-[calc(100%-16px)] cursor-pointer select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText"
+            onClick={toggle}
+            onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return
+                event.preventDefault()
+                toggle(event as unknown as MouseEvent)
+            }}
+        >
+            <span className="min-w-0 flex-1 truncate">{item.title}</span>
+            <span className="mr-1 flex h-[22px] w-7 shrink-0 items-center justify-center">
+                <CaretRight
+                    size={11}
+                    className={clsx(
+                        "transition-transform duration-200 ease-in-out",
+                        !item.isCollapsed && "rotate-90",
+                    )}
+                />
+            </span>
+        </div>
+    )
+}
 
 const LeafRow = ({
     item,
@@ -172,6 +206,7 @@ const LeafRow = ({
                 ROW_BASE,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
+                item.rowClassName,
                 isControl &&
                     "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
             )}
@@ -283,7 +318,10 @@ const NavMenuImpl = ({
 
     const renderItem = (item: NavItem): ReactNode => {
         const selected = selectedKeys.includes(item.key)
-        const hasChildren = Boolean(item.submenu?.length)
+        // A group that hides its children on the icon rail is a plain link there — no flyout, and
+        // so no popup-open report, which keeps its gated source unsubscribed while collapsed.
+        const hasChildren =
+            Boolean(item.submenu?.length) && !(collapsed && item.hideChildrenWhenCollapsed)
 
         if (collapsed || (!inline && hasChildren)) {
             // Icon rail (or vertical bottom section): leaves get a tooltip, groups a flyout.
@@ -373,33 +411,42 @@ const NavMenuImpl = ({
                             <span className="flex shrink-0 items-center">{item.icon}</span>
                         ) : null}
                         <RowLabel item={item} onItemSelect={onItemSelect} />
-                        <span
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`${open ? "Collapse" : "Expand"} ${item.title}`}
-                            // z-[1] keeps the toggle clickable above the stretched link anchor.
-                            className="relative z-[1] mr-1 flex h-[22px] w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
-                            onClick={(event) => {
-                                event.preventDefault()
-                                event.stopPropagation()
-                                onToggleOpenKey?.(item.key)
-                            }}
-                            onKeyDown={(event) => {
-                                if (event.target !== event.currentTarget) return
-                                if (event.key !== "Enter" && event.key !== " ") return
-                                event.preventDefault()
-                                event.stopPropagation()
-                                onToggleOpenKey?.(item.key)
-                            }}
-                        >
-                            <CaretRight
-                                size={12}
-                                className={clsx(
-                                    "transition-transform duration-200 ease-in-out",
-                                    open && "rotate-90",
-                                )}
-                            />
-                        </span>
+                        {/* z-[1] for the same reason as the caret: the link anchor is stretched
+                            over the whole row, and this has to stay clickable above it. */}
+                        {item.groupAction ? (
+                            <span className="relative z-[1] flex shrink-0 items-center">
+                                {item.groupAction}
+                            </span>
+                        ) : null}
+                        {item.alwaysOpen ? null : (
+                            <span
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`${open ? "Collapse" : "Expand"} ${item.title}`}
+                                // z-[1] keeps the toggle clickable above the stretched link anchor.
+                                className="relative z-[1] mr-1 flex h-[22px] w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    onToggleOpenKey?.(item.key)
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.target !== event.currentTarget) return
+                                    if (event.key !== "Enter" && event.key !== " ") return
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    onToggleOpenKey?.(item.key)
+                                }}
+                            >
+                                <CaretRight
+                                    size={12}
+                                    className={clsx(
+                                        "transition-transform duration-200 ease-in-out",
+                                        open && "rotate-90",
+                                    )}
+                                />
+                            </span>
+                        )}
                     </div>
                     <HeightCollapse open={open}>
                         {/* Guide line marks the group's extent, the way the old inline menu did. */}
@@ -412,7 +459,7 @@ const NavMenuImpl = ({
         }
 
         if (item.isGroupLabel) {
-            return <GroupLabelRow key={item.key} title={item.title} />
+            return <GroupLabelRow key={item.key} item={item} />
         }
 
         return (

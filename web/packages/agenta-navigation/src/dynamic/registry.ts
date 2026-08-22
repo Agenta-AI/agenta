@@ -14,7 +14,8 @@ import {atom, getDefaultStore} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 
-import {sidebarSessionsListAtom, type SessionSidebarRef} from "./sessionsSource"
+import {withEntityGroups} from "./groups"
+import {sidebarSessionsListAtomFamily, type SessionSidebarRef} from "./sessionsSource"
 import {gatedSidebarSource} from "./source"
 import type {
     SidebarEntity,
@@ -55,8 +56,20 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     showAllLink: config.showAllPath
         ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,
+    childMatchLinks: config.childMatchPaths
+        ? (ref, projectURL) =>
+              config.childMatchPaths!(ref as TRef).map((path) => `${projectURL}${path}`)
+        : undefined,
     getIcon: config.getIcon ? (ref) => config.getIcon!(ref as TRef) : undefined,
+    getTooltip: config.getTooltip ? (ref) => config.getTooltip!(ref as TRef) : undefined,
+    getRowClassName: config.getRowClassName
+        ? (ref) => config.getRowClassName!(ref as TRef)
+        : undefined,
     getOnClick: config.getOnClick ? (ref) => config.getOnClick!(ref as TRef) : undefined,
+    wrapRow: config.wrapRow ? (ref, node) => config.wrapRow!(ref as TRef, node) : undefined,
+    getGroupKey: config.getGroupKey ? (ref) => config.getGroupKey!(ref as TRef) : undefined,
+    groupsAtom: config.groupsAtom,
+    toggleGroupAtom: config.toggleGroupAtom,
 })
 
 // ── Add a new dynamic entity by appending one entry here. Nothing else. ──────
@@ -74,7 +87,7 @@ const ENTITIES: SidebarEntity[] = [
     defineSidebarEntity<SessionSidebarRef>(MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY, {
         kind: "app",
         icon: createElement(ChatsCircleIcon, {size: 14}),
-        listAtom: sidebarSessionsListAtom,
+        listAtom: sidebarSessionsListAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         getLabel: (session) => session.name || "Untitled session",
         // The link navigates to the owning agent; the click hands over WHICH session, since the
         // playground has no way to read that from the route.
@@ -140,7 +153,8 @@ export const SIDEBAR_ENTITIES: Record<string, SidebarEntity> = Object.fromEntrie
 export const sidebarEntitySourcesAtom = atom((get) => {
     const sources: Record<string, SidebarEntitySource> = {}
     for (const [key, entity] of Object.entries(SIDEBAR_ENTITIES)) {
-        sources[key] = get(entity.activeSourceAtom)
+        const source = get(entity.activeSourceAtom)
+        sources[key] = withEntityGroups(source, entity.groupsAtom && get(entity.groupsAtom))
     }
     return sources
 })

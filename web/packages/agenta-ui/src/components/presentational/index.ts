@@ -290,3 +290,11 @@ export {
     type ChatAttachmentCardProps,
     type ChatBubbleProps,
 } from "./chat"
+
+export {
+    FilterMenu,
+    type FilterMenuProps,
+    type FilterMenuFacet,
+    type FilterMenuToggle,
+    type FilterMenuOption,
+} from "./filter"

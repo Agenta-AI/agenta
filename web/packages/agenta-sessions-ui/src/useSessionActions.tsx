@@ -10,6 +10,14 @@ import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
+import {
+    ArchiveIcon,
+    ArrowSquareOutIcon,
+    PencilSimpleIcon,
+    PushPinIcon,
+    PushPinSlashIcon,
+    TrashIcon,
+} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -60,6 +68,10 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
     const revalidate = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ["sessions-page"]})
         void queryClient.invalidateQueries({queryKey: ["session-list"]})
+        // The sidebar keeps its own narrower window under its own keys; without these an
+        // archive or delete driven from the rail leaves the row sitting there.
+        void queryClient.invalidateQueries({queryKey: ["sidebar-sessions"]})
+        void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-pinned"]})
     }, [queryClient])
 
     const isCached = useCallback(
@@ -71,6 +83,7 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
         (target: SessionActionTarget) => {
             let next = target.name ?? ""
             modal.confirm({
+                centered: true,
                 title: "Rename session",
                 content: (
                     <Input
@@ -127,6 +140,7 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
     const remove = useCallback(
         (target: SessionActionTarget) => {
             modal.confirm({
+                centered: true,
                 title: "Delete session",
                 // Delete is a hard fan-out across turns, streams, interactions and mounts. Say so:
                 // archive sits right next to it in the menu and looks like the same kind of verb.
@@ -162,13 +176,42 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
             options?: {onOpen?: () => void; openLabel?: string},
         ): SessionMenuEntry[] => [
             ...(options?.onOpen
-                ? [{key: "open", label: options.openLabel ?? "Open", disabled: !target.appId}]
+                ? [
+                      {
+                          key: "open",
+                          label: options.openLabel ?? "Open",
+                          icon: <ArrowSquareOutIcon size={14} />,
+                          disabled: !target.appId,
+                      },
+                  ]
                 : []),
-            {key: "rename", label: "Rename"},
-            {key: "pin", label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin"},
-            {type: "divider" as const},
-            {key: "archive", label: target.archived ? "Unarchive" : "Archive"},
-            {key: "delete", label: "Delete", danger: true},
+            // An archived session is out of the way on purpose: renaming or pinning it would put
+            // it back in your face without unarchiving it. Unarchive first, then rename.
+            ...(target.archived
+                ? []
+                : [
+                      {
+                          key: "rename",
+                          label: "Rename",
+                          icon: <PencilSimpleIcon size={14} />,
+                      },
+                      {
+                          key: "pin",
+                          label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin",
+                          icon: pinnedSet.has(target.sessionId) ? (
+                              <PushPinSlashIcon size={14} />
+                          ) : (
+                              <PushPinIcon size={14} />
+                          ),
+                      },
+                      {type: "divider" as const},
+                  ]),
+            {
+                key: "archive",
+                label: target.archived ? "Unarchive" : "Archive",
+                icon: <ArchiveIcon size={14} />,
+            },
+            {key: "delete", label: "Delete", icon: <TrashIcon size={14} />, danger: true},
         ],
         [pinnedSet],
     )

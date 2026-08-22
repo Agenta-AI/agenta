@@ -161,6 +161,11 @@ const SessionRowImpl = ({
                                             onMenuSelect?.(entry.key)
                                         }}
                                     >
+                                        {entry.icon ? (
+                                            <span className="flex shrink-0 items-center">
+                                                {entry.icon}
+                                            </span>
+                                        ) : null}
                                         {entry.label}
                                     </DropdownMenuItem>
                                 ),

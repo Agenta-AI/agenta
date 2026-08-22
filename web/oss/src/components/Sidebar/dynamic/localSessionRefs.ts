@@ -39,6 +39,7 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
             sessionId: session.id,
             name: session.title?.trim() || null,
             appId: scope,
+            agentId: scope,
             pinned: pinned.includes(session.id),
             alive: false,
             running: isLive(session.id),

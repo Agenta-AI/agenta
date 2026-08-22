@@ -23,14 +23,29 @@ export interface SidebarConfig {
     isDynamic?: boolean
     isLoading?: boolean
     isPlaceholder?: boolean
-    /** A heading over the items below it, not a row: no icon, no hover, no click target. */
+    /** A heading over the items below it, not a row: no icon, no hover, no click target.
+     * A heading that also carries `onClick` is collapsible and draws a caret. */
     isGroupLabel?: boolean
+    /** Collapsible heading only: whether its rows are folded away. Drives the caret. */
+    isCollapsed?: boolean
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */
     matchLinks?: string[]
     /** Wraps the row's label with per-row chrome (kebab / right-click menu). Skipped when collapsed. */
     wrapRow?: (node: ReactNode) => ReactElement
+    /** Extra classes on the row itself — for state the label cannot carry, e.g. an archived
+     * session rendering faded. Opt-in: a row that sets none renders exactly as before. */
+    rowClassName?: string
+    /** A group with no collapse control: it renders no caret and stays expanded. Its own row
+     * chrome (a filter, say) is the affordance instead. Also keeps its key in the shell's open
+     * set, so a gated dynamic source stays subscribed. */
+    alwaysOpen?: boolean
+    /** Rendered beside a group's expand caret — a filter control, say. Interactive, so it sits
+     * outside the row's stretched link anchor. Groups only; hidden when the rail is collapsed. */
+    groupAction?: ReactNode
+    /** Collapsed rail: render this group as a plain icon link instead of a children flyout. */
+    hideChildrenWhenCollapsed?: boolean
     /** Workflow categories that support this item. Omit to support every category. */
     workflowCategories?: readonly SidebarWorkflowCategory[]
 }
