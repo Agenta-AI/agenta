@@ -58,9 +58,9 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
-import { conciseError } from "./errors.ts";
+import { classifyRunError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
-import { findSwallowedPiError } from "./pi-error.ts";
+import { findSwallowedPiError, isOnlyHarnessRetryNotices } from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
 import {
   buildApprovedContentWiring,
@@ -1016,9 +1016,7 @@ export async function runTurn(
         pause.pause();
       }
     } else {
-      promptPromise = Promise.resolve(
-        env.session.prompt(promptBlocks),
-      );
+      promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
     }
     // A user Stop aborts `signal`, which severs the harness fetch (rejecting the prompt). We want a
@@ -1141,10 +1139,15 @@ export async function runTurn(
     });
     run.setUsage(usage);
 
+    // A retried turn is empty too. pi-acp streams "Retrying (attempt 1/3, waiting 2s)..." as an
+    // assistant message chunk, so a provider refusal that Pi retries leaves `output()` non-empty
+    // with chatter alone — which used to skip the recovery below and ship that chatter as the
+    // turn's answer. See `isOnlyHarnessRetryNotices`.
+    const visibleOutput = run.output().trim();
     const swallowedPiError =
       plan.isPi &&
       !plan.isDaytona &&
-      !run.output().trim() &&
+      (!visibleOutput || isOnlyHarnessRetryNotices(visibleOutput)) &&
       !run.events().some((e) => e.type === "tool_call")
         ? // The helper derives the transcript location from
           // `piSessionWorkspaceDir(plan.workspace.cwd)`, the same shared helper
@@ -1153,13 +1156,18 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
-      swallowedError = conciseError(
+      const classified = classifyRunError(
         new Error(swallowedPiError),
         plan.harness,
         request.modelConnection?.provider,
       );
+      swallowedError = classified.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
-      run.emitEvent({ type: "error", message: swallowedError });
+      run.emitEvent({
+        type: "error",
+        message: classified.message,
+        code: classified.code,
+      });
     }
 
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
@@ -1226,14 +1234,19 @@ export async function runTurn(
       traceId: run.traceId(),
     } as AgentRunResult;
   } catch (err) {
-    const error = conciseError(
+    const classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
+    const error = classified.message;
     otel?.recordError(error, request.modelConnection?.provider);
-    otel?.emitEvent({ type: "error", message: error });
+    otel?.emitEvent({
+      type: "error",
+      message: error,
+      code: classified.code,
+    });
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);
     // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
