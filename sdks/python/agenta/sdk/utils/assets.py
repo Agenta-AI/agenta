@@ -3,10 +3,20 @@ from typing import Dict, Optional, Tuple
 from litellm import cost_calculator
 
 
+# A model is listed here once its provider still serves it. Ids whose provider has already
+# retired them are removed, because the picker offering a dead model only buys the user a failed
+# call.
+#
+# Cost metadata comes from litellm's table, and litellm 1.92.0 (the version this SDK pins) has no
+# pricing for a handful of the OpenRouter, Together AI, and MiniMax ids below. Gateways add models
+# faster than that table tracks them. Those models route and answer normally; they report a cost of
+# zero until a later litellm ships the numbers. They stay listed because a working model with an
+# unknown price is more useful than a missing one.
 supported_llm_models = {
     "anthropic": [
         "anthropic/claude-fable-5",
         "anthropic/claude-sonnet-5",
+        "anthropic/claude-opus-5",
         "anthropic/claude-opus-4-8",
         "anthropic/claude-opus-4-7",
         "anthropic/claude-opus-4-6",
@@ -14,19 +24,11 @@ supported_llm_models = {
         "anthropic/claude-opus-4-5",
         "anthropic/claude-sonnet-4-5",
         "anthropic/claude-haiku-4-5",
-        "anthropic/claude-opus-4-1-20250805",
-        "anthropic/claude-sonnet-4-20250514",
-        "anthropic/claude-opus-4-20250514",
-        "anthropic/claude-3-7-sonnet-20250219",
-        "anthropic/claude-3-opus-20240229",
-        "anthropic/claude-3-haiku-20240307",
     ],
     "cohere": [
         "cohere/command-a-03-2025",
         "cohere/command-r7b-12-2024",
-        "cohere/command-r-plus",
         "cohere/command-r-plus-08-2024",
-        "cohere/command-r",
         "cohere/command-r-08-2024",
     ],
     "deepinfra": [
@@ -49,38 +51,32 @@ supported_llm_models = {
         "gemini/gemini-pro-latest",
         "gemini/gemini-flash-latest",
         "gemini/gemini-flash-lite-latest",
+        "gemini/gemini-3.7-flash",
+        "gemini/gemini-3.6-flash",
+        "gemini/gemini-3.5-flash",
+        "gemini/gemini-3.5-flash-lite",
         "gemini/gemini-3.1-pro-preview",
-        "gemini/gemini-3.1-flash-lite-preview",
-        "gemini/gemini-3-pro-preview",
+        "gemini/gemini-3.1-flash-lite",
         "gemini/gemini-3-flash-preview",
         "gemini/gemini-2.5-pro",
         "gemini/gemini-2.5-flash",
-        "gemini/gemini-2.5-flash-preview-09-2025",
         "gemini/gemini-2.5-flash-lite",
-        "gemini/gemini-2.5-flash-lite-preview-09-2025",
-        "gemini/gemini-2.0-flash",
-        "gemini/gemini-2.0-flash-001",
-        "gemini/gemini-2.0-flash-lite",
-        "gemini/gemini-1.5-flash",
     ],
     "groq": [
-        "groq/moonshotai/kimi-k2-instruct-0905",
-        "groq/meta-llama/llama-4-maverick-17b-128e-instruct",
-        "groq/meta-llama/llama-4-scout-17b-16e-instruct",
-        "groq/llama-3.3-70b-versatile",
-        "groq/llama-3.1-8b-instant",
         "groq/openai/gpt-oss-120b",
         "groq/openai/gpt-oss-20b",
-        "groq/qwen/qwen3-32b",
+        "groq/qwen/qwen3.6-27b",
     ],
     "mistral": [
         "mistral/mistral-large-latest",
         "mistral/mistral-medium-latest",
         "mistral/mistral-small-latest",
         "mistral/mistral-large-3",
+        "mistral/mistral-medium-3-5",
         "mistral/mistral-medium",
         "mistral/mistral-small",
         "mistral/mistral-tiny",
+        "mistral/ministral-8b-latest",
         "mistral/magistral-medium-latest",
         "mistral/magistral-small-latest",
         "mistral/devstral-medium-latest",
@@ -90,26 +86,27 @@ supported_llm_models = {
         "mistral/open-mistral-nemo",
     ],
     "openai": [
+        # The GPT-5.6 family is listed by its concrete tiers only. The bare "gpt-5.6" id is an
+        # umbrella that routes to one of them, so offering it would ask the user to pick a model
+        # and then pick nothing in particular. A guard test pins this (see
+        # test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers).
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
+        "gpt-5.6-cyber",
         "gpt-5.5-pro",
         "gpt-5.5",
         "gpt-5.4-pro",
         "gpt-5.4-mini",
         "gpt-5.4-nano",
         "gpt-5.4",
-        "gpt-5.3-chat-latest",
         "gpt-5.2-pro",
-        "gpt-5.2-chat-latest",
         "gpt-5.2",
-        "gpt-5.1-chat-latest",
         "gpt-5.1",
         "gpt-5-pro",
         "gpt-5-mini",
         "gpt-5-nano",
         "gpt-5-chat",
-        "gpt-5-chat-latest",
         "gpt-5",
         "o4-mini",
         "o3-pro",
@@ -117,15 +114,12 @@ supported_llm_models = {
         "o3-mini",
         "o1-pro",
         "o1",
-        "gpt-5.1-codex",
-        "codex-mini-latest",
         "gpt-4.1-nano",
         "gpt-4.1-mini",
         "gpt-4.1",
         "gpt-4-turbo",
         "gpt-4o-mini",
         "gpt-4o",
-        "chatgpt-4o-latest",
         "gpt-4-1106-preview",
         "gpt-4",
         "gpt-3.5-turbo-1106",
