@@ -426,7 +426,16 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
             const key = sidebarSessionGroupKey(ref)
             if (!labels.has(key)) labels.set(key, ref.groupLabel ?? "Other")
         }
-        const groups: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({key, label}))
+        const groups: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({
+            key,
+            label,
+            // Only the agent buckets name something openable — a date or a status heading has
+            // nowhere to go. `agent:none` is a placeholder, not an agent.
+            path:
+                key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
+                    ? `/agents/${key.slice("agent:".length)}`
+                    : undefined,
+        }))
         const dirty = get(sidebarSessionFiltersDirtyAtomFamily(scopeId))
         return {
             groups,

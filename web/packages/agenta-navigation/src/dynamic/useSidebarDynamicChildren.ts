@@ -20,6 +20,7 @@ const groupedChildren = (
     source: SidebarEntitySource,
     refs: SidebarEntityRef[],
     toRow: (ref: SidebarEntityRef) => SidebarConfig,
+    projectURL: string,
 ): SidebarConfig[] => {
     const rowsByGroup = new Map<string, SidebarEntityRef[]>()
     for (const ref of refs) {
@@ -41,6 +42,7 @@ const groupedChildren = (
             isGroupLabel: true,
             isDynamic: true,
             isCollapsed,
+            link: group.path ? `${projectURL}${group.path}` : undefined,
             onClick: entity.toggleGroupAtom
                 ? () => getDefaultStore().set(entity.toggleGroupAtom!, group.key)
                 : undefined,
@@ -165,7 +167,7 @@ export const resolveChildren = (
 
     const children: SidebarConfig[] =
         entity.getGroupKey && source?.groups?.length
-            ? groupedChildren(entity, source, visibleRefs, toRow)
+            ? groupedChildren(entity, source, visibleRefs, toRow, projectURL)
             : visibleRefs.map(toRow)
 
     if (entity.showAllLink && refs.length > visibleRefs.length) {

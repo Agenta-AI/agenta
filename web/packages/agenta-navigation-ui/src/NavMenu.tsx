@@ -160,14 +160,13 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
                 {item.title}
             </p>
         )
-    return (
-        <div
+    const caret = (
+        <span
             role="button"
             tabIndex={0}
             aria-expanded={!item.isCollapsed}
-            // Not uppercase, unlike the static heading above: a collapsible heading labels an
-            // ENTITY (an agent), and shouting a proper noun misspells it.
-            className="mx-auto flex w-[calc(100%-16px)] cursor-pointer select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText"
+            aria-label={`${item.isCollapsed ? "Expand" : "Collapse"} ${item.title}`}
+            className="mr-1 flex h-[22px] w-7 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-colorFillTertiary hover:text-colorText"
             onClick={toggle}
             onKeyDown={(event) => {
                 if (event.key !== "Enter" && event.key !== " ") return
@@ -175,16 +174,51 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
                 toggle(event as unknown as MouseEvent)
             }}
         >
-            <span className="min-w-0 flex-1 truncate">{item.title}</span>
-            <span className="mr-1 flex h-[22px] w-7 shrink-0 items-center justify-center">
-                <CaretRight
-                    size={11}
-                    className={clsx(
-                        "transition-transform duration-200 ease-in-out",
-                        !item.isCollapsed && "rotate-90",
-                    )}
-                />
-            </span>
+            <CaretRight
+                size={11}
+                className={clsx(
+                    "transition-transform duration-200 ease-in-out",
+                    !item.isCollapsed && "rotate-90",
+                )}
+            />
+        </span>
+    )
+
+    // A heading that NAMES something opens it; the caret beside it still folds the group. Without
+    // a link the whole row toggles, which is what a heading with nowhere to go should do.
+    return (
+        <div
+            // Not uppercase, unlike the static heading above: a collapsible heading labels an
+            // ENTITY (an agent), and shouting a proper noun misspells it.
+            className={clsx(
+                "mx-auto flex w-[calc(100%-16px)] select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary",
+                !item.link && "cursor-pointer hover:text-colorText",
+            )}
+            onClick={item.link ? undefined : toggle}
+            onKeyDown={
+                item.link
+                    ? undefined
+                    : (event) => {
+                          if (event.key !== "Enter" && event.key !== " ") return
+                          event.preventDefault()
+                          toggle(event as unknown as MouseEvent)
+                      }
+            }
+            role={item.link ? undefined : "button"}
+            tabIndex={item.link ? undefined : 0}
+            aria-expanded={item.link ? undefined : !item.isCollapsed}
+        >
+            {item.link ? (
+                <Link
+                    href={item.link}
+                    className="min-w-0 flex-1 truncate !text-inherit no-underline hover:!text-colorText"
+                >
+                    {item.title}
+                </Link>
+            ) : (
+                <span className="min-w-0 flex-1 truncate">{item.title}</span>
+            )}
+            {caret}
         </div>
     )
 }
