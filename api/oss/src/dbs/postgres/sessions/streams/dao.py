@@ -621,7 +621,10 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                 user_id=user_id,
                 header=header,
             )
-            dbe.updated_at = datetime.now(timezone.utc)
+            # `updated_at` is the heartbeat timestamp (see SessionStreamDBE docstring), read by the
+            # frontend as last-activity time for sorting -- a rename must not move it, or an
+            # unrelated/delayed header write (e.g. the fire-and-forget auto-title call) can reorder
+            # the session list ahead of a session with a genuinely more recent message.
             await session.commit()
             await session.refresh(dbe)
         return map_stream_dbe_to_dto(stream_dbe=dbe)
