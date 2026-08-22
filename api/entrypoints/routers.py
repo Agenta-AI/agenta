@@ -955,6 +955,7 @@ secrets = VaultRouter(
 
 providers = ProvidersRouter(
     provider_probe_service=provider_probe_service,
+    vault_service=vault_service,
 )
 
 webhooks = WebhooksRouter(

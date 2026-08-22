@@ -20,12 +20,14 @@ from oss.src.apis.fastapi.providers import router as router_module
 from oss.src.apis.fastapi.providers.models import ProbeProviderRequest
 from oss.src.apis.fastapi.providers.router import ProvidersRouter
 from oss.src.core.providers.dtos import ProviderCredentials
+from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.providers.exceptions import (
     ProviderEndpointNotAllowed,
     ProviderEndpointRequired,
     UnsupportedProviderKind,
 )
 from oss.src.core.providers.service import ProviderProbeService
+from oss.src.core.secrets.managed import SecretManagementDTO, SecretManager
 
 
 CANARY = "sk-CANARY-DO-NOT-LEAK-abc123"
@@ -648,24 +650,76 @@ async def test_probing_logs_the_outcome_and_never_the_credential(monkeypatch, ca
 # --- route wiring ----------------------------------------------------------- #
 
 
-def build_client(monkeypatch, responder, *, permitted: bool = True) -> TestClient:
+PROJECT_ID = uuid4()
+STORED_KEY = "sk-STORED-DO-NOT-LEAK-abc123"
+
+
+class _StubVault:
+    """Holds one secret per (project, id), like the scoped vault read does."""
+
+    def __init__(self):
+        self.records: dict = {}
+
+    def store(self, secret_id, project_id, secret):
+        self.records[(str(project_id), str(secret_id))] = secret
+
+    async def get_secret_by_id(
+        self, *, secret_id, project_id=None, organization_id=None
+    ):
+        return self.records.get((str(project_id), str(secret_id)))
+
+
+def _stored_provider_key(key: str = STORED_KEY, kind: str = "openai"):
+    """A stored provider_key row as the vault hands it to an in-process reader."""
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug=f"{kind}-stored",
+        kind="provider_key",
+        data={"kind": kind, "provider": {"key": key}},
+        header={"name": "Stored"},
+        write_only=True,
+    )
+
+
+def _stored_custom_provider(url: str, key: str = STORED_KEY):
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug="gateway-stored",
+        kind="custom_provider",
+        data={
+            "kind": "custom",
+            "provider": {"key": key, "url": url},
+            "models": [{"slug": "gpt-5.6-luna"}],
+        },
+        header={"name": "Gateway"},
+        write_only=True,
+    )
+
+
+def build_client(
+    monkeypatch, responder, *, permitted: bool = True, vault=None
+) -> TestClient:
     async def _check_action_access(**_kwargs) -> bool:
         return permitted
 
     monkeypatch.setattr(router_module, "check_action_access", _check_action_access)
 
     service, _ = probe_service(responder)
+    vault = vault if vault is not None else _StubVault()
     app = FastAPI()
 
     @app.middleware("http")
     async def _scope(request, call_next):
         request.state.user_id = str(uuid4())
-        request.state.project_id = str(uuid4())
+        request.state.project_id = str(PROJECT_ID)
         return await call_next(request)
 
-    app.include_router(ProvidersRouter(provider_probe_service=service).router)
     app.include_router(
-        ProvidersRouter(provider_probe_service=service).router, prefix="/vault/v1"
+        ProvidersRouter(provider_probe_service=service, vault_service=vault).router
+    )
+    app.include_router(
+        ProvidersRouter(provider_probe_service=service, vault_service=vault).router,
+        prefix="/vault/v1",
     )
     return TestClient(app)
 
@@ -741,4 +795,387 @@ def test_a_malformed_probe_body_does_not_echo_the_credential(monkeypatch):
     )
 
     assert response.status_code == 422
+    assert CANARY not in response.text
+
+
+# --- probing a stored connection --------------------------------------------- #
+
+
+def test_a_stored_key_probes_without_the_caller_sending_one(monkeypatch):
+    # The case this exists for: once a connection is write-only its value never comes
+    # back to the browser, so "Test" had nothing to send and stayed disabled.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_provider_key())
+    client = build_client(
+        monkeypatch, json_response({"data": [{"id": "gpt-5.6-luna"}]}), vault=vault
+    )
+
+    response = client.post(
+        "/providers/probe", json={"secret_id": str(secret_id), "provider": {}}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["credential"]["status"] == "valid"
+    assert body["discovery"]["models"] == ["gpt-5.6-luna"]
+    assert STORED_KEY not in response.text
+
+
+def test_the_stored_key_is_what_reaches_the_provider(monkeypatch):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_provider_key())
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+
+
+def test_a_typed_base_url_overrides_the_stored_one(monkeypatch, public_dns):
+    # Testing an edit before saving it: the card changed the URL, the key is still the
+    # stored one because it was never readable.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(
+        secret_id, PROJECT_ID, _stored_custom_provider(url="https://old.example.com/v1")
+    )
+    recorder = Recorder(json_response({"data": [{"id": "gpt-5.6-luna"}]}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post(
+        "/providers/probe",
+        json={
+            "secret_id": str(secret_id),
+            "provider": {"url": "https://new.example.com/v1"},
+        },
+    )
+
+    assert response.status_code == 200
+    (sent,) = recorder.requests
+    # The egress guard pins the connection to the resolved address and carries the
+    # hostname in the Host header, so that is where the typed URL shows up.
+    assert sent.headers["host"] == "new.example.com"
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+
+
+def test_a_typed_key_overrides_the_stored_one(monkeypatch):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_provider_key())
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    client.post(
+        "/providers/probe",
+        json={"secret_id": str(secret_id), "provider": {"key": CANARY}},
+    )
+
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {CANARY}"
+
+
+def test_a_secret_from_another_project_is_not_found(monkeypatch):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, uuid4(), _stored_provider_key())  # someone else's project
+    client = build_client(monkeypatch, json_response({"data": []}), vault=vault)
+
+    response = client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    assert response.status_code == 404
+    assert STORED_KEY not in response.text
+
+
+def test_an_unknown_secret_is_not_found(monkeypatch):
+    client = build_client(monkeypatch, json_response({"data": []}))
+
+    response = client.post("/providers/probe", json={"secret_id": str(uuid4())})
+
+    assert response.status_code == 404
+
+
+def test_the_stored_key_is_not_lent_to_another_provider(monkeypatch):
+    # A stored credential belongs to the provider it was saved for. Changing the kind
+    # while using it would send one provider's key to another's endpoint.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_provider_key(kind="openai"))
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post(
+        "/providers/probe", json={"secret_id": str(secret_id), "kind": "anthropic"}
+    )
+
+    assert response.status_code == 422
+    assert recorder.requests == []
+    assert STORED_KEY not in response.text
+
+
+def test_a_kind_change_is_allowed_when_the_caller_brings_the_credential(monkeypatch):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_provider_key(kind="openai"))
+    client = build_client(monkeypatch, json_response({"data": []}), vault=vault)
+
+    response = client.post(
+        "/providers/probe",
+        json={
+            "secret_id": str(secret_id),
+            "kind": "anthropic",
+            "provider": {"key": CANARY},
+        },
+    )
+
+    assert response.status_code == 200
+
+
+def test_a_probe_must_name_a_kind_or_a_secret(monkeypatch):
+    client = build_client(monkeypatch, json_response({"data": []}))
+
+    response = client.post("/providers/probe", json={"provider": {"key": CANARY}})
+
+    assert response.status_code == 422
+    assert CANARY not in response.text
+
+
+def test_blank_typed_fields_fall_back_to_the_stored_ones(monkeypatch, public_dns):
+    # The card drops blanks, but a form that submits "" must not be read as "probe with
+    # no URL and no key" — that fails a connection which is actually fine.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(
+        secret_id, PROJECT_ID, _stored_custom_provider(url="https://old.example.com/v1")
+    )
+    recorder = Recorder(json_response({"data": [{"id": "gpt-5.6-luna"}]}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post(
+        "/providers/probe",
+        json={
+            "secret_id": str(secret_id),
+            "provider": {"url": "", "key": "", "version": "", "extras": {}},
+        },
+    )
+
+    assert response.status_code == 200
+    (sent,) = recorder.requests
+    assert sent.headers["host"] == "old.example.com"
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+
+
+def test_an_omitted_provider_object_probes_exactly_what_is_stored(
+    monkeypatch, public_dns
+):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(
+        secret_id, PROJECT_ID, _stored_custom_provider(url="https://old.example.com/v1")
+    )
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    assert response.status_code == 200
+    (sent,) = recorder.requests
+    assert sent.headers["host"] == "old.example.com"
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+
+
+def _stored_bedrock(token: str = STORED_KEY, region: str = "us-east-1"):
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug="bedrock-stored",
+        kind="custom_provider",
+        data={
+            "kind": "bedrock",
+            "provider": {
+                "extras": {
+                    "aws_bearer_token_bedrock": token,
+                    "aws_region_name": region,
+                }
+            },
+            "models": [{"slug": "claude-opus-5"}],
+        },
+        header={"name": "Bedrock"},
+        write_only=True,
+    )
+
+
+def test_typing_one_extra_keeps_the_stored_credential(monkeypatch, public_dns):
+    # The card sends only what the user touched. If extras replaced the stored dict
+    # wholesale, typing a region would drop the credential beside it and the probe would
+    # report a working connection as broken.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_bedrock())
+    recorder = Recorder(json_response({"modelSummaries": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post(
+        "/providers/probe",
+        json={
+            "secret_id": str(secret_id),
+            "provider": {"extras": {"aws_region_name": "eu-central-1"}},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["credential"]["status"] == "valid"
+    (sent,) = recorder.requests
+    # The typed region routed the request; the stored token still authenticated it.
+    assert "eu-central-1" in str(sent.url)
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+
+
+def test_a_typed_extra_overrides_the_stored_one_of_the_same_name(
+    monkeypatch, public_dns
+):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_bedrock())
+    recorder = Recorder(json_response({"modelSummaries": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    client.post(
+        "/providers/probe",
+        json={
+            "secret_id": str(secret_id),
+            "provider": {"extras": {"aws_bearer_token_bedrock": CANARY}},
+        },
+    )
+
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {CANARY}"
+    # The stored region survived: only the named key was replaced.
+    assert "us-east-1" in str(sent.url)
+
+
+def _stored_custom_with_key_in_extras(url: str, key: str = STORED_KEY):
+    """How the connection form actually saves a custom provider: key inside extras."""
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug="gateway-extras",
+        kind="custom_provider",
+        data={
+            "kind": "custom",
+            "provider": {"url": url, "extras": {"api_key": key}},
+            "models": [{"slug": "gpt-5.6-luna"}],
+        },
+        header={"name": "Gateway"},
+        write_only=True,
+    )
+
+
+def test_a_custom_connection_authenticates_with_the_key_stored_in_extras(
+    monkeypatch, public_dns
+):
+    # The connection form writes a custom provider's key to provider.extras.api_key, not
+    # to provider.key. Reading only the latter sent the probe out with no Authorization
+    # header, and against a provider whose catalog is public that reads as a pass.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(
+        secret_id,
+        PROJECT_ID,
+        _stored_custom_with_key_in_extras(url="https://gateway.example.com/v1"),
+    )
+    recorder = Recorder(json_response({"data": [{"id": "gpt-5.6-luna"}]}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    assert response.status_code == 200
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+    # A key that reaches the provider is a key that was tested.
+    assert response.json()["credential"]["status"] == "valid"
+    assert STORED_KEY not in response.text
+
+
+def test_provider_key_still_wins_over_an_extras_key(monkeypatch, public_dns):
+    vault = _StubVault()
+    secret_id = uuid4()
+    secret = _stored_custom_with_key_in_extras(url="https://gateway.example.com/v1")
+    secret.data.provider.key = "sk-STORED-PRIMARY-abc123"
+    vault.store(secret_id, PROJECT_ID, secret)
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == "Bearer sk-STORED-PRIMARY-abc123"
+
+
+def test_a_bedrock_connection_probes_with_its_stored_extras_credential(
+    monkeypatch, public_dns
+):
+    # Bedrock keeps its credential in extras and the adapter reads it from there, so
+    # nothing is typed at all: the whole credential has to survive the merge.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_bedrock())
+    recorder = Recorder(json_response({"modelSummaries": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    assert response.status_code == 200
+    assert response.json()["credential"]["status"] == "valid"
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+    assert "us-east-1" in str(sent.url)
+    assert STORED_KEY not in response.text
+
+
+def test_every_secret_kind_the_classifier_knows_has_a_credential_location():
+    # The probe asks the classifier where a kind keeps its credential. If a kind is ever
+    # added to the vault without an entry there, this probe would silently send nothing.
+    from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
+
+    assert PRIMARY_CREDENTIAL_FIELDS["provider_key"] == ("provider", "key")
+    assert PRIMARY_CREDENTIAL_FIELDS["custom_provider"] == ("provider", "key")
+
+
+@pytest.mark.parametrize("path", ["/providers/probe", "/vault/v1/providers/probe"])
+def test_a_managed_secret_cannot_be_probed_even_with_caller_overrides(
+    monkeypatch, path
+):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(
+        secret_id,
+        PROJECT_ID,
+        _stored_provider_key(),
+    )
+    secret = vault.records[(str(PROJECT_ID), str(secret_id))]
+    secret.management = SecretManagementDTO(
+        manager=SecretManager.STARTER_CREDITS_BRIDGE,
+    )
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post(
+        path,
+        json={
+            "secret_id": str(secret_id),
+            "kind": "custom",
+            "provider": {
+                "key": CANARY,
+                "url": "https://override.example.com/v1",
+                "extras": {"api_key": CANARY, "region": "override"},
+            },
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Managed secrets cannot be probed."}
+    assert recorder.requests == []
+    assert STORED_KEY not in response.text
     assert CANARY not in response.text
