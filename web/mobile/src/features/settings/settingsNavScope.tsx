@@ -72,7 +72,6 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                     key: "bottom",
                     items: bottomItems,
                     placement: "bottom",
-                    dividerBefore: true,
                     mode: "vertical",
                 },
             ],

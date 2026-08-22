@@ -46,6 +46,10 @@ export interface SidebarConfig {
     groupAction?: ReactNode
     /** Collapsed rail: render this group as a plain icon link instead of a children flyout. */
     hideChildrenWhenCollapsed?: boolean
+    /** This group's ROWS scroll, not the whole rail: the group shrinks to the space left over
+     * and scrolls inside itself, so the entries after it stay on screen however long it grows.
+     * Opt-in — a rail with no such group keeps scrolling as a whole. */
+    scrollChildren?: boolean
     /** Workflow categories that support this item. Omit to support every category. */
     workflowCategories?: readonly SidebarWorkflowCategory[]
 }

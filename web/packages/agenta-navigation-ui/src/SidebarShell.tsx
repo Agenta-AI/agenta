@@ -10,6 +10,7 @@ import {
     type SidebarShellProps,
     useSidebarResize,
 } from "@agenta/navigation"
+import clsx from "clsx"
 import {useAtom, useSetAtom} from "jotai"
 
 import {NavMenu} from "./NavMenu"
@@ -284,6 +285,11 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const topSections = visibleSections.filter((section) => section.placement !== "bottom")
     const bottomSections = visibleSections.filter((section) => section.placement === "bottom")
 
+    // Derived, not a second flag to keep in step with the group that sets it.
+    const scrollsWithinAGroup = topSections.some((section) =>
+        section.items.some((item) => item.scrollChildren),
+    )
+
     // Navigation notifies the host (the drawer closes itself); expand toggles and group
     // headers must not — hence the anchor check rather than a blanket click handler.
     const handleFrameClick = onNavigate
@@ -322,7 +328,17 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     {renderSlot(scope.header, collapsed, scope.lastPath)}
                     <SidebarErrorBoundary>
                         <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
-                            <div className="flex-1 min-h-0 w-full overflow-y-auto">
+                            <div
+                                className={clsx(
+                                    "w-full min-h-0 flex-1",
+                                    // A group that scrolls its own rows owns the scrolling: the
+                                    // rail must NOT scroll too, or the entries after that group
+                                    // still leave the screen. Every other scope is unchanged.
+                                    scrollsWithinAGroup
+                                        ? "flex flex-col overflow-hidden"
+                                        : "overflow-y-auto",
+                                )}
+                            >
                                 {topSections.map(renderSection)}
                             </div>
                             <div className="w-full flex flex-col shrink-0">

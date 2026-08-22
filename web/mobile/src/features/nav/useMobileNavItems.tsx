@@ -4,7 +4,6 @@ import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
-    buildInviteTeammateNavItem,
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
@@ -32,7 +31,6 @@ import {
     House,
     MessagesSquare,
     ScrollText,
-    Send,
     Settings,
     Slack,
 } from "lucide-react"
@@ -140,6 +138,9 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // No collapse caret here: the filter control is this group's affordance, and the
                 // rows are grouped and individually collapsible already.
                 alwaysOpen: true,
+                // The rail does not scroll; THIS group does. Sessions is the only list that grows
+                // without bound, so Observability (and whatever lands after it) stays on screen.
+                scrollChildren: true,
                 groupAction: createElement(SessionFilterMenu, {
                     scopeId: MOBILE_NAV_SCOPE_ID,
                 }),
@@ -165,9 +166,9 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
 
 /**
  * The pinned bottom entries — the desktop rail's, minus what has no mobile destination.
- * Settings is a placeholder screen until its surfaces land; Help & Docs and Invite Teammate are
- * the SHARED entries, so both apps point at the same destinations. Invite was omitted here while
- * this app had no workspace settings tab to deep-link into; it has one now.
+ * Settings is a placeholder screen until its surfaces land; Help & Docs is the SHARED entry, so
+ * both apps point at the same destinations. Invite Teammate is desktop-only: inviting is
+ * workspace administration, not something this app is for.
  */
 // Lazy-load package.json so its version stays out of the initial bundle — same as the desktop.
 // `unwrap` yields undefined until the import settles, which is all the suffix below needs.
@@ -192,10 +193,6 @@ export const useMobileBottomNavItems = (
                       },
                   ]
                 : []),
-            buildInviteTeammateNavItem({
-                projectURL,
-                icon: createElement(Send, {size: 16}),
-            }),
             buildHelpDocsNavItem({
                 icons: {
                     help: createElement(HelpCircle, {size: 16}),

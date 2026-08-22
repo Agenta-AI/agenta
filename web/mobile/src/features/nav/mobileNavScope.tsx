@@ -32,7 +32,6 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
                     key: "bottom",
                     items: bottomItems,
                     placement: "bottom",
-                    dividerBefore: true,
                     mode: "vertical",
                 },
             ],

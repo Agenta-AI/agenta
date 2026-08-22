@@ -55,6 +55,9 @@ const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillQuatern
 const ROW_SELECTED =
     "bg-[var(--ag-shell-selected-bg)] font-medium !text-[var(--ag-shell-selected-text)] shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]"
 const ROW_DISABLED = "cursor-default text-colorTextQuaternary"
+// Guide line marks the group's extent, the way the old inline menu did.
+const GROUP_CHILDREN =
+    "ml-[22px] flex flex-col border-0 border-l border-solid border-colorBorderSecondary pl-1"
 // Stretches the anchor over the whole row so middle-click / ctrl+click work anywhere on it.
 const LINK_CLASS =
     "!text-inherit no-underline before:absolute before:inset-0 before:content-[''] min-w-0 flex-1 truncate"
@@ -448,12 +451,22 @@ const NavMenuImpl = ({
                             </span>
                         )}
                     </div>
-                    <HeightCollapse open={open}>
-                        {/* Guide line marks the group's extent, the way the old inline menu did. */}
-                        <div className="ml-[22px] flex flex-col border-0 border-l border-solid border-colorBorderSecondary pl-1">
+                    {item.scrollChildren ? (
+                        // Its own scroll box, outside HeightCollapse: the animation drives height,
+                        // and a scroll area needs its height to come from the flex line instead.
+                        // `min-h-0` is what lets it shrink below its content; the rows around it
+                        // hold their size on their own (auto min-height == their fixed row height).
+                        <div className={clsx(GROUP_CHILDREN, "min-h-0 overflow-y-auto")}>
                             {(item.submenu ?? []).map(renderItem)}
                         </div>
-                    </HeightCollapse>
+                    ) : (
+                        <HeightCollapse open={open}>
+                            {/* Guide line marks the group's extent, as the old inline menu did. */}
+                            <div className={GROUP_CHILDREN}>
+                                {(item.submenu ?? []).map(renderItem)}
+                            </div>
+                        </HeightCollapse>
+                    )}
                 </Fragment>
             )
         }
@@ -475,7 +488,16 @@ const NavMenuImpl = ({
     // pt only: each row carries its own 4px trailing margin, so a bottom pad paid it twice
     // and pushed every section after the first 4px further down the rail.
     return (
-        <nav role="menu" className={clsx("flex w-full flex-col pt-1", className)}>
+        <nav
+            role="menu"
+            className={clsx(
+                "flex w-full flex-col pt-1",
+                // A scrolling group only shrinks if its own line can: claim the section's height
+                // and allow shrinking past the content.
+                items.some((item) => item.scrollChildren) && "min-h-0 flex-1",
+                className,
+            )}
+        >
             {items.map(renderItem)}
         </nav>
     )
